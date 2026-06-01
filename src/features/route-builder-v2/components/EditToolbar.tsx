@@ -10,7 +10,7 @@
 
 import { Box, Tooltip, UnstyledButton } from '@mantine/core';
 import { ArrowUUpLeft, ArrowUUpRight, ArrowsLeftRight } from '@phosphor-icons/react';
-import { RB2 } from './brand';
+import { RB2, RB2_FONT } from './brand';
 
 export interface EditToolbarProps {
   canUndo: boolean;
@@ -20,6 +20,10 @@ export interface EditToolbarProps {
   /** When provided, renders a reverse-route button after undo/redo. */
   onReverse?: () => void;
   canReverse?: boolean;
+  /** When provided, renders a units toggle (MI/KM) after reverse. */
+  onToggleUnits?: () => void;
+  /** Whether imperial units are currently active (drives the toggle label). */
+  unitsImperial?: boolean;
 }
 
 export function EditToolbar({
@@ -29,6 +33,8 @@ export function EditToolbar({
   onRedo,
   onReverse,
   canReverse = false,
+  onToggleUnits,
+  unitsImperial = false,
 }: EditToolbarProps) {
   return (
     <Box
@@ -70,6 +76,29 @@ export function EditToolbar({
             onClick={onReverse}
           >
             <ArrowsLeftRight size={18} />
+          </ToolbarButton>
+        </>
+      )}
+      {onToggleUnits && (
+        <>
+          <Box style={{ width: 1, backgroundColor: RB2.border }} />
+          <ToolbarButton
+            label={`Units: ${unitsImperial ? 'miles' : 'kilometers'}`}
+            shortcut={`switch to ${unitsImperial ? 'km' : 'mi'}`}
+            testid="rb2-units-toggle"
+            disabled={false}
+            onClick={onToggleUnits}
+          >
+            <span
+              style={{
+                fontFamily: RB2_FONT.mono,
+                fontSize: 11,
+                fontWeight: 600,
+                letterSpacing: '0.06em',
+              }}
+            >
+              {unitsImperial ? 'MI' : 'KM'}
+            </span>
           </ToolbarButton>
         </>
       )}

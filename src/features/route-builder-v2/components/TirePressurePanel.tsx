@@ -21,6 +21,7 @@ import {
 export interface TirePressurePanelProps {
   /** Route profile (road/gravel/mountain…) used to seed surface + tire width. */
   routeProfile?: string;
+  isImperial?: boolean;
 }
 
 const TIRE_WIDTHS = [25, 28, 32, 40, 47];
@@ -46,7 +47,7 @@ function defaultWidthForProfile(profile?: string): number {
   }
 }
 
-export function TirePressurePanel({ routeProfile }: TirePressurePanelProps) {
+export function TirePressurePanel({ routeProfile, isImperial = false }: TirePressurePanelProps) {
   const [riderWeightKg, setRiderWeightKg] = useState(75);
   const [tireWidthMm, setTireWidthMm] = useState(() => defaultWidthForProfile(routeProfile));
   const [surface, setSurface] = useState<Surface>(() =>
@@ -98,7 +99,7 @@ export function TirePressurePanel({ routeProfile }: TirePressurePanelProps) {
             data-testid="rb2-tire-weight"
             style={{ fontFamily: RB2_FONT.mono, fontSize: 13, color: RB2.textPrimary, minWidth: 48, textAlign: 'center' }}
           >
-            {riderWeightKg} kg
+            {isImperial ? `${Math.round(riderWeightKg * 2.20462)} lb` : `${riderWeightKg} kg`}
           </Text>
           <UnstyledButton
             aria-label="Increase rider weight"

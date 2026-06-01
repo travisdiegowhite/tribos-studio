@@ -22,6 +22,16 @@ import {
   type Surface,
   type Shape,
 } from './useGenerateForm';
+import {
+  toDisplayDistance,
+  fromDisplayDistance,
+  toDisplayElevation,
+  fromDisplayElevation,
+  distanceUnit,
+  elevationUnit,
+  distanceBounds,
+  elevationBounds,
+} from './unitFormInput';
 
 export interface FormPanelHandle {
   expand: () => void;
@@ -36,6 +46,7 @@ export interface FormPanelProps {
   /** Map viewport center, used as a last-resort start_coord fallback. */
   viewportCenter?: Coordinate | null;
   isMobile?: boolean;
+  isImperial?: boolean;
 }
 
 const labelStyle: React.CSSProperties = {
@@ -48,7 +59,7 @@ const labelStyle: React.CSSProperties = {
 };
 
 export const FormPanel = forwardRef<FormPanelHandle, FormPanelProps>(function FormPanel(
-  { generation, defaultStart, locationStatus = 'idle', viewportCenter = null, isMobile = false },
+  { generation, defaultStart, locationStatus = 'idle', viewportCenter = null, isMobile = false, isImperial = false },
   ref,
 ) {
   const [expanded, setExpanded] = useState(false);
@@ -226,42 +237,30 @@ export const FormPanel = forwardRef<FormPanelHandle, FormPanelProps>(function Fo
           </Box>
           <Box style={{ marginTop: 10, display: 'flex', gap: 8 }}>
             <Box style={{ flex: 1 }}>
-              <Text style={labelStyle}>Distance (km)</Text>
+              <Text style={labelStyle}>Distance ({distanceUnit(isImperial)})</Text>
               <NumberInput
-                value={distanceKm}
+                data-testid="rb2-distance-input"
+                value={toDisplayDistance(distanceKm, isImperial)}
                 onChange={(v) => {
-                  if (v === '' || v === null || v === undefined) {
-                    setDistanceKm('');
-                  } else {
-                    const n = typeof v === 'number' ? v : Number(v);
-                    setDistanceKm(Number.isFinite(n) ? n : '');
-                  }
+                  setDistanceKm(fromDisplayDistance(v, isImperial));
                   trackRb2('form_field_changed', { field: 'distance_km' });
                 }}
-                min={1}
-                max={500}
-                step={5}
+                {...distanceBounds(isImperial)}
                 placeholder="auto"
                 disabled={generation.isGenerating}
                 styles={{ input: { borderRadius: 0 } }}
               />
             </Box>
             <Box style={{ flex: 1 }}>
-              <Text style={labelStyle}>Elevation (m)</Text>
+              <Text style={labelStyle}>Elevation ({elevationUnit(isImperial)})</Text>
               <NumberInput
-                value={elevationGainM}
+                data-testid="rb2-elevation-input"
+                value={toDisplayElevation(elevationGainM, isImperial)}
                 onChange={(v) => {
-                  if (v === '' || v === null || v === undefined) {
-                    setElevationGainM('');
-                  } else {
-                    const n = typeof v === 'number' ? v : Number(v);
-                    setElevationGainM(Number.isFinite(n) ? n : '');
-                  }
+                  setElevationGainM(fromDisplayElevation(v, isImperial));
                   trackRb2('form_field_changed', { field: 'elevation_gain_m' });
                 }}
-                min={0}
-                max={10000}
-                step={50}
+                {...elevationBounds(isImperial)}
                 placeholder="auto"
                 disabled={generation.isGenerating}
                 styles={{ input: { borderRadius: 0 } }}

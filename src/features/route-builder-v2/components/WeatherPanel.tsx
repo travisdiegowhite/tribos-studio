@@ -18,10 +18,15 @@ import type { UseRouteWeatherReturn } from '../../../hooks/route-builder';
 
 export interface WeatherPanelProps {
   weather: UseRouteWeatherReturn;
+  isImperial?: boolean;
 }
 
 function cToF(c: number): number {
   return Math.round((c * 9) / 5 + 32);
+}
+
+function kmhToMph(kmh: number): number {
+  return Math.round(kmh * 0.621371);
 }
 
 const WIND_BAR_COLORS: Record<string, string> = {
@@ -30,7 +35,7 @@ const WIND_BAR_COLORS: Record<string, string> = {
   crosswind: RB2.gold,
 };
 
-export function WeatherPanel({ weather }: WeatherPanelProps) {
+export function WeatherPanel({ weather, isImperial = false }: WeatherPanelProps) {
   const { status, error, weather: data, wind, hasRoute, refresh } = weather;
 
   // Fetch on open if we have a route and nothing loaded yet.
@@ -103,10 +108,12 @@ export function WeatherPanel({ weather }: WeatherPanelProps) {
                   color: RB2.textPrimary,
                 }}
               >
-                {data.temperature}°C
+                {isImperial ? `${cToF(data.temperature)}°F` : `${data.temperature}°C`}
               </Text>
               <Text style={{ fontFamily: RB2_FONT.mono, fontSize: 10, color: RB2.textTertiary }}>
-                {cToF(data.temperature)}°F · feels {data.feelsLike}°C
+                {isImperial
+                  ? `${data.temperature}°C · feels ${cToF(data.feelsLike)}°F`
+                  : `${cToF(data.temperature)}°F · feels ${data.feelsLike}°C`}
               </Text>
               <Text
                 style={{
@@ -145,11 +152,11 @@ export function WeatherPanel({ weather }: WeatherPanelProps) {
                 />
               </Box>
               <Text style={{ fontFamily: RB2_FONT.mono, fontSize: 11, color: RB2.textPrimary, marginTop: 4 }}>
-                {data.windSpeed} km/h
+                {isImperial ? `${kmhToMph(data.windSpeed)} mph` : `${data.windSpeed} km/h`}
               </Text>
               <Text style={{ fontFamily: RB2_FONT.mono, fontSize: 10, color: RB2.textTertiary }}>
                 from {data.windDirection}
-                {data.windGust ? ` · gust ${data.windGust}` : ''}
+                {data.windGust ? ` · gust ${isImperial ? kmhToMph(data.windGust) : data.windGust}` : ''}
               </Text>
             </Box>
           </Group>

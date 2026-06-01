@@ -8,6 +8,7 @@ const UserPreferencesContext = createContext({
   unitsPreference: 'imperial',
   loading: true,
   refreshPreferences: () => {},
+  updateUnitsPreference: (_next) => {},
 });
 
 export function UserPreferencesProvider({ children }) {
@@ -51,6 +52,22 @@ export function UserPreferencesProvider({ children }) {
     loadPreferences();
   };
 
+  // Persist a units-preference change to the user's profile. Optimistically
+  // updates local state so the UI flips immediately; the upsert touches only
+  // the units_preference column (mirrors Settings.jsx's user_profiles upsert).
+  const updateUnitsPreference = async (next) => {
+    setUnitsPreference(next);
+    if (!user?.id) return;
+    try {
+      const { error } = await supabase
+        .from('user_profiles')
+        .upsert({ id: user.id, units_preference: next });
+      if (error) console.error('Error saving units preference:', error);
+    } catch (error) {
+      console.error('Error saving units preference:', error);
+    }
+  };
+
   return (
     <UserPreferencesContext.Provider
       value={{
@@ -58,6 +75,7 @@ export function UserPreferencesProvider({ children }) {
         unitsPreference,
         loading,
         refreshPreferences,
+        updateUnitsPreference,
       }}
     >
       {children}

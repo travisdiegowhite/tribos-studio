@@ -33,12 +33,15 @@ vi.mock('../../features/route-builder-v2/components/Map', () => ({
 }));
 
 import RouteBuilder2 from '../RouteBuilder2';
+import { UserPreferencesProvider } from '../../contexts/UserPreferencesContext.jsx';
 
 function renderPage() {
   return render(
     <MantineProvider>
       <MemoryRouter>
-        <RouteBuilder2 />
+        <UserPreferencesProvider>
+          <RouteBuilder2 />
+        </UserPreferencesProvider>
       </MemoryRouter>
     </MantineProvider>,
   );

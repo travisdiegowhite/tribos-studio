@@ -17,6 +17,7 @@
 import { useCallback, useMemo, useRef, useState } from 'react';
 import { Box, Text } from '@mantine/core';
 import { RB2, RB2_FONT } from './brand';
+import { convertDistance } from '../../../utils/units.jsx';
 import type { ElevationPoint } from '../../../hooks/route-builder';
 
 export interface ElevationPanelProps {
@@ -30,6 +31,7 @@ export interface ElevationPanelProps {
   onHoverKm?: (km: number | null) => void;
   /** When true, the card fills its container width (desktop bottom strip). */
   fillWidth?: boolean;
+  isImperial?: boolean;
 }
 
 // Resolution-independent viewBox; the SVG scales to the card width via
@@ -99,11 +101,24 @@ function formatKm(km: number): string {
   return km < 10 ? km.toFixed(1) : Math.round(km).toString();
 }
 
+// Distance label respecting units; mirrors formatKm's compact style.
+function distLabel(km: number, isImperial: boolean): string {
+  const value = isImperial ? convertDistance.kmToMiles(km) : km;
+  const num = value < 10 ? value.toFixed(1) : Math.round(value).toString();
+  return `${num}${isImperial ? 'mi' : 'km'}`;
+}
+
+function elevLabel(m: number, isImperial: boolean): string {
+  const value = isImperial ? convertDistance.mToFt(m) : m;
+  return `${Math.round(value)}${isImperial ? 'ft' : 'm'}`;
+}
+
 export function ElevationPanel({
   profile,
   isMobile = false,
   onHoverKm,
   fillWidth = false,
+  isImperial = false,
 }: ElevationPanelProps) {
   const svgRef = useRef<SVGSVGElement | null>(null);
   const [hoverIdx, setHoverIdx] = useState<number | null>(null);
@@ -194,8 +209,8 @@ export function ElevationPanel({
           }}
         >
           {hoverPoint
-            ? `${formatKm(hoverPoint.distance_km)}km · ${Math.round(hoverPoint.elevation_m)}m`
-            : `↑ ${Math.round(scales.gainM)}m`}
+            ? `${distLabel(hoverPoint.distance_km, isImperial)} · ${elevLabel(hoverPoint.elevation_m, isImperial)}`
+            : `↑ ${elevLabel(scales.gainM, isImperial)}`}
         </Text>
       </Box>
 
@@ -209,7 +224,7 @@ export function ElevationPanel({
         onPointerLeave={handlePointerLeave}
         style={{ display: 'block', touchAction: 'none', cursor: 'crosshair' }}
         role="img"
-        aria-label={`Elevation profile, ${Math.round(scales.gainM)} meters of climbing over ${formatKm(scales.totalKm)} kilometers`}
+        aria-label={`Elevation profile, ${Math.round(isImperial ? convertDistance.mToFt(scales.gainM) : scales.gainM)} ${isImperial ? 'feet' : 'meters'} of climbing over ${isImperial ? convertDistance.kmToMiles(scales.totalKm).toFixed(1) : formatKm(scales.totalKm)} ${isImperial ? 'miles' : 'kilometers'}`}
       >
         <path d={paths.area} fill={RB2.teal} fillOpacity={0.12} stroke="none" />
         <path
@@ -240,7 +255,7 @@ export function ElevationPanel({
       <Box style={{ display: 'flex', justifyContent: 'space-between', marginTop: 2 }}>
         <Text style={{ fontFamily: RB2_FONT.mono, fontSize: 9, color: RB2.textTertiary }}>0</Text>
         <Text style={{ fontFamily: RB2_FONT.mono, fontSize: 9, color: RB2.textTertiary }}>
-          {formatKm(scales.totalKm)}km
+          {distLabel(scales.totalKm, isImperial)}
         </Text>
       </Box>
     </Box>

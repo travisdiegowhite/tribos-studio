@@ -35,4 +35,20 @@ describe('StatsOverlay', () => {
     renderOverlay({ distance_km: 8.4, elevation_gain_m: 100, duration_s: 1800 });
     expect(screen.getByTestId('rb2-stats-overlay')).toHaveTextContent('8.4km');
   });
+
+  it('renders miles and feet when imperial', () => {
+    render(
+      <MantineProvider>
+        <StatsOverlay
+          stats={{ distance_km: 80.47, elevation_gain_m: 1000, duration_s: 7320 }}
+          routeName="Imperial Loop"
+          isImperial
+        />
+      </MantineProvider>,
+    );
+    const card = screen.getByTestId('rb2-stats-overlay');
+    expect(card).toHaveTextContent('50mi'); // 80.47 km ≈ 50 mi
+    expect(card).toHaveTextContent('3281ft'); // 1000 m ≈ 3281 ft
+    expect(card).not.toHaveTextContent('km');
+  });
 });

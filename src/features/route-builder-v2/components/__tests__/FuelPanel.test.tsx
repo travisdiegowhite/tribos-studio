@@ -23,6 +23,13 @@ describe('FuelPanel', () => {
     expect(screen.getByTestId('rb2-fuel-fluid')).toHaveTextContent(/ml\/hr/);
   });
 
+  it('shows oz/hr as the primary hydration unit when imperial', () => {
+    renderPanel({ isImperial: true });
+    const fluid = screen.getByTestId('rb2-fuel-fluid');
+    expect(fluid).toHaveTextContent(/oz\/hr/);
+    expect(fluid).toHaveTextContent(/ml$|ml\b/); // ml shown as secondary
+  });
+
   it('recomputes when the intensity chip changes', () => {
     renderPanel();
     const before = screen.getByTestId('rb2-fuel-carbs').textContent;

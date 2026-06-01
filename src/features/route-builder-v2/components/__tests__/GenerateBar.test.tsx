@@ -30,10 +30,12 @@ function Harness({
   generation,
   defaultStart = [-105.27, 40.01] as Coordinate,
   initialExpanded = false,
+  isImperial = false,
 }: {
   generation: UseAIGenerationReturn;
   defaultStart?: Coordinate | null;
   initialExpanded?: boolean;
+  isImperial?: boolean;
 }) {
   const [expanded, setExpanded] = useState(initialExpanded);
   return (
@@ -43,6 +45,7 @@ function Harness({
         defaultStart={defaultStart}
         expanded={expanded}
         onExpandedChange={setExpanded}
+        isImperial={isImperial}
       />
     </MantineProvider>
   );
@@ -80,5 +83,20 @@ describe('GenerateBar', () => {
   it('surfaces a generation error', () => {
     render(<Harness generation={makeGen({ lastError: 'Boom' })} initialExpanded />);
     expect(screen.getByTestId('rb2-generate-bar-error')).toHaveTextContent('Boom');
+  });
+
+  it('labels inputs in miles and stores a typed value as canonical km', async () => {
+    const generation = makeGen();
+    render(<Harness generation={generation} initialExpanded isImperial />);
+    expect(screen.getByText('Distance (mi)')).toBeInTheDocument();
+    expect(screen.getByText('Elevation (ft)')).toBeInTheDocument();
+
+    fireEvent.change(screen.getByTestId('rb2-distance-input'), { target: { value: '30' } });
+    fireEvent.click(screen.getByTestId('rb2-generate-bar-submit'));
+
+    await waitFor(() => expect(generation.generate).toHaveBeenCalledTimes(1));
+    const [arg] = (generation.generate as ReturnType<typeof vi.fn>).mock.calls[0];
+    // 30 mi → ~48.3 km stored canonically.
+    expect(arg.distance_km).toBeCloseTo(48.28, 1);
   });
 });

@@ -23,6 +23,7 @@ import {
 } from '../hooks/route-builder';
 import { useRouteBuilderStore } from '../stores/routeBuilderStore';
 import { useAuth } from '../contexts/AuthContext.jsx';
+import { useUserPreferences } from '../contexts/UserPreferencesContext.jsx';
 import { useCoachCheckIn } from '../hooks/useCoachCheckIn';
 import type { PersonaId } from '../types/checkIn';
 import {
@@ -96,6 +97,11 @@ export default function RouteBuilder2() {
   const navigate = useNavigate();
   const { routeId: routeIdFromUrl } = useParams<{ routeId?: string }>();
   const { user } = useAuth() as { user: { id: string } | null };
+  const { unitsPreference, updateUnitsPreference } = useUserPreferences() as {
+    unitsPreference: string;
+    updateUnitsPreference: (next: 'imperial' | 'metric') => void;
+  };
+  const isImperial = unitsPreference === 'imperial';
   const generation = useAIGeneration();
   const editing = useRouteEditing();
   const map = useMapInteraction();
@@ -453,6 +459,7 @@ export default function RouteBuilder2() {
         }}
         routeName={routeName}
         onClear={handleClearRoute}
+        isImperial={isImperial}
       />
     ) : null;
 
@@ -538,7 +545,7 @@ export default function RouteBuilder2() {
         label: 'Weather',
         icon: <CloudSun size={20} weight="duotone" />,
         disabled: !hasRoute,
-        panel: <WeatherPanel weather={weather} />,
+        panel: <WeatherPanel weather={weather} isImperial={isImperial} />,
       },
       {
         id: 'fuel',
@@ -550,6 +557,7 @@ export default function RouteBuilder2() {
             durationMinutes={(routeStats?.duration_s ?? 0) / 60}
             elevationGainMeters={routeStats?.elevation_gain_m ?? 0}
             weather={weather.weather}
+            isImperial={isImperial}
           />
         ),
       },
@@ -559,7 +567,7 @@ export default function RouteBuilder2() {
         id: 'tire',
         label: 'Tire PSI',
         icon: <Gauge size={20} weight="duotone" />,
-        panel: <TirePressurePanel routeProfile={routeProfile} />,
+        panel: <TirePressurePanel routeProfile={routeProfile} isImperial={isImperial} />,
       },
       {
         // Always enabled: Load and Import GPX are entry points that work with
@@ -626,6 +634,10 @@ export default function RouteBuilder2() {
                       onRedo={history.redo}
                       onReverse={() => void map.handleReverseRoute()}
                       canReverse={waypointsForMap.length >= 2}
+                      unitsImperial={isImperial}
+                      onToggleUnits={() =>
+                        void updateUnitsPreference(isImperial ? 'metric' : 'imperial')
+                      }
                     />
                   </Box>
                 )}
@@ -639,6 +651,7 @@ export default function RouteBuilder2() {
                   collapsed={elevationCollapsed}
                   onCollapsedChange={setElevationCollapsed}
                   onHoverKm={setHoverKm}
+                  isImperial={isImperial}
                 />
               ) : undefined
             }
@@ -659,6 +672,7 @@ export default function RouteBuilder2() {
                     viewportCenter={viewportCenter}
                     expanded={generateExpanded}
                     onExpandedChange={setGenerateExpanded}
+                    isImperial={isImperial}
                   />
                 }
               />
@@ -707,6 +721,10 @@ export default function RouteBuilder2() {
                 onRedo={history.redo}
                 onReverse={() => void map.handleReverseRoute()}
                 canReverse={waypointsForMap.length >= 2}
+                unitsImperial={isImperial}
+                onToggleUnits={() =>
+                  void updateUnitsPreference(isImperial ? 'metric' : 'imperial')
+                }
               />
             ) : (
               <span />
@@ -729,6 +747,7 @@ export default function RouteBuilder2() {
               profile={analysis.elevationProfile}
               isMobile
               onHoverKm={setHoverKm}
+              isImperial={isImperial}
             />
           )}
           <FormPanel
@@ -738,6 +757,7 @@ export default function RouteBuilder2() {
             locationStatus={userLocation.status}
             viewportCenter={viewportCenter}
             isMobile
+            isImperial={isImperial}
           />
           <LayerToggles
             visibility={visibility}
@@ -761,7 +781,7 @@ export default function RouteBuilder2() {
                 boxShadow: RB2.shadowCard,
               }}
             >
-              <WeatherPanel weather={weather} />
+              <WeatherPanel weather={weather} isImperial={isImperial} />
             </Box>
           )}
           {hasRoute && (
@@ -777,6 +797,7 @@ export default function RouteBuilder2() {
                 durationMinutes={(routeStats?.duration_s ?? 0) / 60}
                 elevationGainMeters={routeStats?.elevation_gain_m ?? 0}
                 weather={weather.weather}
+                isImperial={isImperial}
               />
             </Box>
           )}
@@ -789,7 +810,7 @@ export default function RouteBuilder2() {
                 boxShadow: RB2.shadowCard,
               }}
             >
-              <TirePressurePanel routeProfile={routeProfile} />
+              <TirePressurePanel routeProfile={routeProfile} isImperial={isImperial} />
             </Box>
           )}
           <RouteActionsPanel
