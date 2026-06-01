@@ -42,6 +42,7 @@ import {
   WaypointListPanel,
   LocationSearch,
   WeatherPanel,
+  FuelPanel,
   PersonaDropdown,
   ChatShell,
   EmptyState,
@@ -60,7 +61,7 @@ import {
   type ChatMessage,
   type FormPanelControl,
 } from '../features/route-builder-v2/chat';
-import { Stack as StackIcon, MapPin, FolderOpen, MagnifyingGlass, CloudSun } from '@phosphor-icons/react';
+import { Stack as StackIcon, MapPin, FolderOpen, MagnifyingGlass, CloudSun, ForkKnife } from '@phosphor-icons/react';
 import { supabase } from '../lib/supabase';
 import { SurfaceLayer } from '../features/route-builder-v2/layers/SurfaceLayer';
 import { GradientLayer } from '../features/route-builder-v2/layers/GradientLayer';
@@ -517,6 +518,19 @@ export default function RouteBuilder2() {
         panel: <WeatherPanel weather={weather} />,
       },
       {
+        id: 'fuel',
+        label: 'Fuel',
+        icon: <ForkKnife size={20} weight="duotone" />,
+        disabled: !hasRoute,
+        panel: (
+          <FuelPanel
+            durationMinutes={(routeStats?.duration_s ?? 0) / 60}
+            elevationGainMeters={routeStats?.elevation_gain_m ?? 0}
+            weather={weather.weather}
+          />
+        ),
+      },
+      {
         // Always enabled: Load and Import GPX are entry points that work with
         // no current route (Save/Export disable themselves inside the panel).
         id: 'routes',
@@ -716,6 +730,22 @@ export default function RouteBuilder2() {
               }}
             >
               <WeatherPanel weather={weather} />
+            </Box>
+          )}
+          {hasRoute && (
+            <Box
+              style={{
+                backgroundColor: RB2.cardBg,
+                border: `1px solid ${RB2.border}`,
+                padding: '10px 12px',
+                boxShadow: RB2.shadowCard,
+              }}
+            >
+              <FuelPanel
+                durationMinutes={(routeStats?.duration_s ?? 0) / 60}
+                elevationGainMeters={routeStats?.elevation_gain_m ?? 0}
+                weather={weather.weather}
+              />
             </Box>
           )}
           <RouteActionsPanel

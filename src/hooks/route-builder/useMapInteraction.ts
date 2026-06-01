@@ -409,10 +409,14 @@ export function useMapInteraction(): UseMapInteractionReturn {
         const next = [...waypoints];
         const [moved] = next.splice(fromIndex, 1);
         next.splice(toIndex, 0, moved);
-        return reassignTypes(next);
+        const reassigned = reassignTypes(next);
+        // v1's snapToRoads reroutes geometry from the passed list but never
+        // writes the waypoint array back, so persist the new order ourselves.
+        setWaypoints(reassigned);
+        return reassigned;
       });
     },
-    [runManual, waypoints],
+    [runManual, waypoints, setWaypoints],
   );
 
   // Reverse is a pure-geometry transform on v1's side — no router call,
