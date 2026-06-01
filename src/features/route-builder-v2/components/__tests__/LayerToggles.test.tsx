@@ -6,6 +6,7 @@ import { LayerToggles, type LayerVisibilityState } from '../LayerToggles';
 const initialVisibility: LayerVisibilityState = {
   surface: false,
   gradient: false,
+  wind: false,
   poi: false,
   bikeInfra: false,
   familiar: false,
@@ -44,6 +45,16 @@ describe('LayerToggles', () => {
     expect(switches.length).toBeGreaterThanOrEqual(4);
     fireEvent.click(switches[0] as HTMLInputElement);
     expect(props.onToggle).toHaveBeenCalledWith('surface', true);
+  });
+
+  it('fires onToggle for the wind layer', () => {
+    const { props } = renderToggles();
+    const switches = screen
+      .getByTestId('rb2-layer-toggles')
+      .querySelectorAll('input[type="checkbox"]');
+    // Order: surface, gradient, wind, bikeInfra, familiar, poi.
+    fireEvent.click(switches[2] as HTMLInputElement);
+    expect(props.onToggle).toHaveBeenCalledWith('wind', true);
   });
 
   it('disables the familiar-segments toggle when no Strava connection', () => {

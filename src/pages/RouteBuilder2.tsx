@@ -42,6 +42,7 @@ import {
   WaypointListPanel,
   LocationSearch,
   WeatherPanel,
+  WindLegend,
   FuelPanel,
   TirePressurePanel,
   PersonaDropdown,
@@ -69,6 +70,7 @@ import { GradientLayer } from '../features/route-builder-v2/layers/GradientLayer
 import { POILayer } from '../features/route-builder-v2/layers/POILayer';
 import { BikeInfraLayer } from '../features/route-builder-v2/layers/BikeInfraLayer';
 import { FamiliarSegmentsLayer } from '../features/route-builder-v2/layers/FamiliarSegmentsLayer';
+import { WindArrowsLayer } from '../features/route-builder-v2/layers/WindArrowsLayer';
 import { trackRb2 } from '../features/route-builder-v2/telemetry/trackRb2';
 import { coordinateAtDistanceKm } from '../utils/elevation';
 import type { Coordinate } from '../types/geo';
@@ -76,6 +78,7 @@ import type { Coordinate } from '../types/geo';
 const DEFAULT_VISIBILITY: LayerVisibilityState = {
   surface: false,
   gradient: false,
+  wind: false,
   poi: false,
   bikeInfra: false,
   familiar: false,
@@ -354,6 +357,11 @@ export default function RouteBuilder2() {
 
   const handleVisibilityToggle = (key: keyof LayerVisibilityState, next: boolean) => {
     setVisibility((prev) => ({ ...prev, [key]: next }));
+    // The wind overlay needs weather data — fetch it lazily on first enable,
+    // the same data the Weather panel uses (shared hook, so it's cached).
+    if (key === 'wind' && next && weather.status === 'idle') {
+      void weather.refresh();
+    }
   };
 
   const handlePoiLayerToggle = (layer: Parameters<typeof analysis.togglePOILayer>[0]) => {
@@ -425,6 +433,13 @@ export default function RouteBuilder2() {
       )}
       {visibility.bikeInfra && <BikeInfraLayer bbox={viewportBbox} visible />}
       {visibility.familiar && <FamiliarSegmentsLayer bbox={viewportBbox} visible />}
+      {visibility.wind && weather.weather && geometryForLayers && (
+        <WindArrowsLayer
+          coordinates={geometryForLayers.coordinates}
+          windDegrees={weather.weather.windDegrees}
+          windSpeed={weather.weather.windSpeed}
+        />
+      )}
     </Map>
   );
 
@@ -465,6 +480,7 @@ export default function RouteBuilder2() {
         badge:
           (visibility.surface ? 1 : 0) +
           (visibility.gradient ? 1 : 0) +
+          (visibility.wind ? 1 : 0) +
           (visibility.bikeInfra ? 1 : 0) +
           (visibility.familiar ? 1 : 0) +
           (visibility.poi ? 1 : 0),
@@ -486,6 +502,11 @@ export default function RouteBuilder2() {
             {visibility.surface && hasRoute && (
               <Box style={{ marginTop: 10 }}>
                 <SurfaceSummaryBar segments={surfaceSegments} isMobile />
+              </Box>
+            )}
+            {visibility.wind && hasRoute && (
+              <Box style={{ marginTop: 10 }}>
+                <WindLegend weather={weather} isMobile />
               </Box>
             )}
           </>
@@ -730,6 +751,7 @@ export default function RouteBuilder2() {
           {visibility.surface && hasRoute && (
             <SurfaceSummaryBar segments={surfaceSegments} isMobile />
           )}
+          {visibility.wind && hasRoute && <WindLegend weather={weather} isMobile />}
           {hasRoute && (
             <Box
               style={{
