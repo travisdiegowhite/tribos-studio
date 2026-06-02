@@ -100,6 +100,7 @@ export const ROUTE_EDIT_TOOLS = [
 // v1 intents the client's applyRouteEdit can execute today.
 const IMPLEMENTED_INTENTS = new Set([
   'flatten',
+  'add_climbing',
   'surface_gravel',
   'surface_paved',
   'scenic',
@@ -109,20 +110,31 @@ const IMPLEMENTED_INTENTS = new Set([
   'avoid',
   'detour',
   'reverse',
+  'shift_direction',
+  'add_waypoint',
 ]);
 
 // Conversational-only intents — defined in the schema so Claude can
 // reach for them, but not yet wired to geometry. normalizeRouteEdit
 // rejects these so Claude recovers gracefully (picks a real intent or
-// tells the rider it can't do that yet).
-const DEFERRED_INTENTS = new Set([
-  'add_climbing',
-  'shift_direction',
-  'add_waypoint',
+// tells the rider it can't do that yet). Currently empty — all schema
+// intents are implemented — but the guard stays for future deferrals.
+const DEFERRED_INTENTS = new Set([]);
+
+const VALID_DIRECTIONS = new Set([
+  'north',
+  'south',
+  'east',
+  'west',
+  'northeast',
+  'northwest',
+  'southeast',
+  'southwest',
 ]);
 
 const SIMPLE_SUMMARY = {
   flatten: 'Re-route to minimize climbing',
+  add_climbing: 'Re-route to add more climbing',
   surface_gravel: 'Shift the route toward gravel and unpaved paths',
   surface_paved: 'Shift the route toward paved surfaces',
   scenic: 'Prefer bike paths and quieter roads',
@@ -164,6 +176,7 @@ export function normalizeRouteEdit(input, routeSnapshot) {
 
   switch (intent) {
     case 'flatten':
+    case 'add_climbing':
     case 'surface_gravel':
     case 'surface_paved':
     case 'scenic':
@@ -176,6 +189,56 @@ export function normalizeRouteEdit(input, routeSnapshot) {
         reasoning,
         summary: SIMPLE_SUMMARY[intent],
       };
+
+    case 'shift_direction': {
+      const direction =
+        typeof input.direction === 'string' ? input.direction.trim().toLowerCase() : '';
+      if (!VALID_DIRECTIONS.has(direction)) {
+        return {
+          ok: false,
+          reason:
+            'the "shift_direction" edit needs a compass direction — ask the ' +
+            'rider which way to bias the route (e.g. north, southwest)',
+        };
+      }
+      return {
+        ok: true,
+        intent,
+        editIntent: { intent, direction },
+        reasoning,
+        summary: `Shift the route toward the ${direction}`,
+      };
+    }
+
+    case 'add_waypoint': {
+      const coords = input.waypoint_coords;
+      const lng = Array.isArray(coords) ? Number(coords[0]) : NaN;
+      const lat = Array.isArray(coords) ? Number(coords[1]) : NaN;
+      const valid =
+        Array.isArray(coords) &&
+        coords.length === 2 &&
+        Number.isFinite(lng) &&
+        Number.isFinite(lat) &&
+        lng >= -180 &&
+        lng <= 180 &&
+        lat >= -90 &&
+        lat <= 90;
+      if (!valid) {
+        return {
+          ok: false,
+          reason:
+            'the "add_waypoint" edit needs a valid [longitude, latitude] ' +
+            'coordinate to route through',
+        };
+      }
+      return {
+        ok: true,
+        intent,
+        editIntent: { intent, waypoint: [lng, lat] },
+        reasoning,
+        summary: 'Route through the added waypoint',
+      };
+    }
 
     case 'shorter':
     case 'longer': {
