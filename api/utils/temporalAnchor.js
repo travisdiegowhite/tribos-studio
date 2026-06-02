@@ -197,15 +197,31 @@ export function buildTemporalAnchor(timezone, plannedWorkouts = [], raceGoals = 
     anchorLines.push(`  ${label.padEnd(12)} → ${prettyDate(dateStr, safeTz)}${goalSuffix}`);
   }
 
-  // DAYS_UNTIL for race goals within 90 days
+  // DAYS_UNTIL for race goals within 90 days, plus the anchor race (soonest
+  // A-priority goal; falls back to the soonest upcoming goal). The anchor race
+  // gives the coach an unambiguous date to copy into create_training_plan's
+  // target_event_date when periodizing toward an event.
   const daysUntilLines = [];
+  let anchorRace = null; // { goal, diffDays }
   for (const goal of (raceGoals || [])) {
     if (!goal.race_date) continue;
     const goalNoon = noonUTCFor(goal.race_date);
     const diffDays = Math.round((goalNoon.getTime() - todayNoon.getTime()) / (24 * 60 * 60 * 1000));
-    if (diffDays >= 0 && diffDays <= 90) {
+    if (diffDays < 0) continue;
+    const priority = (goal.priority || '').toUpperCase();
+
+    if (diffDays <= 90) {
       const key = goal.name.toLowerCase().replace(/\s+/g, '_');
-      daysUntilLines.push(`  ${key}: ${diffDays}`);
+      const prioritySuffix = priority ? ` (Priority ${priority})` : '';
+      daysUntilLines.push(`  ${key}: ${diffDays}${prioritySuffix}`);
+    }
+
+    // raceGoals arrives sorted by race_date ascending, so the first A we see is
+    // the soonest A. A-priority always wins; otherwise keep the soonest upcoming.
+    if (priority === 'A') {
+      if (!anchorRace || anchorRace.priority !== 'A') anchorRace = { goal, diffDays, priority };
+    } else if (!anchorRace) {
+      anchorRace = { goal, diffDays, priority };
     }
   }
 
@@ -238,6 +254,14 @@ export function buildTemporalAnchor(timezone, plannedWorkouts = [], raceGoals = 
 
   if (daysUntilLines.length > 0) {
     lines.push('', 'DAYS_UNTIL:', ...daysUntilLines);
+  }
+
+  if (anchorRace) {
+    const label = anchorRace.priority === 'A' ? 'NEXT_A_RACE' : 'NEXT_RACE';
+    lines.push(
+      '',
+      `${label}: ${anchorRace.goal.name} ${anchorRace.goal.race_date} (${anchorRace.diffDays} days)`
+    );
   }
 
   if (sessionLines.length > 0) {
