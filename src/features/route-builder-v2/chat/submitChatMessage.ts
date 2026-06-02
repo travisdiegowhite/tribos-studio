@@ -24,6 +24,11 @@ interface ConversationTurn {
 
 type ApplyAIEditImpl = typeof applyAIEditViaCoach;
 
+/** Outcome of a chat-driven fresh-route generation (RB1's NL builder). */
+export type GenerateOutcome =
+  | { ok: true; distance_km: number; elevation_gain_m: number; name?: string }
+  | { ok: false; reason: 'no_start' | string };
+
 export interface SubmitChatMessageArgs {
   input: string;
   hasRoute: boolean;
@@ -37,6 +42,12 @@ export interface SubmitChatMessageArgs {
   persistTurn?: (userText: string, assistantText: string) => Promise<void>;
   /** Test seam — defaults to the real `applyAIEditViaCoach`. */
   applyAIEditImpl?: ApplyAIEditImpl;
+  /**
+   * Generate a fresh route from the prompt (RB1's NL builder, wired by the
+   * page). When provided, build/create phrasing — or any prompt while no route
+   * exists — generates instead of just opening the form.
+   */
+  onGenerateFromPrompt?: (prompt: string) => Promise<GenerateOutcome>;
 }
 
 const COLD_START_PATTERN =
@@ -54,6 +65,7 @@ export async function submitChatMessage(args: SubmitChatMessageArgs): Promise<vo
     formPanelControl,
     persistTurn,
     applyAIEditImpl = applyAIEditViaCoach,
+    onGenerateFromPrompt,
   } = args;
 
   const trimmed = input.trim();
@@ -62,7 +74,52 @@ export async function submitChatMessage(args: SubmitChatMessageArgs): Promise<vo
   append({ role: 'user', text: trimmed });
   trackRb2('chat_message_submitted', { input_length: trimmed.length });
 
-  // Cold start — unchanged.
+  // Generate a fresh route when the user asks to build/create one, or whenever
+  // there's no route yet (nothing to edit). Mirrors RB1's NL builder.
+  const wantsGenerate = COLD_START_PATTERN.test(trimmed) || !hasRoute;
+  if (wantsGenerate && onGenerateFromPrompt) {
+    setProcessing(true);
+    try {
+      const result = await onGenerateFromPrompt(trimmed);
+      if (result.ok) {
+        const assistantText = `Built you a ${result.distance_km}km route — ${result.elevation_gain_m}m climbing. Want me to tweak it?`;
+        append({ role: 'assistant', text: assistantText });
+        trackRb2('chat_route_generated', {
+          input_length: trimmed.length,
+          distance_km: result.distance_km,
+          elevation_gain_m: result.elevation_gain_m,
+        });
+        if (persistTurn) await persistTurn(trimmed, assistantText);
+      } else if (result.reason === 'no_start') {
+        append({
+          role: 'assistant',
+          text: 'I need a starting point — open the form to set one, then I can build it.',
+        });
+        formPanelControl.expand();
+        markRefused();
+        trackRb2('chat_route_generation_failed', { failure_reason: 'no_start' });
+      } else {
+        append({
+          role: 'assistant',
+          text: "Couldn't generate that — want to try the form instead?",
+        });
+        formPanelControl.expand();
+        trackRb2('chat_route_generation_failed', {
+          failure_reason: String(result.reason).slice(0, 200),
+        });
+      }
+    } catch (e) {
+      const errName = e instanceof Error ? e.name : 'unknown';
+      append({ role: 'assistant', text: "Couldn't generate that — want to try the form instead?" });
+      formPanelControl.expand();
+      trackRb2('chat_error', { error_name: errName });
+    } finally {
+      setProcessing(false);
+    }
+    return;
+  }
+
+  // Cold start without a generator wired (legacy / tests) — open the form.
   if (COLD_START_PATTERN.test(trimmed)) {
     append({
       role: 'assistant',

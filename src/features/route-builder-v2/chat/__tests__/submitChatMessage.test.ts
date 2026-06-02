@@ -158,6 +158,96 @@ describe('submitChatMessage — edit failure', () => {
   });
 });
 
+describe('submitChatMessage — generate fresh route', () => {
+  it('build phrasing calls the generator and reports the new route', async () => {
+    const onGenerateFromPrompt = vi.fn().mockResolvedValue({
+      ok: true,
+      distance_km: 40,
+      elevation_gain_m: 520,
+      name: 'Hilly 40km loop',
+    });
+    const { args, append, persistTurn, applyAIEditImpl } = makeArgs({
+      input: 'build me a hilly 40km loop from downtown',
+      onGenerateFromPrompt,
+    });
+
+    await submitChatMessage(args);
+
+    expect(onGenerateFromPrompt).toHaveBeenCalledWith('build me a hilly 40km loop from downtown');
+    expect(applyAIEditImpl).not.toHaveBeenCalled();
+    const lastCall = append.mock.calls[append.mock.calls.length - 1][0];
+    expect(lastCall.role).toBe('assistant');
+    expect(lastCall.text).toContain('40km');
+    expect(lastCall.text).toContain('520m');
+    expect(persistTurn).toHaveBeenCalledWith(
+      'build me a hilly 40km loop from downtown',
+      lastCall.text,
+    );
+  });
+
+  it('generates from any prompt when there is no route (non-build phrasing)', async () => {
+    const onGenerateFromPrompt = vi.fn().mockResolvedValue({
+      ok: true,
+      distance_km: 18,
+      elevation_gain_m: 90,
+    });
+    const { args, applyAIEditImpl } = makeArgs({
+      input: 'something flat and easy',
+      hasRoute: false,
+      onGenerateFromPrompt,
+    });
+
+    await submitChatMessage(args);
+
+    expect(onGenerateFromPrompt).toHaveBeenCalledTimes(1);
+    expect(applyAIEditImpl).not.toHaveBeenCalled();
+  });
+
+  it('asks for a start and opens the form when start is unresolved', async () => {
+    const onGenerateFromPrompt = vi.fn().mockResolvedValue({ ok: false, reason: 'no_start' });
+    const { args, append, expand, markRefused } = makeArgs({
+      input: 'build me a ride',
+      onGenerateFromPrompt,
+    });
+
+    await submitChatMessage(args);
+
+    expect(expand).toHaveBeenCalledTimes(1);
+    expect(markRefused).toHaveBeenCalled();
+    const lastCall = append.mock.calls[append.mock.calls.length - 1][0];
+    expect(lastCall.text).toMatch(/starting point/i);
+  });
+
+  it('falls back to the form on a generic generation failure', async () => {
+    const onGenerateFromPrompt = vi.fn().mockResolvedValue({ ok: false, reason: 'routing_failed' });
+    const { args, append, expand } = makeArgs({
+      input: 'create a loop',
+      onGenerateFromPrompt,
+    });
+
+    await submitChatMessage(args);
+
+    expect(expand).toHaveBeenCalledTimes(1);
+    const lastCall = append.mock.calls[append.mock.calls.length - 1][0];
+    expect(lastCall.text).toMatch(/form/i);
+  });
+
+  it('still edits an existing route for non-build phrasing', async () => {
+    const onGenerateFromPrompt = vi.fn();
+    const { args, applyAIEditImpl } = makeArgs({
+      input: 'make it flatter',
+      hasRoute: true,
+      onGenerateFromPrompt,
+    });
+    applyAIEditImpl.mockResolvedValue({ ok: true, assistantText: 'ok', routeChanged: false });
+
+    await submitChatMessage(args);
+
+    expect(onGenerateFromPrompt).not.toHaveBeenCalled();
+    expect(applyAIEditImpl).toHaveBeenCalledTimes(1);
+  });
+});
+
 describe('submitChatMessage — error path', () => {
   it('catches thrown errors and resets processing', async () => {
     const { args, append, setProcessing, applyAIEditImpl } = makeArgs({
