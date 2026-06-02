@@ -7,7 +7,7 @@
  */
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Box } from '@mantine/core';
+import { Box, Text } from '@mantine/core';
 import { useMediaQuery } from '@mantine/hooks';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import AppShell from '../components/AppShell.jsx';
@@ -53,6 +53,7 @@ import {
   ErrorState,
   RouteActionsPanel,
   RB2,
+  RB2_FONT,
   type LayerVisibilityState,
   type FormPanelHandle,
   type RailItem,
@@ -168,6 +169,9 @@ export default function RouteBuilder2() {
   const routeStats = useRouteBuilderStore((s) => s.routeStats);
   const routeName = useRouteBuilderStore((s) => s.routeName);
   const routeProfile = useRouteBuilderStore((s) => s.routeProfile);
+  const setRouteProfile = useRouteBuilderStore((s) => s.setRouteProfile);
+  const snapToRoads = useRouteBuilderStore((s) => s.snapToRoads);
+  const setSnapToRoads = useRouteBuilderStore((s) => s.setSnapToRoads);
   const waypoints = useRouteBuilderStore((s) => s.waypoints);
   const viewport = useRouteBuilderStore((s) => s.viewport);
   const setWaypointsInStore = useRouteBuilderStore((s) => s.setWaypoints);
@@ -298,6 +302,35 @@ export default function RouteBuilder2() {
     lastAppliedRef.current = null;
     trackRb2('route_cleared', {});
   };
+
+  // Anything on the map worth clearing? Drives the always-visible Clear button.
+  const canClearMap =
+    (Array.isArray(waypoints) && waypoints.length > 0) ||
+    !!(routeGeometry as { coordinates?: unknown[] } | null)?.coordinates?.length;
+
+  const handleToggleSnap = () => {
+    setSnapToRoads(!snapToRoads);
+    trackRb2('snap_toggled', { snap_enabled: !snapToRoads });
+  };
+  const handleChangeProfile = (profile: string) => {
+    setRouteProfile(profile);
+    trackRb2('route_profile_changed', { profile });
+  };
+
+  // Recompute geometry for existing waypoints when the snap mode or routing
+  // profile changes (skip the initial mount). Runs post-render so the manual
+  // hook reads the fresh store values.
+  const settingsRebuildRef = useRef(true);
+  useEffect(() => {
+    if (settingsRebuildRef.current) {
+      settingsRebuildRef.current = false;
+      return;
+    }
+    if (Array.isArray(waypoints) && waypoints.length >= 2) {
+      void map.rebuildRoute();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [snapToRoads, routeProfile]);
 
   const hasRouteForChat =
     !!routeGeometry?.coordinates && routeGeometry.coordinates.length > 0;
@@ -523,6 +556,7 @@ export default function RouteBuilder2() {
       }
       waypoints={waypointsForMap}
       highlightCoord={highlightCoord}
+      cursor={hasRoute ? undefined : 'crosshair'}
     >
       {visibility.surface && (
         <SurfaceLayer geometry={geometryForLayers} onSegments={setSurfaceSegments} />
@@ -731,30 +765,39 @@ export default function RouteBuilder2() {
                 <Box style={{ position: 'absolute', top: 12, right: 12, zIndex: 25 }}>
                   <PersonaDropdown persona={coach.persona} onChange={onPersonaChange} />
                 </Box>
-                {(hasRoute || history.canUndo || history.canRedo) && (
-                  <Box
-                    style={{
-                      position: 'absolute',
-                      top: 12,
-                      left: '50%',
-                      transform: 'translateX(-50%)',
-                      zIndex: 25,
-                    }}
-                  >
-                    <EditToolbar
-                      canUndo={history.canUndo}
-                      canRedo={history.canRedo}
-                      onUndo={history.undo}
-                      onRedo={history.redo}
-                      onReverse={() => void map.handleReverseRoute()}
-                      canReverse={waypointsForMap.length >= 2}
-                      unitsImperial={isImperial}
-                      onToggleUnits={() =>
-                        void updateUnitsPreference(isImperial ? 'metric' : 'imperial')
-                      }
-                    />
-                  </Box>
-                )}
+                <Box
+                  style={{
+                    position: 'absolute',
+                    top: 12,
+                    left: '50%',
+                    transform: 'translateX(-50%)',
+                    zIndex: 25,
+                    display: 'flex',
+                    flexDirection: 'column',
+                    alignItems: 'center',
+                    gap: 6,
+                  }}
+                >
+                  <EditToolbar
+                    canUndo={history.canUndo}
+                    canRedo={history.canRedo}
+                    onUndo={history.undo}
+                    onRedo={history.redo}
+                    onReverse={() => void map.handleReverseRoute()}
+                    canReverse={waypointsForMap.length >= 2}
+                    onToggleSnap={handleToggleSnap}
+                    snapEnabled={snapToRoads}
+                    routeProfile={routeProfile}
+                    onChangeProfile={handleChangeProfile}
+                    unitsImperial={isImperial}
+                    onToggleUnits={() =>
+                      void updateUnitsPreference(isImperial ? 'metric' : 'imperial')
+                    }
+                    onClear={handleClearRoute}
+                    canClear={canClearMap}
+                  />
+                  {!hasRoute && <ClickToPlaceHint snapEnabled={snapToRoads} />}
+                </Box>
                 {mapStates}
               </>
             }
@@ -839,24 +882,27 @@ export default function RouteBuilder2() {
           }}
         >
           <Box style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            {hasRoute || history.canUndo || history.canRedo ? (
-              <EditToolbar
-                canUndo={history.canUndo}
-                canRedo={history.canRedo}
-                onUndo={history.undo}
-                onRedo={history.redo}
-                onReverse={() => void map.handleReverseRoute()}
-                canReverse={waypointsForMap.length >= 2}
-                unitsImperial={isImperial}
-                onToggleUnits={() =>
-                  void updateUnitsPreference(isImperial ? 'metric' : 'imperial')
-                }
-              />
-            ) : (
-              <span />
-            )}
+            <EditToolbar
+              canUndo={history.canUndo}
+              canRedo={history.canRedo}
+              onUndo={history.undo}
+              onRedo={history.redo}
+              onReverse={() => void map.handleReverseRoute()}
+              canReverse={waypointsForMap.length >= 2}
+              onToggleSnap={handleToggleSnap}
+              snapEnabled={snapToRoads}
+              routeProfile={routeProfile}
+              onChangeProfile={handleChangeProfile}
+              unitsImperial={isImperial}
+              onToggleUnits={() =>
+                void updateUnitsPreference(isImperial ? 'metric' : 'imperial')
+              }
+              onClear={handleClearRoute}
+              canClear={canClearMap}
+            />
             <PersonaDropdown persona={coach.persona} onChange={onPersonaChange} compact />
           </Box>
+          {!hasRoute && <ClickToPlaceHint snapEnabled={snapToRoads} isMobile />}
           {statsNode}
           <Box
             style={{
@@ -986,5 +1032,37 @@ export default function RouteBuilder2() {
         {mapStates}
       </Box>
     </AppShell>
+  );
+}
+
+/**
+ * Small on-map hint shown before a route exists, nudging the user to build
+ * manually by clicking the map (the cursor is a crosshair in this state).
+ */
+function ClickToPlaceHint({ snapEnabled, isMobile }: { snapEnabled: boolean; isMobile?: boolean }) {
+  return (
+    <Box
+      data-testid="rb2-click-to-place-hint"
+      style={{
+        backgroundColor: RB2.cardBg,
+        border: `1px solid ${RB2.border}`,
+        boxShadow: RB2.shadowCard,
+        padding: '6px 10px',
+        maxWidth: isMobile ? '100%' : 320,
+        pointerEvents: 'none',
+      }}
+    >
+      <Text
+        style={{
+          fontFamily: RB2_FONT.mono,
+          fontSize: 11,
+          color: RB2.textSecondary,
+          letterSpacing: '0.02em',
+          textAlign: 'center',
+        }}
+      >
+        Click the map to drop waypoints{snapEnabled ? ' — snapped to roads' : ' — freehand lines'}
+      </Text>
+    </Box>
   );
 }

@@ -75,6 +75,8 @@ export interface UseMapInteractionReturn {
   ) => Promise<MapActionResult>;
   handleReverseRoute: () => Promise<MapActionResult>;
   handleClearRoute: () => Promise<MapActionResult>;
+  /** Recompute geometry for current waypoints (after snap/profile change). */
+  rebuildRoute: () => Promise<MapActionResult>;
 }
 
 interface StoreWaypoint {
@@ -114,6 +116,9 @@ export function useMapInteraction(): UseMapInteractionReturn {
   const setRouteGeometry = useRouteBuilderStore((s) => s.setRouteGeometry);
   const setRouteStats = useRouteBuilderStore((s) => s.setRouteStats);
   const routingProfile = useRouteBuilderStore((s) => s.routeProfile) ?? 'road';
+  // When false, manual edits draw straight lines between waypoints instead of
+  // routing along roads. Reactive so snapAndReport re-binds on toggle.
+  const snapEnabled = useRouteBuilderStore((s) => s.snapToRoads) ?? true;
 
   // v2 doesn't keep `elevationProfile` in the route-builder store —
   // `useRouteAnalysis` derives it on demand. v1's `useRouteManipulation`
@@ -227,8 +232,10 @@ export function useMapInteraction(): UseMapInteractionReturn {
         });
         return { ok: true };
       }
-      const snapped = await manip.snapToRoads(next, { silent: true });
-      if (!snapped) {
+      const built = snapEnabled
+        ? await manip.snapToRoads(next, { silent: true })
+        : await manip.buildFreehandRoute(next, { silent: true });
+      if (!built) {
         setLastError('routing_failed');
         trackRb2('manual_action_failed', { action, failure_kind: 'routing_failed' });
         return { ok: false, reason: 'routing_failed' };
@@ -239,8 +246,22 @@ export function useMapInteraction(): UseMapInteractionReturn {
       });
       return { ok: true };
     },
-    [manip, setRouteGeometry, setRouteStats],
+    [manip, snapEnabled, setRouteGeometry, setRouteStats],
   );
+
+  // Recompute geometry for the current waypoints with the current snap/profile
+  // settings — used when the user flips snap↔freehand or changes the routing
+  // profile while a route already exists.
+  const rebuildRoute = useCallback(async (): Promise<MapActionResult> => {
+    if (waypoints.length < 2) return { ok: true };
+    setIsApplying(true);
+    setLastError(null);
+    try {
+      return await snapAndReport('rebuild', waypoints, Date.now());
+    } finally {
+      setIsApplying(false);
+    }
+  }, [waypoints, snapAndReport]);
 
   const runManual = useCallback(
     async (
@@ -472,5 +493,6 @@ export function useMapInteraction(): UseMapInteractionReturn {
     handleReorderWaypoints,
     handleReverseRoute,
     handleClearRoute,
+    rebuildRoute,
   };
 }

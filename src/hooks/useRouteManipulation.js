@@ -2,7 +2,7 @@ import { useCallback, useRef, useState } from 'react';
 import { notifications } from '@mantine/notifications';
 import { getElevationData, calculateElevationStats } from '../utils/elevation';
 import { getSmartCyclingRoute } from '../utils/smartCyclingRouter';
-import { M_TO_KM, assertKm } from '../utils/distanceUnits';
+import { M_TO_KM, assertKm, haversineMeters } from '../utils/distanceUnits';
 
 /**
  * Custom hook for route manipulation functions
@@ -376,6 +376,84 @@ export const useRouteManipulation = ({
     }
   }, [waypoints, routingProfile, useSmartRouting, setRouteGeometry, setRouteStats, setElevationProfile]);
 
+  // === Build Freehand Route (straight lines between waypoints) ===
+  // The freehand counterpart to snapToRoads: no routing engine, just direct
+  // segments between waypoints. Distance is the summed haversine; duration is a
+  // nominal estimate (no engine to ask). Elevation is still sampled along the
+  // line. Returns the same { geometry, stats, elevation } shape as snapToRoads.
+  const buildFreehandRoute = useCallback(async (waypointsToUse = waypoints, options = {}) => {
+    if (waypointsToUse.length < 2) {
+      if (!options.silent) {
+        notifications.show({
+          title: 'Cannot build',
+          message: 'Need at least 2 waypoints to create a route',
+          color: 'yellow',
+        });
+      }
+      return null;
+    }
+
+    try {
+      const coordinates = waypointsToUse.map(wp => wp.position);
+
+      let routeDistance_m = 0;
+      for (let i = 1; i < coordinates.length; i++) {
+        const [lng1, lat1] = coordinates[i - 1];
+        const [lng2, lat2] = coordinates[i];
+        routeDistance_m += haversineMeters(lat1, lng1, lat2, lng2);
+      }
+
+      const geometry = { type: 'LineString', coordinates };
+      setRouteGeometry(geometry);
+
+      const distance_km = M_TO_KM(routeDistance_m);
+      assertKm(distance_km, 'buildFreehandRoute.distance_km');
+      // No routing engine to estimate time — assume a nominal 20 km/h.
+      const duration_s = distance_km > 0 ? (distance_km / 20) * 3600 : 0;
+      const stats = {
+        distance_km,
+        duration_s,
+        confidence: 0.5,
+        waypointCount: waypointsToUse.length,
+        routingSource: 'freehand',
+      };
+      setRouteStats(stats);
+
+      const elevation = await getElevationData(coordinates);
+      if (elevation) {
+        setElevationProfile(elevation);
+        const elevStats = calculateElevationStats(elevation);
+        setRouteStats(prev => ({
+          ...prev,
+          elevation_gain_m: elevStats.gain,
+          elevation_loss_m: elevStats.loss,
+          elevation_min_m: elevStats.min,
+          elevation_max_m: elevStats.max,
+        }));
+      }
+
+      if (!options.silent) {
+        notifications.show({
+          title: 'Route built',
+          message: `${distance_km.toFixed(1)} km freehand route`,
+          color: 'green',
+        });
+      }
+
+      return { geometry, stats, elevation };
+    } catch (err) {
+      console.error('Freehand route build failed:', err);
+      if (!options.silent) {
+        notifications.show({
+          title: 'Route build failed',
+          message: err.message,
+          color: 'red',
+        });
+      }
+      return null;
+    }
+  }, [waypoints, setRouteGeometry, setRouteStats, setElevationProfile]);
+
   // === Fetch Elevation (standalone) ===
   const fetchElevation = useCallback(async (coordinates) => {
     if (!coordinates || coordinates.length < 2) return null;
@@ -411,6 +489,7 @@ export const useRouteManipulation = ({
 
     // Route operations
     snapToRoads,
+    buildFreehandRoute,
     fetchElevation,
   };
 };
