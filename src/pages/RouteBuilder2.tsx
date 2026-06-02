@@ -80,6 +80,8 @@ import type { WorkoutDefinition } from '../types/training';
 import { trackRb2 } from '../features/route-builder-v2/telemetry/trackRb2';
 import { coordinateAtDistanceKm } from '../utils/elevation';
 import { getAnyWorkoutById } from '../data/workoutLookup';
+import { generateRouteFromNaturalLanguage } from '../utils/naturalLanguageRouteBuilder';
+import type { GenerateOutcome } from '../features/route-builder-v2/chat';
 import { generateCuesFromWorkoutStructure } from '../utils/intervalCues.js';
 import {
   categoryToGoal,
@@ -175,6 +177,10 @@ export default function RouteBuilder2() {
   const waypoints = useRouteBuilderStore((s) => s.waypoints);
   const viewport = useRouteBuilderStore((s) => s.viewport);
   const setWaypointsInStore = useRouteBuilderStore((s) => s.setWaypoints);
+  const setRouteGeometryInStore = useRouteBuilderStore((s) => s.setRouteGeometry);
+  const setRouteStatsInStore = useRouteBuilderStore((s) => s.setRouteStats);
+  const setRouteNameInStore = useRouteBuilderStore((s) => s.setRouteName);
+  const setBuilderMode = useRouteBuilderStore((s) => s.setBuilderMode);
   const clearRouteInStore = useRouteBuilderStore((s) => s.clearRoute);
 
   // Map viewport center as a last-resort start_coord fallback for the form.
@@ -350,6 +356,52 @@ export default function RouteBuilder2() {
     },
   });
 
+  // Create a fresh route straight from a chat prompt, reusing RB1's
+  // natural-language builder (Claude parse → geocode → iterative routing) and
+  // writing the result into the RB2 store. The geometry→endpoints effect then
+  // seeds start/end waypoints so manual editing works afterwards.
+  const handleGenerateFromPrompt = useCallback(
+    async (prompt: string): Promise<GenerateOutcome> => {
+      try {
+        const r = await generateRouteFromNaturalLanguage(prompt, {
+          biasCoord: viewportCenter,
+          userLocation: userLocation.coord ?? null,
+          placedStart: waypoints?.[0]?.position ?? null,
+          weather: weather.weather ?? undefined,
+          profile: routeProfile,
+          useIterativeBuilder: true,
+        });
+        setRouteGeometryInStore({ type: 'LineString', coordinates: r.coordinates });
+        setRouteStatsInStore({
+          distance_km: r.distanceKm,
+          elevation_gain_m: r.elevationGain,
+          duration_s: r.duration_s,
+        });
+        setWaypointsInStore([]);
+        setBuilderMode('editing');
+        if (r.parsed?.preferences?.surfaceType === 'gravel') setRouteProfile('gravel');
+        if (r.name) setRouteNameInStore(r.name);
+        return { ok: true, distance_km: r.distanceKm, elevation_gain_m: r.elevationGain, name: r.name };
+      } catch (e) {
+        const message = e instanceof Error ? e.message : String(e);
+        return { ok: false, reason: message === 'NO_START' ? 'no_start' : message };
+      }
+    },
+    [
+      viewportCenter,
+      userLocation.coord,
+      waypoints,
+      weather.weather,
+      routeProfile,
+      setRouteGeometryInStore,
+      setRouteStatsInStore,
+      setWaypointsInStore,
+      setBuilderMode,
+      setRouteProfile,
+      setRouteNameInStore,
+    ],
+  );
+
   const handleChatSubmit = useCallback(
     (text: string) => {
       // Derive the endpoint's conversation-history shape from the live
@@ -367,6 +419,7 @@ export default function RouteBuilder2() {
         markRefused: chat.markRefused,
         formPanelControl: formControl.current,
         persistTurn: chat.persistTurn,
+        onGenerateFromPrompt: handleGenerateFromPrompt,
       });
     },
     [
@@ -377,6 +430,7 @@ export default function RouteBuilder2() {
       chat.setProcessing,
       chat.markRefused,
       chat.persistTurn,
+      handleGenerateFromPrompt,
     ],
   );
 
