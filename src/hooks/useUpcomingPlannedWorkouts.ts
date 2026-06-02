@@ -1,17 +1,17 @@
 /**
  * useUpcomingPlannedWorkouts — the user's next scheduled, uncompleted workouts,
- * enriched with their library structure, for the RB2 workout picker.
+ * enriched with their library structure (cycling or running), for the RB2
+ * workout picker.
  *
  * One-shot fetch on mount (no Realtime) via the frontend Supabase singleton.
- * Rows whose `workout_id` doesn't resolve to a cycling library workout are
- * dropped — without a structure there's nothing to overlay, and RB2 is
- * cycling-only for now.
+ * Rows whose `workout_id` doesn't resolve in either library are dropped —
+ * without a structure there's nothing to overlay.
  */
 
 import { useEffect, useState } from 'react';
 import { supabase } from '../lib/supabase';
 import { getTodayString } from '../utils/dateUtils';
-import { getWorkoutById } from '../data/workoutLibrary';
+import { getAnyWorkoutById } from '../data/workoutLookup';
 import type { WorkoutDefinition } from '../types/training';
 
 export interface UpcomingPlannedWorkout {
@@ -55,8 +55,8 @@ export function useUpcomingPlannedWorkouts(userId: string | null | undefined) {
       const enriched: UpcomingPlannedWorkout[] = [];
       for (const row of data ?? []) {
         if (!row.workout_id) continue;
-        const workout = getWorkoutById(row.workout_id);
-        if (!workout || workout.sportType === 'running') continue;
+        const workout = getAnyWorkoutById(row.workout_id);
+        if (!workout) continue;
         enriched.push({
           id: row.id,
           scheduledDate: row.scheduled_date,

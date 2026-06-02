@@ -41,8 +41,10 @@ function renderPicker(overrides: Partial<React.ComponentProps<typeof WorkoutPick
 }
 
 describe('WorkoutPickerPanel', () => {
-  it('lists library workouts and fires onSelect on click', () => {
+  it('defaults to the Bike tab (no planned), grouped by category, and fires onSelect', () => {
     const { container, props } = renderPicker();
+    // Category headers prove the list is grouped/browsable.
+    expect(screen.getByTestId('rb2-workout-cat-endurance')).toBeInTheDocument();
     const rows = container.querySelectorAll('[data-testid^="rb2-workout-library-"]');
     expect(rows.length).toBeGreaterThan(0);
     fireEvent.click(rows[0] as HTMLElement);
@@ -50,9 +52,21 @@ describe('WorkoutPickerPanel', () => {
     expect((props.onSelect as ReturnType<typeof vi.fn>).mock.calls[0][0]).toHaveProperty('id');
   });
 
-  it('filters the library by search', () => {
+  it('shows running workouts on the Run tab and selects one with sportType running', () => {
+    const { props } = renderPicker();
+    fireEvent.click(screen.getByText('Run'));
+    const runRow = screen.getByTestId('rb2-workout-library-run_recovery_jog');
+    fireEvent.click(runRow);
+    expect(props.onSelect).toHaveBeenCalledTimes(1);
+    expect((props.onSelect as ReturnType<typeof vi.fn>).mock.calls[0][0]).toHaveProperty(
+      'sportType',
+      'running',
+    );
+  });
+
+  it('filters the active library tab by search', () => {
     const { container } = renderPicker();
-    fireEvent.change(screen.getByPlaceholderText('Search workouts'), {
+    fireEvent.change(screen.getByPlaceholderText(/Search cycling workouts/), {
       target: { value: 'zzzznotathing' },
     });
     expect(container.querySelectorAll('[data-testid^="rb2-workout-library-"]').length).toBe(0);

@@ -14,8 +14,8 @@ vi.mock('../../lib/supabase', () => {
 
 vi.mock('../../utils/dateUtils', () => ({ getTodayString: () => '2026-06-01' }));
 
-vi.mock('../../data/workoutLibrary', () => ({
-  getWorkoutById: (id: string) => {
+vi.mock('../../data/workoutLookup', () => ({
+  getAnyWorkoutById: (id: string) => {
     if (id === 'cyc_id') return { id: 'cyc_id', name: 'Tempo', category: 'tempo', duration: 60 };
     if (id === 'run_id') return { id: 'run_id', name: 'Run', sportType: 'running', duration: 40 };
     return null; // bad_id → unresolved
@@ -33,7 +33,7 @@ describe('useUpcomingPlannedWorkouts', () => {
     expect(limitMock).not.toHaveBeenCalled();
   });
 
-  it('enriches cycling rows and drops running/unresolved/missing-id rows', async () => {
+  it('keeps cycling and running rows, drops unresolved/missing-id rows', async () => {
     limitMock.mockResolvedValue({
       data: [
         { id: 'p1', scheduled_date: '2026-06-10', name: 'Tempo Day', workout_id: 'cyc_id', target_duration: 60, target_distance_km: 30, completed: false },
@@ -45,11 +45,10 @@ describe('useUpcomingPlannedWorkouts', () => {
     });
 
     const { result } = renderHook(() => useUpcomingPlannedWorkouts('user-1'));
-    await waitFor(() => expect(result.current.workouts.length).toBe(1));
-    const w = result.current.workouts[0];
-    expect(w.id).toBe('p1');
-    expect(w.workout.id).toBe('cyc_id');
-    expect(w.targetDurationMinutes).toBe(60);
-    expect(w.targetDistanceKm).toBe(30);
+    await waitFor(() => expect(result.current.workouts.length).toBe(2));
+    expect(result.current.workouts.map((w) => w.workout.id)).toEqual(['cyc_id', 'run_id']);
+    const cyc = result.current.workouts[0];
+    expect(cyc.targetDurationMinutes).toBe(60);
+    expect(cyc.targetDistanceKm).toBe(30);
   });
 });
