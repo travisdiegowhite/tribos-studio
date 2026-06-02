@@ -180,30 +180,31 @@ describe('route-coach handler — tool-use', () => {
     expect(res.body.message).toMatch(/how much/i);
   });
 
-  it('feeds an error back so Claude can recover from a deferred intent', async () => {
+  it('feeds an error back so Claude can recover from a rejected edit', async () => {
     messagesCreate
       .mockResolvedValueOnce({
         stop_reason: 'tool_use',
         content: [
-          { type: 'text', text: 'Adding some climbing.' },
+          { type: 'text', text: 'Shifting the route.' },
           {
             type: 'tool_use',
             id: 't1',
+            // Missing the required `direction` param — normalizeRouteEdit rejects it.
             name: 'apply_route_edit',
-            input: { intent: 'add_climbing', reasoning: 'rider asked for hills' },
+            input: { intent: 'shift_direction', reasoning: 'rider asked to move it' },
           },
         ],
         usage: { input_tokens: 10, output_tokens: 20 },
       })
       .mockResolvedValueOnce({
         stop_reason: 'end_turn',
-        content: [{ type: 'text', text: "I can't add climbing yet — want me to reverse it instead?" }],
+        content: [{ type: 'text', text: "Which way should I shift it — want me to reverse it instead?" }],
         usage: { input_tokens: 12, output_tokens: 15 },
       });
 
     const res = makeRes();
     await handler(
-      makeReq({ message: 'add more hills', routeId: 'r1', routeSnapshot: VALID_SNAPSHOT }),
+      makeReq({ message: 'shift it over', routeId: 'r1', routeSnapshot: VALID_SNAPSHOT }),
       res,
     );
 

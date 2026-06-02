@@ -188,6 +188,12 @@ export async function applyRouteEdit(params) {
     switch (intent) {
       case 'flatten':
         return await applyFlattenEdit(coords, routeProfile, routeStats);
+      case 'add_climbing':
+        return await applyAddClimbingEdit(coords, routeProfile, routeStats);
+      case 'shift_direction':
+        return await applyShiftDirectionEdit(coords, routeProfile, routeStats, editIntent.direction);
+      case 'add_waypoint':
+        return await applyAddWaypointEdit(coords, routeProfile, routeStats, editIntent.waypoint);
       case 'surface_gravel':
         return await applySurfaceEdit(coords, routeProfile, routeStats, 'gravel');
       case 'surface_paved':
@@ -261,6 +267,56 @@ async function applyFlattenEdit(coords, profile, stats) {
     message: comparison.elevationDelta < 0
       ? `Found a flatter route: ${Math.abs(comparison.elevationDelta)}m less climbing`
       : 'This is already one of the flattest routes in the area',
+  };
+}
+
+async function applyAddClimbingEdit(coords, profile, stats) {
+  const start = coords[0];
+  const end = coords[coords.length - 1];
+  const isLoop = haversineKm(start, end) < 1;
+  const waypoints = sampleWaypoints(coords, isLoop ? 5 : 3);
+
+  // Mirror of applyFlattenEdit: re-route through the same waypoints but favour
+  // hills, then keep the candidate with the MOST climbing.
+  const results = [];
+
+  // Strategy 1: Stadia Maps with use_hills=1 (hilliest possible)
+  try {
+    const stadiaRoute = await getStadiaMapsRoute(waypoints, {
+      profile: profile === 'mountain' ? 'gravel' : profile,
+      preferences: { use_hills: 1, avoid_bad_surfaces: profile === 'road' ? 0.8 : 0.2 },
+    });
+    if (stadiaRoute?.coordinates?.length > 1) {
+      results.push({ ...stadiaRoute, label: 'Hilliest (Valhalla)', strategy: 'stadia_hills' });
+    }
+  } catch (e) { console.warn('[AI Edit] Stadia hills failed:', e.message); }
+
+  // Strategy 2: BRouter trekking (tends toward terrain/paths over flat roads)
+  try {
+    const brouterRoute = await getBRouterDirections(waypoints, { profile: 'trekking' });
+    if (brouterRoute?.coordinates?.length > 1) {
+      results.push({ ...brouterRoute, label: 'Hillier (BRouter)', strategy: 'brouter_trekking' });
+    }
+  } catch (e) { console.warn('[AI Edit] BRouter trekking failed:', e.message); }
+
+  if (results.length === 0) {
+    return { success: false, message: 'Could not find a hillier alternative. The area may not have steeper options.' };
+  }
+
+  // Pick the one with the most elevation gain
+  const best = await pickBestByElevation(results, 'highest');
+  const comparison = await buildComparison(coords, best.coordinates, stats);
+
+  return {
+    success: true,
+    editedRoute: {
+      coordinates: best.coordinates,
+      source: best.source || best.strategy,
+    },
+    comparison,
+    message: comparison.elevationDelta > 0
+      ? `Found a hillier route: ${comparison.elevationDelta}m more climbing`
+      : 'This is already one of the hilliest routes in the area',
   };
 }
 
@@ -643,6 +699,107 @@ async function applyDetourEdit(coords, profile, stats, location, mapboxToken) {
   };
 }
 
+const DIRECTION_BEARINGS = {
+  north: 0,
+  northeast: 45,
+  east: 90,
+  southeast: 135,
+  south: 180,
+  southwest: 225,
+  west: 270,
+  northwest: 315,
+};
+
+async function applyShiftDirectionEdit(coords, profile, stats, direction) {
+  const bearing = DIRECTION_BEARINGS[direction];
+  if (bearing == null) {
+    return { success: false, message: `I couldn't tell which way to shift — try "shift north", "shift west", etc.` };
+  }
+
+  const start = coords[0];
+  const end = coords[coords.length - 1];
+  const isLoop = haversineKm(start, end) < 1;
+
+  if (!isLoop) {
+    return { success: false, message: 'Shifting direction only works for loops. For a point-to-point route, try a detour through a place in that direction instead.' };
+  }
+
+  const totalDist = (stats?.distance_km ?? stats?.distance) || estimateDistanceKm(coords);
+  const radiusKm = totalDist / 4; // out-and-back lobe radius keeps roughly the same distance
+
+  // Project a lobe out toward the requested bearing and route a loop through it.
+  const waypoints = [
+    start,
+    projectPoint(start, bearing - 30, radiusKm),
+    projectPoint(start, bearing, radiusKm * 1.3),
+    projectPoint(start, bearing + 30, radiusKm),
+    start, // close the loop
+  ];
+
+  try {
+    const route = await getSmartCyclingRoute(waypoints, { profile });
+    if (route?.coordinates?.length > 1) {
+      const comparison = await buildComparison(coords, route.coordinates, stats);
+      return {
+        success: true,
+        editedRoute: {
+          coordinates: route.coordinates,
+          source: route.source || 'shift_direction',
+        },
+        comparison,
+        message: `Shifted the loop toward the ${direction}`,
+      };
+    }
+  } catch (e) {
+    console.warn('[AI Edit] Shift direction failed:', e.message);
+  }
+
+  return { success: false, message: `Could not shift the route ${direction}. The roads in that direction may not connect into a loop.` };
+}
+
+async function applyAddWaypointEdit(coords, profile, stats, waypoint) {
+  const lng = Array.isArray(waypoint) ? Number(waypoint[0]) : NaN;
+  const lat = Array.isArray(waypoint) ? Number(waypoint[1]) : NaN;
+  if (!Number.isFinite(lng) || !Number.isFinite(lat)) {
+    return { success: false, message: 'I need a valid coordinate to route through. Try dropping a pin or naming the place.' };
+  }
+  const waypointPoint = [lng, lat];
+
+  // Same insert-and-restitch as detour, but the coordinate is given directly
+  // (no geocoding needed).
+  const { segStart, segEnd } = findSegmentNear(coords, waypointPoint);
+  const insertIdx = segStart != null ? Math.floor((segStart + segEnd) / 2) : Math.floor(coords.length / 2);
+
+  const before = coords.slice(0, insertIdx + 1);
+  const after = coords.slice(insertIdx);
+
+  const legA = await getSmartCyclingRoute([coords[insertIdx], waypointPoint], { profile }).catch(() => null);
+  const legB = await getSmartCyclingRoute([waypointPoint, after[0]], { profile }).catch(() => null);
+
+  if (!legA?.coordinates?.length || !legB?.coordinates?.length) {
+    return { success: false, message: 'Could not route through that point. It may be unreachable by bike.' };
+  }
+
+  const newCoords = [
+    ...before,
+    ...legA.coordinates.slice(1), // Skip duplicate start point
+    ...legB.coordinates.slice(1), // Skip duplicate start point
+    ...after.slice(1),
+  ];
+
+  const comparison = await buildComparison(coords, newCoords, stats);
+
+  return {
+    success: true,
+    editedRoute: {
+      coordinates: newCoords,
+      source: legA.source || 'add_waypoint',
+    },
+    comparison,
+    message: `Route now passes through the added waypoint (+${comparison.distanceDelta.toFixed(1)}km)`,
+  };
+}
+
 // ── Helpers ─────────────────────────────────────────────────────────────────────
 
 function sampleWaypoints(coords, count) {
@@ -735,25 +892,31 @@ async function geocodeLocation(query, nearCoord, mapboxToken) {
 }
 
 async function pickBestByElevation(routes, strategy = 'lowest') {
-  // Try to get elevation for each route, pick the one with lowest gain
+  // Pick the candidate with the lowest gain ('lowest', flatten) or the
+  // highest gain ('highest', add_climbing).
+  const wantHighest = strategy === 'highest';
   let bestRoute = routes[0];
-  let bestGain = Infinity;
+  let bestGain = wantHighest ? -Infinity : Infinity;
+
+  const isBetter = (gain) => (wantHighest ? gain > bestGain : gain < bestGain);
 
   for (const route of routes) {
     try {
       const elevData = await getElevationData(route.coordinates);
       if (elevData) {
         const stats = calculateElevationStats(elevData);
-        const gain = stats.totalAscent || route.elevation?.ascent || Infinity;
-        if (gain < bestGain) {
+        const fallback = wantHighest ? -Infinity : Infinity;
+        const gain = stats.totalAscent || route.elevation?.ascent || fallback;
+        if (isBetter(gain)) {
           bestGain = gain;
           bestRoute = route;
         }
       }
     } catch {
       // Use router-reported elevation if available
-      const gain = route.elevation?.ascent || route.elevationGain || Infinity;
-      if (gain < bestGain) {
+      const fallback = wantHighest ? -Infinity : Infinity;
+      const gain = route.elevation?.ascent || route.elevationGain || fallback;
+      if (isBetter(gain)) {
         bestGain = gain;
         bestRoute = route;
       }
@@ -764,7 +927,10 @@ async function pickBestByElevation(routes, strategy = 'lowest') {
 }
 
 async function buildComparison(originalCoords, newCoords, originalStats) {
-  const originalDist = originalStats.distance || estimateDistanceKm(originalCoords);
+  // Read canonical-first with legacy fallback (RB2/route-coach passes
+  // distance_km/elevation_gain_m; older callers pass distance/elevation).
+  const originalDist =
+    originalStats?.distance_km ?? originalStats?.distance ?? estimateDistanceKm(originalCoords);
   const newDist = estimateDistanceKm(newCoords);
 
   let elevationDelta = null;
@@ -772,7 +938,7 @@ async function buildComparison(originalCoords, newCoords, originalStats) {
     const newElev = await getElevationData(newCoords);
     if (newElev) {
       const newStats = calculateElevationStats(newElev);
-      const originalElev = originalStats.elevation || 0;
+      const originalElev = originalStats?.elevation_gain_m ?? originalStats?.elevation ?? 0;
       elevationDelta = Math.round((newStats.totalAscent || 0) - originalElev);
     }
   } catch { /* elevation comparison unavailable */ }

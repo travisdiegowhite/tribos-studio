@@ -27,18 +27,11 @@ describe('normalizeRouteEdit — validation', () => {
     expect(r.reason).toMatch(/unknown intent/);
   });
 
-  it('rejects deferred intents so Claude can recover', () => {
-    for (const intent of ['add_climbing', 'shift_direction', 'add_waypoint']) {
-      const r = normalizeRouteEdit({ intent, reasoning: 'x' }, SNAPSHOT);
-      expect(r.ok).toBe(false);
-      expect(r.reason).toMatch(/not available yet/);
-    }
-  });
 });
 
 describe('normalizeRouteEdit — simple intents', () => {
   it('normalizes parameterless intents to a bare editIntent', () => {
-    for (const intent of ['flatten', 'surface_gravel', 'surface_paved', 'scenic', 'faster', 'reverse']) {
+    for (const intent of ['flatten', 'add_climbing', 'surface_gravel', 'surface_paved', 'scenic', 'faster', 'reverse']) {
       const r = normalizeRouteEdit({ intent, reasoning: 'because' }, SNAPSHOT);
       expect(r.ok).toBe(true);
       expect(r.editIntent).toEqual({ intent });
@@ -99,6 +92,50 @@ describe('normalizeRouteEdit — location intents', () => {
       const r = normalizeRouteEdit({ intent, reasoning: 'x' }, SNAPSHOT);
       expect(r.ok).toBe(false);
       expect(r.reason).toMatch(/needs a location/);
+    }
+  });
+});
+
+describe('normalizeRouteEdit — shift_direction', () => {
+  it('carries a valid compass direction through (case-insensitive)', () => {
+    const r = normalizeRouteEdit(
+      { intent: 'shift_direction', direction: 'West', reasoning: 'x' },
+      SNAPSHOT,
+    );
+    expect(r.ok).toBe(true);
+    expect(r.editIntent).toEqual({ intent: 'shift_direction', direction: 'west' });
+  });
+
+  it('rejects a missing or invalid direction so Claude asks', () => {
+    for (const direction of [undefined, 'up', 'norteast']) {
+      const r = normalizeRouteEdit(
+        { intent: 'shift_direction', direction, reasoning: 'x' },
+        SNAPSHOT,
+      );
+      expect(r.ok).toBe(false);
+      expect(r.reason).toMatch(/compass direction/);
+    }
+  });
+});
+
+describe('normalizeRouteEdit — add_waypoint', () => {
+  it('carries a valid [lng, lat] coordinate through', () => {
+    const r = normalizeRouteEdit(
+      { intent: 'add_waypoint', waypoint_coords: [-105.27, 40.01], reasoning: 'x' },
+      SNAPSHOT,
+    );
+    expect(r.ok).toBe(true);
+    expect(r.editIntent).toEqual({ intent: 'add_waypoint', waypoint: [-105.27, 40.01] });
+  });
+
+  it('rejects missing or out-of-range coordinates', () => {
+    for (const waypoint_coords of [undefined, [200, 10], [-105], ['x', 'y']]) {
+      const r = normalizeRouteEdit(
+        { intent: 'add_waypoint', waypoint_coords, reasoning: 'x' },
+        SNAPSHOT,
+      );
+      expect(r.ok).toBe(false);
+      expect(r.reason).toMatch(/longitude, latitude/);
     }
   });
 });
