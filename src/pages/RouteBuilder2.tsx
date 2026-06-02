@@ -78,7 +78,7 @@ import { useUpcomingPlannedWorkouts } from '../hooks/useUpcomingPlannedWorkouts'
 import type { WorkoutDefinition } from '../types/training';
 import { trackRb2 } from '../features/route-builder-v2/telemetry/trackRb2';
 import { coordinateAtDistanceKm } from '../utils/elevation';
-import { getWorkoutById } from '../data/workoutLibrary';
+import { getAnyWorkoutById } from '../data/workoutLookup';
 import { generateCuesFromWorkoutStructure } from '../utils/intervalCues.js';
 import {
   categoryToGoal,
@@ -136,7 +136,7 @@ export default function RouteBuilder2() {
     };
   });
   const attachedWorkout = useMemo(
-    () => (pickedWorkoutId ? getWorkoutById(pickedWorkoutId) : null),
+    () => (pickedWorkoutId ? getAnyWorkoutById(pickedWorkoutId) : null),
     [pickedWorkoutId],
   );
   const hasWorkout = !!attachedWorkout;
