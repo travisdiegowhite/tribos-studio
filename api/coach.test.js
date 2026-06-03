@@ -94,6 +94,12 @@ describe('detectCoachIntent', () => {
     ['add a workout for tomorrow', 'recommend_workout'],
     ['plan my week', 'recommend_workout'],
     ['recommend a recovery ride', 'recommend_workout'],
+    // Add-to-calendar follow-ups that reference a just-recommended workout.
+    ['Can you add that to the calendar', 'recommend_workout'],
+    ['schedule it for tomorrow', 'recommend_workout'],
+    ['put this on my calendar', 'recommend_workout'],
+    // Plural "add the workouts" activates a whole plan, not a single workout.
+    ['add the workouts to my calendar', 'create_training_plan'],
     ['build me a training plan for my race', 'create_training_plan'],
     ['create an 8 week plan', 'create_training_plan'],
     ['prepare me for my gran fondo', 'create_training_plan'],
@@ -145,5 +151,17 @@ describe('coach handler — forced tool pass', () => {
     expect(res.statusCode).toBe(200);
     expect(messagesCreate).toHaveBeenCalledTimes(1);
     expect(res.body.workoutRecommendations).toBeNull();
+  });
+
+  it('never returns a blank bubble when only a workout card is produced', async () => {
+    // Add-to-calendar follow-up: Claude returns the card with no accompanying prose.
+    messagesCreate.mockResolvedValueOnce(workoutToolResponse(null));
+    const res = makeRes();
+    await handler(makeReq({ message: 'Can you add that to the calendar' }), res);
+
+    expect(res.statusCode).toBe(200);
+    expect(res.body.workoutRecommendations).toHaveLength(1);
+    expect(res.body.message).toBeTruthy();
+    expect(res.body.message.trim().length).toBeGreaterThan(0);
   });
 });

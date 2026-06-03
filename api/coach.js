@@ -95,7 +95,10 @@ export function detectCoachIntent(message) {
     /\bprepare me for\b/.test(m) ||
     /\bplan for my\b.*\b(race|event|fondo|century|marathon|criterium|gran fondo)\b/.test(m) ||
     /\bperiodiz\w*/.test(m) ||
-    /\bload\b.*\bplan\b/.test(m)
+    /\bload\b.*\bplan\b/.test(m) ||
+    // Plural plan-activation: "add the workouts to my calendar" activates a whole
+    // plan, not a single workout — keep it here, ahead of the singular add patterns below.
+    /\badd\b.*\bworkouts\b.*\bcalendar\b/.test(m)
   ) {
     return 'create_training_plan';
   }
@@ -108,7 +111,13 @@ export function detectCoachIntent(message) {
     /\badd\s+(a |an |some )?(workout|ride|run|session)/.test(m) ||
     /\bplan my week\b/.test(m) ||
     /\bschedule\b.*\b(workout|training|ride|run)\b/.test(m) ||
-    /\bgive me a\b.*\b(ride|workout|session|run)\b/.test(m)
+    /\bgive me a\b.*\b(ride|workout|session|run)\b/.test(m) ||
+    // Add-to-calendar follow-ups that reference a just-recommended workout ("add that
+    // to the calendar", "schedule it for tomorrow"). Singular back-references only —
+    // the plural "add the workouts" case is handled as a plan activation above.
+    /\b(add|schedule|put|save|drop|stick|slot)\s+(that|this|it)\b/.test(m) ||
+    /\b(add|put|schedule|save|drop|stick|slot)\b.*\b(it|that|this)\b.*\bcalendar\b/.test(m) ||
+    /\b(add|put|schedule)\b.*\bto\b.*\bcalendar\b/.test(m)
   ) {
     return 'recommend_workout';
   }
@@ -1323,6 +1332,17 @@ ${conversationSummary}
     // If Claude only called create_training_plan without text, provide a default message
     if (!responseText && toolUses.some(t => t.name === 'create_training_plan')) {
       responseText = "I've created a training plan for you. Review the details below and click 'Activate Plan' to add all workouts to your calendar.";
+    }
+
+    // If Claude only called recommend_workout without text, provide a default message so the
+    // chat bubble is never blank — the workout card renders below it.
+    if (!responseText && toolUses.some(t => t.name === 'recommend_workout')) {
+      responseText = "Here's a workout you can add to your calendar — tap it to schedule it.";
+    }
+
+    // Final guard: never return an empty bubble (no text and no tools to explain the silence).
+    if (!responseText && toolUses.length === 0) {
+      responseText = "Sorry, I didn't catch that — could you rephrase?";
     }
 
     // Extract workout recommendations from tool uses
