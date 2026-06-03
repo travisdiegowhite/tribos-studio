@@ -260,11 +260,18 @@ function CoachCommandBar({ trainingContext, onAddWorkout }) {
         window.dispatchEvent(new CustomEvent('training-plan-updated'));
       }
 
-      // Update in-session conversation history
+      // Update in-session conversation history. Thread the recommended workout(s) into
+      // the assistant turn so a follow-up like "add that to the calendar" can resolve the
+      // reference and the coach re-emits the right workout card.
+      const recsNote = data.workoutRecommendations?.length > 0
+        ? `\n\n[Workouts you just recommended: ${data.workoutRecommendations
+            .map((r) => `${r.name || r.workout_id} (workout_id: ${r.workout_id}${r.scheduled_date ? `, date: ${r.scheduled_date}` : ''})`)
+            .join('; ')}]`
+        : '';
       setConversationHistory((prev) => [
         ...prev,
         { role: 'user', content: query.trim() },
-        { role: 'assistant', content: data.message },
+        { role: 'assistant', content: data.message + recsNote },
       ]);
 
       // Save to conversation history in DB
