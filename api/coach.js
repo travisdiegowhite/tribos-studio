@@ -67,6 +67,55 @@ function resolveScheduledDate(dateStr, timezone = 'UTC') {
   return dateStr;
 }
 
+// Detect the athlete's primary intent from their raw message so we can force the
+// matching tool when Claude answers in prose without calling a tool. Returns a
+// tool name ('adjust_schedule' | 'create_training_plan' | 'recommend_workout')
+// or null for general Q&A (which stays on tool_choice:auto). Order matters —
+// the most specific intents are checked first.
+export function detectCoachIntent(message) {
+  if (!message || typeof message !== 'string') return null;
+  const m = message.toLowerCase();
+
+  // 1. Adjust an EXISTING plan: move/swap/replace/remove a workout or add rest.
+  if (
+    /\b(move|swap|reschedul\w*|shift|bump)\b/.test(m) ||
+    /can'?t\s+(train|ride|run|do)/.test(m) ||
+    /\b(rest day|day off|free up|take .* off)\b/.test(m) ||
+    /\breplace\b.*\bwith\b/.test(m) ||
+    /\bskip\b/.test(m)
+  ) {
+    return 'adjust_schedule';
+  }
+
+  // 2. Create a full multi-week plan / periodize toward an event.
+  if (
+    /\b(build|create|make|set up|generate|design|give me)\b.*\b(plan|program|block)\b/.test(m) ||
+    /\b\d+[-\s]?week\b.*\bplan\b/.test(m) ||
+    /\btraining (plan|program)\b/.test(m) ||
+    /\bprepare me for\b/.test(m) ||
+    /\bplan for my\b.*\b(race|event|fondo|century|marathon|criterium|gran fondo)\b/.test(m) ||
+    /\bperiodiz\w*/.test(m) ||
+    /\bload\b.*\bplan\b/.test(m)
+  ) {
+    return 'create_training_plan';
+  }
+
+  // 3. Recommend a single / few workouts to add to the calendar.
+  if (
+    /what should i\s+(ride|run|do|train)/.test(m) ||
+    /\brecommend\b/.test(m) ||
+    /\bsuggest\b.*\b(workout|ride|run|session)\b/.test(m) ||
+    /\badd\s+(a |an |some )?(workout|ride|run|session)/.test(m) ||
+    /\bplan my week\b/.test(m) ||
+    /\bschedule\b.*\b(workout|training|ride|run)\b/.test(m) ||
+    /\bgive me a\b.*\b(ride|workout|session|run)\b/.test(m)
+  ) {
+    return 'recommend_workout';
+  }
+
+  return null;
+}
+
 // Swap two workouts' dates atomically, using a null parking date to avoid unique constraint violation.
 // The planned_workouts table has UNIQUE(plan_id, scheduled_date), so we can't have two rows
 // with the same plan_id and date at the same time. We park one row at NULL first.
@@ -435,7 +484,7 @@ When an athlete asks for a complete training plan (not just a single workout), y
 **Important:**
 - Use create_training_plan for multi-week structured plans (4+ weeks)
 - Use recommend_workout for single workouts or short-term suggestions
-- If athlete has a race in their calendar, use target_event_date to periodize the plan
+- When the athlete references their A race, next race, or any event ("plan for my race", "prepare me for X"), you MUST set target_event_date to the NEXT_A_RACE (or NEXT_RACE) date in the TEMPORAL ANCHOR above, and size duration_weeks to fit the time until that date. Never ask the athlete for the race date — it is already resolved in the anchor.
 - Always set start_date to 'next_monday' unless they specify otherwise
 - NEVER just describe a training plan - ALWAYS call the tool so the athlete can activate it
 
@@ -985,7 +1034,8 @@ The athlete has recent deviations from their training plan that haven't been res
 
 ${unresolvedDeviations.map(d => `- ${d.deviation_date}: ${d.deviation_type} | Planned RSS: ${d.planned_tss} → Actual RSS: ${d.actual_tss} (delta: ${d.tss_delta > 0 ? '+' : ''}${d.tss_delta}) | Severity: ${d.severity_score}/10${d.options_json ? ` | Available adjustments: ${Object.keys(d.options_json).filter(k => k !== 'planned').join(', ')}` : ''}`).join('\n')}
 
-When discussing deviations, you may suggest specific adjustment options (modify next quality session, swap workout dates, insert a rest day, or drop a session) based on the options available above.`;
+When discussing deviations, you may suggest specific adjustment options (modify next quality session, swap workout dates, insert a rest day, or drop a session) based on the options available above.
+To ACT on a deviation the athlete asks you to fix (e.g. "adjust my week after I missed Tuesday"), call the adjust_schedule tool directly using the available options above — do not just describe the change in text.`;
     }
 
     // Persona voice is injected last so it is the freshest instruction and overrides generic tendencies
@@ -1104,6 +1154,46 @@ ${conversationSummary}
 
     // Check if we need to handle tool calls
     let toolUses = response.content.filter(block => block.type === 'tool_use');
+
+    // Reliability fix: if the athlete clearly wants a workout, plan, or schedule
+    // change but Claude answered in prose (no matching tool call), re-run the
+    // request forcing that exact tool so the UI always gets actionable cards.
+    // This second pass only fires on the previously-broken path — when Claude
+    // already called the right tool, nothing extra happens. Forcing a *named*
+    // tool (vs {type:'any'}) avoids recommend_workout/create_training_plan being
+    // confused with each other or with a query tool.
+    const coachIntent = detectCoachIntent(message);
+    const producedIntentTool = !!coachIntent && toolUses.some(t => t.name === coachIntent);
+    let forcedToolPass = false;
+    if (coachIntent && !producedIntentTool) {
+      forcedToolPass = true;
+      try {
+        const forcedResponse = await claude.messages.create({
+          model: model,
+          max_tokens: Math.min(maxTokens, 4096),
+          temperature: 0.7,
+          system: systemPrompt,
+          messages: messages,
+          tools: ALL_COACH_TOOLS,
+          tool_choice: { type: 'tool', name: coachIntent },
+        });
+        const forcedToolUses = forcedResponse.content.filter(block => block.type === 'tool_use');
+        if (forcedToolUses.length > 0) {
+          // Keep the first pass's answer-first prose if the forced pass has none,
+          // so the athlete still gets a sentence of reasoning above the cards.
+          const forcedText = forcedResponse.content.find(block => block.type === 'text');
+          const firstText = response.content.find(block => block.type === 'text');
+          const mergedContent = [...forcedResponse.content];
+          if (!forcedText && firstText) mergedContent.unshift(firstText);
+          response = { ...forcedResponse, content: mergedContent };
+          toolUses = forcedToolUses;
+        }
+      } catch (forceErr) {
+        // Non-blocking: fall back to the first (prose-only) response.
+        console.error('Forced tool pass failed (non-blocking):', forceErr.message);
+      }
+    }
+
     const fitnessHistoryUses = toolUses.filter(tool => tool.name === 'query_fitness_history');
     const trainingDataUses = toolUses.filter(tool => tool.name === 'query_training_data');
     const planCreationUses = toolUses.filter(tool => tool.name === 'create_training_plan');
@@ -1113,6 +1203,7 @@ ${conversationSummary}
 
     // Detailed logging for debugging
     console.log(`🤖 Coach response: ${toolUses.length} tool uses`);
+    console.log(`   - Detected intent: ${coachIntent || 'none'} | forced tool pass: ${forcedToolPass}`);
     console.log(`   - Tool names used: ${toolUses.map(t => t.name).join(', ') || 'none'}`);
     console.log(`   - Fitness history queries: ${fitnessHistoryUses.length}`);
     console.log(`   - Training data queries: ${trainingDataUses.length}`);

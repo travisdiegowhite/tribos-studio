@@ -24,7 +24,7 @@ import { useCoachCommandBar } from './CoachCommandBarContext';
 import { useAuth } from '../../contexts/AuthContext';
 import { supabase } from '../../lib/supabase';
 import { sharedTokens } from '../../theme';
-import { resolveScheduledDate } from '../../utils/dateUtils';
+import { scheduleCoachWorkout } from '../../utils/coachWorkoutScheduler';
 
 import CoachQuickActions from './CoachQuickActions';
 import CoachRecentQuestions from './CoachRecentQuestions';
@@ -351,7 +351,9 @@ function CoachCommandBar({ trainingContext, onAddWorkout }) {
         workout_type: w.workout_type || 'rest',
         workout_id: w.workout_id || null,
         name: w.name || w.workout_id || 'Workout',
-        target_tss: w.target_tss || null,
+        // Dual-write canonical (RSS) + legacy (TSS) load columns per CLAUDE.md.
+        target_rss: w.target_rss ?? w.target_tss ?? null,
+        target_tss: w.target_rss ?? w.target_tss ?? null,
         target_duration: w.duration_minutes || null,
         duration_minutes: w.duration_minutes || 0,
         completed: false,
@@ -390,79 +392,30 @@ function CoachCommandBar({ trainingContext, onAddWorkout }) {
   // Handle action button clicks (direct DB writes — CoachCommandBar is a global modal with no parent callbacks)
   const handleActionClick = async (action) => {
     if (action.actionType === 'add_to_calendar' && action.payload) {
-      try {
-        // Find active plan to attach workout to
-        const { data: activePlan } = await supabase
-          .from('training_plans')
-          .select('id')
-          .eq('user_id', user.id)
-          .eq('status', 'active')
-          .order('created_at', { ascending: false })
-          .limit(1)
-          .maybeSingle();
+      const result = await scheduleCoachWorkout(supabase, {
+        userId: user.id,
+        recommendation: action.payload,
+      });
 
-        if (!activePlan) {
-          notifications.show({
-            title: 'No Active Plan',
-            message: 'You need an active training plan to add workouts. Ask your coach to create one!',
-            color: 'yellow',
-          });
-          return;
-        }
-
-        const scheduledDate = resolveScheduledDate(action.payload.scheduled_date);
-        const dateObj = new Date(scheduledDate + 'T12:00:00');
-        const dayOfWeek = dateObj.getDay();
-        const workoutName = action.payload.name || action.payload.workout_id || 'Workout';
-
-        // Check if there's an existing workout on this date
-        const { data: existingWorkout } = await supabase
-          .from('planned_workouts')
-          .select('id, name')
-          .eq('plan_id', activePlan.id)
-          .eq('scheduled_date', scheduledDate)
-          .maybeSingle();
-
-        const { error } = await supabase
-          .from('planned_workouts')
-          .upsert({
-            plan_id: activePlan.id,
-            user_id: user.id,
-            scheduled_date: scheduledDate,
-            day_of_week: dayOfWeek,
-            week_number: 1,
-            workout_type: action.payload.workout_type || 'endurance',
-            workout_id: action.payload.workout_id,
-            name: workoutName,
-            target_tss: action.payload.target_tss || null,
-            target_duration: action.payload.duration_minutes || null,
-            duration_minutes: action.payload.duration_minutes || 0,
-            completed: false,
-          }, {
-            onConflict: 'plan_id,scheduled_date',
-            ignoreDuplicates: false,
-          });
-
-        if (error) throw error;
-
-        notifications.show({
-          title: existingWorkout ? 'Workout Replaced' : 'Workout Added',
-          message: existingWorkout
-            ? `${workoutName} replaced ${existingWorkout.name} on ${scheduledDate}`
-            : `${workoutName} added to your calendar for ${scheduledDate}`,
-          color: 'sage',
-        });
-
-        // Notify dashboard to refresh
-        window.dispatchEvent(new CustomEvent('training-plan-updated'));
-      } catch (err) {
-        console.error('Error adding workout:', err);
+      if (!result.success) {
         notifications.show({
           title: 'Error',
-          message: 'Failed to add workout to calendar. Please try again.',
+          message: result.error || 'Failed to add workout to calendar. Please try again.',
           color: 'red',
         });
+        return;
       }
+
+      notifications.show({
+        title: result.replaced ? 'Workout Replaced' : 'Workout Added',
+        message: result.replaced
+          ? `${result.workoutName} replaced ${result.replacedName} on ${result.scheduledDate}`
+          : `${result.workoutName} added to your calendar for ${result.scheduledDate}`,
+        color: 'sage',
+      });
+
+      // Notify dashboard to refresh
+      window.dispatchEvent(new CustomEvent('training-plan-updated'));
     }
   };
 
