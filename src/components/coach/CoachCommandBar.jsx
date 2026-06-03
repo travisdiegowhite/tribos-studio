@@ -29,7 +29,8 @@ import { scheduleCoachWorkout } from '../../utils/coachWorkoutScheduler';
 import CoachQuickActions from './CoachQuickActions';
 import CoachRecentQuestions from './CoachRecentQuestions';
 import CoachResponseArea from './CoachResponseArea';
-import TrainingPlanPreview from './TrainingPlanPreview';
+import { CoachReply } from './CoachReply';
+import { activateTrainingPlan } from '../../utils/coachPlanActivation';
 import { ArrowRight, ClockCounterClockwise, PaperPlaneRight, ShieldCheck, Sparkle, X } from '@phosphor-icons/react';
 
 // Get the API base URL
@@ -313,87 +314,34 @@ function CoachCommandBar({ trainingContext, onAddWorkout }) {
   const handleActivatePlan = useCallback(async (planData) => {
     if (!user?.id) return;
 
-    try {
-      // Mark existing active plans as completed
-      await supabase
-        .from('training_plans')
-        .update({ status: 'completed', ended_at: new Date().toISOString() })
-        .eq('user_id', user.id)
-        .eq('status', 'active');
+    const result = await activateTrainingPlan(supabase, {
+      userId: user.id,
+      plan: planData,
+    });
 
-      // Count actual workouts (non-rest days)
-      const actualWorkouts = planData.workouts.filter(
-        (w) => w.workout_type !== 'rest' && w.workout_id
-      );
-
-      // Insert training plan
-      const { data: newPlan, error: planError } = await supabase
-        .from('training_plans')
-        .insert({
-          user_id: user.id,
-          template_id: `ai_coach_${planData.methodology}`,
-          name: planData.name,
-          duration_weeks: planData.duration_weeks,
-          methodology: planData.methodology,
-          goal: planData.goal,
-          status: 'active',
-          start_date: planData.start_date,
-          current_week: 1,
-          workouts_completed: 0,
-          workouts_total: actualWorkouts.length,
-          compliance_percentage: 0,
-        })
-        .select()
-        .single();
-
-      if (planError) throw planError;
-
-      // Insert all planned workouts
-      const workoutsToInsert = planData.workouts.map((w) => ({
-        plan_id: newPlan.id,
-        user_id: user.id,
-        week_number: w.week_number,
-        day_of_week: w.day_of_week,
-        scheduled_date: w.scheduled_date,
-        workout_type: w.workout_type || 'rest',
-        workout_id: w.workout_id || null,
-        name: w.name || w.workout_id || 'Workout',
-        // Dual-write canonical (RSS) + legacy (TSS) load columns per CLAUDE.md.
-        target_rss: w.target_rss ?? w.target_tss ?? null,
-        target_tss: w.target_rss ?? w.target_tss ?? null,
-        target_duration: w.duration_minutes || null,
-        duration_minutes: w.duration_minutes || 0,
-        completed: false,
-      }));
-
-      const { error: workoutsError } = await supabase
-        .from('planned_workouts')
-        .insert(workoutsToInsert);
-
-      if (workoutsError) throw workoutsError;
-
-      notifications.show({
-        title: 'Training Plan Activated',
-        message: `${planData.name} — ${actualWorkouts.length} workouts added to your calendar`,
-        color: 'sage',
-      });
-
-      setTrainingPlanPreview(null);
-
-      // Dispatch event so dashboard reloads plan + calendar without page refresh
-      window.dispatchEvent(new CustomEvent('training-plan-activated', {
-        detail: { planId: newPlan.id },
-      }));
-
-      onAddWorkout?.({ _planActivated: true, planId: newPlan.id });
-    } catch (err) {
-      console.error('Error activating plan:', err);
+    if (!result.success) {
       notifications.show({
         title: 'Error',
-        message: 'Failed to activate training plan. Please try again.',
+        message: result.error || 'Failed to activate training plan. Please try again.',
         color: 'red',
       });
+      return;
     }
+
+    notifications.show({
+      title: 'Training Plan Activated',
+      message: `${result.planName} — ${result.workoutCount} workouts added to your calendar`,
+      color: 'sage',
+    });
+
+    setTrainingPlanPreview(null);
+
+    // Dispatch event so dashboard reloads plan + calendar without page refresh
+    window.dispatchEvent(new CustomEvent('training-plan-activated', {
+      detail: { planId: result.planId },
+    }));
+
+    onAddWorkout?.({ _planActivated: true, planId: result.planId });
   }, [user?.id, onAddWorkout]);
 
   // Handle action button clicks (direct DB writes — CoachCommandBar is a global modal with no parent callbacks)
@@ -621,12 +569,14 @@ function CoachCommandBar({ trainingContext, onAddWorkout }) {
                   onActionClick={handleActionClick}
                 />
 
-                {/* Training Plan Preview */}
+                {/* Training Plan Preview (shared renderer, inline) */}
                 {trainingPlanPreview && (
-                  <TrainingPlanPreview
-                    plan={trainingPlanPreview}
-                    onActivate={handleActivatePlan}
-                    onDismiss={() => setTrainingPlanPreview(null)}
+                  <CoachReply
+                    showMessage={false}
+                    trainingPlanPreview={trainingPlanPreview}
+                    planDisplay="inline"
+                    onActivatePlan={handleActivatePlan}
+                    onDismissPlan={() => setTrainingPlanPreview(null)}
                   />
                 )}
 

@@ -17,10 +17,10 @@ import { notifications } from '@mantine/notifications';
 import { useAuth } from '../../contexts/AuthContext';
 import { supabase } from '../../lib/supabase';
 import { depth } from '../../theme';
-import TrainingPlanPreview from './TrainingPlanPreview';
+import { CoachReply } from './CoachReply';
 import { useUserAvailability } from '../../hooks/useUserAvailability';
-import { redistributeWorkouts } from '../../utils/trainingPlans';
-import { ArrowsClockwise, CalendarPlus, PaperPlaneRight, Robot, Sparkle, User } from '@phosphor-icons/react';
+import { activateTrainingPlan } from '../../utils/coachPlanActivation';
+import { ArrowsClockwise, PaperPlaneRight, Robot, Sparkle, User } from '@phosphor-icons/react';
 import { CoachMarkdown } from './CoachMarkdown';
 import { scheduleCoachWorkout } from '../../utils/coachWorkoutScheduler';
 import { PERSONAS, COLD_START_PROMPTS, DEFAULT_COLD_START_PROMPTS } from '../../data/coachingPersonas';
@@ -340,143 +340,44 @@ function CoachCard({ trainingContext, workoutRecommendation, onAddWorkout }) {
   const handleActivatePlan = async (planData) => {
     if (!user?.id) return;
 
-    try {
-      // Mark existing active plans as completed
-      await supabase
-        .from('training_plans')
-        .update({ status: 'completed', ended_at: new Date().toISOString() })
-        .eq('user_id', user.id)
-        .eq('status', 'active');
+    const result = await activateTrainingPlan(supabase, {
+      userId: user.id,
+      plan: planData,
+      availability: {
+        weeklyAvailability,
+        dateOverrides,
+        preferences: availabilityPreferences,
+      },
+    });
 
-      const actualWorkouts = planData.workouts.filter(
-        (w) => w.workout_type !== 'rest' && w.workout_id
-      );
-
-      const { data: newPlan, error: planError } = await supabase
-        .from('training_plans')
-        .insert({
-          user_id: user.id,
-          template_id: `ai_coach_${planData.methodology}`,
-          name: planData.name,
-          duration_weeks: planData.duration_weeks,
-          methodology: planData.methodology,
-          goal: planData.goal,
-          status: 'active',
-          start_date: planData.start_date,
-          current_week: 1,
-          workouts_completed: 0,
-          workouts_total: actualWorkouts.length,
-          compliance_percentage: 0,
-        })
-        .select()
-        .single();
-
-      if (planError) throw planError;
-
-      // Build initial workouts list
-      let workoutsToInsert = planData.workouts.map((w) => ({
-        plan_id: newPlan.id,
-        user_id: user.id,
-        week_number: w.week_number,
-        day_of_week: w.day_of_week,
-        scheduled_date: w.scheduled_date,
-        workout_type: w.workout_type || 'rest',
-        workout_id: w.workout_id || null,
-        name: w.name || w.workout_id || 'Workout',
-        // Dual-write canonical (RSS) + legacy (TSS) load columns per CLAUDE.md.
-        target_rss: w.target_rss ?? w.target_tss ?? null,
-        target_tss: w.target_rss ?? w.target_tss ?? null,
-        target_duration: w.duration_minutes || null,
-        duration_minutes: w.duration_minutes || 0,
-        completed: false,
-      }));
-
-      // Apply schedule-aware redistribution if user has availability set
-      const hasBlockedDays = weeklyAvailability.some((d) => d.status === 'blocked');
-      let redistributionCount = 0;
-
-      if (hasBlockedDays) {
-        const workoutsForRedistribution = workoutsToInsert
-          .filter((w) => w.workout_id && w.workout_type !== 'rest')
-          .map((w) => ({
-            originalDate: w.scheduled_date,
-            dayOfWeek: w.day_of_week,
-            weekNumber: w.week_number,
-            workoutId: w.workout_id,
-            workoutType: w.workout_type,
-            targetTSS: w.target_tss,
-            targetDuration: w.target_duration,
-          }));
-
-        const redistributions = redistributeWorkouts(
-          workoutsForRedistribution,
-          weeklyAvailability,
-          dateOverrides,
-          {
-            maxWorkoutsPerWeek: availabilityPreferences?.maxWorkoutsPerWeek ?? null,
-            preferWeekendLongRides: availabilityPreferences?.preferWeekendLongRides ?? true,
-          }
-        );
-
-        // Apply redistributions to workouts
-        const movedDates = new Map();
-        for (const r of redistributions) {
-          if (r.originalDate !== r.newDate) {
-            movedDates.set(r.originalDate + '|' + r.workoutId, r.newDate);
-            redistributionCount++;
-          }
-        }
-
-        if (movedDates.size > 0) {
-          workoutsToInsert = workoutsToInsert.map((w) => {
-            const key = w.scheduled_date + '|' + w.workout_id;
-            const newDate = movedDates.get(key);
-            if (newDate) {
-              const newDateObj = new Date(newDate + 'T12:00:00');
-              return {
-                ...w,
-                scheduled_date: newDate,
-                day_of_week: newDateObj.getDay(),
-              };
-            }
-            return w;
-          });
-        }
-      }
-
-      const { error: workoutsError } = await supabase
-        .from('planned_workouts')
-        .insert(workoutsToInsert);
-
-      if (workoutsError) throw workoutsError;
-
-      const scheduleNote = redistributionCount > 0
-        ? ` (${redistributionCount} workout${redistributionCount > 1 ? 's' : ''} moved to fit your schedule)`
-        : '';
-
-      notifications.show({
-        title: 'Training Plan Activated',
-        message: `${planData.name} — ${actualWorkouts.length} workouts added to your calendar${scheduleNote}`,
-        color: 'sage',
-      });
-
-      setTrainingPlanPreview(null);
-
-      // Dispatch event so dashboard reloads plan + calendar without page refresh
-      window.dispatchEvent(new CustomEvent('training-plan-activated', {
-        detail: { planId: newPlan.id },
-      }));
-
-      if (onAddWorkout) {
-        onAddWorkout({ _planActivated: true, planId: newPlan.id });
-      }
-    } catch (err) {
-      console.error('Error activating plan:', err);
+    if (!result.success) {
       notifications.show({
         title: 'Error',
-        message: 'Failed to activate training plan. Please try again.',
+        message: result.error || 'Failed to activate training plan. Please try again.',
         color: 'red',
       });
+      return;
+    }
+
+    const scheduleNote = result.redistributionCount > 0
+      ? ` (${result.redistributionCount} workout${result.redistributionCount > 1 ? 's' : ''} moved to fit your schedule)`
+      : '';
+
+    notifications.show({
+      title: 'Training Plan Activated',
+      message: `${result.planName} — ${result.workoutCount} workouts added to your calendar${scheduleNote}`,
+      color: 'sage',
+    });
+
+    setTrainingPlanPreview(null);
+
+    // Dispatch event so dashboard reloads plan + calendar without page refresh
+    window.dispatchEvent(new CustomEvent('training-plan-activated', {
+      detail: { planId: result.planId },
+    }));
+
+    if (onAddWorkout) {
+      onAddWorkout({ _planActivated: true, planId: result.planId });
     }
   };
 
@@ -606,22 +507,13 @@ function CoachCard({ trainingContext, workoutRecommendation, onAddWorkout }) {
                             {msg.content}
                           </CoachMarkdown>
                         )}
-                        {/* Workout action buttons on coach messages */}
-                        {msg.workoutRecommendations?.length > 0 && (
-                          <Group gap={4} mt={4}>
-                            {msg.workoutRecommendations.map((rec, rIdx) => (
-                              <Button
-                                key={rIdx}
-                                size="compact-xs"
-                                variant="light"
-                                color="teal"
-                                leftSection={<CalendarPlus size={12} />}
-                                onClick={() => handleAddWorkout(rec)}
-                              >
-                                Add {rec.name || rec.workout_id}
-                              </Button>
-                            ))}
-                          </Group>
+                        {/* Workout action buttons on coach messages (shared renderer) */}
+                        {msg.role !== 'user' && (
+                          <CoachReply
+                            showMessage={false}
+                            workoutRecommendations={msg.workoutRecommendations}
+                            onAddWorkout={handleAddWorkout}
+                          />
                         )}
                       </Box>
                     </Group>
@@ -672,16 +564,15 @@ function CoachCard({ trainingContext, workoutRecommendation, onAddWorkout }) {
             </Paper>
           )}
 
-          {/* Training plan preview */}
+          {/* Training plan preview (shared renderer, inline) */}
           {trainingPlanPreview && (
-            <Box mt="xs">
-              <TrainingPlanPreview
-                plan={trainingPlanPreview}
-                onActivate={handleActivatePlan}
-                onDismiss={() => setTrainingPlanPreview(null)}
-                compact
-              />
-            </Box>
+            <CoachReply
+              showMessage={false}
+              trainingPlanPreview={trainingPlanPreview}
+              planDisplay="inline"
+              onActivatePlan={handleActivatePlan}
+              onDismissPlan={() => setTrainingPlanPreview(null)}
+            />
           )}
         </Box>
 

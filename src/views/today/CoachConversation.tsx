@@ -10,10 +10,14 @@ import {
   TextInput,
 } from '@mantine/core';
 import { PaperPlaneRight } from '@phosphor-icons/react';
+import { notifications } from '@mantine/notifications';
 import { ClusterCard } from './shared/ClusterCard';
 import { ClusterHeader } from './shared/ClusterHeader';
+import { CoachReply } from '../../components/coach/CoachReply';
 import { useAuth } from '../../contexts/AuthContext.jsx';
 import { supabase } from '../../lib/supabase';
+import { scheduleCoachWorkout } from '../../utils/coachWorkoutScheduler';
+import { activateTrainingPlan } from '../../utils/coachPlanActivation';
 import type { ConversationMessage } from './useTodayData';
 
 interface CoachConversationProps {
@@ -59,10 +63,22 @@ export function CoachConversation({
 
     try {
       const { data: { session } } = await supabase.auth.getSession();
-      const conversationHistory = [...messages, userMsg].map((m) => ({
-        role: m.role === 'coach' ? 'assistant' : 'user',
-        content: m.content,
-      }));
+      const conversationHistory = [...messages, userMsg].map((m) => {
+        const role = m.role === 'coach' ? 'assistant' : 'user';
+        // Thread any prior workout recommendation into the assistant turn so a follow-up
+        // like "add that to the calendar" can resolve the reference.
+        const recs = m.workoutRecommendations;
+        const recsNote =
+          role === 'assistant' && recs && recs.length > 0
+            ? `\n\n[Workouts you just recommended: ${recs
+                .map(
+                  (r: any) =>
+                    `${r.name || r.workout_id} (workout_id: ${r.workout_id}${r.scheduled_date ? `, date: ${r.scheduled_date}` : ''})`
+                )
+                .join('; ')}]`
+            : '';
+        return { role, content: m.content + recsNote };
+      });
 
       const now = new Date();
       const userLocalDate = {
@@ -104,14 +120,22 @@ export function CoachConversation({
       }
 
       const data = await res.json();
+      const workoutRecommendations = data.workoutRecommendations ?? null;
+      const trainingPlanPreview =
+        data.trainingPlanPreview && !data.trainingPlanPreview.error
+          ? data.trainingPlanPreview
+          : null;
       const coachMsg: ConversationMessage = {
         role: 'coach',
         content: data.message,
         timestamp: new Date().toISOString(),
+        workoutRecommendations,
+        trainingPlanPreview,
       };
       setOptimistic((prev) => [...prev, coachMsg]);
 
-      // Persist both turns so the next load reflects them.
+      // Persist both turns so the next load reflects them. The coach turn stores the
+      // structured payload in context_snapshot so cards/CTA survive a reload.
       try {
         await supabase.from('coach_conversations').insert([
           {
@@ -128,7 +152,12 @@ export function CoachConversation({
             role: 'coach',
             message: data.message,
             message_type: 'chat',
-            context_snapshot: { coach_type: 'training', surface: 'today' },
+            context_snapshot: {
+              coach_type: 'training',
+              surface: 'today',
+              ...(workoutRecommendations ? { workoutRecommendations } : {}),
+              ...(trainingPlanPreview ? { trainingPlanPreview } : {}),
+            },
             coach_type: 'strategist',
             timestamp: coachMsg.timestamp,
           },
@@ -154,6 +183,61 @@ export function CoachConversation({
       inputRef.current?.focus();
     }
   }, [draft, submitting, user?.id, messages, trainingContext, onMessageSent, onConversationRefresh]);
+
+  const refreshDashboard = useCallback(async () => {
+    onMessageSent?.();
+    if (onConversationRefresh) await onConversationRefresh();
+  }, [onMessageSent, onConversationRefresh]);
+
+  const handleAddWorkout = useCallback(
+    async (recommendation: any) => {
+      if (!user?.id) return;
+      const result: any = await scheduleCoachWorkout(supabase, { userId: user.id, recommendation });
+      if (!result.success) {
+        notifications.show({
+          title: 'Error',
+          message: result.error || 'Failed to add workout to calendar.',
+          color: 'red',
+        });
+        return;
+      }
+      notifications.show({
+        title: result.replaced ? 'Workout Replaced' : 'Workout Added',
+        message: result.replaced
+          ? `${result.workoutName} replaced ${result.replacedName} on ${result.scheduledDate}`
+          : `${result.workoutName} added to your calendar for ${result.scheduledDate}`,
+        color: 'sage',
+      });
+      window.dispatchEvent(new CustomEvent('training-plan-updated'));
+      await refreshDashboard();
+    },
+    [user?.id, refreshDashboard]
+  );
+
+  const handleActivatePlan = useCallback(
+    async (plan: any) => {
+      if (!user?.id) return;
+      const result = await activateTrainingPlan(supabase, { userId: user.id, plan });
+      if (!result.success) {
+        notifications.show({
+          title: 'Error',
+          message: result.error || 'Failed to activate training plan.',
+          color: 'red',
+        });
+        return;
+      }
+      notifications.show({
+        title: 'Training Plan Activated',
+        message: `${result.planName} — ${result.workoutCount} workouts added to your calendar`,
+        color: 'sage',
+      });
+      window.dispatchEvent(
+        new CustomEvent('training-plan-activated', { detail: { planId: result.planId } })
+      );
+      await refreshDashboard();
+    },
+    [user?.id, refreshDashboard]
+  );
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === 'Enter' && !e.shiftKey) {
@@ -199,16 +283,27 @@ export function CoachConversation({
                 >
                   {isCoach ? 'Coach:' : 'You:'}
                 </Text>
-                <Text
-                  style={{
-                    fontSize: 13,
-                    lineHeight: 1.5,
-                    color: '#3D3C36',
-                    whiteSpace: 'pre-wrap',
-                  }}
-                >
-                  {m.content}
-                </Text>
+                {isCoach ? (
+                  <CoachReply
+                    message={m.content}
+                    workoutRecommendations={m.workoutRecommendations ?? undefined}
+                    trainingPlanPreview={m.trainingPlanPreview ?? undefined}
+                    planDisplay="cta"
+                    onAddWorkout={handleAddWorkout}
+                    onActivatePlan={handleActivatePlan}
+                  />
+                ) : (
+                  <Text
+                    style={{
+                      fontSize: 13,
+                      lineHeight: 1.5,
+                      color: '#3D3C36',
+                      whiteSpace: 'pre-wrap',
+                    }}
+                  >
+                    {m.content}
+                  </Text>
+                )}
               </Box>
             );
           })
