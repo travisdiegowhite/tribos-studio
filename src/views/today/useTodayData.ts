@@ -139,6 +139,10 @@ export interface ConversationMessage {
   role: 'user' | 'coach';
   content: string;
   timestamp: string;
+  // Structured coach payload (persisted in coach_conversations.context_snapshot) so the
+  // Today panel can render workout-add cards and a plan-activation CTA, not just text.
+  workoutRecommendations?: any[] | null;
+  trainingPlanPreview?: any | null;
 }
 
 export interface RecentRide {
@@ -452,7 +456,7 @@ export function useTodayData(userId: string | null): UseTodayDataReturn {
     if (!userId) return [];
     const { data } = await supabase
       .from('coach_conversations')
-      .select('role, message, timestamp')
+      .select('role, message, timestamp, context_snapshot')
       .eq('user_id', userId)
       .in('role', ['user', 'coach'])
       .order('timestamp', { ascending: false })
@@ -463,6 +467,9 @@ export function useTodayData(userId: string | null): UseTodayDataReturn {
         role: m.role === 'coach' ? 'coach' : 'user',
         content: m.message,
         timestamp: m.timestamp,
+        // Re-hydrate the structured payload so cards/CTA survive a reload.
+        workoutRecommendations: m.context_snapshot?.workoutRecommendations ?? null,
+        trainingPlanPreview: m.context_snapshot?.trainingPlanPreview ?? null,
       })) as ConversationMessage[];
   }, [userId]);
 
