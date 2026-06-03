@@ -45,7 +45,7 @@ vi.mock('./utils/supabaseAdmin.js', () => ({
 
 const coachModule = await import('./coach.js');
 const handler = coachModule.default;
-const { detectCoachIntent } = coachModule;
+const { detectCoachIntent, detectIntentFromResponse } = coachModule;
 
 function makeRes() {
   return {
@@ -81,6 +81,26 @@ const workoutToolResponse = (text) => ({
   usage: { input_tokens: 10, output_tokens: 20 },
 });
 
+const planToolResponse = (text) => ({
+  content: [
+    ...(text ? [{ type: 'text', text }] : []),
+    {
+      type: 'tool_use',
+      id: 'tp1',
+      name: 'create_training_plan',
+      input: {
+        name: 'Summer Vibes Final Block',
+        duration_weeks: 3,
+        methodology: 'sweet_spot',
+        goal: 'racing',
+        start_date: 'next_monday',
+        target_event_date: '2026-06-21',
+      },
+    },
+  ],
+  usage: { input_tokens: 12, output_tokens: 24 },
+});
+
 beforeEach(() => {
   messagesCreate.mockReset();
   getUser.mockReset();
@@ -92,7 +112,6 @@ describe('detectCoachIntent', () => {
   it.each([
     ['what should I ride today', 'recommend_workout'],
     ['add a workout for tomorrow', 'recommend_workout'],
-    ['plan my week', 'recommend_workout'],
     ['recommend a recovery ride', 'recommend_workout'],
     // Add-to-calendar follow-ups that reference a just-recommended workout.
     ['Can you add that to the calendar', 'recommend_workout'],
@@ -100,6 +119,11 @@ describe('detectCoachIntent', () => {
     ['put this on my calendar', 'recommend_workout'],
     // Plural "add the workouts" activates a whole plan, not a single workout.
     ['add the workouts to my calendar', 'create_training_plan'],
+    // Weekly / schedule planning → a full plan preview.
+    ['can you plan my workouts for the rest of the week', 'create_training_plan'],
+    ['plan out the workout schedule', 'create_training_plan'],
+    ['map out the rest of my week', 'create_training_plan'],
+    ['plan my week', 'create_training_plan'],
     ['build me a training plan for my race', 'create_training_plan'],
     ['create an 8 week plan', 'create_training_plan'],
     ['prepare me for my gran fondo', 'create_training_plan'],
@@ -112,6 +136,24 @@ describe('detectCoachIntent', () => {
     ['', null],
   ])('classifies "%s" as %s', (msg, expected) => {
     expect(detectCoachIntent(msg)).toBe(expected);
+  });
+});
+
+describe('detectIntentFromResponse', () => {
+  it.each([
+    // Action promises the model makes in prose — these must map to the tool it failed to call.
+    ['Let me get that Sweet Spot on the calendar for tomorrow and map out the rest of your week.', 'create_training_plan'],
+    ["18 days out — let's build the final block into Summer Vibes right now.", 'create_training_plan'],
+    ["I'll map out the rest of your week with a few endurance rides.", 'create_training_plan'],
+    ['Let me get that recovery spin on the calendar for tomorrow.', 'recommend_workout'],
+    ["I'll move your Thursday workout to Saturday.", 'adjust_schedule'],
+    // Descriptive / non-promise prose must NOT trip a forced tool pass.
+    ['Your fitness is trending up nicely.', null],
+    ['Nice work on that plan!', null],
+    ['That sweet spot session was a solid effort.', null],
+    ['', null],
+  ])('classifies response "%s" as %s', (text, expected) => {
+    expect(detectIntentFromResponse(text)).toBe(expected);
   });
 });
 
@@ -151,6 +193,23 @@ describe('coach handler — forced tool pass', () => {
     expect(res.statusCode).toBe(200);
     expect(messagesCreate).toHaveBeenCalledTimes(1);
     expect(res.body.workoutRecommendations).toBeNull();
+  });
+
+  it('forces create_training_plan when the coach promised a plan in prose only', async () => {
+    // User message has no plan keyword; the coach's PROSE promises to build a block but
+    // calls no tool. Response-based intent must drive the forced create_training_plan pass.
+    messagesCreate
+      .mockResolvedValueOnce(textResponse("18 days out — let's build the final block into Summer Vibes right now."))
+      .mockResolvedValueOnce(planToolResponse(null));
+
+    const res = makeRes();
+    await handler(makeReq({ message: 'looking forward to Summer Vibes' }), res);
+
+    expect(res.statusCode).toBe(200);
+    expect(messagesCreate).toHaveBeenCalledTimes(2);
+    expect(messagesCreate.mock.calls[1][0].tool_choice).toEqual({ type: 'tool', name: 'create_training_plan' });
+    expect(res.body.trainingPlanPreview).toBeTruthy();
+    expect(res.body.trainingPlanPreview.error).toBeFalsy();
   });
 
   it('never returns a blank bubble when only a workout card is produced', async () => {
