@@ -98,7 +98,14 @@ export function detectCoachIntent(message) {
     /\bload\b.*\bplan\b/.test(m) ||
     // Plural plan-activation: "add the workouts to my calendar" activates a whole
     // plan, not a single workout — keep it here, ahead of the singular add patterns below.
-    /\badd\b.*\bworkouts\b.*\bcalendar\b/.test(m)
+    /\badd\b.*\bworkouts\b.*\bcalendar\b/.test(m) ||
+    // Weekly / schedule planning → a full plan preview (athlete's choice), e.g.
+    // "plan my workouts for the rest of the week", "plan out the workout schedule",
+    // "plan my week", "map out the rest of my week".
+    /\bplan\b.*\b(my|the|our)?\s*(workouts?|week|schedule|training)\b/.test(m) ||
+    /\bplan out\b/.test(m) ||
+    /\bmap out\b.*\b(week|workouts?|schedule|training|plan)\b/.test(m) ||
+    /\bplan\b.*\brest of (the|my) (week|month|season)\b/.test(m)
   ) {
     return 'create_training_plan';
   }
@@ -109,7 +116,6 @@ export function detectCoachIntent(message) {
     /\brecommend\b/.test(m) ||
     /\bsuggest\b.*\b(workout|ride|run|session)\b/.test(m) ||
     /\badd\s+(a |an |some )?(workout|ride|run|session)/.test(m) ||
-    /\bplan my week\b/.test(m) ||
     /\bschedule\b.*\b(workout|training|ride|run)\b/.test(m) ||
     /\bgive me a\b.*\b(ride|workout|session|run)\b/.test(m) ||
     // Add-to-calendar follow-ups that reference a just-recommended workout ("add that
@@ -118,6 +124,50 @@ export function detectCoachIntent(message) {
     /\b(add|schedule|put|save|drop|stick|slot)\s+(that|this|it)\b/.test(m) ||
     /\b(add|put|schedule|save|drop|stick|slot)\b.*\b(it|that|this)\b.*\bcalendar\b/.test(m) ||
     /\b(add|put|schedule)\b.*\bto\b.*\bcalendar\b/.test(m)
+  ) {
+    return 'recommend_workout';
+  }
+
+  return null;
+}
+
+// Detect intent from the COACH'S OWN response prose. The model frequently narrates an
+// action it never performs ("Let me get that Sweet Spot on the calendar", "let's build the
+// final block right now") without calling the matching tool. The user's message often gives
+// no regex-detectable signal, but the coach's promise does — so we read the response too and
+// force the tool when a promise was made but no tool fired. Returns a tool name or null.
+//
+// Conservative by design: every pattern is anchored on a first-person PROMISE verb
+// (let me / let's / I'll / I'm going to / here's / I've) so descriptive text like
+// "your plan looks good" never trips it. Precedence: adjust → create → recommend, so a
+// plan promise outranks a lone calendar-add when both appear in the same reply.
+export function detectIntentFromResponse(responseText) {
+  if (!responseText || typeof responseText !== 'string') return null;
+  const m = responseText.toLowerCase();
+
+  const PROMISE = /\b(let me|let'?s|i'?ll|i am going to|i'?m going to|i will|here'?s|i'?ve)\b/;
+  if (!PROMISE.test(m)) return null;
+
+  // 1. Adjusting an existing schedule.
+  if (
+    /\b(let me|let'?s|i'?ll|i'?m going to|i will)\b.*\b(move|swap|reschedul\w*|shift|bump|replace)\b/.test(m)
+  ) {
+    return 'adjust_schedule';
+  }
+
+  // 2. Building / mapping out a plan or block (full plan preview).
+  if (
+    /\b(let'?s|i'?ll|let me|i'?m going to|i will|here'?s|i'?ve)\b.*\b(build|map out|set up|put together|create|design)\b.*\b(plan|block|week|schedule|training|program)\b/.test(m) ||
+    /\b(build|map out|set up|put together)\b.*\b(final block|the rest of (your|the) (week|season|month)|training block)\b/.test(m)
+  ) {
+    return 'create_training_plan';
+  }
+
+  // 3. Getting a single workout onto the calendar.
+  if (
+    /\b(let me|i'?ll|let'?s|i'?m going to|i will|i'?ve)\b.*\b(get|put|add|drop|schedule|slot|pencil)\b.*\bcalendar\b/.test(m) ||
+    /\b(get|put|drop|add|slot|pencil)\b.*\bon (the|your) calendar\b/.test(m) ||
+    /\bschedule\b.*\bfor (today|tomorrow|this|next)\b/.test(m)
   ) {
     return 'recommend_workout';
   }
@@ -458,6 +508,9 @@ When you recommend specific workouts, you MUST use the recommend_workout tool. N
 - scheduled_date format: "today", "tomorrow", "this_monday", "next_tuesday", or "YYYY-MM-DD"
 
 Remember: The tool is how athletes add workouts to their calendar. Without it, they can't act on your advice!
+
+**NEVER PROMISE AN ACTION WITHOUT PERFORMING IT:**
+This is critical. If your reply says or implies that you are doing something — "let me get that on the calendar", "let's build the final block right now", "I'll add that workout", "let me map out the rest of your week", "I'll move that to Saturday" — you MUST emit the matching tool call (recommend_workout / create_training_plan / adjust_schedule) in that SAME response. Narrating an action in prose and then not calling the tool leaves the athlete with an empty promise and nothing on their calendar. If you are not going to call a tool, do not claim you are taking the action.
 
 **CREATING FULL TRAINING PLANS:**
 
@@ -1093,7 +1146,7 @@ The athlete is using the quick command bar. Provide CONCISE responses:
 - Keep responses to 2-4 sentences maximum
 - Focus on the most actionable advice
 - Be direct and specific
-- Still use tools (recommend_workout, create_training_plan) when appropriate
+- Brevity NEVER excuses skipping a tool call: if your reply says or implies you are adding a workout, scheduling, building/mapping out a plan or block, or adjusting the calendar, you MUST emit the matching tool call (recommend_workout / create_training_plan / adjust_schedule) in that same response. Never promise an action in prose without performing it.
 - Prioritize immediate, practical guidance over detailed explanations`;
     }
 
@@ -1171,7 +1224,14 @@ ${conversationSummary}
     // already called the right tool, nothing extra happens. Forcing a *named*
     // tool (vs {type:'any'}) avoids recommend_workout/create_training_plan being
     // confused with each other or with a query tool.
-    const coachIntent = detectCoachIntent(message);
+    //
+    // Intent comes from the user's message OR — critically — from the coach's own
+    // response prose. The model often promises an action ("let me get that on the
+    // calendar", "let's build the final block right now") without calling the tool;
+    // reading the response catches those even when the user's phrasing matched no
+    // input regex. Input intent wins when present.
+    const firstPassText = response.content.find(block => block.type === 'text')?.text || '';
+    const coachIntent = detectCoachIntent(message) || detectIntentFromResponse(firstPassText);
     const producedIntentTool = !!coachIntent && toolUses.some(t => t.name === coachIntent);
     let forcedToolPass = false;
     if (coachIntent && !producedIntentTool) {
