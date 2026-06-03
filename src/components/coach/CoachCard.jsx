@@ -138,11 +138,19 @@ function CoachCard({ trainingContext, workoutRecommendation, onAddWorkout }) {
 
         const allMessages = (data || []).reverse();
 
-        // Full history for API context
-        const history = allMessages.map((msg) => ({
-          role: msg.role === 'coach' ? 'assistant' : 'user',
-          content: msg.message,
-        }));
+        // Full history for API context. Re-thread any stored workout recommendations
+        // into the assistant turn (mirrors the in-session append) so a follow-up "add
+        // that to the calendar" still resolves after a page reload.
+        const history = allMessages.map((msg) => {
+          const role = msg.role === 'coach' ? 'assistant' : 'user';
+          const recs = msg.context_snapshot?.workoutRecommendations;
+          const recsNote = role === 'assistant' && recs?.length > 0
+            ? `\n\n[Workouts you just recommended: ${recs
+                .map((r) => `${r.name || r.workout_id} (workout_id: ${r.workout_id}${r.scheduled_date ? `, date: ${r.scheduled_date}` : ''})`)
+                .join('; ')}]`
+            : '';
+          return { role, content: msg.message + recsNote };
+        });
         setConversationHistory(history);
 
         // Last 10 messages for display in mini-chat
@@ -242,11 +250,19 @@ function CoachCard({ trainingContext, workoutRecommendation, onAddWorkout }) {
       };
       setChatMessages((prev) => [...prev, coachMsg]);
 
-      // Update full conversation history for API
+      // Update full conversation history for API. Thread the recommended workout(s)
+      // into the assistant turn so a follow-up like "add that to the calendar" can
+      // resolve the reference — without this, the model only sees the prose and can't
+      // re-emit the right workout card. The visible bubble (coachMsg.content) stays clean.
+      const recsNote = data.workoutRecommendations?.length > 0
+        ? `\n\n[Workouts you just recommended: ${data.workoutRecommendations
+            .map((r) => `${r.name || r.workout_id} (workout_id: ${r.workout_id}${r.scheduled_date ? `, date: ${r.scheduled_date}` : ''})`)
+            .join('; ')}]`
+        : '';
       setConversationHistory((prev) => [
         ...prev,
         { role: 'user', content: userMessage },
-        { role: 'assistant', content: data.message },
+        { role: 'assistant', content: data.message + recsNote },
       ]);
 
       // Save to DB for persistence across sessions
