@@ -143,6 +143,7 @@ export interface ConversationMessage {
   // Today panel can render workout-add cards and a plan-activation CTA, not just text.
   workoutRecommendations?: any[] | null;
   trainingPlanPreview?: any | null;
+  anchoredPlanPreview?: any | null;
 }
 
 export interface RecentRide {
@@ -470,6 +471,7 @@ export function useTodayData(userId: string | null): UseTodayDataReturn {
         // Re-hydrate the structured payload so cards/CTA survive a reload.
         workoutRecommendations: m.context_snapshot?.workoutRecommendations ?? null,
         trainingPlanPreview: m.context_snapshot?.trainingPlanPreview ?? null,
+        anchoredPlanPreview: m.context_snapshot?.anchoredPlanPreview ?? null,
       })) as ConversationMessage[];
   }, [userId]);
 

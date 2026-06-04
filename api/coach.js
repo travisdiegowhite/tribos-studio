@@ -8,6 +8,7 @@ import { WORKOUT_LIBRARY_FOR_AI, ALL_COACH_TOOLS } from './utils/workoutLibrary.
 import { handleFitnessHistoryQuery } from './utils/fitnessHistoryTool.js';
 import { handleTrainingDataQuery } from './utils/trainingDataTool.js';
 import { generateTrainingPlan } from './utils/planGenerator.js';
+import { buildAnchoredPreview } from './utils/sequencerPreview.js';
 import { setupCors } from './utils/cors.js';
 import { generateFuelPlan } from './utils/fuelPlanGenerator.js';
 import { fetchCalendarContext } from './utils/calendarHelper.js';
@@ -173,6 +174,51 @@ export function detectIntentFromResponse(responseText) {
   }
 
   return null;
+}
+
+// Read the event_anchored_planner feature flag server-side. Mirrors the default-on
+// logic in src/utils/featureFlags.ts (an explicit `false` in the JSONB still wins as a
+// kill switch). Defaults to false only if the profile read fails.
+async function isEventAnchoredEnabled(supabase, userId) {
+  try {
+    const { data } = await supabase
+      .from('user_profiles')
+      .select('feature_flags')
+      .eq('id', userId)
+      .maybeSingle();
+    const flags = data?.feature_flags;
+    if (flags && 'event_anchored_planner' in flags) {
+      const v = flags.event_anchored_planner;
+      return v === true || v === 'true';
+    }
+    return true; // default on
+  } catch (err) {
+    console.error('feature flag read failed (event_anchored_planner):', err.message);
+    return false;
+  }
+}
+
+// Resolve which upcoming race the coach's plan request is targeting. The LLM provides
+// target_event_date (not a race_goal_id), so match on the exact date first, then fall
+// back to the soonest A race, then soonest B, then soonest upcoming. Returns null when
+// the athlete has no upcoming races (→ caller uses the static generator).
+async function resolveRaceGoalIdForPlan(supabase, userId, targetEventDate) {
+  const today = new Date().toISOString().slice(0, 10);
+  const { data: races } = await supabase
+    .from('race_goals')
+    .select('id, race_date, priority, status')
+    .eq('user_id', userId)
+    .eq('status', 'upcoming')
+    .gte('race_date', today)
+    .order('race_date', { ascending: true });
+
+  if (!races || races.length === 0) return null;
+  if (targetEventDate) {
+    const exact = races.find((r) => r.race_date === targetEventDate);
+    if (exact) return exact.id;
+  }
+  const soonestOfTier = (tier) => races.find((r) => (r.priority ?? 'B') === tier);
+  return (soonestOfTier('A') ?? soonestOfTier('B') ?? races[0]).id;
 }
 
 // Swap two workouts' dates atomically, using a null parking date to avoid unique constraint violation.
@@ -1391,7 +1437,7 @@ ${conversationSummary}
 
     // If Claude only called create_training_plan without text, provide a default message
     if (!responseText && toolUses.some(t => t.name === 'create_training_plan')) {
-      responseText = "I've created a training plan for you. Review the details below and click 'Activate Plan' to add all workouts to your calendar.";
+      responseText = "I've put together a plan for you — review it below and confirm to add it to your calendar.";
     }
 
     // If Claude only called recommend_workout without text, provide a default message so the
@@ -1415,27 +1461,57 @@ ${conversationSummary}
 
     // Handle training plan creation tool (generates plan preview)
     let trainingPlanPreview = null;
+    let anchoredPlanPreview = null;
     const planCreationTool = toolUses.find(tool => tool.name === 'create_training_plan');
 
     if (planCreationTool) {
-      console.log(`🤖 Generating training plan:`, planCreationTool.input);
+      // Prefer the event-anchored sequencer when the request targets a real upcoming
+      // race and the feature flag is on — it's race-anchored (cannot overshoot) and
+      // fitness-gated. This is a no-write PREVIEW; nothing is persisted until the
+      // athlete taps "Anchor plan" in the UI.
       try {
-        // Pass user availability so plan generator can avoid blocked days
-        const planInput = {
-          ...planCreationTool.input,
-          userAvailability: userAvailability || null,
-        };
-        trainingPlanPreview = generateTrainingPlan(planInput);
-        console.log(`✅ Plan generated: ${trainingPlanPreview.summary.total_workouts} workouts over ${trainingPlanPreview.duration_weeks} weeks`);
-        if (trainingPlanPreview.redistributedCount > 0) {
-          console.log(`📅 ${trainingPlanPreview.redistributedCount} workouts redistributed to fit schedule`);
+        if (verifiedUserId && await isEventAnchoredEnabled(supabase, verifiedUserId)) {
+          const raceGoalId = await resolveRaceGoalIdForPlan(
+            supabase, verifiedUserId, planCreationTool.input.target_event_date
+          );
+          if (raceGoalId) {
+            const preview = await buildAnchoredPreview({
+              supabase, user_id: verifiedUserId, race_goal_id: raceGoalId,
+            });
+            if (preview.ok) {
+              anchoredPlanPreview = preview;
+              console.log(`🎯 Routed plan to event-anchored sequencer (race ${raceGoalId}, ${preview.horizon_days}d, chain ${preview.chain_used?.join('→')})`);
+            } else {
+              console.log(`↩️ Sequencer preview not usable (${preview.error}); using static generator.`);
+            }
+          }
         }
-      } catch (error) {
-        console.error('Plan generation error:', error);
-        trainingPlanPreview = {
-          error: true,
-          message: 'Failed to generate training plan. Please try again.'
-        };
+      } catch (routeErr) {
+        console.error('Event-anchored routing failed (non-blocking):', routeErr.message);
+      }
+
+      // Fall back to the static generator when not routed to the sequencer
+      // (no upcoming race, flag off, or sequencer conflict).
+      if (!anchoredPlanPreview) {
+        console.log(`🤖 Generating training plan:`, planCreationTool.input);
+        try {
+          // Pass user availability so plan generator can avoid blocked days
+          const planInput = {
+            ...planCreationTool.input,
+            userAvailability: userAvailability || null,
+          };
+          trainingPlanPreview = generateTrainingPlan(planInput);
+          console.log(`✅ Plan generated: ${trainingPlanPreview.summary.total_workouts} workouts over ${trainingPlanPreview.duration_weeks} weeks`);
+          if (trainingPlanPreview.redistributedCount > 0) {
+            console.log(`📅 ${trainingPlanPreview.redistributedCount} workouts redistributed to fit schedule`);
+          }
+        } catch (error) {
+          console.error('Plan generation error:', error);
+          trainingPlanPreview = {
+            error: true,
+            message: 'Failed to generate training plan. Please try again.'
+          };
+        }
       }
     }
 
@@ -1516,6 +1592,7 @@ ${conversationSummary}
       message: responseText,
       workoutRecommendations: workoutRecommendations.length > 0 ? workoutRecommendations : null,
       trainingPlanPreview: trainingPlanPreview,
+      anchoredPlanPreview: anchoredPlanPreview,
       fuelPlan: fuelPlan,
       scheduleAdjusted: scheduleAdjustUses.length > 0,
       suggestedActions: suggestedActions,

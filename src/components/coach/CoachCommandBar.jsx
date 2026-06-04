@@ -52,6 +52,7 @@ function CoachCommandBar({ trainingContext, onAddWorkout }) {
   const [loadingRecent, setLoadingRecent] = useState(false);
   const [conversationHistory, setConversationHistory] = useState([]);
   const [trainingPlanPreview, setTrainingPlanPreview] = useState(null);
+  const [anchoredPlanPreview, setAnchoredPlanPreview] = useState(null);
   const [aiConsentStatus, setAiConsentStatus] = useState(null); // null=loading, true=granted, false=not granted
   const [consentGranting, setConsentGranting] = useState(false);
 
@@ -240,6 +241,10 @@ function CoachCommandBar({ trainingContext, onAddWorkout }) {
       // Handle training plan preview from AI
       if (data.trainingPlanPreview && !data.trainingPlanPreview.error) {
         setTrainingPlanPreview(data.trainingPlanPreview);
+      }
+      // Event-anchored (sequencer) plan preview — confirm to anchor.
+      if (data.anchoredPlanPreview && data.anchoredPlanPreview.ok !== false) {
+        setAnchoredPlanPreview(data.anchoredPlanPreview);
       }
 
       // Map workout recommendations to suggested actions if present
@@ -577,6 +582,16 @@ function CoachCommandBar({ trainingContext, onAddWorkout }) {
                     planDisplay="inline"
                     onActivatePlan={handleActivatePlan}
                     onDismissPlan={() => setTrainingPlanPreview(null)}
+                  />
+                )}
+
+                {/* Event-anchored (sequencer) plan preview (shared renderer, inline) */}
+                {anchoredPlanPreview && (
+                  <CoachReply
+                    showMessage={false}
+                    anchoredPlanPreview={anchoredPlanPreview}
+                    planDisplay="inline"
+                    onDismissAnchored={() => setAnchoredPlanPreview(null)}
                   />
                 )}
 

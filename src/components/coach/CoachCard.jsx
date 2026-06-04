@@ -81,6 +81,7 @@ function CoachCard({ trainingContext, workoutRecommendation, onAddWorkout }) {
   // Full conversation history sent to API (includes older messages not displayed)
   const [conversationHistory, setConversationHistory] = useState([]);
   const [trainingPlanPreview, setTrainingPlanPreview] = useState(null);
+  const [anchoredPlanPreview, setAnchoredPlanPreview] = useState(null);
   const [loadingHistory, setLoadingHistory] = useState(true);
   const [personaId, setPersonaId] = useState(null);
 
@@ -239,6 +240,10 @@ function CoachCard({ trainingContext, workoutRecommendation, onAddWorkout }) {
       // Handle training plan preview from AI
       if (data.trainingPlanPreview && !data.trainingPlanPreview.error) {
         setTrainingPlanPreview(data.trainingPlanPreview);
+      }
+      // Event-anchored (sequencer) plan preview — confirm to anchor.
+      if (data.anchoredPlanPreview && data.anchoredPlanPreview.ok !== false) {
+        setAnchoredPlanPreview(data.anchoredPlanPreview);
       }
 
       // Add coach response to chat
@@ -572,6 +577,16 @@ function CoachCard({ trainingContext, workoutRecommendation, onAddWorkout }) {
               planDisplay="inline"
               onActivatePlan={handleActivatePlan}
               onDismissPlan={() => setTrainingPlanPreview(null)}
+            />
+          )}
+
+          {/* Event-anchored (sequencer) plan preview (shared renderer, inline) */}
+          {anchoredPlanPreview && (
+            <CoachReply
+              showMessage={false}
+              anchoredPlanPreview={anchoredPlanPreview}
+              planDisplay="inline"
+              onDismissAnchored={() => setAnchoredPlanPreview(null)}
             />
           )}
         </Box>
