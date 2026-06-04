@@ -19,15 +19,13 @@
 
 import { setupCors } from './utils/cors.js';
 import { getSupabaseAdmin } from './utils/supabaseAdmin.js';
-import {
-  generateSessionsForBlock,
-  coefficientsForMode,
-} from './utils/sequencerBlockOps.js';
-import {
-  buildSequencerContext,
-  defaultRecoveryMode,
-} from './utils/sequencerContext.js';
+import { generateSessionsForBlock } from './utils/sequencerBlockOps.js';
 import { buildEventAnchoredSequence } from './utils/sequencerPlanner.js';
+import {
+  resolveRaceForAnchor,
+  resolveCoefficients,
+  buildAnchoredContext,
+} from './utils/sequencerPreview.js';
 import {
   ensureEventAnchoredPlan,
   projectPrescriptionsToCalendar,
@@ -64,34 +62,15 @@ export default async function handler(req, res) {
     const supabase = getSupabaseAdmin();
     const today = todayUtc();
 
-    // 1. Resolve the race goal
-    const { data: race, error: raceErr } = await supabase
-      .from('race_goals')
-      .select('id, user_id, name, race_date, priority, status')
-      .eq('id', race_goal_id)
-      .maybeSingle();
-
-    if (raceErr) throw raceErr;
-    if (!race) {
-      return res.status(404).json({ error: 'race_goal_not_found' });
-    }
-    if (race.user_id !== user_id) {
-      return res.status(403).json({ error: 'race_goal_not_owned_by_user' });
-    }
-    if (race.status !== 'upcoming') {
-      return res.status(400).json({
-        error: 'race_goal_not_upcoming',
-        detail: `race_goal status is ${race.status}; only 'upcoming' can be anchored.`,
+    // 1. Resolve + validate the race goal (shared with the coach preview path)
+    const resolvedRace = await resolveRaceForAnchor(supabase, user_id, race_goal_id);
+    if (resolvedRace.error) {
+      return res.status(resolvedRace.status).json({
+        error: resolvedRace.error,
+        ...(resolvedRace.detail ? { detail: resolvedRace.detail } : {}),
       });
     }
-    if (race.race_date <= today) {
-      return res.status(400).json({
-        error: 'race_in_past',
-        detail: 'Race date must be after today.',
-      });
-    }
-
-    const tier = race.priority ?? 'B';
+    const { race, tier } = resolvedRace;
 
     // 2. Idempotency: existing active sequence for this event?
     const { data: existing } = await supabase
@@ -160,25 +139,8 @@ export default async function handler(req, res) {
       });
     }
 
-    // 3. Resolve coefficients from user_profiles
-    const { data: profile } = await supabase
-      .from('user_profiles')
-      .select('id, recovery_mode, masters_factor, date_of_birth')
-      .eq('id', user_id)
-      .maybeSingle();
-
-    let age = null;
-    if (profile?.date_of_birth) {
-      const dob = new Date(profile.date_of_birth);
-      age = Math.floor(
-        (Date.now() - dob.getTime()) / (1000 * 60 * 60 * 24 * 365.25)
-      );
-    }
-    const recoveryMode = profile?.recovery_mode ?? defaultRecoveryMode(age);
-    const coefficients =
-      profile?.masters_factor && typeof profile.masters_factor === 'object'
-        ? profile.masters_factor
-        : coefficientsForMode(recoveryMode);
+    // 3. Resolve coefficients from user_profiles (shared with the preview path)
+    const { coefficients } = await resolveCoefficients(supabase, user_id);
 
     // 4. Build the block sequence (pure)
     const plan = buildEventAnchoredSequence({
@@ -263,23 +225,12 @@ export default async function handler(req, res) {
 
     // 9. Pre-generate next 14 days of prescriptions across whichever blocks
     //    cover that window. Build context once.
-    const ctx = await buildSequencerContext(user_id, today);
     // Inject the resolved horizon event so generators that read
     // upcoming_events[0] (taper, race_specific) make tier-correct decisions.
-    const ctxWithEvent = {
-      ...ctx,
-      upcoming_events: [
-        {
-          id: race.id,
-          date: race.race_date,
-          name: race.name,
-          tier,
-          status: 'upcoming',
-        },
-        ...ctx.upcoming_events.filter((e) => e.id !== race.id),
-      ],
-      coefficients,
-    };
+    // Shared with the coach preview path so context cannot drift.
+    const ctxWithEvent = await buildAnchoredContext(
+      supabase, user_id, today, race, tier, coefficients
+    );
 
     const horizonEnd = (() => {
       const d = new Date(today + 'T00:00:00Z');
