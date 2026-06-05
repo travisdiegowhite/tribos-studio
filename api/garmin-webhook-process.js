@@ -466,20 +466,23 @@ async function handleExistingActivity(event, existing, integration) {
     const startTime = webhookInfo?.startTimeInSeconds
       ?? (existing.start_date ? Math.floor(new Date(existing.start_date).getTime() / 1000) : null);
     // FIT was downloaded but yielded no per-second records (summary-only
-    // FIT). Phase 7's Pull-first reconciler (api/garmin-reconcile.js) will
-    // try the activityDetails JSON endpoint on its next tick within 15 min,
-    // so we no longer fire requestActivityDetailsBackfill here — the
-    // webhook-backfill API can only re-emit events Garmin already
-    // produced, and we just proved it doesn't have anything to re-emit.
-    // Stamp the timestamp so the reconciler's throttle starts the clock.
-    if (startTime) {
+    // FIT). With the Phase 7 reconciler disabled (PR #803 — direct §7.3
+    // pulls with OAuth Bearer return InvalidPullTokenException), this is
+    // the only remaining recovery mechanism: ask Garmin to re-emit
+    // ACTIVITY_FILE_DATA in the hope a subsequent delivery includes the
+    // full file. requestActivityDetailsBackfill is self-contained
+    // (never throws, treats 409 duplicate-processed as success) so no
+    // try/catch needed at the call site.
+    if (integration.access_token && startTime) {
+      await requestActivityDetailsBackfill(integration.access_token, startTime);
+      console.log(`[FIT:BACKFILL] FIT yielded no data; requested backfill for ${event.activity_id}`);
       await supabase
         .from('activities')
         .update({ last_resync_requested_at: new Date().toISOString() })
         .eq('id', existing.id);
     }
-    console.log(`[FIT:SKIP] FIT file parsed but no new data for activity ${existing.id} — reconciler will Pull`);
-    await markEventProcessed(event.id, 'Already imported, FIT empty - reconciler will Pull', existing.id);
+    console.log(`[FIT:SKIP] FIT file parsed but no new data for activity ${existing.id} — requested re-send`);
+    await markEventProcessed(event.id, 'Already imported, FIT empty - backfill requested', existing.id);
   }
 }
 
@@ -608,14 +611,16 @@ async function downloadAndProcessActivity(event, integration) {
   if (fitFileUrl && integration.access_token) {
     console.log(`[FIT:DOWNLOAD] Processing FIT file for new activity ${activity.id}`);
     await processFitFile(activity.id, fitFileUrl, integration.access_token, integration.user_id);
+  } else if (integration.access_token && activityInfo.startTimeInSeconds) {
+    // No FIT URL on the new-activity webhook — common when Garmin only
+    // sent CONNECT_ACTIVITY without the ACTIVITY_FILE_DATA follow-up.
+    // Ask Garmin to re-emit the FIT-data webhook. With the Phase 7
+    // reconciler disabled (PR #803) this is the only remaining recovery
+    // path for these activities; without it they stay summary_only.
+    // Mirrors the surviving call sites in handleDuplicateActivity.
+    console.log(`[FIT:BACKFILL] No FIT URL for activity ${activity.id}, requesting backfill`);
+    await requestActivityDetailsBackfill(integration.access_token, activityInfo.startTimeInSeconds);
   }
-  // No FIT URL on the new-activity webhook — common when Garmin only sent
-  // CONNECT_ACTIVITY without the ACTIVITY_FILE_DATA follow-up. Phase 7's
-  // Pull-first reconciler (api/garmin-reconcile.js) will retrieve the
-  // sample data directly from the activityDetails endpoint within 15 min,
-  // so we no longer fire requestActivityDetailsBackfill here — asking
-  // Garmin to re-emit a webhook is exactly the path that's broken for
-  // ~70% of activities. Cron will Pull.
 
   // Update fitness snapshot for the week of this activity
   try {
