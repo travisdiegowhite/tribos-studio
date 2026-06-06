@@ -27,6 +27,7 @@ import {
   ensureEventAnchoredPlan,
   projectPrescriptionsToCalendar,
 } from './utils/eventAnchoredCalendarBridge.js';
+import { proposeProgression } from './utils/sequencerProgression.js';
 
 const PRELOAD_DAYS = 7;
 const MAINTENANCE_DURATION_DAYS = 21;
@@ -238,20 +239,34 @@ export default async function handler(req, res) {
 
         if (allRows.length === 0) continue;
 
+        // P0 durability: never regenerate days the athlete locked by applying a
+        // proposal (rebalance or progression) — the base generator would clobber
+        // the confirmed change.
+        const { data: lockedRows } = await supabase
+          .from('session_prescriptions')
+          .select('date')
+          .eq('user_id', user.id)
+          .eq('locked', true)
+          .gte('date', today)
+          .lte('date', horizonEnd);
+        const lockedDates = new Set((lockedRows ?? []).map((r) => r.date));
+        const rowsToWrite = allRows.filter((r) => !lockedDates.has(r.date));
+        if (rowsToWrite.length === 0) continue;
+
         const { error: presErr } = await supabase
           .from('session_prescriptions')
-          .upsert(allRows, { onConflict: 'user_id,date', ignoreDuplicates: false });
+          .upsert(rowsToWrite, { onConflict: 'user_id,date', ignoreDuplicates: false });
 
         if (presErr) {
           stats.errors.push({ user_id: user.id, step: 'preload_prescriptions', detail: presErr.message });
         } else {
-          stats.prescriptions_inserted += allRows.length;
+          stats.prescriptions_inserted += rowsToWrite.length;
         }
 
         // Calendar projection: mirror prescriptions for race-anchored blocks
         // onto planned_workouts so /planner shows them. Best-effort; logs only.
         try {
-          const anchoredRows = allRows.filter((r) => {
+          const anchoredRows = rowsToWrite.filter((r) => {
             const blk = windowBlocks.find((b) => b.id === r.block_id);
             return blk?.parent_event_id;
           });
@@ -311,6 +326,25 @@ export default async function handler(req, res) {
             user_id: user.id,
             step: 'calendar_projection',
             detail: projErr?.message ?? String(projErr),
+          });
+        }
+
+        // Phase 2: proactively propose a "push harder" adjustment when the
+        // athlete is fresh / fitter than plan. Best-effort, suggest-and-confirm
+        // (writes only a block_modifications proposal, never a prescription).
+        try {
+          const prog = await proposeProgression({
+            supabase,
+            user_id: user.id,
+            fromDate: today,
+            ctx: userCtx,
+          });
+          if (prog?.proposed) stats.progression_proposed = (stats.progression_proposed ?? 0) + 1;
+        } catch (progErr) {
+          stats.errors.push({
+            user_id: user.id,
+            step: 'progression',
+            detail: progErr?.message ?? String(progErr),
           });
         }
       } catch (perUserErr) {
