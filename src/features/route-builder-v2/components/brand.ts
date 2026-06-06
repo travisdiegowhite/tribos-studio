@@ -19,6 +19,9 @@ export const RB2 = {
   textPrimary: '#141410',
   textSecondary: '#3D3C36',
   textTertiary: '#7A7970',
+  // Muted grey for disabled icon buttons — visibly present (so controls don't
+  // look "missing") but clearly inactive. Sits between border and textTertiary.
+  textDisabled: '#B5B4AC',
   textInverse: '#FFFFFF',
 
   // Accents
