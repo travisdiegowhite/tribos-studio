@@ -112,6 +112,26 @@ export default function RouteBuilder2() {
   const navigate = useNavigate();
   const { routeId: routeIdFromUrl } = useParams<{ routeId?: string }>();
   const { user } = useAuth() as { user: { id: string } | null };
+
+  // Lift the Supabase session token once per session so coach-generated routes
+  // can use the rider's familiar-roads history + route familiarity scoring
+  // (same source RB1 uses). Stays null when signed out — the builder simply
+  // skips those Strava-gated branches.
+  const [accessToken, setAccessToken] = useState<string | null>(null);
+  useEffect(() => {
+    if (!user) {
+      setAccessToken(null);
+      return;
+    }
+    let active = true;
+    void supabase.auth.getSession().then(({ data: { session } }) => {
+      if (active) setAccessToken(session?.access_token ?? null);
+    });
+    return () => {
+      active = false;
+    };
+  }, [user]);
+
   const { unitsPreference, updateUnitsPreference } = useUserPreferences() as {
     unitsPreference: string;
     updateUnitsPreference: (next: 'imperial' | 'metric') => void;
@@ -370,24 +390,33 @@ export default function RouteBuilder2() {
           weather: weather.weather ?? undefined,
           profile: routeProfile,
           useIterativeBuilder: true,
+          accessToken,
         });
         setRouteGeometryInStore({ type: 'LineString', coordinates: r.coordinates });
         setRouteStatsInStore({
           distance_km: r.distanceKm,
           elevation_gain_m: r.elevationGain,
           duration_s: r.duration_s,
+          familiarityScore: r.familiarityScore ?? null,
         });
         setWaypointsInStore([]);
         setBuilderMode('editing');
         if (r.parsed?.preferences?.surfaceType === 'gravel') setRouteProfile('gravel');
         if (r.name) setRouteNameInStore(r.name);
-        return { ok: true, distance_km: r.distanceKm, elevation_gain_m: r.elevationGain, name: r.name };
+        return {
+          ok: true,
+          distance_km: r.distanceKm,
+          elevation_gain_m: r.elevationGain,
+          name: r.name,
+          familiarity_percent: r.familiarityScore?.familiarityPercent ?? null,
+        };
       } catch (e) {
         const message = e instanceof Error ? e.message : String(e);
         return { ok: false, reason: message === 'NO_START' ? 'no_start' : message };
       }
     },
     [
+      accessToken,
       viewportCenter,
       userLocation.coord,
       waypoints,

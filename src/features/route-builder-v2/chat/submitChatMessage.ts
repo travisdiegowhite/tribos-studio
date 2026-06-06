@@ -26,7 +26,14 @@ type ApplyAIEditImpl = typeof applyAIEditViaCoach;
 
 /** Outcome of a chat-driven fresh-route generation (RB1's NL builder). */
 export type GenerateOutcome =
-  | { ok: true; distance_km: number; elevation_gain_m: number; name?: string }
+  | {
+      ok: true;
+      distance_km: number;
+      elevation_gain_m: number;
+      name?: string;
+      /** % of the route on roads the rider has ridden before, when available. */
+      familiarity_percent?: number | null;
+    }
   | { ok: false; reason: 'no_start' | string };
 
 export interface SubmitChatMessageArgs {
@@ -82,7 +89,11 @@ export async function submitChatMessage(args: SubmitChatMessageArgs): Promise<vo
     try {
       const result = await onGenerateFromPrompt(trimmed);
       if (result.ok) {
-        const assistantText = `Built you a ${result.distance_km}km route — ${result.elevation_gain_m}m climbing. Want me to tweak it?`;
+        const familiarityNote =
+          typeof result.familiarity_percent === 'number' && result.familiarity_percent > 0
+            ? ` (${result.familiarity_percent}% on roads you've ridden)`
+            : '';
+        const assistantText = `Built you a ${result.distance_km}km route — ${result.elevation_gain_m}m climbing${familiarityNote}. Want me to tweak it?`;
         append({ role: 'assistant', text: assistantText });
         trackRb2('chat_route_generated', {
           input_length: trimmed.length,
