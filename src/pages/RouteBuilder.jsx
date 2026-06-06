@@ -8,12 +8,11 @@ import 'mapbox-gl/dist/mapbox-gl.css';
 import { tokens } from '../theme';
 import AppShell from '../components/AppShell.jsx';
 import BottomSheet from '../components/BottomSheet.jsx';
-import { generateAIRoutes, generateSmartWaypoints } from '../utils/aiRouteGenerator';
-import { generateIterativeRoute, generateIterativeRouteVariations } from '../utils/iterativeRouteBuilder';
-import { getSmartCyclingRoute, getRoutingSourceLabel } from '../utils/smartCyclingRouter';
-import { buildNaturalLanguagePrompt, parseNaturalLanguageResponse } from '../utils/naturalLanguagePrompt';
-import { geocodeWaypoint } from '../utils/geocoding';
-import { scoreRoutePreference, getFamiliarLoopWaypoints } from '../utils/routeScoring';
+import { generateAIRoutes } from '../utils/aiRouteGenerator';
+import { generateIterativeRouteVariations } from '../utils/iterativeRouteBuilder';
+import { getSmartCyclingRoute } from '../utils/smartCyclingRouter';
+import { scoreRoutePreference } from '../utils/routeScoring';
+import { generateRouteFromNaturalLanguage } from '../utils/naturalLanguageRouteBuilder';
 import { useAuth } from '../contexts/AuthContext.jsx';
 import { stravaService } from '../utils/stravaService';
 import { saveRoute, getRoute } from '../utils/routesService';
@@ -2242,8 +2241,11 @@ function RouteBuilder() {
     }
   }, []);
 
-  // Handle natural language route generation - NEW APPROACH
-  // Uses Claude to extract waypoint NAMES, then geocodes and routes through them
+  // Handle natural language route generation.
+  // Delegates the compute (Claude parse → start resolution → geocode →
+  // familiar/iterative/smart routing → scoring) to the shared
+  // generateRouteFromNaturalLanguage builder, which the RB2 coach also uses.
+  // This handler owns only the notifications + form/store state sync.
   const handleNaturalLanguageGenerate = useCallback(async () => {
     if (!naturalLanguageInput.trim()) {
       notifications.show({
@@ -2257,403 +2259,127 @@ function RouteBuilder() {
     setGeneratingAI(true);
     setRouteGenStep('analyzing');
 
+    // Determine the start source up front so we can warn on viewport fallback.
+    // The shared builder resolves start the same way (placed > geolocation >
+    // viewport); we mirror that check here only to drive the warning.
+    const hasPlacedStart = waypoints.length > 0;
+    const hasGeolocation = !hasPlacedStart && !!userLocation;
+    if (!hasPlacedStart && !hasGeolocation) {
+      notifications.show({
+        id: 'location-fallback-warning',
+        title: 'Using Map Center as Start',
+        message: 'Your location could not be determined. The route will start from the center of your current map view. Click the location button or place a waypoint to set a specific start point.',
+        color: 'yellow',
+        icon: <Crosshair size={16} />,
+        autoClose: 8000
+      });
+    }
+
+    notifications.show({
+      id: 'generating-route',
+      title: 'Building Route',
+      message: 'Analyzing your request…',
+      loading: true,
+      autoClose: false
+    });
+
     try {
-      console.log('🗣️ Processing natural language request:', naturalLanguageInput);
-
-      // Step 1: Build prompt for Claude to extract waypoint names
-      const prompt = buildNaturalLanguagePrompt(
-        naturalLanguageInput,
-        weatherData,
-        [viewportRef.current.longitude, viewportRef.current.latitude],
-        null, // userAddress - could add reverse geocoding later
-        { todaysWorkout, upcomingWorkouts } // Calendar context for NL understanding
-      );
-
-      // Step 2: Call Claude API to parse the request
-      const apiUrl = import.meta.env.PROD ? '/api/claude-routes' : 'http://localhost:3000/api/claude-routes';
-
-      const response = await fetch(apiUrl, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          prompt,
-          maxTokens: 1000,
-          temperature: 0.3 // Lower temperature for more consistent parsing
-        })
+      // Delegate the full compute to the shared builder (the same pipeline the
+      // RB2 coach uses). RB1 keeps ownership of notifications + store/state sync.
+      const result = await generateRouteFromNaturalLanguage(naturalLanguageInput, {
+        biasCoord: [viewportRef.current.longitude, viewportRef.current.latitude],
+        userLocation: userLocation ? [userLocation.longitude, userLocation.latitude] : null,
+        placedStart: hasPlacedStart ? [waypoints[0].position[0], waypoints[0].position[1]] : null,
+        weather: weatherData,
+        calendar: { todaysWorkout, upcomingWorkouts },
+        // RB1 historically routed non-gravel requests as 'road' regardless of
+        // the current profile toggle; preserve that exact behaviour.
+        profile: 'road',
+        speedProfile,
+        useIterativeBuilder,
+        accessToken,
+        onProgress: (stage) => {
+          setRouteGenStep('generating');
+          const message = stage === 'familiar'
+            ? 'Routing through familiar waypoints…'
+            : stage === 'smart'
+              ? 'Generating route…'
+              : 'Building route…';
+          notifications.update({
+            id: 'generating-route',
+            title: 'Building Route',
+            message,
+            loading: true,
+            autoClose: false
+          });
+        }
       });
 
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || 'Failed to process route request');
-      }
-
-      const data = await response.json();
-      if (!data.success) {
-        throw new Error(data.error || 'Failed to parse route request');
-      }
-
-      // Step 3: Parse Claude's response to get waypoint names
       setRouteGenStep('generating');
-      const parsed = parseNaturalLanguageResponse(data.content);
-      console.log('📍 Parsed route request:', parsed);
+      const parsed = result.parsed || {};
 
-      // Update UI with parsed values
+      // Sync the form UI with what Claude parsed (unchanged from before).
       if (parsed.timeAvailable) setTimeAvailable(parsed.timeAvailable);
       if (parsed.trainingGoal) setTrainingGoal(parsed.trainingGoal);
       if (parsed.routeType) setRouteType(parsed.routeType);
       if (parsed.preferences?.surfaceType === 'gravel') setRouteProfile('gravel');
+      setExplicitDistanceKm(parsed.targetDistanceKm || null);
 
-      // Store explicit distance if user specified it directly (e.g., "100km loop")
-      // This prevents distance→time→distance conversion from losing precision
-      if (parsed.targetDistanceKm) {
-        setExplicitDistanceKm(parsed.targetDistanceKm);
-        console.log(`📏 Explicit distance set: ${parsed.targetDistanceKm}km`);
-      } else {
-        setExplicitDistanceKm(null); // Clear if not explicitly specified
-      }
-
-      // Step 4: Determine start location with priority:
-      // 1. User-placed waypoint on map (if any)
-      // 2. User's geolocated position
-      // 3. Viewport center (with warning)
-      let startLocation;
-      let startLocationSource = 'viewport';
-
-      if (waypoints.length > 0) {
-        // User has placed waypoints on the map - use the first one as start
-        startLocation = [waypoints[0].position[0], waypoints[0].position[1]];
-        startLocationSource = 'waypoint';
-        console.log('📍 Using user-placed waypoint as start:', startLocation);
-      } else if (userLocation) {
-        // Use the user's geolocated position
-        startLocation = [userLocation.longitude, userLocation.latitude];
-        startLocationSource = 'geolocation';
-        console.log('📍 Using geolocated position as start:', startLocation);
-      } else {
-        // Fall back to viewport center with a warning
-        startLocation = [viewportRef.current.longitude, viewportRef.current.latitude];
-        startLocationSource = 'viewport';
-        console.warn('⚠️ No geolocation available, using viewport center as start:', startLocation);
-        notifications.show({
-          id: 'location-fallback-warning',
-          title: 'Using Map Center as Start',
-          message: 'Your location could not be determined. The route will start from the center of your current map view. Click the location button or place a waypoint to set a specific start point.',
-          color: 'yellow',
-          icon: <Crosshair size={16} />,
-          autoClose: 8000
-        });
-      }
-
-      let waypointCoords = [];
-      let routeDescription = '';
-
-      // Check if we have explicit waypoints to geocode
-      if (parsed.waypoints && parsed.waypoints.length > 0) {
-        waypointCoords = [startLocation]; // Start with user's current location
-
-        for (const waypointName of parsed.waypoints) {
-          const geocoded = await geocodeWaypoint(waypointName, startLocation);
-          if (geocoded) {
-            waypointCoords.push(geocoded.coordinates);
-          } else {
-            console.warn(`Could not geocode waypoint: ${waypointName}`);
-          }
-        }
-
-        // For loop routes, return to start
-        if (parsed.routeType === 'loop' || parsed.routeType === 'out_back') {
-          waypointCoords.push(startLocation);
-        }
-
-        routeDescription = parsed.waypoints.join(', ');
-      } else {
-        // No explicit waypoints - generate route based on duration
-        console.log('🎯 No waypoints provided, generating route based on duration...');
-
-        const duration = parsed.timeAvailable || timeAvailable || 60;
-        const goal = parsed.trainingGoal || trainingGoal || 'endurance';
-        const type = parsed.routeType || 'loop';
-        const direction = parsed.direction || null;
-
-        // Use iterative builder if enabled, otherwise use smart waypoints
-        if (useIterativeBuilder) {
-          console.log('🔄 Using Iterative Route Builder for natural language request');
-
-          // Use explicit distance if user specified it (e.g., "100km loop")
-          // Otherwise calculate from time and speed
-          const avgSpeed = speedProfile?.average_speed || 28; // km/h default
-          let targetDistanceKm;
-
-          if (parsed.targetDistanceKm) {
-            // User specified distance directly - use it exactly
-            targetDistanceKm = parsed.targetDistanceKm;
-            console.log(`📏 Using explicit distance: ${targetDistanceKm}km (${(targetDistanceKm * 0.621371).toFixed(1)}mi)`);
-          } else {
-            // Calculate from time and speed
-            targetDistanceKm = (duration / 60) * avgSpeed;
-            console.log(`📊 Route calculation: ${duration}min × ${avgSpeed.toFixed(1)}km/h = ${targetDistanceKm.toFixed(1)}km (${(targetDistanceKm * 0.621371).toFixed(1)}mi)`);
-            console.log(`   Speed source: ${speedProfile?.average_speed ? 'user profile' : 'default (28 km/h)'}`);
-          }
-
-          notifications.show({
-            id: 'generating-route',
-            title: 'Building Route',
-            message: `Creating ${duration}min ${goal} route...`,
-            loading: true,
-            autoClose: false
-          });
-
-          // If user prefers familiar roads, try to get waypoints from their riding history
-          let useFamiliarWaypoints = false;
-          let familiarWaypointsData = null;
-
-          if (parsed.preferences?.preferFamiliar && accessToken && type === 'loop') {
-            console.log('🧠 User prefers familiar roads - fetching segment waypoints...');
-            familiarWaypointsData = await getFamiliarLoopWaypoints(
-              startLocation[1], // lat
-              startLocation[0], // lng
-              targetDistanceKm,
-              accessToken,
-              false // not explore mode
-            );
-
-            if (familiarWaypointsData && !familiarWaypointsData.fallbackToRandom && familiarWaypointsData.waypoints?.length >= 4) {
-              useFamiliarWaypoints = true;
-              console.log(`🧠 Using ${familiarWaypointsData.waypoints.length} familiar waypoints from ${familiarWaypointsData.segments?.length || 0} segments`);
-            } else {
-              console.log('🧠 Not enough familiar segments, falling back to iterative builder');
-            }
-          }
-
-          let iterativeResult;
-          let routeSource = 'iterative_quarter_loop';
-
-          if (useFamiliarWaypoints) {
-            // Build route through familiar waypoints
-            notifications.update({
-              id: 'generating-route',
-              title: 'Building Familiar Route',
-              message: `Routing through ${familiarWaypointsData.waypoints.length} familiar waypoints...`,
-              loading: true,
-              autoClose: false
-            });
-
-            // Convert waypoints to coordinate array: start -> familiar waypoints -> start (loop)
-            const waypointCoords = [
-              startLocation, // Start
-              ...familiarWaypointsData.waypoints.map(wp => [wp.lng, wp.lat]),
-              startLocation  // Return to start
-            ];
-
-            console.log(`🧠 Routing through ${waypointCoords.length} waypoints (including start/end)`);
-
-            const routeResult = await getSmartCyclingRoute(waypointCoords, {
-              profile: parsed.preferences?.surfaceType === 'gravel' ? 'gravel' : 'road',
-              trainingGoal: goal,
-              mapboxToken: MAPBOX_TOKEN
-            });
-
-            if (routeResult && routeResult.coordinates && routeResult.coordinates.length >= 10) {
-              const familiar_distance_m = routeResult.distance_m ?? routeResult.distance ?? 0;
-              const familiar_distance_km = M_TO_KM(familiar_distance_m);
-              iterativeResult = {
-                coordinates: routeResult.coordinates,
-                distanceKm: familiar_distance_km,
-                elevationGain: routeResult.elevationGain || 0,
-                duration_s: routeResult.duration_s ?? routeResult.duration ?? 0,
-                name: `Familiar ${familiar_distance_km.toFixed(0)}km ${goal} loop`,
-                source: 'familiar_segments'
-              };
-              routeSource = 'familiar_segments';
-            } else {
-              // Fallback to iterative if routing through waypoints failed
-              console.log('🧠 Routing through familiar waypoints failed, falling back to iterative');
-              useFamiliarWaypoints = false;
-            }
-          }
-
-          // Fallback to iterative route builder
-          if (!useFamiliarWaypoints) {
-            iterativeResult = await generateIterativeRoute({
-              startLocation,
-              targetDistanceKm,
-              routeType: type === 'out_back' ? 'out_and_back' : type,
-              direction,
-              options: {
-                profile: parsed.preferences?.surfaceType === 'gravel' ? 'gravel' : 'road',
-                trainingGoal: goal
-              },
-              trainingGoal: goal
-            });
-          }
-
-          if (!iterativeResult || !iterativeResult.coordinates || iterativeResult.coordinates.length < 10) {
-            throw new Error('Could not generate a route. Try a different duration or location.');
-          }
-
-          const distanceKm = parseFloat(iterativeResult.distanceKm.toFixed(1));
-          const generatedRouteName = iterativeResult.name || `${distanceKm}km ${goal} ${type}`;
-
-          // Score the route to show familiarity percentage
-          let familiarityScore = null;
-          if (accessToken) {
-            familiarityScore = await scoreRoutePreference(iterativeResult.coordinates, accessToken);
-            if (familiarityScore) {
-              console.log('🧠 Route familiarity:', familiarityScore);
-            }
-          }
-
-          setRouteGeometry({
-            type: 'LineString',
-            coordinates: iterativeResult.coordinates
-          });
-
-          // iterativeResult.duration is seconds (passed through from router boundaries).
-          const iterativeDuration_s = iterativeResult.duration_s ?? iterativeResult.duration ?? 0;
-          assertKm(distanceKm, 'iterativeResult.distance_km');
-          setRouteStats({
-            distance_km: distanceKm,
-            elevation_gain_m: iterativeResult.elevationGain || 0,
-            duration_s: iterativeDuration_s,
-            familiarityScore: familiarityScore
-          });
-
-          if (!calendarContext) {
-            setRouteName(generatedRouteName);
-          }
-          setRoutingSource(routeSource);
-          setWaypoints([]);
-
-          // Build notification message
-          let notificationTitle = useFamiliarWaypoints ? 'Familiar Route Generated!' : 'Route Generated!';
-          let notificationMessage = `${distanceKm} km ${type} route`;
-          if (familiarityScore) {
-            notificationMessage += ` • ${familiarityScore.familiarityPercent || 0}% familiar roads`;
-          }
-          if (useFamiliarWaypoints) {
-            notificationMessage += ` (${familiarWaypointsData.segments?.length || 0} segments used)`;
-          }
-
-          notifications.update({
-            id: 'generating-route',
-            title: notificationTitle,
-            message: notificationMessage,
-            color: 'terracotta',
-            loading: false,
-            autoClose: 4000
-          });
-
-          console.log(`✅ Route generated: ${distanceKm} km via ${routeSource}`);
-          return; // Exit early - route is complete
-        }
-
-        // Original smart waypoints approach
-        waypointCoords = generateSmartWaypoints(
-          startLocation,
-          duration,
-          type,
-          goal,
-          speedProfile,
-          direction
-        );
-
-        // Create a description for the route
-        const distanceEstimate = Math.round(duration * 0.33); // Rough km estimate
-        routeDescription = `${duration}min ${goal} ${type}`;
-      }
-
-      console.log(`📍 Routing through ${waypointCoords.length} waypoints:`, waypointCoords);
-
-      if (waypointCoords.length < 2) {
-        throw new Error('Could not generate route waypoints. Please try again.');
-      }
-
-      // Step 5: Generate route through the waypoints
-      notifications.show({
-        id: 'generating-route',
-        title: 'Generating Route',
-        message: `Creating ${routeDescription} route...`,
-        loading: true,
-        autoClose: false
-      });
-
-      const routeResult = await getSmartCyclingRoute(waypointCoords, {
-        profile: parsed.preferences?.surfaceType === 'gravel' ? 'gravel' : 'road',
-        trainingGoal: parsed.trainingGoal || 'endurance',
-        mapboxToken: MAPBOX_TOKEN
-      });
-
-      if (!routeResult || !routeResult.coordinates || routeResult.coordinates.length < 10) {
-        throw new Error('Could not generate a route. Try a different duration or location.');
-      }
-
-      // Step 6: Create route object and display
-      const distanceKm = parseFloat((routeResult.distance / 1000).toFixed(1));
-      const generatedRouteName = parsed.waypoints?.length > 0
-        ? `${parsed.waypoints.join(' → ')} ${parsed.routeType}`
-        : `${distanceKm}km ${parsed.trainingGoal || 'endurance'} ${parsed.routeType || 'loop'}`;
-
-      // Score the route if user prefers familiar roads
-      let familiarityScore = null;
-      if (parsed.preferences?.preferFamiliar && accessToken) {
-        console.log('🧠 Scoring route against riding history...');
-        familiarityScore = await scoreRoutePreference(routeResult.coordinates, accessToken);
-        if (familiarityScore) {
-          console.log('🧠 Route familiarity:', familiarityScore);
-        }
-      }
+      const distanceKm = parseFloat(result.distanceKm.toFixed(1));
+      const usedFamiliar = result.source === 'familiar_segments';
 
       setRouteGeometry({
         type: 'LineString',
-        coordinates: routeResult.coordinates
+        coordinates: result.coordinates
       });
-
-      // routeResult.duration is seconds from the routing layer.
-      assertKm(distanceKm, 'aiRouteResult.distance_km');
+      assertKm(distanceKm, 'nlResult.distance_km');
       setRouteStats({
         distance_km: distanceKm,
-        elevation_gain_m: routeResult.elevationGain || 0,
-        duration_s: routeResult.duration_s ?? routeResult.duration ?? 0,
-        familiarityScore: familiarityScore, // Include familiarity in stats
+        elevation_gain_m: result.elevationGain || 0,
+        duration_s: result.duration_s || 0,
+        familiarityScore: result.familiarityScore || null
       });
-
-      // Only update route name if not already set from calendar context
       if (!calendarContext) {
-        setRouteName(generatedRouteName);
+        setRouteName(result.name);
       }
-      setRoutingSource(routeResult.source);
-      setWaypoints([]); // Clear manual waypoints since we're using AI route
+      setRoutingSource(result.source);
+      setWaypoints([]);
 
-      // Build notification message with familiarity info if available
-      let notificationMessage = `${distanceKm} km ${parsed.routeType || 'loop'} route created`;
-      if (familiarityScore) {
-        notificationMessage += ` • ${familiarityScore.familiarityPercent || 0}% familiar roads`;
+      let notificationMessage = `${distanceKm} km ${parsed.routeType || 'loop'} route`;
+      if (result.familiarityScore) {
+        notificationMessage += ` • ${result.familiarityScore.familiarityPercent || 0}% familiar roads`;
+      }
+      if (usedFamiliar && result.meta) {
+        notificationMessage += ` (${result.meta.segmentsUsed || 0} segments used)`;
       }
 
       notifications.update({
         id: 'generating-route',
-        title: 'Route Generated!',
+        title: usedFamiliar ? 'Familiar Route Generated!' : 'Route Generated!',
         message: notificationMessage,
         color: 'terracotta',
         loading: false,
         autoClose: 4000
       });
 
-      console.log(`✅ Route generated: ${(routeResult.distance / 1000).toFixed(1)} km via ${routeResult.source}`);
+      console.log(`✅ Route generated: ${distanceKm} km via ${result.source}`);
 
     } catch (error) {
       console.error('Natural language route generation error:', error);
       notifications.hide('generating-route');
+      const message = error.message === 'NO_START'
+        ? 'Could not determine a start location. Place a waypoint or enable location access.'
+        : (error.message || 'Failed to generate routes. Please try again.');
       notifications.show({
         title: 'Generation Failed',
-        message: error.message || 'Failed to generate routes. Please try again.',
+        message,
         color: 'red'
       });
     } finally {
       setGeneratingAI(false);
       setRouteGenStep(null);
     }
-  }, [naturalLanguageInput, useIterativeBuilder, speedProfile, timeAvailable, trainingGoal, calendarContext, accessToken, prescriptionSuppressed]); // viewport read from viewportRef
+  }, [naturalLanguageInput, useIterativeBuilder, speedProfile, calendarContext, accessToken, weatherData, todaysWorkout, upcomingWorkouts, userLocation, waypoints]);
 
   // Search for address using Mapbox Geocoding API
   const handleAddressSearch = useCallback(async (query) => {

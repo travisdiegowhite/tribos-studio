@@ -58,17 +58,30 @@ path. The shipped work matched the plan, with these deviations/additions:
 
 ## Standing debts / follow-ups created by these deviations
 
-1. **RB1 ↔ shared-module duplication** — `RouteBuilder.jsx`'s
-   `handleNaturalLanguageGenerate` and `src/utils/naturalLanguageRouteBuilder.js`
-   hold the same algorithm. Unify when RB1 is next touched substantively.
-2. **Strava-gated route features absent from the coach** — familiar-roads,
-   familiarity scoring, and the smart-waypoints fallback aren't available via the
-   coach. Add by threading `accessToken` into the module `context`.
-3. **`shift_direction` is loop-only** — point-to-point shifting and/or a
-   geometry-preserving variant remain unbuilt.
-4. **`buildComparison` canonical-first fix** is a local patch — the broader
-   audit of which RB2 edit utilities still read legacy-only distance/elevation
-   fields has not been done.
+> **Update (2026-06-06):** items 1, 2, and 4 below are now resolved; item 3 is
+> the only one remaining. See the "Resolution" notes inline.
+
+1. **RB1 ↔ shared-module duplication** — ✅ **Resolved.** `RouteBuilder.jsx`'s
+   `handleNaturalLanguageGenerate` now delegates its compute to
+   `generateRouteFromNaturalLanguage`; the handler keeps only notifications +
+   form/store state-sync (via the module's new `onProgress` seam and `meta`
+   return). Two intentional micro-divergences from the old RB1 behaviour:
+   (a) when an NL request omits a duration, the module defaults to 60 min rather
+   than falling back to the form's current `timeAvailable`; (b) `profile: 'road'`
+   is passed explicitly to preserve RB1's old "non-gravel ⇒ road" routing.
+2. **Strava-gated route features absent from the coach** — ✅ **Resolved.** The
+   shared module gained familiar-roads waypoints, familiarity scoring, and the
+   non-iterative smart-waypoints fallback behind `context.accessToken`; RB2 lifts
+   the Supabase session token and threads it in, and the coach reply surfaces the
+   familiarity percentage.
+3. **`shift_direction` is loop-only** — ⏳ **Open.** Point-to-point shifting and/or
+   a geometry-preserving variant remain unbuilt.
+4. **`buildComparison` canonical-first fix / legacy-field audit** — ✅ **Resolved
+   (no further changes needed).** A full audit of `aiRouteEditService.js` and
+   `src/features/route-builder-v2/` found every distance/elevation read already
+   canonical-first. (Backend note: `/api/elevation` may still emit a legacy
+   `distance` alongside `distance_km`; consumers handle it defensively. Out of
+   scope here.)
 
 ---
 

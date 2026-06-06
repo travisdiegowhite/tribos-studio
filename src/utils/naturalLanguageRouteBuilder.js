@@ -43,7 +43,8 @@ const DEFAULT_AVG_SPEED_KMH = 28;
  * @param {boolean} [context.useIterativeBuilder] - defaults to true (RB1 default)
  * @param {string|null} [context.accessToken] - Supabase session token; enables familiar-roads + scoring
  * @param {(stage: string) => void} [context.onProgress] - optional progress callback ('familiar' | 'iterative' | 'smart')
- * @returns {Promise<{coordinates, distanceKm, elevationGain, duration_s, name, source, parsed, familiarityScore}>}
+ * @returns {Promise<{coordinates, distanceKm, elevationGain, duration_s, name, source, parsed, familiarityScore, meta}>}
+ *   `meta` is `{ segmentsUsed, waypointsUsed }` when familiar-roads waypoints were used, else null/undefined.
  * @throws {Error} 'NO_START' when no start coordinate can be resolved; other errors on parse/routing failure.
  */
 export async function generateRouteFromNaturalLanguage(userRequest, context = {}) {
@@ -193,6 +194,7 @@ export async function generateRouteFromNaturalLanguage(userRequest, context = {}
   // rider's history (Strava-gated; skipped without an accessToken).
   let iterativeResult = null;
   let routeSource = 'iterative_quarter_loop';
+  let meta = null;
 
   if (accessToken && preferFamiliar && type === 'loop') {
     progress('familiar');
@@ -225,6 +227,10 @@ export async function generateRouteFromNaturalLanguage(userRequest, context = {}
           source: 'familiar_segments',
         };
         routeSource = 'familiar_segments';
+        meta = {
+          segmentsUsed: familiar.segments?.length || 0,
+          waypointsUsed: familiar.waypoints.length,
+        };
       }
     }
   }
@@ -258,5 +264,6 @@ export async function generateRouteFromNaturalLanguage(userRequest, context = {}
     source: iterativeResult.source || routeSource,
     parsed,
     familiarityScore,
+    meta,
   };
 }

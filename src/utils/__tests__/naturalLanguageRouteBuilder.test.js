@@ -130,6 +130,7 @@ describe('generateRouteFromNaturalLanguage — Strava-gated parity branches', ()
     mockClaude({ routeType: 'loop', timeAvailable: 60, preferences: { preferFamiliar: true } });
     getFamiliarLoopWaypoints.mockResolvedValue({
       fallbackToRandom: false,
+      segments: [{}, {}, {}],
       waypoints: [
         { lng: -105.24, lat: 40.02 },
         { lng: -105.22, lat: 40.03 },
@@ -151,6 +152,7 @@ describe('generateRouteFromNaturalLanguage — Strava-gated parity branches', ()
     expect(generateIterativeRoute).not.toHaveBeenCalled();
     expect(r.source).toBe('familiar_segments');
     expect(r.familiarityScore).toEqual({ familiarityPercent: 72 });
+    expect(r.meta).toEqual({ segmentsUsed: 3, waypointsUsed: 4 });
   });
 
   it('falls back to the iterative builder when familiar segments are insufficient', async () => {
