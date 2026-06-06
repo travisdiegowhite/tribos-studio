@@ -1068,7 +1068,8 @@ export function evaluateProgression(ctx, prescription) {
   const ftpRise = ftpRisePct > FTP_RISE_THRESHOLD;
   const aheadPct = ctx?.progression?.tfi_ahead_pct ?? 0;
   const ahead = aheadPct > AHEAD_TFI_THRESHOLD;
-  if (!fresh && !ftpRise && !ahead) return { upgraded: false };
+  const lowRpe = ctx?.progression?.low_rpe === true;
+  if (!fresh && !ftpRise && !ahead && !lowRpe) return { upgraded: false };
 
   // Only escalate inside build-type blocks (never taper/recovery/race_specific).
   const blockType = ctx?.current_block?.block_type;
@@ -1090,7 +1091,7 @@ export function evaluateProgression(ctx, prescription) {
   const eligible =
     prescription.session_type === 'z2' ||
     prescription.session_type === 'tempo' ||
-    (prescription.session_type === 'threshold' && (ftpRise || ahead));
+    (prescription.session_type === 'threshold' && (ftpRise || ahead || lowRpe));
   const nextType = eligible ? PROGRESSION_LADDER[prescription.session_type] : null;
   if (!nextType) return { upgraded: false };
 
@@ -1104,7 +1105,9 @@ export function evaluateProgression(ctx, prescription) {
     ? `Form Score +${Math.round(snap.form_score)} — you're carrying freshness to spare; nudging this session up.`
     : ahead
       ? `You're ~${Math.round(aheadPct * 100)}% ahead of your plan's projected fitness — adding a bit more.`
-      : `Recent power suggests ~${Math.round(ftpRisePct * 100)}% more FTP — bumping load (consider updating your FTP in settings).`;
+      : lowRpe
+        ? `Your recent planned sessions are feeling easy — nudging the intensity up.`
+        : `Recent power suggests ~${Math.round(ftpRisePct * 100)}% more FTP — bumping load (consider updating your FTP in settings).`;
 
   return {
     upgraded: true,

@@ -28,6 +28,7 @@ function makeSupabase({ seq = { id: 'seq1' }, openProps = [], blocks = [], exist
       const b = {
         select: () => b,
         eq: () => b,
+        not: () => b,
         in: () => b,
         lte: () => b,
         gte: () => b,

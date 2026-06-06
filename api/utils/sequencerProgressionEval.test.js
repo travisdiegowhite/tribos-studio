@@ -11,7 +11,7 @@ function addDays(dateStr, n) {
 
 // daily_stats[0] = today; needs >=5 rows for afiGrowth4d. afiToday <= afi4dAgo
 // keeps growth <= 0 (recovering).
-function makeCtx({ fs = 25, afiToday = 40, afi4dAgo = 45, blockType = 'threshold', ftpRisePct = 0, aheadPct = 0, aRaceInDays = null }) {
+function makeCtx({ fs = 25, afiToday = 40, afi4dAgo = 45, blockType = 'threshold', ftpRisePct = 0, aheadPct = 0, lowRpe = false, aRaceInDays = null }) {
   const daily_stats = [
     { date: TODAY, form_score: fs, afi: afiToday, tfi: 60 },
     { date: addDays(TODAY, -1), form_score: fs, afi: afiToday, tfi: 60 },
@@ -22,7 +22,7 @@ function makeCtx({ fs = 25, afiToday = 40, afi4dAgo = 45, blockType = 'threshold
   return {
     daily_stats,
     current_block: { block_type: blockType },
-    progression: { ftp_rise_pct: ftpRisePct, tfi_ahead_pct: aheadPct },
+    progression: { ftp_rise_pct: ftpRisePct, tfi_ahead_pct: aheadPct, low_rpe: lowRpe },
     upcoming_events:
       aRaceInDays == null
         ? []
@@ -70,6 +70,13 @@ describe('evaluateProgression', () => {
     expect(out.upgraded).toBe(true);
     expect(out.substitute.session_type).toBe('tempo');
     expect(out.reason).toMatch(/ahead of your plan/i);
+  });
+
+  it('upgrades when recent planned sessions felt easy (low RPE)', () => {
+    const out = evaluateProgression(makeCtx({ fs: 0, lowRpe: true }), z2);
+    expect(out.upgraded).toBe(true);
+    expect(out.substitute.session_type).toBe('tempo');
+    expect(out.reason).toMatch(/feeling easy/i);
   });
 
   it('leaves non-eligible session types (rest/z1) alone', () => {

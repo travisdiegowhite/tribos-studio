@@ -24,6 +24,30 @@ export const PROGRESSION_WINDOW_DAYS = 10;
 const FRESH_FS_THRESHOLD = 20;
 const FTP_RISE_THRESHOLD = 0.05;
 const AHEAD_TFI_THRESHOLD = 0.03;
+const LOW_RPE_MAX = 4;          // avg RPE ≤ 4/10 on completed planned sessions
+const LOW_RPE_MIN_COUNT = 2;    // need at least this many rated, completed sessions
+const RPE_LOOKBACK_DAYS = 14;
+
+// "High-compliance + low-RPE": recent planned sessions the athlete actually
+// completed (matched_planned_workout_id set) that they rated easy (avg ≤ 4).
+async function computeLowRpeSignal(supabase, user_id, today) {
+  const since = (() => {
+    const d = new Date(today + 'T00:00:00Z');
+    d.setUTCDate(d.getUTCDate() - RPE_LOOKBACK_DAYS);
+    return d.toISOString().slice(0, 10);
+  })();
+  const { data } = await supabase
+    .from('activities')
+    .select('rpe_score')
+    .eq('user_id', user_id)
+    .not('rpe_score', 'is', null)
+    .not('matched_planned_workout_id', 'is', null)
+    .gte('start_date', since);
+  const scores = (data ?? []).map((a) => Number(a.rpe_score)).filter((n) => Number.isFinite(n));
+  if (scores.length < LOW_RPE_MIN_COUNT) return false;
+  const avg = scores.reduce((s, n) => s + n, 0) / scores.length;
+  return avg <= LOW_RPE_MAX;
+}
 
 function addDaysIso(dateStr, n) {
   const d = new Date(dateStr + 'T00:00:00Z');
@@ -98,9 +122,11 @@ export async function proposeProgression({ supabase, user_id, fromDate, ctx: pas
     }
   }
 
+  const lowRpe = await computeLowRpeSignal(supabase, user_id, today);
+
   // Cheap early-out: no signal at all → nothing to propose.
   const fresh = !!todaySnap && todaySnap.form_score > FRESH_FS_THRESHOLD;
-  if (!fresh && !(ftpRisePct > FTP_RISE_THRESHOLD) && !(tfiAheadPct > AHEAD_TFI_THRESHOLD)) {
+  if (!fresh && !(ftpRisePct > FTP_RISE_THRESHOLD) && !(tfiAheadPct > AHEAD_TFI_THRESHOLD) && !lowRpe) {
     return { proposed: false, reason: 'no_signal' };
   }
 
@@ -133,7 +159,7 @@ export async function proposeProgression({ supabase, user_id, fromDate, ctx: pas
     // taper/race_specific generators read upcoming_events[0].
     const ctx = {
       ...baseCtx,
-      progression: { ftp_rise_pct: ftpRisePct, tfi_ahead_pct: tfiAheadPct },
+      progression: { ftp_rise_pct: ftpRisePct, tfi_ahead_pct: tfiAheadPct, low_rpe: lowRpe },
       current_block: { block_type: block.block_type },
     };
     if (block.parent_event_id && block.parent_event_tier) {
