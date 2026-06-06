@@ -14,17 +14,21 @@ export function EmptyState() {
     <Box
       data-testid="rb2-empty-state"
       style={{
+        // Anchored near the bottom (not dead-center) so it never covers the
+        // spot users click to drop their first waypoint. pointerEvents: 'none'
+        // makes the card click-through too — it's purely informational, so map
+        // clicks pass straight through its footprint.
         position: 'absolute',
-        top: '50%',
+        bottom: 32,
         left: '50%',
-        transform: 'translate(-50%, -50%)',
+        transform: 'translateX(-50%)',
         backgroundColor: RB2.cardBg,
         border: `1px solid ${RB2.border}`,
         borderRadius: 0,
         padding: '20px 24px',
         maxWidth: 380,
         boxShadow: RB2.shadowOverlay,
-        pointerEvents: 'auto',
+        pointerEvents: 'none',
         textAlign: 'center',
       }}
     >

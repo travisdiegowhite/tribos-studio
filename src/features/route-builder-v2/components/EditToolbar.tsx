@@ -226,7 +226,7 @@ function ToolbarButton({
   children: React.ReactNode;
   danger?: boolean;
 }) {
-  const color = disabled ? RB2.border : danger ? RB2.coral : RB2.textSecondary;
+  const color = disabled ? RB2.textDisabled : danger ? RB2.coral : RB2.textSecondary;
   return (
     <Tooltip label={`${label} (${shortcut})`} position="bottom" withinPortal disabled={disabled}>
       <UnstyledButton
