@@ -1048,6 +1048,7 @@ export function evaluateGating(ctx, prescription) {
 
 const FRESH_FS_THRESHOLD = 20;       // FS > +20 = too fresh (losing fitness)
 const FTP_RISE_THRESHOLD = 0.05;     // estimated FTP up >5%
+const AHEAD_TFI_THRESHOLD = 0.03;    // actual TFI >3% above plan's projected TFI
 const RACE_LOCKOUT_DAYS = 10;        // don't add load inside the taper window
 const PROGRESSION_BLOCKS = new Set(['aerobic_build', 'threshold', 'vo2', 'maintenance']);
 const PROGRESSION_LADDER = { z2: 'tempo', tempo: 'threshold', threshold: 'vo2' };
@@ -1065,7 +1066,9 @@ export function evaluateProgression(ctx, prescription) {
   const fresh = !!snap && snap.form_score > FRESH_FS_THRESHOLD;
   const ftpRisePct = ctx?.progression?.ftp_rise_pct ?? 0;
   const ftpRise = ftpRisePct > FTP_RISE_THRESHOLD;
-  if (!fresh && !ftpRise) return { upgraded: false };
+  const aheadPct = ctx?.progression?.tfi_ahead_pct ?? 0;
+  const ahead = aheadPct > AHEAD_TFI_THRESHOLD;
+  if (!fresh && !ftpRise && !ahead) return { upgraded: false };
 
   // Only escalate inside build-type blocks (never taper/recovery/race_specific).
   const blockType = ctx?.current_block?.block_type;
@@ -1087,7 +1090,7 @@ export function evaluateProgression(ctx, prescription) {
   const eligible =
     prescription.session_type === 'z2' ||
     prescription.session_type === 'tempo' ||
-    (prescription.session_type === 'threshold' && ftpRise);
+    (prescription.session_type === 'threshold' && (ftpRise || ahead));
   const nextType = eligible ? PROGRESSION_LADDER[prescription.session_type] : null;
   if (!nextType) return { upgraded: false };
 
@@ -1099,7 +1102,9 @@ export function evaluateProgression(ctx, prescription) {
 
   const reason = fresh
     ? `Form Score +${Math.round(snap.form_score)} — you're carrying freshness to spare; nudging this session up.`
-    : `Recent power suggests ~${Math.round(ftpRisePct * 100)}% more FTP — bumping load (consider updating your FTP in settings).`;
+    : ahead
+      ? `You're ~${Math.round(aheadPct * 100)}% ahead of your plan's projected fitness — adding a bit more.`
+      : `Recent power suggests ~${Math.round(ftpRisePct * 100)}% more FTP — bumping load (consider updating your FTP in settings).`;
 
   return {
     upgraded: true,

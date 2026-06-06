@@ -18,10 +18,12 @@ import {
   evaluateProgression,
 } from './sequencerBlockOps.js';
 import { buildSequencerContext } from './sequencerContext.js';
+import { getProjectedTfi } from './sequencerProjection.js';
 
 export const PROGRESSION_WINDOW_DAYS = 10;
 const FRESH_FS_THRESHOLD = 20;
 const FTP_RISE_THRESHOLD = 0.05;
+const AHEAD_TFI_THRESHOLD = 0.03;
 
 function addDaysIso(dateStr, n) {
   const d = new Date(dateStr + 'T00:00:00Z');
@@ -85,10 +87,20 @@ export async function proposeProgression({ supabase, user_id, fromDate, ctx: pas
   const baseCtx = passedCtx ?? (await buildSequencerContext(user_id, today));
   const ftpRisePct = await computeFtpRisePct(supabase, user_id);
 
-  // Cheap early-out: no signal at all → nothing to propose.
+  // "Ahead of plan": actual TFI today vs the trajectory we projected at anchor.
   const todaySnap = baseCtx?.daily_stats?.[0];
+  let tfiAheadPct = 0;
+  const actualTfi = todaySnap?.tfi;
+  if (Number.isFinite(actualTfi)) {
+    const projectedTfi = await getProjectedTfi(supabase, seq.id, today);
+    if (projectedTfi && projectedTfi > 0) {
+      tfiAheadPct = (actualTfi - projectedTfi) / projectedTfi;
+    }
+  }
+
+  // Cheap early-out: no signal at all → nothing to propose.
   const fresh = !!todaySnap && todaySnap.form_score > FRESH_FS_THRESHOLD;
-  if (!fresh && !(ftpRisePct > FTP_RISE_THRESHOLD)) {
+  if (!fresh && !(ftpRisePct > FTP_RISE_THRESHOLD) && !(tfiAheadPct > AHEAD_TFI_THRESHOLD)) {
     return { proposed: false, reason: 'no_signal' };
   }
 
@@ -121,7 +133,7 @@ export async function proposeProgression({ supabase, user_id, fromDate, ctx: pas
     // taper/race_specific generators read upcoming_events[0].
     const ctx = {
       ...baseCtx,
-      progression: { ftp_rise_pct: ftpRisePct },
+      progression: { ftp_rise_pct: ftpRisePct, tfi_ahead_pct: tfiAheadPct },
       current_block: { block_type: block.block_type },
     };
     if (block.parent_event_id && block.parent_event_tier) {
