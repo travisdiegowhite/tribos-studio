@@ -15,6 +15,7 @@ import { RecentRides } from './RecentRides';
 import SequencerPrescriptionCard from '../../components/training/SequencerPrescriptionCard';
 import EventAnchoredPlanCard from '../../components/training/EventAnchoredPlanCard';
 import BlockExtensionStrip from '../../components/coach/BlockExtensionStrip';
+import TodayRpePrompt from '../../components/coach/TodayRpePrompt';
 
 const VIEW_VERSION = 'today_v3_clusters';
 const COACH_DWELL_MS = 3000;
@@ -149,6 +150,7 @@ export default function TodayView() {
                 <SequencerPrescriptionCard />
               </>
             )}
+            <TodayRpePrompt />
             <TodaysBrief
               brief={brief}
               loading={loading}
@@ -190,6 +192,7 @@ export default function TodayView() {
                 <SequencerPrescriptionCard />
               </>
             )}
+            <TodayRpePrompt />
             {/* Row 1 — full width */}
             <TodaysBrief
               brief={brief}

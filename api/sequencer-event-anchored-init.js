@@ -26,6 +26,7 @@ import {
   resolveCoefficients,
   buildAnchoredContext,
 } from './utils/sequencerPreview.js';
+import { computeAndStoreProjection } from './utils/sequencerProjection.js';
 import {
   ensureEventAnchoredPlan,
   projectPrescriptionsToCalendar,
@@ -319,6 +320,23 @@ export default async function handler(req, res) {
       );
     }
 
+    // 11. Store the intended fitness trajectory (Phase 3) so we can later tell
+    //     whether the athlete is ahead of plan. Best-effort — never fail the
+    //     anchor on a projection error.
+    let trajectory = { inserted: 0 };
+    try {
+      trajectory = await computeAndStoreProjection(supabase, {
+        sequenceId: sequence.id,
+        userId: user_id,
+        blocks: plan.blocks,
+        ctx: ctxWithEvent,
+        today,
+        raceDate: race.race_date,
+      });
+    } catch (trajErr) {
+      console.error('[sequencer-event-anchored-init] trajectory projection failed:', trajErr);
+    }
+
     return res.status(200).json({
       ok: true,
       already_anchored: false,
@@ -336,6 +354,7 @@ export default async function handler(req, res) {
       chain_used: plan.chain_used,
       horizon_days: plan.horizon_days,
       calendar_projection: projection,
+      trajectory_projection: trajectory,
     });
   } catch (err) {
     console.error('[sequencer-event-anchored-init] error:', err);
