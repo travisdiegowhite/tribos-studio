@@ -36,6 +36,30 @@ describe('StatsOverlay', () => {
     expect(screen.getByTestId('rb2-stats-overlay')).toHaveTextContent('8.4km');
   });
 
+  it('renders 0 (not NaN) when elevation gain is undefined/NaN', () => {
+    // An in-flight or failed elevation fetch can leave elevation_gain_m
+    // undefined; the overlay must never show "NaNft" / "NaNm".
+    renderOverlay({ distance_km: 22.5, elevation_gain_m: undefined as unknown as number, duration_s: 3600 });
+    const card = screen.getByTestId('rb2-stats-overlay');
+    expect(card).toHaveTextContent('0m');
+    expect(card).not.toHaveTextContent('NaN');
+  });
+
+  it('renders 0ft (not NaNft) for undefined elevation in imperial', () => {
+    render(
+      <MantineProvider>
+        <StatsOverlay
+          stats={{ distance_km: 22.5, elevation_gain_m: NaN, duration_s: 3600 }}
+          routeName="Imperial Zero"
+          isImperial
+        />
+      </MantineProvider>,
+    );
+    const card = screen.getByTestId('rb2-stats-overlay');
+    expect(card).toHaveTextContent('0ft');
+    expect(card).not.toHaveTextContent('NaN');
+  });
+
   it('renders miles and feet when imperial', () => {
     render(
       <MantineProvider>
