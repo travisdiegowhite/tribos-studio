@@ -330,6 +330,12 @@ export const useRouteManipulation = ({
       const stats = {
         distance_km,
         duration_s: routeDuration_s,
+        // Seed elevation to 0 so the stat is always defined; the async
+        // getElevationData fetch below refines it. Without this seed, the
+        // replace-style setRouteStats leaves elevation_gain_m undefined when
+        // the fetch returns falsy, which renders as "NaNft" downstream.
+        elevation_gain_m: 0,
+        elevation_loss_m: 0,
         confidence: 1.0,
         waypointCount: waypointsToSnap.length,
         routingSource,
@@ -413,6 +419,10 @@ export const useRouteManipulation = ({
       const stats = {
         distance_km,
         duration_s,
+        // Seed elevation (see snapToRoads above) — keeps the stat defined until
+        // the async fetch refines it, avoiding a transient/stuck "NaNft".
+        elevation_gain_m: 0,
+        elevation_loss_m: 0,
         confidence: 0.5,
         waypointCount: waypointsToUse.length,
         routingSource: 'freehand',

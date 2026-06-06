@@ -42,7 +42,10 @@ function formatDistanceCompact(km: number, isImperial: boolean): string {
 }
 
 function formatElevationCompact(m: number, isImperial: boolean): string {
-  const value = isImperial ? convertDistance.mToFt(m) : m;
+  // Guard against a non-finite gain (e.g. an in-flight/failed elevation fetch
+  // that left the stat undefined) so we never render "NaNft".
+  const safeM = Number.isFinite(m) ? m : 0;
+  const value = isImperial ? convertDistance.mToFt(safeM) : safeM;
   return `${Math.round(value)}${isImperial ? 'ft' : 'm'}`;
 }
 
