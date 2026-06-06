@@ -136,16 +136,23 @@ describe('applyRouteEdit — shift_direction', () => {
     expect(res.message).toMatch(/toward the west/i);
   });
 
-  it('refuses to shift a point-to-point route and suggests a detour', async () => {
+  it('bows a point-to-point route toward the bearing (start/end fixed)', async () => {
+    getSmartCyclingRoute.mockResolvedValue({ coordinates: lineToFar.concat([[-105.0, 40.12]]), source: 'stadia' });
+
     const res = await applyRouteEdit({
       routeGeometry: geom(lineToFar),
       routeProfile: 'road',
       routeStats: stats,
       editIntent: { intent: 'shift_direction', direction: 'north' },
     });
-    expect(res.success).toBe(false);
-    expect(res.message).toMatch(/loops/i);
-    expect(getSmartCyclingRoute).not.toHaveBeenCalled();
+
+    expect(res.success).toBe(true);
+    // start → bowed midpoint → end (endpoints preserved)
+    const wps = getSmartCyclingRoute.mock.calls[0][0];
+    expect(wps).toHaveLength(3);
+    expect(wps[0]).toEqual(lineToFar[0]);
+    expect(wps[2]).toEqual(lineToFar[lineToFar.length - 1]);
+    expect(res.message).toMatch(/route toward the north/i);
   });
 
   it('rejects an unknown direction', async () => {

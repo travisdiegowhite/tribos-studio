@@ -1,22 +1,29 @@
 /**
  * naturalLanguageRouteBuilder — the compute core of RB1's natural-language
  * route builder, lifted out of `src/pages/RouteBuilder.jsx`
- * (`handleNaturalLanguageGenerate`) so the RB2 coach chat can reuse the exact
- * same pipeline: Claude parse → start resolution → geocoding → iterative /
- * smart cycling routing.
+ * (`handleNaturalLanguageGenerate`) so both the RB2 coach chat and RB1 can
+ * share one pipeline: Claude parse → start resolution → geocoding →
+ * familiar-roads / iterative / smart cycling routing → optional scoring.
  *
  * This module is pure compute — no React state, no notifications, no store
- * writes. Callers apply the returned route to their own state.
+ * writes. Callers apply the returned route to their own state. Progress can be
+ * surfaced via the optional `context.onProgress(stage)` callback.
  *
- * RB1 keeps its own handler (which adds familiar-roads waypoints, familiarity
- * scoring, and a non-iterative smart-waypoints fallback — all gated on a Strava
- * token the coach doesn't pass, so they're intentionally not lifted here).
+ * Feature parity with RB1's handler:
+ *   - familiar-roads loop waypoints (when `context.accessToken` is supplied and
+ *     the rider prefers familiar roads),
+ *   - route familiarity scoring (when `context.accessToken` is supplied),
+ *   - the non-iterative `generateSmartWaypoints` fallback (when
+ *     `context.useIterativeBuilder === false`).
+ * Callers that don't pass `accessToken` (e.g. an unauthenticated context)
+ * simply skip the Strava-gated branches — the helpers no-op on a null token.
  */
 
 import { buildNaturalLanguagePrompt, parseNaturalLanguageResponse } from './naturalLanguagePrompt';
 import { geocodeWaypoint } from './geocoding';
 import { generateIterativeRoute } from './iterativeRouteBuilder';
 import { getSmartCyclingRoute } from './smartCyclingRouter';
+import { getFamiliarLoopWaypoints, scoreRoutePreference } from './routeScoring';
 import { M_TO_KM } from './distanceUnits';
 
 const DEFAULT_AVG_SPEED_KMH = 28;
@@ -34,7 +41,10 @@ const DEFAULT_AVG_SPEED_KMH = 28;
  * @param {string} [context.profile] - current routing profile ('road' | 'gravel' | 'mountain')
  * @param {object|null} [context.speedProfile] - { average_speed } for distance/time math
  * @param {boolean} [context.useIterativeBuilder] - defaults to true (RB1 default)
- * @returns {Promise<{coordinates, distanceKm, elevationGain, duration_s, name, source, parsed}>}
+ * @param {string|null} [context.accessToken] - Supabase session token; enables familiar-roads + scoring
+ * @param {(stage: string) => void} [context.onProgress] - optional progress callback ('familiar' | 'iterative' | 'smart')
+ * @returns {Promise<{coordinates, distanceKm, elevationGain, duration_s, name, source, parsed, familiarityScore, meta}>}
+ *   `meta` is `{ segmentsUsed, waypointsUsed }` when familiar-roads waypoints were used, else null/undefined.
  * @throws {Error} 'NO_START' when no start coordinate can be resolved; other errors on parse/routing failure.
  */
 export async function generateRouteFromNaturalLanguage(userRequest, context = {}) {
@@ -47,9 +57,14 @@ export async function generateRouteFromNaturalLanguage(userRequest, context = {}
     profile = 'road',
     speedProfile = null,
     useIterativeBuilder = true,
+    accessToken = null,
+    onProgress = null,
   } = context;
 
   const mapboxToken = import.meta.env.VITE_MAPBOX_TOKEN;
+  const progress = (stage) => {
+    try { onProgress?.(stage); } catch { /* progress is best-effort */ }
+  };
 
   // Step 1: ask Claude to extract waypoint names / distance / goal / surface.
   const prompt = buildNaturalLanguagePrompt(
@@ -87,6 +102,7 @@ export async function generateRouteFromNaturalLanguage(userRequest, context = {}
   const routeProfile = parsed.preferences?.surfaceType === 'gravel' ? 'gravel' : profile || 'road';
   const goal = parsed.trainingGoal || 'endurance';
   const type = parsed.routeType || 'loop';
+  const preferFamiliar = Boolean(parsed.preferences?.preferFamiliar);
 
   // Step 3a: explicit named waypoints → geocode and route through them.
   if (parsed.waypoints && parsed.waypoints.length > 0) {
@@ -116,6 +132,10 @@ export async function generateRouteFromNaturalLanguage(userRequest, context = {}
     const distanceKm = parseFloat(
       M_TO_KM(routeResult.distance_m ?? routeResult.distance ?? 0).toFixed(1),
     );
+    // RB1 only scores the named-waypoint path when the rider prefers familiar roads.
+    const familiarityScore = preferFamiliar && accessToken
+      ? await scoreRoutePreference(routeResult.coordinates, accessToken)
+      : null;
     return {
       coordinates: routeResult.coordinates,
       distanceKm,
@@ -124,42 +144,126 @@ export async function generateRouteFromNaturalLanguage(userRequest, context = {}
       name: `${parsed.waypoints.join(' → ')} ${type}`,
       source: routeResult.source,
       parsed,
+      familiarityScore,
     };
   }
 
-  // Step 3b: no named waypoints → distance/duration-driven iterative builder.
+  // Step 3b: no named waypoints → distance/duration-driven routing.
   const duration = parsed.timeAvailable || 60;
   const direction = parsed.direction || null;
   const avgSpeed = speedProfile?.average_speed || DEFAULT_AVG_SPEED_KMH;
   const targetDistanceKm = parsed.targetDistanceKm || (duration / 60) * avgSpeed;
 
+  // Non-iterative smart-waypoints fallback (RB1's path when the iterative
+  // builder is disabled). aiRouteGenerator is large, so it's dynamically
+  // imported to keep it out of callers that never take this branch (the coach).
   if (!useIterativeBuilder) {
-    // RB2 always uses the iterative builder; the non-iterative smart-waypoints
-    // fallback lives in RB1 only.
-    throw new Error('Smart-waypoints fallback is not available here.');
+    progress('smart');
+    const { generateSmartWaypoints } = await import('./aiRouteGenerator.js');
+    const waypointCoords = generateSmartWaypoints(startLocation, duration, type, goal, speedProfile, direction);
+    if (!waypointCoords || waypointCoords.length < 2) {
+      throw new Error('Could not generate route waypoints. Please try again.');
+    }
+    const routeResult = await getSmartCyclingRoute(waypointCoords, {
+      profile: routeProfile,
+      trainingGoal: goal,
+      mapboxToken,
+    });
+    if (!routeResult?.coordinates || routeResult.coordinates.length < 10) {
+      throw new Error('Could not generate a route. Try a different duration or location.');
+    }
+    const distanceKm = parseFloat(
+      M_TO_KM(routeResult.distance_m ?? routeResult.distance ?? 0).toFixed(1),
+    );
+    const familiarityScore = preferFamiliar && accessToken
+      ? await scoreRoutePreference(routeResult.coordinates, accessToken)
+      : null;
+    return {
+      coordinates: routeResult.coordinates,
+      distanceKm,
+      elevationGain: routeResult.elevationGain || 0,
+      duration_s: routeResult.duration_s ?? routeResult.duration ?? 0,
+      name: `${distanceKm}km ${goal} ${type}`,
+      source: routeResult.source,
+      parsed,
+      familiarityScore,
+    };
   }
 
-  const iterativeResult = await generateIterativeRoute({
-    startLocation,
-    targetDistanceKm,
-    routeType: type === 'out_back' ? 'out_and_back' : type,
-    direction,
-    options: { profile: routeProfile, trainingGoal: goal },
-    trainingGoal: goal,
-  });
+  // Iterative path, optionally seeded with familiar-roads waypoints from the
+  // rider's history (Strava-gated; skipped without an accessToken).
+  let iterativeResult = null;
+  let routeSource = 'iterative_quarter_loop';
+  let meta = null;
+
+  if (accessToken && preferFamiliar && type === 'loop') {
+    progress('familiar');
+    const familiar = await getFamiliarLoopWaypoints(
+      startLocation[1], // lat
+      startLocation[0], // lng
+      targetDistanceKm,
+      accessToken,
+      false, // not explore mode
+    );
+    if (familiar && !familiar.fallbackToRandom && familiar.waypoints?.length >= 4) {
+      const familiarCoords = [
+        startLocation,
+        ...familiar.waypoints.map((wp) => [wp.lng, wp.lat]),
+        startLocation,
+      ];
+      const routeResult = await getSmartCyclingRoute(familiarCoords, {
+        profile: routeProfile,
+        trainingGoal: goal,
+        mapboxToken,
+      });
+      if (routeResult?.coordinates && routeResult.coordinates.length >= 10) {
+        const familiarKm = M_TO_KM(routeResult.distance_m ?? routeResult.distance ?? 0);
+        iterativeResult = {
+          coordinates: routeResult.coordinates,
+          distanceKm: familiarKm,
+          elevationGain: routeResult.elevationGain || 0,
+          duration_s: routeResult.duration_s ?? routeResult.duration ?? 0,
+          name: `Familiar ${familiarKm.toFixed(0)}km ${goal} loop`,
+          source: 'familiar_segments',
+        };
+        routeSource = 'familiar_segments';
+        meta = {
+          segmentsUsed: familiar.segments?.length || 0,
+          waypointsUsed: familiar.waypoints.length,
+        };
+      }
+    }
+  }
+
+  if (!iterativeResult) {
+    progress('iterative');
+    iterativeResult = await generateIterativeRoute({
+      startLocation,
+      targetDistanceKm,
+      routeType: type === 'out_back' ? 'out_and_back' : type,
+      direction,
+      options: { profile: routeProfile, trainingGoal: goal },
+      trainingGoal: goal,
+    });
+  }
 
   if (!iterativeResult?.coordinates || iterativeResult.coordinates.length < 10) {
     throw new Error('Could not generate a route. Try a different duration or location.');
   }
 
   const distanceKm = parseFloat(iterativeResult.distanceKm.toFixed(1));
+  const familiarityScore = accessToken
+    ? await scoreRoutePreference(iterativeResult.coordinates, accessToken)
+    : null;
   return {
     coordinates: iterativeResult.coordinates,
     distanceKm,
     elevationGain: iterativeResult.elevationGain || 0,
     duration_s: iterativeResult.duration_s ?? iterativeResult.duration ?? 0,
     name: iterativeResult.name || `${distanceKm}km ${goal} ${type}`,
-    source: iterativeResult.source || 'iterative_quarter_loop',
+    source: iterativeResult.source || routeSource,
     parsed,
+    familiarityScore,
+    meta,
   };
 }

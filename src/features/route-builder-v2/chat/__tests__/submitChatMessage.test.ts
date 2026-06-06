@@ -185,6 +185,24 @@ describe('submitChatMessage — generate fresh route', () => {
     );
   });
 
+  it('appends a familiarity note when the generated route reports one', async () => {
+    const onGenerateFromPrompt = vi.fn().mockResolvedValue({
+      ok: true,
+      distance_km: 30,
+      elevation_gain_m: 200,
+      familiarity_percent: 64,
+    });
+    const { args, append } = makeArgs({
+      input: 'build me a familiar loop',
+      onGenerateFromPrompt,
+    });
+
+    await submitChatMessage(args);
+
+    const lastCall = append.mock.calls[append.mock.calls.length - 1][0];
+    expect(lastCall.text).toMatch(/64% on roads you've ridden/);
+  });
+
   it('generates from any prompt when there is no route (non-build phrasing)', async () => {
     const onGenerateFromPrompt = vi.fn().mockResolvedValue({
       ok: true,
