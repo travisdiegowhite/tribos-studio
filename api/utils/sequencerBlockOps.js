@@ -1034,6 +1034,85 @@ export function evaluateGating(ctx, prescription) {
   return { gated: false };
 }
 
+// ── Upward progression (Phase 2) ───────────────────────────────────────────
+//
+// Sibling to evaluateGating: proposes making a session HARDER when the athlete
+// is demonstrably fresh or fitter than the plan assumes. Suggest-and-confirm —
+// callers turn the substitute into a block_modifications proposal, never an
+// auto-write. evaluateGating always wins (callers run it first and skip
+// progression on any day it would ease).
+//
+// Requires ctx.current_block.block_type to reflect the *prescription's* block
+// (the proposer sets this per block), and ctx.progression.ftp_rise_pct for the
+// FTP-gain signal.
+
+const FRESH_FS_THRESHOLD = 20;       // FS > +20 = too fresh (losing fitness)
+const FTP_RISE_THRESHOLD = 0.05;     // estimated FTP up >5%
+const RACE_LOCKOUT_DAYS = 10;        // don't add load inside the taper window
+const PROGRESSION_BLOCKS = new Set(['aerobic_build', 'threshold', 'vo2', 'maintenance']);
+const PROGRESSION_LADDER = { z2: 'tempo', tempo: 'threshold', threshold: 'vo2' };
+const PROGRESSION_RSS_BUMP = 1.12;
+const PROGRESSION_RSS_CAP = 130;
+
+function daysBetweenIso(fromDate, toDate) {
+  const a = new Date(fromDate + 'T00:00:00Z');
+  const b = new Date(toDate + 'T00:00:00Z');
+  return Math.round((b - a) / 86400000);
+}
+
+export function evaluateProgression(ctx, prescription) {
+  const snap = ctx?.daily_stats?.[0];
+  const fresh = !!snap && snap.form_score > FRESH_FS_THRESHOLD;
+  const ftpRisePct = ctx?.progression?.ftp_rise_pct ?? 0;
+  const ftpRise = ftpRisePct > FTP_RISE_THRESHOLD;
+  if (!fresh && !ftpRise) return { upgraded: false };
+
+  // Only escalate inside build-type blocks (never taper/recovery/race_specific).
+  const blockType = ctx?.current_block?.block_type;
+  if (!PROGRESSION_BLOCKS.has(blockType)) return { upgraded: false };
+
+  // Never add load inside the taper window of an A race.
+  const aRace = (ctx?.upcoming_events || []).find(
+    (e) => e.tier === 'A' && e.status === 'upcoming'
+  );
+  if (aRace && prescription?.date) {
+    const d = daysBetweenIso(prescription.date, aRace.date);
+    if (d >= 0 && d <= RACE_LOCKOUT_DAYS) return { upgraded: false };
+  }
+
+  // Only when the athlete is genuinely recovering — not already ramping fatigue.
+  if (afiGrowth4d(ctx) > 0) return { upgraded: false };
+
+  // Eligible days: bump endurance/tempo; step threshold up only on a real FTP gain.
+  const eligible =
+    prescription.session_type === 'z2' ||
+    prescription.session_type === 'tempo' ||
+    (prescription.session_type === 'threshold' && ftpRise);
+  const nextType = eligible ? PROGRESSION_LADDER[prescription.session_type] : null;
+  if (!nextType) return { upgraded: false };
+
+  const baseRss = prescription.target_rss || 0;
+  const target_rss = Math.min(
+    PROGRESSION_RSS_CAP,
+    Math.max(Math.round(baseRss * PROGRESSION_RSS_BUMP), baseRss + 5)
+  );
+
+  const reason = fresh
+    ? `Form Score +${Math.round(snap.form_score)} — you're carrying freshness to spare; nudging this session up.`
+    : `Recent power suggests ~${Math.round(ftpRisePct * 100)}% more FTP — bumping load (consider updating your FTP in settings).`;
+
+  return {
+    upgraded: true,
+    reason,
+    substitute: {
+      ...prescription,
+      session_type: nextType,
+      target_rss,
+      notes: `${prescription.notes ? prescription.notes + ' ' : ''}[progression: ${prescription.session_type}→${nextType}]`,
+    },
+  };
+}
+
 // ── Coefficient resolver (spec §3.3) ───────────────────────────────────────
 
 const STANDARD_FACTOR = {

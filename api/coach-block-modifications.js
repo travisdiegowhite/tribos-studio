@@ -41,6 +41,8 @@ async function applyProposal(supabase, userId, changes) {
     long_ride_flag: c.after.long_ride_flag ?? null,
     notes: c.after.notes ?? null,
     gating_reason: c.gating_reason ?? null,
+    // Lock the confirmed change so the daily rollover doesn't regenerate over it.
+    locked: true,
     updated_at: now,
   }));
 
