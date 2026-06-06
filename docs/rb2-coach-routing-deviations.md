@@ -58,8 +58,8 @@ path. The shipped work matched the plan, with these deviations/additions:
 
 ## Standing debts / follow-ups created by these deviations
 
-> **Update (2026-06-06):** items 1, 2, and 4 below are now resolved; item 3 is
-> the only one remaining. See the "Resolution" notes inline.
+> **Update (2026-06-06):** all four follow-ups below are now resolved. See the
+> inline notes.
 
 1. **RB1 ↔ shared-module duplication** — ✅ **Resolved.** `RouteBuilder.jsx`'s
    `handleNaturalLanguageGenerate` now delegates its compute to
@@ -74,8 +74,10 @@ path. The shipped work matched the plan, with these deviations/additions:
    non-iterative smart-waypoints fallback behind `context.accessToken`; RB2 lifts
    the Supabase session token and threads it in, and the coach reply surfaces the
    familiarity percentage.
-3. **`shift_direction` is loop-only** — ⏳ **Open.** Point-to-point shifting and/or
-   a geometry-preserving variant remain unbuilt.
+3. **`shift_direction` is loop-only** — ✅ **Resolved.** Point-to-point routes now
+   bow their midpoint toward the requested compass bearing (keeping start/end
+   fixed) and reroute through it, via `projectPoint` + `getSmartCyclingRoute`;
+   loops keep the existing biased-lobe regeneration.
 4. **`buildComparison` canonical-first fix / legacy-field audit** — ✅ **Resolved
    (no further changes needed).** A full audit of `aiRouteEditService.js` and
    `src/features/route-builder-v2/` found every distance/elevation read already

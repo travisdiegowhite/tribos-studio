@@ -719,22 +719,31 @@ async function applyShiftDirectionEdit(coords, profile, stats, direction) {
   const start = coords[0];
   const end = coords[coords.length - 1];
   const isLoop = haversineKm(start, end) < 1;
-
-  if (!isLoop) {
-    return { success: false, message: 'Shifting direction only works for loops. For a point-to-point route, try a detour through a place in that direction instead.' };
-  }
-
   const totalDist = (stats?.distance_km ?? stats?.distance) || estimateDistanceKm(coords);
-  const radiusKm = totalDist / 4; // out-and-back lobe radius keeps roughly the same distance
 
-  // Project a lobe out toward the requested bearing and route a loop through it.
-  const waypoints = [
-    start,
-    projectPoint(start, bearing - 30, radiusKm),
-    projectPoint(start, bearing, radiusKm * 1.3),
-    projectPoint(start, bearing + 30, radiusKm),
-    start, // close the loop
-  ];
+  let waypoints;
+  let kind; // 'loop' | 'point-to-point' — drives the success copy
+  if (isLoop) {
+    // Loops: project a lobe out toward the bearing and route a new loop through
+    // it, keeping roughly the same distance.
+    const radiusKm = totalDist / 4;
+    waypoints = [
+      start,
+      projectPoint(start, bearing - 30, radiusKm),
+      projectPoint(start, bearing, radiusKm * 1.3),
+      projectPoint(start, bearing + 30, radiusKm),
+      start, // close the loop
+    ];
+    kind = 'loop';
+  } else {
+    // Point-to-point: keep the start and end fixed and bow the route's midpoint
+    // toward the requested compass direction, then reroute start → bowed → end.
+    const midCoord = coords[Math.floor(coords.length / 2)];
+    const shiftKm = Math.max(1, totalDist * 0.15);
+    const bowedMidpoint = projectPoint(midCoord, bearing, shiftKm);
+    waypoints = [start, bowedMidpoint, end];
+    kind = 'point-to-point';
+  }
 
   try {
     const route = await getSmartCyclingRoute(waypoints, { profile });
@@ -747,14 +756,14 @@ async function applyShiftDirectionEdit(coords, profile, stats, direction) {
           source: route.source || 'shift_direction',
         },
         comparison,
-        message: `Shifted the loop toward the ${direction}`,
+        message: `Shifted the ${kind === 'loop' ? 'loop' : 'route'} toward the ${direction}`,
       };
     }
   } catch (e) {
     console.warn('[AI Edit] Shift direction failed:', e.message);
   }
 
-  return { success: false, message: `Could not shift the route ${direction}. The roads in that direction may not connect into a loop.` };
+  return { success: false, message: `Could not shift the route ${direction}. The roads in that direction may not connect.` };
 }
 
 async function applyAddWaypointEdit(coords, profile, stats, waypoint) {
