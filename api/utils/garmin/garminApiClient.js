@@ -118,6 +118,37 @@ export async function requestActivityDetailsBackfill(accessToken, startTimeInSec
   }
 }
 
+/**
+ * Fetch the Garmin User ID for an access token. This ID is the linchpin for
+ * webhook matching (bike_computer_integrations.provider_user_id) — without
+ * it every webhook for the user is unmatchable. Mirrors the fetch in
+ * api/garmin-auth.js exchange/repair; extracted here so the webhook
+ * processor and token maintenance can self-heal NULL provider_user_id rows.
+ *
+ * @param {string} accessToken - Valid Garmin OAuth access token
+ * @returns {Promise<string|null>} Garmin user ID, or null on failure
+ */
+export async function fetchGarminUserId(accessToken) {
+  try {
+    const response = await fetch('https://apis.garmin.com/wellness-api/rest/user/id', {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${accessToken}`,
+        'Accept': 'application/json'
+      }
+    });
+    if (!response.ok) {
+      console.warn('⚠️ Garmin /user/id fetch failed:', response.status);
+      return null;
+    }
+    const data = await response.json();
+    return data?.userId ? String(data.userId) : null;
+  } catch (error) {
+    console.warn('⚠️ Garmin /user/id fetch error:', error.message);
+    return null;
+  }
+}
+
 // ============================================================================
 // Activity Details PULL endpoint (Activity API v1.2.5 §7.3)
 // ============================================================================
