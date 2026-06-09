@@ -13,6 +13,10 @@
       "schedule": "*/5 * * * *"
     },
     {
+      "path": "/api/garmin-health-monitor",
+      "schedule": "30 * * * *"
+    },
+    {
       "path": "/api/proactive-insights-process",
       "schedule": "*/10 * * * *"
     },
@@ -65,6 +69,9 @@
       "maxDuration": 60
     },
     "api/garmin-webhook-process.js": {
+      "maxDuration": 60
+    },
+    "api/garmin-health-monitor.js": {
       "maxDuration": 60
     },
     "api/coros-webhook-process.js": {
