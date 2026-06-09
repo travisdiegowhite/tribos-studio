@@ -3,6 +3,7 @@
  */
 
 import crypto from 'crypto';
+import { captureServerError } from '../serverSentry.js';
 
 /**
  * Verify a Garmin webhook signature using HMAC-SHA256.
@@ -14,9 +15,14 @@ import crypto from 'crypto';
  */
 export function verifySignature(secret, signature, body) {
   if (!secret) {
-    // Accept but warn loudly — a missing secret should not silently kill the integration
+    // Accept but alert loudly — a missing secret should not silently kill the
+    // integration (dropping webhooks over a config error is worse), but it
+    // must page rather than rot as a log line. garmin-health-monitor also
+    // checks this hourly.
     if (process.env.NODE_ENV === 'production' || process.env.VERCEL_ENV === 'production') {
-      console.error('⚠️ GARMIN_WEBHOOK_SECRET not configured in production — accepting request WITHOUT verification. Set this env var for security.');
+      captureServerError('GARMIN_WEBHOOK_SECRET not configured in production — accepting request WITHOUT verification', {
+        tag: 'garmin.config_missing',
+      });
     } else {
       console.warn('Webhook secret not configured — skipping verification (non-production)');
     }

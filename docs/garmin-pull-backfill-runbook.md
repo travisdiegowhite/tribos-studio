@@ -1,5 +1,19 @@
 # Garmin Pull Backfill — Runbook
 
+> ## ⚠️ DO NOT RUN — procedure broken as written (2026-06-09)
+>
+> This runbook's script (`scripts/garmin-pull-backfill.js`) pulls
+> `/wellness-api/rest/activityDetails` with OAuth **Bearer** auth, which
+> Garmin rejects with `InvalidPullTokenException` (the same failure that got
+> the `garmin-reconcile` and `garmin2-pull` crons disabled on 2026-06-05).
+> §7.3 pulls require a **pull token** (from a ping callbackURL or the
+> portal's Pull Token tool), not Bearer auth.
+>
+> The replacement procedure is gated on the decision checks in
+> **`docs/garmin-reliability-phase0-runbook.md`** — run those first. This
+> doc is retained for the SQL spot-checks and the snapshot-table safety
+> pattern, which remain valid.
+
 > **Status:** Code shipped in PR #772 (Phase 7). Backfill script NOT yet run
 > against production. ~377 stranded `summary_only` activities remain.
 > **Owner:** travisdiegowhite

@@ -35,12 +35,22 @@
  *   - HMAC is over the RAW request body bytes (the March 2026 outage was
  *     caused by hashing JSON.stringify(parsed) — never do that).
  *
- * FALLBACK PLAN: If Garmin disables the endpoint due to sustained 503s,
- * upgrade to a circuit breaker (counter resets on 200, after N consecutive
- * 503s flip to returning 200 with a critical alert).
+ * CIRCUIT BREAKER: Garmin disables endpoints that fail persistently. A
+ * module-level counter tracks consecutive 503 responses; after
+ * CIRCUIT_BREAKER_THRESHOLD the worker flips to returning 200 with
+ * degraded:true and a critical log line (visible in CF logs / Logpush) so a
+ * long Supabase outage can't get the endpoint deregistered. Events arriving
+ * while the breaker is open ARE lost — that's the explicit trade against
+ * losing the endpoint registration (and ALL future events) instead. The
+ * counter is per-isolate (best effort), which is fine: any isolate seeing 10
+ * consecutive failures means the outage is real and sustained.
  */
 
 import { createClient } from '@supabase/supabase-js';
+
+// Circuit breaker state (per-isolate, best effort).
+const CIRCUIT_BREAKER_THRESHOLD = 10;
+let consecutiveFailures = 0;
 
 // Health summary types the puller (processHealthPushData) knows about.
 // Others — epochs, allDayRespiration, userMetrics, etc. — flood the queue
@@ -240,10 +250,10 @@ export default {
       // ALL inserts failed → 503 so Garmin retries delivery. Losing events
       // silently is worse than risking a temporary endpoint disable.
       if (eventIds.length === 0 && storageAttempts > 0) {
-        console.error('All event storage failed — returning 503 for Garmin retry', {
+        console.error('All event storage failed — signalling unavailable for Garmin retry', {
           attemptedCount: storageAttempts, kind: classified.kind,
         });
-        return json(503, { success: false, error: 'Service temporarily unavailable', retryable: true });
+        return respondUnavailable();
       }
       if (eventIds.length > 0 && eventIds.length < storageAttempts) {
         console.warn('Partial storage failure', {
@@ -251,6 +261,7 @@ export default {
         });
       }
 
+      consecutiveFailures = 0;
       return json(200, {
         success: true,
         eventIds,
@@ -260,10 +271,24 @@ export default {
       });
     } catch (err) {
       console.error('Webhook error:', err);
-      return json(503, { success: false, error: 'Service temporarily unavailable', retryable: true });
+      return respondUnavailable();
     }
   },
 };
+
+/**
+ * Circuit-breaker-aware failure response: 503 (Garmin retries) until the
+ * threshold of consecutive failures, then 200 degraded (Garmin keeps the
+ * endpoint registered). See header comment for the trade-off.
+ */
+function respondUnavailable() {
+  consecutiveFailures += 1;
+  if (consecutiveFailures >= CIRCUIT_BREAKER_THRESHOLD) {
+    console.error(`CRITICAL: circuit breaker OPEN — ${consecutiveFailures} consecutive storage failures; returning 200 to protect endpoint registration. Events are being DROPPED until storage recovers.`);
+    return json(200, { success: false, degraded: true, error: 'Storage unavailable — event dropped to protect endpoint registration' });
+  }
+  return json(503, { success: false, error: 'Service temporarily unavailable', retryable: true });
+}
 
 // --- Helpers ----------------------------------------------------------------
 

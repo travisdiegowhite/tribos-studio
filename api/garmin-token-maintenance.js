@@ -4,6 +4,8 @@
 
 import { getSupabaseAdmin } from './utils/supabaseAdmin.js';
 import { ensureValidAccessToken } from './utils/garmin/tokenManager.js';
+import { fetchGarminUserId } from './utils/garmin/garminApiClient.js';
+import { captureServerError } from './utils/serverSentry.js';
 
 const supabase = getSupabaseAdmin();
 
@@ -68,13 +70,26 @@ export default async function handler(req, res) {
       .neq('refresh_token_invalid', true)
       .or(`refresh_token_expires_at.is.null,refresh_token_expires_at.lt.${refreshTokenThreshold.toISOString()}`);
 
-    if (accessError || refreshError) {
-      console.error('Failed to fetch integrations:', accessError || refreshError);
-      return res.status(500).json({ error: 'Database query failed', details: (accessError || refreshError).message });
+    // Query 3: Integrations missing their Garmin User ID. Webhooks for these
+    // users are unmatchable until the ID is backfilled, so include them in
+    // every maintenance run regardless of token expiry (the heal pass below
+    // fixes them once a valid token is in hand).
+    const { data: missingUserId, error: missingIdError } = await supabase
+      .from('bike_computer_integrations')
+      .select(selectFields)
+      .eq('provider', 'garmin')
+      .not('refresh_token', 'is', null)
+      .neq('refresh_token_invalid', true)
+      .is('provider_user_id', null);
+
+    if (accessError || refreshError || missingIdError) {
+      const queryError = accessError || refreshError || missingIdError;
+      console.error('Failed to fetch integrations:', queryError);
+      return res.status(500).json({ error: 'Database query failed', details: queryError.message });
     }
 
     // Combine and deduplicate by integration ID
-    const allIntegrations = [...(accessTokenExpiring || []), ...(refreshTokenExpiring || [])];
+    const allIntegrations = [...(accessTokenExpiring || []), ...(refreshTokenExpiring || []), ...(missingUserId || [])];
     const uniqueIntegrations = Array.from(
       new Map(allIntegrations.map(i => [i.id, i])).values()
     );
@@ -130,17 +145,42 @@ export default async function handler(req, res) {
         // could run concurrently. With Garmin's refresh-token rotation, the
         // loser stored a stale refresh_token and the next call returned 400 —
         // a latent path to silent token death.
-        await ensureValidAccessToken(integration, supabase);
+        const validToken = await ensureValidAccessToken(integration, supabase);
         console.log('  - SUCCESS: Token refreshed');
         results.refreshed++;
+
+        // Heal pass: an integration without a Garmin User ID can never match
+        // a webhook. Now that we hold a fresh token, backfill it.
+        if (!integration.provider_user_id) {
+          const fetchedId = await fetchGarminUserId(validToken);
+          if (fetchedId) {
+            await supabase
+              .from('bike_computer_integrations')
+              .update({ provider_user_id: fetchedId, updated_at: new Date().toISOString() })
+              .eq('id', integration.id);
+            console.log(`  - HEALED: provider_user_id backfilled (${fetchedId})`);
+          } else {
+            console.warn('  - Could not backfill provider_user_id (fetch failed)');
+          }
+        }
       } catch (err) {
         console.error('  - ERROR:', err.message);
         results.failed++;
+        const requiresReconnect = /Refresh token may be invalid or revoked/.test(err.message);
         results.errors.push({
           userId,
           error: err.message,
-          requiresReconnect: /Refresh token may be invalid or revoked/.test(err.message)
+          requiresReconnect
         });
+        if (requiresReconnect) {
+          // Token death is user-visible breakage (sync silently stops). Page
+          // via Sentry instead of waiting for the user to notice; the health
+          // monitor's invalid_token_last_24h SLI also picks this up.
+          captureServerError(`Garmin refresh token died for user ${userId} — reconnect required`, {
+            tag: 'garmin.token_death',
+            extra: { user_id: userId, integration_id: integration.id },
+          });
+        }
       }
     }
 

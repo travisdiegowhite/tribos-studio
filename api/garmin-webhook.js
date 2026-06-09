@@ -8,20 +8,51 @@
 // 3. Returns 200 if at least one event was stored, 503 if ALL storage failed
 //    (so Garmin retries when the DB is down instead of silently losing events)
 //
-// FALLBACK PLAN: If Garmin disables the endpoint due to sustained 503s,
-// upgrade to a circuit breaker pattern:
-//   - Track consecutive 503 responses (module-level counter, resets on 200)
-//   - After N consecutive 503s (e.g. 10), flip to returning 200
-//   - Log a critical alert when the circuit breaker trips
-//   - This limits Garmin's exposure to failures while still getting retries
-//     for brief outages (the common case)
-//   - To re-enable a disabled endpoint: Garmin Developer Portal → re-register URL
+// CIRCUIT BREAKER: Garmin disables endpoints that fail persistently. A
+// module-level counter tracks consecutive 503 responses; after
+// CIRCUIT_BREAKER_THRESHOLD it flips to returning 200 with degraded:true and
+// a critical Sentry event, so a long Supabase outage can't get the endpoint
+// deregistered (re-enabling requires manual re-registration in the Garmin
+// Developer Portal). Events arriving while the breaker is open ARE lost —
+// the explicit trade against losing the endpoint and ALL future events.
+// The counter is per-instance (best effort): any instance seeing 10
+// consecutive failures means the outage is real and sustained.
 
 import { getSupabaseAdmin } from './utils/supabaseAdmin.js';
 import { setupCors } from './utils/cors.js';
 import { rateLimitMiddleware, RATE_LIMITS } from './utils/rateLimit.js';
 import { verifySignature, getSignatureFromHeaders } from './utils/garmin/signatureVerifier.js';
 import { parseWebhookPayload, extractActivityFields } from './utils/garmin/webhookPayloadParser.js';
+import { captureServerError } from './utils/serverSentry.js';
+
+// Circuit breaker state (per serverless instance, best effort).
+const CIRCUIT_BREAKER_THRESHOLD = 10;
+let consecutiveFailures = 0;
+
+/**
+ * Circuit-breaker-aware failure response: 503 (Garmin retries) until the
+ * threshold of consecutive failures, then 200 degraded (Garmin keeps the
+ * endpoint registered). See header comment for the trade-off.
+ */
+function respondUnavailable(res, detail) {
+  consecutiveFailures += 1;
+  if (consecutiveFailures >= CIRCUIT_BREAKER_THRESHOLD) {
+    captureServerError(`Garmin webhook circuit breaker OPEN — ${consecutiveFailures} consecutive storage failures; returning 200 and DROPPING events to protect endpoint registration`, {
+      tag: 'garmin.circuit_breaker_open',
+      extra: { consecutiveFailures, ...detail },
+    });
+    return res.status(200).json({
+      success: false,
+      degraded: true,
+      error: 'Storage unavailable — event dropped to protect endpoint registration'
+    });
+  }
+  return res.status(503).json({
+    success: false,
+    error: 'Service temporarily unavailable',
+    retryable: true
+  });
+}
 
 // Disable Vercel's automatic body parsing so we can access the raw body
 // for accurate HMAC signature verification (JSON.stringify on a parsed
@@ -259,15 +290,11 @@ export default async function handler(req, res) {
     // a temporary endpoint disable — we can re-enable the endpoint, but we cannot
     // recover events that were never stored.
     if (eventIds.length === 0 && storageAttempts > 0) {
-      console.error('🚨 All event storage failed — returning 503 for Garmin retry', {
+      console.error('🚨 All event storage failed — signalling unavailable for Garmin retry', {
         attemptedCount: storageAttempts,
         type: parsed.type
       });
-      return res.status(503).json({
-        success: false,
-        error: 'Service temporarily unavailable — all event storage failed',
-        retryable: true
-      });
+      return respondUnavailable(res, { attemptedCount: storageAttempts, type: parsed.type });
     }
 
     if (eventIds.length > 0 && eventIds.length < storageAttempts) {
@@ -280,6 +307,7 @@ export default async function handler(req, res) {
 
     console.log(`✅ Stored ${eventIds.length} events for async processing`);
 
+    consecutiveFailures = 0;
     return res.status(200).json({
       success: true,
       eventIds,
@@ -288,13 +316,7 @@ export default async function handler(req, res) {
 
   } catch (error) {
     console.error('🚨 Webhook handler error:', error);
-    // Return 503 so Garmin retries delivery.
-    // Losing events silently (200 when DB is down) is worse than risking
-    // a temporary endpoint disable.
-    return res.status(503).json({
-      success: false,
-      error: 'Service temporarily unavailable',
-      retryable: true
-    });
+    // 503 so Garmin retries delivery; circuit breaker caps sustained failures.
+    return respondUnavailable(res, { error: error.message });
   }
 }

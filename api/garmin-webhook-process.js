@@ -1,9 +1,12 @@
 // Vercel API Route: Garmin Webhook Event Processor (Cron)
 // Processes unprocessed events stored by the webhook handler.
-// Runs every 2 minutes via Vercel cron.
+// Runs every 5 minutes via Vercel cron.
 //
-// Retry strategy: exponential backoff (1m, 2m, 4m, 8m, 16m, 32m)
-// Max retries: 6 (gives up after ~1 hour of failures)
+// Retry strategy: exponential backoff with ±20% jitter (1m … 256m, ≈8.5h
+// total budget — see api/utils/garmin/retryPolicy.js). Activity events that
+// exhaust the budget are dead-lettered (processed stays false, visible and
+// redrivable via api/admin-garmin-dlq.js) instead of being silently marked
+// processed-with-error.
 
 import { getSupabaseAdmin } from './utils/supabaseAdmin.js';
 import { downloadAndParseFitFile } from './utils/fitParser.js';
@@ -18,16 +21,16 @@ import { extractAndStoreActivitySegments } from './utils/roadSegmentExtractor.js
 import { parseWebhookPayload } from './utils/garmin/webhookPayloadParser.js';
 import { shouldFilterActivityType, hasMinimumActivityMetrics } from './utils/garmin/activityFilters.js';
 import { buildActivityData } from './utils/garmin/activityBuilder.js';
-import { fetchGarminActivityDetails, requestActivityDetailsBackfill } from './utils/garmin/garminApiClient.js';
+import { fetchGarminActivityDetails, requestActivityDetailsBackfill, fetchGarminUserId } from './utils/garmin/garminApiClient.js';
 import { ensureValidAccessToken } from './utils/garmin/tokenManager.js';
 import { processHealthPushData, extractAndSaveHealthMetrics } from './utils/garmin/healthDataProcessor.js';
 import { updateSnapshotForActivity } from './utils/fitnessSnapshots.js';
 import { deriveCompleteness, refreshCompleteness } from './utils/garmin/completeness.js';
 import { captureServerError } from './utils/serverSentry.js';
+import { MAX_RETRIES, computeBackoffMinutes, deadLetterEvent } from './utils/garmin/retryPolicy.js';
 
 const supabase = getSupabaseAdmin();
 
-const MAX_RETRIES = 6;
 const BATCH_SIZE = 20;
 // Activity events (CONNECT_ACTIVITY / ACTIVITY_DETAIL / ACTIVITY_FILE_DATA)
 // can sit in the queue when health-event bursts back things up. The previous
@@ -131,10 +134,10 @@ export default async function handler(req, res) {
         console.error(`❌ Failed to process event ${event.id}:`, err.message);
         results.failed++;
 
-        // Schedule retry with exponential backoff
+        // Schedule retry with exponential backoff (jittered — see retryPolicy.js)
         const newRetryCount = (event.retry_count || 0) + 1;
         if (newRetryCount < MAX_RETRIES) {
-          const backoffMinutes = Math.pow(2, newRetryCount - 1); // 1, 2, 4, 8, 16, 32 minutes
+          const backoffMinutes = computeBackoffMinutes(newRetryCount);
           const nextRetryAt = new Date(Date.now() + backoffMinutes * 60 * 1000).toISOString();
 
           await supabase
@@ -146,18 +149,19 @@ export default async function handler(req, res) {
             })
             .eq('id', event.id);
 
-          console.log(`🔄 Scheduled retry ${newRetryCount}/${MAX_RETRIES} in ${backoffMinutes}m for event ${event.id}`);
+          console.log(`🔄 Scheduled retry ${newRetryCount}/${MAX_RETRIES} in ${backoffMinutes.toFixed(1)}m for event ${event.id}`);
           results.retried++;
         } else {
-          // Max retries exceeded - mark as permanently failed
-          await markEventProcessed(event.id, `Max retries (${MAX_RETRIES}) exceeded. Last error: ${err.message}`);
           const isActivity = ACTIVITY_EVENT_TYPES.includes(event.event_type);
-          const sev = isActivity ? '🚨 ACTIVITY EVENT LOST' : '💀';
-          console.error(`${sev} Event ${event.id} (${event.event_type}, activity_id=${event.activity_id}) permanently failed after ${MAX_RETRIES} retries: ${err.message}`);
 
           if (isActivity) {
-            // Flag the linked activity (if we have one) and emit a structured
-            // error so it's discoverable via Sentry / admin/garmin-health.
+            // Budget exhausted: park in the DLQ (processed stays false) so the
+            // event remains visible and redrivable instead of silently lost.
+            const { deadLettered } = await deadLetterEvent(supabase, event, err.message);
+            console.error(`🚨 ACTIVITY EVENT ${deadLettered ? 'DEAD-LETTERED' : 'LOST'} Event ${event.id} (${event.event_type}, activity_id=${event.activity_id}) after ${MAX_RETRIES} retries: ${err.message}`);
+
+            // Emit a structured error so it's discoverable via Sentry /
+            // admin-garmin-health / garmin-health-monitor.
             captureServerError(err, {
               tag: 'garmin.activity_lost',
               extra: {
@@ -166,6 +170,7 @@ export default async function handler(req, res) {
                 activity_id: event.activity_id,
                 garmin_user_id: event.garmin_user_id,
                 retry_count: MAX_RETRIES,
+                dead_lettered: deadLettered,
               },
             });
             if (event.activity_imported_id) {
@@ -177,6 +182,10 @@ export default async function handler(req, res) {
                   if (error) console.warn(`⚠️ Could not flag activity needs_resync:`, error.message);
                 });
             }
+          } else {
+            // Health events stay cheap to lose: mark processed with the error.
+            await markEventProcessed(event.id, `Max retries (${MAX_RETRIES}) exceeded. Last error: ${err.message}`);
+            console.error(`💀 Event ${event.id} (${event.event_type}) permanently failed after ${MAX_RETRIES} retries: ${err.message}`);
           }
         }
       }
@@ -228,6 +237,68 @@ async function getCachedIntegration(garminUserId, cache, fullSelect = false) {
   return integration || null;
 }
 
+/**
+ * Attempt to match an orphaned garmin_user_id to an integration whose
+ * provider_user_id was never stored (OAuth /user/id fetch failed during
+ * connect). Asks Garmin for the user ID behind each NULL-id integration's
+ * token; on a match, persists it and returns the healed integration.
+ *
+ * Cheap in the common case: the NULL-id query returns zero rows. The result
+ * (healed or not) is cached per batch via the same integrationCache keys.
+ *
+ * @returns {Promise<object|null>} healed integration (full select shape) or null
+ */
+async function healMissingProviderUserId(garminUserId, cache) {
+  const healCacheKey = `heal:${garminUserId}`;
+  if (cache.has(healCacheKey)) return cache.get(healCacheKey);
+
+  let healed = null;
+  try {
+    const { data: orphans, error } = await supabase
+      .from('bike_computer_integrations')
+      .select('id, user_id, access_token, refresh_token, token_expires_at, provider_user_id, refresh_token_invalid')
+      .eq('provider', 'garmin')
+      .is('provider_user_id', null)
+      .neq('refresh_token_invalid', true)
+      .limit(10);
+
+    if (!error) {
+      for (const candidate of orphans || []) {
+        try {
+          const validToken = await ensureValidAccessToken(candidate, supabase);
+          const fetchedId = await fetchGarminUserId(validToken);
+          if (!fetchedId) continue;
+
+          // Persist whatever Garmin returned — even a non-matching ID heals
+          // that integration for its own future webhooks.
+          await supabase
+            .from('bike_computer_integrations')
+            .update({ provider_user_id: fetchedId, updated_at: new Date().toISOString() })
+            .eq('id', candidate.id);
+          console.log(`🩹 Healed provider_user_id for integration ${candidate.id} → ${fetchedId}`);
+
+          if (fetchedId === garminUserId) {
+            candidate.provider_user_id = fetchedId;
+            candidate.access_token = validToken;
+            healed = candidate;
+            break;
+          }
+        } catch (err) {
+          console.warn(`⚠️ provider_user_id heal attempt failed for integration ${candidate.id}:`, err.message);
+        }
+      }
+    }
+  } catch (err) {
+    console.warn('⚠️ provider_user_id heal scan failed:', err.message);
+  }
+
+  cache.set(healCacheKey, healed);
+  if (healed) {
+    cache.set(`${garminUserId}:full`, healed);
+  }
+  return healed;
+}
+
 // ============================================================================
 // HEALTH EVENT PROCESSING
 // ============================================================================
@@ -277,9 +348,25 @@ async function processHealthEvent(event, integrationCache) {
 
 async function processActivityEvent(event, integrationCache) {
   // Find integration (cached per batch to avoid repeated lookups for same user)
-  const integration = await getCachedIntegration(event.garmin_user_id, integrationCache, true);
+  let integration = await getCachedIntegration(event.garmin_user_id, integrationCache, true);
 
   if (!integration) {
+    // Self-heal: an OAuth flow that stored tokens but failed the /user/id
+    // fetch leaves provider_user_id NULL, making every webhook for that user
+    // unmatchable. Before giving up, ask Garmin for the user ID of each
+    // NULL-id integration and backfill the match.
+    integration = await healMissingProviderUserId(event.garmin_user_id, integrationCache);
+  }
+
+  if (!integration) {
+    // Genuinely unmatched (most often a user who disconnected in-app while
+    // Garmin keeps delivering until consent is revoked). Mark processed so it
+    // doesn't clog the DLQ, but emit a tagged event — the health monitor
+    // counts these via the process_error marker below.
+    captureServerError(`Unmatched Garmin webhook: no integration for Garmin user ID ${event.garmin_user_id}`, {
+      tag: 'garmin.unmatched_webhook',
+      extra: { event_id: event.id, event_type: event.event_type, garmin_user_id: event.garmin_user_id },
+    });
     await markEventProcessed(event.id, `No integration found for Garmin user ID: ${event.garmin_user_id}. User needs to reconnect Garmin.`);
     return;
   }

@@ -278,11 +278,17 @@ Runs every minute via `garmin-webhook-process.js` cron.
    └── Mark event processed (or increment retry_count on failure)
 ```
 
-### Retry Strategy
+### Retry Strategy (updated June 2026)
 
-- Max 6 retries with exponential backoff: 1m → 2m → 4m → 8m → 16m → 32m (~1 hour total)
-- After 6 failures: marked as permanently failed
-- Events older than 24 hours are skipped (FIT URLs expire)
+- Max 10 attempts with jittered exponential backoff: 1m → 2m → … → 256m, ±20% jitter (≈8.5h total budget). Policy lives in `api/utils/garmin/retryPolicy.js`.
+- After exhausting the budget, **activity events are dead-lettered** (`dead_lettered=true`, `processed` stays false) — visible and redrivable via `/api/admin-garmin-dlq` (GET to list, POST `{action:'redrive', ids}` to re-queue). Health events are still marked processed-with-error (cheap to lose).
+- Activity events have a 14-day pickup window; health events 24 hours.
+
+### Reliability Layer (June 2026)
+
+- **Health monitor cron** (`/api/garmin-health-monitor`, hourly): computes pipeline SLIs (24h-full SLO, FIT delivery rate, queue lag, dead-letter counts, unmatched webhooks, token deaths, summary_only backlog) via the shared `api/utils/garmin/healthMetrics.js`, persists snapshots to `garmin_health_snapshots` (migration 098), and emits tagged Sentry events on threshold breaches (`garmin.slo_breach`, `garmin.queue_lag`, `garmin.dead_letter`, `garmin.unmatched_webhook`, `garmin.token_death`, `garmin.delivery_degraded`, `garmin.config_missing`). `admin-garmin-health` reads the same module, so dashboard and alerts always agree.
+- **Circuit breakers** in both webhook doors (Cloudflare worker + `api/garmin-webhook.js`): after 10 consecutive storage-failure responses they flip from 503 to 200-degraded with a critical alert, so a sustained Supabase outage can't get the endpoint deregistered by Garmin.
+- **provider_user_id self-heal**: the webhook processor and the token-maintenance cron both backfill missing Garmin User IDs (failed `/user/id` fetch during OAuth) by re-asking Garmin, instead of silently dropping every webhook for the user. Genuinely unmatched webhooks emit `garmin.unmatched_webhook`.
 
 ---
 
