@@ -98,12 +98,15 @@ export function ControlRail({
                   borderLeft: `2px solid ${isActive ? RB2.teal : 'transparent'}`,
                   backgroundColor: isActive ? RB2.cardBg : 'transparent',
                   color: item.disabled
-                    ? RB2.border
+                    ? RB2.textDisabled
                     : isActive
                       ? RB2.teal
                       : RB2.textSecondary,
                   cursor: item.disabled ? 'not-allowed' : 'pointer',
-                  opacity: item.disabled ? 0.5 : 1,
+                  // Disabled state is conveyed by textDisabled colour alone;
+                  // the old 0.5 opacity on top of the faint border colour made
+                  // these icons nearly invisible (looked "missing").
+                  opacity: 1,
                 }}
               >
                 {item.icon}

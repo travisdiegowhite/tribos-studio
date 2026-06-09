@@ -1,5 +1,5 @@
-import { describe, it, expect } from 'vitest';
-import { coordinateAtDistanceKm } from '../elevation';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { coordinateAtDistanceKm, getElevationData, clearElevationCache } from '../elevation';
 
 describe('coordinateAtDistanceKm', () => {
   // A straight east-west segment near the equator. Two coords; the geometric
@@ -59,6 +59,73 @@ describe('coordinateAtDistanceKm', () => {
     expect(p[0]).toBeCloseTo(-105.1, 4);
     expect(p[1]).toBeGreaterThan(40.0);
     expect(p[1]).toBeLessThan(40.1);
+  });
+});
+
+describe('getElevationData caching + retry', () => {
+  const ROUTE = [
+    [-105.0, 40.0],
+    [-105.01, 40.001],
+    [-105.02, 40.002],
+  ];
+
+  const okResponse = (coords) => ({
+    ok: true,
+    status: 200,
+    json: async () => ({
+      success: true,
+      results: coords.map(([lon, lat]) => ({ lat, lon, elevation: 1600 })),
+    }),
+  });
+
+  beforeEach(() => {
+    clearElevationCache();
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+    vi.useRealTimers();
+    clearElevationCache();
+  });
+
+  it('dedupes concurrent identical requests into a single fetch', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(okResponse(ROUTE));
+    vi.stubGlobal('fetch', fetchMock);
+
+    const [a, b] = await Promise.all([getElevationData(ROUTE), getElevationData(ROUTE)]);
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(a).toBe(b); // both callers share the one in-flight result
+    expect(a).toHaveLength(ROUTE.length);
+    expect(a[0].elevation).toBe(1600);
+  });
+
+  it('serves a cached result for a repeat request (no second fetch)', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(okResponse(ROUTE));
+    vi.stubGlobal('fetch', fetchMock);
+
+    const first = await getElevationData(ROUTE);
+    const second = await getElevationData(ROUTE);
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(second).toBe(first);
+  });
+
+  it('retries on a 429 then succeeds (no dropped batch)', async () => {
+    vi.useFakeTimers();
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce({ ok: false, status: 429, json: async () => ({}) })
+      .mockResolvedValueOnce(okResponse(ROUTE));
+    vi.stubGlobal('fetch', fetchMock);
+
+    const promise = getElevationData(ROUTE);
+    await vi.advanceTimersByTimeAsync(1100); // clear the 1s backoff
+    const result = await promise;
+
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(result).toHaveLength(ROUTE.length);
+    expect(result[2].elevation).toBe(1600);
   });
 });
 

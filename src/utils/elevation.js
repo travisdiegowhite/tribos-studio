@@ -3,10 +3,84 @@
 
 import { haversineKm } from './distanceUnits';
 
+const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+// OpenTopoData's public API allows ~1 request/second. Space multi-batch routes
+// out accordingly; bursting batches 200ms apart was reliably returning 429.
+const INTER_BATCH_DELAY_MS = 1100;
+
+// ── In-flight dedup + short-lived result cache ──────────────────────────────
+// Several RB2 consumers (useRouteManipulation, useRouteAnalysis, GradientLayer,
+// elevationEnrichment) each fetch elevation for the *same* route. Without
+// coordination that's N concurrent identical calls → OpenTopoData 429s. The
+// cache collapses concurrent identical requests into one and reuses the result
+// for a short window (also conserving the API's 1000/day quota).
+const _elevCache = new Map(); // key -> { ts, data }
+const _elevInflight = new Map(); // key -> Promise<data>
+const ELEV_CACHE_TTL_MS = 60_000;
+const ELEV_CACHE_MAX = 16;
+
+function _elevCacheKey(coordinates) {
+  // Full-content (rounded) key: only an identical geometry reuses a result, so
+  // we never serve stale elevation for a route that was actually edited.
+  let k = `${coordinates.length}`;
+  for (let i = 0; i < coordinates.length; i++) {
+    const c = coordinates[i] || [];
+    k += `|${(Number(c[0]) || 0).toFixed(5)},${(Number(c[1]) || 0).toFixed(5)}`;
+  }
+  return k;
+}
+
+/** Test/maintenance helper — drops cached + in-flight elevation requests. */
+export function clearElevationCache() {
+  _elevCache.clear();
+  _elevInflight.clear();
+}
+
 /**
  * Fetch elevation data via our API proxy (avoids CORS issues)
  * Uses OpenTopoData SRTM 30m resolution data
  */
+/**
+ * Fetch a single ≤100-point batch, retrying on a 429 with backoff so a
+ * transient rate-limit doesn't silently drop part of the route's profile.
+ * Returns the batch's results array, or null if it ultimately failed.
+ */
+async function fetchElevationBatch(batch, maxRetries = 2) {
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    let response;
+    try {
+      response = await fetch('/api/elevation', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ coordinates: batch }),
+      });
+    } catch (error) {
+      if (attempt < maxRetries) {
+        await sleep(1000 * (attempt + 1));
+        continue;
+      }
+      console.error('Elevation API failed:', error);
+      return null;
+    }
+
+    if (response.ok) {
+      const data = await response.json();
+      return data.success && data.results ? data.results : [];
+    }
+
+    // Back off and retry on rate-limit; give up on any other error.
+    if (response.status === 429 && attempt < maxRetries) {
+      await sleep(1000 * (attempt + 1)); // 1s, then 2s
+      continue;
+    }
+
+    console.error('Elevation API error:', response.status);
+    return null;
+  }
+  return null;
+}
+
 async function fetchElevationFromAPI(coordinates) {
   try {
     // API has a limit of 100 locations per request
@@ -15,27 +89,14 @@ async function fetchElevationFromAPI(coordinates) {
 
     for (let i = 0; i < coordinates.length; i += maxBatchSize) {
       const batch = coordinates.slice(i, i + maxBatchSize);
-
-      const response = await fetch('/api/elevation', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ coordinates: batch }),
-      });
-
-      if (response.ok) {
-        const data = await response.json();
-        if (data.success && data.results) {
-          results.push(...data.results);
-        }
-      } else {
-        console.error('Elevation API error:', response.status);
+      const batchResults = await fetchElevationBatch(batch);
+      if (batchResults && batchResults.length > 0) {
+        results.push(...batchResults);
       }
 
-      // Small delay between batches to be respectful to the API
+      // Respect OpenTopoData's ~1 req/sec limit between batches.
       if (i + maxBatchSize < coordinates.length) {
-        await new Promise(resolve => setTimeout(resolve, 200));
+        await sleep(INTER_BATCH_DELAY_MS);
       }
     }
 
@@ -181,6 +242,37 @@ export async function getElevationData(coordinates) {
     return null;
   }
 
+  const key = _elevCacheKey(coordinates);
+
+  // Serve a fresh cached result if we have one.
+  const cached = _elevCache.get(key);
+  if (cached && Date.now() - cached.ts < ELEV_CACHE_TTL_MS) {
+    return cached.data;
+  }
+
+  // Collapse concurrent identical requests into a single in-flight fetch — the
+  // main driver of the /api/elevation 429s was several hooks fetching the same
+  // route at the same moment.
+  const inflight = _elevInflight.get(key);
+  if (inflight) return inflight;
+
+  const promise = _getElevationDataUncached(coordinates)
+    .then((data) => {
+      if (data) {
+        _elevCache.set(key, { ts: Date.now(), data });
+        if (_elevCache.size > ELEV_CACHE_MAX) {
+          _elevCache.delete(_elevCache.keys().next().value);
+        }
+      }
+      return data;
+    })
+    .finally(() => _elevInflight.delete(key));
+
+  _elevInflight.set(key, promise);
+  return promise;
+}
+
+async function _getElevationDataUncached(coordinates) {
   console.log(`📍 Fetching elevation for ${coordinates.length} points...`);
 
   // Downsample for API efficiency
