@@ -868,6 +868,13 @@ async function backfillGpsData(req, res, userId) {
     let triggeredBackfill = false;
     const results = [];
     const dateRangesToBackfill = new Set();
+    // Track provider_activity_ids whose FIT downloads returned 410 Gone
+    // (definitively expired URL). Only these should have their file_urls
+    // nuked at the end — NOT every activity in the batch. Previously this
+    // code cleared file_urls for the full activitiesWithoutGps list, which
+    // destroyed fresh URLs that had just arrived via worker dedup, creating
+    // a feedback loop where activities stayed stuck forever.
+    const expiredFitDownloads = new Set();
 
     for (const activity of activitiesWithoutGps) {
       try {
@@ -929,6 +936,13 @@ async function backfillGpsData(req, res, userId) {
           if (activityDate) {
             const dateKey = activityDate.toISOString().split('T')[0];
             dateRangesToBackfill.add(dateKey);
+          }
+          // Only track for file_url clearing if Garmin definitively said the URL
+          // is gone (410). Transient errors (timeout, 5xx, network) leave the
+          // URL in place — it may still work on retry, and we don't want to
+          // strip it preemptively.
+          if (activity.provider_activity_id && /\b410\b|\bGone\b/.test(fitResult.error)) {
+            expiredFitDownloads.add(String(activity.provider_activity_id));
           }
           failed++;
           results.push({
@@ -1035,23 +1049,24 @@ async function backfillGpsData(req, res, userId) {
       }
     }
 
-    // Clear stale file_urls so the webhook worker will accept fresh ones from Garmin
-    if (dateRangesToBackfill.size > 0) {
-      const staleProviderIds = activitiesWithoutGps
-        .filter(a => a.provider_activity_id)
-        .map(a => String(a.provider_activity_id));
-
-      if (staleProviderIds.length > 0) {
-        const { error: clearError } = await supabase
-          .from('garmin_webhook_events')
-          .update({ file_url: null, processed: false, process_error: null })
-          .in('activity_id', staleProviderIds)
-          .eq('garmin_user_id', integration.provider_user_id);
-        if (clearError) {
-          console.warn('⚠️ Failed to clear stale file_urls:', clearError.message);
-        } else {
-          console.log(`🧹 Cleared stale file_urls for ${staleProviderIds.length} activities`);
-        }
+    // Clear file_urls ONLY for activities whose FIT download returned 410
+    // (URL definitively expired). The webhook worker's dedup logic already
+    // updates fresh file_urls when ACTIVITY_FILE_DATA arrives, so clearing
+    // is only needed for known-dead URLs we want to stop retrying. The
+    // previous version of this block cleared file_urls for every activity
+    // in the batch, which destroyed fresh URLs and created the feedback
+    // loop that kept activities stuck.
+    const staleProviderIds = Array.from(expiredFitDownloads);
+    if (staleProviderIds.length > 0) {
+      const { error: clearError } = await supabase
+        .from('garmin_webhook_events')
+        .update({ file_url: null, processed: false, process_error: null })
+        .in('activity_id', staleProviderIds)
+        .eq('garmin_user_id', integration.provider_user_id);
+      if (clearError) {
+        console.warn('⚠️ Failed to clear expired file_urls:', clearError.message);
+      } else {
+        console.log(`🧹 Cleared expired file_urls for ${staleProviderIds.length} activities (410 Gone)`);
       }
     }
 
@@ -1293,6 +1308,9 @@ async function backfillPowerData(req, res, userId) {
     let triggeredBackfill = false;
     const results = [];
     const dateRangesToBackfill = new Set();
+    // See backfill_gps for rationale: only clear file_urls when Garmin returns
+    // 410 Gone for the specific URL, never preemptively for the whole batch.
+    const expiredFitDownloads = new Set();
 
     for (const activity of activitiesToProcess) {
       try {
@@ -1354,6 +1372,9 @@ async function backfillPowerData(req, res, userId) {
           if (activityDate) {
             const dateKey = activityDate.toISOString().split('T')[0];
             dateRangesToBackfill.add(dateKey);
+          }
+          if (activity.provider_activity_id && /\b410\b|\bGone\b/.test(fitResult.error)) {
+            expiredFitDownloads.add(String(activity.provider_activity_id));
           }
           failed++;
           results.push({
@@ -1463,12 +1484,10 @@ async function backfillPowerData(req, res, userId) {
       }
     }
 
-    // Clear stale file_urls so the webhook worker will accept fresh ones from Garmin
-    if (dateRangesToBackfill.size > 0) {
-      const staleProviderIds = activitiesToProcess
-        .filter(a => a.provider_activity_id)
-        .map(a => String(a.provider_activity_id));
-
+    // Clear file_urls ONLY for activities whose FIT download returned 410
+    // Gone. See backfill_gps action above for the full rationale.
+    {
+      const staleProviderIds = Array.from(expiredFitDownloads);
       if (staleProviderIds.length > 0) {
         const { error: clearError } = await supabase
           .from('garmin_webhook_events')
@@ -1476,9 +1495,9 @@ async function backfillPowerData(req, res, userId) {
           .in('activity_id', staleProviderIds)
           .eq('garmin_user_id', integration.provider_user_id);
         if (clearError) {
-          console.warn('⚠️ Failed to clear stale file_urls:', clearError.message);
+          console.warn('⚠️ Failed to clear expired file_urls:', clearError.message);
         } else {
-          console.log(`🧹 Cleared stale file_urls for ${staleProviderIds.length} activities`);
+          console.log(`🧹 Cleared expired file_urls for ${staleProviderIds.length} activities (410 Gone)`);
         }
       }
     }
@@ -1642,6 +1661,9 @@ async function backfillStreamsData(req, res, userId) {
     let triggeredBackfill = false;
     const results = [];
     const dateRangesToBackfill = new Set();
+    // See backfill_gps for rationale: only clear file_urls when Garmin returns
+    // 410 Gone for the specific URL, never preemptively for the whole batch.
+    const expiredFitDownloads = new Set();
 
     // Load athlete profile once — same user for the whole backfill batch
     const athlete = await fetchAthleteProfile(userId);
@@ -1701,6 +1723,9 @@ async function backfillStreamsData(req, res, userId) {
           const activityDate = activity.start_date ? new Date(activity.start_date) : null;
           if (activityDate) {
             dateRangesToBackfill.add(activityDate.toISOString().split('T')[0]);
+          }
+          if (activity.provider_activity_id && /\b410\b|\bGone\b/.test(fitResult.error)) {
+            expiredFitDownloads.add(String(activity.provider_activity_id));
           }
           failed++;
           results.push({
@@ -1810,12 +1835,10 @@ async function backfillStreamsData(req, res, userId) {
       }
     }
 
-    // Clear stale file_urls so the webhook worker will accept fresh ones from Garmin
-    if (dateRangesToBackfill.size > 0) {
-      const staleProviderIds = activitiesNeedingStreams
-        .filter(a => a.provider_activity_id)
-        .map(a => String(a.provider_activity_id));
-
+    // Clear file_urls ONLY for activities whose FIT download returned 410
+    // Gone. See backfill_gps action above for the full rationale.
+    {
+      const staleProviderIds = Array.from(expiredFitDownloads);
       if (staleProviderIds.length > 0) {
         const { error: clearError } = await supabase
           .from('garmin_webhook_events')
@@ -1823,9 +1846,9 @@ async function backfillStreamsData(req, res, userId) {
           .in('activity_id', staleProviderIds)
           .eq('garmin_user_id', integration.provider_user_id);
         if (clearError) {
-          console.warn('⚠️ Failed to clear stale file_urls:', clearError.message);
+          console.warn('⚠️ Failed to clear expired file_urls:', clearError.message);
         } else {
-          console.log(`🧹 Cleared stale file_urls for ${staleProviderIds.length} activities`);
+          console.log(`🧹 Cleared expired file_urls for ${staleProviderIds.length} activities (410 Gone)`);
         }
       }
     }
