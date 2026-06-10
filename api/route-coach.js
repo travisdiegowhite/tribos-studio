@@ -96,7 +96,7 @@ export default async function handler(req, res) {
     if (limited !== null) return;
 
     // ── Context assembly (persona + Units 1–3) ──────────────────────────────
-    const { persona, prescription, fitnessState, familiarRoads } =
+    const { persona, prescription, fitnessState, familiarRoads, weather } =
       await collectRouteCoachContext(supabase, userId, routeSnapshot);
 
     const systemPrompt = buildRouteCoachSystemPrompt({
@@ -104,6 +104,7 @@ export default async function handler(req, res) {
       prescription,
       fitnessState,
       familiarRoads,
+      weather,
       routeSnapshot,
       userLocalDate,
     });
