@@ -161,9 +161,16 @@ Telemetry: `rb2_close_loop` plus the existing `rb2_manual_action_*` events (the 
 reuses `handleAddWaypointAtClick`). Files: `Map.tsx`, `lineInsert.ts`, `EditToolbar.tsx`,
 `RouteBuilder2.tsx`, `EmptyState.tsx`.
 
-**Follow-ups (not in this pass):** line-drag is available when the plain route line is
-shown (not while a colored surface/gradient layer is active); a touch long-press delete
-for mobile; and snapping the ghost preview to the road under the cursor.
+**Follow-ups — done (second pass):**
+- ✅ Line-drag now works **while an analysis layer is active**. The page passes the
+  geometry through unconditionally and toggles `showRouteLine`; the transparent hit-line
+  always renders, so you can reshape over the coloured surface/gradient/intervals line.
+- ✅ **Mobile delete** via long-press on a waypoint (500ms; a drag past 10px cancels it),
+  closing the gap where touch users — who have no rail/Waypoints panel — had no removal path.
+- ✅ **Rubber-band preview**: while dragging the line, a dashed connector runs from the
+  previous waypoint through the ghost to the next, so the tentative detour is visible.
+  (The dropped point still snaps to roads on release — live road-snapping the preview would
+  cost a router call per mouse-move and isn't worth it.)
 
 ## Epic 0 parity gate — v1 → v2 (audit results, June 2026)
 

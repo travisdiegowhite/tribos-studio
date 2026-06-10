@@ -8,9 +8,14 @@
  * Manual-editing interactions (competitor parity):
  *  - Click empty map      → append a waypoint (handleMapClick).
  *  - Drag a waypoint      → move it and reroute.
- *  - Drag the route line  → insert a shaping point between control points.
- *  - Hover a waypoint     → an ✕ appears; click it (or right-click the
- *                           marker) to remove the point.
+ *  - Drag the route line  → insert a shaping point between control points,
+ *                           with a rubber-band preview through its neighbours.
+ *  - Remove a waypoint    → hover ✕ / right-click (desktop), long-press (touch).
+ *
+ * Line-drag stays available even when an analysis layer (surface/gradient/
+ * intervals) draws the visible line: the page passes the geometry through for
+ * the transparent hit-line and sets `showRouteLine={false}` so the plain teal
+ * line doesn't double up under the coloured one.
  *
  * Reads MAPBOX_TOKEN + BASEMAP_STYLES from the shared RouteBuilder exports.
  */
@@ -35,6 +40,9 @@ const DEFAULT_STYLE = BASEMAP_STYLES[0].style;
 
 /** Transparent, wide overlay of the route used as the grab target for line-drag. */
 const ROUTE_HIT_LAYER_ID = 'rb2-route-hit';
+/** Movement (px) past which a touch-hold is treated as a drag, not a long-press. */
+const LONG_PRESS_MOVE_TOLERANCE = 10;
+const LONG_PRESS_MS = 500;
 
 export interface MapWrapperProps {
   map: UseMapInteractionReturn;
@@ -42,9 +50,20 @@ export interface MapWrapperProps {
   waypoints: ReadonlyArray<{ id: string; position: Coordinate; type?: string }>;
   cursor?: string;
   mapStyle?: string | object;
+  /**
+   * Whether to draw the default teal route line. Set false when an analysis
+   * layer renders its own coloured line — the transparent hit-line still
+   * renders so line-drag keeps working.
+   */
+  showRouteLine?: boolean;
   /** Elevation-chart hover position; renders a non-interactive dot on the route. */
   highlightCoord?: Coordinate | null;
   children?: ReactNode;
+}
+
+interface GhostState {
+  coord: Coordinate;
+  insertAt: number;
 }
 
 export function Map({
@@ -53,23 +72,35 @@ export function Map({
   waypoints,
   cursor,
   mapStyle = DEFAULT_STYLE,
+  showRouteLine = true,
   highlightCoord,
   children,
 }: MapWrapperProps) {
   const mapRef = useRef<MapRef | null>(null);
   const dragRef = useRef(false);
-  // Line-drag state: the insert index is fixed at grab time; `ghost` follows
-  // the cursor so the user previews where the new point will land.
   const lineDragRef = useRef<{ active: boolean; insertAt: number }>({
     active: false,
     insertAt: -1,
   });
   const suppressClickRef = useRef(false);
-  const [ghost, setGhost] = useState<Coordinate | null>(null);
+  // Touch long-press (mobile delete) bookkeeping — one active touch at a time.
+  const longPressRef = useRef<{
+    timer: ReturnType<typeof setTimeout> | null;
+    startX: number;
+    startY: number;
+  }>({ timer: null, startX: 0, startY: 0 });
+  const [ghost, setGhost] = useState<GhostState | null>(null);
   const [overLine, setOverLine] = useState(false);
   const [hoveredWp, setHoveredWp] = useState<number | null>(null);
 
   const hasLine = !!routeGeometry && routeGeometry.coordinates.length >= 2;
+
+  const clearLongPress = useCallback(() => {
+    if (longPressRef.current.timer) {
+      clearTimeout(longPressRef.current.timer);
+      longPressRef.current.timer = null;
+    }
+  }, []);
 
   const handleClick = useCallback(
     (evt: MapLayerMouseEvent) => {
@@ -93,8 +124,6 @@ export function Map({
       if (dragRef.current || !hasLine) return;
       const onLine = evt.features?.some((f) => f.layer?.id === ROUTE_HIT_LAYER_ID);
       if (!onLine) return;
-      // Begin a line-drag: lock in the insert index, freeze map panning, and
-      // start previewing the ghost point.
       const point: Coordinate = [evt.lngLat.lng, evt.lngLat.lat];
       const insertAt = nearestInsertIndex(
         routeGeometry!.coordinates,
@@ -102,7 +131,7 @@ export function Map({
         point,
       );
       lineDragRef.current = { active: true, insertAt };
-      setGhost(point);
+      setGhost({ coord: point, insertAt });
       mapRef.current?.getMap?.().dragPan.disable();
       evt.preventDefault?.();
     },
@@ -111,7 +140,10 @@ export function Map({
 
   const handleMouseMove = useCallback((evt: MapLayerMouseEvent) => {
     if (lineDragRef.current.active) {
-      setGhost([evt.lngLat.lng, evt.lngLat.lat]);
+      setGhost({
+        coord: [evt.lngLat.lng, evt.lngLat.lat],
+        insertAt: lineDragRef.current.insertAt,
+      });
       return;
     }
     setOverLine(!!evt.features?.some((f) => f.layer?.id === ROUTE_HIT_LAYER_ID));
@@ -125,7 +157,7 @@ export function Map({
       lineDragRef.current = { active: false, insertAt: -1 };
       setGhost(null);
       mapRef.current?.getMap?.().dragPan.enable();
-      // The drag ends with a click event we don't want to also append a point.
+      // The drag ends with a click we don't want to also append a point.
       suppressClickRef.current = true;
       void map.handleAddWaypointAtClick(coord, insertAt);
     },
@@ -161,6 +193,17 @@ export function Map({
 
   const activeCursor = ghost ? 'grabbing' : overLine ? 'grab' : (cursor ?? 'crosshair');
 
+  // Rubber-band preview: from the waypoint before the grab, through the ghost,
+  // to the waypoint after — so the user sees the tentative detour shape. The
+  // dropped point still snaps to roads on release (handleAddWaypointAtClick).
+  const previewCoords: Coordinate[] | null = ghost
+    ? ([
+        waypoints[ghost.insertAt - 1]?.position,
+        ghost.coord,
+        waypoints[ghost.insertAt]?.position,
+      ].filter(Boolean) as Coordinate[])
+    : null;
+
   return (
     <MapboxMap
       ref={mapRef}
@@ -188,35 +231,57 @@ export function Map({
       style={{ width: '100%', height: '100%' }}
       cursor={activeCursor}
     >
-      {/* Default flat route line — rendered unless a child layer overrides it */}
-      {routeGeometry && routeGeometry.coordinates.length >= 2 && (
-        <Source id="rb2-route" type="geojson" data={routeGeometry}>
-          <Layer
-            id="rb2-route-glow"
-            type="line"
-            paint={{
-              'line-color': '#2A8C82',
-              'line-width': 18,
-              'line-opacity': 0.25,
-              'line-blur': 6,
-            }}
-            layout={{ 'line-cap': 'round', 'line-join': 'round' }}
-          />
-          <Layer
-            id="rb2-route-line"
-            type="line"
-            paint={{
-              'line-color': '#2A8C82',
-              'line-width': 5,
-              'line-opacity': 1,
-            }}
-            layout={{ 'line-cap': 'round', 'line-join': 'round' }}
-          />
-          {/* Transparent wide grab target for line-drag (topmost, ~invisible). */}
+      {/* Route line + transparent grab target. The visible glow/line is gated by
+          showRouteLine; the hit line always renders so line-drag keeps working
+          under analysis layers. */}
+      {hasLine && (
+        <Source id="rb2-route" type="geojson" data={routeGeometry!}>
+          {showRouteLine && (
+            <>
+              <Layer
+                id="rb2-route-glow"
+                type="line"
+                paint={{
+                  'line-color': '#2A8C82',
+                  'line-width': 18,
+                  'line-opacity': 0.25,
+                  'line-blur': 6,
+                }}
+                layout={{ 'line-cap': 'round', 'line-join': 'round' }}
+              />
+              <Layer
+                id="rb2-route-line"
+                type="line"
+                paint={{ 'line-color': '#2A8C82', 'line-width': 5, 'line-opacity': 1 }}
+                layout={{ 'line-cap': 'round', 'line-join': 'round' }}
+              />
+            </>
+          )}
           <Layer
             id={ROUTE_HIT_LAYER_ID}
             type="line"
             paint={{ 'line-color': '#000000', 'line-width': 22, 'line-opacity': 0.001 }}
+            layout={{ 'line-cap': 'round', 'line-join': 'round' }}
+          />
+        </Source>
+      )}
+
+      {/* Line-drag rubber-band preview */}
+      {previewCoords && previewCoords.length >= 2 && (
+        <Source
+          id="rb2-line-drag-preview"
+          type="geojson"
+          data={{ type: 'Feature', properties: {}, geometry: { type: 'LineString', coordinates: previewCoords } }}
+        >
+          <Layer
+            id="rb2-line-drag-preview-line"
+            type="line"
+            paint={{
+              'line-color': WAYPOINT_COLORS.start,
+              'line-width': 3,
+              'line-opacity': 0.9,
+              'line-dasharray': [2, 2],
+            }}
             layout={{ 'line-cap': 'round', 'line-join': 'round' }}
           />
         </Source>
@@ -242,6 +307,7 @@ export function Map({
             draggable
             onDragStart={() => {
               dragRef.current = true;
+              clearLongPress();
             }}
             onDragEnd={(e) => {
               const coord: Coordinate = [e.lngLat.lng, e.lngLat.lat];
@@ -257,7 +323,35 @@ export function Map({
                 e.stopPropagation();
                 void map.handleRemoveWaypoint(index);
               }}
-              style={{ position: 'relative', cursor: 'grab' }}
+              onTouchStart={(e) => {
+                // Long-press removes the point (touch affordance — mobile has no
+                // hover/right-click). A drag cancels it via onTouchMove.
+                const t = e.touches[0];
+                longPressRef.current.startX = t.clientX;
+                longPressRef.current.startY = t.clientY;
+                clearLongPress();
+                longPressRef.current.timer = setTimeout(() => {
+                  longPressRef.current.timer = null;
+                  dragRef.current = true; // suppress the trailing click
+                  void map.handleRemoveWaypoint(index);
+                }, LONG_PRESS_MS);
+              }}
+              onTouchMove={(e) => {
+                const t = e.touches[0];
+                const moved = Math.hypot(
+                  t.clientX - longPressRef.current.startX,
+                  t.clientY - longPressRef.current.startY,
+                );
+                if (moved > LONG_PRESS_MOVE_TOLERANCE) clearLongPress();
+              }}
+              onTouchEnd={clearLongPress}
+              style={{
+                position: 'relative',
+                cursor: 'grab',
+                WebkitTouchCallout: 'none',
+                WebkitUserSelect: 'none',
+                userSelect: 'none',
+              }}
             >
               {isAnchor ? (
                 <div
@@ -289,13 +383,12 @@ export function Map({
                 />
               )}
 
-              {/* Hover ✕ to remove the point without leaving the map. */}
+              {/* Hover ✕ to remove the point without leaving the map (desktop). */}
               {hoveredWp === index && (
                 <div
                   data-testid={`rb2-waypoint-remove-${index}`}
                   role="button"
                   aria-label={`Remove waypoint ${index + 1}`}
-                  // Stop the marker drag from starting on the ✕ itself.
                   onMouseDown={(e) => e.stopPropagation()}
                   onClick={(e) => {
                     e.stopPropagation();
@@ -324,9 +417,9 @@ export function Map({
         );
       })}
 
-      {/* Line-drag preview — where the new shaping point will land. */}
+      {/* Line-drag preview point — where the new shaping point will land. */}
       {ghost && (
-        <Marker longitude={ghost[0]} latitude={ghost[1]} anchor="center">
+        <Marker longitude={ghost.coord[0]} latitude={ghost.coord[1]} anchor="center">
           <div
             data-testid="rb2-line-drag-ghost"
             style={{

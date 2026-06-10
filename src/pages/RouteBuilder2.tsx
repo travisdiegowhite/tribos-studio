@@ -648,10 +648,9 @@ export default function RouteBuilder2() {
   const mapElement = (
     <Map
       map={map}
-      routeGeometry={
+      routeGeometry={geometryForLayers}
+      showRouteLine={
         !visibility.surface && !visibility.gradient && !(visibility.intervals && workoutCues)
-          ? geometryForLayers
-          : null
       }
       waypoints={waypointsForMap}
       highlightCoord={highlightCoord}
