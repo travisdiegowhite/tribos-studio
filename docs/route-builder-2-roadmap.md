@@ -73,14 +73,21 @@ support.strava.com (Routes on Web), cyclist.co.uk best-route-apps-2026.
 - Access gate confirmed: `useRouteBuilderV2Access` requires `VITE_ROUTE_BUILDER_V2_ENABLED`
   **AND** per-user `user_profiles.route_builder_v2_enabled` (migration `090`), fails closed.
 
+**Done (cont'd):**
+- ✅ Deleted the dead code: `api/route-builder-2-chat.js` (+test) and the entire
+  `src/routing/` tree (~90 files) + standalone executor smoke/audit scripts. The lone
+  live dependency (`elevationEnrichment`'s `fnv1a32`/`stableJson`) was relocated to
+  `src/utils/stableHash.ts`. type-check clean; suites green.
+- ✅ Parity gate audited — see **Epic 0 parity gate** below. Verdict: strong parity,
+  two cutover blockers (send-to-device, sharing).
+
 **Remaining (need a decision before acting — hard-to-reverse / product-facing):**
-- Delete the dead code above (one cleanup PR once approved).
+- Clear the **two parity blockers** (send-to-device, route sharing) — both low-effort,
+  backend/hooks already exist; these gate the flip.
 - Resolve the intentional duplication between `replicatedEditLogic.ts` and v1's
   `aiRouteEditService.js`; pick one canonical edit path.
 - Flip default in `useRouteBuilderV2Access.ts` + `VITE_ROUTE_BUILDER_V2_ENABLED` and
   decide redirect direction — exposes RB2 to all users.
-- Parity gate before cutover: GPX import, all export formats, route library/load,
-  Garmin push.
 
 ### Epic 1 — Weather/wind-aware coach ✅ (spiked on this branch)
 Highest ROI, smallest diff, something **no competitor does**. The coach now reasons
@@ -126,6 +133,42 @@ Per-route history exists; **cross-route preferences don't**.
 2. Epic 3 surface stat + Epic 6 failure dashboard.
 3. Epic 2 memory + Epic 4 multi-intent.
 4. Epic 0 full cutover + Epic 5 discovery/device parity.
+
+---
+
+## Epic 0 parity gate — v1 → v2 (audit results, June 2026)
+
+**Verdict: strong parity.** v2 covers ~22 of ~24 user-facing v1 capabilities,
+including everything in the core build/edit/save loop. Five gaps remain; two are
+cutover blockers. The flag flip should wait on the two blockers (or ship dual-mode
+with clear messaging).
+
+**At parity (no action needed):** AI generation, conversational chat editing, manual
+edits (click-add / drag / remove / reorder), snap-to-road, undo/redo, reverse/clear,
+interactive elevation profile, surface overlay **+ % breakdown**, POIs, save
+(new + update), load/edit existing route (`/route-builder-2/:routeId`), my-routes list,
+GPX import, export GPX/TCX/FIT, weather/wind overlay, **plus v2-only wins** (workout/
+interval overlay, bike-infra layer, familiar-segments layer).
+
+### Gaps
+
+| # | Capability | v2 status | Evidence | Effort |
+|---|---|---|---|---|
+| 1 | **Push to Garmin / Wahoo (send-to-device)** | **MISSING (blocker)** | No device wiring in `src/features/route-builder-v2/` or `src/hooks/route-builder/`. v1: `src/components/RouteExportMenu.jsx:116` `handleSendToGarmin` → `garminService.pushRoute`. | **Low–Med** — backend already exists (`api/garmin2-route-push.js`); it's a UI-wiring job in `RouteActionsPanel`. |
+| 2 | **Route sharing (share link)** | **MISSING (blocker)** | No share UI in v2. v1: `src/hooks/useRouteOperations.js:334` `shareRoute` (copies link to clipboard). | **Low** — reuse the existing `useRouteOperations.shareRoute` hook from a button in `RouteActionsPanel`. |
+| 3 | **Basemap style toggle** | PARTIAL (wired, no UI) | `Map.tsx:18,105` consumes `BASEMAP_STYLES` + a `mapStyle` prop, but nothing in `RouteBuilder2.tsx` switches it — users only ever see the default. | **Low** — add a style switcher to `ControlRail`/`LayerToggles`. |
+| 4 | **`commute` routing profile** | PARTIAL (missing option) | `EditToolbar.tsx` profile options are road/gravel/mountain/walking — no `commute` (v1 has it). | **Low** — add the option. |
+| 5 | **Route description + post-save rename** | PARTIAL | Save modal has a name field only (`RouteActionsPanel.tsx`); no description, no rename-after-save. | **Med** — add description field; expose rename. |
+
+### Cutover blockers (must clear before flag flip)
+1. **Send-to-device (Garmin/Wahoo).** The backend endpoint is already shipped — this is
+   wiring `RouteActionsPanel` to `garminService.pushRoute`, mirroring v1's
+   `RouteExportMenu`. Without it, power users lose one-tap device sync.
+2. **Route sharing.** Reuse `useRouteOperations.shareRoute`. Without it, users can't send
+   a route to a friend/coach — a visible regression.
+
+Items 3–5 are friction, not regressions with hard workarounds; they can ship shortly
+after cutover or alongside it.
 
 ---
 
