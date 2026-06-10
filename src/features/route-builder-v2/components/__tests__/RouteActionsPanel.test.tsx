@@ -31,6 +31,7 @@ function makePersistence(
     isPushingToDevice: false,
     checkGarminConnection: vi.fn().mockResolvedValue(false),
     pushToGarmin: vi.fn().mockResolvedValue({ ok: true, message: 'Sent.' }),
+    shareRoute: vi.fn().mockResolvedValue({ ok: true, url: 'http://x/routes/r-1' }),
     ...overrides,
   };
 }
@@ -149,5 +150,36 @@ describe('RouteActionsPanel', () => {
     const send = await screen.findByTestId('rb2-send-to-garmin');
     fireEvent.click(send);
     await waitFor(() => expect(persistence.exportRoute).toHaveBeenCalledWith('tcx'));
+  });
+
+  it('copies a share link when the route is saved', async () => {
+    notifyShow.mockClear();
+    const { persistence } = renderPanel({
+      persistence: makePersistence({
+        shareRoute: vi.fn().mockResolvedValue({ ok: true, url: 'http://x/routes/r-1' }),
+      }),
+    });
+    fireEvent.click(screen.getByTestId('rb2-share-route-button'));
+    await waitFor(() => expect(persistence.shareRoute).toHaveBeenCalled());
+    await waitFor(() =>
+      expect(notifyShow).toHaveBeenCalledWith(expect.objectContaining({ title: 'Link copied' })),
+    );
+  });
+
+  it('prompts a save when sharing an unsaved route', async () => {
+    const { persistence } = renderPanel({
+      persistence: makePersistence({
+        shareRoute: vi.fn().mockResolvedValue({ ok: false, reason: 'not_saved' }),
+      }),
+    });
+    fireEvent.click(screen.getByTestId('rb2-share-route-button'));
+    await waitFor(() => expect(persistence.shareRoute).toHaveBeenCalled());
+    // Save modal opens so the user can name + save before sharing.
+    expect(await screen.findByTestId('rb2-save-modal')).toBeInTheDocument();
+  });
+
+  it('disables Share when there is no route', () => {
+    renderPanel({ hasRoute: false });
+    expect(screen.getByTestId('rb2-share-route-button')).toBeDisabled();
   });
 });

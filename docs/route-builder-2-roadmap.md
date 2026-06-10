@@ -81,13 +81,15 @@ support.strava.com (Routes on Web), cyclist.co.uk best-route-apps-2026.
 - ✅ Parity gate audited — see **Epic 0 parity gate** below. Verdict: strong parity,
   two cutover blockers (send-to-device, sharing).
 
-**Remaining (need a decision before acting — hard-to-reverse / product-facing):**
-- ✅ Send-to-device blocker cleared (Garmin push wired into `RouteActionsPanel`).
-- Clear the **last parity blocker** — route sharing (reuse `useRouteOperations.shareRoute`).
+**Done (cont'd):**
+- ✅ Both parity blockers cleared — send-to-device (Garmin push) and route sharing are
+  wired into `RouteActionsPanel`.
+
+**Remaining (product / hard-to-reverse decisions — not blocked on functionality):**
 - Resolve the intentional duplication between `replicatedEditLogic.ts` and v1's
   `aiRouteEditService.js`; pick one canonical edit path.
 - Flip default in `useRouteBuilderV2Access.ts` + `VITE_ROUTE_BUILDER_V2_ENABLED` and
-  decide redirect direction — exposes RB2 to all users.
+  decide redirect direction — exposes RB2 to all users. **Now unblocked on parity.**
 
 ### Epic 1 — Weather/wind-aware coach ✅ (spiked on this branch)
 Highest ROI, smallest diff, something **no competitor does**. The coach now reasons
@@ -155,21 +157,24 @@ interval overlay, bike-infra layer, familiar-segments layer).
 | # | Capability | v2 status | Evidence | Effort |
 |---|---|---|---|---|
 | 1 | ~~**Push to Garmin (send-to-device)**~~ | **✅ DONE** | `useRoutePersistence.pushToGarmin`/`checkGarminConnection` + `RouteActionsPanel` "Send to Garmin" item (connected-only) with Courses-API→TCX fallback. | Shipped on this branch. |
-| 2 | **Route sharing (share link)** | **MISSING (blocker)** | No share UI in v2. v1: `src/hooks/useRouteOperations.js:334` `shareRoute` (copies link to clipboard). | **Low** — reuse the existing `useRouteOperations.shareRoute` hook from a button in `RouteActionsPanel`. |
+| 2 | ~~**Route sharing (share link)**~~ | **✅ DONE** | `useRoutePersistence.shareRoute` (copies a `/routes/:id` link; prompts a save when unsaved) + "Share Link" button in `RouteActionsPanel`. | Shipped on this branch. |
 | 3 | **Basemap style toggle** | PARTIAL (wired, no UI) | `Map.tsx:18,105` consumes `BASEMAP_STYLES` + a `mapStyle` prop, but nothing in `RouteBuilder2.tsx` switches it — users only ever see the default. | **Low** — add a style switcher to `ControlRail`/`LayerToggles`. |
 | 4 | **`commute` routing profile** | PARTIAL (missing option) | `EditToolbar.tsx` profile options are road/gravel/mountain/walking — no `commute` (v1 has it). | **Low** — add the option. |
 | 5 | **Route description + post-save rename** | PARTIAL | Save modal has a name field only (`RouteActionsPanel.tsx`); no description, no rename-after-save. | **Med** — add description field; expose rename. |
 
-### Cutover blockers (must clear before flag flip)
-1. ~~Send-to-device (Garmin).~~ **✅ DONE** — `RouteActionsPanel` now offers "Send to
-   Garmin" for connected users via `useRoutePersistence.pushToGarmin`, with the
+### Cutover blockers — both cleared ✅
+1. ~~Send-to-device (Garmin).~~ **✅ DONE** — `RouteActionsPanel` offers "Send to Garmin"
+   for connected users via `useRoutePersistence.pushToGarmin`, with the
    Courses-API-unavailable → TCX fallback, mirroring v1's `RouteExportMenu`.
    (Wahoo/Hammerhead remain covered by FIT export, as in v1.)
-2. **Route sharing.** Reuse `useRouteOperations.shareRoute`. Without it, users can't send
-   a route to a friend/coach — a visible regression. **← remaining blocker.**
+2. ~~Route sharing.~~ **✅ DONE** — `useRoutePersistence.shareRoute` copies a public
+   `/routes/:id` link (and prompts a save when the route isn't persisted yet), surfaced
+   as a "Share Link" button in `RouteActionsPanel`.
 
-Items 3–5 are friction, not regressions with hard workarounds; they can ship shortly
-after cutover or alongside it.
+**No parity blockers remain.** The flag flip is now gated only on the two product/
+hard-to-reverse decisions below, not on missing functionality. Items 3–5 (basemap
+toggle, `commute` profile, route description/rename) are friction, not regressions —
+they can ship alongside or shortly after cutover.
 
 ---
 

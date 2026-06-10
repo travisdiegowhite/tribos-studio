@@ -117,4 +117,31 @@ describe('useRoutePersistence', () => {
     const { result } = renderHook(() => useRoutePersistence());
     expect(() => result.current.exportRoute('gpx')).not.toThrow();
   });
+
+  it('shareRoute returns not_saved when the route has no id yet', async () => {
+    const { result } = renderHook(() => useRoutePersistence());
+    let res: any;
+    await act(async () => {
+      res = await result.current.shareRoute();
+    });
+    expect(res).toEqual({ ok: false, reason: 'not_saved' });
+  });
+
+  it('shareRoute copies a /routes/:id link once the route is saved', async () => {
+    seedRoute();
+    vi.mocked(routesService.saveRoute).mockResolvedValue({ id: 'route-abc' } as any);
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    Object.assign(navigator, { clipboard: { writeText } });
+    const { result } = renderHook(() => useRoutePersistence());
+    await act(async () => {
+      await result.current.save();
+    });
+    let res: any;
+    await act(async () => {
+      res = await result.current.shareRoute();
+    });
+    expect(res.ok).toBe(true);
+    expect(res.url).toMatch(/\/routes\/route-abc$/);
+    expect(writeText).toHaveBeenCalledWith(expect.stringMatching(/\/routes\/route-abc$/));
+  });
 });

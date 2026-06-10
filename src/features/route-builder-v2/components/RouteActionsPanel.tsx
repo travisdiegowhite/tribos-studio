@@ -29,6 +29,7 @@ import {
   DownloadSimple,
   FloppyDisk,
   FolderOpen,
+  ShareNetwork,
   UploadSimple,
 } from '@phosphor-icons/react';
 import { RB2, RB2_FONT } from './brand';
@@ -195,6 +196,27 @@ export function RouteActionsPanel({
     });
   }, [persistence]);
 
+  const handleShare = useCallback(async () => {
+    trackRb2('share_clicked', {});
+    const result = await persistence.shareRoute();
+    if (result.ok) {
+      notifications.show({
+        title: 'Link copied',
+        message: 'Share link copied to clipboard.',
+        color: 'green',
+        icon: <Check size={16} />,
+      });
+      return;
+    }
+    // Not saved yet — prompt a save so the route has a shareable URL.
+    notifications.show({
+      title: 'Save first',
+      message: 'Save your route to get a shareable link.',
+      color: 'yellow',
+    });
+    handleOpenSave();
+  }, [persistence, handleOpenSave]);
+
   return (
     <>
       <Box
@@ -307,6 +329,18 @@ export function RouteActionsPanel({
           data-testid="rb2-import-gpx-input"
           style={{ display: 'none' }}
         />
+        <Button
+          data-testid="rb2-share-route-button"
+          variant="outline"
+          fullWidth
+          leftSection={<ShareNetwork size={14} />}
+          onClick={handleShare}
+          disabled={!hasRoute}
+          styles={buttonStyles}
+          mt={6}
+        >
+          Share Link
+        </Button>
         {persistence.lastError && (
           <Text
             style={{

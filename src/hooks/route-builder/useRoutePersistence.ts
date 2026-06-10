@@ -67,6 +67,14 @@ export type DevicePushResult =
       message: string;
     };
 
+/**
+ * Outcome of a share-link copy. `not_saved` means the route has no id yet —
+ * the caller should prompt the user to save first.
+ */
+export type ShareResult =
+  | { ok: true; url: string }
+  | { ok: false; reason: 'not_saved' };
+
 export interface SavedRoute {
   id: string;
   name?: string;
@@ -104,6 +112,12 @@ export interface UseRoutePersistenceReturn {
    * Courses-API-unavailable → TCX fallback.
    */
   pushToGarmin: () => Promise<DevicePushResult>;
+  /**
+   * Copy a public share link (`/routes/:id`) to the clipboard. Requires the
+   * route to be saved; returns `not_saved` otherwise so the caller can
+   * prompt a save.
+   */
+  shareRoute: () => Promise<ShareResult>;
 }
 
 export function useRoutePersistence(): UseRoutePersistenceReturn {
@@ -415,6 +429,31 @@ export function useRoutePersistence(): UseRoutePersistenceReturn {
     }
   }, [routeGeometry, routeName, routeStats, routeType, routeProfile]);
 
+  const shareRoute = useCallback(async (): Promise<ShareResult> => {
+    if (!savedRouteId) {
+      return { ok: false, reason: 'not_saved' };
+    }
+    const url = `${window.location.origin}/routes/${savedRouteId}`;
+    try {
+      await navigator.clipboard.writeText(url);
+    } catch {
+      // Fallback for browsers without the async clipboard API.
+      try {
+        const ta = document.createElement('textarea');
+        ta.value = url;
+        document.body.appendChild(ta);
+        ta.select();
+        document.execCommand('copy');
+        document.body.removeChild(ta);
+      } catch {
+        // Even the fallback failed — still return ok with the url so the
+        // caller can surface it for manual copy.
+      }
+    }
+    trackRb2('route_shared', { route_id: savedRouteId });
+    return { ok: true, url };
+  }, [savedRouteId]);
+
   return {
     isSaving,
     isLoading,
@@ -428,5 +467,6 @@ export function useRoutePersistence(): UseRoutePersistenceReturn {
     isPushingToDevice,
     checkGarminConnection,
     pushToGarmin,
+    shareRoute,
   };
 }
