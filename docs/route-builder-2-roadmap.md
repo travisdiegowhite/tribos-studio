@@ -172,6 +172,27 @@ reuses `handleAddWaypointAtClick`). Files: `Map.tsx`, `lineInsert.ts`, `EditTool
   (The dropped point still snaps to roads on release — live road-snapping the preview would
   cost a router call per mouse-move and isn't worth it.)
 
+## Mobile layout — map-first restructure (shipped, June 2026)
+
+The mobile layout rendered **14+ control panels in one always-open, near-full-height
+scrolling column** pinned over the map (`maxHeight: calc(100% - 80px)`) — the map was
+buried and there were effectively two competing bottom sheets (that column + the chat
+drawer). Replaced with a map-first structure:
+
+- **`MobileControlSheet`** (new) — a bottom sheet with a 5-tab strip
+  (**Build / Layers / Insights / Route / Coach**), collapsed by default so only a ~56px
+  strip sits over the map. Tapping a tab raises one section (~58vh); tapping it again (or
+  the ✕) collapses. The chat is now a tab (`ChatBody`), eliminating the second drawer.
+- **Compact top bar** — `EditToolbar` (horizontally scrollable so it never overflows) +
+  persona + stats + the editing hint, with `pointerEvents` gaps so map gestures pass
+  through. Everything else moved into the sheet.
+- Cold-start ("build me a 2h ride") opens the **Build** tab and expands the form.
+- Desktop layout is untouched (the page test forces the desktop branch). Mobile is gated
+  behind `useMediaQuery('(max-width: 768px)')`.
+
+Files: `MobileControlSheet.tsx` (+ test), `RouteBuilder2.tsx`, components barrel. Tests:
+6 sheet cases; full RB2 suite green.
+
 ## Epic 0 parity gate — v1 → v2 (audit results, June 2026)
 
 **Verdict: strong parity.** v2 covers ~22 of ~24 user-facing v1 capabilities,

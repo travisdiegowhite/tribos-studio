@@ -47,7 +47,8 @@ import {
   FuelPanel,
   TirePressurePanel,
   PersonaDropdown,
-  ChatShell,
+  ChatBody,
+  MobileControlSheet,
   EmptyState,
   LoadingState,
   ErrorState,
@@ -56,6 +57,7 @@ import {
   RB2_FONT,
   type LayerVisibilityState,
   type FormPanelHandle,
+  type MobileSheetTab,
   type RailItem,
 } from '../features/route-builder-v2/components';
 import {
@@ -65,7 +67,7 @@ import {
   type ChatMessage,
   type FormPanelControl,
 } from '../features/route-builder-v2/chat';
-import { Stack as StackIcon, MapPin, FolderOpen, MagnifyingGlass, CloudSun, ForkKnife, Gauge, Barbell } from '@phosphor-icons/react';
+import { Stack as StackIcon, MapPin, FolderOpen, MagnifyingGlass, CloudSun, ForkKnife, Gauge, Barbell, PencilSimpleLine, ChartLineUp, FloppyDisk, ChatCircleDots } from '@phosphor-icons/react';
 import { supabase } from '../lib/supabase';
 import { SurfaceLayer } from '../features/route-builder-v2/layers/SurfaceLayer';
 import { GradientLayer } from '../features/route-builder-v2/layers/GradientLayer';
@@ -245,6 +247,8 @@ export default function RouteBuilder2() {
   const [elevationCollapsed, setElevationCollapsed] = useState(false);
   // Desktop left-rail open flyout (layers | waypoints | save), null = closed.
   const [railOpenId, setRailOpenId] = useState<string | null>(null);
+  // Mobile bottom-sheet active tab (null = collapsed, map fully visible).
+  const [mobileTab, setMobileTab] = useState<string | null>(null);
   // Desktop cold-start: the GenerateBar (chips folded into the chat dock).
   // Auto-expand when seeded from a workout so the prefilled goal/duration show.
   const [generateExpanded, setGenerateExpanded] = useState(hasWorkout);
@@ -369,6 +373,8 @@ export default function RouteBuilder2() {
   const formControl = useRef<FormPanelControl>({
     expand: () => {
       if (isMobileRef.current) {
+        // Surface the Build tab (which hosts the form) before expanding it.
+        setMobileTab('build');
         formPanelRef.current?.expand();
       } else {
         setGenerateExpanded(true);
@@ -954,96 +960,31 @@ export default function RouteBuilder2() {
     );
   }
 
-  // ---- Mobile: full-bleed map + stacked overlay column + bottom-sheet chat ----
-  return (
-    <AppShell fullWidth>
-      <Box
-        data-testid="rb2-page"
-        style={{
-          position: 'relative',
-          width: '100%',
-          height: 'calc(100dvh - 63px)',
-          backgroundColor: RB2.bgBase,
-          overflow: 'hidden',
-        }}
-      >
-        <Box style={{ position: 'absolute', inset: 0 }}>{mapElement}</Box>
+  // ---- Mobile: map-first — compact top bar + bottom-sheet tools ----
+  const activeLayerCount =
+    (visibility.surface ? 1 : 0) +
+    (visibility.gradient ? 1 : 0) +
+    (visibility.wind ? 1 : 0) +
+    (visibility.bikeInfra ? 1 : 0) +
+    (visibility.familiar ? 1 : 0) +
+    (visibility.poi ? 1 : 0);
 
-        <Box
-          style={{
-            position: 'absolute',
-            top: 8,
-            left: 8,
-            right: 8,
-            zIndex: 20,
-            display: 'flex',
-            flexDirection: 'column',
-            gap: 8,
-            maxHeight: 'calc(100% - 80px)',
-            overflowY: 'auto',
-          }}
-        >
-          <Box style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <EditToolbar
-              canUndo={history.canUndo}
-              canRedo={history.canRedo}
-              onUndo={history.undo}
-              onRedo={history.redo}
-              onReverse={() => void map.handleReverseRoute()}
-              canReverse={waypointsForMap.length >= 2}
-              onCloseLoop={handleCloseLoop}
-              canCloseLoop={canCloseLoop}
-              onToggleSnap={handleToggleSnap}
-              snapEnabled={snapToRoads}
-              routeProfile={routeProfile}
-              onChangeProfile={handleChangeProfile}
-              unitsImperial={isImperial}
-              onToggleUnits={() =>
-                void updateUnitsPreference(isImperial ? 'metric' : 'imperial')
-              }
-              onClear={handleClearRoute}
-              canClear={canClearMap}
-            />
-            <PersonaDropdown persona={coach.persona} onChange={onPersonaChange} compact />
-          </Box>
-          {!isLoading && (
-            <ClickToPlaceHint snapEnabled={snapToRoads} hasRoute={hasRoute} isMobile />
-          )}
-          {statsNode}
-          <Box
-            style={{
-              backgroundColor: RB2.cardBg,
-              border: `1px solid ${RB2.border}`,
-              padding: '10px 12px',
-              boxShadow: RB2.shadowCard,
-            }}
-          >
+  const cardStyle = {
+    backgroundColor: RB2.cardBg,
+    border: `1px solid ${RB2.border}`,
+    padding: '10px 12px',
+    boxShadow: RB2.shadowCard,
+  };
+
+  const mobileTabs: MobileSheetTab[] = [
+    {
+      id: 'build',
+      label: 'Build',
+      icon: <PencilSimpleLine size={18} />,
+      content: (
+        <>
+          <Box style={cardStyle}>
             <LocationSearch onFlyTo={map.flyTo} proximity={viewportCenter} />
-          </Box>
-          {hasRoute && (
-            <ElevationPanel
-              profile={analysis.elevationProfile}
-              isMobile
-              onHoverKm={setHoverKm}
-              isImperial={isImperial}
-              cues={visibleCues}
-            />
-          )}
-          <Box
-            style={{
-              backgroundColor: RB2.cardBg,
-              border: `1px solid ${RB2.border}`,
-              padding: '10px 12px',
-              boxShadow: RB2.shadowCard,
-            }}
-          >
-            <WorkoutPickerPanel
-              plannedWorkouts={upcomingPlanned.workouts}
-              selectedWorkoutId={pickedWorkoutId}
-              onSelect={handleSelectWorkout}
-              onClear={handleClearWorkout}
-              isMobile
-            />
           </Box>
           <FormPanel
             key={`form-${pickedWorkoutId ?? 'none'}`}
@@ -1057,6 +998,25 @@ export default function RouteBuilder2() {
             formSeed={formSeed}
             defaultExpanded={hasWorkout}
           />
+          <Box style={cardStyle}>
+            <WorkoutPickerPanel
+              plannedWorkouts={upcomingPlanned.workouts}
+              selectedWorkoutId={pickedWorkoutId}
+              onSelect={handleSelectWorkout}
+              onClear={handleClearWorkout}
+              isMobile
+            />
+          </Box>
+        </>
+      ),
+    },
+    {
+      id: 'layers',
+      label: 'Layers',
+      icon: <StackIcon size={18} weight="duotone" />,
+      badge: activeLayerCount,
+      content: (
+        <>
           <LayerToggles
             visibility={visibility}
             onToggle={handleVisibilityToggle}
@@ -1074,46 +1034,58 @@ export default function RouteBuilder2() {
             <SurfaceSummaryBar segments={surfaceSegments} isMobile />
           )}
           {visibility.wind && hasRoute && <WindLegend weather={weather} isMobile />}
+        </>
+      ),
+    },
+    {
+      id: 'insights',
+      label: 'Insights',
+      icon: <ChartLineUp size={18} />,
+      content: hasRoute ? (
+        <>
+          <Box style={cardStyle}>
+            <WeatherPanel weather={weather} isImperial={isImperial} />
+          </Box>
+          <Box style={cardStyle}>
+            <FuelPanel
+              durationMinutes={(routeStats?.duration_s ?? 0) / 60}
+              elevationGainMeters={routeStats?.elevation_gain_m ?? 0}
+              weather={weather.weather}
+              isImperial={isImperial}
+            />
+          </Box>
+          <Box style={cardStyle}>
+            <TirePressurePanel routeProfile={routeProfile} isImperial={isImperial} />
+          </Box>
+        </>
+      ) : (
+        <Text
+          style={{
+            fontFamily: RB2_FONT.body,
+            fontSize: 13,
+            color: RB2.textTertiary,
+            textAlign: 'center',
+            padding: '24px 8px',
+          }}
+        >
+          Build a route to see weather, fueling, and tire pressure.
+        </Text>
+      ),
+    },
+    {
+      id: 'route',
+      label: 'Route',
+      icon: <FloppyDisk size={18} />,
+      content: (
+        <>
           {hasRoute && (
-            <Box
-              style={{
-                backgroundColor: RB2.cardBg,
-                border: `1px solid ${RB2.border}`,
-                padding: '10px 12px',
-                boxShadow: RB2.shadowCard,
-              }}
-            >
-              <WeatherPanel weather={weather} isImperial={isImperial} />
-            </Box>
-          )}
-          {hasRoute && (
-            <Box
-              style={{
-                backgroundColor: RB2.cardBg,
-                border: `1px solid ${RB2.border}`,
-                padding: '10px 12px',
-                boxShadow: RB2.shadowCard,
-              }}
-            >
-              <FuelPanel
-                durationMinutes={(routeStats?.duration_s ?? 0) / 60}
-                elevationGainMeters={routeStats?.elevation_gain_m ?? 0}
-                weather={weather.weather}
-                isImperial={isImperial}
-              />
-            </Box>
-          )}
-          {hasRoute && (
-            <Box
-              style={{
-                backgroundColor: RB2.cardBg,
-                border: `1px solid ${RB2.border}`,
-                padding: '10px 12px',
-                boxShadow: RB2.shadowCard,
-              }}
-            >
-              <TirePressurePanel routeProfile={routeProfile} isImperial={isImperial} />
-            </Box>
+            <ElevationPanel
+              profile={analysis.elevationProfile}
+              isMobile
+              onHoverKm={setHoverKm}
+              isImperial={isImperial}
+              cues={visibleCues}
+            />
           )}
           <RouteActionsPanel
             persistence={persistence}
@@ -1124,18 +1096,104 @@ export default function RouteBuilder2() {
             onImported={(coords) => map.fitBounds(coords)}
             isMobile
           />
-        </Box>
-
-        <ChatShell
-          isMobile
+        </>
+      ),
+    },
+    {
+      id: 'chat',
+      label: 'Coach',
+      icon: <ChatCircleDots size={18} />,
+      content: (
+        <ChatBody
           messages={chat.messages}
           isProcessing={chat.isProcessing}
           exampleHint={EXAMPLE_PHRASES}
           showAfterRefuseHint={chat.showAfterRefuseHint}
           onSubmit={handleChatSubmit}
         />
+      ),
+    },
+  ];
 
-        {mapStates}
+  return (
+    <AppShell fullWidth>
+      <Box
+        data-testid="rb2-page"
+        style={{
+          position: 'relative',
+          width: '100%',
+          height: 'calc(100dvh - 63px)',
+          backgroundColor: RB2.bgBase,
+          overflow: 'hidden',
+        }}
+      >
+        <Box style={{ position: 'absolute', inset: 0 }}>{mapElement}</Box>
+
+        {/* Compact top bar — stays out of the map's way (clicks pass through gaps). */}
+        <Box
+          style={{
+            position: 'absolute',
+            top: 8,
+            left: 8,
+            right: 8,
+            zIndex: 20,
+            display: 'flex',
+            flexDirection: 'column',
+            gap: 6,
+            pointerEvents: 'none',
+          }}
+        >
+          <Box
+            style={{
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'flex-start',
+              gap: 8,
+              pointerEvents: 'auto',
+            }}
+          >
+            <Box style={{ flex: '1 1 auto', minWidth: 0, overflowX: 'auto' }}>
+              <EditToolbar
+                canUndo={history.canUndo}
+                canRedo={history.canRedo}
+                onUndo={history.undo}
+                onRedo={history.redo}
+                onReverse={() => void map.handleReverseRoute()}
+                canReverse={waypointsForMap.length >= 2}
+                onCloseLoop={handleCloseLoop}
+                canCloseLoop={canCloseLoop}
+                onToggleSnap={handleToggleSnap}
+                snapEnabled={snapToRoads}
+                routeProfile={routeProfile}
+                onChangeProfile={handleChangeProfile}
+                unitsImperial={isImperial}
+                onToggleUnits={() =>
+                  void updateUnitsPreference(isImperial ? 'metric' : 'imperial')
+                }
+                onClear={handleClearRoute}
+                canClear={canClearMap}
+              />
+            </Box>
+            <Box style={{ flexShrink: 0 }}>
+              <PersonaDropdown persona={coach.persona} onChange={onPersonaChange} compact />
+            </Box>
+          </Box>
+          {statsNode && <Box style={{ pointerEvents: 'auto' }}>{statsNode}</Box>}
+          {!isLoading && (
+            <Box style={{ pointerEvents: 'auto', alignSelf: 'flex-start' }}>
+              <ClickToPlaceHint snapEnabled={snapToRoads} hasRoute={hasRoute} isMobile />
+            </Box>
+          )}
+        </Box>
+
+        <MobileControlSheet
+          tabs={mobileTabs}
+          activeId={mobileTab}
+          onActiveChange={setMobileTab}
+        />
+
+        {isLoading && <LoadingState message={loadingMessage} />}
+        {error && <ErrorState message={error} onDismiss={dismissError} />}
       </Box>
     </AppShell>
   );
