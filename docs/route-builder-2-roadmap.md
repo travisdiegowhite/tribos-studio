@@ -138,6 +138,40 @@ Per-route history exists; **cross-route preferences don't**.
 
 ---
 
+## Manual route creation — competitor-parity UX (shipped, June 2026)
+
+Made manual drawing feel like the tools migrants already know (RWGPS / Komoot / Strava).
+Shipped on this branch:
+
+- **Drag the route line to reshape** — grab the drawn line between control points and
+  drop a new shaping point; it splices in at the right index and reroutes. A transparent
+  wide "hit" line is the grab target; `nearestInsertIndex` (`components/lineInsert.ts`,
+  unit-tested) maps the grab back to a waypoint-list index. A ghost dot previews the drop.
+- **Delete a point on the map** — hover a waypoint for an ✕, or right-click it; no more
+  round-trip through the Waypoints flyout. (Mobile keeps the list.)
+- **Persistent editing affordances** — the crosshair cursor and a contextual hint stay
+  after the first route ("drag the line to reshape · drag a point to move · right-click to
+  remove"), so the interaction model stays discoverable.
+- **Back to start** — one-click loop-close button in `EditToolbar` (appends the start as a
+  new end and reroutes); disabled when the route already returns home.
+- **Lighter geometry** — start/end render as pins, intermediate shaping points as small
+  dots, reducing clutter on dense routes. Empty state now leads with "click to draw."
+
+Telemetry: `rb2_close_loop` plus the existing `rb2_manual_action_*` events (the line-drag
+reuses `handleAddWaypointAtClick`). Files: `Map.tsx`, `lineInsert.ts`, `EditToolbar.tsx`,
+`RouteBuilder2.tsx`, `EmptyState.tsx`.
+
+**Follow-ups — done (second pass):**
+- ✅ Line-drag now works **while an analysis layer is active**. The page passes the
+  geometry through unconditionally and toggles `showRouteLine`; the transparent hit-line
+  always renders, so you can reshape over the coloured surface/gradient/intervals line.
+- ✅ **Mobile delete** via long-press on a waypoint (500ms; a drag past 10px cancels it),
+  closing the gap where touch users — who have no rail/Waypoints panel — had no removal path.
+- ✅ **Rubber-band preview**: while dragging the line, a dashed connector runs from the
+  previous waypoint through the ghost to the next, so the tentative detour is visible.
+  (The dropped point still snaps to roads on release — live road-snapping the preview would
+  cost a router call per mouse-move and isn't worth it.)
+
 ## Epic 0 parity gate — v1 → v2 (audit results, June 2026)
 
 **Verdict: strong parity.** v2 covers ~22 of ~24 user-facing v1 capabilities,

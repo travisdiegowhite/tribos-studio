@@ -62,6 +62,28 @@ describe('EditToolbar', () => {
     expect(screen.queryByTestId('rb2-units-toggle')).not.toBeInTheDocument();
   });
 
+  it('omits the close-loop button unless onCloseLoop is provided', () => {
+    renderToolbar();
+    expect(screen.queryByTestId('rb2-close-loop-button')).not.toBeInTheDocument();
+  });
+
+  it('renders close-loop, disabled until canCloseLoop, and invokes it', () => {
+    const onCloseLoop = vi.fn();
+    const { rerender } = render(
+      <MantineProvider>
+        <EditToolbar canUndo canRedo onUndo={vi.fn()} onRedo={vi.fn()} onCloseLoop={onCloseLoop} canCloseLoop={false} />
+      </MantineProvider>,
+    );
+    expect(screen.getByTestId('rb2-close-loop-button')).toBeDisabled();
+    rerender(
+      <MantineProvider>
+        <EditToolbar canUndo canRedo onUndo={vi.fn()} onRedo={vi.fn()} onCloseLoop={onCloseLoop} canCloseLoop />
+      </MantineProvider>,
+    );
+    fireEvent.click(screen.getByTestId('rb2-close-loop-button'));
+    expect(onCloseLoop).toHaveBeenCalledTimes(1);
+  });
+
   it('shows the active unit and flips it on click', () => {
     const onToggleUnits = vi.fn();
     const { rerender } = render(

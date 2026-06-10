@@ -628,18 +628,33 @@ export default function RouteBuilder2() {
     await coach.savePersona(next, 'manual');
   };
 
+  // "Back to start" — append the start coordinate as a new end so the router
+  // closes the loop. Disabled when the route already returns to its start.
+  const firstWpPos = waypointsForMap[0]?.position;
+  const lastWpPos = waypointsForMap[waypointsForMap.length - 1]?.position;
+  const isClosedLoop =
+    !!firstWpPos &&
+    !!lastWpPos &&
+    Math.abs(firstWpPos[0] - lastWpPos[0]) < 1e-6 &&
+    Math.abs(firstWpPos[1] - lastWpPos[1]) < 1e-6;
+  const canCloseLoop = waypointsForMap.length >= 2 && !isClosedLoop;
+  const handleCloseLoop = () => {
+    if (!firstWpPos || waypointsForMap.length < 2) return;
+    void map.handleAddWaypointAtClick(firstWpPos);
+    trackRb2('close_loop', {});
+  };
+
   // The map + its layers — shared by both layouts. Fills its container.
   const mapElement = (
     <Map
       map={map}
-      routeGeometry={
+      routeGeometry={geometryForLayers}
+      showRouteLine={
         !visibility.surface && !visibility.gradient && !(visibility.intervals && workoutCues)
-          ? geometryForLayers
-          : null
       }
       waypoints={waypointsForMap}
       highlightCoord={highlightCoord}
-      cursor={hasRoute ? undefined : 'crosshair'}
+      cursor="crosshair"
     >
       {visibility.surface && (
         <SurfaceLayer geometry={geometryForLayers} onSegments={setSurfaceSegments} />
@@ -868,6 +883,8 @@ export default function RouteBuilder2() {
                     onRedo={history.redo}
                     onReverse={() => void map.handleReverseRoute()}
                     canReverse={waypointsForMap.length >= 2}
+                    onCloseLoop={handleCloseLoop}
+                    canCloseLoop={canCloseLoop}
                     onToggleSnap={handleToggleSnap}
                     snapEnabled={snapToRoads}
                     routeProfile={routeProfile}
@@ -879,7 +896,9 @@ export default function RouteBuilder2() {
                     onClear={handleClearRoute}
                     canClear={canClearMap}
                   />
-                  {!hasRoute && <ClickToPlaceHint snapEnabled={snapToRoads} />}
+                  {!isLoading && (
+                    <ClickToPlaceHint snapEnabled={snapToRoads} hasRoute={hasRoute} />
+                  )}
                 </Box>
                 {mapStates}
               </>
@@ -972,6 +991,8 @@ export default function RouteBuilder2() {
               onRedo={history.redo}
               onReverse={() => void map.handleReverseRoute()}
               canReverse={waypointsForMap.length >= 2}
+              onCloseLoop={handleCloseLoop}
+              canCloseLoop={canCloseLoop}
               onToggleSnap={handleToggleSnap}
               snapEnabled={snapToRoads}
               routeProfile={routeProfile}
@@ -985,7 +1006,9 @@ export default function RouteBuilder2() {
             />
             <PersonaDropdown persona={coach.persona} onChange={onPersonaChange} compact />
           </Box>
-          {!hasRoute && <ClickToPlaceHint snapEnabled={snapToRoads} isMobile />}
+          {!isLoading && (
+            <ClickToPlaceHint snapEnabled={snapToRoads} hasRoute={hasRoute} isMobile />
+          )}
           {statsNode}
           <Box
             style={{
@@ -1119,10 +1142,22 @@ export default function RouteBuilder2() {
 }
 
 /**
- * Small on-map hint shown before a route exists, nudging the user to build
- * manually by clicking the map (the cursor is a crosshair in this state).
+ * Small on-map hint nudging the manual-editing model. Before a route exists it
+ * teaches the first click; once a route exists it keeps the reshape / remove
+ * affordances discoverable (the cursor stays a crosshair throughout).
  */
-function ClickToPlaceHint({ snapEnabled, isMobile }: { snapEnabled: boolean; isMobile?: boolean }) {
+function ClickToPlaceHint({
+  snapEnabled,
+  hasRoute,
+  isMobile,
+}: {
+  snapEnabled: boolean;
+  hasRoute?: boolean;
+  isMobile?: boolean;
+}) {
+  const copy = hasRoute
+    ? 'Drag the line to reshape · drag a point to move · right-click a point to remove'
+    : `Click the map to drop waypoints${snapEnabled ? ' — snapped to roads' : ' — freehand lines'}`;
   return (
     <Box
       data-testid="rb2-click-to-place-hint"
@@ -1131,7 +1166,7 @@ function ClickToPlaceHint({ snapEnabled, isMobile }: { snapEnabled: boolean; isM
         border: `1px solid ${RB2.border}`,
         boxShadow: RB2.shadowCard,
         padding: '6px 10px',
-        maxWidth: isMobile ? '100%' : 320,
+        maxWidth: isMobile ? '100%' : 360,
         pointerEvents: 'none',
       }}
     >
@@ -1139,12 +1174,12 @@ function ClickToPlaceHint({ snapEnabled, isMobile }: { snapEnabled: boolean; isM
         style={{
           fontFamily: RB2_FONT.mono,
           fontSize: 11,
-          color: RB2.textSecondary,
+          color: hasRoute ? RB2.textTertiary : RB2.textSecondary,
           letterSpacing: '0.02em',
           textAlign: 'center',
         }}
       >
-        Click the map to drop waypoints{snapEnabled ? ' — snapped to roads' : ' — freehand lines'}
+        {copy}
       </Text>
     </Box>
   );
