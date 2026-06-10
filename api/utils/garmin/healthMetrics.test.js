@@ -81,6 +81,25 @@ describe('evaluateBreaches', () => {
   });
 });
 
+describe('getQueueLag', () => {
+  it('reports zero lag when the eligible queue is empty', async () => {
+    const { getQueueLag } = await import('./healthMetrics.js');
+    const sb = fakeSupabase({ garmin_webhook_events: [] });
+    const result = await getQueueLag(sb);
+    expect(result).toEqual({ available: true, oldestSeconds: 0, oldestCreatedAt: null });
+  });
+
+  it('computes age from the oldest eligible event', async () => {
+    const { getQueueLag } = await import('./healthMetrics.js');
+    const tenMinAgo = new Date(Date.now() - 10 * 60 * 1000).toISOString();
+    const sb = fakeSupabase({ garmin_webhook_events: [{ created_at: tenMinAgo }] });
+    const result = await getQueueLag(sb);
+    expect(result.available).toBe(true);
+    expect(result.oldestSeconds).toBeGreaterThanOrEqual(599);
+    expect(result.oldestSeconds).toBeLessThan(615);
+  });
+});
+
 describe('getSloFullWithin24h', () => {
   it('counts full imports as good and incomplete imports as bad', async () => {
     const sb = fakeSupabase({
