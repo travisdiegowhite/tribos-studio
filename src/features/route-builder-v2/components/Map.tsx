@@ -5,21 +5,36 @@
  * useMapInteraction, handles clicks, exposes a children API so
  * consumers can pass <Source>/<Layer>/<Marker> children.
  *
- * Reads MAPBOX_TOKEN + BASEMAP_STYLES from the shared RouteBuilder
- * exports. Does NOT own layer toggle state — toggle state lives in
- * useRouteAnalysis. The wrapper only renders whatever layers it
- * receives as children.
+ * Manual-editing interactions (competitor parity):
+ *  - Click empty map      → append a waypoint (handleMapClick).
+ *  - Drag a waypoint      → move it and reroute.
+ *  - Drag the route line  → insert a shaping point between control points.
+ *  - Hover a waypoint     → an ✕ appears; click it (or right-click the
+ *                           marker) to remove the point.
+ *
+ * Reads MAPBOX_TOKEN + BASEMAP_STYLES from the shared RouteBuilder exports.
  */
 
-import { type ReactNode, useCallback, useRef } from 'react';
-import MapboxMap, { Marker, Source, Layer, type MapRef, type MapLayerMouseEvent } from 'react-map-gl';
+import { type ReactNode, useCallback, useRef, useState } from 'react';
+import MapboxMap, {
+  Marker,
+  Source,
+  Layer,
+  type MapRef,
+  type MapLayerMouseEvent,
+} from 'react-map-gl';
 import 'mapbox-gl/dist/mapbox-gl.css';
 import { Box, Text } from '@mantine/core';
+import { X } from '@phosphor-icons/react';
 import { MAPBOX_TOKEN, BASEMAP_STYLES, WAYPOINT_COLORS } from '../../../components/RouteBuilder';
 import type { Coordinate } from '../../../types/geo';
 import type { MapController, UseMapInteractionReturn } from '../../../hooks/route-builder';
+import { nearestInsertIndex } from './lineInsert';
 
 const DEFAULT_STYLE = BASEMAP_STYLES[0].style;
+
+/** Transparent, wide overlay of the route used as the grab target for line-drag. */
+const ROUTE_HIT_LAYER_ID = 'rb2-route-hit';
 
 export interface MapWrapperProps {
   map: UseMapInteractionReturn;
@@ -43,16 +58,76 @@ export function Map({
 }: MapWrapperProps) {
   const mapRef = useRef<MapRef | null>(null);
   const dragRef = useRef(false);
+  // Line-drag state: the insert index is fixed at grab time; `ghost` follows
+  // the cursor so the user previews where the new point will land.
+  const lineDragRef = useRef<{ active: boolean; insertAt: number }>({
+    active: false,
+    insertAt: -1,
+  });
+  const suppressClickRef = useRef(false);
+  const [ghost, setGhost] = useState<Coordinate | null>(null);
+  const [overLine, setOverLine] = useState(false);
+  const [hoveredWp, setHoveredWp] = useState<number | null>(null);
+
+  const hasLine = !!routeGeometry && routeGeometry.coordinates.length >= 2;
 
   const handleClick = useCallback(
     (evt: MapLayerMouseEvent) => {
-      // Suppress clicks that were the end of a drag
+      // Suppress the click that ends a marker drag or a line-drag.
       if (dragRef.current) {
         dragRef.current = false;
         return;
       }
+      if (suppressClickRef.current) {
+        suppressClickRef.current = false;
+        return;
+      }
       const coord: Coordinate = [evt.lngLat.lng, evt.lngLat.lat];
       void map.handleMapClick(coord);
+    },
+    [map],
+  );
+
+  const handleMouseDown = useCallback(
+    (evt: MapLayerMouseEvent) => {
+      if (dragRef.current || !hasLine) return;
+      const onLine = evt.features?.some((f) => f.layer?.id === ROUTE_HIT_LAYER_ID);
+      if (!onLine) return;
+      // Begin a line-drag: lock in the insert index, freeze map panning, and
+      // start previewing the ghost point.
+      const point: Coordinate = [evt.lngLat.lng, evt.lngLat.lat];
+      const insertAt = nearestInsertIndex(
+        routeGeometry!.coordinates,
+        waypoints.map((w) => w.position),
+        point,
+      );
+      lineDragRef.current = { active: true, insertAt };
+      setGhost(point);
+      mapRef.current?.getMap?.().dragPan.disable();
+      evt.preventDefault?.();
+    },
+    [hasLine, routeGeometry, waypoints],
+  );
+
+  const handleMouseMove = useCallback((evt: MapLayerMouseEvent) => {
+    if (lineDragRef.current.active) {
+      setGhost([evt.lngLat.lng, evt.lngLat.lat]);
+      return;
+    }
+    setOverLine(!!evt.features?.some((f) => f.layer?.id === ROUTE_HIT_LAYER_ID));
+  }, []);
+
+  const handleMouseUp = useCallback(
+    (evt: MapLayerMouseEvent) => {
+      if (!lineDragRef.current.active) return;
+      const coord: Coordinate = [evt.lngLat.lng, evt.lngLat.lat];
+      const { insertAt } = lineDragRef.current;
+      lineDragRef.current = { active: false, insertAt: -1 };
+      setGhost(null);
+      mapRef.current?.getMap?.().dragPan.enable();
+      // The drag ends with a click event we don't want to also append a point.
+      suppressClickRef.current = true;
+      void map.handleAddWaypointAtClick(coord, insertAt);
     },
     [map],
   );
@@ -84,6 +159,8 @@ export function Map({
     );
   }
 
+  const activeCursor = ghost ? 'grabbing' : overLine ? 'grab' : (cursor ?? 'crosshair');
+
   return (
     <MapboxMap
       ref={mapRef}
@@ -101,11 +178,15 @@ export function Map({
         });
       }}
       onClick={handleClick}
+      onMouseDown={handleMouseDown}
+      onMouseMove={handleMouseMove}
+      onMouseUp={handleMouseUp}
+      interactiveLayerIds={hasLine ? [ROUTE_HIT_LAYER_ID] : undefined}
       onLoad={() => map.registerMap(mapRef.current as unknown as MapController)}
       mapStyle={mapStyle as string}
       mapboxAccessToken={MAPBOX_TOKEN}
       style={{ width: '100%', height: '100%' }}
-      cursor={cursor ?? 'grab'}
+      cursor={activeCursor}
     >
       {/* Default flat route line — rendered unless a child layer overrides it */}
       {routeGeometry && routeGeometry.coordinates.length >= 2 && (
@@ -131,10 +212,17 @@ export function Map({
             }}
             layout={{ 'line-cap': 'round', 'line-join': 'round' }}
           />
+          {/* Transparent wide grab target for line-drag (topmost, ~invisible). */}
+          <Layer
+            id={ROUTE_HIT_LAYER_ID}
+            type="line"
+            paint={{ 'line-color': '#000000', 'line-width': 22, 'line-opacity': 0.001 }}
+            layout={{ 'line-cap': 'round', 'line-join': 'round' }}
+          />
         </Source>
       )}
 
-      {/* Waypoint markers — draggable */}
+      {/* Waypoint markers — draggable; start/end are pins, mid points are dots */}
       {waypoints.map((wp, index) => {
         const isStart = index === 0;
         const isEnd = index === waypoints.length - 1;
@@ -143,6 +231,8 @@ export function Map({
           : isEnd
             ? WAYPOINT_COLORS.end
             : WAYPOINT_COLORS.waypoint;
+        const isAnchor = isStart || isEnd;
+        const size = isAnchor ? 22 : 14;
         return (
           <Marker
             key={wp.id}
@@ -159,24 +249,98 @@ export function Map({
             }}
           >
             <div
-              style={{
-                width: 22,
-                height: 22,
-                backgroundColor: '#141410',
-                border: `2.5px solid ${fill}`,
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                cursor: 'grab',
-                boxShadow: '0 2px 6px rgba(0,0,0,0.4)',
+              onMouseEnter={() => setHoveredWp(index)}
+              onMouseLeave={() => setHoveredWp((h) => (h === index ? null : h))}
+              onContextMenu={(e) => {
+                // Right-click removes the point (desktop affordance).
+                e.preventDefault();
+                e.stopPropagation();
+                void map.handleRemoveWaypoint(index);
               }}
-              data-testid={`rb2-waypoint-marker-${index}`}
+              style={{ position: 'relative', cursor: 'grab' }}
             >
-              <div style={{ width: 7, height: 7, backgroundColor: fill }} />
+              {isAnchor ? (
+                <div
+                  style={{
+                    width: size,
+                    height: size,
+                    backgroundColor: '#141410',
+                    border: `2.5px solid ${fill}`,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    boxShadow: '0 2px 6px rgba(0,0,0,0.4)',
+                  }}
+                  data-testid={`rb2-waypoint-marker-${index}`}
+                >
+                  <div style={{ width: 7, height: 7, backgroundColor: fill }} />
+                </div>
+              ) : (
+                <div
+                  style={{
+                    width: size,
+                    height: size,
+                    borderRadius: '50%',
+                    backgroundColor: fill,
+                    border: '2px solid #141410',
+                    boxShadow: '0 1px 4px rgba(0,0,0,0.4)',
+                  }}
+                  data-testid={`rb2-waypoint-marker-${index}`}
+                />
+              )}
+
+              {/* Hover ✕ to remove the point without leaving the map. */}
+              {hoveredWp === index && (
+                <div
+                  data-testid={`rb2-waypoint-remove-${index}`}
+                  role="button"
+                  aria-label={`Remove waypoint ${index + 1}`}
+                  // Stop the marker drag from starting on the ✕ itself.
+                  onMouseDown={(e) => e.stopPropagation()}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    void map.handleRemoveWaypoint(index);
+                  }}
+                  style={{
+                    position: 'absolute',
+                    top: -8,
+                    right: -8,
+                    width: 16,
+                    height: 16,
+                    backgroundColor: '#141410',
+                    border: `1.5px solid ${WAYPOINT_COLORS.end}`,
+                    borderRadius: '50%',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    cursor: 'pointer',
+                  }}
+                >
+                  <X size={9} color={WAYPOINT_COLORS.end} weight="bold" />
+                </div>
+              )}
             </div>
           </Marker>
         );
       })}
+
+      {/* Line-drag preview — where the new shaping point will land. */}
+      {ghost && (
+        <Marker longitude={ghost[0]} latitude={ghost[1]} anchor="center">
+          <div
+            data-testid="rb2-line-drag-ghost"
+            style={{
+              width: 16,
+              height: 16,
+              borderRadius: '50%',
+              backgroundColor: WAYPOINT_COLORS.start,
+              border: '2px solid #FFFFFF',
+              boxShadow: '0 0 0 2px rgba(42,140,130,0.5)',
+              pointerEvents: 'none',
+            }}
+          />
+        </Marker>
+      )}
 
       {/* Elevation-chart hover scrubber — purely indicative, never intercepts input */}
       {highlightCoord && (

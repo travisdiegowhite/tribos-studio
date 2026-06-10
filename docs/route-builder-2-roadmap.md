@@ -138,6 +138,33 @@ Per-route history exists; **cross-route preferences don't**.
 
 ---
 
+## Manual route creation — competitor-parity UX (shipped, June 2026)
+
+Made manual drawing feel like the tools migrants already know (RWGPS / Komoot / Strava).
+Shipped on this branch:
+
+- **Drag the route line to reshape** — grab the drawn line between control points and
+  drop a new shaping point; it splices in at the right index and reroutes. A transparent
+  wide "hit" line is the grab target; `nearestInsertIndex` (`components/lineInsert.ts`,
+  unit-tested) maps the grab back to a waypoint-list index. A ghost dot previews the drop.
+- **Delete a point on the map** — hover a waypoint for an ✕, or right-click it; no more
+  round-trip through the Waypoints flyout. (Mobile keeps the list.)
+- **Persistent editing affordances** — the crosshair cursor and a contextual hint stay
+  after the first route ("drag the line to reshape · drag a point to move · right-click to
+  remove"), so the interaction model stays discoverable.
+- **Back to start** — one-click loop-close button in `EditToolbar` (appends the start as a
+  new end and reroutes); disabled when the route already returns home.
+- **Lighter geometry** — start/end render as pins, intermediate shaping points as small
+  dots, reducing clutter on dense routes. Empty state now leads with "click to draw."
+
+Telemetry: `rb2_close_loop` plus the existing `rb2_manual_action_*` events (the line-drag
+reuses `handleAddWaypointAtClick`). Files: `Map.tsx`, `lineInsert.ts`, `EditToolbar.tsx`,
+`RouteBuilder2.tsx`, `EmptyState.tsx`.
+
+**Follow-ups (not in this pass):** line-drag is available when the plain route line is
+shown (not while a colored surface/gradient layer is active); a touch long-press delete
+for mobile; and snapping the ghost preview to the road under the cursor.
+
 ## Epic 0 parity gate — v1 → v2 (audit results, June 2026)
 
 **Verdict: strong parity.** v2 covers ~22 of ~24 user-facing v1 capabilities,
