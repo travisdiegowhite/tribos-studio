@@ -11,6 +11,7 @@ import { useRouteBuilderStore } from '../../stores/routeBuilderStore';
 import * as routesService from '../../utils/routesService';
 import { exportAndDownloadRoute } from '../../utils/routeExport';
 import { parseGpxFile } from '../../utils/gpxParser.js';
+import { garminService } from '../../utils/garminService';
 import { trackRb2 } from '../../features/route-builder-v2/telemetry/trackRb2';
 import type { Coordinate } from '../../types/geo';
 
@@ -53,6 +54,27 @@ const listRoutesSvc = routesService.listRoutes as () => Promise<SavedRouteRow[]>
 
 export type ExportFormat = 'gpx' | 'tcx' | 'fit';
 
+/**
+ * Outcome of a direct device push. `courses_unavailable` is the
+ * Garmin-Courses-API-disabled case the caller falls back to a TCX
+ * download for; `reconnect` means the integration needs re-auth.
+ */
+export type DevicePushResult =
+  | { ok: true; message: string }
+  | {
+      ok: false;
+      reason: 'no_route' | 'reconnect' | 'courses_unavailable' | 'error';
+      message: string;
+    };
+
+/**
+ * Outcome of a share-link copy. `not_saved` means the route has no id yet —
+ * the caller should prompt the user to save first.
+ */
+export type ShareResult =
+  | { ok: true; url: string }
+  | { ok: false; reason: 'not_saved' };
+
 export interface SavedRoute {
   id: string;
   name?: string;
@@ -80,6 +102,22 @@ export interface UseRoutePersistenceReturn {
    * failure (with `lastError` set).
    */
   importGpx: (file: File) => Promise<Coordinate[] | null>;
+  /** True while a device push is in flight. */
+  isPushingToDevice: boolean;
+  /** Whether the user's Garmin account is connected (null = not yet checked). */
+  checkGarminConnection: () => Promise<boolean>;
+  /**
+   * Push the current route to Garmin Connect as a Course. Returns a
+   * structured result so the caller owns notifications + the
+   * Courses-API-unavailable → TCX fallback.
+   */
+  pushToGarmin: () => Promise<DevicePushResult>;
+  /**
+   * Copy a public share link (`/routes/:id`) to the clipboard. Requires the
+   * route to be saved; returns `not_saved` otherwise so the caller can
+   * prompt a save.
+   */
+  shareRoute: () => Promise<ShareResult>;
 }
 
 export function useRoutePersistence(): UseRoutePersistenceReturn {
@@ -87,6 +125,7 @@ export function useRoutePersistence(): UseRoutePersistenceReturn {
   const [isLoading, setIsLoading] = useState(false);
   const [lastError, setLastError] = useState<string | null>(null);
   const [savedRouteId, setSavedRouteId] = useState<string | null>(null);
+  const [isPushingToDevice, setIsPushingToDevice] = useState(false);
 
   const routeGeometry = useRouteBuilderStore((s) => s.routeGeometry);
   const routeName = useRouteBuilderStore((s) => s.routeName);
@@ -309,6 +348,112 @@ export function useRoutePersistence(): UseRoutePersistenceReturn {
     [setRouteFromStore],
   );
 
+  const checkGarminConnection = useCallback(async (): Promise<boolean> => {
+    try {
+      const status = (await (garminService as {
+        getConnectionStatus: () => Promise<{ connected?: boolean }>;
+      }).getConnectionStatus()) ?? {};
+      return status.connected === true;
+    } catch {
+      return false;
+    }
+  }, []);
+
+  const pushToGarmin = useCallback(async (): Promise<DevicePushResult> => {
+    const coords = (routeGeometry as { coordinates?: [number, number][] } | null)?.coordinates;
+    if (!Array.isArray(coords) || coords.length < 2) {
+      setLastError('No route to send');
+      return { ok: false, reason: 'no_route', message: 'No route to send' };
+    }
+
+    setIsPushingToDevice(true);
+    setLastError(null);
+    const routeData = {
+      name: routeName ?? 'Untitled Route',
+      coordinates: coords,
+      distanceKm: routeStats?.distance_km ?? undefined,
+      elevationGainM: routeStats?.elevation_gain_m ?? undefined,
+      elevationLossM: routeStats?.elevation_loss_m ?? undefined,
+      routeType,
+      surfaceType: routeProfile,
+    };
+
+    try {
+      const result = (await (garminService as {
+        pushRoute: (data: unknown) => Promise<{
+          success?: boolean;
+          message?: string;
+          error?: string;
+          details?: string;
+          code?: string;
+          requiresReconnect?: boolean;
+        }>;
+      }).pushRoute(routeData)) ?? {};
+
+      if (result.success) {
+        trackRb2('route_pushed_to_device', {
+          provider: 'garmin',
+          distance_km: routeStats?.distance_km ?? null,
+        });
+        return {
+          ok: true,
+          message: result.message || 'Route sent to Garmin Connect. Sync your device to download it.',
+        };
+      }
+
+      const detail = `${result.error ?? ''} ${result.details ?? ''}`.trim();
+      const reason: 'reconnect' | 'courses_unavailable' | 'error' =
+        result.requiresReconnect || /reconnect|authorization/i.test(detail)
+          ? 'reconnect'
+          : result.code === 'COURSES_API_NOT_AVAILABLE' ||
+              /COURSES_API_NOT_AVAILABLE|ApplicationNotFound/i.test(detail)
+            ? 'courses_unavailable'
+            : 'error';
+
+      const message =
+        reason === 'reconnect'
+          ? 'Please reconnect your Garmin account in Settings.'
+          : reason === 'courses_unavailable'
+            ? 'Direct send is not available yet — downloading a TCX instead.'
+            : result.error || 'Failed to send route to Garmin';
+
+      trackRb2('route_push_failed', { provider: 'garmin', reason });
+      return { ok: false, reason, message };
+    } catch (e) {
+      const message = e instanceof Error ? e.message : String(e);
+      setLastError(message);
+      trackRb2('route_push_failed', { provider: 'garmin', reason: 'error' });
+      return { ok: false, reason: 'error', message };
+    } finally {
+      setIsPushingToDevice(false);
+    }
+  }, [routeGeometry, routeName, routeStats, routeType, routeProfile]);
+
+  const shareRoute = useCallback(async (): Promise<ShareResult> => {
+    if (!savedRouteId) {
+      return { ok: false, reason: 'not_saved' };
+    }
+    const url = `${window.location.origin}/routes/${savedRouteId}`;
+    try {
+      await navigator.clipboard.writeText(url);
+    } catch {
+      // Fallback for browsers without the async clipboard API.
+      try {
+        const ta = document.createElement('textarea');
+        ta.value = url;
+        document.body.appendChild(ta);
+        ta.select();
+        document.execCommand('copy');
+        document.body.removeChild(ta);
+      } catch {
+        // Even the fallback failed — still return ok with the url so the
+        // caller can surface it for manual copy.
+      }
+    }
+    trackRb2('route_shared', { route_id: savedRouteId });
+    return { ok: true, url };
+  }, [savedRouteId]);
+
   return {
     isSaving,
     isLoading,
@@ -319,5 +464,9 @@ export function useRoutePersistence(): UseRoutePersistenceReturn {
     listSavedRoutes,
     exportRoute,
     importGpx,
+    isPushingToDevice,
+    checkGarminConnection,
+    pushToGarmin,
+    shareRoute,
   };
 }
