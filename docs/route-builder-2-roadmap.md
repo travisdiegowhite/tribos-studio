@@ -82,8 +82,8 @@ support.strava.com (Routes on Web), cyclist.co.uk best-route-apps-2026.
   two cutover blockers (send-to-device, sharing).
 
 **Remaining (need a decision before acting — hard-to-reverse / product-facing):**
-- Clear the **two parity blockers** (send-to-device, route sharing) — both low-effort,
-  backend/hooks already exist; these gate the flip.
+- ✅ Send-to-device blocker cleared (Garmin push wired into `RouteActionsPanel`).
+- Clear the **last parity blocker** — route sharing (reuse `useRouteOperations.shareRoute`).
 - Resolve the intentional duplication between `replicatedEditLogic.ts` and v1's
   `aiRouteEditService.js`; pick one canonical edit path.
 - Flip default in `useRouteBuilderV2Access.ts` + `VITE_ROUTE_BUILDER_V2_ENABLED` and
@@ -154,18 +154,19 @@ interval overlay, bike-infra layer, familiar-segments layer).
 
 | # | Capability | v2 status | Evidence | Effort |
 |---|---|---|---|---|
-| 1 | **Push to Garmin / Wahoo (send-to-device)** | **MISSING (blocker)** | No device wiring in `src/features/route-builder-v2/` or `src/hooks/route-builder/`. v1: `src/components/RouteExportMenu.jsx:116` `handleSendToGarmin` → `garminService.pushRoute`. | **Low–Med** — backend already exists (`api/garmin2-route-push.js`); it's a UI-wiring job in `RouteActionsPanel`. |
+| 1 | ~~**Push to Garmin (send-to-device)**~~ | **✅ DONE** | `useRoutePersistence.pushToGarmin`/`checkGarminConnection` + `RouteActionsPanel` "Send to Garmin" item (connected-only) with Courses-API→TCX fallback. | Shipped on this branch. |
 | 2 | **Route sharing (share link)** | **MISSING (blocker)** | No share UI in v2. v1: `src/hooks/useRouteOperations.js:334` `shareRoute` (copies link to clipboard). | **Low** — reuse the existing `useRouteOperations.shareRoute` hook from a button in `RouteActionsPanel`. |
 | 3 | **Basemap style toggle** | PARTIAL (wired, no UI) | `Map.tsx:18,105` consumes `BASEMAP_STYLES` + a `mapStyle` prop, but nothing in `RouteBuilder2.tsx` switches it — users only ever see the default. | **Low** — add a style switcher to `ControlRail`/`LayerToggles`. |
 | 4 | **`commute` routing profile** | PARTIAL (missing option) | `EditToolbar.tsx` profile options are road/gravel/mountain/walking — no `commute` (v1 has it). | **Low** — add the option. |
 | 5 | **Route description + post-save rename** | PARTIAL | Save modal has a name field only (`RouteActionsPanel.tsx`); no description, no rename-after-save. | **Med** — add description field; expose rename. |
 
 ### Cutover blockers (must clear before flag flip)
-1. **Send-to-device (Garmin/Wahoo).** The backend endpoint is already shipped — this is
-   wiring `RouteActionsPanel` to `garminService.pushRoute`, mirroring v1's
-   `RouteExportMenu`. Without it, power users lose one-tap device sync.
+1. ~~Send-to-device (Garmin).~~ **✅ DONE** — `RouteActionsPanel` now offers "Send to
+   Garmin" for connected users via `useRoutePersistence.pushToGarmin`, with the
+   Courses-API-unavailable → TCX fallback, mirroring v1's `RouteExportMenu`.
+   (Wahoo/Hammerhead remain covered by FIT export, as in v1.)
 2. **Route sharing.** Reuse `useRouteOperations.shareRoute`. Without it, users can't send
-   a route to a friend/coach — a visible regression.
+   a route to a friend/coach — a visible regression. **← remaining blocker.**
 
 Items 3–5 are friction, not regressions with hard workarounds; they can ship shortly
 after cutover or alongside it.

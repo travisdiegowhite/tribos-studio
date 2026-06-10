@@ -11,6 +11,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   Box,
   Button,
+  Divider,
   Group,
   Loader,
   Menu,
@@ -20,7 +21,16 @@ import {
   TextInput,
   UnstyledButton,
 } from '@mantine/core';
-import { CaretDown, DownloadSimple, FloppyDisk, FolderOpen, UploadSimple } from '@phosphor-icons/react';
+import { notifications } from '@mantine/notifications';
+import {
+  CaretDown,
+  Check,
+  CloudArrowUp,
+  DownloadSimple,
+  FloppyDisk,
+  FolderOpen,
+  UploadSimple,
+} from '@phosphor-icons/react';
 import { RB2, RB2_FONT } from './brand';
 import { trackRb2 } from '../telemetry/trackRb2';
 import type { Coordinate } from '../../../types/geo';
@@ -73,7 +83,20 @@ export function RouteActionsPanel({
   const [name, setName] = useState(defaultName ?? '');
   const [savedRoutes, setSavedRoutes] = useState<SavedRouteSummary[]>([]);
   const [loadingList, setLoadingList] = useState(false);
+  const [garminConnected, setGarminConnected] = useState(false);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+
+  // Check Garmin connection once on mount so the "Send to Garmin" item only
+  // appears for connected users (mirrors v1's RouteExportMenu).
+  useEffect(() => {
+    let cancelled = false;
+    persistence.checkGarminConnection().then((connected) => {
+      if (!cancelled) setGarminConnected(connected);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [persistence]);
 
   const handleImportClick = useCallback(() => {
     fileInputRef.current?.click();
@@ -140,6 +163,38 @@ export function RouteActionsPanel({
     [persistence],
   );
 
+  const handleSendToGarmin = useCallback(async () => {
+    trackRb2('send_to_garmin_clicked', {});
+    const result = await persistence.pushToGarmin();
+    if (result.ok) {
+      notifications.show({
+        title: 'Sent to Garmin!',
+        message: result.message,
+        color: 'green',
+        icon: <Check size={16} />,
+        autoClose: 5000,
+      });
+      return;
+    }
+    if (result.reason === 'courses_unavailable') {
+      // Auto-fallback to a TCX download, same as v1.
+      notifications.show({
+        title: 'Direct send not available yet',
+        message: 'Downloading as TCX instead. Import it at connect.garmin.com → Courses → Import.',
+        color: 'yellow',
+        autoClose: 8000,
+      });
+      persistence.exportRoute('tcx');
+      return;
+    }
+    notifications.show({
+      title: result.reason === 'reconnect' ? 'Garmin Connection Issue' : 'Send Failed',
+      message: result.message,
+      color: result.reason === 'reconnect' ? 'yellow' : 'red',
+      autoClose: 10000,
+    });
+  }, [persistence]);
+
   return (
     <>
       <Box
@@ -200,6 +255,26 @@ export function RouteActionsPanel({
               </Button>
             </Menu.Target>
             <Menu.Dropdown style={{ borderRadius: 0 }}>
+              {garminConnected && (
+                <>
+                  <Menu.Item
+                    data-testid="rb2-send-to-garmin"
+                    leftSection={
+                      persistence.isPushingToDevice ? (
+                        <Loader size={14} />
+                      ) : (
+                        <CloudArrowUp size={14} />
+                      )
+                    }
+                    onClick={handleSendToGarmin}
+                    disabled={persistence.isPushingToDevice}
+                  >
+                    {persistence.isPushingToDevice ? 'Sending…' : 'Send to Garmin'}
+                  </Menu.Item>
+                  <Divider my={4} />
+                  <Menu.Label>Download Files</Menu.Label>
+                </>
+              )}
               <Menu.Item data-testid="rb2-export-gpx" onClick={() => handleExport('gpx')}>
                 GPX
               </Menu.Item>
