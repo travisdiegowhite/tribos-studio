@@ -55,13 +55,30 @@ support.strava.com (Routes on Web), cyclist.co.uk best-route-apps-2026.
 ## Roadmap (epics, file-level)
 
 ### Epic 0 — Ship it: the v1→v2 cutover (the real blocker)
-- Update this and `route-builder-v2-architecture.md` to current reality (the doc plans
-  from a two-PR-stale state).
-- Flip default in `useRouteBuilderV2Access.ts` + `VITE_ROUTE_BUILDER_V2_ENABLED`.
-- Delete dead `src/routing/executor/` and `api/route-builder-2-chat.js` (superseded by
-  `route-coach.js` — confirm zero importers first).
+
+**Done:**
+- ✅ Updated `route-builder-v2-architecture.md` to current reality (it described a
+  two-PR-stale "heuristic stub" state; now has a **Current state** section covering
+  PR-4A/4B `/api/route-coach` + Epic 1, with superseded markers on the old chat-path
+  descriptions).
+
+**Audit findings (verified, June 2026):**
+- `api/route-builder-2-chat.js` (+ test) has **no `src/` importers** — superseded by
+  `/api/route-coach`. Safe to delete.
+- The entire `src/routing/` tree (`executor/` + `RouterClient/`) is imported by nothing
+  outside `src/routing/` itself — dead from the app's perspective. (The lone
+  `src/hooks/route-builder/types.ts` grep hit is a prose comment, not an import.)
+  Deleting a whole subsystem is hard-to-reverse and the code says "awaiting S6," so it
+  needs explicit sign-off.
+- Access gate confirmed: `useRouteBuilderV2Access` requires `VITE_ROUTE_BUILDER_V2_ENABLED`
+  **AND** per-user `user_profiles.route_builder_v2_enabled` (migration `090`), fails closed.
+
+**Remaining (need a decision before acting — hard-to-reverse / product-facing):**
+- Delete the dead code above (one cleanup PR once approved).
 - Resolve the intentional duplication between `replicatedEditLogic.ts` and v1's
   `aiRouteEditService.js`; pick one canonical edit path.
+- Flip default in `useRouteBuilderV2Access.ts` + `VITE_ROUTE_BUILDER_V2_ENABLED` and
+  decide redirect direction — exposes RB2 to all users.
 - Parity gate before cutover: GPX import, all export formats, route library/load,
   Garmin push.
 
