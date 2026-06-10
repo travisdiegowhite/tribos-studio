@@ -13,7 +13,7 @@
  */
 
 import { getElevationData, calculateElevationStats } from '../../utils/elevation';
-import { fnv1a32, stableJson } from '../../routing/RouterClient/cache';
+import { fnv1a32, stableJson } from '../../utils/stableHash';
 import type { Coordinate, RouteSnapshot } from './types';
 
 interface EnrichedFields {
