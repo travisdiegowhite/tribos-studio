@@ -1,4 +1,5 @@
 export { Map } from './Map';
+export { MapControls } from './MapControls';
 export { RB2DesktopLayout } from './RB2DesktopLayout';
 export { ControlRail, type RailItem } from './ControlRail';
 export { ChatDock } from './ChatDock';
