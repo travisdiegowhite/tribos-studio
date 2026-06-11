@@ -137,6 +137,11 @@ describe('useAIGeneration', () => {
     expect(state.routeStats?.distance_km).toBe(40);
     expect(state.routeStats?.elevation_gain_m).toBe(500);
     expect(state.waypoints.length).toBeGreaterThanOrEqual(2);
+    // Generated routes seed control points sampled from the geometry so they're
+    // drag-editable — every position is a 2-element [lng, lat] (no elevation).
+    for (const wp of state.waypoints) {
+      expect(wp.position).toHaveLength(2);
+    }
   });
 
   it('returns 3 suggestions when count is 3, padding if v1 returns fewer', async () => {
