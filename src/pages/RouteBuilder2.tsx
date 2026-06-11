@@ -8,7 +8,8 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Box, Text } from '@mantine/core';
-import { useMediaQuery } from '@mantine/hooks';
+import { useLocalStorage, useMediaQuery } from '@mantine/hooks';
+import { BASEMAP_STYLES } from '../components/RouteBuilder';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import AppShell from '../components/AppShell.jsx';
 import {
@@ -249,6 +250,14 @@ export default function RouteBuilder2() {
   const [railOpenId, setRailOpenId] = useState<string | null>(null);
   // Mobile bottom-sheet active tab (null = collapsed, map fully visible).
   const [mobileTab, setMobileTab] = useState<string | null>(null);
+  // Basemap choice — persisted so the map opens on the user's preferred style.
+  const [basemapId, setBasemapId] = useLocalStorage<string>({
+    key: 'rb2-basemap',
+    defaultValue: 'dark',
+  });
+  const basemapStyle =
+    BASEMAP_STYLES.find((s: { id: string }) => s.id === basemapId)?.style ??
+    BASEMAP_STYLES[0].style;
   // Desktop cold-start: the GenerateBar (chips folded into the chat dock).
   // Auto-expand when seeded from a workout so the prefilled goal/duration show.
   const [generateExpanded, setGenerateExpanded] = useState(hasWorkout);
@@ -661,6 +670,14 @@ export default function RouteBuilder2() {
       waypoints={waypointsForMap}
       highlightCoord={highlightCoord}
       cursor="crosshair"
+      mapStyle={basemapStyle}
+      basemapId={basemapId}
+      onBasemapChange={setBasemapId}
+      userLocation={userLocation.coord}
+      onGeolocate={userLocation.requestLocation}
+      isLocating={userLocation.status === 'locating'}
+      isImperial={isImperial}
+      isMobile={isMobile}
     >
       {visibility.surface && (
         <SurfaceLayer geometry={geometryForLayers} onSegments={setSurfaceSegments} />

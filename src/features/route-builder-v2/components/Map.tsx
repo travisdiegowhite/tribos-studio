@@ -35,6 +35,7 @@ import { MAPBOX_TOKEN, BASEMAP_STYLES, WAYPOINT_COLORS } from '../../../componen
 import type { Coordinate } from '../../../types/geo';
 import type { MapController, UseMapInteractionReturn } from '../../../hooks/route-builder';
 import { nearestInsertIndex } from './lineInsert';
+import { MapControls } from './MapControls';
 
 const DEFAULT_STYLE = BASEMAP_STYLES[0].style;
 
@@ -58,6 +59,14 @@ export interface MapWrapperProps {
   showRouteLine?: boolean;
   /** Elevation-chart hover position; renders a non-interactive dot on the route. */
   highlightCoord?: Coordinate | null;
+  // ── On-map controls (rendered inside <Map> where mapRef lives) ──
+  userLocation?: Coordinate | null;
+  onGeolocate?: () => void;
+  isLocating?: boolean;
+  basemapId?: string;
+  onBasemapChange?: (id: string) => void;
+  isImperial?: boolean;
+  isMobile?: boolean;
   children?: ReactNode;
 }
 
@@ -74,6 +83,13 @@ export function Map({
   mapStyle = DEFAULT_STYLE,
   showRouteLine = true,
   highlightCoord,
+  userLocation = null,
+  onGeolocate,
+  isLocating = false,
+  basemapId = 'dark',
+  onBasemapChange,
+  isImperial = false,
+  isMobile = false,
   children,
 }: MapWrapperProps) {
   const mapRef = useRef<MapRef | null>(null);
@@ -92,6 +108,13 @@ export function Map({
   const [ghost, setGhost] = useState<GhostState | null>(null);
   const [overLine, setOverLine] = useState(false);
   const [hoveredWp, setHoveredWp] = useState<number | null>(null);
+  // Live camera (bearing/pitch/lat/zoom) for the compass + scale bar.
+  const [camera, setCamera] = useState({
+    bearing: 0,
+    pitch: 0,
+    latitude: map.viewport.latitude,
+    zoom: map.viewport.zoom,
+  });
 
   const hasLine = !!routeGeometry && routeGeometry.coordinates.length >= 2;
 
@@ -216,6 +239,12 @@ export function Map({
         // Debounced write happens inside the hook; this fires per-frame.
         map.setViewport({
           longitude: evt.viewState.longitude,
+          latitude: evt.viewState.latitude,
+          zoom: evt.viewState.zoom,
+        });
+        setCamera({
+          bearing: evt.viewState.bearing,
+          pitch: evt.viewState.pitch,
           latitude: evt.viewState.latitude,
           zoom: evt.viewState.zoom,
         });
@@ -456,6 +485,22 @@ export function Map({
           />
         </Marker>
       )}
+
+      <MapControls
+        mapRef={mapRef}
+        bearing={camera.bearing}
+        pitch={camera.pitch}
+        latitude={camera.latitude}
+        zoom={camera.zoom}
+        routeGeometry={routeGeometry}
+        userLocation={userLocation}
+        onGeolocate={onGeolocate ?? (() => {})}
+        isLocating={isLocating}
+        basemapId={basemapId}
+        onBasemapChange={onBasemapChange ?? (() => {})}
+        isImperial={isImperial}
+        isMobile={isMobile}
+      />
 
       {children}
     </MapboxMap>

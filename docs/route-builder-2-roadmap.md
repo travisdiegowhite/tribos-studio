@@ -172,6 +172,24 @@ reuses `handleAddWaypointAtClick`). Files: `Map.tsx`, `lineInsert.ts`, `EditTool
   (The dropped point still snaps to roads on release — live road-snapping the preview would
   cost a router call per mouse-move and isn't worth it.)
 
+## On-map controls (shipped, June 2026)
+
+RB2 had no standard on-map controls (no zoom UI, no "my location", no scale bar, basemap
+locked to Dark). Added an RB2-native control stack (flat, `borderRadius:0`, RB2 tokens —
+not Mapbox's default chrome), rendered inside `Map.tsx` where the real `mapRef` lives:
+
+- **Zoom +/-, compass (rotates with bearing; click resets to north/flat), fit-to-route,
+  geolocate/recenter, and a unit-aware scale bar.** `Map.tsx` tracks bearing/pitch/lat/zoom
+  from `onMove`; rotation stays enabled so the compass is meaningful.
+- **Basemap switcher** (Dark/Outdoors/Satellite/Streets/CyclOSM), persisted via
+  `useLocalStorage('rb2-basemap')` — closes parity gap P3. The page resolves the style URL
+  from `BASEMAP_STYLES` and passes it to `<Map>`.
+- Geolocation reuses the existing `useUserLocation` hook (coord / `requestLocation` /
+  status). Placement: bottom-right; lifted above the mobile bottom-sheet tab strip.
+
+Files: `MapControls.tsx` (+ test), `mapScale.ts` (TS port of v1's scale math, + test),
+`Map.tsx`, `RouteBuilder2.tsx`, components barrel. Tests: 12 new; full RB2 suite green.
+
 ## Mobile layout — map-first restructure (shipped, June 2026)
 
 The mobile layout rendered **14+ control panels in one always-open, near-full-height
