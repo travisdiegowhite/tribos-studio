@@ -19,6 +19,10 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { useRouteBuilderStore } from '../../stores/routeBuilderStore';
 import useRouteManipulation from '../useRouteManipulation';
 import { trackRb2 } from '../../features/route-builder-v2/telemetry/trackRb2';
+import {
+  distinctPositionCount,
+  resamplePositionsFromGeometry,
+} from './waypointResample';
 import type { Coordinate } from './types';
 
 /** Viewport update debounce — too-frequent writes caused re-render jank in v1. */
@@ -257,11 +261,35 @@ export function useMapInteraction(): UseMapInteractionReturn {
     setIsApplying(true);
     setLastError(null);
     try {
-      return await snapAndReport('rebuild', waypoints, Date.now());
+      // Normalize to 2-element positions (strip any elevation), and when the
+      // control points have collapsed to one point (a generated loop's two
+      // coincident endpoints) resample the geometry so the re-route has a real
+      // corridor instead of a zero-length segment that every engine rejects.
+      let list: StoreWaypoint[] = waypoints.map((wp) => ({
+        ...wp,
+        position: [wp.position[0], wp.position[1]] as Coordinate,
+      }));
+      const geomCoords = (routeGeometry as { coordinates?: number[][] } | null)?.coordinates;
+      if (
+        distinctPositionCount(list.map((wp) => wp.position)) < 2 &&
+        geomCoords &&
+        geomCoords.length >= 2
+      ) {
+        const resampled = resamplePositionsFromGeometry(geomCoords);
+        if (resampled.length >= 2) {
+          list = resampled.map((position, i) => ({
+            id: newWaypointId(),
+            position,
+            type: i === 0 ? 'start' : i === resampled.length - 1 ? 'end' : 'waypoint',
+            name: '',
+          }));
+        }
+      }
+      return await snapAndReport('rebuild', list, Date.now());
     } finally {
       setIsApplying(false);
     }
-  }, [waypoints, snapAndReport]);
+  }, [waypoints, routeGeometry, snapAndReport]);
 
   const runManual = useCallback(
     async (

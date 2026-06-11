@@ -327,8 +327,10 @@ export default function RouteBuilder2() {
     if (routeGeometry.coordinates.length < 2) return;
     if (Array.isArray(waypoints) && waypoints.length >= 2) return;
     const coords = routeGeometry.coordinates as Coordinate[];
-    const start = coords[0];
-    const end = coords[coords.length - 1];
+    // Strip any elevation 3rd element — waypoint positions are strictly
+    // [lng, lat] (T1.2 contract); 3-element positions break road snapping.
+    const start: Coordinate = [coords[0][0], coords[0][1]];
+    const end: Coordinate = [coords[coords.length - 1][0], coords[coords.length - 1][1]];
     setWaypointsInStore([
       { id: 'wp-0', position: start, type: 'start', name: '' },
       { id: 'wp-1', position: end, type: 'end', name: '' },
