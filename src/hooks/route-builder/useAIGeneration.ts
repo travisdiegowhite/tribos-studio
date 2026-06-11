@@ -76,9 +76,17 @@ function toRouteSnapshot(
       : 0;
   return {
     geometry: coords,
+    // Strip any elevation 3rd element — waypoint positions are strictly
+    // [lng, lat] per the T1.2 coordinate contract; the router rejects
+    // 3-element coords.
     waypoints: [
-      { coordinate: coords[0] },
-      { coordinate: coords[coords.length - 1] },
+      { coordinate: [coords[0][0], coords[0][1]] as Coordinate },
+      {
+        coordinate: [
+          coords[coords.length - 1][0],
+          coords[coords.length - 1][1],
+        ] as Coordinate,
+      },
     ],
     stats: {
       distance_km,
