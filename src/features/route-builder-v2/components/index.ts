@@ -23,6 +23,8 @@ export { PersonaDropdown } from './PersonaDropdown';
 export { ChatShell } from './ChatShell';
 export { ChatPanel, type ChatPanelState } from './ChatPanel';
 export { ChatDrawer, type ChatDrawerState } from './ChatDrawer';
+export { ChatBody } from './ChatBody';
+export { MobileControlSheet, type MobileSheetTab } from './MobileControlSheet';
 export { EmptyState } from './EmptyState';
 export { LoadingState } from './LoadingState';
 export { ErrorState } from './ErrorState';
