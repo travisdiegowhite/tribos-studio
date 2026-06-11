@@ -236,26 +236,30 @@ export function Map({
           under analysis layers. */}
       {hasLine && (
         <Source id="rb2-route" type="geojson" data={routeGeometry!}>
+          {/* Each <Layer> must be a DIRECT child of <Source> — react-map-gl
+              attaches the source id via React.Children.map + cloneElement, which
+              does not recurse into Fragments. Wrapping these in a fragment makes
+              them render without a source (i.e. invisibly). */}
           {showRouteLine && (
-            <>
-              <Layer
-                id="rb2-route-glow"
-                type="line"
-                paint={{
-                  'line-color': '#2A8C82',
-                  'line-width': 18,
-                  'line-opacity': 0.25,
-                  'line-blur': 6,
-                }}
-                layout={{ 'line-cap': 'round', 'line-join': 'round' }}
-              />
-              <Layer
-                id="rb2-route-line"
-                type="line"
-                paint={{ 'line-color': '#2A8C82', 'line-width': 5, 'line-opacity': 1 }}
-                layout={{ 'line-cap': 'round', 'line-join': 'round' }}
-              />
-            </>
+            <Layer
+              id="rb2-route-glow"
+              type="line"
+              paint={{
+                'line-color': '#2A8C82',
+                'line-width': 18,
+                'line-opacity': 0.25,
+                'line-blur': 6,
+              }}
+              layout={{ 'line-cap': 'round', 'line-join': 'round' }}
+            />
+          )}
+          {showRouteLine && (
+            <Layer
+              id="rb2-route-line"
+              type="line"
+              paint={{ 'line-color': '#2A8C82', 'line-width': 5, 'line-opacity': 1 }}
+              layout={{ 'line-cap': 'round', 'line-join': 'round' }}
+            />
           )}
           <Layer
             id={ROUTE_HIT_LAYER_ID}
