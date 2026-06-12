@@ -928,7 +928,24 @@ async function backfillGpsData(req, res, userId) {
         // Try to download and parse FIT file
         console.log(`📥 Processing ${activity.name} (${activity.id})...`);
 
-        const fitResult = await downloadAndParseFitFile(fitFileUrl, accessToken, athlete);
+        const fitResult = await downloadAndParseFitFile(fitFileUrl, accessToken, athlete, {
+          supabase,
+          userId,
+          activityId: activity.id,
+        });
+        // Persist the storage path the moment we have it — even if the parse
+        // below produces nothing usable, a future reprocess can recover this
+        // ride from the retained bytes. Migration 099 added the column; the
+        // garmin-fit Supabase Storage bucket must exist.
+        if (fitResult.fit_storage_path) {
+          await supabase
+            .from('activities')
+            .update({ fit_storage_path: fitResult.fit_storage_path })
+            .eq('id', activity.id)
+            .then(({ error }) => {
+              if (error) console.warn(`⚠️ fit_storage_path write failed for ${activity.id} (non-critical): ${error.message}`);
+            });
+        }
 
         if (fitResult.error) {
           // URL likely expired (24 hour limit)
@@ -1364,7 +1381,24 @@ async function backfillPowerData(req, res, userId) {
         // Try to download and parse FIT file
         console.log(`📥 Processing ${activity.name} (${activity.id})...`);
 
-        const fitResult = await downloadAndParseFitFile(fitFileUrl, accessToken, athlete);
+        const fitResult = await downloadAndParseFitFile(fitFileUrl, accessToken, athlete, {
+          supabase,
+          userId,
+          activityId: activity.id,
+        });
+        // Persist the storage path the moment we have it — even if the parse
+        // below produces nothing usable, a future reprocess can recover this
+        // ride from the retained bytes. Migration 099 added the column; the
+        // garmin-fit Supabase Storage bucket must exist.
+        if (fitResult.fit_storage_path) {
+          await supabase
+            .from('activities')
+            .update({ fit_storage_path: fitResult.fit_storage_path })
+            .eq('id', activity.id)
+            .then(({ error }) => {
+              if (error) console.warn(`⚠️ fit_storage_path write failed for ${activity.id} (non-critical): ${error.message}`);
+            });
+        }
 
         if (fitResult.error) {
           // URL likely expired (24 hour limit)
@@ -1717,7 +1751,24 @@ async function backfillStreamsData(req, res, userId) {
         // Try to download and parse FIT file
         console.log(`📥 Processing ${activity.name} (${activity.id})...`);
 
-        const fitResult = await downloadAndParseFitFile(fitFileUrl, accessToken, athlete);
+        const fitResult = await downloadAndParseFitFile(fitFileUrl, accessToken, athlete, {
+          supabase,
+          userId,
+          activityId: activity.id,
+        });
+        // Persist the storage path the moment we have it — even if the parse
+        // below produces nothing usable, a future reprocess can recover this
+        // ride from the retained bytes. Migration 099 added the column; the
+        // garmin-fit Supabase Storage bucket must exist.
+        if (fitResult.fit_storage_path) {
+          await supabase
+            .from('activities')
+            .update({ fit_storage_path: fitResult.fit_storage_path })
+            .eq('id', activity.id)
+            .then(({ error }) => {
+              if (error) console.warn(`⚠️ fit_storage_path write failed for ${activity.id} (non-critical): ${error.message}`);
+            });
+        }
 
         if (fitResult.error) {
           const activityDate = activity.start_date ? new Date(activity.start_date) : null;
