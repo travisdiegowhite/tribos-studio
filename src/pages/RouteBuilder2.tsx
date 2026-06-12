@@ -54,6 +54,7 @@ import {
   LoadingState,
   ErrorState,
   RouteActionsPanel,
+  DiscoverPanel,
   RB2,
   RB2_FONT,
   type LayerVisibilityState,
@@ -68,7 +69,7 @@ import {
   type ChatMessage,
   type FormPanelControl,
 } from '../features/route-builder-v2/chat';
-import { Stack as StackIcon, MapPin, FolderOpen, MagnifyingGlass, CloudSun, ForkKnife, Gauge, Barbell, PencilSimpleLine, ChartLineUp, FloppyDisk, ChatCircleDots } from '@phosphor-icons/react';
+import { Stack as StackIcon, MapPin, FolderOpen, MagnifyingGlass, CloudSun, ForkKnife, Gauge, Barbell, PencilSimpleLine, ChartLineUp, FloppyDisk, ChatCircleDots, Compass } from '@phosphor-icons/react';
 import { supabase } from '../lib/supabase';
 import { SurfaceLayer } from '../features/route-builder-v2/layers/SurfaceLayer';
 import { GradientLayer } from '../features/route-builder-v2/layers/GradientLayer';
@@ -79,6 +80,7 @@ import { WindArrowsLayer } from '../features/route-builder-v2/layers/WindArrowsL
 import { IntervalsLayer } from '../features/route-builder-v2/layers/IntervalsLayer';
 import { WorkoutOverlayLegend, WorkoutPickerPanel } from '../features/route-builder-v2/components';
 import { useUpcomingPlannedWorkouts } from '../hooks/useUpcomingPlannedWorkouts';
+import { targetDistanceKm } from '../features/route-builder-v2/discover/rankRoutes';
 import type { WorkoutDefinition } from '../types/training';
 import { trackRb2 } from '../features/route-builder-v2/telemetry/trackRb2';
 import { coordinateAtDistanceKm } from '../utils/elevation';
@@ -251,6 +253,12 @@ export default function RouteBuilder2() {
   const [railOpenId, setRailOpenId] = useState<string | null>(null);
   // Mobile bottom-sheet active tab (null = collapsed, map fully visible).
   const [mobileTab, setMobileTab] = useState<string | null>(null);
+  // Route discovery (lazy-loaded saved routes ranked by today's target).
+  const [discoverRoutes, setDiscoverRoutes] = useState<
+    Array<{ id: string; name?: string; distance_km?: number | null; elevation_gain_m?: number | null }>
+  >([]);
+  const [discoverLoading, setDiscoverLoading] = useState(false);
+  const discoverLoadedRef = useRef(false);
   // Basemap choice — persisted so the map opens on the user's preferred style.
   const [basemapId, setBasemapId] = useLocalStorage<string>({
     key: 'rb2-basemap',
@@ -493,6 +501,8 @@ export default function RouteBuilder2() {
 
   const handleSaved = useCallback(
     (id: string) => {
+      // A new/updated route should appear in Discover next time it opens.
+      discoverLoadedRef.current = false;
       if (routeIdFromUrl !== id) {
         navigate(`/route-builder-2/${id}`, { replace: true });
       }
@@ -507,6 +517,51 @@ export default function RouteBuilder2() {
       }
     },
     [navigate, routeIdFromUrl],
+  );
+
+  // --- Route discovery: the rider's saved routes ranked by today's target ---
+  const nextPlanned = upcomingPlanned.workouts[0] ?? null;
+  const discoverTargetKm = targetDistanceKm(nextPlanned);
+  const discoverTargetLabel = nextPlanned
+    ? `${nextPlanned.name}${discoverTargetKm ? ` · ~${discoverTargetKm} km` : ''}`
+    : null;
+
+  const loadDiscover = useCallback(async () => {
+    setDiscoverLoading(true);
+    const rows = await persistence.listSavedRoutes();
+    setDiscoverRoutes(rows);
+    setDiscoverLoading(false);
+    discoverLoadedRef.current = true;
+  }, [persistence]);
+
+  // Lazily fetch the discover list the first time its surface opens, and
+  // refresh after a save so a newly-saved route appears.
+  useEffect(() => {
+    const open = railOpenId === 'discover' || mobileTab === 'discover';
+    if (open && !discoverLoadedRef.current) void loadDiscover();
+  }, [railOpenId, mobileTab, loadDiscover]);
+
+  const handlePickDiscover = useCallback(
+    async (id: string) => {
+      const ok = await persistence.loadRoute(id);
+      if (ok) {
+        handleLoaded(id);
+        setRailOpenId(null);
+        setMobileTab(null);
+      }
+    },
+    [persistence, handleLoaded],
+  );
+
+  const discoverPanel = (
+    <DiscoverPanel
+      routes={discoverRoutes}
+      loading={discoverLoading}
+      targetKm={discoverTargetKm}
+      targetLabel={discoverTargetLabel}
+      onPick={handlePickDiscover}
+      isImperial={isImperial}
+    />
   );
 
   // Page mount telemetry
@@ -797,6 +852,12 @@ export default function RouteBuilder2() {
         label: 'Search',
         icon: <MagnifyingGlass size={20} weight="duotone" />,
         panel: <LocationSearch onFlyTo={map.flyTo} proximity={viewportCenter} />,
+      },
+      {
+        id: 'discover',
+        label: 'Discover',
+        icon: <Compass size={20} weight="duotone" />,
+        panel: discoverPanel,
       },
       {
         id: 'waypoints',
@@ -1121,6 +1182,12 @@ export default function RouteBuilder2() {
           />
         </>
       ),
+    },
+    {
+      id: 'discover',
+      label: 'Discover',
+      icon: <Compass size={18} />,
+      content: discoverPanel,
     },
     {
       id: 'chat',
