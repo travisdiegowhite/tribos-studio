@@ -115,6 +115,26 @@ export function parseFitFile(fitBuffer) {
             console.warn('⚠️ Advanced ride analytics failed (non-fatal):', analyticsError.message);
           }
 
+          // Diagnostic: when records come out empty from a FIT that downloaded
+          // successfully, log the top-level shape of `data` so we can see what
+          // easy-fit actually parsed. Newer Garmin devices (Edge 540 in
+          // particular) emit FIT formats where records may live under
+          // data.sessions[].records or data.activity[].records rather than
+          // data.records — easy-fit 0.0.8 doesn't always normalize them to
+          // data.records. Surface enough to decide if we need to update the
+          // extraction path or swap parsers.
+          if ((data.records?.length || 0) === 0) {
+            const dataKeys = data ? Object.keys(data) : [];
+            console.warn(
+              `[FIT:PARSE-EMPTY] easy-fit returned no records. data keys: [${dataKeys.join(',')}], ` +
+              `sessions=${data.sessions?.length || 0}, activity=${data.activity?.length || 0}, ` +
+              `laps=${data.laps?.length || 0}, ` +
+              `session[0].records=${data.sessions?.[0]?.records?.length ?? 'n/a'}, ` +
+              `activity[0].sessions[0].records=${data.activity?.[0]?.sessions?.[0]?.records?.length ?? 'n/a'}, ` +
+              `lap[0].records=${data.laps?.[0]?.records?.length ?? 'n/a'}`
+            );
+          }
+
           resolve({
             trackPoints,
             allDataPoints,
