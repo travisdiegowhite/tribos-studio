@@ -4,6 +4,30 @@ _Last updated: 2026-06-10. Strategy: **Coach-differentiated** — win on trainin
 routing; be good-enough on table stakes; deliberately punt on heatmap, in-app
 turn-by-turn, offline, and native mobile._
 
+## Production-readiness + cutover — Phases A–D (shipped, June 2026)
+
+RB2 is now production-ready to become the default builder via **gradual cohort rollout**.
+v1↔RB2 are fully interoperable (shared `routes` table), so the cutover is low-risk.
+
+- **Phase A — ship-readiness:** entry points (`MyRoutes`, onboarding, `EmptyState`) are
+  access-aware (gated users → RB2); an admin "RB2 Beta" per-user toggle (`api/admin.js`
+  `set_route_builder_v2` + `UserManagement`) plus `database/enable_rb2_cohort.sql` for
+  batch enables; gated the per-frame `setCamera` (pan perf); friendly error copy + GPX
+  toast; the `commute` routing profile.
+- **Phase B — launch quality:** coach API error/telemetry (`rb2_coach_api_failed`); route
+  **description + post-save rename** (store/hook/UI; DB already supported it); a
+  generate→edit→save→load integration smoke test; `OPENWEATHER_API_KEY`-missing warning.
+- **Phase C — route discovery:** a "Discover" surface (rail item / sheet tab) ranking the
+  rider's saved routes by fit to today's prescription (`rankRoutes.ts` +`DiscoverPanel`),
+  the coach-framed take on the one table-stake RB2 lacked.
+- **Phase D — coach depth:** **multi-intent edits** ("hillier AND longer" now applies both
+  — `/api/route-coach` returns `proposedEdits[]`, applied in sequence client-side); and
+  **surface % as a first-class stat** in `StatsOverlay` (surface coach-edits verified to
+  genuinely bias the router, not cosmetic).
+
+**To flip the cohort:** set `VITE_ROUTE_BUILDER_V2_ENABLED=true`, then enable users via the
+admin toggle or `database/enable_rb2_cohort.sql`. The BETA badge stays until full cutover.
+
 ## TL;DR
 
 RB2 is **architecturally further along than it is widely shipped**. The conversational
