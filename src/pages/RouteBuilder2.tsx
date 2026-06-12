@@ -193,6 +193,7 @@ export default function RouteBuilder2() {
   const routeGeometry = useRouteBuilderStore((s) => s.routeGeometry);
   const routeStats = useRouteBuilderStore((s) => s.routeStats);
   const routeName = useRouteBuilderStore((s) => s.routeName);
+  const routeDescription = useRouteBuilderStore((s) => s.routeDescription);
   const routeProfile = useRouteBuilderStore((s) => s.routeProfile);
   const setRouteProfile = useRouteBuilderStore((s) => s.setRouteProfile);
   const snapToRoads = useRouteBuilderStore((s) => s.snapToRoads);
@@ -851,6 +852,7 @@ export default function RouteBuilder2() {
           <RouteActionsPanel
             persistence={persistence}
             defaultName={routeName}
+            defaultDescription={routeDescription}
             hasRoute={hasRoute}
             onSaved={handleSaved}
             onLoaded={handleLoaded}
@@ -1110,6 +1112,7 @@ export default function RouteBuilder2() {
           <RouteActionsPanel
             persistence={persistence}
             defaultName={routeName}
+            defaultDescription={routeDescription}
             hasRoute={hasRoute}
             onSaved={handleSaved}
             onLoaded={handleLoaded}

@@ -70,6 +70,33 @@ describe('useRoutePersistence', () => {
     expect(call.generated_by).toBe('rb2');
   });
 
+  it('save includes the description and load restores it to the store', async () => {
+    seedRoute();
+    useRouteBuilderStore.getState().setRouteDescription('Hill repeats out east');
+    vi.mocked(routesService.saveRoute).mockResolvedValue({ id: 'route-d' } as any);
+    const { result } = renderHook(() => useRoutePersistence());
+    await act(async () => {
+      await result.current.save();
+    });
+    const call = vi.mocked(routesService.saveRoute).mock.calls[0][0] as Record<string, unknown>;
+    expect(call.description).toBe('Hill repeats out east');
+
+    vi.mocked(routesService.getRoute).mockResolvedValue({
+      id: 'route-d',
+      name: 'Loaded',
+      description: 'Loaded desc',
+      geometry: { type: 'LineString', coordinates: [[-105, 40]] },
+      distance_km: 10,
+      elevation_gain_m: 50,
+      estimated_duration_minutes: 20,
+      waypoints: [],
+    } as any);
+    await act(async () => {
+      await result.current.loadRoute('route-d');
+    });
+    expect(useRouteBuilderStore.getState().routeDescription).toBe('Loaded desc');
+  });
+
   it('save handles thrown errors by recording lastError', async () => {
     seedRoute();
     vi.mocked(routesService.saveRoute).mockRejectedValue(new Error('db down'));

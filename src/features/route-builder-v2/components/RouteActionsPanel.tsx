@@ -18,6 +18,7 @@ import {
   Modal,
   Stack,
   Text,
+  Textarea,
   TextInput,
   UnstyledButton,
 } from '@mantine/core';
@@ -44,6 +45,8 @@ import type {
 export interface RouteActionsPanelProps {
   persistence: UseRoutePersistenceReturn;
   defaultName?: string;
+  /** Pre-fills the description field in the Save modal (from the loaded route). */
+  defaultDescription?: string;
   /** Whether a route currently exists. Save/Export require one; Load/Import don't. */
   hasRoute?: boolean;
   /** Called after a save succeeds with the new id (e.g. to update URL). */
@@ -73,6 +76,7 @@ const buttonStyles = {
 export function RouteActionsPanel({
   persistence,
   defaultName,
+  defaultDescription,
   hasRoute = true,
   onSaved,
   onLoaded,
@@ -82,6 +86,9 @@ export function RouteActionsPanel({
   const [saveOpen, setSaveOpen] = useState(false);
   const [loadOpen, setLoadOpen] = useState(false);
   const [name, setName] = useState(defaultName ?? '');
+  const [description, setDescription] = useState(defaultDescription ?? '');
+  // Editing a saved route → "Update"; otherwise "Save".
+  const isUpdate = !!persistence.savedRouteId;
   const [savedRoutes, setSavedRoutes] = useState<SavedRouteSummary[]>([]);
   const [loadingList, setLoadingList] = useState(false);
   const [garminConnected, setGarminConnected] = useState(false);
@@ -132,19 +139,20 @@ export function RouteActionsPanel({
 
   const handleOpenSave = useCallback(() => {
     setName(defaultName ?? '');
+    setDescription(defaultDescription ?? '');
     setSaveOpen(true);
     trackRb2('save_modal_opened', {});
-  }, [defaultName]);
+  }, [defaultName, defaultDescription]);
 
   const handleConfirmSave = useCallback(async () => {
     const trimmed = name.trim();
     if (!trimmed) return;
-    const saved = await persistence.save(trimmed);
+    const saved = await persistence.save(trimmed, description);
     if (saved) {
       setSaveOpen(false);
       if (onSaved) onSaved(saved.id);
     }
-  }, [name, persistence, onSaved]);
+  }, [name, description, persistence, onSaved]);
 
   const handleOpenLoad = useCallback(async () => {
     setLoadOpen(true);
@@ -367,7 +375,7 @@ export function RouteActionsPanel({
       <Modal
         opened={saveOpen}
         onClose={() => setSaveOpen(false)}
-        title="Save Route"
+        title={isUpdate ? 'Update Route' : 'Save Route'}
         radius={0}
         data-testid="rb2-save-modal"
       >
@@ -380,6 +388,15 @@ export function RouteActionsPanel({
             data-testid="rb2-save-name-input"
             styles={{ input: { borderRadius: 0 } }}
             autoFocus
+          />
+          <Textarea
+            label="Description (optional)"
+            value={description}
+            onChange={(e) => setDescription(e.currentTarget.value)}
+            placeholder="Where it goes, the surface, anything worth remembering…"
+            data-testid="rb2-save-description-input"
+            rows={3}
+            styles={{ input: { borderRadius: 0 } }}
           />
           <Group justify="flex-end" gap={6}>
             <Button variant="outline" onClick={() => setSaveOpen(false)} styles={buttonStyles}>
@@ -401,7 +418,13 @@ export function RouteActionsPanel({
                 },
               }}
             >
-              {persistence.isSaving ? <Loader size="xs" color="white" /> : 'Save'}
+              {persistence.isSaving ? (
+                <Loader size="xs" color="white" />
+              ) : isUpdate ? (
+                'Update'
+              ) : (
+                'Save'
+              )}
             </Button>
           </Group>
         </Stack>

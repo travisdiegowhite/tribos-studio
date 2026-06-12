@@ -165,9 +165,19 @@ function toLngLat(startLocation, fallbackCoords) {
  * coach fabricated wind would produce confidently wrong advice, so when the
  * key is missing or the call fails we omit the weather block entirely.
  */
+let warnedNoKey = false;
+
 export async function fetchWeatherAt(lat, lon) {
   const apiKey = process.env.OPENWEATHER_API_KEY;
-  if (!apiKey) return null;
+  if (!apiKey) {
+    if (!warnedNoKey) {
+      warnedNoKey = true;
+      console.warn(
+        '[route-coach] OPENWEATHER_API_KEY not configured — the coach will not reason about wind/weather.',
+      );
+    }
+    return null;
+  }
   if (!Number.isFinite(Number(lat)) || !Number.isFinite(Number(lon))) return null;
 
   try {

@@ -56,15 +56,31 @@ describe('RouteActionsPanel', () => {
     expect(screen.getByTestId('rb2-export-route-button')).toBeInTheDocument();
   });
 
-  it('opens Save modal, calls persistence.save with the entered name, fires onSaved', async () => {
+  it('opens Save modal, calls persistence.save with the entered name + description, fires onSaved', async () => {
     const onSaved = vi.fn();
     const { persistence } = renderPanel({ defaultName: 'Test', onSaved });
     fireEvent.click(screen.getByTestId('rb2-save-route-button'));
     const input = await screen.findByTestId('rb2-save-name-input');
     fireEvent.change(input, { target: { value: 'My Loop' } });
+    fireEvent.change(screen.getByTestId('rb2-save-description-input'), {
+      target: { value: 'Quiet gravel out east' },
+    });
     fireEvent.click(await screen.findByTestId('rb2-save-confirm'));
-    await waitFor(() => expect(persistence.save).toHaveBeenCalledWith('My Loop'));
+    await waitFor(() =>
+      expect(persistence.save).toHaveBeenCalledWith('My Loop', 'Quiet gravel out east'),
+    );
     expect(onSaved).toHaveBeenCalledWith('new-id');
+  });
+
+  it('pre-fills the description and shows "Update" when editing a saved route', async () => {
+    renderPanel({
+      defaultName: 'Existing',
+      defaultDescription: 'Loaded notes',
+      persistence: makePersistence({ savedRouteId: 'route-1' }),
+    });
+    fireEvent.click(screen.getByTestId('rb2-save-route-button'));
+    expect(await screen.findByTestId('rb2-save-description-input')).toHaveValue('Loaded notes');
+    expect(screen.getByTestId('rb2-save-confirm')).toHaveTextContent('Update');
   });
 
   it('opens Load modal, fetches list, and calls loadRoute on selection', async () => {

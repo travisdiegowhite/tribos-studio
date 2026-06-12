@@ -19,6 +19,7 @@
 import { useRouteBuilderStore } from '../../../stores/routeBuilderStore';
 import { supabase } from '../../../lib/supabase';
 import { applyRouteEdit } from '../../../utils/aiRouteEditService';
+import { trackRb2 } from '../telemetry/trackRb2';
 import {
   computeDistanceKm,
   rerouteShortened,
@@ -90,18 +91,28 @@ export async function applyAIEditViaCoach(
     });
 
     if (!res.ok) {
+      // Distinguish an infrastructure failure (rate limit / 5xx / network) from
+      // a normal Claude refusal so we can both alert on it and tell the user
+      // it's transient rather than "your edit was rejected".
       const err = await res.json().catch(() => ({}));
-      return {
-        ok: false,
-        reason: err.error || `endpoint returned ${res.status}`,
-        routeChanged: false,
-      };
+      const reason =
+        res.status === 429
+          ? "the coach is busy right now — give it a few seconds and try again"
+          : res.status >= 500
+            ? "the coach is temporarily unavailable — try again in a moment"
+            : err.error || `endpoint returned ${res.status}`;
+      trackRb2('coach_api_failed', { status: res.status });
+      return { ok: false, reason, routeChanged: false };
     }
 
     data = await res.json();
   } catch (err) {
-    const msg = err instanceof Error ? err.message : 'fetch failed';
-    return { ok: false, reason: msg, routeChanged: false };
+    trackRb2('coach_api_failed', { status: 0, error_name: err instanceof Error ? err.name : 'unknown' });
+    return {
+      ok: false,
+      reason: 'the coach is temporarily unreachable — check your connection and try again',
+      routeChanged: false,
+    };
   }
 
   const message = data.message || 'Done.';
