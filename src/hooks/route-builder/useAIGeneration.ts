@@ -13,6 +13,7 @@ import { generateAIRoutes } from '../../utils/aiRouteGenerator.js';
 import { supabase } from '../../lib/supabase';
 import { trackRb2 } from '../../features/route-builder-v2/telemetry/trackRb2';
 import { enrichRouteElevation } from './elevationEnrichment';
+import { resamplePositionsFromGeometry } from './waypointResample';
 import type {
   Coordinate,
   GenerationFormInput,
@@ -56,6 +57,26 @@ async function getCurrentUserId(): Promise<string | undefined> {
   }
 }
 
+/** How many control points to seed along a generated route for editability. */
+const GENERATED_WAYPOINT_SAMPLES = 6;
+
+/**
+ * Control-point coordinates for a generated route: resampled from the geometry
+ * (loop-closed, elevation-stripped) so the route is drag-editable, falling back
+ * to the stripped endpoints if sampling yields fewer than two distinct points.
+ */
+function waypointCoordsFor(
+  rawCoords: ReadonlyArray<ReadonlyArray<number>>,
+  coords: Coordinate[],
+): Coordinate[] {
+  const sampled = resamplePositionsFromGeometry(rawCoords, GENERATED_WAYPOINT_SAMPLES);
+  if (sampled.length >= 2) return sampled;
+  return [
+    [coords[0][0], coords[0][1]],
+    [coords[coords.length - 1][0], coords[coords.length - 1][1]],
+  ];
+}
+
 function toRouteSnapshot(
   route: Rb1RouteResult,
   durationMinutes: number,
@@ -76,18 +97,13 @@ function toRouteSnapshot(
       : 0;
   return {
     geometry: coords,
-    // Strip any elevation 3rd element — waypoint positions are strictly
-    // [lng, lat] per the T1.2 coordinate contract; the router rejects
-    // 3-element coords.
-    waypoints: [
-      { coordinate: [coords[0][0], coords[0][1]] as Coordinate },
-      {
-        coordinate: [
-          coords[coords.length - 1][0],
-          coords[coords.length - 1][1],
-        ] as Coordinate,
-      },
-    ],
+    // Seed several control points sampled from the geometry so generated
+    // routes — loops especially — are drag-editable (not just two coincident
+    // endpoints) and survive a profile change. Strips elevation; falls back to
+    // the endpoints when sampling can't produce ≥2 distinct points.
+    waypoints: waypointCoordsFor(route.coordinates, coords).map((coordinate) => ({
+      coordinate,
+    })),
     stats: {
       distance_km,
       elevation_gain_m,
