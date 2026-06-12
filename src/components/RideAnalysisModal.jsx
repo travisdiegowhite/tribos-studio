@@ -206,6 +206,13 @@ const RideAnalysisModal = ({
           message: result.error || 'This activity has been retried the maximum number of times.',
         });
         setResyncState({ loading: false, message: result.error, kind: 'error' });
+      } else if (status === 'backfill_requested') {
+        notifications.show({
+          color: 'teal',
+          title: 'Re-send requested',
+          message: result.message || "We've asked Garmin to re-send the FIT data for this ride. Refresh in a few minutes.",
+        });
+        setResyncState({ loading: false, message: result.message, kind: 'success' });
       } else if (status === 'no_integration' || status === 'no_token') {
         notifications.show({
           color: 'orange',
