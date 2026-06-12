@@ -26,6 +26,7 @@ export const ROUTE_PROFILE_OPTIONS = [
   { value: 'road', label: 'Road' },
   { value: 'gravel', label: 'Gravel' },
   { value: 'mountain', label: 'Mountain' },
+  { value: 'commuting', label: 'Commute' },
   { value: 'walking', label: 'Walking' },
 ] as const;
 

@@ -108,13 +108,16 @@ export function Map({
   const [ghost, setGhost] = useState<GhostState | null>(null);
   const [overLine, setOverLine] = useState(false);
   const [hoveredWp, setHoveredWp] = useState<number | null>(null);
-  // Live camera (bearing/pitch/lat/zoom) for the compass + scale bar.
+  // Live camera (bearing/pitch/lat/zoom) for the compass + scale bar. Updated
+  // from onMove, but gated (see below) so a continuous pan doesn't re-render
+  // the markers/layers every frame.
   const [camera, setCamera] = useState({
     bearing: 0,
     pitch: 0,
     latitude: map.viewport.latitude,
     zoom: map.viewport.zoom,
   });
+  const cameraRef = useRef(camera);
 
   const hasLine = !!routeGeometry && routeGeometry.coordinates.length >= 2;
 
@@ -237,17 +240,31 @@ export function Map({
       }}
       onMove={(evt) => {
         // Debounced write happens inside the hook; this fires per-frame.
+        const vs = evt.viewState;
         map.setViewport({
-          longitude: evt.viewState.longitude,
-          latitude: evt.viewState.latitude,
-          zoom: evt.viewState.zoom,
+          longitude: vs.longitude,
+          latitude: vs.latitude,
+          zoom: vs.zoom,
         });
-        setCamera({
-          bearing: evt.viewState.bearing,
-          pitch: evt.viewState.pitch,
-          latitude: evt.viewState.latitude,
-          zoom: evt.viewState.zoom,
-        });
+        // Only push camera state when it changes materially — the compass needs
+        // bearing/pitch responsiveness; the scale bar needs zoom and a coarse
+        // latitude. Pure panning at constant zoom no longer re-renders markers.
+        const prev = cameraRef.current;
+        const changed =
+          Math.abs(vs.bearing - prev.bearing) > 0.5 ||
+          Math.abs(vs.pitch - prev.pitch) > 0.5 ||
+          Math.abs(vs.zoom - prev.zoom) > 0.05 ||
+          Math.abs(vs.latitude - prev.latitude) > 0.01;
+        if (changed) {
+          const next = {
+            bearing: vs.bearing,
+            pitch: vs.pitch,
+            latitude: vs.latitude,
+            zoom: vs.zoom,
+          };
+          cameraRef.current = next;
+          setCamera(next);
+        }
       }}
       onClick={handleClick}
       onMouseDown={handleMouseDown}

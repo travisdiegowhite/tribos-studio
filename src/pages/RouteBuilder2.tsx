@@ -586,7 +586,8 @@ export default function RouteBuilder2() {
   const isLoading = generation.isGenerating || editing.isApplying || map.isApplying;
   const errorRaw =
     generation.lastError || editing.lastError || map.lastError || persistence.lastError || null;
-  const error = errorRaw && errorRaw !== errorDismissed ? errorRaw : null;
+  const error =
+    errorRaw && errorRaw !== errorDismissed ? friendlyRouteError(errorRaw) : null;
   const dismissError = () => setErrorDismissed(errorRaw);
 
   // Reasonable narrowed geometry typing for layer props
@@ -1216,6 +1217,28 @@ export default function RouteBuilder2() {
       </Box>
     </AppShell>
   );
+}
+
+/**
+ * Map a raw `lastError` reason (from the hooks) to human-readable copy for the
+ * on-map ErrorState. Unknown values pass through (already a sentence) so we
+ * never hide a useful message.
+ */
+function friendlyRouteError(raw: string): string {
+  const KNOWN: Record<string, string> = {
+    routing_failed:
+      "Couldn't route through there — try moving a point, or switch the routing profile.",
+    no_current_route: 'No route yet — generate or draw one first.',
+    'no current route': 'No route yet — generate or draw one first.',
+    no_route: 'No route yet — generate or draw one first.',
+    chat_translation_unavailable: "I couldn't act on that one — try rephrasing it.",
+    'No route to save': 'Draw or generate a route before saving.',
+    'No route to send': 'Draw or generate a route before sending it to your device.',
+    'No route to export': 'Draw or generate a route before exporting.',
+    context_missing: 'Sign in to use the coach.',
+    not_authenticated: 'Sign in to use the coach.',
+  };
+  return KNOWN[raw] ?? raw;
 }
 
 /**

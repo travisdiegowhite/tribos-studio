@@ -111,7 +111,16 @@ export function RouteActionsPanel({
       if (!file) return;
       trackRb2('import_gpx_selected', { file_size: file.size });
       const coords = await persistence.importGpx(file);
-      if (coords && onImported) onImported(coords);
+      if (coords) {
+        if (onImported) onImported(coords);
+      } else {
+        notifications.show({
+          title: 'Import failed',
+          message: persistence.lastError || "That GPX file couldn't be read.",
+          color: 'red',
+          autoClose: 6000,
+        });
+      }
     },
     [persistence, onImported],
   );
