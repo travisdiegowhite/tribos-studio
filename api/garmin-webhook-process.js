@@ -697,7 +697,7 @@ async function downloadAndProcessActivity(event, integration) {
   const fitFileUrl = event.file_url || webhookInfo?.callbackURL;
   if (fitFileUrl && integration.access_token) {
     console.log(`[FIT:DOWNLOAD] Processing FIT file for new activity ${activity.id}`);
-    await processFitFile(activity.id, fitFileUrl, integration.access_token, integration.user_id);
+    await processFitFile(activity.id, fitFileUrl, integration.access_token, integration.user_id, activityInfo.startTimeInSeconds);
   } else if (integration.access_token && activityInfo.startTimeInSeconds) {
     // No FIT URL on the new-activity webhook — common when Garmin only
     // sent CONNECT_ACTIVITY without the ACTIVITY_FILE_DATA follow-up.
@@ -869,7 +869,7 @@ async function handleDuplicateActivity(event, integration, activityData, activit
         );
 
         if (needsFitData) {
-          await processFitFile(dupCheck.existingActivity.id, fitFileUrl, integration.access_token);
+          await processFitFile(dupCheck.existingActivity.id, fitFileUrl, integration.access_token, integration.user_id, activityInfo?.startTimeInSeconds);
           console.log('[FIT:SUCCESS] FIT data added via merge path');
         }
       } catch (fitError) {
@@ -888,10 +888,42 @@ async function handleDuplicateActivity(event, integration, activityData, activit
   }
 }
 
-async function processFitFile(activityId, fitFileUrl, accessToken, userId = null) {
+async function processFitFile(activityId, fitFileUrl, accessToken, userId = null, startTimeInSeconds = null) {
   try {
     const athlete = await fetchAthleteProfile(userId);
     const fitResult = await downloadAndParseFitFile(fitFileUrl, accessToken, athlete);
+
+    // Surface download failures explicitly. downloadAndParseFitFile catches
+    // its own errors and returns { error: '...', polyline: null, ... } instead
+    // of throwing — without this branch the function would silently no-op
+    // (build an empty activityUpdate, fail the `> 1` gate, return), leaving
+    // the activity stranded as summary_only with no log and no recovery nudge.
+    if (fitResult.error) {
+      console.warn(`[FIT:DOWNLOAD-FAILED] activity ${activityId}: ${fitResult.error}`);
+      if (accessToken && startTimeInSeconds) {
+        await requestActivityDetailsBackfill(accessToken, startTimeInSeconds);
+        console.log(`[FIT:BACKFILL] Requested backfill after download failure for activity ${activityId}`);
+      }
+      return;
+    }
+
+    // Surface "downloaded successfully but parsed to nothing" — what's been
+    // happening for Garmin Edge 540 FIT files where the file is ~500 KB but
+    // easy-fit returns 0 records (likely format-version mismatch with the
+    // pre-1.0 easy-fit library). Same downstream symptom as the download
+    // failure case: no polyline, no streams, no power, every `if` skipped,
+    // gate fails, activity stays summary_only forever.
+    const hasUsableContent = Boolean(
+      fitResult.polyline || fitResult.activityStreams || fitResult.powerMetrics
+    );
+    if (!hasUsableContent) {
+      console.warn(`[FIT:EMPTY] activity ${activityId}: FIT downloaded but parsed empty (pointCount=${fitResult.pointCount ?? 0}, hasGpsData=${fitResult.hasGpsData}, hasPowerData=${fitResult.hasPowerData})`);
+      if (accessToken && startTimeInSeconds) {
+        await requestActivityDetailsBackfill(accessToken, startTimeInSeconds);
+        console.log(`[FIT:BACKFILL] Requested backfill after empty FIT for activity ${activityId}`);
+      }
+      return;
+    }
 
     const activityUpdate = { updated_at: new Date().toISOString() };
 
