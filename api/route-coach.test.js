@@ -161,6 +161,40 @@ describe('route-coach handler — tool-use', () => {
     expect(messagesCreate).toHaveBeenCalledTimes(1);
   });
 
+  it('collects multiple edits in one turn for a compound request', async () => {
+    messagesCreate.mockResolvedValueOnce({
+      stop_reason: 'tool_use',
+      content: [
+        { type: 'text', text: 'Adding climbing and stretching it out.' },
+        {
+          type: 'tool_use',
+          id: 't1',
+          name: 'apply_route_edit',
+          input: { intent: 'add_climbing', reasoning: 'hillier' },
+        },
+        {
+          type: 'tool_use',
+          id: 't2',
+          name: 'apply_route_edit',
+          input: { intent: 'longer', target_distance_km: 45, reasoning: 'longer' },
+        },
+      ],
+      usage: { input_tokens: 10, output_tokens: 20 },
+    });
+
+    const res = makeRes();
+    await handler(
+      makeReq({ message: 'make it hillier and longer', routeId: 'r1', routeSnapshot: VALID_SNAPSHOT }),
+      res,
+    );
+
+    expect(res.statusCode).toBe(200);
+    expect(res.body.proposedEdits).toHaveLength(2);
+    expect(res.body.proposedEdits.map((e) => e.intent)).toEqual(['add_climbing', 'longer']);
+    // Back-compat: single field is the first edit.
+    expect(res.body.proposedEdit.intent).toBe('add_climbing');
+  });
+
   it('returns no proposedEdit when Claude only asks a clarifying question', async () => {
     messagesCreate.mockResolvedValueOnce({
       stop_reason: 'end_turn',

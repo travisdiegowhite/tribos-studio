@@ -773,6 +773,7 @@ export default function RouteBuilder2() {
         routeName={routeName}
         onClear={handleClearRoute}
         isImperial={isImperial}
+        surfaceSegments={surfaceSegments}
       />
     ) : null;
 
