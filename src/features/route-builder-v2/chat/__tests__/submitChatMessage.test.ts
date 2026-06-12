@@ -111,8 +111,8 @@ describe('submitChatMessage — edit success', () => {
     const lastCall = append.mock.calls[append.mock.calls.length - 1][0];
     expect(lastCall.role).toBe('assistant');
     expect(lastCall.text).toContain('Found a flatter route');
-    expect(lastCall.text).toContain('24km');
-    expect(lastCall.text).toContain('60m');
+    expect(lastCall.text).toContain('24.0 km');
+    expect(lastCall.text).toContain('60 m');
     expect(persistTurn).toHaveBeenCalledWith('make it flatter', lastCall.text);
   });
 
@@ -177,8 +177,8 @@ describe('submitChatMessage — generate fresh route', () => {
     expect(applyAIEditImpl).not.toHaveBeenCalled();
     const lastCall = append.mock.calls[append.mock.calls.length - 1][0];
     expect(lastCall.role).toBe('assistant');
-    expect(lastCall.text).toContain('40km');
-    expect(lastCall.text).toContain('520m');
+    expect(lastCall.text).toContain('40.0 km');
+    expect(lastCall.text).toContain('520 m');
     expect(persistTurn).toHaveBeenCalledWith(
       'build me a hilly 40km loop from downtown',
       lastCall.text,
@@ -248,6 +248,111 @@ describe('submitChatMessage — generate fresh route', () => {
     expect(expand).toHaveBeenCalledTimes(1);
     const lastCall = append.mock.calls[append.mock.calls.length - 1][0];
     expect(lastCall.text).toMatch(/form/i);
+  });
+
+  it('renders imperial units in the reply when isImperial is set', async () => {
+    const onGenerateFromPrompt = vi.fn().mockResolvedValue({
+      ok: true,
+      distance_km: 64.4,
+      elevation_gain_m: 610,
+    });
+    const { args, append } = makeArgs({
+      input: 'build me a 40 mile loop',
+      isImperial: true,
+      onGenerateFromPrompt,
+    });
+
+    await submitChatMessage(args);
+
+    const lastCall = append.mock.calls[append.mock.calls.length - 1][0];
+    expect(lastCall.text).toContain('40.0 mi');
+    expect(lastCall.text).toContain('2001 ft');
+  });
+
+  it('appends a route-options message with cards when alternatives exist', async () => {
+    const options = [
+      {
+        index: 0,
+        name: 'Northeast Loop',
+        distance_km: 72.1,
+        elevation_gain_m: 520,
+        direction_label: 'Northeast',
+        familiarity_percent: null,
+        surface_label: 'gravel-biased',
+      },
+      {
+        index: 1,
+        name: 'Northeast Loop (ccw)',
+        distance_km: 75.4,
+        elevation_gain_m: 480,
+        direction_label: 'Northeast',
+        familiarity_percent: 22,
+        surface_label: 'gravel-biased',
+      },
+      {
+        index: 2,
+        name: 'East Loop',
+        distance_km: 69.8,
+        elevation_gain_m: 610,
+        direction_label: 'East',
+        familiarity_percent: null,
+        surface_label: 'gravel-biased',
+      },
+    ];
+    const onGenerateFromPrompt = vi.fn().mockResolvedValue({
+      ok: true,
+      distance_km: 72.1,
+      elevation_gain_m: 520,
+      name: 'Northeast Loop',
+      options,
+    });
+    const { args, append, persistTurn } = makeArgs({
+      input: 'build me a loop heading east and north',
+      isImperial: true,
+      onGenerateFromPrompt,
+    });
+
+    await submitChatMessage(args);
+
+    const lastCall = append.mock.calls[append.mock.calls.length - 1][0];
+    expect(lastCall.role).toBe('assistant');
+    expect(lastCall.kind).toBe('route-options');
+    expect(lastCall.options).toHaveLength(3);
+    expect(lastCall.selectedOptionIndex).toBe(0);
+    expect(lastCall.text).toMatch(/3 options heading northeast/i);
+    expect(lastCall.text).toContain('44.8 mi');
+    // Persistence carries a readable per-option summary (cards are session-only).
+    const persisted = persistTurn.mock.calls[0][1];
+    expect(persisted).toContain('1) Northeast Loop');
+    expect(persisted).toContain('3) East Loop');
+  });
+
+  it('keeps the plain single-route reply when only one option exists', async () => {
+    const onGenerateFromPrompt = vi.fn().mockResolvedValue({
+      ok: true,
+      distance_km: 30,
+      elevation_gain_m: 150,
+      options: [
+        {
+          index: 0,
+          name: 'Solo loop',
+          distance_km: 30,
+          elevation_gain_m: 150,
+          direction_label: '',
+          familiarity_percent: null,
+        },
+      ],
+    });
+    const { args, append } = makeArgs({
+      input: 'build me a loop via River Trail',
+      onGenerateFromPrompt,
+    });
+
+    await submitChatMessage(args);
+
+    const lastCall = append.mock.calls[append.mock.calls.length - 1][0];
+    expect(lastCall.kind).toBeUndefined();
+    expect(lastCall.text).toMatch(/built you a/i);
   });
 
   it('still edits an existing route for non-build phrasing', async () => {

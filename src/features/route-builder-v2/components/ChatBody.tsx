@@ -13,7 +13,8 @@ import { useState } from 'react';
 import { Box, Text, TextInput, UnstyledButton } from '@mantine/core';
 import { PaperPlaneRight } from '@phosphor-icons/react';
 import { RB2, RB2_FONT } from './brand';
-import type { ChatMessage } from '../chat/types';
+import { formatDistance, formatElevation } from '../../../utils/units';
+import type { ChatMessage, RouteOptionSummary } from '../chat/types';
 
 export interface ChatBodyProps {
   fillHeight?: boolean;
@@ -22,6 +23,10 @@ export interface ChatBodyProps {
   exampleHint: readonly string[];
   showAfterRefuseHint: boolean;
   onSubmit: (text: string) => void;
+  /** Selects a generated route option card (messageId, option index). */
+  onSelectOption?: (messageId: string, index: number) => void;
+  /** Render card stats in the rider's units. */
+  isImperial?: boolean;
 }
 
 export function ChatBody({
@@ -31,6 +36,8 @@ export function ChatBody({
   exampleHint,
   showAfterRefuseHint,
   onSubmit,
+  onSelectOption,
+  isImperial = false,
 }: ChatBodyProps) {
   const [draft, setDraft] = useState('');
 
@@ -78,6 +85,15 @@ export function ChatBody({
         {messages.map((m, i) => (
           <Box key={m.id}>
             <Bubble role={m.role} text={m.text} />
+            {m.kind === 'route-options' && (m.options?.length ?? 0) > 0 && (
+              <RouteOptionCards
+                options={m.options as RouteOptionSummary[]}
+                selectedIndex={m.selectedOptionIndex ?? 0}
+                isImperial={isImperial}
+                disabled={isProcessing}
+                onSelect={(index) => onSelectOption?.(m.id, index)}
+              />
+            )}
             {i === lastRefuseIndex && showAfterRefuseHint && exampleHint.length > 0 && (
               <ExampleList data-testid="rb2-chat-refuse-examples" items={exampleHint} prominent />
             )}
@@ -148,6 +164,97 @@ export function ChatBody({
           <ExampleList data-testid="rb2-chat-examples-hint" items={exampleHint} />
         )}
       </Box>
+    </Box>
+  );
+}
+
+interface RouteOptionCardsProps {
+  options: RouteOptionSummary[];
+  selectedIndex: number;
+  isImperial: boolean;
+  disabled: boolean;
+  onSelect: (index: number) => void;
+}
+
+function RouteOptionCards({
+  options,
+  selectedIndex,
+  isImperial,
+  disabled,
+  onSelect,
+}: RouteOptionCardsProps) {
+  return (
+    <Box
+      data-testid="rb2-chat-route-options"
+      style={{ marginTop: 8, display: 'flex', flexDirection: 'column', gap: 6 }}
+    >
+      {options.map((option) => {
+        const selected = option.index === selectedIndex;
+        return (
+          <UnstyledButton
+            key={option.index}
+            data-testid={`rb2-chat-route-option-${option.index}`}
+            onClick={() => {
+              if (!disabled && !selected) onSelect(option.index);
+            }}
+            aria-pressed={selected}
+            aria-label={`Route option ${option.index + 1}: ${option.name}`}
+            style={{
+              padding: '8px 10px',
+              backgroundColor: selected ? RB2.bgSecondary : RB2.cardBg,
+              border: selected ? `2px solid ${RB2.teal}` : `1px solid ${RB2.border}`,
+              borderRadius: 0,
+              cursor: disabled || selected ? 'default' : 'pointer',
+              opacity: disabled && !selected ? 0.6 : 1,
+              textAlign: 'left',
+            }}
+          >
+            <Box style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 8 }}>
+              <Text
+                style={{
+                  fontFamily: RB2_FONT.heading,
+                  fontSize: 12,
+                  fontWeight: 700,
+                  letterSpacing: '0.04em',
+                  color: RB2.textPrimary,
+                }}
+              >
+                {option.name}
+              </Text>
+              {selected && (
+                <Text
+                  style={{
+                    fontFamily: RB2_FONT.mono,
+                    fontSize: 9,
+                    letterSpacing: '0.1em',
+                    textTransform: 'uppercase',
+                    color: RB2.teal,
+                    flexShrink: 0,
+                  }}
+                >
+                  On map
+                </Text>
+              )}
+            </Box>
+            <Text
+              style={{
+                fontFamily: RB2_FONT.mono,
+                fontSize: 11,
+                color: RB2.textSecondary,
+                marginTop: 2,
+              }}
+            >
+              {formatDistance(option.distance_km, isImperial)} ·{' '}
+              {formatElevation(option.elevation_gain_m, isImperial)} climbing
+              {option.direction_label ? ` · ${option.direction_label}` : ''}
+              {option.surface_label ? ` · ${option.surface_label}` : ''}
+              {typeof option.familiarity_percent === 'number' && option.familiarity_percent > 0
+                ? ` · ${option.familiarity_percent}% familiar`
+                : ''}
+            </Text>
+          </UnstyledButton>
+        );
+      })}
     </Box>
   );
 }

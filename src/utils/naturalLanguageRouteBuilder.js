@@ -9,6 +9,12 @@
  * writes. Callers apply the returned route to their own state. Progress can be
  * surfaced via the optional `context.onProgress(stage)` callback.
  *
+ * The pipeline is split into `parseRouteRequest` (one Claude call) and
+ * `generateRouteFromParsedRequest` (routing) so multi-candidate callers
+ * (`naturalLanguageRouteCandidates.ts`) can parse once and build several
+ * route variants. `generateRouteFromNaturalLanguage` composes the two and
+ * keeps the original single-route API.
+ *
  * Feature parity with RB1's handler:
  *   - familiar-roads loop waypoints (when `context.accessToken` is supplied and
  *     the rider prefers familiar roads),
@@ -29,25 +35,15 @@ import { M_TO_KM } from './distanceUnits';
 const DEFAULT_AVG_SPEED_KMH = 28;
 
 /**
- * Generate a fresh route from a free-text request.
+ * Parse a free-text route request into structured parameters (one Claude
+ * call) and resolve the start coordinate.
  *
  * @param {string} userRequest - e.g. "build me a hilly 40km loop from downtown"
- * @param {object} context
- * @param context.biasCoord - map viewport center [lng, lat] (geocode bias + last-resort start)
- * @param [context.userLocation] - geolocated [lng, lat]
- * @param [context.placedStart] - a manually placed start [lng, lat]
- * @param {object|null} [context.weather] - current weather for prompt context
- * @param {object|null} [context.calendar] - { todaysWorkout, upcomingWorkouts } for prompt context
- * @param {string} [context.profile] - current routing profile ('road' | 'gravel' | 'mountain')
- * @param {object|null} [context.speedProfile] - { average_speed } for distance/time math
- * @param {boolean} [context.useIterativeBuilder] - defaults to true (RB1 default)
- * @param {string|null} [context.accessToken] - Supabase session token; enables familiar-roads + scoring
- * @param {(stage: string) => void} [context.onProgress] - optional progress callback ('familiar' | 'iterative' | 'smart')
- * @returns {Promise<{coordinates, distanceKm, elevationGain, duration_s, name, source, parsed, familiarityScore, meta}>}
- *   `meta` is `{ segmentsUsed, waypointsUsed }` when familiar-roads waypoints were used, else null/undefined.
- * @throws {Error} 'NO_START' when no start coordinate can be resolved; other errors on parse/routing failure.
+ * @param {object} context - same shape as `generateRouteFromNaturalLanguage`
+ * @returns {Promise<{parsed, startLocation, routeProfile, goal, type, preferFamiliar, durationMinutes, targetDistanceKm, direction}>}
+ * @throws {Error} 'NO_START' when no start coordinate can be resolved; other errors on parse failure.
  */
-export async function generateRouteFromNaturalLanguage(userRequest, context = {}) {
+export async function parseRouteRequest(userRequest, context = {}) {
   const {
     biasCoord = null,
     userLocation = null,
@@ -56,15 +52,7 @@ export async function generateRouteFromNaturalLanguage(userRequest, context = {}
     calendar = null,
     profile = 'road',
     speedProfile = null,
-    useIterativeBuilder = true,
-    accessToken = null,
-    onProgress = null,
   } = context;
-
-  const mapboxToken = import.meta.env.VITE_MAPBOX_TOKEN;
-  const progress = (stage) => {
-    try { onProgress?.(stage); } catch { /* progress is best-effort */ }
-  };
 
   // Step 1: ask Claude to extract waypoint names / distance / goal / surface.
   const prompt = buildNaturalLanguagePrompt(
@@ -103,6 +91,56 @@ export async function generateRouteFromNaturalLanguage(userRequest, context = {}
   const goal = parsed.trainingGoal || 'endurance';
   const type = parsed.routeType || 'loop';
   const preferFamiliar = Boolean(parsed.preferences?.preferFamiliar);
+  const durationMinutes = parsed.timeAvailable || 60;
+  const avgSpeedKmh = speedProfile?.average_speed || DEFAULT_AVG_SPEED_KMH;
+  const targetDistanceKm = parsed.targetDistanceKm || (durationMinutes / 60) * avgSpeedKmh;
+  const direction = parsed.direction || null;
+
+  return {
+    parsed,
+    startLocation,
+    routeProfile,
+    goal,
+    type,
+    preferFamiliar,
+    durationMinutes,
+    targetDistanceKm,
+    direction,
+  };
+}
+
+/**
+ * Generate a route from an already-parsed request (see `parseRouteRequest`).
+ * No Claude call happens here — only geocoding/routing/scoring.
+ *
+ * @param {Awaited<ReturnType<typeof parseRouteRequest>>} request
+ * @param {object} context - same shape as `generateRouteFromNaturalLanguage`
+ * @returns {Promise<{coordinates, distanceKm, elevationGain, duration_s, name, source, parsed, familiarityScore, meta}>}
+ */
+export async function generateRouteFromParsedRequest(request, context = {}) {
+  const {
+    speedProfile = null,
+    useIterativeBuilder = true,
+    accessToken = null,
+    onProgress = null,
+  } = context;
+
+  const {
+    parsed,
+    startLocation,
+    routeProfile,
+    goal,
+    type,
+    preferFamiliar,
+    durationMinutes,
+    targetDistanceKm,
+    direction,
+  } = request;
+
+  const mapboxToken = import.meta.env.VITE_MAPBOX_TOKEN;
+  const progress = (stage) => {
+    try { onProgress?.(stage); } catch { /* progress is best-effort */ }
+  };
 
   // Step 3a: explicit named waypoints → geocode and route through them.
   if (parsed.waypoints && parsed.waypoints.length > 0) {
@@ -149,10 +187,6 @@ export async function generateRouteFromNaturalLanguage(userRequest, context = {}
   }
 
   // Step 3b: no named waypoints → distance/duration-driven routing.
-  const duration = parsed.timeAvailable || 60;
-  const direction = parsed.direction || null;
-  const avgSpeed = speedProfile?.average_speed || DEFAULT_AVG_SPEED_KMH;
-  const targetDistanceKm = parsed.targetDistanceKm || (duration / 60) * avgSpeed;
 
   // Non-iterative smart-waypoints fallback (RB1's path when the iterative
   // builder is disabled). aiRouteGenerator is large, so it's dynamically
@@ -160,7 +194,7 @@ export async function generateRouteFromNaturalLanguage(userRequest, context = {}
   if (!useIterativeBuilder) {
     progress('smart');
     const { generateSmartWaypoints } = await import('./aiRouteGenerator.js');
-    const waypointCoords = generateSmartWaypoints(startLocation, duration, type, goal, speedProfile, direction);
+    const waypointCoords = generateSmartWaypoints(startLocation, durationMinutes, type, goal, speedProfile, direction);
     if (!waypointCoords || waypointCoords.length < 2) {
       throw new Error('Could not generate route waypoints. Please try again.');
     }
@@ -266,4 +300,28 @@ export async function generateRouteFromNaturalLanguage(userRequest, context = {}
     familiarityScore,
     meta,
   };
+}
+
+/**
+ * Generate a fresh route from a free-text request.
+ *
+ * @param {string} userRequest - e.g. "build me a hilly 40km loop from downtown"
+ * @param {object} context
+ * @param context.biasCoord - map viewport center [lng, lat] (geocode bias + last-resort start)
+ * @param [context.userLocation] - geolocated [lng, lat]
+ * @param [context.placedStart] - a manually placed start [lng, lat]
+ * @param {object|null} [context.weather] - current weather for prompt context
+ * @param {object|null} [context.calendar] - { todaysWorkout, upcomingWorkouts } for prompt context
+ * @param {string} [context.profile] - current routing profile ('road' | 'gravel' | 'mountain')
+ * @param {object|null} [context.speedProfile] - { average_speed } for distance/time math
+ * @param {boolean} [context.useIterativeBuilder] - defaults to true (RB1 default)
+ * @param {string|null} [context.accessToken] - Supabase session token; enables familiar-roads + scoring
+ * @param {(stage: string) => void} [context.onProgress] - optional progress callback ('familiar' | 'iterative' | 'smart')
+ * @returns {Promise<{coordinates, distanceKm, elevationGain, duration_s, name, source, parsed, familiarityScore, meta}>}
+ *   `meta` is `{ segmentsUsed, waypointsUsed }` when familiar-roads waypoints were used, else null/undefined.
+ * @throws {Error} 'NO_START' when no start coordinate can be resolved; other errors on parse/routing failure.
+ */
+export async function generateRouteFromNaturalLanguage(userRequest, context = {}) {
+  const request = await parseRouteRequest(userRequest, context);
+  return generateRouteFromParsedRequest(request, context);
 }

@@ -99,7 +99,7 @@ Return ONLY a JSON object:
   "surfaceType": "gravel|paved|mixed",
   "avoidHighways": true/false,
   "trainingGoal": "endurance|intervals|recovery|hills" or null,
-  "direction": "north|south|east|west" if user mentioned a direction,
+  "direction": "north|northeast|east|southeast|south|southwest|west|northwest" if user mentioned a direction — when they combine directions (e.g. "east and north", "out west then south"), resolve to the single closest compass value (here "northeast" and "southwest"),
   "preferFamiliar": true if user mentions "familiar roads", "roads I know", "my usual routes", or similar
 }
 
@@ -134,6 +134,18 @@ Response:
   "distance": 64.4,
   "surfaceType": "gravel"
 }
+
+User: "Lets do a loop that heads east and north, try and make it 50% gravel, between 40-50 miles"
+Response:
+{
+  "startLocation": null,
+  "waypoints": [],
+  "routeType": "loop",
+  "distance": 72.4,
+  "surfaceType": "gravel",
+  "direction": "northeast"
+}
+Note: distance ranges resolve to the midpoint (45 miles = 72.4 km); combined directions resolve to one compass value.
 
 User: "Create a route for today's workout" (when today's workout is a 90-minute endurance ride)
 Response:

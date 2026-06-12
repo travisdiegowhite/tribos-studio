@@ -83,8 +83,12 @@ import type { WorkoutDefinition } from '../types/training';
 import { trackRb2 } from '../features/route-builder-v2/telemetry/trackRb2';
 import { coordinateAtDistanceKm } from '../utils/elevation';
 import { getAnyWorkoutById } from '../data/workoutLookup';
-import { generateRouteFromNaturalLanguage } from '../utils/naturalLanguageRouteBuilder';
-import type { GenerateOutcome } from '../features/route-builder-v2/chat';
+import {
+  generateRouteCandidatesFromNaturalLanguage,
+  type RouteCandidate,
+} from '../utils/naturalLanguageRouteCandidates';
+import { fetchRouteSurfaceData, computeSurfaceDistribution } from '../utils/surfaceOverlay.js';
+import type { GenerateOutcome, RouteOptionSummary } from '../features/route-builder-v2/chat';
 import { generateCuesFromWorkoutStructure } from '../utils/intervalCues.js';
 import {
   categoryToGoal,
@@ -200,10 +204,9 @@ export default function RouteBuilder2() {
   const waypoints = useRouteBuilderStore((s) => s.waypoints);
   const viewport = useRouteBuilderStore((s) => s.viewport);
   const setWaypointsInStore = useRouteBuilderStore((s) => s.setWaypoints);
-  const setRouteGeometryInStore = useRouteBuilderStore((s) => s.setRouteGeometry);
   const setRouteStatsInStore = useRouteBuilderStore((s) => s.setRouteStats);
   const setRouteNameInStore = useRouteBuilderStore((s) => s.setRouteName);
-  const setBuilderMode = useRouteBuilderStore((s) => s.setBuilderMode);
+  const setAiSuggestions = useRouteBuilderStore((s) => s.setAiSuggestions);
   const clearRouteInStore = useRouteBuilderStore((s) => s.clearRoute);
 
   // Map viewport center as a last-resort start_coord fallback for the form.
@@ -298,6 +301,65 @@ export default function RouteBuilder2() {
   });
   const formPanelRef = useRef<FormPanelHandle | null>(null);
 
+  // Candidates from the latest chat-driven generation, parallel to the
+  // `aiSuggestions` store array (same order). Session-only, like the store
+  // field — carries the per-candidate name/profile/familiarity the snapshot
+  // shape doesn't.
+  const chatCandidatesRef = useRef<RouteCandidate[]>([]);
+
+  // Monotonic guard so a slow Overpass surface check for a route the rider
+  // has already switched away from never posts a stale chat line.
+  const surfaceCheckSeqRef = useRef(0);
+
+  // Fail-soft surface follow-up for the applied route (gravel requests only):
+  // one Overpass fetch, reused by the SurfaceSummaryBar via the shared
+  // segments state, plus a short chat line with the actual unpaved share.
+  const appendChatMessage = chat.append;
+  const runSurfaceCheck = useCallback(
+    (candidate: RouteCandidate) => {
+      if (candidate.surface_profile !== 'gravel') return;
+      const geometry = candidate.snapshot.geometry;
+      const seq = ++surfaceCheckSeqRef.current;
+      void (async () => {
+        try {
+          const segments = (await fetchRouteSurfaceData(
+            geometry as Array<[number, number]>,
+          )) as string[] | null;
+          if (seq !== surfaceCheckSeqRef.current) return;
+          if (!segments || segments.length === 0) return;
+          setSurfaceSegments(segments);
+          const dist = computeSurfaceDistribution(segments) as Record<string, number>;
+          const unpavedPct = Math.round((dist.gravel ?? 0) + (dist.unpaved ?? 0));
+          appendChatMessage({
+            role: 'assistant',
+            text: `Surface check: ~${unpavedPct}% unpaved on this one.`,
+          });
+        } catch {
+          /* fail-soft — the route works without the surface line */
+        }
+      })();
+    },
+    [appendChatMessage],
+  );
+
+  // Name/profile/familiarity aren't part of the RouteSnapshot that
+  // `selectSuggestion` commits — apply them from the candidate alongside.
+  const applyCandidateExtras = useCallback(
+    (candidate: RouteCandidate) => {
+      if (candidate.name) setRouteNameInStore(candidate.name);
+      if (candidate.surface_profile === 'gravel') setRouteProfile('gravel');
+      setRouteStatsInStore((prev: Record<string, unknown>) => ({
+        ...prev,
+        familiarityScore:
+          candidate.familiarity_percent != null
+            ? { familiarityPercent: candidate.familiarity_percent }
+            : null,
+      }));
+      runSurfaceCheck(candidate);
+    },
+    [setRouteNameInStore, setRouteProfile, setRouteStatsInStore, runSurfaceCheck],
+  );
+
   // Auto-apply the first suggestion when generate() returns. The hook
   // separates `generate` (writes to aiSuggestions) from `selectSuggestion`
   // (commits geometry + waypoints to the store) — the harness needs that
@@ -305,17 +367,22 @@ export default function RouteBuilder2() {
   // so a freshly generated route should land in the live store
   // immediately. Without this, the route renders only from leftover
   // persisted state and manual edits fail with `constraint_infeasible`
-  // because waypoints stay empty.
+  // because waypoints stay empty. Chat-driven generations land here too —
+  // candidates are ordered best-first, so suggestion[0] is the winner.
   const lastAppliedRef = useRef<unknown>(null);
   useEffect(() => {
     const first = generation.suggestions[0];
     if (!first || first === lastAppliedRef.current) return;
     lastAppliedRef.current = first;
     generation.selectSuggestion(0);
+    const chatCandidate = chatCandidatesRef.current[0];
+    if (chatCandidate && chatCandidate.snapshot === first) {
+      applyCandidateExtras(chatCandidate);
+    }
     // A route just landed — collapse the desktop GenerateBar so the chat
     // reclaims the dock height.
     setGenerateExpanded(false);
-  }, [generation]);
+  }, [generation, applyCandidateExtras]);
 
   // Backfill waypoints from geometry endpoints. v1 sometimes persists a
   // route without a populated waypoints array (loaded routes, legacy
@@ -341,6 +408,7 @@ export default function RouteBuilder2() {
     clearRouteInStore();
     generation.clearSuggestions();
     lastAppliedRef.current = null;
+    chatCandidatesRef.current = [];
     trackRb2('route_cleared', {});
   };
 
@@ -393,14 +461,16 @@ export default function RouteBuilder2() {
     },
   });
 
-  // Create a fresh route straight from a chat prompt, reusing RB1's
-  // natural-language builder (Claude parse → geocode → iterative routing) and
-  // writing the result into the RB2 store. The geometry→endpoints effect then
-  // seeds start/end waypoints so manual editing works afterwards.
+  // Create fresh route candidates straight from a chat prompt, reusing RB1's
+  // natural-language pipeline (one Claude parse → up to three iterative
+  // routing variants, scored best-first). Snapshots land in the suggestions
+  // store; the auto-apply effect commits the winner (geometry + stats +
+  // resampled editable waypoints) and the chat renders the rest as option
+  // cards the rider can switch between.
   const handleGenerateFromPrompt = useCallback(
     async (prompt: string): Promise<GenerateOutcome> => {
       try {
-        const r = await generateRouteFromNaturalLanguage(prompt, {
+        const candidates = await generateRouteCandidatesFromNaturalLanguage(prompt, {
           biasCoord: viewportCenter,
           userLocation: userLocation.coord ?? null,
           placedStart: waypoints?.[0]?.position ?? null,
@@ -409,23 +479,29 @@ export default function RouteBuilder2() {
           useIterativeBuilder: true,
           accessToken,
         });
-        setRouteGeometryInStore({ type: 'LineString', coordinates: r.coordinates });
-        setRouteStatsInStore({
-          distance_km: r.distanceKm,
-          elevation_gain_m: r.elevationGain,
-          duration_s: r.duration_s,
-          familiarityScore: r.familiarityScore ?? null,
-        });
-        setWaypointsInStore([]);
-        setBuilderMode('editing');
-        if (r.parsed?.preferences?.surfaceType === 'gravel') setRouteProfile('gravel');
-        if (r.name) setRouteNameInStore(r.name);
+        chatCandidatesRef.current = candidates;
+        setAiSuggestions(candidates.map((c) => c.snapshot));
+
+        const best = candidates[0];
+        const options: RouteOptionSummary[] | undefined =
+          candidates.length > 1
+            ? candidates.map((c, index) => ({
+                index,
+                name: c.name,
+                distance_km: c.snapshot.stats.distance_km,
+                elevation_gain_m: c.snapshot.stats.elevation_gain_m,
+                direction_label: c.direction_label,
+                familiarity_percent: c.familiarity_percent,
+                surface_label: c.surface_profile === 'gravel' ? 'gravel-biased' : undefined,
+              }))
+            : undefined;
         return {
           ok: true,
-          distance_km: r.distanceKm,
-          elevation_gain_m: r.elevationGain,
-          name: r.name,
-          familiarity_percent: r.familiarityScore?.familiarityPercent ?? null,
+          distance_km: best.snapshot.stats.distance_km,
+          elevation_gain_m: best.snapshot.stats.elevation_gain_m,
+          name: best.name,
+          familiarity_percent: best.familiarity_percent,
+          options,
         };
       } catch (e) {
         const message = e instanceof Error ? e.message : String(e);
@@ -439,13 +515,25 @@ export default function RouteBuilder2() {
       waypoints,
       weather.weather,
       routeProfile,
-      setRouteGeometryInStore,
-      setRouteStatsInStore,
-      setWaypointsInStore,
-      setBuilderMode,
-      setRouteProfile,
-      setRouteNameInStore,
+      setAiSuggestions,
     ],
+  );
+
+  // Switch the map/store to a different chat-generated option. The
+  // suggestions array is untouched (no auto-apply refire — that effect only
+  // reacts to a *new* array), so switching back and forth is free.
+  const handleSelectRouteOption = useCallback(
+    (messageId: string, index: number) => {
+      const chosen = generation.selectSuggestion(index);
+      if (!chosen) return;
+      const candidate = chatCandidatesRef.current[index];
+      if (candidate && candidate.snapshot === chosen) {
+        applyCandidateExtras(candidate);
+      }
+      chat.updateMessage(messageId, { selectedOptionIndex: index });
+      trackRb2('chat_route_option_selected', { option_index: index });
+    },
+    [generation, applyCandidateExtras, chat],
   );
 
   const handleChatSubmit = useCallback(
@@ -460,6 +548,7 @@ export default function RouteBuilder2() {
         hasRoute: hasRouteForChat,
         routeId: routeIdFromUrl ?? null,
         conversationHistory,
+        isImperial,
         append: chat.append,
         setProcessing: chat.setProcessing,
         markRefused: chat.markRefused,
@@ -471,6 +560,7 @@ export default function RouteBuilder2() {
     [
       hasRouteForChat,
       routeIdFromUrl,
+      isImperial,
       chat.messages,
       chat.append,
       chat.setProcessing,
@@ -958,6 +1048,8 @@ export default function RouteBuilder2() {
                 exampleHint={EXAMPLE_PHRASES}
                 showAfterRefuseHint={chat.showAfterRefuseHint}
                 onSubmit={handleChatSubmit}
+                onSelectOption={handleSelectRouteOption}
+                isImperial={isImperial}
                 header={
                   <GenerateBar
                     key={`gen-${pickedWorkoutId ?? 'none'}`}
@@ -1129,6 +1221,8 @@ export default function RouteBuilder2() {
           exampleHint={EXAMPLE_PHRASES}
           showAfterRefuseHint={chat.showAfterRefuseHint}
           onSubmit={handleChatSubmit}
+          onSelectOption={handleSelectRouteOption}
+          isImperial={isImperial}
         />
       ),
     },

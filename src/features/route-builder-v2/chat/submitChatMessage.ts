@@ -10,8 +10,9 @@
  * and opens the form panel. Everything else goes through the endpoint.
  */
 import { applyAIEditViaCoach } from './applyAIEditViaCoach';
-import type { ChatMessage } from './types';
+import type { ChatMessage, RouteOptionSummary } from './types';
 import { trackRb2 } from '../telemetry/trackRb2';
+import { formatDistance, formatElevation } from '../../../utils/units';
 
 export interface FormPanelControl {
   expand: () => void;
@@ -28,11 +29,17 @@ type ApplyAIEditImpl = typeof applyAIEditViaCoach;
 export type GenerateOutcome =
   | {
       ok: true;
+      /** Stats of the applied (best) route. */
       distance_km: number;
       elevation_gain_m: number;
       name?: string;
       /** % of the route on roads the rider has ridden before, when available. */
       familiarity_percent?: number | null;
+      /**
+       * All generated candidates (applied one first) when alternatives exist.
+       * Indexes line up with the `aiSuggestions` store.
+       */
+      options?: RouteOptionSummary[];
     }
   | { ok: false; reason: 'no_start' | string };
 
@@ -41,6 +48,8 @@ export interface SubmitChatMessageArgs {
   hasRoute: boolean;
   routeId: string | null;
   conversationHistory: ConversationTurn[];
+  /** Render distances/climbing in the rider's units (mi/ft vs km/m). */
+  isImperial?: boolean;
   append: (msg: Omit<ChatMessage, 'id' | 'timestamp'>) => void;
   setProcessing: (b: boolean) => void;
   markRefused: () => void;
@@ -66,6 +75,7 @@ export async function submitChatMessage(args: SubmitChatMessageArgs): Promise<vo
     hasRoute,
     routeId,
     conversationHistory,
+    isImperial = false,
     append,
     setProcessing,
     markRefused,
@@ -74,6 +84,9 @@ export async function submitChatMessage(args: SubmitChatMessageArgs): Promise<vo
     applyAIEditImpl = applyAIEditViaCoach,
     onGenerateFromPrompt,
   } = args;
+
+  const fmtKm = (km: number) => formatDistance(km, isImperial);
+  const fmtM = (m: number) => formatElevation(m, isImperial);
 
   const trimmed = input.trim();
   if (!trimmed) return;
@@ -93,14 +106,48 @@ export async function submitChatMessage(args: SubmitChatMessageArgs): Promise<vo
           typeof result.familiarity_percent === 'number' && result.familiarity_percent > 0
             ? ` (${result.familiarity_percent}% on roads you've ridden)`
             : '';
-        const assistantText = `Built you a ${result.distance_km}km route — ${result.elevation_gain_m}m climbing${familiarityNote}. Want me to tweak it?`;
-        append({ role: 'assistant', text: assistantText });
-        trackRb2('chat_route_generated', {
-          input_length: trimmed.length,
-          distance_km: result.distance_km,
-          elevation_gain_m: result.elevation_gain_m,
-        });
-        if (persistTurn) await persistTurn(trimmed, assistantText);
+        const appliedStats = `${fmtKm(result.distance_km)}, ${fmtM(result.elevation_gain_m)} climbing`;
+        const hasAlternatives = (result.options?.length ?? 0) > 1;
+
+        if (hasAlternatives && result.options) {
+          const heading = result.options[0].direction_label
+            ? ` heading ${result.options[0].direction_label.toLowerCase()}`
+            : '';
+          const assistantText = `Built ${result.options.length} options${heading} — applied the best match (${appliedStats})${familiarityNote}. Tap a card to switch.`;
+          append({
+            role: 'assistant',
+            text: assistantText,
+            kind: 'route-options',
+            options: result.options,
+            selectedOptionIndex: 0,
+          });
+          trackRb2('chat_route_options_shown', {
+            input_length: trimmed.length,
+            count: result.options.length,
+            distance_km: result.distance_km,
+            elevation_gain_m: result.elevation_gain_m,
+          });
+          if (persistTurn) {
+            // Cards are session-only — persist a readable per-option summary
+            // so rehydrated threads still show what was offered.
+            const optionLines = result.options
+              .map(
+                (o) =>
+                  `${o.index + 1}) ${o.name} — ${fmtKm(o.distance_km)}, ${fmtM(o.elevation_gain_m)} climbing`,
+              )
+              .join('  ');
+            await persistTurn(trimmed, `${assistantText} ${optionLines}`);
+          }
+        } else {
+          const assistantText = `Built you a ${fmtKm(result.distance_km)} route — ${fmtM(result.elevation_gain_m)} climbing${familiarityNote}. Want me to tweak it?`;
+          append({ role: 'assistant', text: assistantText });
+          trackRb2('chat_route_generated', {
+            input_length: trimmed.length,
+            distance_km: result.distance_km,
+            elevation_gain_m: result.elevation_gain_m,
+          });
+          if (persistTurn) await persistTurn(trimmed, assistantText);
+        }
       } else if (result.reason === 'no_start') {
         append({
           role: 'assistant',
@@ -161,7 +208,7 @@ export async function submitChatMessage(args: SubmitChatMessageArgs): Promise<vo
       // Suffix the stats only when the route actually changed; otherwise
       // the prose stands alone (clarifying question, refusal, etc.).
       const assistantText = result.routeChanged
-        ? `${result.assistantText} Now ${result.distance_km}km, ${result.elevation_gain_m}m climbing.`
+        ? `${result.assistantText} Now ${fmtKm(result.distance_km)}, ${fmtM(result.elevation_gain_m)} climbing.`
         : result.assistantText;
       append({ role: 'assistant', text: assistantText });
       trackRb2(result.routeChanged ? 'chat_edit_applied' : 'chat_message_received', {
