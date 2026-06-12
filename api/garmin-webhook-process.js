@@ -456,7 +456,23 @@ async function handleExistingActivity(event, existing, integration) {
 
   console.log(`[FIT:DOWNLOAD] Activity ${event.activity_id} exists but missing data (GPS:${needsGps} power:${needsPowerMetrics} streams:${needsStreams} analytics:${needsAnalytics}), downloading FIT from: ${fitFileUrl ? 'URL available' : 'no URL'}`);
   const athlete = await fetchAthleteProfile(integration.user_id);
-  const fitResult = await downloadAndParseFitFile(fitFileUrl, integration.access_token, athlete);
+  const fitResult = await downloadAndParseFitFile(fitFileUrl, integration.access_token, athlete, {
+    supabase,
+    userId: integration.user_id,
+    activityId: existing.id,
+  });
+
+  // Retain the FIT bytes BEFORE the enrichment merge, so a future reprocess can
+  // recover this activity even if today's parser produces nothing usable.
+  if (fitResult.fit_storage_path) {
+    await supabase
+      .from('activities')
+      .update({ fit_storage_path: fitResult.fit_storage_path })
+      .eq('id', existing.id)
+      .then(({ error }) => {
+        if (error) console.warn(`⚠️ fit_storage_path write failed (non-critical): ${error.message}`);
+      });
+  }
 
   const activityUpdate = { updated_at: new Date().toISOString() };
   const updates = [];
@@ -795,7 +811,21 @@ async function handleDuplicateActivity(event, integration, activityData, activit
       if (fitFileUrl && integration.access_token) {
         try {
           const athlete = await fetchAthleteProfile(integration.user_id);
-          const fitResult = await downloadAndParseFitFile(fitFileUrl, integration.access_token, athlete);
+          const fitResult = await downloadAndParseFitFile(fitFileUrl, integration.access_token, athlete, {
+            supabase,
+            userId: integration.user_id,
+            activityId: dupCheck.existingActivity.id,
+          });
+          // Persist storage path regardless of whether the merge update runs.
+          if (fitResult.fit_storage_path) {
+            await supabase
+              .from('activities')
+              .update({ fit_storage_path: fitResult.fit_storage_path })
+              .eq('id', dupCheck.existingActivity.id)
+              .then(({ error }) => {
+                if (error) console.warn(`⚠️ fit_storage_path write failed (non-critical): ${error.message}`);
+              });
+          }
           if (fitResult.powerMetrics || fitResult.polyline) {
             const fitUpdate = { updated_at: new Date().toISOString() };
             if (fitResult.polyline) fitUpdate.map_summary_polyline = fitResult.polyline;
@@ -891,7 +921,26 @@ async function handleDuplicateActivity(event, integration, activityData, activit
 async function processFitFile(activityId, fitFileUrl, accessToken, userId = null, startTimeInSeconds = null) {
   try {
     const athlete = await fetchAthleteProfile(userId);
-    const fitResult = await downloadAndParseFitFile(fitFileUrl, accessToken, athlete);
+    const fitResult = await downloadAndParseFitFile(fitFileUrl, accessToken, athlete, {
+      supabase,
+      userId,
+      activityId,
+    });
+
+    // Persist the FIT storage path as soon as we have it — even before we know
+    // whether the parse will succeed. This is the whole point of retention:
+    // if today's parse yields nothing, a future reprocess (with a better parser
+    // or after a parser fix) can read the bytes back from Storage. Migration
+    // 099 added the column; the garmin-fit bucket must exist in Supabase.
+    if (fitResult.fit_storage_path) {
+      await supabase
+        .from('activities')
+        .update({ fit_storage_path: fitResult.fit_storage_path })
+        .eq('id', activityId)
+        .then(({ error }) => {
+          if (error) console.warn(`⚠️ fit_storage_path write failed (non-critical): ${error.message}`);
+        });
+    }
 
     // Surface download failures explicitly. downloadAndParseFitFile catches
     // its own errors and returns { error: '...', polyline: null, ... } instead

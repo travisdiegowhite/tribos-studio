@@ -732,7 +732,30 @@ export async function parseFitBuffer(fitBuffer, athlete = null) {
 // (rare, but happen on 6+ hour rides at 1 s sample rate) still succeed.
 const FIT_DOWNLOAD_TIMEOUT_MS = 30_000;
 
-export async function downloadAndParseFitFile(url, accessToken, athlete = null) {
+/**
+ * Download a FIT file from a URL (typically a Garmin callbackURL or Wahoo file
+ * link), optionally retain the raw bytes to Supabase Storage, then parse.
+ *
+ * Why retain: Garmin callbackURLs expire 24h after issue and return 410 on
+ * re-fetch. Once we miss the window OR our parser fails on the file, the data
+ * is unrecoverable. Retaining the bytes lets us reprocess any past activity
+ * with a newer parser, without depending on Garmin.
+ *
+ * @param {string} url - Pre-signed Garmin URL (or Wahoo file link).
+ * @param {string} accessToken - OAuth Bearer token for the partner.
+ * @param {object|null} athlete - Athlete profile for power-zone calculations.
+ * @param {object|null} storageOptions - When provided, the downloaded bytes are
+ *   uploaded to Supabase Storage and the returned object includes
+ *   `fit_storage_path`. Required keys:
+ *     - supabase: a Supabase client (admin/service role)
+ *     - userId: the Tribos user_id (string UUID)
+ *     - activityId: the activities.id (string UUID; used as the object key)
+ *     - bucket: optional, defaults to 'garmin-fit'
+ *   If omitted, no upload happens (backwards-compatible).
+ * @returns {Promise<object>} Same parseFitBuffer shape, plus optional
+ *   `fit_storage_path` and possibly `error`.
+ */
+export async function downloadAndParseFitFile(url, accessToken, athlete = null, storageOptions = null) {
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), FIT_DOWNLOAD_TIMEOUT_MS);
   try {
@@ -774,7 +797,36 @@ export async function downloadAndParseFitFile(url, accessToken, athlete = null) 
       };
     }
 
-    return await parseFitBuffer(Buffer.from(arrayBuffer), athlete);
+    const fitBuffer = Buffer.from(arrayBuffer);
+
+    // Retain the raw bytes BEFORE parsing. If parse fails or yields nothing,
+    // we still have the file for future reprocessing. Upload failure is
+    // non-fatal — we log and continue with parse.
+    let fit_storage_path = null;
+    if (storageOptions?.supabase && storageOptions?.userId && storageOptions?.activityId) {
+      const bucket = storageOptions.bucket || 'garmin-fit';
+      const objectKey = `garmin/${storageOptions.userId}/${storageOptions.activityId}.fit`;
+      try {
+        const { error: uploadErr } = await storageOptions.supabase.storage
+          .from(bucket)
+          .upload(objectKey, fitBuffer, {
+            contentType: 'application/octet-stream',
+            upsert: true,            // re-uploads (e.g. reprocessing) overwrite
+            cacheControl: 'private, max-age=0'
+          });
+        if (uploadErr) {
+          console.warn(`⚠️ FIT retention to Storage failed (non-fatal): ${uploadErr.message}`);
+        } else {
+          fit_storage_path = objectKey;
+          console.log(`💾 Retained FIT bytes: ${objectKey} (${(fileSize / 1024).toFixed(1)} KB)`);
+        }
+      } catch (storageErr) {
+        console.warn(`⚠️ FIT retention threw (non-fatal): ${storageErr.message}`);
+      }
+    }
+
+    const parsed = await parseFitBuffer(fitBuffer, athlete);
+    return fit_storage_path ? { ...parsed, fit_storage_path } : parsed;
   } catch (error) {
     const isTimeout = error.name === 'AbortError';
     const msg = isTimeout
