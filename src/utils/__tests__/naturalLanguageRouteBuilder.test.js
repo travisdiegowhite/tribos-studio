@@ -27,7 +27,10 @@ vi.mock('../aiRouteGenerator.js', () => ({
   generateSmartWaypoints: (...a) => generateSmartWaypoints(...a),
 }));
 
-import { generateRouteFromNaturalLanguage } from '../naturalLanguageRouteBuilder';
+import {
+  generateRouteFromNaturalLanguage,
+  routeThroughWaypoints,
+} from '../naturalLanguageRouteBuilder';
 
 const lineOf = (n) => Array.from({ length: n }, (_, i) => [-105 + i * 0.001, 40 + i * 0.001]);
 
@@ -204,5 +207,62 @@ describe('generateRouteFromNaturalLanguage — Strava-gated parity branches', ()
     expect(generateSmartWaypoints).toHaveBeenCalledTimes(1);
     expect(generateIterativeRoute).not.toHaveBeenCalled();
     expect(r).toMatchObject({ distanceKm: 25, source: 'brouter' });
+  });
+});
+
+describe('routeThroughWaypoints', () => {
+  it('geocodes names, closes the loop, and returns canonical stats', async () => {
+    geocodeWaypoint
+      .mockResolvedValueOnce({ coordinates: [-104.9, 39.9], name: 'Hygiene' })
+      .mockResolvedValueOnce({ coordinates: [-104.8, 39.8], name: 'Berthoud' });
+    getSmartCyclingRoute.mockResolvedValue({
+      coordinates: lineOf(20),
+      distance_m: 30000,
+      elevationGain: 250,
+      duration_s: 4200,
+      source: 'brouter',
+    });
+
+    const r = await routeThroughWaypoints([-105, 40], ['Hygiene', 'Berthoud'], {
+      profile: 'gravel',
+      goal: 'endurance',
+      type: 'loop',
+    });
+
+    // start + 2 geocoded + return-to-start.
+    expect(getSmartCyclingRoute.mock.calls[0][0]).toHaveLength(4);
+    expect(getSmartCyclingRoute.mock.calls[0][1]).toMatchObject({ profile: 'gravel' });
+    expect(r).toMatchObject({ distanceKm: 30, elevationGain: 250, source: 'brouter' });
+    expect(r.geocodedNames).toEqual(['Hygiene', 'Berthoud']);
+  });
+
+  it('drops ungeocodable names but routes through the rest', async () => {
+    geocodeWaypoint
+      .mockResolvedValueOnce(null)
+      .mockResolvedValueOnce({ coordinates: [-104.8, 39.8], name: 'Berthoud' });
+    getSmartCyclingRoute.mockResolvedValue({
+      coordinates: lineOf(15),
+      distance_m: 20000,
+      source: 'brouter',
+    });
+
+    const r = await routeThroughWaypoints([-105, 40], ['Nowhere', 'Berthoud'], { type: 'loop' });
+    // start + 1 geocoded + return-to-start.
+    expect(getSmartCyclingRoute.mock.calls[0][0]).toHaveLength(3);
+    expect(r.geocodedNames).toEqual(['Berthoud']);
+  });
+
+  it('returns null when no name geocodes', async () => {
+    geocodeWaypoint.mockResolvedValue(null);
+    const r = await routeThroughWaypoints([-105, 40], ['Nowhere'], { type: 'loop' });
+    expect(r).toBeNull();
+    expect(getSmartCyclingRoute).not.toHaveBeenCalled();
+  });
+
+  it('returns null when routing yields too few points', async () => {
+    geocodeWaypoint.mockResolvedValue({ coordinates: [-104.9, 39.9], name: 'Hygiene' });
+    getSmartCyclingRoute.mockResolvedValue({ coordinates: lineOf(5), distance_m: 8000 });
+    const r = await routeThroughWaypoints([-105, 40], ['Hygiene'], { type: 'loop' });
+    expect(r).toBeNull();
   });
 });

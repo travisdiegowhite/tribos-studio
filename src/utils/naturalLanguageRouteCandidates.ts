@@ -17,12 +17,19 @@
 import {
   parseRouteRequest,
   generateRouteFromParsedRequest,
+  routeThroughWaypoints,
 } from './naturalLanguageRouteBuilder';
 import {
   generateIterativeRoute,
   resolveBearing,
   getDirectionName,
 } from './iterativeRouteBuilder';
+import {
+  buildRoutePlanningPrompt,
+  parseRoutePlanningResponse,
+} from './naturalLanguagePrompt';
+import { reverseGeocodeRegion } from './geocoding.js';
+import { measureGravelPct } from './surfaceMeasurement';
 import { scoreRoutePreference } from './routeScoring';
 import { calculateBearing } from './routeUtils';
 import { haversineKm } from './distanceUnits';
@@ -35,11 +42,17 @@ export type LoopOrientation = 'cw' | 'ccw';
 export interface RouteCandidate {
   snapshot: RouteSnapshot;
   name: string;
+  /** One-line "why this route" from the planner, when available. */
+  rationale?: string;
   /** Compass label of the direction the route heads ("Northeast"). */
   direction_label: string;
   loop_orientation: LoopOrientation;
   source: string;
   surface_profile: string;
+  /** Requested gravel share (%), when the rider stated one; else null. */
+  gravel_target_pct: number | null;
+  /** Measured gravel+unpaved share (%) of the routed geometry; null if unknown. */
+  gravel_actual_pct: number | null;
   familiarity_percent: number | null;
   /** Fidelity-to-request score in [0, 1]; candidates are returned best-first. */
   score: number;
@@ -48,15 +61,27 @@ export interface RouteCandidate {
   parsed: unknown;
 }
 
-/** Courtesy stagger between variant starts (each variant = 4 routing calls). */
+/** Courtesy stagger between variant/plan starts (each = several routing calls). */
 const VARIANT_STAGGER_MS = 300;
 
-/** Score weights: distance fit dominates, then direction, then familiarity. */
-const W_DISTANCE = 0.5;
-const W_DIRECTION = 0.35;
+/** Score weights: distance fit dominates, then direction, gravel, familiarity. */
+const W_DISTANCE = 0.4;
+const W_DIRECTION = 0.25;
+const W_GRAVEL = 0.2;
 const W_FAMILIARITY = 0.15;
 
 const sleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
+
+// The iterative builder + waypoint router are untyped JS — cast once at module scope.
+const generateIterativeRouteLoose = generateIterativeRoute as unknown as (
+  params: Record<string, unknown>,
+) => Promise<GeneratedRouteResult | null>;
+
+const routeThroughWaypointsLoose = routeThroughWaypoints as unknown as (
+  start: Coordinate,
+  names: string[],
+  opts: Record<string, unknown>,
+) => Promise<GeneratedRouteResult | null>;
 
 function normalizeBearing(bearing: number): number {
   return ((bearing % 360) + 360) % 360;
@@ -109,6 +134,7 @@ interface ParsedRequest {
   durationMinutes: number;
   targetDistanceKm: number;
   direction: string | null;
+  gravelTargetPct?: number | null;
 }
 
 interface GeneratedRouteResult {
@@ -118,6 +144,7 @@ interface GeneratedRouteResult {
   duration_s?: number;
   duration?: number;
   name?: string;
+  rationale?: string;
   source?: string;
   directionLabel?: string;
   familiarityScore?: { familiarityPercent?: number } | null;
@@ -140,10 +167,23 @@ function scoreCandidate(
       actualBearing === null ? 0.5 : 1 - angularDiff(actualBearing, requestedBearing) / 180;
   }
 
+  // Gravel fit: full credit when no target was requested; a soft penalty for
+  // the gap when we both asked for a % and measured one; neutral if unmeasured.
+  let gravelMatch = 1;
+  if (candidate.gravel_target_pct !== null) {
+    gravelMatch =
+      candidate.gravel_actual_pct === null
+        ? 0.5
+        : clamp01(1 - Math.abs(candidate.gravel_actual_pct - candidate.gravel_target_pct) / 100);
+  }
+
   const familiarity = (candidate.familiarity_percent ?? 0) / 100;
 
   return clamp01(
-    W_DISTANCE * distanceAccuracy + W_DIRECTION * directionMatch + W_FAMILIARITY * familiarity,
+    W_DISTANCE * distanceAccuracy +
+      W_DIRECTION * directionMatch +
+      W_GRAVEL * gravelMatch +
+      W_FAMILIARITY * familiarity,
   );
 }
 
@@ -167,11 +207,14 @@ function candidateFromRoute(
   return {
     snapshot,
     name: route.name || `${distance_km}km ${request.goal} ${request.type}`,
+    rationale: route.rationale,
     direction_label:
       route.directionLabel ?? (labelBearing !== null ? getDirectionName(labelBearing) : ''),
     loop_orientation: loopOrientation,
     source: route.source || 'iterative_quarter_loop',
     surface_profile: request.routeProfile,
+    gravel_target_pct: request.gravelTargetPct ?? null,
+    gravel_actual_pct: null,
     familiarity_percent: route.familiarityScore?.familiarityPercent ?? null,
     score: 0,
     requested: { distance_km: request.targetDistanceKm, bearing: requestedBearing },
@@ -262,10 +305,6 @@ export async function generateRouteCandidatesFromNaturalLanguage(
 
   const buildVariant = async (spec: VariantSpec, index: number): Promise<RouteCandidate | null> => {
     if (index > 0) await sleep(index * VARIANT_STAGGER_MS);
-    // The iterative builder is untyped JS with partial JSDoc — cast once.
-    const generateIterativeRouteLoose = generateIterativeRoute as unknown as (
-      params: Record<string, unknown>,
-    ) => Promise<GeneratedRouteResult | null>;
     const attempt = (bearing_deg: number | null) =>
       generateIterativeRouteLoose({
         startLocation: [request.startLocation[0], request.startLocation[1]],
@@ -331,6 +370,182 @@ export async function generateRouteCandidatesFromNaturalLanguage(
 
   for (const candidate of candidates) {
     candidate.score = scoreCandidate(candidate, requestedBearing, request.startLocation);
+  }
+  candidates.sort((a, b) => b.score - a.score);
+
+  return candidates;
+}
+
+/** Resolve a start coord from the chat context (placed → geolocation → viewport). */
+function resolveStartFromContext(context: Record<string, unknown>): Coordinate | null {
+  return (
+    (context.placedStart as Coordinate | null) ??
+    (context.userLocation as Coordinate | null) ??
+    (context.biasCoord as Coordinate | null) ??
+    null
+  );
+}
+
+/**
+ * Plan route candidates the way a knowledgeable local would: ask Claude to
+ * propose ~3 distinct routes as lists of REAL waypoints (towns, gravel roads,
+ * landmarks), geocode and route through each, measure the actual gravel share,
+ * score, and return best-first. This replaces the geometric box-builder on the
+ * happy path; `generateIterativeRoute` is only a per-slot / total fallback so
+ * generation never hard-errors (except NO_START).
+ *
+ * Context shape matches `generateRouteCandidatesFromNaturalLanguage`.
+ */
+export async function generatePlannedRouteCandidates(
+  userRequest: string,
+  context: Record<string, unknown> = {},
+): Promise<RouteCandidate[]> {
+  const startLocation = resolveStartFromContext(context);
+  if (!startLocation) throw new Error('NO_START');
+
+  const accessToken = (context.accessToken as string | null) ?? null;
+  const onProgress = context.onProgress as ((stage: string) => void) | undefined;
+  const progress = (stage: string) => {
+    try { onProgress?.(stage); } catch { /* best-effort */ }
+  };
+
+  // Reverse-geocode the start so Claude can name real nearby places.
+  progress('planning');
+  const regionLabel = await reverseGeocodeRegion([startLocation[0], startLocation[1]]);
+
+  // One Claude call → up to three named plans. Any failure (network, non-JSON,
+  // no usable plans) drops through to the geometric pipeline below.
+  let plan: ReturnType<typeof parseRoutePlanningResponse> | null = null;
+  try {
+    const prompt = buildRoutePlanningPrompt(userRequest, {
+      weatherData: (context.weather as object | null) ?? null,
+      regionLabel,
+      calendarData: (context.calendar as object | null) ?? null,
+    });
+    const apiUrl = import.meta.env.PROD ? '/api/claude-routes' : 'http://localhost:3000/api/claude-routes';
+    const response = await fetch(apiUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ prompt, maxTokens: 1500, temperature: 0.4 }),
+    });
+    if (response.ok) {
+      const data = await response.json();
+      if (data.success) plan = parseRoutePlanningResponse(data.content);
+    }
+  } catch (e) {
+    console.warn('[planning] Claude planning failed, falling back to geometric:', e);
+  }
+
+  if (!plan || plan.routes.length === 0) {
+    return generateRouteCandidatesFromNaturalLanguage(userRequest, context);
+  }
+
+  const requestedBearing: number | null =
+    plan.direction !== null ? (resolveBearing(plan.direction) as number | null) : null;
+  const routeProfile = plan.surfaceType === 'gravel' ? 'gravel' : (context.profile as string) || 'road';
+  const type = plan.routeType || 'loop';
+  const goal = 'endurance';
+  const targetDistanceKm = plan.distance_km ?? 48;
+
+  const request: ParsedRequest = {
+    parsed: { waypoints: [], preferences: { surfaceType: plan.surfaceType } },
+    startLocation,
+    routeProfile,
+    goal,
+    type,
+    preferFamiliar: false,
+    durationMinutes: 60,
+    targetDistanceKm,
+    direction: plan.direction,
+    gravelTargetPct: plan.gravelTargetPct,
+  };
+
+  const directionLabel =
+    requestedBearing !== null ? getDirectionName(requestedBearing) : undefined;
+
+  // Build a per-plan iterative fallback when its waypoints can't be routed.
+  const iterativeFallback = async (): Promise<GeneratedRouteResult | null> => {
+    try {
+      return await generateIterativeRouteLoose({
+        startLocation: [startLocation[0], startLocation[1]],
+        targetDistanceKm,
+        routeType: type === 'out_back' ? 'out_and_back' : type,
+        direction: requestedBearing !== null ? String(requestedBearing) : null,
+        loopOrientation: 'cw',
+        options: { profile: routeProfile, trainingGoal: goal },
+        trainingGoal: goal,
+      });
+    } catch {
+      return null;
+    }
+  };
+
+  // Route each plan sequentially (geocoding + a routing call each), staggered
+  // to stay polite to the public providers.
+  const candidates: RouteCandidate[] = [];
+  const plans = plan.routes.slice(0, 3);
+  for (let i = 0; i < plans.length; i++) {
+    if (i > 0) await sleep(VARIANT_STAGGER_MS);
+    const planRoute = plans[i];
+    let route: GeneratedRouteResult | null = null;
+    try {
+      const routed = await routeThroughWaypointsLoose(startLocation, planRoute.waypoints, {
+        profile: routeProfile,
+        goal,
+        type,
+      });
+      if (routed) {
+        route = { ...routed, name: planRoute.name, rationale: planRoute.rationale, directionLabel };
+      }
+    } catch {
+      route = null;
+    }
+    if (!route) route = await iterativeFallback();
+    if (!route) continue;
+    const candidate = candidateFromRoute(route, request, requestedBearing, 'cw', requestedBearing);
+    if (candidate) candidates.push(candidate);
+  }
+
+  // Every plan failed (and so did the iterative fallbacks) — hand off entirely.
+  if (candidates.length === 0) {
+    return generateRouteCandidatesFromNaturalLanguage(userRequest, context);
+  }
+
+  // Elevation: cached, no-op when the provider already reported gain.
+  await Promise.all(
+    candidates.map(async (candidate) => {
+      candidate.snapshot = await enrichRouteElevation(candidate.snapshot);
+    }),
+  );
+
+  // Gravel measurement: SEQUENTIAL (each is a heavy Overpass query), cached,
+  // fail-soft. Only worth it when gravel was requested.
+  if (routeProfile === 'gravel' || plan.gravelTargetPct !== null) {
+    for (const candidate of candidates) {
+      const measured = await measureGravelPct(candidate.snapshot.geometry);
+      candidate.gravel_actual_pct = measured?.gravelPct ?? null;
+    }
+  }
+
+  // Familiarity per candidate, fail-soft (cheap PostgREST call, parallel ok).
+  if (accessToken) {
+    await Promise.all(
+      candidates.map(async (candidate) => {
+        try {
+          const scored = (await scoreRoutePreference(
+            candidate.snapshot.geometry as Array<[number, number]>,
+            accessToken,
+          )) as { familiarityPercent?: number } | null;
+          candidate.familiarity_percent = scored?.familiarityPercent ?? null;
+        } catch {
+          candidate.familiarity_percent = null;
+        }
+      }),
+    );
+  }
+
+  for (const candidate of candidates) {
+    candidate.score = scoreCandidate(candidate, requestedBearing, startLocation);
   }
   candidates.sort((a, b) => b.score - a.score);
 

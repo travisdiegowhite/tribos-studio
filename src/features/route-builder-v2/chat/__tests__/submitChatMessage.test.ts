@@ -304,6 +304,7 @@ describe('submitChatMessage — generate fresh route', () => {
       distance_km: 72.1,
       elevation_gain_m: 520,
       name: 'Northeast Loop',
+      gravel_actual_pct: 48,
       options,
     });
     const { args, append, persistTurn } = makeArgs({
@@ -319,8 +320,11 @@ describe('submitChatMessage — generate fresh route', () => {
     expect(lastCall.kind).toBe('route-options');
     expect(lastCall.options).toHaveLength(3);
     expect(lastCall.selectedOptionIndex).toBe(0);
-    expect(lastCall.text).toMatch(/3 options heading northeast/i);
+    // Planning-voiced reply names the applied route and reports gravel.
+    expect(lastCall.text).toMatch(/Planned 3 routes heading northeast/i);
+    expect(lastCall.text).toContain("'Northeast Loop'");
     expect(lastCall.text).toContain('44.8 mi');
+    expect(lastCall.text).toContain('~48% gravel');
     // Persistence carries a readable per-option summary (cards are session-only).
     const persisted = persistTurn.mock.calls[0][1];
     expect(persisted).toContain('1) Northeast Loop');

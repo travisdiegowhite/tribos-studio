@@ -84,7 +84,7 @@ import { trackRb2 } from '../features/route-builder-v2/telemetry/trackRb2';
 import { coordinateAtDistanceKm } from '../utils/elevation';
 import { getAnyWorkoutById } from '../data/workoutLookup';
 import {
-  generateRouteCandidatesFromNaturalLanguage,
+  generatePlannedRouteCandidates,
   type RouteCandidate,
 } from '../utils/naturalLanguageRouteCandidates';
 import { fetchRouteSurfaceData, computeSurfaceDistribution } from '../utils/surfaceOverlay.js';
@@ -318,6 +318,9 @@ export default function RouteBuilder2() {
   const runSurfaceCheck = useCallback(
     (candidate: RouteCandidate) => {
       if (candidate.surface_profile !== 'gravel') return;
+      // Planned candidates already measured gravel % during generation (shown
+      // on the card + reply) — don't re-query Overpass or double-post here.
+      if (candidate.gravel_actual_pct != null) return;
       const geometry = candidate.snapshot.geometry;
       const seq = ++surfaceCheckSeqRef.current;
       void (async () => {
@@ -461,16 +464,15 @@ export default function RouteBuilder2() {
     },
   });
 
-  // Create fresh route candidates straight from a chat prompt, reusing RB1's
-  // natural-language pipeline (one Claude parse → up to three iterative
-  // routing variants, scored best-first). Snapshots land in the suggestions
-  // store; the auto-apply effect commits the winner (geometry + stats +
-  // resampled editable waypoints) and the chat renders the rest as option
-  // cards the rider can switch between.
+  // Plan fresh route candidates from a chat prompt: Claude proposes ~3 real
+  // routes (towns/gravel roads to ride through), we geocode + route + measure
+  // each, scored best-first. Snapshots land in the suggestions store; the
+  // auto-apply effect commits the winner (geometry + stats + resampled
+  // editable waypoints) and the chat renders the rest as named option cards.
   const handleGenerateFromPrompt = useCallback(
     async (prompt: string): Promise<GenerateOutcome> => {
       try {
-        const candidates = await generateRouteCandidatesFromNaturalLanguage(prompt, {
+        const candidates = await generatePlannedRouteCandidates(prompt, {
           biasCoord: viewportCenter,
           userLocation: userLocation.coord ?? null,
           placedStart: waypoints?.[0]?.position ?? null,
@@ -493,6 +495,9 @@ export default function RouteBuilder2() {
                 direction_label: c.direction_label,
                 familiarity_percent: c.familiarity_percent,
                 surface_label: c.surface_profile === 'gravel' ? 'gravel-biased' : undefined,
+                gravel_actual_pct: c.gravel_actual_pct,
+                gravel_target_pct: c.gravel_target_pct,
+                rationale: c.rationale,
               }))
             : undefined;
         return {
@@ -501,6 +506,7 @@ export default function RouteBuilder2() {
           elevation_gain_m: best.snapshot.stats.elevation_gain_m,
           name: best.name,
           familiarity_percent: best.familiarity_percent,
+          gravel_actual_pct: best.gravel_actual_pct,
           options,
         };
       } catch (e) {
@@ -1061,6 +1067,7 @@ export default function RouteBuilder2() {
                     onExpandedChange={setGenerateExpanded}
                     isImperial={isImperial}
                     formSeed={formSeed}
+                    activeRouteProfile={hasRouteForChat ? routeProfile : null}
                   />
                 }
               />
@@ -1108,6 +1115,7 @@ export default function RouteBuilder2() {
             isImperial={isImperial}
             formSeed={formSeed}
             defaultExpanded={hasWorkout}
+            activeRouteProfile={hasRouteForChat ? routeProfile : null}
           />
           <Box style={cardStyle}>
             <WorkoutPickerPanel

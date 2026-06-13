@@ -35,6 +35,8 @@ export type GenerateOutcome =
       name?: string;
       /** % of the route on roads the rider has ridden before, when available. */
       familiarity_percent?: number | null;
+      /** Measured gravel+unpaved share (%) of the applied route, when known. */
+      gravel_actual_pct?: number | null;
       /**
        * All generated candidates (applied one first) when alternatives exist.
        * Indexes line up with the `aiSuggestions` store.
@@ -106,14 +108,19 @@ export async function submitChatMessage(args: SubmitChatMessageArgs): Promise<vo
           typeof result.familiarity_percent === 'number' && result.familiarity_percent > 0
             ? ` (${result.familiarity_percent}% on roads you've ridden)`
             : '';
-        const appliedStats = `${fmtKm(result.distance_km)}, ${fmtM(result.elevation_gain_m)} climbing`;
+        const gravelNote =
+          typeof result.gravel_actual_pct === 'number'
+            ? `, ~${result.gravel_actual_pct}% gravel`
+            : '';
+        const appliedStats = `${fmtKm(result.distance_km)}, ${fmtM(result.elevation_gain_m)} climbing${gravelNote}`;
         const hasAlternatives = (result.options?.length ?? 0) > 1;
 
         if (hasAlternatives && result.options) {
           const heading = result.options[0].direction_label
             ? ` heading ${result.options[0].direction_label.toLowerCase()}`
             : '';
-          const assistantText = `Built ${result.options.length} options${heading} — applied the best match (${appliedStats})${familiarityNote}. Tap a card to switch.`;
+          const appliedName = result.name ? ` '${result.name}'` : ' the best match';
+          const assistantText = `Planned ${result.options.length} routes${heading} — applied${appliedName} (${appliedStats})${familiarityNote}. Tap a card to switch.`;
           append({
             role: 'assistant',
             text: assistantText,
@@ -131,15 +138,16 @@ export async function submitChatMessage(args: SubmitChatMessageArgs): Promise<vo
             // Cards are session-only — persist a readable per-option summary
             // so rehydrated threads still show what was offered.
             const optionLines = result.options
-              .map(
-                (o) =>
-                  `${o.index + 1}) ${o.name} — ${fmtKm(o.distance_km)}, ${fmtM(o.elevation_gain_m)} climbing`,
-              )
+              .map((o) => {
+                const og =
+                  typeof o.gravel_actual_pct === 'number' ? `, ~${o.gravel_actual_pct}% gravel` : '';
+                return `${o.index + 1}) ${o.name} — ${fmtKm(o.distance_km)}, ${fmtM(o.elevation_gain_m)} climbing${og}`;
+              })
               .join('  ');
             await persistTurn(trimmed, `${assistantText} ${optionLines}`);
           }
         } else {
-          const assistantText = `Built you a ${fmtKm(result.distance_km)} route — ${fmtM(result.elevation_gain_m)} climbing${familiarityNote}. Want me to tweak it?`;
+          const assistantText = `Built you a ${fmtKm(result.distance_km)} route — ${fmtM(result.elevation_gain_m)} climbing${gravelNote}${familiarityNote}. Want me to tweak it?`;
           append({ role: 'assistant', text: assistantText });
           trackRb2('chat_route_generated', {
             input_length: trimmed.length,

@@ -51,6 +51,8 @@ export interface FormPanelProps {
   formSeed?: GenerateFormSeed;
   /** Start expanded (e.g. when a workout has just been attached). */
   defaultExpanded?: boolean;
+  /** Active route's routing profile, so the collapsed summary reflects it. */
+  activeRouteProfile?: string | null;
 }
 
 const labelStyle: React.CSSProperties = {
@@ -63,7 +65,7 @@ const labelStyle: React.CSSProperties = {
 };
 
 export const FormPanel = forwardRef<FormPanelHandle, FormPanelProps>(function FormPanel(
-  { generation, defaultStart, locationStatus = 'idle', viewportCenter = null, isMobile = false, isImperial = false, formSeed, defaultExpanded = false },
+  { generation, defaultStart, locationStatus = 'idle', viewportCenter = null, isMobile = false, isImperial = false, formSeed, defaultExpanded = false, activeRouteProfile = null },
   ref,
 ) {
   const [expanded, setExpanded] = useState(defaultExpanded);
@@ -97,6 +99,7 @@ export const FormPanel = forwardRef<FormPanelHandle, FormPanelProps>(function Fo
     initialDurationMinutes: formSeed?.durationMinutes,
     initialDistanceKm: formSeed?.distanceKm,
     initialElevationGainM: formSeed?.elevationGainM,
+    activeRouteProfile,
   });
 
   const toggleExpanded = useCallback(() => {

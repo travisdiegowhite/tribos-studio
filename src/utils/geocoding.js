@@ -156,3 +156,28 @@ export async function geocodeWaypoint(waypointName, proximityLocation) {
     return null;
   }
 }
+
+/**
+ * Reverse-geocode a coordinate to a human region label (e.g. "Longmont,
+ * Colorado, United States") so route-planning prompts can name real nearby
+ * places. Fail-soft: returns null on any error or missing token — callers
+ * fall back to a region-agnostic prompt.
+ *
+ * @param {[number, number]} coord - [longitude, latitude]
+ * @returns {Promise<string|null>}
+ */
+export async function reverseGeocodeRegion(coord) {
+  if (!coord || !MAPBOX_TOKEN) return null;
+  const [lng, lat] = coord;
+  if (typeof lng !== 'number' || typeof lat !== 'number') return null;
+  try {
+    const url = `https://api.mapbox.com/geocoding/v5/mapbox.places/${lng},${lat}.json?access_token=${MAPBOX_TOKEN}&types=place,locality,region&limit=1`;
+    const response = await fetch(url);
+    if (!response.ok) return null;
+    const data = await response.json();
+    return data.features?.[0]?.place_name ?? null;
+  } catch (error) {
+    console.warn('Reverse geocode failed:', error);
+    return null;
+  }
+}
