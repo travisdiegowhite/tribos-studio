@@ -13,9 +13,8 @@ import { generateAIRoutes } from '../../utils/aiRouteGenerator.js';
 import { supabase } from '../../lib/supabase';
 import { trackRb2 } from '../../features/route-builder-v2/telemetry/trackRb2';
 import { enrichRouteElevation } from './elevationEnrichment';
-import { resamplePositionsFromGeometry } from './waypointResample';
+import { snapshotFromGeneratedRoute } from './routeSnapshot';
 import type {
-  Coordinate,
   GenerationFormInput,
   RouteShape,
   RouteSnapshot,
@@ -57,60 +56,20 @@ async function getCurrentUserId(): Promise<string | undefined> {
   }
 }
 
-/** How many control points to seed along a generated route for editability. */
-const GENERATED_WAYPOINT_SAMPLES = 6;
-
-/**
- * Control-point coordinates for a generated route: resampled from the geometry
- * (loop-closed, elevation-stripped) so the route is drag-editable, falling back
- * to the stripped endpoints if sampling yields fewer than two distinct points.
- */
-function waypointCoordsFor(
-  rawCoords: ReadonlyArray<ReadonlyArray<number>>,
-  coords: Coordinate[],
-): Coordinate[] {
-  const sampled = resamplePositionsFromGeometry(rawCoords, GENERATED_WAYPOINT_SAMPLES);
-  if (sampled.length >= 2) return sampled;
-  return [
-    [coords[0][0], coords[0][1]],
-    [coords[coords.length - 1][0], coords[coords.length - 1][1]],
-  ];
-}
-
 function toRouteSnapshot(
   route: Rb1RouteResult,
   durationMinutes: number,
 ): RouteSnapshot | null {
   if (!route?.coordinates || route.coordinates.length < 2) return null;
-  const coords = route.coordinates as Coordinate[];
-  const distance_km =
-    typeof route.distance === 'number' && Number.isFinite(route.distance)
-      ? route.distance
-      : 0;
-  const elevation_gain_m =
-    typeof route.elevationGain === 'number' && Number.isFinite(route.elevationGain)
-      ? route.elevationGain
-      : 0;
-  const elevation_loss_m =
-    typeof route.elevationLoss === 'number' && Number.isFinite(route.elevationLoss)
-      ? route.elevationLoss
-      : 0;
-  return {
-    geometry: coords,
-    // Seed several control points sampled from the geometry so generated
-    // routes — loops especially — are drag-editable (not just two coincident
-    // endpoints) and survive a profile change. Strips elevation; falls back to
-    // the endpoints when sampling can't produce ≥2 distinct points.
-    waypoints: waypointCoordsFor(route.coordinates, coords).map((coordinate) => ({
-      coordinate,
-    })),
-    stats: {
-      distance_km,
-      elevation_gain_m,
-      elevation_loss_m,
-      duration_s: durationMinutes * 60,
-    },
-  };
+  // Snapshot construction (geometry + resampled control points so generated
+  // loops stay drag-editable) is shared with the chat candidate builder.
+  return snapshotFromGeneratedRoute({
+    coordinates: route.coordinates,
+    distance_km: route.distance ?? 0,
+    elevation_gain_m: route.elevationGain ?? 0,
+    elevation_loss_m: route.elevationLoss ?? 0,
+    duration_s: durationMinutes * 60,
+  });
 }
 
 export interface UseAIGenerationReturn {

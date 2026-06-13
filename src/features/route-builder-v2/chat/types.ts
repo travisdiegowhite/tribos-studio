@@ -3,11 +3,33 @@
 
 export type ChatRole = 'user' | 'assistant';
 
+/**
+ * Card-sized summary of one generated route option, rendered under the
+ * assistant bubble when a natural-language generation produced alternatives.
+ * Indexes line up with the `aiSuggestions` store array.
+ */
+export interface RouteOptionSummary {
+  index: number;
+  name: string;
+  distance_km: number;
+  elevation_gain_m: number;
+  direction_label: string;
+  familiarity_percent: number | null;
+  surface_label?: string;
+}
+
 export interface ChatMessage {
   id: string;
   role: ChatRole;
   text: string;
   timestamp: number;
+  /**
+   * 'route-options' renders selectable candidate cards under the bubble.
+   * Cards are session-only — persistence/rehydration carries `text` alone.
+   */
+  kind?: 'text' | 'route-options';
+  options?: RouteOptionSummary[];
+  selectedOptionIndex?: number;
 }
 
 export interface ChatSession {
