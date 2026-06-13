@@ -61,6 +61,8 @@ export interface GenerateBarProps {
   onExpandedChange: (next: boolean) => void;
   isImperial?: boolean;
   formSeed?: GenerateFormSeed;
+  /** Active route's routing profile, so the collapsed chip reflects it. */
+  activeRouteProfile?: string | null;
 }
 
 const labelStyle: React.CSSProperties = {
@@ -83,6 +85,7 @@ export function GenerateBar({
   onExpandedChange,
   isImperial = false,
   formSeed,
+  activeRouteProfile = null,
 }: GenerateBarProps) {
   const f = useGenerateForm({
     generation,
@@ -93,6 +96,7 @@ export function GenerateBar({
     initialDurationMinutes: formSeed?.durationMinutes,
     initialDistanceKm: formSeed?.distanceKm,
     initialElevationGainM: formSeed?.elevationGainM,
+    activeRouteProfile,
   });
 
   const handleSubmit = async () => {

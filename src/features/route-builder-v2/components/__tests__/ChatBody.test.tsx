@@ -106,4 +106,34 @@ describe('ChatBody — route option cards', () => {
     expect(screen.getByText('Just words')).toBeInTheDocument();
     expect(screen.queryByTestId('rb2-chat-route-options')).toBeNull();
   });
+
+  it('shows the measured gravel % (with target) and rationale when present', () => {
+    const message: ChatMessage = {
+      id: 'opts-2',
+      role: 'assistant',
+      text: 'Planned 3 routes.',
+      timestamp: 0,
+      kind: 'route-options',
+      options: [
+        {
+          index: 0,
+          name: 'Hygiene–Berthoud Gravel',
+          distance_km: 72.1,
+          elevation_gain_m: 520,
+          direction_label: 'Northeast',
+          familiarity_percent: null,
+          surface_label: 'gravel-biased',
+          gravel_actual_pct: 48,
+          gravel_target_pct: 50,
+          rationale: 'County gravel northeast through farm country.',
+        },
+      ],
+      selectedOptionIndex: 0,
+    };
+    renderBody({ messages: [message] });
+    // Measured % takes priority over the "gravel-biased" fallback label.
+    expect(screen.getByText(/~48% gravel \(target 50%\)/)).toBeInTheDocument();
+    expect(screen.queryByText(/gravel-biased/)).toBeNull();
+    expect(screen.getByText(/County gravel northeast/)).toBeInTheDocument();
+  });
 });

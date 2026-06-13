@@ -35,6 +35,60 @@ import { M_TO_KM } from './distanceUnits';
 const DEFAULT_AVG_SPEED_KMH = 28;
 
 /**
+ * Geocode a list of place names and route through them — the shared core of
+ * RB1's named-waypoint path and RB2's Claude-planned candidates. Ungeocodable
+ * names are dropped; the route is closed back to start for loops/out-backs.
+ *
+ * @param {[number, number]} startLocation - [lng, lat]
+ * @param {string[]} waypointNames - real place names to route through
+ * @param {object} opts
+ * @param {string} opts.profile - routing profile ('road' | 'gravel' | ...)
+ * @param {string} opts.goal - training goal
+ * @param {string} opts.type - 'loop' | 'out_back' | 'point_to_point'
+ * @param {string} [opts.mapboxToken]
+ * @returns {Promise<{coordinates, distanceKm, elevationGain, duration_s, source, geocodedNames}|null>}
+ *   null when fewer than one intermediate waypoint geocodes or routing fails.
+ */
+export async function routeThroughWaypoints(startLocation, waypointNames, opts = {}) {
+  const { profile = 'road', goal = 'endurance', type = 'loop', mapboxToken } = opts;
+
+  const geocoded = [];
+  const geocodedNames = [];
+  for (const name of waypointNames) {
+    const result = await geocodeWaypoint(name, startLocation);
+    if (result?.coordinates) {
+      geocoded.push(result.coordinates);
+      geocodedNames.push(result.name || name);
+    }
+  }
+  // Need at least one real intermediate place to call this a planned route.
+  if (geocoded.length < 1) return null;
+
+  const waypointCoords = [startLocation, ...geocoded];
+  if (type === 'loop' || type === 'out_back') {
+    waypointCoords.push(startLocation);
+  }
+
+  const routeResult = await getSmartCyclingRoute(waypointCoords, {
+    profile,
+    trainingGoal: goal,
+    mapboxToken: mapboxToken ?? import.meta.env.VITE_MAPBOX_TOKEN,
+  });
+  if (!routeResult?.coordinates || routeResult.coordinates.length < 10) return null;
+
+  return {
+    coordinates: routeResult.coordinates,
+    distanceKm: parseFloat(
+      M_TO_KM(routeResult.distance_m ?? routeResult.distance ?? 0).toFixed(1),
+    ),
+    elevationGain: routeResult.elevationGain || 0,
+    duration_s: routeResult.duration_s ?? routeResult.duration ?? 0,
+    source: routeResult.source,
+    geocodedNames,
+  };
+}
+
+/**
  * Parse a free-text route request into structured parameters (one Claude
  * call) and resolve the start coordinate.
  *
@@ -144,43 +198,26 @@ export async function generateRouteFromParsedRequest(request, context = {}) {
 
   // Step 3a: explicit named waypoints → geocode and route through them.
   if (parsed.waypoints && parsed.waypoints.length > 0) {
-    const waypointCoords = [startLocation];
-    for (const waypointName of parsed.waypoints) {
-      const geocoded = await geocodeWaypoint(waypointName, startLocation);
-      if (geocoded?.coordinates) {
-        waypointCoords.push(geocoded.coordinates);
-      }
-    }
-    if (type === 'loop' || type === 'out_back') {
-      waypointCoords.push(startLocation);
-    }
-    if (waypointCoords.length < 2) {
-      throw new Error('Could not geocode any of the requested places.');
-    }
-
-    const routeResult = await getSmartCyclingRoute(waypointCoords, {
+    const routed = await routeThroughWaypoints(startLocation, parsed.waypoints, {
       profile: routeProfile,
-      trainingGoal: goal,
+      goal,
+      type,
       mapboxToken,
     });
-    if (!routeResult?.coordinates || routeResult.coordinates.length < 10) {
+    if (!routed) {
       throw new Error('Could not generate a route. Try a different place or distance.');
     }
-
-    const distanceKm = parseFloat(
-      M_TO_KM(routeResult.distance_m ?? routeResult.distance ?? 0).toFixed(1),
-    );
     // RB1 only scores the named-waypoint path when the rider prefers familiar roads.
     const familiarityScore = preferFamiliar && accessToken
-      ? await scoreRoutePreference(routeResult.coordinates, accessToken)
+      ? await scoreRoutePreference(routed.coordinates, accessToken)
       : null;
     return {
-      coordinates: routeResult.coordinates,
-      distanceKm,
-      elevationGain: routeResult.elevationGain || 0,
-      duration_s: routeResult.duration_s ?? routeResult.duration ?? 0,
+      coordinates: routed.coordinates,
+      distanceKm: routed.distanceKm,
+      elevationGain: routed.elevationGain,
+      duration_s: routed.duration_s,
       name: `${parsed.waypoints.join(' → ')} ${type}`,
-      source: routeResult.source,
+      source: routed.source,
       parsed,
       familiarityScore,
     };

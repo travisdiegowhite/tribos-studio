@@ -3,9 +3,11 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 // Mock the pipeline collaborators; scoring/snapshot helpers run real.
 const parseRouteRequest = vi.fn();
 const generateRouteFromParsedRequest = vi.fn();
+const routeThroughWaypoints = vi.fn();
 vi.mock('../naturalLanguageRouteBuilder', () => ({
   parseRouteRequest: (...a: unknown[]) => parseRouteRequest(...a),
   generateRouteFromParsedRequest: (...a: unknown[]) => generateRouteFromParsedRequest(...a),
+  routeThroughWaypoints: (...a: unknown[]) => routeThroughWaypoints(...a),
 }));
 
 const generateIterativeRoute = vi.fn();
@@ -25,6 +27,23 @@ vi.mock('../iterativeRouteBuilder', () => ({
     ],
 }));
 
+const buildRoutePlanningPrompt = vi.fn((..._args: unknown[]) => 'PLANNING_PROMPT');
+const parseRoutePlanningResponse = vi.fn();
+vi.mock('../naturalLanguagePrompt', () => ({
+  buildRoutePlanningPrompt: (...a: unknown[]) => buildRoutePlanningPrompt(...a),
+  parseRoutePlanningResponse: (...a: unknown[]) => parseRoutePlanningResponse(...a),
+}));
+
+const reverseGeocodeRegion = vi.fn();
+vi.mock('../geocoding.js', () => ({
+  reverseGeocodeRegion: (...a: unknown[]) => reverseGeocodeRegion(...a),
+}));
+
+const measureGravelPct = vi.fn();
+vi.mock('../surfaceMeasurement', () => ({
+  measureGravelPct: (...a: unknown[]) => measureGravelPct(...a),
+}));
+
 const scoreRoutePreference = vi.fn();
 vi.mock('../routeScoring', () => ({
   scoreRoutePreference: (...a: unknown[]) => scoreRoutePreference(...a),
@@ -35,7 +54,10 @@ vi.mock('../../hooks/route-builder/elevationEnrichment', () => ({
   enrichRouteElevation: (...a: unknown[]) => enrichRouteElevation(...a),
 }));
 
-import { generateRouteCandidatesFromNaturalLanguage } from '../naturalLanguageRouteCandidates';
+import {
+  generateRouteCandidatesFromNaturalLanguage,
+  generatePlannedRouteCandidates,
+} from '../naturalLanguageRouteCandidates';
 
 /** ~`n` points heading northeast from the start so direction scoring is sane. */
 const lineOf = (n: number): Array<[number, number]> =>
@@ -68,11 +90,17 @@ function iterativeRouteOf(distanceKm: number, elevationGain = 300) {
 beforeEach(() => {
   parseRouteRequest.mockReset();
   generateRouteFromParsedRequest.mockReset();
+  routeThroughWaypoints.mockReset();
   generateIterativeRoute.mockReset();
+  parseRoutePlanningResponse.mockReset();
+  reverseGeocodeRegion.mockReset();
+  measureGravelPct.mockReset();
   scoreRoutePreference.mockReset();
   enrichRouteElevation.mockReset();
   // Default: enrichment is a pass-through.
   enrichRouteElevation.mockImplementation(async (snap: unknown) => snap);
+  reverseGeocodeRegion.mockResolvedValue('Longmont, Colorado');
+  measureGravelPct.mockResolvedValue(null);
 });
 
 describe('generateRouteCandidatesFromNaturalLanguage — iterative variants', () => {
@@ -215,5 +243,115 @@ describe('generateRouteCandidatesFromNaturalLanguage — single-candidate branch
     expect(candidates).toHaveLength(1);
     expect(candidates[0].familiarity_percent).toBe(80);
     expect(generateIterativeRoute).not.toHaveBeenCalled();
+  });
+});
+
+const PLAN = {
+  direction: 'northeast',
+  distance_km: 72,
+  surfaceType: 'gravel',
+  gravelTargetPct: 50,
+  routeType: 'loop',
+  routes: [
+    { name: 'Hygiene–Berthoud Gravel', rationale: 'County gravel NE.', waypoints: ['Hygiene', 'Berthoud'] },
+    { name: 'St. Vrain Farm Roads', rationale: 'Farm-road gravel NE.', waypoints: ['Mead', 'Platteville'] },
+    { name: 'Niwot Mixed', rationale: 'Mixed NE via Niwot.', waypoints: ['Niwot', 'Longmont'] },
+  ],
+};
+
+function plannedRouteOf(distanceKm: number, names: string[]) {
+  return {
+    coordinates: lineOf(20),
+    distanceKm,
+    elevationGain: 320,
+    duration_s: 9000,
+    source: 'brouter',
+    geocodedNames: names,
+  };
+}
+
+function mockClaudePlan() {
+  globalThis.fetch = vi.fn().mockResolvedValue({
+    ok: true,
+    json: async () => ({ success: true, content: 'PLAN_JSON' }),
+  });
+  parseRoutePlanningResponse.mockReturnValue(PLAN);
+}
+
+describe('generatePlannedRouteCandidates', () => {
+  it('routes through each Claude-proposed plan and reports gravel %', async () => {
+    mockClaudePlan();
+    routeThroughWaypoints.mockImplementation(async (_s: unknown, names: string[]) =>
+      plannedRouteOf(72, names),
+    );
+    measureGravelPct.mockResolvedValue({ gravelPct: 48, distribution: { gravel: 48 } });
+
+    const candidates = await generatePlannedRouteCandidates('ne gravel loop', {
+      biasCoord: [-105, 40],
+    });
+
+    expect(parseRoutePlanningResponse).toHaveBeenCalledTimes(1);
+    expect(routeThroughWaypoints).toHaveBeenCalledTimes(3);
+    expect(generateIterativeRoute).not.toHaveBeenCalled();
+    expect(candidates).toHaveLength(3);
+    // Carries plan name, rationale, gravel target + measured actual.
+    expect(candidates.map((c) => c.name)).toContain('Hygiene–Berthoud Gravel');
+    expect(candidates[0].rationale).toBeTruthy();
+    expect(candidates[0].gravel_target_pct).toBe(50);
+    expect(candidates[0].gravel_actual_pct).toBe(48);
+    // Gravel measured sequentially, once per candidate.
+    expect(measureGravelPct).toHaveBeenCalledTimes(3);
+  });
+
+  it('falls back to an iterative slot when a plan cannot be routed', async () => {
+    mockClaudePlan();
+    routeThroughWaypoints.mockImplementation(async (_s: unknown, names: string[]) =>
+      names[0] === 'Mead' ? null : plannedRouteOf(72, names),
+    );
+    generateIterativeRoute.mockResolvedValue(iterativeRouteOf(70));
+
+    const candidates = await generatePlannedRouteCandidates('ne gravel loop', {
+      biasCoord: [-105, 40],
+    });
+
+    expect(candidates).toHaveLength(3);
+    // The Mead plan slot was filled by the iterative fallback.
+    expect(generateIterativeRoute).toHaveBeenCalledTimes(1);
+  });
+
+  it('throws NO_START when no start can be resolved', async () => {
+    await expect(generatePlannedRouteCandidates('ne loop', {})).rejects.toThrow('NO_START');
+  });
+
+  it('falls back to the iterative pipeline when Claude returns no plans', async () => {
+    globalThis.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ success: true, content: 'EMPTY' }),
+    });
+    parseRoutePlanningResponse.mockReturnValue({ ...PLAN, routes: [] });
+    // The iterative fallback path re-parses via parseRouteRequest.
+    parseRouteRequest.mockResolvedValue(BASE_REQUEST);
+    generateIterativeRoute.mockResolvedValue(iterativeRouteOf(72));
+
+    const candidates = await generatePlannedRouteCandidates('ne gravel loop', {
+      biasCoord: [-105, 40],
+    });
+
+    expect(routeThroughWaypoints).not.toHaveBeenCalled();
+    expect(parseRouteRequest).toHaveBeenCalledTimes(1);
+    expect(candidates.length).toBeGreaterThanOrEqual(1);
+  });
+
+  it('falls back to the iterative pipeline when the Claude call fails', async () => {
+    globalThis.fetch = vi.fn().mockResolvedValue({ ok: false, json: async () => ({}) });
+    parseRouteRequest.mockResolvedValue(BASE_REQUEST);
+    generateIterativeRoute.mockResolvedValue(iterativeRouteOf(72));
+
+    const candidates = await generatePlannedRouteCandidates('ne gravel loop', {
+      biasCoord: [-105, 40],
+    });
+
+    expect(routeThroughWaypoints).not.toHaveBeenCalled();
+    expect(candidates.length).toBeGreaterThanOrEqual(1);
   });
 });

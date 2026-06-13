@@ -168,6 +168,22 @@ export function ChatBody({
   );
 }
 
+/**
+ * Surface chip text for an option: the measured gravel % (with the requested
+ * target in parens when known) takes priority; otherwise the routing-profile
+ * label ("gravel-biased"); otherwise nothing.
+ */
+function surfaceText(option: RouteOptionSummary): string {
+  if (typeof option.gravel_actual_pct === 'number') {
+    const target =
+      typeof option.gravel_target_pct === 'number'
+        ? ` (target ${option.gravel_target_pct}%)`
+        : '';
+    return `~${option.gravel_actual_pct}% gravel${target}`;
+  }
+  return option.surface_label ?? '';
+}
+
 interface RouteOptionCardsProps {
   options: RouteOptionSummary[];
   selectedIndex: number;
@@ -247,11 +263,25 @@ function RouteOptionCards({
               {formatDistance(option.distance_km, isImperial)} ·{' '}
               {formatElevation(option.elevation_gain_m, isImperial)} climbing
               {option.direction_label ? ` · ${option.direction_label}` : ''}
-              {option.surface_label ? ` · ${option.surface_label}` : ''}
+              {surfaceText(option) ? ` · ${surfaceText(option)}` : ''}
               {typeof option.familiarity_percent === 'number' && option.familiarity_percent > 0
                 ? ` · ${option.familiarity_percent}% familiar`
                 : ''}
             </Text>
+            {option.rationale ? (
+              <Text
+                style={{
+                  fontFamily: RB2_FONT.body,
+                  fontSize: 11,
+                  fontStyle: 'italic',
+                  color: RB2.textTertiary,
+                  marginTop: 3,
+                  lineHeight: 1.35,
+                }}
+              >
+                {option.rationale}
+              </Text>
+            ) : null}
           </UnstyledButton>
         );
       })}

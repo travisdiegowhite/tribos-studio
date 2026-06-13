@@ -16,6 +16,12 @@ export interface RouteOptionSummary {
   direction_label: string;
   familiarity_percent: number | null;
   surface_label?: string;
+  /** Measured gravel+unpaved share (%) of the route; null/undefined if unknown. */
+  gravel_actual_pct?: number | null;
+  /** Requested gravel share (%), when the rider stated one. */
+  gravel_target_pct?: number | null;
+  /** One-line "why this route" from the planner. */
+  rationale?: string;
 }
 
 export interface ChatMessage {
