@@ -17,6 +17,7 @@ import {
   RoadHorizon,
   Pencil,
   Path,
+  Scissors,
   Trash,
   Check,
 } from '@phosphor-icons/react';
@@ -51,6 +52,10 @@ export interface EditToolbarProps {
   onToggleUnits?: () => void;
   /** Whether imperial units are currently active (drives the toggle label). */
   unitsImperial?: boolean;
+  /** When provided, renders a "clip tangent" toggle button. */
+  onToggleClipMode?: () => void;
+  /** Whether clip mode is currently active (drives pressed styling). */
+  clipMode?: boolean;
   /** When provided, renders an always-visible clear-route button. */
   onClear?: () => void;
   /** Whether there's anything to clear (disables the button when false). */
@@ -72,6 +77,8 @@ export function EditToolbar({
   onChangeProfile,
   onToggleUnits,
   unitsImperial = false,
+  onToggleClipMode,
+  clipMode = false,
   onClear,
   canClear = false,
 }: EditToolbarProps) {
@@ -210,6 +217,21 @@ export function EditToolbar({
           </ToolbarButton>
         </>
       )}
+      {onToggleClipMode && (
+        <>
+          <Box style={{ width: 1, backgroundColor: RB2.border }} />
+          <ToolbarButton
+            label={clipMode ? 'Clipping tangents — click a spur' : 'Clip tangent'}
+            shortcut={clipMode ? 'click a spur to remove it' : 'remove out-and-back spurs'}
+            testid="rb2-clip-toggle"
+            disabled={false}
+            onClick={onToggleClipMode}
+            active={clipMode}
+          >
+            <Scissors size={18} />
+          </ToolbarButton>
+        </>
+      )}
       {onClear && (
         <>
           <Box style={{ width: 1, backgroundColor: RB2.border }} />
@@ -237,6 +259,7 @@ function ToolbarButton({
   onClick,
   children,
   danger = false,
+  active = false,
 }: {
   label: string;
   shortcut: string;
@@ -245,8 +268,15 @@ function ToolbarButton({
   onClick: () => void;
   children: React.ReactNode;
   danger?: boolean;
+  active?: boolean;
 }) {
-  const color = disabled ? RB2.textDisabled : danger ? RB2.coral : RB2.textSecondary;
+  const color = disabled
+    ? RB2.textDisabled
+    : active
+      ? RB2.teal
+      : danger
+        ? RB2.coral
+        : RB2.textSecondary;
   return (
     <Tooltip label={`${label} (${shortcut})`} position="bottom" withinPortal disabled={disabled}>
       <UnstyledButton
@@ -254,6 +284,7 @@ function ToolbarButton({
         onClick={onClick}
         disabled={disabled}
         aria-label={label}
+        aria-pressed={active}
         style={{
           width: 38,
           height: 34,
@@ -261,6 +292,7 @@ function ToolbarButton({
           alignItems: 'center',
           justifyContent: 'center',
           color,
+          backgroundColor: active ? RB2.bgSecondary : undefined,
           cursor: disabled ? 'default' : 'pointer',
         }}
       >

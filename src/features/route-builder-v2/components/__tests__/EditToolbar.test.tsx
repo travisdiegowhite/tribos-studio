@@ -144,6 +144,32 @@ describe('EditToolbar', () => {
     expect(onClear).toHaveBeenCalledTimes(1);
   });
 
+  it('omits the clip-tangent toggle unless onToggleClipMode is provided', () => {
+    renderToolbar();
+    expect(screen.queryByTestId('rb2-clip-toggle')).not.toBeInTheDocument();
+  });
+
+  it('renders the clip toggle, fires it, and shows active styling', () => {
+    const onToggleClipMode = vi.fn();
+    const { rerender } = render(
+      <MantineProvider>
+        <EditToolbar canUndo canRedo onUndo={vi.fn()} onRedo={vi.fn()} onToggleClipMode={onToggleClipMode} clipMode={false} />
+      </MantineProvider>,
+    );
+    const btn = screen.getByTestId('rb2-clip-toggle');
+    expect(btn).not.toBeDisabled();
+    expect(btn).toHaveAttribute('aria-pressed', 'false');
+    fireEvent.click(btn);
+    expect(onToggleClipMode).toHaveBeenCalledTimes(1);
+
+    rerender(
+      <MantineProvider>
+        <EditToolbar canUndo canRedo onUndo={vi.fn()} onRedo={vi.fn()} onToggleClipMode={onToggleClipMode} clipMode />
+      </MantineProvider>,
+    );
+    expect(screen.getByTestId('rb2-clip-toggle')).toHaveAttribute('aria-pressed', 'true');
+  });
+
   it('toggles snap-to-roads ↔ freehand', () => {
     const onToggleSnap = vi.fn();
     render(
