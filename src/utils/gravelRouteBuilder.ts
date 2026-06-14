@@ -22,8 +22,9 @@ import {
   calculateBearing as calculateBearingJs,
   normalizeBearing as normalizeBearingJs,
 } from './iterativeRouteBuilder';
-import { haversineKm, M_TO_KM } from './distanceUnits';
+import { haversineKm } from './distanceUnits';
 import { fnv1a32, stableJson } from './stableHash';
+import { clipLoopGeometry } from './clipLoopGeometry';
 import { assertCoordinate, type Coordinate } from '../types/geo';
 
 // The geometry helpers + router are untyped JS (JSDoc uses mutable [number,number]).
@@ -120,7 +121,7 @@ function angularDiff(a: number, b: number): number {
 }
 
 /** Summed great-circle length of a [lng,lat] polyline, in km. */
-function polylineLengthKm(coords: ReadonlyArray<Coordinate>): number {
+export function polylineLengthKm(coords: ReadonlyArray<Coordinate>): number {
   let total = 0;
   for (let i = 1; i < coords.length; i++) {
     const a = coords[i - 1];
@@ -476,9 +477,13 @@ export async function buildGravelLoopCandidates(
     if (dedupeKey && seen.has(dedupeKey)) continue;
     if (dedupeKey) seen.add(dedupeKey);
 
+    // Clip out-and-back spurs the gravel-seeking router left behind, then
+    // recompute distance from the clipped geometry (the router's distance_m
+    // is now stale). Elevation + gravel % are re-measured downstream.
+    const clipped = clipLoopGeometry(route.coordinates);
     results.push({
-      coordinates: route.coordinates,
-      distanceKm: parseFloat(M_TO_KM(route.distance_m ?? route.distance ?? 0).toFixed(1)),
+      coordinates: clipped,
+      distanceKm: parseFloat(polylineLengthKm(clipped).toFixed(1)),
       elevationGain: route.elevationGain ?? 0,
       duration_s: route.duration_s ?? route.duration ?? 0,
       name: buildGravelName(chunks.map((c) => c.name ?? '')),

@@ -277,6 +277,10 @@ describe('buildGravelLoopCandidates', () => {
     expect(routes.length).toBeGreaterThanOrEqual(1);
     expect(routes[0].source).toBe('gravel_network');
     expect(routes[0].name).toMatch(/^Gravel/);
+    // distanceKm is recomputed from the (clipped) geometry, NOT the router's
+    // stale distance_m (70000m = 70km); the echoed line is only ~3.9km.
+    expect(routes[0].distanceKm).toBeGreaterThan(0);
+    expect(routes[0].distanceKm).toBeLessThan(10);
     // Each routed waypoint list is start + (entry,exit)* + start → even interior count.
     const firstWps = getSmartCyclingRoute.mock.calls[0][0] as Coordinate[];
     expect(firstWps.length).toBeGreaterThanOrEqual(4);

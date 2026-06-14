@@ -30,7 +30,8 @@ import { geocodeWaypoint } from './geocoding';
 import { generateIterativeRoute } from './iterativeRouteBuilder';
 import { getSmartCyclingRoute } from './smartCyclingRouter';
 import { getFamiliarLoopWaypoints, scoreRoutePreference } from './routeScoring';
-import { M_TO_KM } from './distanceUnits';
+import { M_TO_KM, haversineMeters } from './distanceUnits';
+import { clipLoopGeometry } from './clipLoopGeometry';
 
 const DEFAULT_AVG_SPEED_KMH = 28;
 
@@ -76,11 +77,17 @@ export async function routeThroughWaypoints(startLocation, waypointNames, opts =
   });
   if (!routeResult?.coordinates || routeResult.coordinates.length < 10) return null;
 
+  // Clip out-and-back spurs, then recompute distance from the clipped geometry
+  // (the router's distance_m is stale once points are removed).
+  const clipped = clipLoopGeometry(routeResult.coordinates);
+  let clippedMeters = 0;
+  for (let i = 1; i < clipped.length; i++) {
+    clippedMeters += haversineMeters(clipped[i - 1][1], clipped[i - 1][0], clipped[i][1], clipped[i][0]);
+  }
+
   return {
-    coordinates: routeResult.coordinates,
-    distanceKm: parseFloat(
-      M_TO_KM(routeResult.distance_m ?? routeResult.distance ?? 0).toFixed(1),
-    ),
+    coordinates: clipped,
+    distanceKm: parseFloat(M_TO_KM(clippedMeters).toFixed(1)),
     elevationGain: routeResult.elevationGain || 0,
     duration_s: routeResult.duration_s ?? routeResult.duration ?? 0,
     source: routeResult.source,

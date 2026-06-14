@@ -88,6 +88,13 @@ import {
   type RouteCandidate,
 } from '../utils/naturalLanguageRouteCandidates';
 import { fetchRouteSurfaceData, computeSurfaceDistribution } from '../utils/surfaceOverlay.js';
+import { removeSegmentAndReroute } from '../utils/routeEditor';
+import { polylineLengthKm } from '../utils/gravelRouteBuilder';
+import {
+  detectClipSelection,
+  type ClipSelection,
+} from '../features/route-builder-v2/clip/detectClipSelection';
+import { ClipConfirmCard } from '../features/route-builder-v2/components';
 import type { GenerateOutcome, RouteOptionSummary } from '../features/route-builder-v2/chat';
 import { generateCuesFromWorkoutStructure } from '../utils/intervalCues.js';
 import {
@@ -204,6 +211,7 @@ export default function RouteBuilder2() {
   const waypoints = useRouteBuilderStore((s) => s.waypoints);
   const viewport = useRouteBuilderStore((s) => s.viewport);
   const setWaypointsInStore = useRouteBuilderStore((s) => s.setWaypoints);
+  const setRouteGeometryInStore = useRouteBuilderStore((s) => s.setRouteGeometry);
   const setRouteStatsInStore = useRouteBuilderStore((s) => s.setRouteStats);
   const setRouteNameInStore = useRouteBuilderStore((s) => s.setRouteName);
   const setAiSuggestions = useRouteBuilderStore((s) => s.setAiSuggestions);
@@ -246,6 +254,10 @@ export default function RouteBuilder2() {
   const [surfaceSegments, setSurfaceSegments] = useState<string[] | null>(null);
   // Distance (km) hovered on the elevation chart → resolved to a map coord.
   const [hoverKm, setHoverKm] = useState<number | null>(null);
+  // Clip-tangent mode: toggle on → click a spur → confirm card → reroute.
+  const [clipMode, setClipMode] = useState(false);
+  const [pendingClip, setPendingClip] = useState<ClipSelection | null>(null);
+  const [clipBusy, setClipBusy] = useState(false);
   // Desktop region collapse state.
   const [chatCollapsed, setChatCollapsed] = useState(false);
   const [elevationCollapsed, setElevationCollapsed] = useState(false);
@@ -362,6 +374,63 @@ export default function RouteBuilder2() {
     },
     [setRouteNameInStore, setRouteProfile, setRouteStatsInStore, runSurfaceCheck],
   );
+
+  // ── Clip-tangent tool ──
+  const handleToggleClipMode = useCallback(() => {
+    setClipMode((on) => {
+      const next = !on;
+      if (!next) setPendingClip(null); // leaving clip mode clears the selection
+      trackRb2('clip_mode_toggled', { enabled: next });
+      return next;
+    });
+  }, []);
+
+  // Map routes clicks here while in clip mode (instead of appending a waypoint).
+  const handleClipClick = useCallback(
+    (coord: Coordinate) => {
+      const coords = routeGeometry?.coordinates;
+      if (!coords) return;
+      const selection = detectClipSelection(coords, coord);
+      setPendingClip(selection);
+      if (selection) {
+        trackRb2('clip_segment_detected', {
+          points_removed: selection.stats.pointsRemoved,
+          saved_m: Math.round(selection.stats.distanceSaved),
+        });
+      }
+    },
+    [routeGeometry],
+  );
+
+  const handleCancelClip = useCallback(() => setPendingClip(null), []);
+
+  const handleConfirmClip = useCallback(async () => {
+    if (!pendingClip || !routeGeometry) return;
+    const coords = routeGeometry.coordinates as Array<[number, number]>;
+    setClipBusy(true);
+    try {
+      const newCoords = (await removeSegmentAndReroute(
+        coords,
+        pendingClip.startIndex,
+        pendingClip.endIndex,
+        { profile: routeProfile, mapboxToken: import.meta.env.VITE_MAPBOX_TOKEN },
+      )) as Array<[number, number]> | null;
+      if (Array.isArray(newCoords) && newCoords.length >= 2) {
+        setRouteGeometryInStore({ type: 'LineString', coordinates: newCoords as Coordinate[] });
+        // Distance recomputed exactly; the elevation chart re-derives from the
+        // new geometry via useRouteAnalysis's geometry-keyed effect.
+        const distance_km = parseFloat(polylineLengthKm(newCoords as Coordinate[]).toFixed(1));
+        setRouteStatsInStore((prev: Record<string, unknown>) => ({ ...prev, distance_km }));
+        trackRb2('clip_applied', { points_removed: pendingClip.stats.pointsRemoved });
+      }
+    } catch (e) {
+      // Fail-soft: keep the original route on a reroute error.
+      console.warn('[clip] reroute failed, keeping original route', e);
+    } finally {
+      setClipBusy(false);
+      setPendingClip(null); // stay in clip mode for further clips
+    }
+  }, [pendingClip, routeGeometry, routeProfile, setRouteGeometryInStore, setRouteStatsInStore]);
 
   // Auto-apply the first suggestion when generate() returns. The hook
   // separates `generate` (writes to aiSuggestions) from `selectSuggestion`
@@ -776,6 +845,9 @@ export default function RouteBuilder2() {
       isLocating={userLocation.status === 'locating'}
       isImperial={isImperial}
       isMobile={isMobile}
+      clipMode={clipMode}
+      onClipClick={handleClipClick}
+      clipHighlight={pendingClip?.highlightGeoJSON ?? null}
     >
       {visibility.surface && (
         <SurfaceLayer geometry={geometryForLayers} onSegments={setSurfaceSegments} />
@@ -1014,10 +1086,24 @@ export default function RouteBuilder2() {
                     onToggleUnits={() =>
                       void updateUnitsPreference(isImperial ? 'metric' : 'imperial')
                     }
+                    onToggleClipMode={hasRoute ? handleToggleClipMode : undefined}
+                    clipMode={clipMode}
                     onClear={handleClearRoute}
                     canClear={canClearMap}
                   />
-                  {!isLoading && (
+                  {clipMode && pendingClip && (
+                    <ClipConfirmCard
+                      stats={pendingClip.stats}
+                      isImperial={isImperial}
+                      busy={clipBusy}
+                      onConfirm={handleConfirmClip}
+                      onCancel={handleCancelClip}
+                    />
+                  )}
+                  {clipMode && !pendingClip && (
+                    <ClipHint />
+                  )}
+                  {!clipMode && !isLoading && (
                     <ClickToPlaceHint snapEnabled={snapToRoads} hasRoute={hasRoute} />
                   )}
                 </Box>
@@ -1291,6 +1377,8 @@ export default function RouteBuilder2() {
                 onToggleUnits={() =>
                   void updateUnitsPreference(isImperial ? 'metric' : 'imperial')
                 }
+                onToggleClipMode={hasRoute ? handleToggleClipMode : undefined}
+                clipMode={clipMode}
                 onClear={handleClearRoute}
                 canClear={canClearMap}
               />
@@ -1300,7 +1388,23 @@ export default function RouteBuilder2() {
             </Box>
           </Box>
           {statsNode && <Box style={{ pointerEvents: 'auto' }}>{statsNode}</Box>}
-          {!isLoading && (
+          {clipMode && pendingClip && (
+            <Box style={{ pointerEvents: 'auto', alignSelf: 'flex-start' }}>
+              <ClipConfirmCard
+                stats={pendingClip.stats}
+                isImperial={isImperial}
+                busy={clipBusy}
+                onConfirm={handleConfirmClip}
+                onCancel={handleCancelClip}
+              />
+            </Box>
+          )}
+          {clipMode && !pendingClip && (
+            <Box style={{ pointerEvents: 'auto', alignSelf: 'flex-start' }}>
+              <ClipHint />
+            </Box>
+          )}
+          {!clipMode && !isLoading && (
             <Box style={{ pointerEvents: 'auto', alignSelf: 'flex-start' }}>
               <ClickToPlaceHint snapEnabled={snapToRoads} hasRoute={hasRoute} isMobile />
             </Box>
@@ -1325,6 +1429,34 @@ export default function RouteBuilder2() {
  * teaches the first click; once a route exists it keeps the reshape / remove
  * affordances discoverable (the cursor stays a crosshair throughout).
  */
+function ClipHint() {
+  return (
+    <Box
+      data-testid="rb2-clip-hint"
+      style={{
+        backgroundColor: RB2.cardBg,
+        border: `1px solid ${RB2.border}`,
+        boxShadow: RB2.shadowCard,
+        padding: '6px 10px',
+        maxWidth: 360,
+        pointerEvents: 'none',
+      }}
+    >
+      <Text
+        style={{
+          fontFamily: RB2_FONT.mono,
+          fontSize: 11,
+          color: RB2.textSecondary,
+          letterSpacing: '0.02em',
+          textAlign: 'center',
+        }}
+      >
+        Click a spur to clip it off
+      </Text>
+    </Box>
+  );
+}
+
 function ClickToPlaceHint({
   snapEnabled,
   hasRoute,

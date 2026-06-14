@@ -98,7 +98,9 @@ describe('generateRouteFromNaturalLanguage', () => {
     expect(geocodeWaypoint).toHaveBeenCalledWith('River Trail', [-105, 40]);
     // start, geocoded waypoint, and loop-closing return to start
     expect(getSmartCyclingRoute.mock.calls[0][0]).toHaveLength(3);
-    expect(r).toMatchObject({ distanceKm: 12, name: 'River Trail loop', source: 'brouter' });
+    // Distance is recomputed from the (clipped) geometry, not the router's distance_m.
+    expect(r).toMatchObject({ name: 'River Trail loop', source: 'brouter' });
+    expect(r.distanceKm).toBeGreaterThan(0);
   });
 
   it('resolves start with priority placedStart > userLocation > biasCoord', async () => {
@@ -232,7 +234,11 @@ describe('routeThroughWaypoints', () => {
     // start + 2 geocoded + return-to-start.
     expect(getSmartCyclingRoute.mock.calls[0][0]).toHaveLength(4);
     expect(getSmartCyclingRoute.mock.calls[0][1]).toMatchObject({ profile: 'gravel' });
-    expect(r).toMatchObject({ distanceKm: 30, elevationGain: 250, source: 'brouter' });
+    // distanceKm is recomputed from the clipped geometry (~2.6km for lineOf(20)),
+    // NOT the router's stale 30000m.
+    expect(r).toMatchObject({ elevationGain: 250, source: 'brouter' });
+    expect(r.distanceKm).toBeGreaterThan(0);
+    expect(r.distanceKm).toBeLessThan(10);
     expect(r.geocodedNames).toEqual(['Hygiene', 'Berthoud']);
   });
 
