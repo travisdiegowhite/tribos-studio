@@ -8,9 +8,22 @@
 // the device format had moved past what the old library could read.
 // Garmin's own SDK supports every device they make by definition.
 
-import { Decoder, Stream } from '@garmin/fitsdk';
 import { computePerRideAnalytics } from './advancedRideAnalytics.js';
 import { buildFitCoachContext } from './fitCoachContext.js';
+
+// @garmin/fitsdk is ESM-only ("type": "module" in its package.json).
+// Vercel's serverless runtime loads this file as CJS because the root
+// package.json has no "type": "module", so a static `import { Decoder,
+// Stream } from '@garmin/fitsdk'` becomes `require()` and throws
+// ERR_REQUIRE_ESM at module load — taking down /api/garmin-activities,
+// /api/garmin-webhook-process, and every other endpoint that imports
+// this file. Dynamic import() is allowed from CJS hosts; the returned
+// promise is cached so we only pay the load cost once per cold start.
+let _fitsdkPromise = null;
+function loadFitSdk() {
+  if (!_fitsdkPromise) _fitsdkPromise = import('@garmin/fitsdk');
+  return _fitsdkPromise;
+}
 
 // FIT semicircles → degrees conversion factor.
 // FIT stores positions as int32 semicircles where 0x80000000 == 180°.
@@ -102,7 +115,8 @@ function normalizeMessagesToLegacyShape(messages) {
  * @returns {Promise<Object>} Parsed data including trackPoints, allDataPoints,
  *   summary, powerMetrics, rideAnalytics, recordCount, hasGpsData, hasPowerData.
  */
-export function parseFitFile(fitBuffer) {
+export async function parseFitFile(fitBuffer) {
+  const { Decoder, Stream } = await loadFitSdk();
   return new Promise((resolve, reject) => {
     try {
       const buffer = Buffer.isBuffer(fitBuffer) ? fitBuffer : Buffer.from(fitBuffer);
