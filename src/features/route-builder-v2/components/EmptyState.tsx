@@ -55,8 +55,8 @@ export function EmptyState() {
           lineHeight: 1.5,
         }}
       >
-        Open the Generate panel to start with goal + duration, or describe
-        what you want in the chat.
+        Click the map to drop waypoints and draw your own line — or open the
+        Generate panel for a goal-based route, or just describe it in the chat.
       </Text>
     </Box>
   );

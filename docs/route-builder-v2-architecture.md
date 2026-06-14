@@ -1,6 +1,91 @@
 # Route Builder 2.0 — Architecture (S2 rewire)
 
-## S2 — v2 now uses v1's backend (current state, May 2026)
+> **Reading order (June 2026):** start with **Current state** immediately
+> below. The **S2** section that follows it is accurate for the hook/backend
+> wiring but its *chat* description is **superseded** — the chat no longer
+> runs the keyword classifier; it runs the conversational coach endpoint
+> (`/api/route-coach`). The **P1.2/P1.4** sections near the bottom are
+> historical and explicitly marked frozen/superseded.
+
+## Current state (PR-4A/4B + Epic 1, June 2026)
+
+The Route Builder 2.0 chat is a **real conversational coach**, not a heuristic
+stub. Three landings moved it past the S2 description below:
+
+- **PR-4A — `/api/route-coach`.** A Claude-powered (`claude-sonnet-4-6`)
+  endpoint that runs the conversation and the edit DECISION server-side, then
+  returns prose plus an optional structured `proposedEdit`. The browser-coupled
+  routing stack (Stadia/BRouter) can't run in a serverless function, so the
+  **client applies the geometry** — the server only validates and normalizes
+  the edit intent. Files: `api/route-coach.js`, `api/utils/routeEditTools.js`
+  (the single `apply_route_edit` tool + `normalizeRouteEdit`, 13 implemented
+  intents), `api/utils/routeCoachContext.js` (context assembly + system-prompt
+  rendering). The endpoint runs a bounded tool-use loop
+  (`MAX_TOOL_USE_ROUNDS = 4`) so an invalid tool call is fed back for recovery
+  rather than failing the turn.
+
+- **PR-4B — client dispatch + persistence.** `submitChatMessage` now defaults
+  to `applyAIEditViaCoach` (`src/features/route-builder-v2/chat/`), which POSTs
+  the message + windowed history + a route snapshot to `/api/route-coach`, then
+  feeds the returned `proposedEdit.editIntent` into v1's `applyRouteEdit`. Chat
+  history is **persisted per route** in `coach_conversations`
+  (migration `091_route_coach_conversations.sql`), hydrated on mount and
+  written back per turn by `useChatSession` (`persistTurn`). Cold-start /
+  generate phrasing still routes to RB1's NL builder via `onGenerateFromPrompt`.
+
+- **Epic 1 — wind/weather-aware coach.** `api/utils/routeWeatherContext.js`
+  fetches OpenWeatherMap for the route's start point and computes the
+  distance-weighted head/tail/cross-wind breakdown against the actual geometry.
+  `collectRouteCoachContext` includes it; `buildRouteCoachSystemPrompt` renders
+  a `=== WIND & WEATHER ===` block with proactive tailwind-home guidance and a
+  mandatory hazard call-out. It never fabricates data — when
+  `OPENWEATHER_API_KEY` is missing or the call fails, the block is silent.
+
+### Route-coach context (what the coach knows, server-side)
+
+`collectRouteCoachContext(supabase, userId, routeSnapshot)` fans out five
+fetchers in parallel, each null-tolerant so new users degrade gracefully:
+
+| Block | Source | Fetcher |
+|---|---|---|
+| Coaching persona | `user_coach_settings.coaching_persona` | `getCoachPersona` |
+| Today's prescription | `planned_workouts` (today, incomplete) | `getTodaysPrescription` |
+| Fitness state (RSS/TFI/AFI/FormScore) | `training_load_daily` (7d) | `getFitnessState` |
+| Familiar roads + directional bias | `get_user_segments_in_bbox` RPC | `getFamiliarRoads` |
+| Wind & weather | OpenWeatherMap | `getRouteWeather` (Epic 1) |
+
+### What is NOT the chat path anymore
+
+- `replicatedEditLogic.applyAIEdit` (the v1 `classifyEditIntent` keyword
+  classifier) is **no longer the v2 chat dispatch** — PR-4B swapped it for
+  `applyAIEditViaCoach`. It survives only as the edit engine v1's
+  `/route-builder` panel still uses, and as the client-side `applyRouteEdit`
+  machinery both paths share. The S2 section below still describes it as the
+  chat path; that part is superseded.
+- The P1.4 heuristic keyword stub (`heuristicTranslation.ts`, the 7 phrase
+  groups) is gone. The "P1.4 chat stub" section near the bottom is historical.
+- `api/route-builder-2-chat.js` (the forced-tool-use *mutation* translator) is
+  **dead** — superseded by `/api/route-coach`, no `src/` importers. Slated for
+  deletion at cutover (Epic 0).
+
+### Cutover status (Epic 0 — see `route-builder-2-roadmap.md`)
+
+RB2 is gated behind `useRouteBuilderV2Access` (env kill switch
+`VITE_ROUTE_BUILDER_V2_ENABLED` **AND** per-user
+`user_profiles.route_builder_v2_enabled`, migration `090`). Known cutover work,
+none of it done yet:
+
+- **Dead code, verified unreferenced, awaiting approval to delete:**
+  `api/route-builder-2-chat.js` (+ test) and the entire `src/routing/` tree
+  (`executor/` + `RouterClient/`) — nothing outside `src/routing/` imports it.
+- **Edit-path duplication** between `replicatedEditLogic.ts` and v1's
+  `aiRouteEditService.js` resolves when v1 retires.
+- **Flag flip** (default-on / redirect direction) is a product decision, not
+  yet made.
+
+---
+
+## S2 — v2 now uses v1's backend (May 2026)
 
 S2 replaced v2's executor-based plumbing with thin wrappers around v1's
 proven services. The new executor architecture (`src/routing/executor/`)
@@ -20,6 +105,9 @@ What changed in S2:
   in turn calls v1's `classifyEditIntent` + `applyRouteEdit` from
   `src/utils/aiRouteEditService.js`. The duplication is intentional and
   resolves at S6 when v1 retires.
+  > **Superseded (PR-4B):** the chat handler no longer calls
+  > `replicatedEditLogic.applyAIEdit`. It calls `applyAIEditViaCoach`,
+  > which POSTs to `/api/route-coach`. See **Current state** at the top.
 - The `Mutation` taxonomy (an executor concept) is removed from v2 —
   chat edits go through `applyAIEdit(text)` from end to end.
 - A local `RouteSnapshot`-like shape is defined in
@@ -54,6 +142,11 @@ feedback without double-toasting.
 | `useRouteAnalysis` | v1's `getElevationData` + `calculateElevationStats` for real elevation profile (replaces the P1.2 placeholder), and `routePOIService.queryPOIsAlongRoute` for POIs. |
 
 ### Replicated edit logic
+
+> **Superseded (PR-4B):** `replicatedEditLogic.ts` is no longer the v2
+> chat seam — `applyAIEditViaCoach` → `/api/route-coach` is. The
+> description below documents the keyword-classifier path that v1's
+> `/route-builder` panel still uses. See **Current state** at the top.
 
 `src/features/route-builder-v2/chat/replicatedEditLogic.ts` is the seam
 between v2's chat surface and v1's edit pipeline. It:

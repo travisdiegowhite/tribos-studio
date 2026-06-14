@@ -15,6 +15,7 @@
 // posthog-js, which break under the Node serverless runtime.
 
 import { PERSONA_DATA } from './personaData.js';
+import { getRouteWeather } from './routeWeatherContext.js';
 
 // ── Inlined pure helpers (ports of src/utils/{distanceUnits,geo,formBands}) ──
 
@@ -364,15 +365,17 @@ export async function getFamiliarRoads(supabase, userId, startLocation, targetDi
 export async function collectRouteCoachContext(supabase, userId, routeSnapshot) {
   const startLocation = routeSnapshot?.startLocation;
   const targetDistanceKm = Number(routeSnapshot?.stats?.distance_km) || 30;
+  const coordinates = routeSnapshot?.geometry?.coordinates;
 
-  const [persona, fitnessState, prescription, familiarRoads] = await Promise.all([
+  const [persona, fitnessState, prescription, familiarRoads, weather] = await Promise.all([
     getCoachPersona(supabase, userId),
     getFitnessState(supabase, userId),
     getTodaysPrescription(supabase, userId),
     getFamiliarRoads(supabase, userId, startLocation, targetDistanceKm),
+    getRouteWeather(startLocation, coordinates),
   ]);
 
-  return { persona, fitnessState, prescription, familiarRoads };
+  return { persona, fitnessState, prescription, familiarRoads, weather };
 }
 
 // ── Prompt rendering ─────────────────────────────────────────────────────────
@@ -492,6 +495,51 @@ function renderPrescriptionBlock(prescription) {
   return lines.join('\n');
 }
 
+/** Render the WIND & WEATHER block. Empty string when weather is null. */
+function renderWeatherBlock(weather) {
+  if (!weather) return '';
+  const lines = [];
+
+  const tempBits = [`${weather.temperatureC}°C`];
+  if (weather.feelsLikeC != null && weather.feelsLikeC !== weather.temperatureC) {
+    tempBits.push(`feels like ${weather.feelsLikeC}°C`);
+  }
+  lines.push(`- Current conditions at the start: ${tempBits.join(', ')}`);
+  if (weather.description) {
+    lines.push(`- Sky: ${weather.description}`);
+  }
+
+  if (weather.windSpeedKmh != null) {
+    const dir = weather.windDirection ? ` from the ${weather.windDirection}` : '';
+    const gust =
+      weather.windGustKmh != null && weather.windGustKmh > weather.windSpeedKmh
+        ? `, gusting ${weather.windGustKmh} km/h`
+        : '';
+    lines.push(`- Wind: ${weather.windSpeedKmh} km/h${dir}${gust}`);
+  }
+
+  if (weather.wind) {
+    const w = weather.wind;
+    lines.push(
+      `- Wind along THIS route: ${w.headwind}% headwind, ${w.tailwind}% tailwind, ` +
+        `${w.crosswind}% crosswind (${w.overall})`
+    );
+  }
+
+  // Hazard flag — the coach must surface dangerous conditions regardless of voice.
+  const conditions = weather.conditions || '';
+  if (
+    conditions.includes('thunder') ||
+    conditions.includes('storm') ||
+    conditions.includes('snow') ||
+    (conditions.includes('freezing') && conditions.includes('rain'))
+  ) {
+    lines.push('- HAZARD: conditions may be unsafe to ride — call this out plainly.');
+  }
+
+  return lines.join('\n');
+}
+
 /**
  * Assemble the route-coach system prompt. Sectioned-string shape, mirrors
  * api/coach.js. Route-builder-specific sections plus the Units 1–3 context.
@@ -501,6 +549,7 @@ export function buildRouteCoachSystemPrompt({
   prescription,
   fitnessState,
   familiarRoads,
+  weather,
   routeSnapshot,
   userLocalDate,
 }) {
@@ -556,6 +605,18 @@ ${fitnessBlock}`);
   if (familiarBlock) {
     sections.push(`=== FAMILIAR ROADS ===
 ${familiarBlock}`);
+  }
+
+  const weatherBlock = renderWeatherBlock(weather);
+  if (weatherBlock) {
+    sections.push(`=== WIND & WEATHER ===
+${weatherBlock}
+
+When the wind is strong (~20+ km/h) and the rider is flexible on direction,
+proactively suggest riding the windward leg first so they earn a tailwind on
+the way home — use shift_direction or reverse to enact it. Frame it as a
+suggestion, never force it, and never override the prescription. Surface any
+HAZARD line plainly regardless of your coach voice.`);
   }
 
   sections.push(`=== CRITICAL REQUIREMENTS ===

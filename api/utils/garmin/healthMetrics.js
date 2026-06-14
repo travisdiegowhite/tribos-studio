@@ -12,6 +12,15 @@
 
 const ACTIVITY_EVENT_TYPES = ['CONNECT_ACTIVITY', 'ACTIVITY_DETAIL', 'ACTIVITY_FILE_DATA'];
 
+// Mirrors the processor's pickup window and retry budget
+// (api/garmin-webhook-process.js ACTIVITY_CUTOFF_DAYS, retryPolicy.MAX_RETRIES).
+// Queue lag must only count events the processor is still eligible to claim —
+// fossil rows older than the window sit unprocessed forever by design and
+// would otherwise peg the lag SLI at months. 217 such rows existed when the
+// monitor first ran (June 2026), pinning the metric at ~160 days.
+const PROCESSOR_PICKUP_WINDOW_DAYS = 14;
+const PROCESSOR_MAX_RETRIES = 10;
+
 // Alert thresholds for the breach evaluation in computeHealthSnapshot().
 // MIN_SAMPLE guards keep tiny denominators from paging at 3am.
 export const THRESHOLDS = {
@@ -119,12 +128,21 @@ export async function getUnmatchedWebhookCount(supabase, since) {
  * means the processor cron is down, wedged, or starved.
  */
 export async function getQueueLag(supabase) {
+  const windowStart = new Date(
+    Date.now() - PROCESSOR_PICKUP_WINDOW_DAYS * 24 * 60 * 60 * 1000
+  ).toISOString();
+
   const buildQuery = (excludeDeadLettered) => {
     let q = supabase
       .from('garmin_webhook_events')
       .select('created_at')
       .eq('processed', false)
       .in('event_type', ACTIVITY_EVENT_TYPES)
+      // Only events the processor can still claim: inside the pickup window
+      // and with retry budget left. Fossils outside the window are visible
+      // via getStuckEventCount/backlog metrics instead.
+      .gte('created_at', windowStart)
+      .lt('retry_count', PROCESSOR_MAX_RETRIES)
       .order('created_at', { ascending: true })
       .limit(1);
     if (excludeDeadLettered) q = q.eq('dead_lettered', false);

@@ -8,7 +8,8 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Box, Text } from '@mantine/core';
-import { useMediaQuery } from '@mantine/hooks';
+import { useLocalStorage, useMediaQuery } from '@mantine/hooks';
+import { BASEMAP_STYLES } from '../components/RouteBuilder';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import AppShell from '../components/AppShell.jsx';
 import {
@@ -47,7 +48,8 @@ import {
   FuelPanel,
   TirePressurePanel,
   PersonaDropdown,
-  ChatShell,
+  ChatBody,
+  MobileControlSheet,
   EmptyState,
   LoadingState,
   ErrorState,
@@ -56,6 +58,7 @@ import {
   RB2_FONT,
   type LayerVisibilityState,
   type FormPanelHandle,
+  type MobileSheetTab,
   type RailItem,
 } from '../features/route-builder-v2/components';
 import {
@@ -65,7 +68,7 @@ import {
   type ChatMessage,
   type FormPanelControl,
 } from '../features/route-builder-v2/chat';
-import { Stack as StackIcon, MapPin, FolderOpen, MagnifyingGlass, CloudSun, ForkKnife, Gauge, Barbell } from '@phosphor-icons/react';
+import { Stack as StackIcon, MapPin, FolderOpen, MagnifyingGlass, CloudSun, ForkKnife, Gauge, Barbell, PencilSimpleLine, ChartLineUp, FloppyDisk, ChatCircleDots } from '@phosphor-icons/react';
 import { supabase } from '../lib/supabase';
 import { SurfaceLayer } from '../features/route-builder-v2/layers/SurfaceLayer';
 import { GradientLayer } from '../features/route-builder-v2/layers/GradientLayer';
@@ -80,8 +83,12 @@ import type { WorkoutDefinition } from '../types/training';
 import { trackRb2 } from '../features/route-builder-v2/telemetry/trackRb2';
 import { coordinateAtDistanceKm } from '../utils/elevation';
 import { getAnyWorkoutById } from '../data/workoutLookup';
-import { generateRouteFromNaturalLanguage } from '../utils/naturalLanguageRouteBuilder';
-import type { GenerateOutcome } from '../features/route-builder-v2/chat';
+import {
+  generatePlannedRouteCandidates,
+  type RouteCandidate,
+} from '../utils/naturalLanguageRouteCandidates';
+import { fetchRouteSurfaceData, computeSurfaceDistribution } from '../utils/surfaceOverlay.js';
+import type { GenerateOutcome, RouteOptionSummary } from '../features/route-builder-v2/chat';
 import { generateCuesFromWorkoutStructure } from '../utils/intervalCues.js';
 import {
   categoryToGoal,
@@ -197,10 +204,9 @@ export default function RouteBuilder2() {
   const waypoints = useRouteBuilderStore((s) => s.waypoints);
   const viewport = useRouteBuilderStore((s) => s.viewport);
   const setWaypointsInStore = useRouteBuilderStore((s) => s.setWaypoints);
-  const setRouteGeometryInStore = useRouteBuilderStore((s) => s.setRouteGeometry);
   const setRouteStatsInStore = useRouteBuilderStore((s) => s.setRouteStats);
   const setRouteNameInStore = useRouteBuilderStore((s) => s.setRouteName);
-  const setBuilderMode = useRouteBuilderStore((s) => s.setBuilderMode);
+  const setAiSuggestions = useRouteBuilderStore((s) => s.setAiSuggestions);
   const clearRouteInStore = useRouteBuilderStore((s) => s.clearRoute);
 
   // Map viewport center as a last-resort start_coord fallback for the form.
@@ -245,6 +251,16 @@ export default function RouteBuilder2() {
   const [elevationCollapsed, setElevationCollapsed] = useState(false);
   // Desktop left-rail open flyout (layers | waypoints | save), null = closed.
   const [railOpenId, setRailOpenId] = useState<string | null>(null);
+  // Mobile bottom-sheet active tab (null = collapsed, map fully visible).
+  const [mobileTab, setMobileTab] = useState<string | null>(null);
+  // Basemap choice — persisted so the map opens on the user's preferred style.
+  const [basemapId, setBasemapId] = useLocalStorage<string>({
+    key: 'rb2-basemap',
+    defaultValue: 'dark',
+  });
+  const basemapStyle =
+    BASEMAP_STYLES.find((s: { id: string }) => s.id === basemapId)?.style ??
+    BASEMAP_STYLES[0].style;
   // Desktop cold-start: the GenerateBar (chips folded into the chat dock).
   // Auto-expand when seeded from a workout so the prefilled goal/duration show.
   const [generateExpanded, setGenerateExpanded] = useState(hasWorkout);
@@ -285,6 +301,68 @@ export default function RouteBuilder2() {
   });
   const formPanelRef = useRef<FormPanelHandle | null>(null);
 
+  // Candidates from the latest chat-driven generation, parallel to the
+  // `aiSuggestions` store array (same order). Session-only, like the store
+  // field — carries the per-candidate name/profile/familiarity the snapshot
+  // shape doesn't.
+  const chatCandidatesRef = useRef<RouteCandidate[]>([]);
+
+  // Monotonic guard so a slow Overpass surface check for a route the rider
+  // has already switched away from never posts a stale chat line.
+  const surfaceCheckSeqRef = useRef(0);
+
+  // Fail-soft surface follow-up for the applied route (gravel requests only):
+  // one Overpass fetch, reused by the SurfaceSummaryBar via the shared
+  // segments state, plus a short chat line with the actual unpaved share.
+  const appendChatMessage = chat.append;
+  const runSurfaceCheck = useCallback(
+    (candidate: RouteCandidate) => {
+      if (candidate.surface_profile !== 'gravel') return;
+      // Planned candidates already measured gravel % during generation (shown
+      // on the card + reply) — don't re-query Overpass or double-post here.
+      if (candidate.gravel_actual_pct != null) return;
+      const geometry = candidate.snapshot.geometry;
+      const seq = ++surfaceCheckSeqRef.current;
+      void (async () => {
+        try {
+          const segments = (await fetchRouteSurfaceData(
+            geometry as Array<[number, number]>,
+          )) as string[] | null;
+          if (seq !== surfaceCheckSeqRef.current) return;
+          if (!segments || segments.length === 0) return;
+          setSurfaceSegments(segments);
+          const dist = computeSurfaceDistribution(segments) as Record<string, number>;
+          const unpavedPct = Math.round((dist.gravel ?? 0) + (dist.unpaved ?? 0));
+          appendChatMessage({
+            role: 'assistant',
+            text: `Surface check: ~${unpavedPct}% unpaved on this one.`,
+          });
+        } catch {
+          /* fail-soft — the route works without the surface line */
+        }
+      })();
+    },
+    [appendChatMessage],
+  );
+
+  // Name/profile/familiarity aren't part of the RouteSnapshot that
+  // `selectSuggestion` commits — apply them from the candidate alongside.
+  const applyCandidateExtras = useCallback(
+    (candidate: RouteCandidate) => {
+      if (candidate.name) setRouteNameInStore(candidate.name);
+      if (candidate.surface_profile === 'gravel') setRouteProfile('gravel');
+      setRouteStatsInStore((prev: Record<string, unknown>) => ({
+        ...prev,
+        familiarityScore:
+          candidate.familiarity_percent != null
+            ? { familiarityPercent: candidate.familiarity_percent }
+            : null,
+      }));
+      runSurfaceCheck(candidate);
+    },
+    [setRouteNameInStore, setRouteProfile, setRouteStatsInStore, runSurfaceCheck],
+  );
+
   // Auto-apply the first suggestion when generate() returns. The hook
   // separates `generate` (writes to aiSuggestions) from `selectSuggestion`
   // (commits geometry + waypoints to the store) — the harness needs that
@@ -292,17 +370,22 @@ export default function RouteBuilder2() {
   // so a freshly generated route should land in the live store
   // immediately. Without this, the route renders only from leftover
   // persisted state and manual edits fail with `constraint_infeasible`
-  // because waypoints stay empty.
+  // because waypoints stay empty. Chat-driven generations land here too —
+  // candidates are ordered best-first, so suggestion[0] is the winner.
   const lastAppliedRef = useRef<unknown>(null);
   useEffect(() => {
     const first = generation.suggestions[0];
     if (!first || first === lastAppliedRef.current) return;
     lastAppliedRef.current = first;
     generation.selectSuggestion(0);
+    const chatCandidate = chatCandidatesRef.current[0];
+    if (chatCandidate && chatCandidate.snapshot === first) {
+      applyCandidateExtras(chatCandidate);
+    }
     // A route just landed — collapse the desktop GenerateBar so the chat
     // reclaims the dock height.
     setGenerateExpanded(false);
-  }, [generation]);
+  }, [generation, applyCandidateExtras]);
 
   // Backfill waypoints from geometry endpoints. v1 sometimes persists a
   // route without a populated waypoints array (loaded routes, legacy
@@ -314,8 +397,10 @@ export default function RouteBuilder2() {
     if (routeGeometry.coordinates.length < 2) return;
     if (Array.isArray(waypoints) && waypoints.length >= 2) return;
     const coords = routeGeometry.coordinates as Coordinate[];
-    const start = coords[0];
-    const end = coords[coords.length - 1];
+    // Strip any elevation 3rd element — waypoint positions are strictly
+    // [lng, lat] (T1.2 contract); 3-element positions break road snapping.
+    const start: Coordinate = [coords[0][0], coords[0][1]];
+    const end: Coordinate = [coords[coords.length - 1][0], coords[coords.length - 1][1]];
     setWaypointsInStore([
       { id: 'wp-0', position: start, type: 'start', name: '' },
       { id: 'wp-1', position: end, type: 'end', name: '' },
@@ -326,6 +411,7 @@ export default function RouteBuilder2() {
     clearRouteInStore();
     generation.clearSuggestions();
     lastAppliedRef.current = null;
+    chatCandidatesRef.current = [];
     trackRb2('route_cleared', {});
   };
 
@@ -369,6 +455,8 @@ export default function RouteBuilder2() {
   const formControl = useRef<FormPanelControl>({
     expand: () => {
       if (isMobileRef.current) {
+        // Surface the Build tab (which hosts the form) before expanding it.
+        setMobileTab('build');
         formPanelRef.current?.expand();
       } else {
         setGenerateExpanded(true);
@@ -376,14 +464,15 @@ export default function RouteBuilder2() {
     },
   });
 
-  // Create a fresh route straight from a chat prompt, reusing RB1's
-  // natural-language builder (Claude parse → geocode → iterative routing) and
-  // writing the result into the RB2 store. The geometry→endpoints effect then
-  // seeds start/end waypoints so manual editing works afterwards.
+  // Plan fresh route candidates from a chat prompt: Claude proposes ~3 real
+  // routes (towns/gravel roads to ride through), we geocode + route + measure
+  // each, scored best-first. Snapshots land in the suggestions store; the
+  // auto-apply effect commits the winner (geometry + stats + resampled
+  // editable waypoints) and the chat renders the rest as named option cards.
   const handleGenerateFromPrompt = useCallback(
     async (prompt: string): Promise<GenerateOutcome> => {
       try {
-        const r = await generateRouteFromNaturalLanguage(prompt, {
+        const candidates = await generatePlannedRouteCandidates(prompt, {
           biasCoord: viewportCenter,
           userLocation: userLocation.coord ?? null,
           placedStart: waypoints?.[0]?.position ?? null,
@@ -392,23 +481,33 @@ export default function RouteBuilder2() {
           useIterativeBuilder: true,
           accessToken,
         });
-        setRouteGeometryInStore({ type: 'LineString', coordinates: r.coordinates });
-        setRouteStatsInStore({
-          distance_km: r.distanceKm,
-          elevation_gain_m: r.elevationGain,
-          duration_s: r.duration_s,
-          familiarityScore: r.familiarityScore ?? null,
-        });
-        setWaypointsInStore([]);
-        setBuilderMode('editing');
-        if (r.parsed?.preferences?.surfaceType === 'gravel') setRouteProfile('gravel');
-        if (r.name) setRouteNameInStore(r.name);
+        chatCandidatesRef.current = candidates;
+        setAiSuggestions(candidates.map((c) => c.snapshot));
+
+        const best = candidates[0];
+        const options: RouteOptionSummary[] | undefined =
+          candidates.length > 1
+            ? candidates.map((c, index) => ({
+                index,
+                name: c.name,
+                distance_km: c.snapshot.stats.distance_km,
+                elevation_gain_m: c.snapshot.stats.elevation_gain_m,
+                direction_label: c.direction_label,
+                familiarity_percent: c.familiarity_percent,
+                surface_label: c.surface_profile === 'gravel' ? 'gravel-biased' : undefined,
+                gravel_actual_pct: c.gravel_actual_pct,
+                gravel_target_pct: c.gravel_target_pct,
+                rationale: c.rationale,
+              }))
+            : undefined;
         return {
           ok: true,
-          distance_km: r.distanceKm,
-          elevation_gain_m: r.elevationGain,
-          name: r.name,
-          familiarity_percent: r.familiarityScore?.familiarityPercent ?? null,
+          distance_km: best.snapshot.stats.distance_km,
+          elevation_gain_m: best.snapshot.stats.elevation_gain_m,
+          name: best.name,
+          familiarity_percent: best.familiarity_percent,
+          gravel_actual_pct: best.gravel_actual_pct,
+          options,
         };
       } catch (e) {
         const message = e instanceof Error ? e.message : String(e);
@@ -422,13 +521,25 @@ export default function RouteBuilder2() {
       waypoints,
       weather.weather,
       routeProfile,
-      setRouteGeometryInStore,
-      setRouteStatsInStore,
-      setWaypointsInStore,
-      setBuilderMode,
-      setRouteProfile,
-      setRouteNameInStore,
+      setAiSuggestions,
     ],
+  );
+
+  // Switch the map/store to a different chat-generated option. The
+  // suggestions array is untouched (no auto-apply refire — that effect only
+  // reacts to a *new* array), so switching back and forth is free.
+  const handleSelectRouteOption = useCallback(
+    (messageId: string, index: number) => {
+      const chosen = generation.selectSuggestion(index);
+      if (!chosen) return;
+      const candidate = chatCandidatesRef.current[index];
+      if (candidate && candidate.snapshot === chosen) {
+        applyCandidateExtras(candidate);
+      }
+      chat.updateMessage(messageId, { selectedOptionIndex: index });
+      trackRb2('chat_route_option_selected', { option_index: index });
+    },
+    [generation, applyCandidateExtras, chat],
   );
 
   const handleChatSubmit = useCallback(
@@ -443,6 +554,7 @@ export default function RouteBuilder2() {
         hasRoute: hasRouteForChat,
         routeId: routeIdFromUrl ?? null,
         conversationHistory,
+        isImperial,
         append: chat.append,
         setProcessing: chat.setProcessing,
         markRefused: chat.markRefused,
@@ -454,6 +566,7 @@ export default function RouteBuilder2() {
     [
       hasRouteForChat,
       routeIdFromUrl,
+      isImperial,
       chat.messages,
       chat.append,
       chat.setProcessing,
@@ -628,18 +741,41 @@ export default function RouteBuilder2() {
     await coach.savePersona(next, 'manual');
   };
 
+  // "Back to start" — append the start coordinate as a new end so the router
+  // closes the loop. Disabled when the route already returns to its start.
+  const firstWpPos = waypointsForMap[0]?.position;
+  const lastWpPos = waypointsForMap[waypointsForMap.length - 1]?.position;
+  const isClosedLoop =
+    !!firstWpPos &&
+    !!lastWpPos &&
+    Math.abs(firstWpPos[0] - lastWpPos[0]) < 1e-6 &&
+    Math.abs(firstWpPos[1] - lastWpPos[1]) < 1e-6;
+  const canCloseLoop = waypointsForMap.length >= 2 && !isClosedLoop;
+  const handleCloseLoop = () => {
+    if (!firstWpPos || waypointsForMap.length < 2) return;
+    void map.handleAddWaypointAtClick(firstWpPos);
+    trackRb2('close_loop', {});
+  };
+
   // The map + its layers — shared by both layouts. Fills its container.
   const mapElement = (
     <Map
       map={map}
-      routeGeometry={
+      routeGeometry={geometryForLayers}
+      showRouteLine={
         !visibility.surface && !visibility.gradient && !(visibility.intervals && workoutCues)
-          ? geometryForLayers
-          : null
       }
       waypoints={waypointsForMap}
       highlightCoord={highlightCoord}
-      cursor={hasRoute ? undefined : 'crosshair'}
+      cursor="crosshair"
+      mapStyle={basemapStyle}
+      basemapId={basemapId}
+      onBasemapChange={setBasemapId}
+      userLocation={userLocation.coord}
+      onGeolocate={userLocation.requestLocation}
+      isLocating={userLocation.status === 'locating'}
+      isImperial={isImperial}
+      isMobile={isMobile}
     >
       {visibility.surface && (
         <SurfaceLayer geometry={geometryForLayers} onSegments={setSurfaceSegments} />
@@ -868,6 +1004,8 @@ export default function RouteBuilder2() {
                     onRedo={history.redo}
                     onReverse={() => void map.handleReverseRoute()}
                     canReverse={waypointsForMap.length >= 2}
+                    onCloseLoop={handleCloseLoop}
+                    canCloseLoop={canCloseLoop}
                     onToggleSnap={handleToggleSnap}
                     snapEnabled={snapToRoads}
                     routeProfile={routeProfile}
@@ -879,7 +1017,9 @@ export default function RouteBuilder2() {
                     onClear={handleClearRoute}
                     canClear={canClearMap}
                   />
-                  {!hasRoute && <ClickToPlaceHint snapEnabled={snapToRoads} />}
+                  {!isLoading && (
+                    <ClickToPlaceHint snapEnabled={snapToRoads} hasRoute={hasRoute} />
+                  )}
                 </Box>
                 {mapStates}
               </>
@@ -914,6 +1054,8 @@ export default function RouteBuilder2() {
                 exampleHint={EXAMPLE_PHRASES}
                 showAfterRefuseHint={chat.showAfterRefuseHint}
                 onSubmit={handleChatSubmit}
+                onSelectOption={handleSelectRouteOption}
+                isImperial={isImperial}
                 header={
                   <GenerateBar
                     key={`gen-${pickedWorkoutId ?? 'none'}`}
@@ -925,6 +1067,7 @@ export default function RouteBuilder2() {
                     onExpandedChange={setGenerateExpanded}
                     isImperial={isImperial}
                     formSeed={formSeed}
+                    activeRouteProfile={hasRouteForChat ? routeProfile : null}
                   />
                 }
               />
@@ -935,92 +1078,31 @@ export default function RouteBuilder2() {
     );
   }
 
-  // ---- Mobile: full-bleed map + stacked overlay column + bottom-sheet chat ----
-  return (
-    <AppShell fullWidth>
-      <Box
-        data-testid="rb2-page"
-        style={{
-          position: 'relative',
-          width: '100%',
-          height: 'calc(100dvh - 63px)',
-          backgroundColor: RB2.bgBase,
-          overflow: 'hidden',
-        }}
-      >
-        <Box style={{ position: 'absolute', inset: 0 }}>{mapElement}</Box>
+  // ---- Mobile: map-first — compact top bar + bottom-sheet tools ----
+  const activeLayerCount =
+    (visibility.surface ? 1 : 0) +
+    (visibility.gradient ? 1 : 0) +
+    (visibility.wind ? 1 : 0) +
+    (visibility.bikeInfra ? 1 : 0) +
+    (visibility.familiar ? 1 : 0) +
+    (visibility.poi ? 1 : 0);
 
-        <Box
-          style={{
-            position: 'absolute',
-            top: 8,
-            left: 8,
-            right: 8,
-            zIndex: 20,
-            display: 'flex',
-            flexDirection: 'column',
-            gap: 8,
-            maxHeight: 'calc(100% - 80px)',
-            overflowY: 'auto',
-          }}
-        >
-          <Box style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <EditToolbar
-              canUndo={history.canUndo}
-              canRedo={history.canRedo}
-              onUndo={history.undo}
-              onRedo={history.redo}
-              onReverse={() => void map.handleReverseRoute()}
-              canReverse={waypointsForMap.length >= 2}
-              onToggleSnap={handleToggleSnap}
-              snapEnabled={snapToRoads}
-              routeProfile={routeProfile}
-              onChangeProfile={handleChangeProfile}
-              unitsImperial={isImperial}
-              onToggleUnits={() =>
-                void updateUnitsPreference(isImperial ? 'metric' : 'imperial')
-              }
-              onClear={handleClearRoute}
-              canClear={canClearMap}
-            />
-            <PersonaDropdown persona={coach.persona} onChange={onPersonaChange} compact />
-          </Box>
-          {!hasRoute && <ClickToPlaceHint snapEnabled={snapToRoads} isMobile />}
-          {statsNode}
-          <Box
-            style={{
-              backgroundColor: RB2.cardBg,
-              border: `1px solid ${RB2.border}`,
-              padding: '10px 12px',
-              boxShadow: RB2.shadowCard,
-            }}
-          >
+  const cardStyle = {
+    backgroundColor: RB2.cardBg,
+    border: `1px solid ${RB2.border}`,
+    padding: '10px 12px',
+    boxShadow: RB2.shadowCard,
+  };
+
+  const mobileTabs: MobileSheetTab[] = [
+    {
+      id: 'build',
+      label: 'Build',
+      icon: <PencilSimpleLine size={18} />,
+      content: (
+        <>
+          <Box style={cardStyle}>
             <LocationSearch onFlyTo={map.flyTo} proximity={viewportCenter} />
-          </Box>
-          {hasRoute && (
-            <ElevationPanel
-              profile={analysis.elevationProfile}
-              isMobile
-              onHoverKm={setHoverKm}
-              isImperial={isImperial}
-              cues={visibleCues}
-            />
-          )}
-          <Box
-            style={{
-              backgroundColor: RB2.cardBg,
-              border: `1px solid ${RB2.border}`,
-              padding: '10px 12px',
-              boxShadow: RB2.shadowCard,
-            }}
-          >
-            <WorkoutPickerPanel
-              plannedWorkouts={upcomingPlanned.workouts}
-              selectedWorkoutId={pickedWorkoutId}
-              onSelect={handleSelectWorkout}
-              onClear={handleClearWorkout}
-              isMobile
-            />
           </Box>
           <FormPanel
             key={`form-${pickedWorkoutId ?? 'none'}`}
@@ -1033,7 +1115,27 @@ export default function RouteBuilder2() {
             isImperial={isImperial}
             formSeed={formSeed}
             defaultExpanded={hasWorkout}
+            activeRouteProfile={hasRouteForChat ? routeProfile : null}
           />
+          <Box style={cardStyle}>
+            <WorkoutPickerPanel
+              plannedWorkouts={upcomingPlanned.workouts}
+              selectedWorkoutId={pickedWorkoutId}
+              onSelect={handleSelectWorkout}
+              onClear={handleClearWorkout}
+              isMobile
+            />
+          </Box>
+        </>
+      ),
+    },
+    {
+      id: 'layers',
+      label: 'Layers',
+      icon: <StackIcon size={18} weight="duotone" />,
+      badge: activeLayerCount,
+      content: (
+        <>
           <LayerToggles
             visibility={visibility}
             onToggle={handleVisibilityToggle}
@@ -1051,46 +1153,58 @@ export default function RouteBuilder2() {
             <SurfaceSummaryBar segments={surfaceSegments} isMobile />
           )}
           {visibility.wind && hasRoute && <WindLegend weather={weather} isMobile />}
+        </>
+      ),
+    },
+    {
+      id: 'insights',
+      label: 'Insights',
+      icon: <ChartLineUp size={18} />,
+      content: hasRoute ? (
+        <>
+          <Box style={cardStyle}>
+            <WeatherPanel weather={weather} isImperial={isImperial} />
+          </Box>
+          <Box style={cardStyle}>
+            <FuelPanel
+              durationMinutes={(routeStats?.duration_s ?? 0) / 60}
+              elevationGainMeters={routeStats?.elevation_gain_m ?? 0}
+              weather={weather.weather}
+              isImperial={isImperial}
+            />
+          </Box>
+          <Box style={cardStyle}>
+            <TirePressurePanel routeProfile={routeProfile} isImperial={isImperial} />
+          </Box>
+        </>
+      ) : (
+        <Text
+          style={{
+            fontFamily: RB2_FONT.body,
+            fontSize: 13,
+            color: RB2.textTertiary,
+            textAlign: 'center',
+            padding: '24px 8px',
+          }}
+        >
+          Build a route to see weather, fueling, and tire pressure.
+        </Text>
+      ),
+    },
+    {
+      id: 'route',
+      label: 'Route',
+      icon: <FloppyDisk size={18} />,
+      content: (
+        <>
           {hasRoute && (
-            <Box
-              style={{
-                backgroundColor: RB2.cardBg,
-                border: `1px solid ${RB2.border}`,
-                padding: '10px 12px',
-                boxShadow: RB2.shadowCard,
-              }}
-            >
-              <WeatherPanel weather={weather} isImperial={isImperial} />
-            </Box>
-          )}
-          {hasRoute && (
-            <Box
-              style={{
-                backgroundColor: RB2.cardBg,
-                border: `1px solid ${RB2.border}`,
-                padding: '10px 12px',
-                boxShadow: RB2.shadowCard,
-              }}
-            >
-              <FuelPanel
-                durationMinutes={(routeStats?.duration_s ?? 0) / 60}
-                elevationGainMeters={routeStats?.elevation_gain_m ?? 0}
-                weather={weather.weather}
-                isImperial={isImperial}
-              />
-            </Box>
-          )}
-          {hasRoute && (
-            <Box
-              style={{
-                backgroundColor: RB2.cardBg,
-                border: `1px solid ${RB2.border}`,
-                padding: '10px 12px',
-                boxShadow: RB2.shadowCard,
-              }}
-            >
-              <TirePressurePanel routeProfile={routeProfile} isImperial={isImperial} />
-            </Box>
+            <ElevationPanel
+              profile={analysis.elevationProfile}
+              isMobile
+              onHoverKm={setHoverKm}
+              isImperial={isImperial}
+              cues={visibleCues}
+            />
           )}
           <RouteActionsPanel
             persistence={persistence}
@@ -1101,28 +1215,128 @@ export default function RouteBuilder2() {
             onImported={(coords) => map.fitBounds(coords)}
             isMobile
           />
-        </Box>
-
-        <ChatShell
-          isMobile
+        </>
+      ),
+    },
+    {
+      id: 'chat',
+      label: 'Coach',
+      icon: <ChatCircleDots size={18} />,
+      content: (
+        <ChatBody
           messages={chat.messages}
           isProcessing={chat.isProcessing}
           exampleHint={EXAMPLE_PHRASES}
           showAfterRefuseHint={chat.showAfterRefuseHint}
           onSubmit={handleChatSubmit}
+          onSelectOption={handleSelectRouteOption}
+          isImperial={isImperial}
+        />
+      ),
+    },
+  ];
+
+  return (
+    <AppShell fullWidth>
+      <Box
+        data-testid="rb2-page"
+        style={{
+          position: 'relative',
+          width: '100%',
+          height: 'calc(100dvh - 63px)',
+          backgroundColor: RB2.bgBase,
+          overflow: 'hidden',
+        }}
+      >
+        <Box style={{ position: 'absolute', inset: 0 }}>{mapElement}</Box>
+
+        {/* Compact top bar — stays out of the map's way (clicks pass through gaps). */}
+        <Box
+          style={{
+            position: 'absolute',
+            top: 8,
+            left: 8,
+            right: 8,
+            zIndex: 20,
+            display: 'flex',
+            flexDirection: 'column',
+            gap: 6,
+            pointerEvents: 'none',
+          }}
+        >
+          <Box
+            style={{
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'flex-start',
+              gap: 8,
+              pointerEvents: 'auto',
+            }}
+          >
+            <Box style={{ flex: '1 1 auto', minWidth: 0, overflowX: 'auto' }}>
+              <EditToolbar
+                canUndo={history.canUndo}
+                canRedo={history.canRedo}
+                onUndo={history.undo}
+                onRedo={history.redo}
+                onReverse={() => void map.handleReverseRoute()}
+                canReverse={waypointsForMap.length >= 2}
+                onCloseLoop={handleCloseLoop}
+                canCloseLoop={canCloseLoop}
+                onToggleSnap={handleToggleSnap}
+                snapEnabled={snapToRoads}
+                routeProfile={routeProfile}
+                onChangeProfile={handleChangeProfile}
+                unitsImperial={isImperial}
+                onToggleUnits={() =>
+                  void updateUnitsPreference(isImperial ? 'metric' : 'imperial')
+                }
+                onClear={handleClearRoute}
+                canClear={canClearMap}
+              />
+            </Box>
+            <Box style={{ flexShrink: 0 }}>
+              <PersonaDropdown persona={coach.persona} onChange={onPersonaChange} compact />
+            </Box>
+          </Box>
+          {statsNode && <Box style={{ pointerEvents: 'auto' }}>{statsNode}</Box>}
+          {!isLoading && (
+            <Box style={{ pointerEvents: 'auto', alignSelf: 'flex-start' }}>
+              <ClickToPlaceHint snapEnabled={snapToRoads} hasRoute={hasRoute} isMobile />
+            </Box>
+          )}
+        </Box>
+
+        <MobileControlSheet
+          tabs={mobileTabs}
+          activeId={mobileTab}
+          onActiveChange={setMobileTab}
         />
 
-        {mapStates}
+        {isLoading && <LoadingState message={loadingMessage} />}
+        {error && <ErrorState message={error} onDismiss={dismissError} />}
       </Box>
     </AppShell>
   );
 }
 
 /**
- * Small on-map hint shown before a route exists, nudging the user to build
- * manually by clicking the map (the cursor is a crosshair in this state).
+ * Small on-map hint nudging the manual-editing model. Before a route exists it
+ * teaches the first click; once a route exists it keeps the reshape / remove
+ * affordances discoverable (the cursor stays a crosshair throughout).
  */
-function ClickToPlaceHint({ snapEnabled, isMobile }: { snapEnabled: boolean; isMobile?: boolean }) {
+function ClickToPlaceHint({
+  snapEnabled,
+  hasRoute,
+  isMobile,
+}: {
+  snapEnabled: boolean;
+  hasRoute?: boolean;
+  isMobile?: boolean;
+}) {
+  const copy = hasRoute
+    ? 'Drag the line to reshape · drag a point to move · right-click a point to remove'
+    : `Click the map to drop waypoints${snapEnabled ? ' — snapped to roads' : ' — freehand lines'}`;
   return (
     <Box
       data-testid="rb2-click-to-place-hint"
@@ -1131,7 +1345,7 @@ function ClickToPlaceHint({ snapEnabled, isMobile }: { snapEnabled: boolean; isM
         border: `1px solid ${RB2.border}`,
         boxShadow: RB2.shadowCard,
         padding: '6px 10px',
-        maxWidth: isMobile ? '100%' : 320,
+        maxWidth: isMobile ? '100%' : 360,
         pointerEvents: 'none',
       }}
     >
@@ -1139,12 +1353,12 @@ function ClickToPlaceHint({ snapEnabled, isMobile }: { snapEnabled: boolean; isM
         style={{
           fontFamily: RB2_FONT.mono,
           fontSize: 11,
-          color: RB2.textSecondary,
+          color: hasRoute ? RB2.textTertiary : RB2.textSecondary,
           letterSpacing: '0.02em',
           textAlign: 'center',
         }}
       >
-        Click the map to drop waypoints{snapEnabled ? ' — snapped to roads' : ' — freehand lines'}
+        {copy}
       </Text>
     </Box>
   );

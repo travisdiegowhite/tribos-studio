@@ -66,6 +66,12 @@ export interface UseGenerateFormArgs {
   initialDurationMinutes?: number;
   initialDistanceKm?: number | '';
   initialElevationGainM?: number | '';
+  /**
+   * The active route's routing profile (store `routeProfile`). When set, the
+   * read-only summary chip reflects it — so a chat-generated gravel route
+   * shows "… · Gravel" instead of the form's stale local default.
+   */
+  activeRouteProfile?: string | null;
 }
 
 export function prettyLabel<T extends string>(
@@ -73,6 +79,21 @@ export function prettyLabel<T extends string>(
   value: T,
 ): string {
   return options.find((o) => o.value === value)?.label ?? value;
+}
+
+/** Map a routing profile (store) to a Surface summary label. */
+function profileToSurfaceLabel(profile: string): string {
+  switch (profile) {
+    case 'gravel':
+      return 'Gravel';
+    case 'mtb':
+    case 'mountain':
+      return 'Mountain';
+    case 'mixed':
+      return 'Mixed';
+    default:
+      return 'Road';
+  }
 }
 
 export function useGenerateForm({
@@ -83,6 +104,7 @@ export function useGenerateForm({
   initialDurationMinutes,
   initialDistanceKm,
   initialElevationGainM,
+  activeRouteProfile = null,
 }: UseGenerateFormArgs) {
   const [goal, setGoal] = useState<Goal>(initialGoal ?? 'endurance');
   const [duration, setDuration] = useState<number>(initialDurationMinutes ?? 60);
@@ -186,10 +208,13 @@ export function useGenerateForm({
     generation.clearSuggestions();
   }, [generation]);
 
-  const summary = `${prettyLabel(GOAL_OPTIONS, goal)} · ${duration}min · ${prettyLabel(
-    SURFACE_OPTIONS,
-    surface,
-  )}`;
+  // The chip reflects the active route's profile when one exists, so a
+  // chat-generated gravel route reads "… · Gravel" rather than the form's
+  // stale local default. Falls back to the form's own surface selection.
+  const summarySurface = activeRouteProfile
+    ? profileToSurfaceLabel(activeRouteProfile)
+    : prettyLabel(SURFACE_OPTIONS, surface);
+  const summary = `${prettyLabel(GOAL_OPTIONS, goal)} · ${duration}min · ${summarySurface}`;
 
   return {
     // field state

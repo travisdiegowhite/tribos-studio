@@ -13,6 +13,7 @@ import {
   ArrowUUpLeft,
   ArrowUUpRight,
   ArrowsLeftRight,
+  ArrowUDownLeft,
   RoadHorizon,
   Pencil,
   Path,
@@ -36,6 +37,9 @@ export interface EditToolbarProps {
   /** When provided, renders a reverse-route button after undo/redo. */
   onReverse?: () => void;
   canReverse?: boolean;
+  /** When provided, renders a "back to start" (close-the-loop) button. */
+  onCloseLoop?: () => void;
+  canCloseLoop?: boolean;
   /** When provided, renders a snap-to-roads ↔ freehand toggle. */
   onToggleSnap?: () => void;
   /** Whether road-snapping is currently on (drives the toggle icon). */
@@ -60,6 +64,8 @@ export function EditToolbar({
   onRedo,
   onReverse,
   canReverse = false,
+  onCloseLoop,
+  canCloseLoop = false,
   onToggleSnap,
   snapEnabled = true,
   routeProfile = 'road',
@@ -111,6 +117,20 @@ export function EditToolbar({
             onClick={onReverse}
           >
             <ArrowsLeftRight size={18} />
+          </ToolbarButton>
+        </>
+      )}
+      {onCloseLoop && (
+        <>
+          <Box style={{ width: 1, backgroundColor: RB2.border }} />
+          <ToolbarButton
+            label="Back to start"
+            shortcut="close the loop"
+            testid="rb2-close-loop-button"
+            disabled={!canCloseLoop}
+            onClick={onCloseLoop}
+          >
+            <ArrowUDownLeft size={18} />
           </ToolbarButton>
         </>
       )}

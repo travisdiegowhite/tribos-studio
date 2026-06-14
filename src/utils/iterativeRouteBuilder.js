@@ -118,9 +118,9 @@ function normalizeBearing(bearing) {
 /**
  * Get cardinal direction name from bearing
  */
-function getDirectionName(bearing) {
+export function getDirectionName(bearing) {
   const directions = ['North', 'Northeast', 'East', 'Southeast', 'South', 'Southwest', 'West', 'Northwest'];
-  const index = Math.round(bearing / 45) % 8;
+  const index = Math.round(normalizeBearing(bearing) / 45) % 8;
   return directions[index];
 }
 
@@ -322,6 +322,7 @@ async function routeSegment(start, end, options = {}) {
  * @param {[number, number]} params.startPoint - [longitude, latitude]
  * @param {number} params.targetDistanceKm - Target total distance in kilometers
  * @param {number} params.initialBearing - Initial direction (0=North, 90=East, etc.)
+ * @param {'cw'|'ccw'} params.turnDirection - Turn clockwise (default) or counterclockwise at each quarter
  * @param {Object} params.options - Routing options
  * @param {Function} params.onProgress - Progress callback
  * @returns {Promise<Object>} - Complete route
@@ -331,6 +332,7 @@ async function buildQuarterLoop(params) {
     startPoint,
     targetDistanceKm,
     initialBearing = 0,
+    turnDirection = 'cw',
     options = {},
     onProgress = null
   } = params;
@@ -401,9 +403,8 @@ async function buildQuarterLoop(params) {
     // Use the actual routed end point for the next segment
     currentPoint = segment.endPoint;
 
-    // Turn right (clockwise) for the next quarter
     // Consistent 90° turns for predictable loop geometry
-    const turnAngle = 90;
+    const turnAngle = turnDirection === 'ccw' ? -90 : 90;
     currentBearing = normalizeBearing(currentBearing + turnAngle);
   }
 
@@ -442,6 +443,7 @@ async function buildQuarterLoop(params) {
     segments: segments,
     routeType: 'loop',
     initialBearing,
+    turnDirection,
     source: 'iterative_quarter_loop'
   };
 }
@@ -575,6 +577,84 @@ async function buildPointToPoint(params) {
   };
 }
 
+const DIRECTION_BEARINGS = {
+  'n': 0, 'north': 0,
+  'ne': 45, 'northeast': 45,
+  'e': 90, 'east': 90,
+  'se': 135, 'southeast': 135,
+  's': 180, 'south': 180,
+  'sw': 225, 'southwest': 225,
+  'w': 270, 'west': 270,
+  'nw': 315, 'northwest': 315
+};
+
+const DIRECTION_NAMES = [
+  'northeast', 'southeast', 'southwest', 'northwest',
+  'north', 'east', 'south', 'west'
+];
+
+/**
+ * Map a single token to a bearing. Exact matches first, then lenient
+ * matching for tokens ≥4 chars: a truncated token ("northeas", "southwes")
+ * matches the unique name it prefixes; a token carrying a direction word
+ * with trailing noise ("northeasterly") matches the longest name it starts
+ * with. Truncation is checked first so "southwes" resolves to southwest,
+ * not to the embedded "south".
+ */
+function bearingForToken(token) {
+  if (token in DIRECTION_BEARINGS) return DIRECTION_BEARINGS[token];
+  if (token.length < 4) return null;
+
+  const prefixMatches = DIRECTION_NAMES.filter((name) => name.startsWith(token));
+  if (prefixMatches.length === 1) return DIRECTION_BEARINGS[prefixMatches[0]];
+
+  let longest = null;
+  for (const name of DIRECTION_NAMES) {
+    if (token.startsWith(name) && (longest === null || name.length > longest.length)) {
+      longest = name;
+    }
+  }
+  return longest !== null ? DIRECTION_BEARINGS[longest] : null;
+}
+
+/**
+ * Resolve free-form direction text to a bearing.
+ *
+ * Handles numeric bearings ("135"), single compass words ("northeast",
+ * "NE"), and compound phrases ("east and north" → 45°) by vector-averaging
+ * every recognized direction word. Contradictory inputs whose vectors
+ * cancel out ("north and south") resolve to null rather than an arbitrary
+ * bearing.
+ *
+ * @param {string|number} direction - Direction text or numeric bearing
+ * @returns {number|null} - Bearing in degrees (0-360) or null
+ */
+export function resolveBearing(direction) {
+  if (direction === null || direction === undefined) return null;
+  const text = String(direction).toLowerCase().trim();
+  if (!text) return null;
+
+  const numeric = Number(text);
+  if (Number.isFinite(numeric)) return normalizeBearing(numeric);
+
+  const tokens = text.split(/[^a-z]+/).filter(Boolean);
+  const bearings = tokens
+    .map(bearingForToken)
+    .filter((b) => b !== null);
+  if (bearings.length === 0) return null;
+
+  let x = 0;
+  let y = 0;
+  for (const bearing of bearings) {
+    x += Math.sin(toRadians(bearing));
+    y += Math.cos(toRadians(bearing));
+  }
+  const magnitude = Math.sqrt(x * x + y * y) / bearings.length;
+  if (magnitude < 0.3) return null;
+
+  return normalizeBearing(toDegrees(Math.atan2(x, y)));
+}
+
 /**
  * Parse user direction preference to bearing
  *
@@ -582,21 +662,7 @@ async function buildPointToPoint(params) {
  * @returns {number|null} - Bearing in degrees or null if not specified
  */
 function parseDirection(direction) {
-  if (!direction) return null;
-
-  const directionMap = {
-    'n': 0, 'north': 0,
-    'ne': 45, 'northeast': 45,
-    'e': 90, 'east': 90,
-    'se': 135, 'southeast': 135,
-    's': 180, 'south': 180,
-    'sw': 225, 'southwest': 225,
-    'w': 270, 'west': 270,
-    'nw': 315, 'northwest': 315
-  };
-
-  const normalized = direction.toLowerCase().trim();
-  return directionMap[normalized] ?? null;
+  return resolveBearing(direction);
 }
 
 /**
@@ -606,7 +672,10 @@ function parseDirection(direction) {
  * @param {[number, number]} params.startLocation - [longitude, latitude]
  * @param {number} params.targetDistanceKm - Target distance in kilometers
  * @param {string} params.routeType - 'loop', 'out_and_back', or 'point_to_point'
- * @param {string} params.direction - Optional initial direction (e.g., "north", "southeast")
+ * @param {string} params.direction - Optional direction the route should head
+ *   (e.g., "north", "east and north", "135"). For loops this is the bearing
+ *   the loop body is centered on, not the first segment's heading.
+ * @param {'cw'|'ccw'} params.loopOrientation - Turn direction for loops (default clockwise)
  * @param {Array} params.waypoints - Optional user-specified waypoints
  * @param {Object} params.options - Routing options (profile, preferences, etc.)
  * @param {Function} params.onProgress - Progress callback (0-1)
@@ -618,6 +687,7 @@ export async function generateIterativeRoute(params) {
     targetDistanceKm,
     routeType = 'loop',
     direction = null,
+    loopOrientation = 'cw',
     waypoints = [],
     options = {},
     trainingGoal = 'endurance',
@@ -632,8 +702,15 @@ export async function generateIterativeRoute(params) {
     ? startLocation
     : [startLocation.lng || startLocation.longitude, startLocation.lat || startLocation.latitude];
 
+  // A quarter loop with clockwise turns spans the quadrant [B, B+90] from
+  // its initial bearing B (counterclockwise spans [B-90, B]), so to center
+  // the loop body on the requested bearing C the first segment heads C∓45.
+  const normalizedType = routeType.toLowerCase().replace(/[-_\s]/g, '');
+  const isLoopShape = normalizedType !== 'outandback' && normalizedType !== 'outback';
+
   // Determine initial bearing
-  let initialBearing;
+  let initialBearing = null;
+  let requestedBearing = null;
 
   if (waypoints && waypoints.length > 0) {
     // If user provided waypoints, head toward the first one
@@ -642,19 +719,23 @@ export async function generateIterativeRoute(params) {
       : [waypoints[0].lng || waypoints[0].longitude, waypoints[0].lat || waypoints[0].latitude];
     initialBearing = calculateBearing(startPoint, firstWaypoint);
     console.log(`🎯 Direction set by first waypoint: ${getDirectionName(initialBearing)}`);
-  } else if (direction) {
-    // Use user-specified direction
-    initialBearing = parseDirection(direction);
-    if (initialBearing === null) {
-      // Try parsing as a number
-      initialBearing = parseFloat(direction);
-      if (isNaN(initialBearing)) {
-        initialBearing = Math.random() * 360;
-        console.log(`⚠️ Could not parse direction "${direction}", using random`);
-      }
+  } else if (direction !== null && direction !== undefined && String(direction).trim() !== '') {
+    // Use user-specified direction. Compound phrases ("east and north")
+    // vector-average; only contradictory/unrecognizable text falls through
+    // to the automatic pick below — never a fully random bearing for
+    // direction text we could partially understand.
+    requestedBearing = resolveBearing(direction);
+    if (requestedBearing !== null) {
+      initialBearing = isLoopShape
+        ? normalizeBearing(requestedBearing + (loopOrientation === 'ccw' ? 45 : -45))
+        : requestedBearing;
+      console.log(`🧭 User direction: ${direction} → ${requestedBearing}° (first segment ${initialBearing}°)`);
+    } else {
+      console.log(`⚠️ Could not resolve direction "${direction}", picking automatically`);
     }
-    console.log(`🧭 User direction: ${direction} → ${initialBearing}°`);
-  } else {
+  }
+
+  if (initialBearing === null) {
     // Pick a random direction (weighted toward common riding directions)
     // Slightly favor cardinal directions as they often have better roads
     const cardinalDirections = [0, 90, 180, 270];
@@ -687,6 +768,7 @@ export async function generateIterativeRoute(params) {
           startPoint,
           targetDistanceKm,
           initialBearing,
+          turnDirection: loopOrientation,
           options: routeOptions,
           onProgress
         });
@@ -708,6 +790,7 @@ export async function generateIterativeRoute(params) {
         startPoint,
         targetDistanceKm,
         initialBearing,
+        turnDirection: loopOrientation,
         options: routeOptions,
         onProgress
       });
@@ -736,20 +819,26 @@ export async function generateIterativeRoute(params) {
     }
   }
 
+  // Label the route by the direction the rider asked for (loop body center),
+  // falling back to the first segment's heading when none was requested.
+  const headingLabel = getDirectionName(requestedBearing ?? initialBearing);
+
   // Generate a smart name for the route
   const routeName = generateSmartRouteName({
     distance: route.distanceKm,
     elevationGain: route.elevationGain,
     trainingGoal,
     routeType: route.routeType,
-    direction: getDirectionName(initialBearing)
+    direction: headingLabel
   });
 
   return {
     ...route,
     coordinates: optimizedCoordinates,
     name: routeName,
-    description: `${route.distanceKm.toFixed(1)}km ${route.routeType.replace('_', ' ')} heading ${getDirectionName(initialBearing)}`,
+    description: `${route.distanceKm.toFixed(1)}km ${route.routeType.replace('_', ' ')} heading ${headingLabel}`,
+    requestedBearing,
+    directionLabel: headingLabel,
     trainingGoal,
     strategy: 'iterative',
     generatedAt: new Date().toISOString()
@@ -840,5 +929,6 @@ export default {
   calculateDestinationPoint,
   calculateBearing,
   calculateDistance,
-  parseDirection
+  parseDirection,
+  resolveBearing
 };

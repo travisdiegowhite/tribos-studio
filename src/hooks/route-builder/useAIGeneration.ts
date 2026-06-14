@@ -13,8 +13,8 @@ import { generateAIRoutes } from '../../utils/aiRouteGenerator.js';
 import { supabase } from '../../lib/supabase';
 import { trackRb2 } from '../../features/route-builder-v2/telemetry/trackRb2';
 import { enrichRouteElevation } from './elevationEnrichment';
+import { snapshotFromGeneratedRoute } from './routeSnapshot';
 import type {
-  Coordinate,
   GenerationFormInput,
   RouteShape,
   RouteSnapshot,
@@ -61,32 +61,15 @@ function toRouteSnapshot(
   durationMinutes: number,
 ): RouteSnapshot | null {
   if (!route?.coordinates || route.coordinates.length < 2) return null;
-  const coords = route.coordinates as Coordinate[];
-  const distance_km =
-    typeof route.distance === 'number' && Number.isFinite(route.distance)
-      ? route.distance
-      : 0;
-  const elevation_gain_m =
-    typeof route.elevationGain === 'number' && Number.isFinite(route.elevationGain)
-      ? route.elevationGain
-      : 0;
-  const elevation_loss_m =
-    typeof route.elevationLoss === 'number' && Number.isFinite(route.elevationLoss)
-      ? route.elevationLoss
-      : 0;
-  return {
-    geometry: coords,
-    waypoints: [
-      { coordinate: coords[0] },
-      { coordinate: coords[coords.length - 1] },
-    ],
-    stats: {
-      distance_km,
-      elevation_gain_m,
-      elevation_loss_m,
-      duration_s: durationMinutes * 60,
-    },
-  };
+  // Snapshot construction (geometry + resampled control points so generated
+  // loops stay drag-editable) is shared with the chat candidate builder.
+  return snapshotFromGeneratedRoute({
+    coordinates: route.coordinates,
+    distance_km: route.distance ?? 0,
+    elevation_gain_m: route.elevationGain ?? 0,
+    elevation_loss_m: route.elevationLoss ?? 0,
+    duration_s: durationMinutes * 60,
+  });
 }
 
 export interface UseAIGenerationReturn {

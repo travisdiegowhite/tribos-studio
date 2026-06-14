@@ -4,6 +4,11 @@ import { describe, it, expect, vi } from 'vitest';
 import { RouteActionsPanel } from '../RouteActionsPanel';
 import type { UseRoutePersistenceReturn } from '../../../../hooks/route-builder';
 
+const notifyShow = vi.fn();
+vi.mock('@mantine/notifications', () => ({
+  notifications: { show: (...args: unknown[]) => notifyShow(...args) },
+}));
+
 function makePersistence(
   overrides: Partial<UseRoutePersistenceReturn> = {},
 ): UseRoutePersistenceReturn {
@@ -23,6 +28,10 @@ function makePersistence(
       [-105.27, 40.01],
       [-105.28, 40.02],
     ]),
+    isPushingToDevice: false,
+    checkGarminConnection: vi.fn().mockResolvedValue(false),
+    pushToGarmin: vi.fn().mockResolvedValue({ ok: true, message: 'Sent.' }),
+    shareRoute: vi.fn().mockResolvedValue({ ok: true, url: 'http://x/routes/r-1' }),
     ...overrides,
   };
 }
@@ -99,5 +108,78 @@ describe('RouteActionsPanel', () => {
     // Load and Import remain available as entry points.
     expect(screen.getByTestId('rb2-load-route-button')).not.toBeDisabled();
     expect(screen.getByTestId('rb2-import-gpx-button')).not.toBeDisabled();
+  });
+
+  it('hides "Send to Garmin" when the account is not connected', async () => {
+    const { persistence } = renderPanel();
+    await waitFor(() => expect(persistence.checkGarminConnection).toHaveBeenCalled());
+    fireEvent.click(screen.getByTestId('rb2-export-route-button'));
+    await screen.findByTestId('rb2-export-gpx');
+    expect(screen.queryByTestId('rb2-send-to-garmin')).not.toBeInTheDocument();
+  });
+
+  it('shows "Send to Garmin" when connected and pushes on click', async () => {
+    notifyShow.mockClear();
+    const { persistence } = renderPanel({
+      persistence: makePersistence({
+        checkGarminConnection: vi.fn().mockResolvedValue(true),
+        pushToGarmin: vi.fn().mockResolvedValue({ ok: true, message: 'On its way.' }),
+      }),
+    });
+    fireEvent.click(screen.getByTestId('rb2-export-route-button'));
+    const send = await screen.findByTestId('rb2-send-to-garmin');
+    fireEvent.click(send);
+    await waitFor(() => expect(persistence.pushToGarmin).toHaveBeenCalled());
+    await waitFor(() =>
+      expect(notifyShow).toHaveBeenCalledWith(
+        expect.objectContaining({ title: 'Sent to Garmin!' }),
+      ),
+    );
+  });
+
+  it('falls back to a TCX download when the Courses API is unavailable', async () => {
+    const { persistence } = renderPanel({
+      persistence: makePersistence({
+        checkGarminConnection: vi.fn().mockResolvedValue(true),
+        pushToGarmin: vi
+          .fn()
+          .mockResolvedValue({ ok: false, reason: 'courses_unavailable', message: 'nope' }),
+      }),
+    });
+    fireEvent.click(screen.getByTestId('rb2-export-route-button'));
+    const send = await screen.findByTestId('rb2-send-to-garmin');
+    fireEvent.click(send);
+    await waitFor(() => expect(persistence.exportRoute).toHaveBeenCalledWith('tcx'));
+  });
+
+  it('copies a share link when the route is saved', async () => {
+    notifyShow.mockClear();
+    const { persistence } = renderPanel({
+      persistence: makePersistence({
+        shareRoute: vi.fn().mockResolvedValue({ ok: true, url: 'http://x/routes/r-1' }),
+      }),
+    });
+    fireEvent.click(screen.getByTestId('rb2-share-route-button'));
+    await waitFor(() => expect(persistence.shareRoute).toHaveBeenCalled());
+    await waitFor(() =>
+      expect(notifyShow).toHaveBeenCalledWith(expect.objectContaining({ title: 'Link copied' })),
+    );
+  });
+
+  it('prompts a save when sharing an unsaved route', async () => {
+    const { persistence } = renderPanel({
+      persistence: makePersistence({
+        shareRoute: vi.fn().mockResolvedValue({ ok: false, reason: 'not_saved' }),
+      }),
+    });
+    fireEvent.click(screen.getByTestId('rb2-share-route-button'));
+    await waitFor(() => expect(persistence.shareRoute).toHaveBeenCalled());
+    // Save modal opens so the user can name + save before sharing.
+    expect(await screen.findByTestId('rb2-save-modal')).toBeInTheDocument();
+  });
+
+  it('disables Share when there is no route', () => {
+    renderPanel({ hasRoute: false });
+    expect(screen.getByTestId('rb2-share-route-button')).toBeDisabled();
   });
 });

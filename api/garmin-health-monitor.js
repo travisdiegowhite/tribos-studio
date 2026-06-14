@@ -16,7 +16,7 @@
 
 import { getSupabaseAdmin } from './utils/supabaseAdmin.js';
 import { computeHealthSnapshot } from './utils/garmin/healthMetrics.js';
-import { captureServerError } from './utils/serverSentry.js';
+import { captureServerError, flushServerSentry } from './utils/serverSentry.js';
 
 const supabase = getSupabaseAdmin();
 
@@ -103,6 +103,10 @@ export default async function handler(req, res) {
     console.log('=== Garmin Health Monitor Complete ===');
     console.log(`SLIs: ${JSON.stringify(snapshot.sli)}; breaches: ${snapshot.breaches.length}`);
 
+    // Alerting is this cron's whole job — guarantee delivery before the
+    // serverless freeze can drop buffered Sentry events.
+    await flushServerSentry();
+
     return res.status(200).json({
       success: true,
       sli: snapshot.sli,
@@ -112,6 +116,7 @@ export default async function handler(req, res) {
   } catch (error) {
     console.error('Health monitor error:', error);
     captureServerError(error, { tag: 'garmin.health_monitor_failed' });
+    await flushServerSentry();
     return res.status(500).json({ error: 'Health monitor failed', details: error.message });
   }
 }
