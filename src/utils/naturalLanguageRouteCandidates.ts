@@ -28,6 +28,7 @@ import {
   buildRoutePlanningPrompt,
   parseRoutePlanningResponse,
 } from './naturalLanguagePrompt';
+import { buildGravelLoopCandidates, type GravelLoopRoute } from './gravelRouteBuilder';
 import { reverseGeocodeRegion } from './geocoding.js';
 import { measureGravelPct } from './surfaceMeasurement';
 import { scoreRoutePreference } from './routeScoring';
@@ -82,6 +83,54 @@ const routeThroughWaypointsLoose = routeThroughWaypoints as unknown as (
   names: string[],
   opts: Record<string, unknown>,
 ) => Promise<GeneratedRouteResult | null>;
+
+/** Drop candidates whose distance is wildly off target; never empty the list. */
+const DIST_HI = 1.6;
+const DIST_LO = 0.6;
+function applyDistanceGuard(candidates: RouteCandidate[]): RouteCandidate[] {
+  if (candidates.length <= 1) return candidates;
+  const ratio = (c: RouteCandidate) => c.snapshot.stats.distance_km / c.requested.distance_km;
+  const inBand = candidates.filter((c) => {
+    if (!(c.requested.distance_km > 0)) return true;
+    const r = ratio(c);
+    return r <= DIST_HI && r >= DIST_LO;
+  });
+  if (inBand.length > 0) return inBand;
+  // Everything is off — keep the single closest so we never hard-error.
+  return [
+    candidates.slice().sort((a, b) => Math.abs(ratio(a) - 1) - Math.abs(ratio(b) - 1))[0],
+  ];
+}
+
+/** Backfill API-derived elevation on every candidate (cached, parallel). */
+async function enrichAll(candidates: RouteCandidate[]): Promise<void> {
+  await Promise.all(
+    candidates.map(async (candidate) => {
+      candidate.snapshot = await enrichRouteElevation(candidate.snapshot);
+    }),
+  );
+}
+
+/** Score each candidate's familiarity against the rider's history (fail-soft). */
+async function familiarityAll(
+  candidates: RouteCandidate[],
+  accessToken: string | null,
+): Promise<void> {
+  if (!accessToken) return;
+  await Promise.all(
+    candidates.map(async (candidate) => {
+      try {
+        const scored = (await scoreRoutePreference(
+          candidate.snapshot.geometry as Array<[number, number]>,
+          accessToken,
+        )) as { familiarityPercent?: number } | null;
+        candidate.familiarity_percent = scored?.familiarityPercent ?? null;
+      } catch {
+        candidate.familiarity_percent = null;
+      }
+    }),
+  );
+}
 
 function normalizeBearing(bearing: number): number {
   return ((bearing % 360) + 360) % 360;
@@ -344,36 +393,16 @@ export async function generateRouteCandidatesFromNaturalLanguage(
 
   // Elevation enrichment (cached; no-op when the provider already reported
   // gain) must land before display so no card or reply ever says 0m climbing.
-  await Promise.all(
-    candidates.map(async (candidate) => {
-      candidate.snapshot = await enrichRouteElevation(candidate.snapshot);
-    }),
-  );
+  await enrichAll(candidates);
+  await familiarityAll(candidates, accessToken);
 
-  // Familiarity per candidate, fail-soft (the single-route path scores the
-  // same way inside generateRouteFromParsedRequest).
-  if (accessToken) {
-    await Promise.all(
-      candidates.map(async (candidate) => {
-        try {
-          const scored = (await scoreRoutePreference(
-            candidate.snapshot.geometry as Array<[number, number]>,
-            accessToken,
-          )) as { familiarityPercent?: number } | null;
-          candidate.familiarity_percent = scored?.familiarityPercent ?? null;
-        } catch {
-          candidate.familiarity_percent = null;
-        }
-      }),
-    );
-  }
-
-  for (const candidate of candidates) {
+  const guarded = applyDistanceGuard(candidates);
+  for (const candidate of guarded) {
     candidate.score = scoreCandidate(candidate, requestedBearing, request.startLocation);
   }
-  candidates.sort((a, b) => b.score - a.score);
+  guarded.sort((a, b) => b.score - a.score);
 
-  return candidates;
+  return guarded;
 }
 
 /** Resolve a start coord from the chat context (placed → geolocation → viewport). */
@@ -446,6 +475,8 @@ export async function generatePlannedRouteCandidates(
   const type = plan.routeType || 'loop';
   const goal = 'endurance';
   const targetDistanceKm = plan.distance_km ?? 48;
+  // Default gravel requests to a 50% target so the scorer + cards have a number.
+  const gravelTargetPct = plan.gravelTargetPct ?? (routeProfile === 'gravel' ? 50 : null);
 
   const request: ParsedRequest = {
     parsed: { waypoints: [], preferences: { surfaceType: plan.surfaceType } },
@@ -457,11 +488,75 @@ export async function generatePlannedRouteCandidates(
     durationMinutes: 60,
     targetDistanceKm,
     direction: plan.direction,
-    gravelTargetPct: plan.gravelTargetPct,
+    gravelTargetPct,
   };
 
   const directionLabel =
     requestedBearing !== null ? getDirectionName(requestedBearing) : undefined;
+
+  // Shared finalize: elevation → gravel measurement (when gravel) → familiarity
+  // → distance guard → score → best-first. Used by both the gravel-network and
+  // Claude-town paths so they behave identically downstream.
+  const finalize = async (cands: RouteCandidate[]): Promise<RouteCandidate[]> => {
+    await enrichAll(cands);
+    if (routeProfile === 'gravel' || gravelTargetPct !== null) {
+      for (const candidate of cands) {
+        const measured = await measureGravelPct(candidate.snapshot.geometry);
+        candidate.gravel_actual_pct = measured?.gravelPct ?? null;
+      }
+    }
+    await familiarityAll(cands, accessToken);
+    const guarded = applyDistanceGuard(cands);
+    for (const candidate of guarded) {
+      candidate.score = scoreCandidate(candidate, requestedBearing, startLocation);
+    }
+    guarded.sort((a, b) => b.score - a.score);
+    return guarded;
+  };
+
+  // Gravel-network path: when gravel + a resolved direction, build the loop
+  // from real OSM gravel ways (waypoints ON the gravel force the router to ride
+  // it). Wins for gravel; falls through to Claude-town planning when the area
+  // is gravel-sparse.
+  if (routeProfile === 'gravel' && requestedBearing !== null) {
+    progress('gravel-network');
+    let gravelRoutes: GravelLoopRoute[] = [];
+    try {
+      gravelRoutes = await buildGravelLoopCandidates(startLocation, {
+        targetDistanceKm,
+        bearingDeg: requestedBearing,
+        gravelTargetPct: gravelTargetPct ?? 50,
+        goal,
+        count: 3,
+      });
+    } catch {
+      gravelRoutes = [];
+    }
+    if (gravelRoutes.length >= 1) {
+      const gravelCandidates: RouteCandidate[] = [];
+      for (const gr of gravelRoutes) {
+        const route: GeneratedRouteResult = {
+          coordinates: gr.coordinates,
+          distanceKm: gr.distanceKm,
+          elevationGain: gr.elevationGain,
+          duration_s: gr.duration_s,
+          name: gr.name,
+          source: gr.source,
+          directionLabel,
+          rationale:
+            gr.gravelWaysUsed.length > 0
+              ? `Rides ${gr.gravelWaysUsed.length} gravel roads incl. ${gr.gravelWaysUsed.slice(0, 2).join(' & ')}`
+              : 'Strings together gravel roads in your direction',
+        };
+        const c = candidateFromRoute(route, request, requestedBearing, 'cw', requestedBearing);
+        if (c) gravelCandidates.push(c);
+      }
+      if (gravelCandidates.length >= 1) {
+        return finalize(gravelCandidates);
+      }
+    }
+    // else: gravel-sparse — fall through to Claude-town planning below.
+  }
 
   // Build a per-plan iterative fallback when its waypoints can't be routed.
   const iterativeFallback = async (): Promise<GeneratedRouteResult | null> => {
@@ -511,43 +606,5 @@ export async function generatePlannedRouteCandidates(
     return generateRouteCandidatesFromNaturalLanguage(userRequest, context);
   }
 
-  // Elevation: cached, no-op when the provider already reported gain.
-  await Promise.all(
-    candidates.map(async (candidate) => {
-      candidate.snapshot = await enrichRouteElevation(candidate.snapshot);
-    }),
-  );
-
-  // Gravel measurement: SEQUENTIAL (each is a heavy Overpass query), cached,
-  // fail-soft. Only worth it when gravel was requested.
-  if (routeProfile === 'gravel' || plan.gravelTargetPct !== null) {
-    for (const candidate of candidates) {
-      const measured = await measureGravelPct(candidate.snapshot.geometry);
-      candidate.gravel_actual_pct = measured?.gravelPct ?? null;
-    }
-  }
-
-  // Familiarity per candidate, fail-soft (cheap PostgREST call, parallel ok).
-  if (accessToken) {
-    await Promise.all(
-      candidates.map(async (candidate) => {
-        try {
-          const scored = (await scoreRoutePreference(
-            candidate.snapshot.geometry as Array<[number, number]>,
-            accessToken,
-          )) as { familiarityPercent?: number } | null;
-          candidate.familiarity_percent = scored?.familiarityPercent ?? null;
-        } catch {
-          candidate.familiarity_percent = null;
-        }
-      }),
-    );
-  }
-
-  for (const candidate of candidates) {
-    candidate.score = scoreCandidate(candidate, requestedBearing, startLocation);
-  }
-  candidates.sort((a, b) => b.score - a.score);
-
-  return candidates;
+  return finalize(candidates);
 }

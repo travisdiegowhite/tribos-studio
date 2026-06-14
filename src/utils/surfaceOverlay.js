@@ -23,13 +23,13 @@ export const SURFACE_LABELS = {
 };
 
 // OSM surface tag → category
-const SURFACE_MAP = {
+export const SURFACE_MAP = {
   paved: ['paved', 'asphalt', 'concrete', 'paving_stones', 'sett', 'cobblestone', 'concrete:plates', 'concrete:lanes', 'metal'],
   gravel: ['gravel', 'fine_gravel', 'pebblestone', 'compacted'],
   unpaved: ['unpaved', 'dirt', 'earth', 'ground', 'mud', 'sand', 'grass', 'wood', 'clay'],
 };
 
-function classifySurface(tag) {
+export function classifySurface(tag) {
   if (!tag) return 'unknown';
   const t = tag.toLowerCase().trim();
   for (const [category, tags] of Object.entries(SURFACE_MAP)) {
