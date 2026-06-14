@@ -44,6 +44,11 @@ vi.mock('../surfaceMeasurement', () => ({
   measureGravelPct: (...a: unknown[]) => measureGravelPct(...a),
 }));
 
+const buildGravelLoopCandidates = vi.fn();
+vi.mock('../gravelRouteBuilder', () => ({
+  buildGravelLoopCandidates: (...a: unknown[]) => buildGravelLoopCandidates(...a),
+}));
+
 const scoreRoutePreference = vi.fn();
 vi.mock('../routeScoring', () => ({
   scoreRoutePreference: (...a: unknown[]) => scoreRoutePreference(...a),
@@ -95,12 +100,15 @@ beforeEach(() => {
   parseRoutePlanningResponse.mockReset();
   reverseGeocodeRegion.mockReset();
   measureGravelPct.mockReset();
+  buildGravelLoopCandidates.mockReset();
   scoreRoutePreference.mockReset();
   enrichRouteElevation.mockReset();
   // Default: enrichment is a pass-through.
   enrichRouteElevation.mockImplementation(async (snap: unknown) => snap);
   reverseGeocodeRegion.mockResolvedValue('Longmont, Colorado');
   measureGravelPct.mockResolvedValue(null);
+  // Default: no gravel network → planned tests exercise the Claude-town path.
+  buildGravelLoopCandidates.mockResolvedValue([]);
 });
 
 describe('generateRouteCandidatesFromNaturalLanguage — iterative variants', () => {
@@ -353,5 +361,89 @@ describe('generatePlannedRouteCandidates', () => {
 
     expect(routeThroughWaypoints).not.toHaveBeenCalled();
     expect(candidates.length).toBeGreaterThanOrEqual(1);
+  });
+});
+
+function gravelLoopOf(distanceKm: number, name: string, waysUsed: string[]) {
+  return {
+    coordinates: lineOf(30),
+    distanceKm,
+    elevationGain: 400,
+    duration_s: 9000,
+    name,
+    source: 'gravel_network' as const,
+    gravelWaysUsed: waysUsed,
+    gravelChunkKm: distanceKm * 0.5,
+  };
+}
+
+describe('generatePlannedRouteCandidates — gravel-network branch', () => {
+  it('prefers gravel-network routes for gravel + direction (skips the town path)', async () => {
+    mockClaudePlan();
+    buildGravelLoopCandidates.mockResolvedValue([
+      gravelLoopOf(46, 'Gravel via Nelson Rd & 75th St', ['Nelson Rd', '75th St']),
+      gravelLoopOf(48, 'Gravel via County Rd 1 & Oxford Rd', ['County Rd 1', 'Oxford Rd']),
+    ]);
+    measureGravelPct.mockResolvedValue({ gravelPct: 47, distribution: { gravel: 47 } });
+
+    const candidates = await generatePlannedRouteCandidates('ne 50% gravel loop', {
+      biasCoord: [-105, 40],
+    });
+
+    expect(buildGravelLoopCandidates).toHaveBeenCalledTimes(1);
+    // Town/iterative paths are NOT used when the gravel network produced routes.
+    expect(routeThroughWaypoints).not.toHaveBeenCalled();
+    expect(generateIterativeRoute).not.toHaveBeenCalled();
+    expect(candidates.map((c) => c.name)).toContain('Gravel via Nelson Rd & 75th St');
+    expect(candidates[0].source).toBe('gravel_network');
+    expect(candidates[0].gravel_target_pct).toBe(50);
+    expect(candidates[0].gravel_actual_pct).toBe(47);
+  });
+
+  it('falls back to the Claude-town path when the area is gravel-sparse', async () => {
+    mockClaudePlan();
+    buildGravelLoopCandidates.mockResolvedValue([]); // sparse gravel
+    routeThroughWaypoints.mockImplementation(async (_s: unknown, names: string[]) =>
+      plannedRouteOf(72, names),
+    );
+
+    const candidates = await generatePlannedRouteCandidates('ne gravel loop', {
+      biasCoord: [-105, 40],
+    });
+
+    expect(buildGravelLoopCandidates).toHaveBeenCalledTimes(1);
+    expect(routeThroughWaypoints).toHaveBeenCalledTimes(3);
+    expect(candidates.length).toBeGreaterThanOrEqual(1);
+  });
+
+  it('distance guard drops a wildly-off outlier but keeps in-band routes', async () => {
+    mockClaudePlan();
+    buildGravelLoopCandidates.mockResolvedValue([
+      gravelLoopOf(46, 'Good A', ['A Rd']),
+      gravelLoopOf(48, 'Good B', ['B Rd']),
+      gravelLoopOf(150, 'Way Too Long', ['C Rd']), // 150/72 ≈ 2.08× → dropped
+    ]);
+
+    const candidates = await generatePlannedRouteCandidates('ne gravel loop', {
+      biasCoord: [-105, 40],
+    });
+
+    expect(candidates.map((c) => c.name)).not.toContain('Way Too Long');
+    expect(candidates.length).toBe(2);
+  });
+
+  it('distance guard keeps the single closest when every route is off', async () => {
+    mockClaudePlan();
+    buildGravelLoopCandidates.mockResolvedValue([
+      gravelLoopOf(150, 'Long A', ['A Rd']), // 2.08×
+      gravelLoopOf(130, 'Long B', ['B Rd']), // 1.81× — closest to band
+    ]);
+
+    const candidates = await generatePlannedRouteCandidates('ne gravel loop', {
+      biasCoord: [-105, 40],
+    });
+
+    expect(candidates).toHaveLength(1);
+    expect(candidates[0].name).toBe('Long B');
   });
 });

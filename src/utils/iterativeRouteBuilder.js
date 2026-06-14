@@ -42,7 +42,7 @@ function toDegrees(radians) {
  * @param {number} distanceKm - Distance in kilometers
  * @returns {[number, number]} - [longitude, latitude] of destination
  */
-function calculateDestinationPoint(start, bearing, distanceKm) {
+export function calculateDestinationPoint(start, bearing, distanceKm) {
   const [lon1, lat1] = start;
   const lat1Rad = toRadians(lat1);
   const lon1Rad = toRadians(lon1);
@@ -69,7 +69,7 @@ function calculateDestinationPoint(start, bearing, distanceKm) {
  * @param {[number, number]} end - [longitude, latitude]
  * @returns {number} - Bearing in degrees
  */
-function calculateBearing(start, end) {
+export function calculateBearing(start, end) {
   const [lon1, lat1] = start;
   const [lon2, lat2] = end;
 
@@ -111,7 +111,7 @@ function calculateDistance(point1, point2) {
 /**
  * Normalize bearing to 0-360 range
  */
-function normalizeBearing(bearing) {
+export function normalizeBearing(bearing) {
   return ((bearing % 360) + 360) % 360;
 }
 
