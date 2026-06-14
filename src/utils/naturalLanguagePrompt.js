@@ -328,6 +328,9 @@ RULES:
 4. If the user combines directions ("east and north"), resolve to one compass value ("northeast").
 5. If the user gives a distance range (e.g. "40-50 miles"), use the midpoint in km.
 6. Extract the explicit gravel percentage when stated ("50% gravel" → gravelTargetPct: 50), else null.
+   IMPORTANT: whenever any gravel amount is requested (even "50% gravel", which is a mix), set
+   surfaceType: "gravel" — the router needs the gravel profile to find unpaved roads. Use "mixed"
+   only when the rider explicitly wants a balance with no gravel emphasis, and "paved" for road-only.
 7. Give each plan a short human name and a one-line rationale.
 
 Return ONLY this JSON (no prose):
