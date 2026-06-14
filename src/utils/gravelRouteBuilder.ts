@@ -91,9 +91,13 @@ export interface BuildGravelParams {
 // Tuning constants.
 const MIN_WAY_KM = 0.2; // ignore driveway / parking-aisle stubs
 const MIN_CHUNK_KM = 0.4;
-const MAX_CHUNK_KM = 4;
-const MAX_CHUNKS = 11; // → ≤24 waypoints, polite to BRouter
+const MAX_CHUNK_KM = 6;
+const MAX_CHUNKS = 14; // → ≤30 waypoints, polite to BRouter
 const BAND_HALF_DEG = 70; // keep ways within ±70° of the requested bearing
+// Aim ~30% over the raw gravel budget (pavement connectors dilute the result),
+// capped so gravel never tries to exceed 80% of the distance.
+const BUDGET_OVERSHOOT = 1.3;
+const BUDGET_DISTANCE_CAP = 0.8;
 const BUCKET_OFFSETS = [-45, -20, 0, 20, 45];
 const OVERPASS_URL = 'https://overpass-api.de/api/interpreter';
 const GRAVEL_SURFACE_RE = 'gravel|fine_gravel|pebblestone|compacted|unpaved|dirt|earth|ground';
@@ -236,32 +240,62 @@ export async function findGravelWays(
 
 // ---- Chunk extraction + loop construction --------------------------------
 
-/**
- * Extract an entry→exit chunk of up to `remainingBudgetKm` (clamped) from the
- * start of a way's geometry. Two distinct points on the same way force the
- * router to ride the stretch between them.
- */
-export function extractChunk(way: GravelWay, remainingBudgetKm: number): GravelChunk {
-  const target = Math.min(
-    Math.max(remainingBudgetKm, MIN_CHUNK_KM),
-    MAX_CHUNK_KM,
-    way.lengthKm,
-  );
-  const { coords } = way;
-  let acc = 0;
-  let exitIdx = coords.length - 1;
-  for (let i = 1; i < coords.length; i++) {
-    acc += haversineKm(coords[i - 1][1], coords[i - 1][0], coords[i][1], coords[i][0]);
-    if (acc >= target) {
-      exitIdx = i;
-      break;
+/** Index of the way vertex nearest to `target`. */
+function nearestVertexIndex(coords: ReadonlyArray<Coordinate>, target: Coordinate): number {
+  let bestIdx = 0;
+  let bestKm = Infinity;
+  for (let i = 0; i < coords.length; i++) {
+    const d = haversineKm(coords[i][1], coords[i][0], target[1], target[0]);
+    if (d < bestKm) {
+      bestKm = d;
+      bestIdx = i;
     }
   }
-  const entry = coords[0];
-  const exit = coords[exitIdx];
-  const lengthKm = polylineLengthKm(coords.slice(0, exitIdx + 1));
-  const midpoint = coords[Math.floor(exitIdx / 2)];
-  return { wayId: way.id, name: way.name, entry, exit, lengthKm, midpoint };
+  return bestIdx;
+}
+
+/** Walk `coords` from `startIdx` in `step` direction up to `targetKm`. */
+function walkFrom(
+  coords: ReadonlyArray<Coordinate>,
+  startIdx: number,
+  step: 1 | -1,
+  targetKm: number,
+): { endIdx: number; lengthKm: number } {
+  let acc = 0;
+  let endIdx = startIdx;
+  for (let i = startIdx; i + step >= 0 && i + step < coords.length; i += step) {
+    acc += haversineKm(coords[i][1], coords[i][0], coords[i + step][1], coords[i + step][0]);
+    endIdx = i + step;
+    if (acc >= targetKm) break;
+  }
+  return { endIdx, lengthKm: acc };
+}
+
+/**
+ * Extract an entry→exit chunk of up to `remainingBudgetKm` (clamped) from a
+ * way. When an `approach` point is given (the previous chunk's exit), the entry
+ * starts at the nearest vertex to it and walks the direction with the longer
+ * run — keeping consecutive chunks close so the router's pavement connectors
+ * stay short. Two distinct points on the same way force the router to ride the
+ * stretch between them.
+ */
+export function extractChunk(
+  way: GravelWay,
+  remainingBudgetKm: number,
+  approach?: Coordinate,
+): GravelChunk {
+  const target = Math.min(Math.max(remainingBudgetKm, MIN_CHUNK_KM), MAX_CHUNK_KM, way.lengthKm);
+  const { coords } = way;
+  const startIdx = approach ? nearestVertexIndex(coords, approach) : 0;
+
+  const fwd = walkFrom(coords, startIdx, 1, target);
+  const bwd = walkFrom(coords, startIdx, -1, target);
+  const pick = fwd.lengthKm >= bwd.lengthKm ? fwd : bwd;
+
+  const entry = coords[startIdx];
+  const exit = coords[pick.endIdx];
+  const midpoint = coords[Math.round((startIdx + pick.endIdx) / 2)];
+  return { wayId: way.id, name: way.name, entry, exit, lengthKm: pick.lengthKm, midpoint };
 }
 
 /** Preference score for a way (higher = better chunk seed). */
@@ -292,13 +326,16 @@ export function selectChunksForLoop(
   params: SelectParams,
 ): GravelChunk[] {
   const { targetDistanceKm, bearingDeg, gravelTargetPct, orientation, radiusKm } = params;
-  const budgetKm = (gravelTargetPct / 100) * targetDistanceKm;
+  // Overshoot: connectors dilute gravel, so aim above the raw budget (capped).
+  const budgetKm =
+    Math.min((gravelTargetPct / 100) * BUDGET_OVERSHOOT, BUDGET_DISTANCE_CAP) * targetDistanceKm;
 
   // Keep ways in the requested half of the compass.
   const inBand = ways.filter((w) => angularDiff(w.bearingFromStart, bearingDeg) <= BAND_HALF_DEG);
   if (inBand.length === 0) return [];
 
-  // Bucket by nearest sub-bearing offset; sort each bucket by preference.
+  // Bucket by nearest sub-bearing offset; sort each bucket by preference. The
+  // buckets give the loop a spatial spread; chaining (below) keeps it ordered.
   const buckets = new Map<number, GravelWay[]>();
   for (const w of inBand) {
     const rel = ((w.bearingFromStart - bearingDeg + 540) % 360) - 180; // [-180,180)
@@ -312,26 +349,59 @@ export function selectChunksForLoop(
   for (const list of buckets.values()) {
     list.sort((a, b) => wayPreference(b, radiusKm) - wayPreference(a, radiusKm));
   }
-
-  // Walk buckets in orientation order (cw = increasing bearing offset).
   const order = [...BUCKET_OFFSETS].sort((a, b) => (orientation === 'cw' ? a - b : b - a));
 
-  const chunks: GravelChunk[] = [];
-  const used = new Set<number>();
-  let accumulated = 0;
-  // Round-robin passes: one chunk per bucket per pass, spreading around the loop.
-  for (let pass = 0; pass < BUCKET_OFFSETS.length && accumulated < budgetKm && chunks.length < MAX_CHUNKS; pass++) {
+  // Candidate set: best per bucket, round-robin in orientation order, so the
+  // pool spans the loop arc without over-picking one direction.
+  const pool: GravelWay[] = [];
+  const pooled = new Set<number>();
+  for (let pass = 0; pass < MAX_CHUNKS && pool.length < MAX_CHUNKS; pass++) {
+    let added = false;
     for (const off of order) {
-      if (accumulated >= budgetKm || chunks.length >= MAX_CHUNKS) break;
       const list = buckets.get(off);
       if (!list) continue;
-      const next = list.find((w) => !used.has(w.id));
+      const next = list.find((w) => !pooled.has(w.id));
       if (!next) continue;
-      used.add(next.id);
-      const chunk = extractChunk(next, budgetKm - accumulated);
-      chunks.push(chunk);
-      accumulated += chunk.lengthKm;
+      pooled.add(next.id);
+      pool.push(next);
+      added = true;
+      if (pool.length >= MAX_CHUNKS) break;
     }
+    if (!added) break;
+  }
+
+  // Chain greedily by proximity: from the current point, take the unused pool
+  // way whose nearest endpoint is closest, and extract its chunk approaching
+  // from that point. Minimises pavement connectors → higher gravel %.
+  const chunks: GravelChunk[] = [];
+  const used = new Set<number>();
+  let current: Coordinate = start;
+  let accumulated = 0;
+  while (accumulated < budgetKm && chunks.length < MAX_CHUNKS) {
+    let best: GravelWay | null = null;
+    let bestGapKm = Infinity;
+    for (const w of pool) {
+      if (used.has(w.id)) continue;
+      const gap = Math.min(
+        haversineKm(w.coords[0][1], w.coords[0][0], current[1], current[0]),
+        haversineKm(
+          w.coords[w.coords.length - 1][1],
+          w.coords[w.coords.length - 1][0],
+          current[1],
+          current[0],
+        ),
+      );
+      if (gap < bestGapKm) {
+        bestGapKm = gap;
+        best = w;
+      }
+    }
+    if (!best) break;
+    used.add(best.id);
+    const chunk = extractChunk(best, budgetKm - accumulated, current);
+    chunks.push(chunk);
+    accumulated += chunk.lengthKm;
+    current = chunk.exit;
   }
   return chunks;
 }

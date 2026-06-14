@@ -400,6 +400,49 @@ describe('generatePlannedRouteCandidates — gravel-network branch', () => {
     expect(candidates[0].gravel_actual_pct).toBe(47);
   });
 
+  it('triggers gravel-network + forces the gravel profile when surfaceType is "mixed"', async () => {
+    // The real bug: "50% gravel" is a mix, so Claude returns surfaceType:'mixed'.
+    // Gravel intent must come from the target %, not the surface label.
+    globalThis.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ success: true, content: 'PLAN_JSON' }),
+    });
+    parseRoutePlanningResponse.mockReturnValue({ ...PLAN, surfaceType: 'mixed', gravelTargetPct: 50 });
+    buildGravelLoopCandidates.mockResolvedValue([
+      gravelLoopOf(46, 'Gravel via Nelson Rd & 75th St', ['Nelson Rd', '75th St']),
+    ]);
+    measureGravelPct.mockResolvedValue({ gravelPct: 49, distribution: { gravel: 49 } });
+
+    const candidates = await generatePlannedRouteCandidates('ne 50% gravel loop', {
+      biasCoord: [-105, 40],
+    });
+
+    expect(buildGravelLoopCandidates).toHaveBeenCalledTimes(1);
+    expect(routeThroughWaypoints).not.toHaveBeenCalled();
+    expect(candidates[0].source).toBe('gravel_network');
+    expect(candidates[0].surface_profile).toBe('gravel'); // profile forced
+    expect(candidates[0].gravel_target_pct).toBe(50);
+  });
+
+  it('does NOT trigger gravel-network for a paved request', async () => {
+    globalThis.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ success: true, content: 'PLAN_JSON' }),
+    });
+    parseRoutePlanningResponse.mockReturnValue({ ...PLAN, surfaceType: 'paved', gravelTargetPct: null });
+    routeThroughWaypoints.mockImplementation(async (_s: unknown, names: string[]) =>
+      plannedRouteOf(72, names),
+    );
+
+    const candidates = await generatePlannedRouteCandidates('ne road loop', {
+      biasCoord: [-105, 40],
+    });
+
+    expect(buildGravelLoopCandidates).not.toHaveBeenCalled();
+    expect(routeThroughWaypoints).toHaveBeenCalledTimes(3);
+    expect(candidates[0].surface_profile).not.toBe('gravel');
+  });
+
   it('falls back to the Claude-town path when the area is gravel-sparse', async () => {
     mockClaudePlan();
     buildGravelLoopCandidates.mockResolvedValue([]); // sparse gravel

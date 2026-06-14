@@ -471,12 +471,16 @@ export async function generatePlannedRouteCandidates(
 
   const requestedBearing: number | null =
     plan.direction !== null ? (resolveBearing(plan.direction) as number | null) : null;
-  const routeProfile = plan.surfaceType === 'gravel' ? 'gravel' : (context.profile as string) || 'road';
   const type = plan.routeType || 'loop';
   const goal = 'endurance';
   const targetDistanceKm = plan.distance_km ?? 48;
-  // Default gravel requests to a 50% target so the scorer + cards have a number.
-  const gravelTargetPct = plan.gravelTargetPct ?? (routeProfile === 'gravel' ? 50 : null);
+  // Gravel intent is the requested *percentage*, not the surface label: "50%
+  // gravel" is literally a mix, so Claude returns surfaceType 'mixed'. Key off
+  // the target so the gravel-network path actually runs, and force the gravel
+  // routing profile so the connectors are gravel too (not just the forced ways).
+  const gravelTargetPct = plan.gravelTargetPct ?? (plan.surfaceType === 'gravel' ? 50 : null);
+  const wantsGravel = (gravelTargetPct ?? 0) > 0 || plan.surfaceType === 'gravel';
+  const routeProfile = wantsGravel ? 'gravel' : (context.profile as string) || 'road';
 
   const request: ParsedRequest = {
     parsed: { waypoints: [], preferences: { surfaceType: plan.surfaceType } },
@@ -499,7 +503,7 @@ export async function generatePlannedRouteCandidates(
   // Claude-town paths so they behave identically downstream.
   const finalize = async (cands: RouteCandidate[]): Promise<RouteCandidate[]> => {
     await enrichAll(cands);
-    if (routeProfile === 'gravel' || gravelTargetPct !== null) {
+    if (wantsGravel) {
       for (const candidate of cands) {
         const measured = await measureGravelPct(candidate.snapshot.geometry);
         candidate.gravel_actual_pct = measured?.gravelPct ?? null;
@@ -518,7 +522,7 @@ export async function generatePlannedRouteCandidates(
   // from real OSM gravel ways (waypoints ON the gravel force the router to ride
   // it). Wins for gravel; falls through to Claude-town planning when the area
   // is gravel-sparse.
-  if (routeProfile === 'gravel' && requestedBearing !== null) {
+  if (wantsGravel && requestedBearing !== null) {
     progress('gravel-network');
     let gravelRoutes: GravelLoopRoute[] = [];
     try {
