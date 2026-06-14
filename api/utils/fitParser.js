@@ -1,10 +1,20 @@
 // Server-side FIT File Parser
 // Parses FIT files from Garmin to extract GPS data and encode as polyline
 // Used by Garmin webhook to get route data from activities
+//
+// Parser: @garmin/fitsdk (Garmin's official FIT JavaScript SDK).
+// Replaced easy-fit 0.0.8 (pre-1.0, unmaintained) on 2026-06-13 after
+// discovering it returned 0 records from a 537 KB Edge 540 FIT file —
+// the device format had moved past what the old library could read.
+// Garmin's own SDK supports every device they make by definition.
 
-import EasyFit from 'easy-fit';
+import { Decoder, Stream } from '@garmin/fitsdk';
 import { computePerRideAnalytics } from './advancedRideAnalytics.js';
 import { buildFitCoachContext } from './fitCoachContext.js';
+
+// FIT semicircles → degrees conversion factor.
+// FIT stores positions as int32 semicircles where 0x80000000 == 180°.
+const SEMICIRCLES_TO_DEGREES = 180 / Math.pow(2, 31);
 
 // Maximum valid values for FIT data fields
 // FIT protocol uses sentinel values (e.g., 0xFFFF = 65535 for uint16) to indicate "invalid/no data"
@@ -16,40 +26,125 @@ export const MAX_VALID_HR_BPM = 250;          // Physiological maximum
 export const MAX_VALID_CADENCE_RPM = 250;     // Covers high-cadence drills
 
 /**
- * Parse a FIT file buffer and extract GPS track points
- * @param {Buffer|ArrayBuffer} fitBuffer - The raw FIT file data
- * @returns {Promise<Object>} Parsed data with trackPoints and summary
+ * Reshape @garmin/fitsdk's output into the snake_case shape the existing
+ * extract* functions below already speak. The SDK uses camelCase field
+ * names per FIT spec convention; our downstream code uses snake_case from
+ * the easy-fit era. Doing the rename at this boundary keeps the change
+ * contained — extractTrackPoints / extractAllDataPoints / extractSummary
+ * stay byte-identical, no downstream consumer needs updating.
+ *
+ * Position values: FIT stores lat/long in semicircles, not degrees. The
+ * SDK's applyScaleAndOffset doesn't convert (semicircles have no scale in
+ * the FIT profile) so we do it explicitly here.
+ */
+function normalizeMessagesToLegacyShape(messages) {
+  const records = (messages.recordMesgs || []).map((r) => ({
+    timestamp:        r.timestamp ?? null,
+    position_lat:     r.positionLat != null  ? r.positionLat  * SEMICIRCLES_TO_DEGREES : null,
+    position_long:    r.positionLong != null ? r.positionLong * SEMICIRCLES_TO_DEGREES : null,
+    altitude:         r.altitude ?? null,
+    enhanced_altitude:r.enhancedAltitude ?? null,
+    speed:            r.speed ?? null,
+    enhanced_speed:   r.enhancedSpeed ?? null,
+    heart_rate:       r.heartRate ?? null,
+    cadence:          r.cadence ?? null,
+    power:            r.power ?? null,
+    distance:         r.distance ?? null,
+    temperature:      r.temperature ?? null,
+  }));
+
+  const sessions = (messages.sessionMesgs || []).map((s) => ({
+    start_time:             s.startTime ?? null,
+    total_distance:         s.totalDistance ?? null,
+    total_timer_time:       s.totalTimerTime ?? null,
+    total_elapsed_time:     s.totalElapsedTime ?? null,
+    total_ascent:           s.totalAscent ?? null,
+    total_descent:          s.totalDescent ?? null,
+    avg_speed:              s.avgSpeed ?? s.enhancedAvgSpeed ?? null,
+    max_speed:              s.maxSpeed ?? s.enhancedMaxSpeed ?? null,
+    avg_heart_rate:         s.avgHeartRate ?? null,
+    max_heart_rate:         s.maxHeartRate ?? null,
+    avg_power:              s.avgPower ?? null,
+    max_power:              s.maxPower ?? null,
+    avg_cadence:            s.avgCadence ?? null,
+    max_cadence:            s.maxCadence ?? null,
+    sport:                  s.sport ?? null,
+    sub_sport:              s.subSport ?? null,
+    normalized_power:       s.normalizedPower ?? null,
+    training_stress_score:  s.trainingStressScore ?? null,
+    intensity_factor:       s.intensityFactor ?? null,
+    threshold_power:        s.thresholdPower ?? null,
+    total_work:             s.totalWork ?? null,
+    total_calories:         s.totalCalories ?? null,
+  }));
+
+  const activity = (messages.activityMesgs || []).map((a) => ({
+    timestamp: a.timestamp ?? null,
+    total_timer_time: a.totalTimerTime ?? null,
+  }));
+
+  const file_id = (messages.fileIdMesgs || []).map((f) => ({
+    manufacturer:   f.manufacturer ?? null,
+    garmin_product: f.garminProduct ?? null,
+    product:        f.product ?? null,
+    serial_number:  f.serialNumber ?? null,
+  }));
+
+  const laps = (messages.lapMesgs || []);
+
+  return { records, sessions, activity, file_id, laps };
+}
+
+/**
+ * Parse a FIT file buffer and extract GPS track points + summary + streams.
+ *
+ * @param {Buffer|ArrayBuffer} fitBuffer - The raw FIT file data.
+ * @returns {Promise<Object>} Parsed data including trackPoints, allDataPoints,
+ *   summary, powerMetrics, rideAnalytics, recordCount, hasGpsData, hasPowerData.
  */
 export function parseFitFile(fitBuffer) {
   return new Promise((resolve, reject) => {
     try {
-      const easyFit = new EasyFit({
-        force: true,
-        speedUnit: 'km/h',
-        lengthUnit: 'm',
-        temperatureUnit: 'celsius',
-        elapsedRecordField: true,
-        mode: 'list'
-      });
+      const buffer = Buffer.isBuffer(fitBuffer) ? fitBuffer : Buffer.from(fitBuffer);
+      const stream = Stream.fromBuffer(buffer);
 
-      // Convert Buffer to ArrayBuffer if needed
-      let arrayBuffer = fitBuffer;
-      if (Buffer.isBuffer(fitBuffer)) {
-        arrayBuffer = fitBuffer.buffer.slice(
-          fitBuffer.byteOffset,
-          fitBuffer.byteOffset + fitBuffer.byteLength
-        );
+      const decoder = new Decoder(stream);
+      if (!decoder.isFIT()) {
+        reject(new Error('Not a valid FIT file (header signature missing)'));
+        return;
       }
 
-      easyFit.parse(arrayBuffer, (error, data) => {
-        if (error) {
-          reject(new Error(`Failed to parse FIT file: ${error.message}`));
-          return;
-        }
+      // Decode the file. SDK options:
+      //   applyScaleAndOffset: numeric fields get scale/offset applied
+      //     (e.g. speed in m/s rather than raw uint16)
+      //   convertDateTimesToDates: timestamps become JavaScript Date objects
+      //   expandSubFields / expandComponents: makes accumulated fields like
+      //     distance and time-in-zone available alongside the raw components
+      //   mergeHeartRates: if the file has both BLE HR and ANT+ HR streams,
+      //     prefers the one with more samples (newer Garmin devices often
+      //     record both)
+      const { messages, errors } = decoder.read({
+        applyScaleAndOffset: true,
+        expandSubFields: true,
+        expandComponents: true,
+        convertTypesToStrings: true,
+        convertDateTimesToDates: true,
+        mergeHeartRates: true,
+      });
 
-        try {
-          // Extract GPS track points (for polyline/map)
-          const trackPoints = extractTrackPoints(data.records || []);
+      if (errors && errors.length > 0) {
+        // FIT decode produces errors as it goes (e.g. unknown message types
+        // from a newer device profile). Most are non-fatal — log the first
+        // few for visibility but don't reject.
+        console.warn(`⚠️ FIT decode produced ${errors.length} non-fatal errors. First 3:`,
+          errors.slice(0, 3).map((e) => e?.message || String(e)));
+      }
+
+      const data = normalizeMessagesToLegacyShape(messages);
+
+      try {
+        // Extract GPS track points (for polyline/map)
+        const trackPoints = extractTrackPoints(data.records || []);
 
           // Extract ALL data points (including indoor rides without GPS)
           // This is critical for power data extraction
@@ -115,23 +210,20 @@ export function parseFitFile(fitBuffer) {
             console.warn('⚠️ Advanced ride analytics failed (non-fatal):', analyticsError.message);
           }
 
-          // Diagnostic: when records come out empty from a FIT that downloaded
-          // successfully, log the top-level shape of `data` so we can see what
-          // easy-fit actually parsed. Newer Garmin devices (Edge 540 in
-          // particular) emit FIT formats where records may live under
-          // data.sessions[].records or data.activity[].records rather than
-          // data.records — easy-fit 0.0.8 doesn't always normalize them to
-          // data.records. Surface enough to decide if we need to update the
-          // extraction path or swap parsers.
+          // Diagnostic: a FIT file that decoded successfully but produced
+          // zero record messages is unusual. Could be a manual-entry FIT,
+          // a summary-only device file, or a corrupted upload. Log the
+          // message-type breakdown to make troubleshooting fast.
           if ((data.records?.length || 0) === 0) {
-            const dataKeys = data ? Object.keys(data) : [];
+            // SDK rarely returns 0 records for a real activity, but if it
+            // does (e.g. a manual-entry FIT or device summary-only file),
+            // log the message-type breakdown so we can see what the SDK
+            // actually parsed before reporting empty.
+            const msgTypeCounts = Object.fromEntries(
+              Object.entries(messages).map(([k, v]) => [k, Array.isArray(v) ? v.length : 0])
+            );
             console.warn(
-              `[FIT:PARSE-EMPTY] easy-fit returned no records. data keys: [${dataKeys.join(',')}], ` +
-              `sessions=${data.sessions?.length || 0}, activity=${data.activity?.length || 0}, ` +
-              `laps=${data.laps?.length || 0}, ` +
-              `session[0].records=${data.sessions?.[0]?.records?.length ?? 'n/a'}, ` +
-              `activity[0].sessions[0].records=${data.activity?.[0]?.sessions?.[0]?.records?.length ?? 'n/a'}, ` +
-              `lap[0].records=${data.laps?.[0]?.records?.length ?? 'n/a'}`
+              `[FIT:PARSE-EMPTY] @garmin/fitsdk returned 0 records. Message-type counts: ${JSON.stringify(msgTypeCounts)}`
             );
           }
 
@@ -145,10 +237,9 @@ export function parseFitFile(fitBuffer) {
             hasGpsData: trackPoints.length > 0,
             hasPowerData: powerMetrics?.hasPowerData || false
           });
-        } catch (parseError) {
-          reject(new Error(`Failed to process FIT data: ${parseError.message}`));
-        }
-      });
+      } catch (parseError) {
+        reject(new Error(`Failed to process FIT data: ${parseError.message}`));
+      }
     } catch (error) {
       reject(new Error(`FIT parser initialization failed: ${error.message}`));
     }
@@ -164,8 +255,8 @@ function extractTrackPoints(records) {
   for (const record of records) {
     // Only include records with valid position data
     if (record.position_lat != null && record.position_long != null) {
-      // Garmin stores coordinates in semicircles, need to convert to degrees
-      // But easy-fit already converts them for us
+      // Position values arrive here in degrees — normalizeMessagesToLegacyShape
+      // already converted from FIT's native semicircles representation.
       trackPoints.push({
         latitude: record.position_lat,
         longitude: record.position_long,
