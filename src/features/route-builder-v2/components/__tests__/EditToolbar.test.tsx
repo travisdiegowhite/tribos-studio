@@ -62,6 +62,24 @@ describe('EditToolbar', () => {
     expect(screen.queryByTestId('rb2-units-toggle')).not.toBeInTheDocument();
   });
 
+  it('renders and invokes the remove-tangents toggle', () => {
+    const onToggleEditTangents = vi.fn();
+    render(
+      <MantineProvider>
+        <EditToolbar
+          canUndo
+          canRedo
+          onUndo={vi.fn()}
+          onRedo={vi.fn()}
+          onToggleEditTangents={onToggleEditTangents}
+          editTangentsActive={false}
+        />
+      </MantineProvider>,
+    );
+    fireEvent.click(screen.getByTestId('rb2-edit-tangents-toggle'));
+    expect(onToggleEditTangents).toHaveBeenCalledTimes(1);
+  });
+
   it('omits the close-loop button unless onCloseLoop is provided', () => {
     renderToolbar();
     expect(screen.queryByTestId('rb2-close-loop-button')).not.toBeInTheDocument();

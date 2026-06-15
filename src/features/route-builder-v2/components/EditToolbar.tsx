@@ -17,6 +17,7 @@ import {
   RoadHorizon,
   Pencil,
   Path,
+  Scissors,
   Trash,
   Check,
 } from '@phosphor-icons/react';
@@ -41,6 +42,9 @@ export interface EditToolbarProps {
   /** When provided, renders a "back to start" (close-the-loop) button. */
   onCloseLoop?: () => void;
   canCloseLoop?: boolean;
+  /** When provided, renders a "remove tangents" edit-mode toggle. */
+  onToggleEditTangents?: () => void;
+  editTangentsActive?: boolean;
   /** When provided, renders a snap-to-roads ↔ freehand toggle. */
   onToggleSnap?: () => void;
   /** Whether road-snapping is currently on (drives the toggle icon). */
@@ -67,6 +71,8 @@ export function EditToolbar({
   canReverse = false,
   onCloseLoop,
   canCloseLoop = false,
+  onToggleEditTangents,
+  editTangentsActive = false,
   onToggleSnap,
   snapEnabled = true,
   routeProfile = 'road',
@@ -132,6 +138,21 @@ export function EditToolbar({
             onClick={onCloseLoop}
           >
             <ArrowUDownLeft size={18} />
+          </ToolbarButton>
+        </>
+      )}
+      {onToggleEditTangents && (
+        <>
+          <Box style={{ width: 1, backgroundColor: RB2.border }} />
+          <ToolbarButton
+            label={editTangentsActive ? 'Tap a detour to remove it' : 'Remove tangents'}
+            shortcut="trim out-and-backs"
+            testid="rb2-edit-tangents-toggle"
+            disabled={false}
+            onClick={onToggleEditTangents}
+            color={editTangentsActive ? RB2.teal : undefined}
+          >
+            <Scissors size={18} />
           </ToolbarButton>
         </>
       )}
@@ -238,6 +259,7 @@ function ToolbarButton({
   onClick,
   children,
   danger = false,
+  color: colorOverride,
 }: {
   label: string;
   shortcut: string;
@@ -246,8 +268,11 @@ function ToolbarButton({
   onClick: () => void;
   children: React.ReactNode;
   danger?: boolean;
+  color?: string;
 }) {
-  const color = disabled ? RB2.textDisabled : danger ? RB2.coral : RB2.textSecondary;
+  const color = disabled
+    ? RB2.textDisabled
+    : (colorOverride ?? (danger ? RB2.coral : RB2.textSecondary));
   return (
     <Tooltip label={`${label} (${shortcut})`} position="bottom" withinPortal disabled={disabled}>
       <UnstyledButton

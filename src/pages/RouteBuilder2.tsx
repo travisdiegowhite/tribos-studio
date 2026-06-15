@@ -7,7 +7,7 @@
  */
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Box, Text } from '@mantine/core';
+import { Box, Button, Group, Text } from '@mantine/core';
 import { useLocalStorage, useMediaQuery } from '@mantine/hooks';
 import { BASEMAP_STYLES } from '../components/RouteBuilder';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
@@ -78,6 +78,7 @@ import { POILayer } from '../features/route-builder-v2/layers/POILayer';
 import { BikeInfraLayer } from '../features/route-builder-v2/layers/BikeInfraLayer';
 import { FamiliarSegmentsLayer } from '../features/route-builder-v2/layers/FamiliarSegmentsLayer';
 import { WindArrowsLayer } from '../features/route-builder-v2/layers/WindArrowsLayer';
+import { Source as MapSource, Layer as MapLayer } from 'react-map-gl';
 import { IntervalsLayer } from '../features/route-builder-v2/layers/IntervalsLayer';
 import { WorkoutOverlayLegend, WorkoutPickerPanel } from '../features/route-builder-v2/components';
 import { useUpcomingPlannedWorkouts } from '../hooks/useUpcomingPlannedWorkouts';
@@ -88,7 +89,16 @@ import RoadPreferencesCard from '../components/settings/RoadPreferencesCard.jsx'
 import BikeInfrastructureLegend from '../components/BikeInfrastructureLegend.jsx';
 import RaceDayGuide from '../components/fueling/RaceDayGuide';
 import { computeSurfaceDistribution } from '../utils/surfaceOverlay.js';
+import { notifications } from '@mantine/notifications';
 import { decodePolyline } from '../utils/activityRouteAnalyzer';
+import {
+  detectRouteClick,
+  findSegmentToRemove,
+  removeSegmentAndReroute,
+  getSegmentHighlight,
+  getRemovalStats,
+} from '../utils/routeEditor';
+import { computeDistanceKm, fetchElevationGain } from '../utils/routeMutation';
 import type { WorkoutDefinition } from '../types/training';
 import { trackRb2 } from '../features/route-builder-v2/telemetry/trackRb2';
 import { coordinateAtDistanceKm } from '../utils/elevation';
@@ -272,6 +282,14 @@ export default function RouteBuilder2() {
   >([]);
   const [discoverLoading, setDiscoverLoading] = useState(false);
   const discoverLoadedRef = useRef(false);
+  // Edit/Remove-Tangents mode (tap an out-and-back to trim it).
+  const [editTangentMode, setEditTangentMode] = useState(false);
+  const [tangentCandidate, setTangentCandidate] = useState<{
+    startIndex: number;
+    endIndex: number;
+    highlight: GeoJSON.Feature | null;
+    stats: { distanceSaved?: number; pointsRemoved?: number; percentOfRoute?: number } | null;
+  } | null>(null);
   // Basemap choice — persisted so the map opens on the user's preferred style.
   const [basemapId, setBasemapId] = useLocalStorage<string>({
     key: 'rb2-basemap',
@@ -779,6 +797,62 @@ export default function RouteBuilder2() {
     trackRb2('close_loop', {});
   };
 
+  // --- Edit / Remove-Tangents mode ---
+  const handleToggleEditTangents = useCallback(() => {
+    setEditTangentMode((on) => !on);
+    setTangentCandidate(null);
+  }, []);
+
+  const handleEditTangentClick = useCallback(
+    (coord: Coordinate) => {
+      const coords = (routeGeometry as { coordinates?: [number, number][] } | null)?.coordinates;
+      if (!coords || coords.length < 4) return;
+      const hit = detectRouteClick(coords, [coord[0], coord[1]]) as { index?: number } | null;
+      if (!hit || typeof hit.index !== 'number') {
+        setTangentCandidate(null);
+        return;
+      }
+      const seg = findSegmentToRemove(coords, hit.index) as
+        | { startIndex: number; endIndex: number }
+        | null;
+      if (!seg || seg.startIndex >= seg.endIndex) {
+        setTangentCandidate(null);
+        notifications.show({
+          title: 'No detour there',
+          message: 'Tap an out-and-back or dead-end section of the line.',
+          color: 'gray',
+        });
+        return;
+      }
+      setTangentCandidate({
+        startIndex: seg.startIndex,
+        endIndex: seg.endIndex,
+        highlight: getSegmentHighlight(coords, seg.startIndex, seg.endIndex) as GeoJSON.Feature | null,
+        stats: getRemovalStats(coords, seg.startIndex, seg.endIndex) as {
+          distanceSaved?: number;
+        } | null,
+      });
+    },
+    [routeGeometry],
+  );
+
+  const handleConfirmRemoveTangent = useCallback(async () => {
+    const coords = (routeGeometry as { coordinates?: [number, number][] } | null)?.coordinates;
+    if (!coords || !tangentCandidate) return;
+    const newCoords = (await removeSegmentAndReroute(
+      coords,
+      tangentCandidate.startIndex,
+      tangentCandidate.endIndex,
+    )) as [number, number][] | null;
+    setTangentCandidate(null);
+    if (!Array.isArray(newCoords) || newCoords.length < 2) return;
+    setRouteGeometryInStore({ type: 'LineString', coordinates: newCoords });
+    const distance_km = computeDistanceKm(newCoords);
+    const elevation_gain_m = (await fetchElevationGain(newCoords)) ?? routeStats?.elevation_gain_m ?? 0;
+    setRouteStatsInStore({ distance_km, elevation_gain_m, duration_s: 0 });
+    trackRb2('tangent_removed', { distance_saved_km: tangentCandidate.stats?.distanceSaved ?? null });
+  }, [routeGeometry, tangentCandidate, routeStats, setRouteGeometryInStore, setRouteStatsInStore]);
+
   // The map + its layers — shared by both layouts. Fills its container.
   const mapElement = (
     <Map
@@ -790,6 +864,7 @@ export default function RouteBuilder2() {
       waypoints={waypointsForMap}
       highlightCoord={highlightCoord}
       cursor="crosshair"
+      onMapClickOverride={editTangentMode ? handleEditTangentClick : undefined}
       mapStyle={basemapStyle}
       basemapId={basemapId}
       onBasemapChange={setBasemapId}
@@ -823,6 +898,16 @@ export default function RouteBuilder2() {
           windDegrees={weather.weather.windDegrees}
           windSpeed={weather.weather.windSpeed}
         />
+      )}
+      {tangentCandidate?.highlight && (
+        <MapSource id="rb2-tangent-highlight" type="geojson" data={tangentCandidate.highlight}>
+          <MapLayer
+            id="rb2-tangent-highlight-line"
+            type="line"
+            paint={{ 'line-color': '#C43C2A', 'line-width': 7, 'line-opacity': 0.9 }}
+            layout={{ 'line-cap': 'round', 'line-join': 'round' }}
+          />
+        </MapSource>
       )}
     </Map>
   );
@@ -863,6 +948,58 @@ export default function RouteBuilder2() {
       return null;
     }
   }, [routeStats?.distance_km, analysis.elevationProfile, surfaceSegments, speedProfile, routeProfile, trainingGoal]);
+
+  // Remove-tangents confirm/hint card (shown while edit mode is active).
+  const tangentSavedM = tangentCandidate?.stats?.distanceSaved ?? 0;
+  const tangentEditNode = editTangentMode ? (
+    <Box
+      data-testid="rb2-tangent-editor"
+      style={{
+        backgroundColor: RB2.cardBg,
+        border: `1px solid ${RB2.border}`,
+        boxShadow: RB2.shadowCard,
+        padding: '8px 10px',
+        pointerEvents: 'auto',
+        maxWidth: 320,
+      }}
+    >
+      {tangentCandidate ? (
+        <>
+          <Text style={{ fontFamily: RB2_FONT.body, fontSize: 12, color: RB2.textSecondary, marginBottom: 6 }}>
+            Trim this out-and-back? Saves{' '}
+            {isImperial
+              ? `${Math.round(tangentSavedM * 3.28084)} ft`
+              : tangentSavedM >= 1000
+                ? `${(tangentSavedM / 1000).toFixed(1)} km`
+                : `${Math.round(tangentSavedM)} m`}
+            .
+          </Text>
+          <Group gap={6}>
+            <Button
+              size="xs"
+              data-testid="rb2-tangent-remove"
+              onClick={() => void handleConfirmRemoveTangent()}
+              styles={{ root: { borderRadius: 0, backgroundColor: RB2.coral } }}
+            >
+              Remove
+            </Button>
+            <Button
+              size="xs"
+              variant="outline"
+              onClick={() => setTangentCandidate(null)}
+              styles={{ root: { borderRadius: 0 } }}
+            >
+              Cancel
+            </Button>
+          </Group>
+        </>
+      ) : (
+        <Text style={{ fontFamily: RB2_FONT.mono, fontSize: 11, color: RB2.textSecondary }}>
+          Tap an out-and-back on the line to trim it.
+        </Text>
+      )}
+    </Box>
+  ) : null;
 
   // Reusable v1 widgets surfaced in RB2 (after personalizedEta is computed).
   const roadPrefsNode = <RoadPreferencesCard />;
@@ -1108,6 +1245,8 @@ export default function RouteBuilder2() {
                     canReverse={waypointsForMap.length >= 2}
                     onCloseLoop={handleCloseLoop}
                     canCloseLoop={canCloseLoop}
+                    onToggleEditTangents={hasRoute ? handleToggleEditTangents : undefined}
+                    editTangentsActive={editTangentMode}
                     onToggleSnap={handleToggleSnap}
                     snapEnabled={snapToRoads}
                     routeProfile={routeProfile}
@@ -1119,9 +1258,10 @@ export default function RouteBuilder2() {
                     onClear={handleClearRoute}
                     canClear={canClearMap}
                   />
-                  {!isLoading && (
+                  {!isLoading && !editTangentMode && (
                     <ClickToPlaceHint snapEnabled={snapToRoads} hasRoute={hasRoute} />
                   )}
+                  {tangentEditNode}
                 </Box>
                 {mapStates}
               </>
@@ -1392,6 +1532,8 @@ export default function RouteBuilder2() {
                 canReverse={waypointsForMap.length >= 2}
                 onCloseLoop={handleCloseLoop}
                 canCloseLoop={canCloseLoop}
+                onToggleEditTangents={hasRoute ? handleToggleEditTangents : undefined}
+                editTangentsActive={editTangentMode}
                 onToggleSnap={handleToggleSnap}
                 snapEnabled={snapToRoads}
                 routeProfile={routeProfile}
@@ -1409,10 +1551,13 @@ export default function RouteBuilder2() {
             </Box>
           </Box>
           {statsNode && <Box style={{ pointerEvents: 'auto' }}>{statsNode}</Box>}
-          {!isLoading && (
+          {!isLoading && !editTangentMode && (
             <Box style={{ pointerEvents: 'auto', alignSelf: 'flex-start' }}>
               <ClickToPlaceHint snapEnabled={snapToRoads} hasRoute={hasRoute} isMobile />
             </Box>
+          )}
+          {tangentEditNode && (
+            <Box style={{ pointerEvents: 'auto', alignSelf: 'flex-start' }}>{tangentEditNode}</Box>
           )}
         </Box>
 

@@ -59,6 +59,8 @@ export interface MapWrapperProps {
   showRouteLine?: boolean;
   /** Elevation-chart hover position; renders a non-interactive dot on the route. */
   highlightCoord?: Coordinate | null;
+  /** When set, a map click calls this instead of appending a waypoint (edit modes). */
+  onMapClickOverride?: (coord: Coordinate) => void;
   // ── On-map controls (rendered inside <Map> where mapRef lives) ──
   userLocation?: Coordinate | null;
   onGeolocate?: () => void;
@@ -83,6 +85,7 @@ export function Map({
   mapStyle = DEFAULT_STYLE,
   showRouteLine = true,
   highlightCoord,
+  onMapClickOverride,
   userLocation = null,
   onGeolocate,
   isLocating = false,
@@ -140,9 +143,13 @@ export function Map({
         return;
       }
       const coord: Coordinate = [evt.lngLat.lng, evt.lngLat.lat];
+      if (onMapClickOverride) {
+        onMapClickOverride(coord);
+        return;
+      }
       void map.handleMapClick(coord);
     },
-    [map],
+    [map, onMapClickOverride],
   );
 
   const handleMouseDown = useCallback(
