@@ -82,6 +82,7 @@ import { WorkoutOverlayLegend, WorkoutPickerPanel } from '../features/route-buil
 import { useUpcomingPlannedWorkouts } from '../hooks/useUpcomingPlannedWorkouts';
 import { targetDistanceKm } from '../features/route-builder-v2/discover/rankRoutes';
 import { calculatePersonalizedETA } from '../utils/personalizedETA';
+import { stravaService } from '../utils/stravaService';
 import { computeSurfaceDistribution } from '../utils/surfaceOverlay.js';
 import { decodePolyline } from '../utils/activityRouteAnalyzer';
 import type { WorkoutDefinition } from '../types/training';
@@ -819,9 +820,25 @@ export default function RouteBuilder2() {
     </Map>
   );
 
-  // Terrain- and surface-adjusted ride time (v1 parity) — better than the
-  // router's raw duration. Falls back to the raw duration when no elevation
-  // profile is available yet.
+  // The rider's Strava speed profile personalizes the ETA (v1 parity). Fetched
+  // once; null until loaded (ETA then falls back to a profile-based pace).
+  const [speedProfile, setSpeedProfile] = useState<unknown>(null);
+  useEffect(() => {
+    let cancelled = false;
+    (stravaService as { getSpeedProfile?: () => Promise<unknown> })
+      .getSpeedProfile?.()
+      .then((p) => {
+        if (!cancelled) setSpeedProfile(p ?? null);
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  // Terrain-, surface- and (when available) rider-speed-adjusted ride time
+  // (v1 parity) — better than the router's raw duration. Falls back to the raw
+  // duration when no elevation profile is available yet.
   const personalizedEta = useMemo(() => {
     const dist = routeStats?.distance_km;
     const profile = analysis.elevationProfile;
@@ -831,13 +848,14 @@ export default function RouteBuilder2() {
         distanceKm: dist,
         elevationProfile: profile.map((p) => ({ distance: p.distance_km, elevation: p.elevation_m })),
         surfaceDistribution: surfaceSegments ? computeSurfaceDistribution(surfaceSegments) : undefined,
+        speedProfile: (speedProfile ?? undefined) as object | undefined,
         routeProfile,
         trainingGoal,
       }) as { totalSeconds?: number };
     } catch {
       return null;
     }
-  }, [routeStats?.distance_km, analysis.elevationProfile, surfaceSegments, routeProfile, trainingGoal]);
+  }, [routeStats?.distance_km, analysis.elevationProfile, surfaceSegments, speedProfile, routeProfile, trainingGoal]);
 
   const statsNode =
     hasRoute && routeStats ? (

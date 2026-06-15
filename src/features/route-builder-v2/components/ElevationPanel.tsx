@@ -50,6 +50,8 @@ interface Scales {
   maxElev: number;
   totalKm: number;
   gainM: number;
+  /** Steepest segment grade along the route, in % (absolute). */
+  maxGradePct: number;
   /** distance_km → svg x */
   toX: (km: number) => number;
   /** elevation_m → svg y */
@@ -60,6 +62,7 @@ function buildScales(profile: ElevationPoint[]): Scales {
   let minElev = Infinity;
   let maxElev = -Infinity;
   let gainM = 0;
+  let maxGradePct = 0;
   for (let i = 0; i < profile.length; i++) {
     const e = profile[i].elevation_m;
     if (e < minElev) minElev = e;
@@ -67,6 +70,11 @@ function buildScales(profile: ElevationPoint[]): Scales {
     if (i > 0) {
       const delta = e - profile[i - 1].elevation_m;
       if (delta > 0) gainM += delta;
+      const runM = (profile[i].distance_km - profile[i - 1].distance_km) * 1000;
+      if (runM > 20) {
+        const grade = Math.abs(delta / runM) * 100;
+        if (grade > maxGradePct) maxGradePct = grade;
+      }
     }
   }
   const totalKm = profile[profile.length - 1].distance_km || 1;
@@ -77,7 +85,7 @@ function buildScales(profile: ElevationPoint[]): Scales {
   const toX = (km: number) => (km / totalKm) * VIEW_W;
   const toY = (m: number) =>
     PAD_TOP + (1 - (m - lo) / (hi - lo)) * (VIEW_H - PAD_TOP - PAD_BOTTOM);
-  return { minElev, maxElev, totalKm, gainM, toX, toY };
+  return { minElev, maxElev, totalKm, gainM, maxGradePct, toX, toY };
 }
 
 /** Nearest profile index for a distance-along-route in km (binary search). */
@@ -214,7 +222,7 @@ export function ElevationPanel({
         >
           {hoverPoint
             ? `${distLabel(hoverPoint.distance_km, isImperial)} · ${elevLabel(hoverPoint.elevation_m, isImperial)}`
-            : `↑ ${elevLabel(scales.gainM, isImperial)}`}
+            : `↑ ${elevLabel(scales.gainM, isImperial)}${scales.maxGradePct >= 1 ? ` · max ${Math.round(scales.maxGradePct)}%` : ''}`}
         </Text>
       </Box>
 
