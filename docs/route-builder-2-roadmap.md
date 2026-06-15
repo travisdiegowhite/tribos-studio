@@ -4,6 +4,27 @@ _Last updated: 2026-06-10. Strategy: **Coach-differentiated** — win on trainin
 routing; be good-enough on table stakes; deliberately punt on heatmap, in-app
 turn-by-turn, offline, and native mobile._
 
+## v1 → RB2 parity sweep (closed before wider beta, June 2026)
+
+A deep v1↔RB2 gap review found the long-tail v1 features RB2 lacked. Closed:
+
+- **Delete route** (in the Load modal), **build from a past activity**
+  (`?from_activity=`), **POI interactivity** (popup + "Add to route"), and
+  **personalized ETA** (terrain/surface/rider-speed-adjusted duration).
+- **Elevation max-grade** readout; **weather-tolerance presets** + good/marginal
+  verdict; **road-preferences** card; **bike-infra legend**; **race-day setup**
+  (`RaceDetailsCard`) unlocking the **RaceDayGuide**.
+- **Edit / Remove-Tangents** mode — tap an out-and-back to trim it
+  (`routeEditor` + a coral highlight + distance-saved confirm).
+
+**Deliberate non-ports** (documented, not built):
+- **Run-reach isochrone** — a *running* reachability feature; a misfit for the
+  cycling route builder. Non-goal.
+- **Segment alternatives** — v1's "generate alternates for a sub-segment". Large
+  interaction surface with low marginal value: RB2 already offers three ways to
+  alter a segment (drag-the-line reshape, conversational coach edits, and
+  tangent-trim). Deferred to avoid pre-beta risk; revisit if users ask.
+
 ## Production-readiness + cutover — Phases A–D (shipped, June 2026)
 
 RB2 is now production-ready to become the default builder via **gradual cohort rollout**.
