@@ -31,4 +31,5 @@ export { LoadingState } from './LoadingState';
 export { ErrorState } from './ErrorState';
 export { RouteActionsPanel } from './RouteActionsPanel';
 export { DiscoverPanel } from './DiscoverPanel';
+export { RaceDetailsCard } from './RaceDetailsCard';
 export { RB2, RB2_FONT } from './brand';

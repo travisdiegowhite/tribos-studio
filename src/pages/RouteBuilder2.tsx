@@ -55,6 +55,7 @@ import {
   ErrorState,
   RouteActionsPanel,
   DiscoverPanel,
+  RaceDetailsCard,
   RB2,
   RB2_FONT,
   type LayerVisibilityState,
@@ -1015,6 +1016,9 @@ export default function RouteBuilder2() {
               weather={weather.weather}
               isImperial={isImperial}
             />
+            <Box style={{ marginTop: 12 }}>
+              <RaceDetailsCard />
+            </Box>
             {raceDayGuideNode && <Box style={{ marginTop: 12 }}>{raceDayGuideNode}</Box>}
           </>
         ),
@@ -1271,6 +1275,9 @@ export default function RouteBuilder2() {
           </Box>
           <Box style={cardStyle}>
             <TirePressurePanel routeProfile={routeProfile} isImperial={isImperial} />
+          </Box>
+          <Box style={cardStyle}>
+            <RaceDetailsCard />
           </Box>
           {raceDayGuideNode && <Box style={cardStyle}>{raceDayGuideNode}</Box>}
         </>
