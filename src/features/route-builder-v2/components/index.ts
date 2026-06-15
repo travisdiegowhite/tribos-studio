@@ -5,6 +5,7 @@ export { ControlRail, type RailItem } from './ControlRail';
 export { ChatDock } from './ChatDock';
 export { GenerateBar, type GenerateBarHandle } from './GenerateBar';
 export { EditToolbar } from './EditToolbar';
+export { ClipConfirmCard } from './ClipConfirmCard';
 export { ElevationDock } from './ElevationDock';
 export { FormPanel, type FormPanelHandle } from './FormPanel';
 export { StatsOverlay } from './StatsOverlay';

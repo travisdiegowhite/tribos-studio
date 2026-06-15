@@ -27,6 +27,10 @@ export interface ChatDockProps {
   exampleHint: readonly string[];
   showAfterRefuseHint: boolean;
   onSubmit: (text: string) => void;
+  /** Selects a generated route option card (messageId, option index). */
+  onSelectOption?: (messageId: string, index: number) => void;
+  /** Render stats in the rider's units. */
+  isImperial?: boolean;
   /** Optional content rendered between the title bar and the message list
    *  (e.g. the GenerateBar chips). */
   header?: ReactNode;
@@ -44,6 +48,8 @@ export function ChatDock({
   exampleHint,
   showAfterRefuseHint,
   onSubmit,
+  onSelectOption,
+  isImperial,
   header,
   width = 360,
 }: ChatDockProps) {
@@ -156,6 +162,8 @@ export function ChatDock({
         exampleHint={exampleHint}
         showAfterRefuseHint={showAfterRefuseHint}
         onSubmit={onSubmit}
+        onSelectOption={onSelectOption}
+        isImperial={isImperial}
       />
     </Box>
   );

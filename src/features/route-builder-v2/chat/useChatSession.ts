@@ -40,7 +40,10 @@ export interface UseChatSessionReturn {
   showExamplesHint: boolean;
   showAfterRefuseHint: boolean;
   hydrated: boolean;
-  append: (message: Omit<ChatMessage, 'id' | 'timestamp'>) => void;
+  /** Appends and returns the new message's id (for later `updateMessage`). */
+  append: (message: Omit<ChatMessage, 'id' | 'timestamp'>) => string;
+  /** Patch an existing message in place (e.g. mark a selected option card). */
+  updateMessage: (id: string, patch: Partial<Omit<ChatMessage, 'id'>>) => void;
   setProcessing: (processing: boolean) => void;
   markRefused: () => void;
   persistTurn: (userText: string, assistantText: string) => Promise<void>;
@@ -108,12 +111,21 @@ export function useChatSession({
     });
   }, [openingMessage]);
 
-  const append = useCallback((message: Omit<ChatMessage, 'id' | 'timestamp'>) => {
+  const append = useCallback((message: Omit<ChatMessage, 'id' | 'timestamp'>): string => {
+    const id = newId();
     setMessages((prev) => [
       ...prev,
-      { ...message, id: newId(), timestamp: Date.now() },
+      { ...message, id, timestamp: Date.now() },
     ]);
+    return id;
   }, []);
+
+  const updateMessage = useCallback(
+    (id: string, patch: Partial<Omit<ChatMessage, 'id'>>) => {
+      setMessages((prev) => prev.map((m) => (m.id === id ? { ...m, ...patch } : m)));
+    },
+    [],
+  );
 
   const setProcessing = useCallback((processing: boolean) => {
     setIsProcessing(processing);
@@ -163,6 +175,7 @@ export function useChatSession({
     showAfterRefuseHint: hasSeenRefuse,
     hydrated,
     append,
+    updateMessage,
     setProcessing,
     markRefused,
     persistTurn,

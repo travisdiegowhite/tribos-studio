@@ -62,24 +62,6 @@ describe('EditToolbar', () => {
     expect(screen.queryByTestId('rb2-units-toggle')).not.toBeInTheDocument();
   });
 
-  it('renders and invokes the remove-tangents toggle', () => {
-    const onToggleEditTangents = vi.fn();
-    render(
-      <MantineProvider>
-        <EditToolbar
-          canUndo
-          canRedo
-          onUndo={vi.fn()}
-          onRedo={vi.fn()}
-          onToggleEditTangents={onToggleEditTangents}
-          editTangentsActive={false}
-        />
-      </MantineProvider>,
-    );
-    fireEvent.click(screen.getByTestId('rb2-edit-tangents-toggle'));
-    expect(onToggleEditTangents).toHaveBeenCalledTimes(1);
-  });
-
   it('omits the close-loop button unless onCloseLoop is provided', () => {
     renderToolbar();
     expect(screen.queryByTestId('rb2-close-loop-button')).not.toBeInTheDocument();
@@ -160,6 +142,32 @@ describe('EditToolbar', () => {
     );
     fireEvent.click(screen.getByTestId('rb2-clear-button'));
     expect(onClear).toHaveBeenCalledTimes(1);
+  });
+
+  it('omits the clip-tangent toggle unless onToggleClipMode is provided', () => {
+    renderToolbar();
+    expect(screen.queryByTestId('rb2-clip-toggle')).not.toBeInTheDocument();
+  });
+
+  it('renders the clip toggle, fires it, and shows active styling', () => {
+    const onToggleClipMode = vi.fn();
+    const { rerender } = render(
+      <MantineProvider>
+        <EditToolbar canUndo canRedo onUndo={vi.fn()} onRedo={vi.fn()} onToggleClipMode={onToggleClipMode} clipMode={false} />
+      </MantineProvider>,
+    );
+    const btn = screen.getByTestId('rb2-clip-toggle');
+    expect(btn).not.toBeDisabled();
+    expect(btn).toHaveAttribute('aria-pressed', 'false');
+    fireEvent.click(btn);
+    expect(onToggleClipMode).toHaveBeenCalledTimes(1);
+
+    rerender(
+      <MantineProvider>
+        <EditToolbar canUndo canRedo onUndo={vi.fn()} onRedo={vi.fn()} onToggleClipMode={onToggleClipMode} clipMode />
+      </MantineProvider>,
+    );
+    expect(screen.getByTestId('rb2-clip-toggle')).toHaveAttribute('aria-pressed', 'true');
   });
 
   it('toggles snap-to-roads ↔ freehand', () => {

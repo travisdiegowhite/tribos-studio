@@ -42,9 +42,6 @@ export interface EditToolbarProps {
   /** When provided, renders a "back to start" (close-the-loop) button. */
   onCloseLoop?: () => void;
   canCloseLoop?: boolean;
-  /** When provided, renders a "remove tangents" edit-mode toggle. */
-  onToggleEditTangents?: () => void;
-  editTangentsActive?: boolean;
   /** When provided, renders a snap-to-roads ↔ freehand toggle. */
   onToggleSnap?: () => void;
   /** Whether road-snapping is currently on (drives the toggle icon). */
@@ -56,6 +53,10 @@ export interface EditToolbarProps {
   onToggleUnits?: () => void;
   /** Whether imperial units are currently active (drives the toggle label). */
   unitsImperial?: boolean;
+  /** When provided, renders a "clip tangent" toggle button. */
+  onToggleClipMode?: () => void;
+  /** Whether clip mode is currently active (drives pressed styling). */
+  clipMode?: boolean;
   /** When provided, renders an always-visible clear-route button. */
   onClear?: () => void;
   /** Whether there's anything to clear (disables the button when false). */
@@ -71,14 +72,14 @@ export function EditToolbar({
   canReverse = false,
   onCloseLoop,
   canCloseLoop = false,
-  onToggleEditTangents,
-  editTangentsActive = false,
   onToggleSnap,
   snapEnabled = true,
   routeProfile = 'road',
   onChangeProfile,
   onToggleUnits,
   unitsImperial = false,
+  onToggleClipMode,
+  clipMode = false,
   onClear,
   canClear = false,
 }: EditToolbarProps) {
@@ -138,21 +139,6 @@ export function EditToolbar({
             onClick={onCloseLoop}
           >
             <ArrowUDownLeft size={18} />
-          </ToolbarButton>
-        </>
-      )}
-      {onToggleEditTangents && (
-        <>
-          <Box style={{ width: 1, backgroundColor: RB2.border }} />
-          <ToolbarButton
-            label={editTangentsActive ? 'Tap a detour to remove it' : 'Remove tangents'}
-            shortcut="trim out-and-backs"
-            testid="rb2-edit-tangents-toggle"
-            disabled={false}
-            onClick={onToggleEditTangents}
-            color={editTangentsActive ? RB2.teal : undefined}
-          >
-            <Scissors size={18} />
           </ToolbarButton>
         </>
       )}
@@ -232,6 +218,21 @@ export function EditToolbar({
           </ToolbarButton>
         </>
       )}
+      {onToggleClipMode && (
+        <>
+          <Box style={{ width: 1, backgroundColor: RB2.border }} />
+          <ToolbarButton
+            label={clipMode ? 'Clipping tangents — click a spur' : 'Clip tangent'}
+            shortcut={clipMode ? 'click a spur to remove it' : 'remove out-and-back spurs'}
+            testid="rb2-clip-toggle"
+            disabled={false}
+            onClick={onToggleClipMode}
+            active={clipMode}
+          >
+            <Scissors size={18} />
+          </ToolbarButton>
+        </>
+      )}
       {onClear && (
         <>
           <Box style={{ width: 1, backgroundColor: RB2.border }} />
@@ -259,7 +260,7 @@ function ToolbarButton({
   onClick,
   children,
   danger = false,
-  color: colorOverride,
+  active = false,
 }: {
   label: string;
   shortcut: string;
@@ -268,11 +269,15 @@ function ToolbarButton({
   onClick: () => void;
   children: React.ReactNode;
   danger?: boolean;
-  color?: string;
+  active?: boolean;
 }) {
   const color = disabled
     ? RB2.textDisabled
-    : (colorOverride ?? (danger ? RB2.coral : RB2.textSecondary));
+    : active
+      ? RB2.teal
+      : danger
+        ? RB2.coral
+        : RB2.textSecondary;
   return (
     <Tooltip label={`${label} (${shortcut})`} position="bottom" withinPortal disabled={disabled}>
       <UnstyledButton
@@ -280,6 +285,7 @@ function ToolbarButton({
         onClick={onClick}
         disabled={disabled}
         aria-label={label}
+        aria-pressed={active}
         style={{
           width: 38,
           height: 34,
@@ -287,6 +293,7 @@ function ToolbarButton({
           alignItems: 'center',
           justifyContent: 'center',
           color,
+          backgroundColor: active ? RB2.bgSecondary : undefined,
           cursor: disabled ? 'default' : 'pointer',
         }}
       >

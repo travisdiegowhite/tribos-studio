@@ -40,15 +40,7 @@
 
 import { getSupabaseAdmin } from './utils/supabaseAdmin.js';
 import { ensureValidAccessToken } from './utils/garmin/tokenManager.js';
-import {
-  requestActivityDetailsBackfill,
-  fetchActivityDetailsByUploadRange,
-  AuthError,
-  ConsentRevokedError,
-  BadRangeError,
-} from './utils/garmin/garminApiClient.js';
-import { extractStreamsFromActivityDetails } from './utils/garmin/activityDetailsParser.js';
-import { refreshCompleteness } from './utils/garmin/completeness.js';
+import { requestActivityDetailsBackfill } from './utils/garmin/garminApiClient.js';
 import { captureServerError } from './utils/serverSentry.js';
 import { setupCors } from './utils/cors.js';
 
@@ -183,158 +175,51 @@ export default async function handler(req, res) {
       });
     }
 
-    // Pull-first: build a 24h window centered around the activity's
-    // upload time and ask Garmin directly for the detailed sample data.
-    // Spec §7.3 caps the window at 24h; we anchor on created_at (when
-    // OUR webhook handler stored the activity, which closely tracks
-    // Garmin's upload time) with a 1h pre-roll for clock-skew tolerance.
-    const anchorMs = new Date(activity.created_at || activity.start_date).getTime();
-    const startSec = Math.floor(anchorMs / 1000) - 3600;     // -1h
-    const endSec = startSec + 86400;                          // +23h relative to anchor
+    // The §7.3 direct pull path that used to live here was removed in
+    // 2026-06-12: Garmin rejects it with `InvalidPullTokenException` because
+    // direct activityDetails calls require a pull token from a ping
+    // callbackURL, not OAuth Bearer (spec §4.2 + §6). The error was
+    // surfacing as a confusing "Bad time range" 500 to users because the
+    // 400 from Garmin was misclassified as a BadRangeError.
+    //
+    // What we actually do now is the same thing the legacy cron does for
+    // stuck activities: ask Garmin to re-send the ACTIVITY_FILE_DATA
+    // webhook for this activity's time window. Garmin's response is
+    // usually one of:
+    //   202 → queued, a fresh webhook may arrive within minutes
+    //   409 → "duplicate backfill processed" — Garmin won't re-send
+    // Either way `requestActivityDetailsBackfill` returns true (it treats
+    // 202 and 409 both as "request accepted"). The user-facing message
+    // doesn't promise success — only that we tried.
     const nextCount = (activity.resync_attempt_count || 0) + 1;
-
-    let details;
-    try {
-      details = await fetchActivityDetailsByUploadRange(accessToken, startSec, endSec);
-    } catch (pullErr) {
-      if (pullErr instanceof ConsentRevokedError) {
-        return res.status(200).json({
-          success: false,
-          status: 'consent_revoked',
-          error: 'Garmin Activity Details consent was revoked. Reconnect Garmin in Settings.',
-          data_completeness: activity.data_completeness,
-        });
-      }
-      if (pullErr instanceof AuthError) {
-        return res.status(200).json({
-          success: false,
-          status: 'no_token',
-          error: 'Garmin authentication failed. Reconnect Garmin in Settings.',
-          data_completeness: activity.data_completeness,
-        });
-      }
-      if (pullErr instanceof BadRangeError) {
-        // Programmer error in window math; surface as 500 for monitoring.
-        console.error('garmin-resync bad range:', pullErr.message);
-        captureServerError(pullErr, {
-          tag: 'garmin.resync_bad_range',
-          extra: { activity_id: activity.id, startSec, endSec },
-        });
-        return res.status(500).json({ success: false, error: 'Bad time range' });
-      }
-      // Generic Pull failure (5xx, network). Don't give up; bump the counter
-      // so the user can try again after the throttle and the cron will pick
-      // it up on the next 15 min tick.
-      console.warn(`Pull failed for ${activity.id}: ${pullErr.message}`);
-      await stampAttempt(activity.id, nextCount);
-      return res.status(200).json({
-        success: false,
-        status: 'still_waiting',
-        error: 'Garmin temporarily unavailable. Try again shortly.',
-        data_completeness: activity.data_completeness,
-        resync_attempt_count: nextCount,
-        attempts_remaining: Math.max(0, MAX_ATTEMPTS - nextCount),
-      });
-    }
-
-    // Look for a match in the returned details.
-    const targetId = String(activity.provider_activity_id);
-    const match = (details || []).find(d => {
-      if (d.activityId != null && String(d.activityId) === targetId) return true;
-      if (d.summaryId && String(d.summaryId).replace(/-detail$/, '') === targetId) return true;
-      return false;
-    });
-
-    if (match) {
-      try {
-        await writeStreamsFromDetail(activity, match, nextCount);
-      } catch (writeErr) {
-        console.error('writeStreams failed:', writeErr);
-        captureServerError(writeErr, {
-          tag: 'garmin.resync_write_error',
-          extra: { activity_id: activity.id, user_id: activity.user_id },
-        });
-        return res.status(500).json({ success: false, error: 'Failed to save activity data' });
-      }
-      return res.status(200).json({
-        success: true,
-        status: 'recovered_with_data',
-        data_completeness: 'full',
-        resync_attempt_count: nextCount,
-        attempts_remaining: Math.max(0, MAX_ATTEMPTS - nextCount),
-        message: 'Activity data recovered from Garmin. Refresh to see the full ride.',
-      });
-    }
-
-    // No match. Fall back to a webhook backfill nudge (sometimes works for
-    // recent activities Garmin's pipeline hasn't surfaced yet) and stamp
-    // the attempt so the throttle kicks in.
     let nudged = false;
     try {
       const startTimeInSeconds = Math.floor(new Date(activity.start_date).getTime() / 1000);
       nudged = await requestActivityDetailsBackfill(accessToken, startTimeInSeconds);
     } catch (bfErr) {
       console.warn(`Backfill nudge failed for ${activity.id}: ${bfErr.message}`);
+      captureServerError(bfErr, {
+        tag: 'garmin.resync_backfill_error',
+        extra: { activity_id: activity.id, user_id: activity.user_id },
+      });
     }
     await stampAttempt(activity.id, nextCount);
 
     return res.status(200).json({
-      success: false,
-      status: 'still_waiting',
+      success: nudged,
+      status: nudged ? 'backfill_requested' : 'still_waiting',
       data_completeness: activity.data_completeness,
       resync_attempt_count: nextCount,
       attempts_remaining: Math.max(0, MAX_ATTEMPTS - nextCount),
       message: nudged
-        ? "Garmin hasn't released the full file for this ride yet. We've asked them to re-send it — try again in a few minutes."
-        : "Garmin hasn't released the full file for this ride yet. Try again in a few minutes.",
+        ? "We've asked Garmin to re-send the FIT data for this ride. If they honor the request, the activity will fill in within a few minutes — refresh the page to check. If it's been older than 24 hours, Garmin usually won't re-send (they consider it already delivered)."
+        : "Couldn't reach Garmin right now. Try again in a few minutes.",
     });
   } catch (err) {
     console.error('garmin-resync-activity crashed:', err);
     captureServerError(err, { tag: 'garmin.resync_endpoint_crash' });
     return res.status(500).json({ success: false, error: 'Re-sync failed', details: err.message });
   }
-}
-
-// Write the parsed streams + powerMetrics into the activity row, stamp the
-// reconciliation attempt counters in the same UPDATE, then refresh
-// data_completeness so the row flips to 'full' atomically with the data
-// write. Mirrors the shape `processFitFile` writes in
-// api/garmin-webhook-process.js so downstream consumers don't care which
-// path delivered the data.
-async function writeStreamsFromDetail(activity, detail, nextCount) {
-  const result = extractStreamsFromActivityDetails(detail);
-  if (result.error) {
-    throw new Error(`extractStreams failed: ${result.error}`);
-  }
-  const update = {
-    updated_at: new Date().toISOString(),
-    last_resync_requested_at: new Date().toISOString(),
-    resync_attempt_count: nextCount,
-  };
-  if (result.polyline) update.map_summary_polyline = result.polyline;
-  if (result.activityStreams) update.activity_streams = result.activityStreams;
-
-  const pm = result.powerMetrics;
-  if (pm) {
-    if (pm.avgPower != null) update.average_watts = pm.avgPower;
-    if (pm.normalizedPower != null) {
-      // Dual-write canonical + legacy per CLAUDE.md metric freeze.
-      update.normalized_power = pm.normalizedPower;
-      update.effective_power = pm.normalizedPower;
-    }
-    if (pm.maxPower != null) update.max_watts = pm.maxPower;
-    if (pm.powerCurveSummary) update.power_curve_summary = pm.powerCurveSummary;
-    if (pm.workKj != null) update.kilojoules = pm.workKj;
-    update.device_watts = true;
-  }
-
-  const { error: updErr } = await supabase
-    .from('activities')
-    .update(update)
-    .eq('id', activity.id);
-  if (updErr) throw updErr;
-
-  await refreshCompleteness(supabase, activity.id);
 }
 
 async function stampAttempt(activityId, nextCount) {

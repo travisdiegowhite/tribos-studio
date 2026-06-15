@@ -456,7 +456,23 @@ async function handleExistingActivity(event, existing, integration) {
 
   console.log(`[FIT:DOWNLOAD] Activity ${event.activity_id} exists but missing data (GPS:${needsGps} power:${needsPowerMetrics} streams:${needsStreams} analytics:${needsAnalytics}), downloading FIT from: ${fitFileUrl ? 'URL available' : 'no URL'}`);
   const athlete = await fetchAthleteProfile(integration.user_id);
-  const fitResult = await downloadAndParseFitFile(fitFileUrl, integration.access_token, athlete);
+  const fitResult = await downloadAndParseFitFile(fitFileUrl, integration.access_token, athlete, {
+    supabase,
+    userId: integration.user_id,
+    activityId: existing.id,
+  });
+
+  // Retain the FIT bytes BEFORE the enrichment merge, so a future reprocess can
+  // recover this activity even if today's parser produces nothing usable.
+  if (fitResult.fit_storage_path) {
+    await supabase
+      .from('activities')
+      .update({ fit_storage_path: fitResult.fit_storage_path })
+      .eq('id', existing.id)
+      .then(({ error }) => {
+        if (error) console.warn(`⚠️ fit_storage_path write failed (non-critical): ${error.message}`);
+      });
+  }
 
   const activityUpdate = { updated_at: new Date().toISOString() };
   const updates = [];
@@ -697,7 +713,7 @@ async function downloadAndProcessActivity(event, integration) {
   const fitFileUrl = event.file_url || webhookInfo?.callbackURL;
   if (fitFileUrl && integration.access_token) {
     console.log(`[FIT:DOWNLOAD] Processing FIT file for new activity ${activity.id}`);
-    await processFitFile(activity.id, fitFileUrl, integration.access_token, integration.user_id);
+    await processFitFile(activity.id, fitFileUrl, integration.access_token, integration.user_id, activityInfo.startTimeInSeconds);
   } else if (integration.access_token && activityInfo.startTimeInSeconds) {
     // No FIT URL on the new-activity webhook — common when Garmin only
     // sent CONNECT_ACTIVITY without the ACTIVITY_FILE_DATA follow-up.
@@ -795,7 +811,21 @@ async function handleDuplicateActivity(event, integration, activityData, activit
       if (fitFileUrl && integration.access_token) {
         try {
           const athlete = await fetchAthleteProfile(integration.user_id);
-          const fitResult = await downloadAndParseFitFile(fitFileUrl, integration.access_token, athlete);
+          const fitResult = await downloadAndParseFitFile(fitFileUrl, integration.access_token, athlete, {
+            supabase,
+            userId: integration.user_id,
+            activityId: dupCheck.existingActivity.id,
+          });
+          // Persist storage path regardless of whether the merge update runs.
+          if (fitResult.fit_storage_path) {
+            await supabase
+              .from('activities')
+              .update({ fit_storage_path: fitResult.fit_storage_path })
+              .eq('id', dupCheck.existingActivity.id)
+              .then(({ error }) => {
+                if (error) console.warn(`⚠️ fit_storage_path write failed (non-critical): ${error.message}`);
+              });
+          }
           if (fitResult.powerMetrics || fitResult.polyline) {
             const fitUpdate = { updated_at: new Date().toISOString() };
             if (fitResult.polyline) fitUpdate.map_summary_polyline = fitResult.polyline;
@@ -869,7 +899,7 @@ async function handleDuplicateActivity(event, integration, activityData, activit
         );
 
         if (needsFitData) {
-          await processFitFile(dupCheck.existingActivity.id, fitFileUrl, integration.access_token);
+          await processFitFile(dupCheck.existingActivity.id, fitFileUrl, integration.access_token, integration.user_id, activityInfo?.startTimeInSeconds);
           console.log('[FIT:SUCCESS] FIT data added via merge path');
         }
       } catch (fitError) {
@@ -888,10 +918,61 @@ async function handleDuplicateActivity(event, integration, activityData, activit
   }
 }
 
-async function processFitFile(activityId, fitFileUrl, accessToken, userId = null) {
+async function processFitFile(activityId, fitFileUrl, accessToken, userId = null, startTimeInSeconds = null) {
   try {
     const athlete = await fetchAthleteProfile(userId);
-    const fitResult = await downloadAndParseFitFile(fitFileUrl, accessToken, athlete);
+    const fitResult = await downloadAndParseFitFile(fitFileUrl, accessToken, athlete, {
+      supabase,
+      userId,
+      activityId,
+    });
+
+    // Persist the FIT storage path as soon as we have it — even before we know
+    // whether the parse will succeed. This is the whole point of retention:
+    // if today's parse yields nothing, a future reprocess (with a better parser
+    // or after a parser fix) can read the bytes back from Storage. Migration
+    // 099 added the column; the garmin-fit bucket must exist in Supabase.
+    if (fitResult.fit_storage_path) {
+      await supabase
+        .from('activities')
+        .update({ fit_storage_path: fitResult.fit_storage_path })
+        .eq('id', activityId)
+        .then(({ error }) => {
+          if (error) console.warn(`⚠️ fit_storage_path write failed (non-critical): ${error.message}`);
+        });
+    }
+
+    // Surface download failures explicitly. downloadAndParseFitFile catches
+    // its own errors and returns { error: '...', polyline: null, ... } instead
+    // of throwing — without this branch the function would silently no-op
+    // (build an empty activityUpdate, fail the `> 1` gate, return), leaving
+    // the activity stranded as summary_only with no log and no recovery nudge.
+    if (fitResult.error) {
+      console.warn(`[FIT:DOWNLOAD-FAILED] activity ${activityId}: ${fitResult.error}`);
+      if (accessToken && startTimeInSeconds) {
+        await requestActivityDetailsBackfill(accessToken, startTimeInSeconds);
+        console.log(`[FIT:BACKFILL] Requested backfill after download failure for activity ${activityId}`);
+      }
+      return;
+    }
+
+    // Surface "downloaded successfully but parsed to nothing" — what's been
+    // happening for Garmin Edge 540 FIT files where the file is ~500 KB but
+    // easy-fit returns 0 records (likely format-version mismatch with the
+    // pre-1.0 easy-fit library). Same downstream symptom as the download
+    // failure case: no polyline, no streams, no power, every `if` skipped,
+    // gate fails, activity stays summary_only forever.
+    const hasUsableContent = Boolean(
+      fitResult.polyline || fitResult.activityStreams || fitResult.powerMetrics
+    );
+    if (!hasUsableContent) {
+      console.warn(`[FIT:EMPTY] activity ${activityId}: FIT downloaded but parsed empty (pointCount=${fitResult.pointCount ?? 0}, hasGpsData=${fitResult.hasGpsData}, hasPowerData=${fitResult.hasPowerData})`);
+      if (accessToken && startTimeInSeconds) {
+        await requestActivityDetailsBackfill(accessToken, startTimeInSeconds);
+        console.log(`[FIT:BACKFILL] Requested backfill after empty FIT for activity ${activityId}`);
+      }
+      return;
+    }
 
     const activityUpdate = { updated_at: new Date().toISOString() };
 

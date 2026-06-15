@@ -1,9 +1,71 @@
-// FIT File Parser Utility
-// Parses .fit files from Garmin, Wahoo, and other cycling computers
-// Uses easy-fit for browser compatibility
+// FIT File Parser Utility (browser-side, for FitUploadModal + BulkGpxUploadModal)
+// Parses .fit files from Garmin, Wahoo, and other cycling computers.
+//
+// Parser: @garmin/fitsdk (Garmin's official FIT JavaScript SDK).
+// Replaced easy-fit 0.0.8 on 2026-06-13 — same swap as api/utils/fitParser.js.
 
-import EasyFit from 'easy-fit';
+import { Decoder, Stream } from '@garmin/fitsdk';
 import pako from 'pako';
+
+const SEMICIRCLES_TO_DEGREES = 180 / Math.pow(2, 31);
+
+// Reshape @garmin/fitsdk camelCase output into the snake_case `data.records`
+// / `data.sessions` / `data.laps` / `data.file_id` shape the existing extract*
+// helpers below speak. Kept in sync with api/utils/fitParser.js's identical
+// helper — both browser and server parsers normalize at the same boundary.
+function normalizeMessagesToLegacyShape(messages) {
+  const records = (messages.recordMesgs || []).map((r) => ({
+    timestamp:         r.timestamp ?? null,
+    position_lat:      r.positionLat != null  ? r.positionLat  * SEMICIRCLES_TO_DEGREES : null,
+    position_long:     r.positionLong != null ? r.positionLong * SEMICIRCLES_TO_DEGREES : null,
+    altitude:          r.altitude ?? null,
+    enhanced_altitude: r.enhancedAltitude ?? null,
+    speed:             r.speed ?? null,
+    enhanced_speed:    r.enhancedSpeed ?? null,
+    heart_rate:        r.heartRate ?? null,
+    cadence:           r.cadence ?? null,
+    power:             r.power ?? null,
+    distance:          r.distance ?? null,
+    temperature:       r.temperature ?? null,
+  }));
+  const sessions = (messages.sessionMesgs || []).map((s) => ({
+    start_time:            s.startTime ?? null,
+    total_distance:        s.totalDistance ?? null,
+    total_timer_time:      s.totalTimerTime ?? null,
+    total_elapsed_time:    s.totalElapsedTime ?? null,
+    total_ascent:          s.totalAscent ?? null,
+    total_descent:         s.totalDescent ?? null,
+    avg_speed:             s.avgSpeed ?? s.enhancedAvgSpeed ?? null,
+    max_speed:             s.maxSpeed ?? s.enhancedMaxSpeed ?? null,
+    avg_heart_rate:        s.avgHeartRate ?? null,
+    max_heart_rate:        s.maxHeartRate ?? null,
+    avg_power:             s.avgPower ?? null,
+    max_power:             s.maxPower ?? null,
+    avg_cadence:           s.avgCadence ?? null,
+    max_cadence:           s.maxCadence ?? null,
+    sport:                 s.sport ?? null,
+    sub_sport:             s.subSport ?? null,
+    normalized_power:      s.normalizedPower ?? null,
+    training_stress_score: s.trainingStressScore ?? null,
+    intensity_factor:      s.intensityFactor ?? null,
+    threshold_power:       s.thresholdPower ?? null,
+    total_work:            s.totalWork ?? null,
+    total_calories:        s.totalCalories ?? null,
+  }));
+  const activity = (messages.activityMesgs || []).map((a) => ({
+    timestamp: a.timestamp ?? null,
+  }));
+  const file_id = (messages.fileIdMesgs || []).map((f) => ({
+    type:           f.type ?? null,
+    manufacturer:   f.manufacturer ?? null,
+    garmin_product: f.garminProduct ?? null,
+    product:        f.product ?? null,
+    serial_number:  f.serialNumber ?? null,
+    time_created:   f.timeCreated ?? null,
+  }));
+  const laps = (messages.lapMesgs || []);
+  return { records, sessions, activity, file_id, laps };
+}
 
 /**
  * Parse a FIT file buffer and extract activity data
@@ -26,39 +88,51 @@ export function parseFitFile(fitBuffer, isCompressed = false) {
         }
       }
 
-      const easyFit = new EasyFit({
-        force: true,
-        speedUnit: 'km/h',
-        lengthUnit: 'm',
-        temperatureUnit: 'celsius',
-        elapsedRecordField: true,
-        mode: 'list'
+      // Convert input to a Node Buffer (Stream.fromBuffer accepts both Node
+      // Buffer and Uint8Array). pako.inflate already returns Uint8Array; the
+      // raw ArrayBuffer path gets wrapped in Uint8Array.
+      const u8 = processedBuffer instanceof Uint8Array
+        ? processedBuffer
+        : new Uint8Array(processedBuffer);
+      const stream = Stream.fromBuffer(u8);
+
+      const decoder = new Decoder(stream);
+      if (!decoder.isFIT()) {
+        reject(new Error('Not a valid FIT file (header signature missing)'));
+        return;
+      }
+
+      const { messages, errors } = decoder.read({
+        applyScaleAndOffset: true,
+        expandSubFields: true,
+        expandComponents: true,
+        convertTypesToStrings: true,
+        convertDateTimesToDates: true,
+        mergeHeartRates: true,
       });
+      if (errors && errors.length > 0) {
+        console.warn(`FIT decode produced ${errors.length} non-fatal errors:`,
+          errors.slice(0, 3).map((e) => e?.message || String(e)));
+      }
 
-      easyFit.parse(processedBuffer, (error, data) => {
-        if (error) {
-          reject(new Error(`Failed to parse FIT file: ${error.message}`));
-          return;
-        }
+      const data = normalizeMessagesToLegacyShape(messages);
 
-        try {
-          const result = {
-            metadata: extractMetadata(data),
-            summary: extractSummary(data),
-            trackPoints: extractTrackPoints(data.records || []),
-            laps: extractLaps(data.laps || []),
-            rawData: {
-              sessions: data.sessions?.length || 0,
-              records: data.records?.length || 0,
-              laps: data.laps?.length || 0
-            }
-          };
-
-          resolve(result);
-        } catch (parseError) {
-          reject(new Error(`Failed to process FIT data: ${parseError.message}`));
-        }
-      });
+      try {
+        const result = {
+          metadata: extractMetadata(data),
+          summary: extractSummary(data),
+          trackPoints: extractTrackPoints(data.records || []),
+          laps: extractLaps(data.laps || []),
+          rawData: {
+            sessions: data.sessions?.length || 0,
+            records: data.records?.length || 0,
+            laps: data.laps?.length || 0
+          }
+        };
+        resolve(result);
+      } catch (parseError) {
+        reject(new Error(`Failed to process FIT data: ${parseError.message}`));
+      }
     } catch (error) {
       reject(new Error(`FIT parser initialization failed: ${error.message}`));
     }
@@ -96,9 +170,9 @@ const FIT_EPOCH_SECONDS = 631065600; // 1989-12-31 00:00:00 UTC, Unix seconds
 /**
  * Read ONLY the file_id message from a FIT file and return its `type` enum
  * (as a string) plus its `time_created` (as Unix seconds). Reads just the
- * first ~50 bytes of the data section — does NOT walk the entire file like
- * easy-fit does. Built for bulk filtering during Garmin export import,
- * where parsing 26 K full FITs is prohibitively slow.
+ * first ~50 bytes of the data section — does NOT walk the entire file. Built
+ * for bulk filtering during Garmin export import, where running the full FIT
+ * decoder on 26 K files is prohibitively slow.
  *
  * Returns:
  *   { ok: true,  type: 'activity'|…, timeCreatedSeconds: number|null }
@@ -230,24 +304,24 @@ export function peekFitType(fitBuffer, isCompressed = false) {
         }
       }
 
-      const easyFit = new EasyFit({
-        force: true,
-        speedUnit: 'km/h',
-        lengthUnit: 'm',
-        temperatureUnit: 'celsius',
-        elapsedRecordField: true,
-        mode: 'list',
+      const u8 = processedBuffer instanceof Uint8Array
+        ? processedBuffer
+        : new Uint8Array(processedBuffer);
+      const stream = Stream.fromBuffer(u8);
+      const decoder = new Decoder(stream);
+      if (!decoder.isFIT()) {
+        resolve({ type: null, sport: null });
+        return;
+      }
+      const { messages } = decoder.read({
+        applyScaleAndOffset: true,
+        convertTypesToStrings: true,
+        convertDateTimesToDates: true,
       });
-
-      easyFit.parse(processedBuffer, (error, data) => {
-        if (error) {
-          reject(new Error(`Failed to parse FIT file: ${error.message}`));
-          return;
-        }
-        resolve({
-          type: data.file_id?.[0]?.type || null,
-          sport: data.sessions?.[0]?.sport || null,
-        });
+      const data = normalizeMessagesToLegacyShape(messages);
+      resolve({
+        type: data.file_id?.[0]?.type || null,
+        sport: data.sessions?.[0]?.sport || null,
       });
     } catch (error) {
       reject(new Error(`FIT parser initialization failed: ${error.message}`));

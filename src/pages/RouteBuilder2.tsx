@@ -7,7 +7,7 @@
  */
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Box, Button, Group, Text } from '@mantine/core';
+import { Box, Text } from '@mantine/core';
 import { useLocalStorage, useMediaQuery } from '@mantine/hooks';
 import { BASEMAP_STYLES } from '../components/RouteBuilder';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
@@ -78,7 +78,6 @@ import { POILayer } from '../features/route-builder-v2/layers/POILayer';
 import { BikeInfraLayer } from '../features/route-builder-v2/layers/BikeInfraLayer';
 import { FamiliarSegmentsLayer } from '../features/route-builder-v2/layers/FamiliarSegmentsLayer';
 import { WindArrowsLayer } from '../features/route-builder-v2/layers/WindArrowsLayer';
-import { Source as MapSource, Layer as MapLayer } from 'react-map-gl';
 import { IntervalsLayer } from '../features/route-builder-v2/layers/IntervalsLayer';
 import { WorkoutOverlayLegend, WorkoutPickerPanel } from '../features/route-builder-v2/components';
 import { useUpcomingPlannedWorkouts } from '../hooks/useUpcomingPlannedWorkouts';
@@ -88,23 +87,24 @@ import { stravaService } from '../utils/stravaService';
 import RoadPreferencesCard from '../components/settings/RoadPreferencesCard.jsx';
 import BikeInfrastructureLegend from '../components/BikeInfrastructureLegend.jsx';
 import RaceDayGuide from '../components/fueling/RaceDayGuide';
-import { computeSurfaceDistribution } from '../utils/surfaceOverlay.js';
-import { notifications } from '@mantine/notifications';
 import { decodePolyline } from '../utils/activityRouteAnalyzer';
-import {
-  detectRouteClick,
-  findSegmentToRemove,
-  removeSegmentAndReroute,
-  getSegmentHighlight,
-  getRemovalStats,
-} from '../utils/routeEditor';
-import { computeDistanceKm, fetchElevationGain } from '../utils/routeMutation';
 import type { WorkoutDefinition } from '../types/training';
 import { trackRb2 } from '../features/route-builder-v2/telemetry/trackRb2';
 import { coordinateAtDistanceKm } from '../utils/elevation';
 import { getAnyWorkoutById } from '../data/workoutLookup';
-import { generateRouteFromNaturalLanguage } from '../utils/naturalLanguageRouteBuilder';
-import type { GenerateOutcome } from '../features/route-builder-v2/chat';
+import {
+  generatePlannedRouteCandidates,
+  type RouteCandidate,
+} from '../utils/naturalLanguageRouteCandidates';
+import { fetchRouteSurfaceData, computeSurfaceDistribution } from '../utils/surfaceOverlay.js';
+import { removeSegmentAndReroute } from '../utils/routeEditor';
+import { polylineLengthKm } from '../utils/gravelRouteBuilder';
+import {
+  detectClipSelection,
+  type ClipSelection,
+} from '../features/route-builder-v2/clip/detectClipSelection';
+import { ClipConfirmCard } from '../features/route-builder-v2/components';
+import type { GenerateOutcome, RouteOptionSummary } from '../features/route-builder-v2/chat';
 import { generateCuesFromWorkoutStructure } from '../utils/intervalCues.js';
 import {
   categoryToGoal,
@@ -228,7 +228,7 @@ export default function RouteBuilder2() {
   const setRouteGeometryInStore = useRouteBuilderStore((s) => s.setRouteGeometry);
   const setRouteStatsInStore = useRouteBuilderStore((s) => s.setRouteStats);
   const setRouteNameInStore = useRouteBuilderStore((s) => s.setRouteName);
-  const setBuilderMode = useRouteBuilderStore((s) => s.setBuilderMode);
+  const setAiSuggestions = useRouteBuilderStore((s) => s.setAiSuggestions);
   const clearRouteInStore = useRouteBuilderStore((s) => s.clearRoute);
   const setRouteInStore = useRouteBuilderStore((s) => s.setRoute);
 
@@ -269,6 +269,10 @@ export default function RouteBuilder2() {
   const [surfaceSegments, setSurfaceSegments] = useState<string[] | null>(null);
   // Distance (km) hovered on the elevation chart → resolved to a map coord.
   const [hoverKm, setHoverKm] = useState<number | null>(null);
+  // Clip-tangent mode: toggle on → click a spur → confirm card → reroute.
+  const [clipMode, setClipMode] = useState(false);
+  const [pendingClip, setPendingClip] = useState<ClipSelection | null>(null);
+  const [clipBusy, setClipBusy] = useState(false);
   // Desktop region collapse state.
   const [chatCollapsed, setChatCollapsed] = useState(false);
   const [elevationCollapsed, setElevationCollapsed] = useState(false);
@@ -282,14 +286,6 @@ export default function RouteBuilder2() {
   >([]);
   const [discoverLoading, setDiscoverLoading] = useState(false);
   const discoverLoadedRef = useRef(false);
-  // Edit/Remove-Tangents mode (tap an out-and-back to trim it).
-  const [editTangentMode, setEditTangentMode] = useState(false);
-  const [tangentCandidate, setTangentCandidate] = useState<{
-    startIndex: number;
-    endIndex: number;
-    highlight: GeoJSON.Feature | null;
-    stats: { distanceSaved?: number; pointsRemoved?: number; percentOfRoute?: number } | null;
-  } | null>(null);
   // Basemap choice — persisted so the map opens on the user's preferred style.
   const [basemapId, setBasemapId] = useLocalStorage<string>({
     key: 'rb2-basemap',
@@ -338,6 +334,125 @@ export default function RouteBuilder2() {
   });
   const formPanelRef = useRef<FormPanelHandle | null>(null);
 
+  // Candidates from the latest chat-driven generation, parallel to the
+  // `aiSuggestions` store array (same order). Session-only, like the store
+  // field — carries the per-candidate name/profile/familiarity the snapshot
+  // shape doesn't.
+  const chatCandidatesRef = useRef<RouteCandidate[]>([]);
+
+  // Monotonic guard so a slow Overpass surface check for a route the rider
+  // has already switched away from never posts a stale chat line.
+  const surfaceCheckSeqRef = useRef(0);
+
+  // Fail-soft surface follow-up for the applied route (gravel requests only):
+  // one Overpass fetch, reused by the SurfaceSummaryBar via the shared
+  // segments state, plus a short chat line with the actual unpaved share.
+  const appendChatMessage = chat.append;
+  const runSurfaceCheck = useCallback(
+    (candidate: RouteCandidate) => {
+      if (candidate.surface_profile !== 'gravel') return;
+      // Planned candidates already measured gravel % during generation (shown
+      // on the card + reply) — don't re-query Overpass or double-post here.
+      if (candidate.gravel_actual_pct != null) return;
+      const geometry = candidate.snapshot.geometry;
+      const seq = ++surfaceCheckSeqRef.current;
+      void (async () => {
+        try {
+          const segments = (await fetchRouteSurfaceData(
+            geometry as Array<[number, number]>,
+          )) as string[] | null;
+          if (seq !== surfaceCheckSeqRef.current) return;
+          if (!segments || segments.length === 0) return;
+          setSurfaceSegments(segments);
+          const dist = computeSurfaceDistribution(segments) as Record<string, number>;
+          const unpavedPct = Math.round((dist.gravel ?? 0) + (dist.unpaved ?? 0));
+          appendChatMessage({
+            role: 'assistant',
+            text: `Surface check: ~${unpavedPct}% unpaved on this one.`,
+          });
+        } catch {
+          /* fail-soft — the route works without the surface line */
+        }
+      })();
+    },
+    [appendChatMessage],
+  );
+
+  // Name/profile/familiarity aren't part of the RouteSnapshot that
+  // `selectSuggestion` commits — apply them from the candidate alongside.
+  const applyCandidateExtras = useCallback(
+    (candidate: RouteCandidate) => {
+      if (candidate.name) setRouteNameInStore(candidate.name);
+      if (candidate.surface_profile === 'gravel') setRouteProfile('gravel');
+      setRouteStatsInStore((prev: Record<string, unknown>) => ({
+        ...prev,
+        familiarityScore:
+          candidate.familiarity_percent != null
+            ? { familiarityPercent: candidate.familiarity_percent }
+            : null,
+      }));
+      runSurfaceCheck(candidate);
+    },
+    [setRouteNameInStore, setRouteProfile, setRouteStatsInStore, runSurfaceCheck],
+  );
+
+  // ── Clip-tangent tool ──
+  const handleToggleClipMode = useCallback(() => {
+    setClipMode((on) => {
+      const next = !on;
+      if (!next) setPendingClip(null); // leaving clip mode clears the selection
+      trackRb2('clip_mode_toggled', { enabled: next });
+      return next;
+    });
+  }, []);
+
+  // Map routes clicks here while in clip mode (instead of appending a waypoint).
+  const handleClipClick = useCallback(
+    (coord: Coordinate) => {
+      const coords = routeGeometry?.coordinates;
+      if (!coords) return;
+      const selection = detectClipSelection(coords, coord);
+      setPendingClip(selection);
+      if (selection) {
+        trackRb2('clip_segment_detected', {
+          points_removed: selection.stats.pointsRemoved,
+          saved_m: Math.round(selection.stats.distanceSaved),
+        });
+      }
+    },
+    [routeGeometry],
+  );
+
+  const handleCancelClip = useCallback(() => setPendingClip(null), []);
+
+  const handleConfirmClip = useCallback(async () => {
+    if (!pendingClip || !routeGeometry) return;
+    const coords = routeGeometry.coordinates as Array<[number, number]>;
+    setClipBusy(true);
+    try {
+      const newCoords = (await removeSegmentAndReroute(
+        coords,
+        pendingClip.startIndex,
+        pendingClip.endIndex,
+        { profile: routeProfile, mapboxToken: import.meta.env.VITE_MAPBOX_TOKEN },
+      )) as Array<[number, number]> | null;
+      if (Array.isArray(newCoords) && newCoords.length >= 2) {
+        setRouteGeometryInStore({ type: 'LineString', coordinates: newCoords as Coordinate[] });
+        // Distance recomputed exactly; the elevation chart re-derives from the
+        // new geometry via useRouteAnalysis's geometry-keyed effect.
+        const distance_km = parseFloat(polylineLengthKm(newCoords as Coordinate[]).toFixed(1));
+        setRouteStatsInStore((prev: Record<string, unknown>) => ({ ...prev, distance_km }));
+        trackRb2('clip_applied', { points_removed: pendingClip.stats.pointsRemoved });
+      }
+    } catch (e) {
+      // Fail-soft: keep the original route on a reroute error.
+      console.warn('[clip] reroute failed, keeping original route', e);
+    } finally {
+      setClipBusy(false);
+      setPendingClip(null); // stay in clip mode for further clips
+    }
+  }, [pendingClip, routeGeometry, routeProfile, setRouteGeometryInStore, setRouteStatsInStore]);
+
   // Auto-apply the first suggestion when generate() returns. The hook
   // separates `generate` (writes to aiSuggestions) from `selectSuggestion`
   // (commits geometry + waypoints to the store) — the harness needs that
@@ -345,17 +460,22 @@ export default function RouteBuilder2() {
   // so a freshly generated route should land in the live store
   // immediately. Without this, the route renders only from leftover
   // persisted state and manual edits fail with `constraint_infeasible`
-  // because waypoints stay empty.
+  // because waypoints stay empty. Chat-driven generations land here too —
+  // candidates are ordered best-first, so suggestion[0] is the winner.
   const lastAppliedRef = useRef<unknown>(null);
   useEffect(() => {
     const first = generation.suggestions[0];
     if (!first || first === lastAppliedRef.current) return;
     lastAppliedRef.current = first;
     generation.selectSuggestion(0);
+    const chatCandidate = chatCandidatesRef.current[0];
+    if (chatCandidate && chatCandidate.snapshot === first) {
+      applyCandidateExtras(chatCandidate);
+    }
     // A route just landed — collapse the desktop GenerateBar so the chat
     // reclaims the dock height.
     setGenerateExpanded(false);
-  }, [generation]);
+  }, [generation, applyCandidateExtras]);
 
   // Backfill waypoints from geometry endpoints. v1 sometimes persists a
   // route without a populated waypoints array (loaded routes, legacy
@@ -429,6 +549,7 @@ export default function RouteBuilder2() {
     clearRouteInStore();
     generation.clearSuggestions();
     lastAppliedRef.current = null;
+    chatCandidatesRef.current = [];
     trackRb2('route_cleared', {});
   };
 
@@ -481,14 +602,15 @@ export default function RouteBuilder2() {
     },
   });
 
-  // Create a fresh route straight from a chat prompt, reusing RB1's
-  // natural-language builder (Claude parse → geocode → iterative routing) and
-  // writing the result into the RB2 store. The geometry→endpoints effect then
-  // seeds start/end waypoints so manual editing works afterwards.
+  // Plan fresh route candidates from a chat prompt: Claude proposes ~3 real
+  // routes (towns/gravel roads to ride through), we geocode + route + measure
+  // each, scored best-first. Snapshots land in the suggestions store; the
+  // auto-apply effect commits the winner (geometry + stats + resampled
+  // editable waypoints) and the chat renders the rest as named option cards.
   const handleGenerateFromPrompt = useCallback(
     async (prompt: string): Promise<GenerateOutcome> => {
       try {
-        const r = await generateRouteFromNaturalLanguage(prompt, {
+        const candidates = await generatePlannedRouteCandidates(prompt, {
           biasCoord: viewportCenter,
           userLocation: userLocation.coord ?? null,
           placedStart: waypoints?.[0]?.position ?? null,
@@ -497,23 +619,33 @@ export default function RouteBuilder2() {
           useIterativeBuilder: true,
           accessToken,
         });
-        setRouteGeometryInStore({ type: 'LineString', coordinates: r.coordinates });
-        setRouteStatsInStore({
-          distance_km: r.distanceKm,
-          elevation_gain_m: r.elevationGain,
-          duration_s: r.duration_s,
-          familiarityScore: r.familiarityScore ?? null,
-        });
-        setWaypointsInStore([]);
-        setBuilderMode('editing');
-        if (r.parsed?.preferences?.surfaceType === 'gravel') setRouteProfile('gravel');
-        if (r.name) setRouteNameInStore(r.name);
+        chatCandidatesRef.current = candidates;
+        setAiSuggestions(candidates.map((c) => c.snapshot));
+
+        const best = candidates[0];
+        const options: RouteOptionSummary[] | undefined =
+          candidates.length > 1
+            ? candidates.map((c, index) => ({
+                index,
+                name: c.name,
+                distance_km: c.snapshot.stats.distance_km,
+                elevation_gain_m: c.snapshot.stats.elevation_gain_m,
+                direction_label: c.direction_label,
+                familiarity_percent: c.familiarity_percent,
+                surface_label: c.surface_profile === 'gravel' ? 'gravel-biased' : undefined,
+                gravel_actual_pct: c.gravel_actual_pct,
+                gravel_target_pct: c.gravel_target_pct,
+                rationale: c.rationale,
+              }))
+            : undefined;
         return {
           ok: true,
-          distance_km: r.distanceKm,
-          elevation_gain_m: r.elevationGain,
-          name: r.name,
-          familiarity_percent: r.familiarityScore?.familiarityPercent ?? null,
+          distance_km: best.snapshot.stats.distance_km,
+          elevation_gain_m: best.snapshot.stats.elevation_gain_m,
+          name: best.name,
+          familiarity_percent: best.familiarity_percent,
+          gravel_actual_pct: best.gravel_actual_pct,
+          options,
         };
       } catch (e) {
         const message = e instanceof Error ? e.message : String(e);
@@ -527,13 +659,25 @@ export default function RouteBuilder2() {
       waypoints,
       weather.weather,
       routeProfile,
-      setRouteGeometryInStore,
-      setRouteStatsInStore,
-      setWaypointsInStore,
-      setBuilderMode,
-      setRouteProfile,
-      setRouteNameInStore,
+      setAiSuggestions,
     ],
+  );
+
+  // Switch the map/store to a different chat-generated option. The
+  // suggestions array is untouched (no auto-apply refire — that effect only
+  // reacts to a *new* array), so switching back and forth is free.
+  const handleSelectRouteOption = useCallback(
+    (messageId: string, index: number) => {
+      const chosen = generation.selectSuggestion(index);
+      if (!chosen) return;
+      const candidate = chatCandidatesRef.current[index];
+      if (candidate && candidate.snapshot === chosen) {
+        applyCandidateExtras(candidate);
+      }
+      chat.updateMessage(messageId, { selectedOptionIndex: index });
+      trackRb2('chat_route_option_selected', { option_index: index });
+    },
+    [generation, applyCandidateExtras, chat],
   );
 
   const handleChatSubmit = useCallback(
@@ -548,6 +692,7 @@ export default function RouteBuilder2() {
         hasRoute: hasRouteForChat,
         routeId: routeIdFromUrl ?? null,
         conversationHistory,
+        isImperial,
         append: chat.append,
         setProcessing: chat.setProcessing,
         markRefused: chat.markRefused,
@@ -559,6 +704,7 @@ export default function RouteBuilder2() {
     [
       hasRouteForChat,
       routeIdFromUrl,
+      isImperial,
       chat.messages,
       chat.append,
       chat.setProcessing,
@@ -797,62 +943,6 @@ export default function RouteBuilder2() {
     trackRb2('close_loop', {});
   };
 
-  // --- Edit / Remove-Tangents mode ---
-  const handleToggleEditTangents = useCallback(() => {
-    setEditTangentMode((on) => !on);
-    setTangentCandidate(null);
-  }, []);
-
-  const handleEditTangentClick = useCallback(
-    (coord: Coordinate) => {
-      const coords = (routeGeometry as { coordinates?: [number, number][] } | null)?.coordinates;
-      if (!coords || coords.length < 4) return;
-      const hit = detectRouteClick(coords, [coord[0], coord[1]]) as { index?: number } | null;
-      if (!hit || typeof hit.index !== 'number') {
-        setTangentCandidate(null);
-        return;
-      }
-      const seg = findSegmentToRemove(coords, hit.index) as
-        | { startIndex: number; endIndex: number }
-        | null;
-      if (!seg || seg.startIndex >= seg.endIndex) {
-        setTangentCandidate(null);
-        notifications.show({
-          title: 'No detour there',
-          message: 'Tap an out-and-back or dead-end section of the line.',
-          color: 'gray',
-        });
-        return;
-      }
-      setTangentCandidate({
-        startIndex: seg.startIndex,
-        endIndex: seg.endIndex,
-        highlight: getSegmentHighlight(coords, seg.startIndex, seg.endIndex) as GeoJSON.Feature | null,
-        stats: getRemovalStats(coords, seg.startIndex, seg.endIndex) as {
-          distanceSaved?: number;
-        } | null,
-      });
-    },
-    [routeGeometry],
-  );
-
-  const handleConfirmRemoveTangent = useCallback(async () => {
-    const coords = (routeGeometry as { coordinates?: [number, number][] } | null)?.coordinates;
-    if (!coords || !tangentCandidate) return;
-    const newCoords = (await removeSegmentAndReroute(
-      coords,
-      tangentCandidate.startIndex,
-      tangentCandidate.endIndex,
-    )) as [number, number][] | null;
-    setTangentCandidate(null);
-    if (!Array.isArray(newCoords) || newCoords.length < 2) return;
-    setRouteGeometryInStore({ type: 'LineString', coordinates: newCoords });
-    const distance_km = computeDistanceKm(newCoords);
-    const elevation_gain_m = (await fetchElevationGain(newCoords)) ?? routeStats?.elevation_gain_m ?? 0;
-    setRouteStatsInStore({ distance_km, elevation_gain_m, duration_s: 0 });
-    trackRb2('tangent_removed', { distance_saved_km: tangentCandidate.stats?.distanceSaved ?? null });
-  }, [routeGeometry, tangentCandidate, routeStats, setRouteGeometryInStore, setRouteStatsInStore]);
-
   // The map + its layers — shared by both layouts. Fills its container.
   const mapElement = (
     <Map
@@ -864,7 +954,6 @@ export default function RouteBuilder2() {
       waypoints={waypointsForMap}
       highlightCoord={highlightCoord}
       cursor="crosshair"
-      onMapClickOverride={editTangentMode ? handleEditTangentClick : undefined}
       mapStyle={basemapStyle}
       basemapId={basemapId}
       onBasemapChange={setBasemapId}
@@ -873,6 +962,9 @@ export default function RouteBuilder2() {
       isLocating={userLocation.status === 'locating'}
       isImperial={isImperial}
       isMobile={isMobile}
+      clipMode={clipMode}
+      onClipClick={handleClipClick}
+      clipHighlight={pendingClip?.highlightGeoJSON ?? null}
     >
       {visibility.surface && (
         <SurfaceLayer geometry={geometryForLayers} onSegments={setSurfaceSegments} />
@@ -898,16 +990,6 @@ export default function RouteBuilder2() {
           windDegrees={weather.weather.windDegrees}
           windSpeed={weather.weather.windSpeed}
         />
-      )}
-      {tangentCandidate?.highlight && (
-        <MapSource id="rb2-tangent-highlight" type="geojson" data={tangentCandidate.highlight}>
-          <MapLayer
-            id="rb2-tangent-highlight-line"
-            type="line"
-            paint={{ 'line-color': '#C43C2A', 'line-width': 7, 'line-opacity': 0.9 }}
-            layout={{ 'line-cap': 'round', 'line-join': 'round' }}
-          />
-        </MapSource>
       )}
     </Map>
   );
@@ -948,58 +1030,6 @@ export default function RouteBuilder2() {
       return null;
     }
   }, [routeStats?.distance_km, analysis.elevationProfile, surfaceSegments, speedProfile, routeProfile, trainingGoal]);
-
-  // Remove-tangents confirm/hint card (shown while edit mode is active).
-  const tangentSavedM = tangentCandidate?.stats?.distanceSaved ?? 0;
-  const tangentEditNode = editTangentMode ? (
-    <Box
-      data-testid="rb2-tangent-editor"
-      style={{
-        backgroundColor: RB2.cardBg,
-        border: `1px solid ${RB2.border}`,
-        boxShadow: RB2.shadowCard,
-        padding: '8px 10px',
-        pointerEvents: 'auto',
-        maxWidth: 320,
-      }}
-    >
-      {tangentCandidate ? (
-        <>
-          <Text style={{ fontFamily: RB2_FONT.body, fontSize: 12, color: RB2.textSecondary, marginBottom: 6 }}>
-            Trim this out-and-back? Saves{' '}
-            {isImperial
-              ? `${Math.round(tangentSavedM * 3.28084)} ft`
-              : tangentSavedM >= 1000
-                ? `${(tangentSavedM / 1000).toFixed(1)} km`
-                : `${Math.round(tangentSavedM)} m`}
-            .
-          </Text>
-          <Group gap={6}>
-            <Button
-              size="xs"
-              data-testid="rb2-tangent-remove"
-              onClick={() => void handleConfirmRemoveTangent()}
-              styles={{ root: { borderRadius: 0, backgroundColor: RB2.coral } }}
-            >
-              Remove
-            </Button>
-            <Button
-              size="xs"
-              variant="outline"
-              onClick={() => setTangentCandidate(null)}
-              styles={{ root: { borderRadius: 0 } }}
-            >
-              Cancel
-            </Button>
-          </Group>
-        </>
-      ) : (
-        <Text style={{ fontFamily: RB2_FONT.mono, fontSize: 11, color: RB2.textSecondary }}>
-          Tap an out-and-back on the line to trim it.
-        </Text>
-      )}
-    </Box>
-  ) : null;
 
   // Reusable v1 widgets surfaced in RB2 (after personalizedEta is computed).
   const roadPrefsNode = <RoadPreferencesCard />;
@@ -1245,8 +1275,6 @@ export default function RouteBuilder2() {
                     canReverse={waypointsForMap.length >= 2}
                     onCloseLoop={handleCloseLoop}
                     canCloseLoop={canCloseLoop}
-                    onToggleEditTangents={hasRoute ? handleToggleEditTangents : undefined}
-                    editTangentsActive={editTangentMode}
                     onToggleSnap={handleToggleSnap}
                     snapEnabled={snapToRoads}
                     routeProfile={routeProfile}
@@ -1255,13 +1283,26 @@ export default function RouteBuilder2() {
                     onToggleUnits={() =>
                       void updateUnitsPreference(isImperial ? 'metric' : 'imperial')
                     }
+                    onToggleClipMode={hasRoute ? handleToggleClipMode : undefined}
+                    clipMode={clipMode}
                     onClear={handleClearRoute}
                     canClear={canClearMap}
                   />
-                  {!isLoading && !editTangentMode && (
+                  {clipMode && pendingClip && (
+                    <ClipConfirmCard
+                      stats={pendingClip.stats}
+                      isImperial={isImperial}
+                      busy={clipBusy}
+                      onConfirm={handleConfirmClip}
+                      onCancel={handleCancelClip}
+                    />
+                  )}
+                  {clipMode && !pendingClip && (
+                    <ClipHint />
+                  )}
+                  {!clipMode && !isLoading && (
                     <ClickToPlaceHint snapEnabled={snapToRoads} hasRoute={hasRoute} />
                   )}
-                  {tangentEditNode}
                 </Box>
                 {mapStates}
               </>
@@ -1296,6 +1337,8 @@ export default function RouteBuilder2() {
                 exampleHint={EXAMPLE_PHRASES}
                 showAfterRefuseHint={chat.showAfterRefuseHint}
                 onSubmit={handleChatSubmit}
+                onSelectOption={handleSelectRouteOption}
+                isImperial={isImperial}
                 header={
                   <GenerateBar
                     key={`gen-${pickedWorkoutId ?? 'none'}`}
@@ -1307,6 +1350,7 @@ export default function RouteBuilder2() {
                     onExpandedChange={setGenerateExpanded}
                     isImperial={isImperial}
                     formSeed={formSeed}
+                    activeRouteProfile={hasRouteForChat ? routeProfile : null}
                   />
                 }
               />
@@ -1354,6 +1398,7 @@ export default function RouteBuilder2() {
             isImperial={isImperial}
             formSeed={formSeed}
             defaultExpanded={hasWorkout}
+            activeRouteProfile={hasRouteForChat ? routeProfile : null}
           />
           <Box style={cardStyle}>
             <WorkoutPickerPanel
@@ -1480,6 +1525,8 @@ export default function RouteBuilder2() {
           exampleHint={EXAMPLE_PHRASES}
           showAfterRefuseHint={chat.showAfterRefuseHint}
           onSubmit={handleChatSubmit}
+          onSelectOption={handleSelectRouteOption}
+          isImperial={isImperial}
         />
       ),
     },
@@ -1532,8 +1579,6 @@ export default function RouteBuilder2() {
                 canReverse={waypointsForMap.length >= 2}
                 onCloseLoop={handleCloseLoop}
                 canCloseLoop={canCloseLoop}
-                onToggleEditTangents={hasRoute ? handleToggleEditTangents : undefined}
-                editTangentsActive={editTangentMode}
                 onToggleSnap={handleToggleSnap}
                 snapEnabled={snapToRoads}
                 routeProfile={routeProfile}
@@ -1542,6 +1587,8 @@ export default function RouteBuilder2() {
                 onToggleUnits={() =>
                   void updateUnitsPreference(isImperial ? 'metric' : 'imperial')
                 }
+                onToggleClipMode={hasRoute ? handleToggleClipMode : undefined}
+                clipMode={clipMode}
                 onClear={handleClearRoute}
                 canClear={canClearMap}
               />
@@ -1551,13 +1598,26 @@ export default function RouteBuilder2() {
             </Box>
           </Box>
           {statsNode && <Box style={{ pointerEvents: 'auto' }}>{statsNode}</Box>}
-          {!isLoading && !editTangentMode && (
+          {clipMode && pendingClip && (
+            <Box style={{ pointerEvents: 'auto', alignSelf: 'flex-start' }}>
+              <ClipConfirmCard
+                stats={pendingClip.stats}
+                isImperial={isImperial}
+                busy={clipBusy}
+                onConfirm={handleConfirmClip}
+                onCancel={handleCancelClip}
+              />
+            </Box>
+          )}
+          {clipMode && !pendingClip && (
+            <Box style={{ pointerEvents: 'auto', alignSelf: 'flex-start' }}>
+              <ClipHint />
+            </Box>
+          )}
+          {!clipMode && !isLoading && (
             <Box style={{ pointerEvents: 'auto', alignSelf: 'flex-start' }}>
               <ClickToPlaceHint snapEnabled={snapToRoads} hasRoute={hasRoute} isMobile />
             </Box>
-          )}
-          {tangentEditNode && (
-            <Box style={{ pointerEvents: 'auto', alignSelf: 'flex-start' }}>{tangentEditNode}</Box>
           )}
         </Box>
 
@@ -1601,6 +1661,34 @@ function friendlyRouteError(raw: string): string {
  * teaches the first click; once a route exists it keeps the reshape / remove
  * affordances discoverable (the cursor stays a crosshair throughout).
  */
+function ClipHint() {
+  return (
+    <Box
+      data-testid="rb2-clip-hint"
+      style={{
+        backgroundColor: RB2.cardBg,
+        border: `1px solid ${RB2.border}`,
+        boxShadow: RB2.shadowCard,
+        padding: '6px 10px',
+        maxWidth: 360,
+        pointerEvents: 'none',
+      }}
+    >
+      <Text
+        style={{
+          fontFamily: RB2_FONT.mono,
+          fontSize: 11,
+          color: RB2.textSecondary,
+          letterSpacing: '0.02em',
+          textAlign: 'center',
+        }}
+      >
+        Click a spur to clip it off
+      </Text>
+    </Box>
+  );
+}
+
 function ClickToPlaceHint({
   snapEnabled,
   hasRoute,

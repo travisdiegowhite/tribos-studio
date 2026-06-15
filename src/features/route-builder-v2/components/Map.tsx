@@ -59,8 +59,6 @@ export interface MapWrapperProps {
   showRouteLine?: boolean;
   /** Elevation-chart hover position; renders a non-interactive dot on the route. */
   highlightCoord?: Coordinate | null;
-  /** When set, a map click calls this instead of appending a waypoint (edit modes). */
-  onMapClickOverride?: (coord: Coordinate) => void;
   // ── On-map controls (rendered inside <Map> where mapRef lives) ──
   userLocation?: Coordinate | null;
   onGeolocate?: () => void;
@@ -69,6 +67,13 @@ export interface MapWrapperProps {
   onBasemapChange?: (id: string) => void;
   isImperial?: boolean;
   isMobile?: boolean;
+  // ── Clip-tangent mode ──
+  /** When on, map clicks select a spur to clip instead of appending a waypoint. */
+  clipMode?: boolean;
+  /** Called with the clicked coordinate while in clip mode. */
+  onClipClick?: (coord: Coordinate) => void;
+  /** Highlight geometry (the spur pending removal), drawn above the route. */
+  clipHighlight?: GeoJSON.Feature | null;
   children?: ReactNode;
 }
 
@@ -85,7 +90,6 @@ export function Map({
   mapStyle = DEFAULT_STYLE,
   showRouteLine = true,
   highlightCoord,
-  onMapClickOverride,
   userLocation = null,
   onGeolocate,
   isLocating = false,
@@ -93,6 +97,9 @@ export function Map({
   onBasemapChange,
   isImperial = false,
   isMobile = false,
+  clipMode = false,
+  onClipClick,
+  clipHighlight = null,
   children,
 }: MapWrapperProps) {
   const mapRef = useRef<MapRef | null>(null);
@@ -143,18 +150,20 @@ export function Map({
         return;
       }
       const coord: Coordinate = [evt.lngLat.lng, evt.lngLat.lat];
-      if (onMapClickOverride) {
-        onMapClickOverride(coord);
+      // In clip mode, a click selects a spur to remove — never appends a point.
+      if (clipMode) {
+        onClipClick?.(coord);
         return;
       }
       void map.handleMapClick(coord);
     },
-    [map, onMapClickOverride],
+    [map, clipMode, onClipClick],
   );
 
   const handleMouseDown = useCallback(
     (evt: MapLayerMouseEvent) => {
-      if (dragRef.current || !hasLine) return;
+      // Clip mode suppresses line-drag so a clip click can't insert a point.
+      if (clipMode || dragRef.current || !hasLine) return;
       const onLine = evt.features?.some((f) => f.layer?.id === ROUTE_HIT_LAYER_ID);
       if (!onLine) return;
       const point: Coordinate = [evt.lngLat.lng, evt.lngLat.lat];
@@ -168,7 +177,7 @@ export function Map({
       mapRef.current?.getMap?.().dragPan.disable();
       evt.preventDefault?.();
     },
-    [hasLine, routeGeometry, waypoints],
+    [hasLine, routeGeometry, waypoints, clipMode],
   );
 
   const handleMouseMove = useCallback((evt: MapLayerMouseEvent) => {
@@ -224,7 +233,13 @@ export function Map({
     );
   }
 
-  const activeCursor = ghost ? 'grabbing' : overLine ? 'grab' : (cursor ?? 'crosshair');
+  const activeCursor = ghost
+    ? 'grabbing'
+    : clipMode
+      ? 'crosshair'
+      : overLine
+        ? 'grab'
+        : (cursor ?? 'crosshair');
 
   // Rubber-band preview: from the waypoint before the grab, through the ghost,
   // to the waypoint after — so the user sees the tentative detour shape. The
@@ -318,6 +333,18 @@ export function Map({
             id={ROUTE_HIT_LAYER_ID}
             type="line"
             paint={{ 'line-color': '#000000', 'line-width': 22, 'line-opacity': 0.001 }}
+            layout={{ 'line-cap': 'round', 'line-join': 'round' }}
+          />
+        </Source>
+      )}
+
+      {/* Clip-mode spur highlight (the segment pending removal) */}
+      {clipHighlight && (
+        <Source id="rb2-clip-highlight" type="geojson" data={clipHighlight}>
+          <Layer
+            id="rb2-clip-highlight-line"
+            type="line"
+            paint={{ 'line-color': '#D4600A', 'line-width': 7, 'line-opacity': 0.95 }}
             layout={{ 'line-cap': 'round', 'line-join': 'round' }}
           />
         </Source>
