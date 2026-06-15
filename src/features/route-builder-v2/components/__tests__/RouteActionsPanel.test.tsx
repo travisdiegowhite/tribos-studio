@@ -23,6 +23,7 @@ function makePersistence(
       { id: 'r-1', name: 'Morning Loop', distance_km: 30, elevation_gain_m: 500 },
       { id: 'r-2', name: 'Hill Repeats', distance_km: 15, elevation_gain_m: 800 },
     ]),
+    deleteRoute: vi.fn().mockResolvedValue(true),
     exportRoute: vi.fn(),
     importGpx: vi.fn().mockResolvedValue([
       [-105.27, 40.01],
@@ -92,6 +93,17 @@ describe('RouteActionsPanel', () => {
     fireEvent.click(item);
     await waitFor(() => expect(persistence.loadRoute).toHaveBeenCalledWith('r-1'));
     expect(onLoaded).toHaveBeenCalledWith('r-1');
+  });
+
+  it('deletes a saved route on a two-click confirm', async () => {
+    const { persistence } = renderPanel();
+    fireEvent.click(screen.getByTestId('rb2-load-route-button'));
+    const del = await screen.findByTestId('rb2-delete-route-r-1');
+    fireEvent.click(del); // arm
+    expect(persistence.deleteRoute).not.toHaveBeenCalled();
+    fireEvent.click(del); // confirm
+    await waitFor(() => expect(persistence.deleteRoute).toHaveBeenCalledWith('r-1'));
+    await waitFor(() => expect(screen.queryByTestId('rb2-load-item-r-1')).not.toBeInTheDocument());
   });
 
   it('calls exportRoute with the chosen format', async () => {

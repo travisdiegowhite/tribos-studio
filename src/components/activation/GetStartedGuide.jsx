@@ -186,10 +186,11 @@ export default function GetStartedGuide() {
           // RB2-enabled users straight to the new builder.
           let step = stepConfig;
           if (stepConfig.key === 'first_route') {
+            const base = hasRouteBuilderV2 ? '/route-builder-2' : '/routes/new';
             if (recentActivityId) {
-              step = { ...stepConfig, cta: 'Build from your last ride', href: `/routes/new?from_activity=${recentActivityId}` };
+              step = { ...stepConfig, cta: 'Build from your last ride', href: `${base}?from_activity=${recentActivityId}` };
             } else if (hasRouteBuilderV2) {
-              step = { ...stepConfig, href: '/route-builder-2' };
+              step = { ...stepConfig, href: base };
             }
           }
           const StepIcon = step.icon;

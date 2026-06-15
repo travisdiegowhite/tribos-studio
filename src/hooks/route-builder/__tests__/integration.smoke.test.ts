@@ -22,6 +22,7 @@ vi.mock('../../../utils/routesService', () => ({
   saveRoute: vi.fn(),
   getRoute: vi.fn(),
   listRoutes: vi.fn().mockResolvedValue([]),
+  deleteRoute: vi.fn().mockResolvedValue({ success: true }),
 }));
 vi.mock('../../../utils/routeExport', () => ({ exportAndDownloadRoute: vi.fn() }));
 vi.mock('../../../utils/gpxParser.js', () => ({ parseGpxFile: vi.fn() }));

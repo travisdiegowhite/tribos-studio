@@ -81,6 +81,9 @@ import { IntervalsLayer } from '../features/route-builder-v2/layers/IntervalsLay
 import { WorkoutOverlayLegend, WorkoutPickerPanel } from '../features/route-builder-v2/components';
 import { useUpcomingPlannedWorkouts } from '../hooks/useUpcomingPlannedWorkouts';
 import { targetDistanceKm } from '../features/route-builder-v2/discover/rankRoutes';
+import { calculatePersonalizedETA } from '../utils/personalizedETA';
+import { computeSurfaceDistribution } from '../utils/surfaceOverlay.js';
+import { decodePolyline } from '../utils/activityRouteAnalyzer';
 import type { WorkoutDefinition } from '../types/training';
 import { trackRb2 } from '../features/route-builder-v2/telemetry/trackRb2';
 import { coordinateAtDistanceKm } from '../utils/elevation';
@@ -148,7 +151,7 @@ export default function RouteBuilder2() {
   // selection is stateful (seeded from the URL); the picker mutates it.
   // Resolved from the library → seeds the generate form and paints the
   // intervals on the route. View-only — nothing is persisted.
-  const [searchParams] = useSearchParams();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [pickedWorkoutId, setPickedWorkoutId] = useState<string | null>(
     searchParams.get('workoutId'),
   );
@@ -197,6 +200,7 @@ export default function RouteBuilder2() {
   const routeName = useRouteBuilderStore((s) => s.routeName);
   const routeDescription = useRouteBuilderStore((s) => s.routeDescription);
   const routeProfile = useRouteBuilderStore((s) => s.routeProfile);
+  const trainingGoal = useRouteBuilderStore((s) => s.trainingGoal);
   const setRouteProfile = useRouteBuilderStore((s) => s.setRouteProfile);
   const snapToRoads = useRouteBuilderStore((s) => s.snapToRoads);
   const setSnapToRoads = useRouteBuilderStore((s) => s.setSnapToRoads);
@@ -208,6 +212,7 @@ export default function RouteBuilder2() {
   const setRouteNameInStore = useRouteBuilderStore((s) => s.setRouteName);
   const setBuilderMode = useRouteBuilderStore((s) => s.setBuilderMode);
   const clearRouteInStore = useRouteBuilderStore((s) => s.clearRoute);
+  const setRouteInStore = useRouteBuilderStore((s) => s.setRoute);
 
   // Map viewport center as a last-resort start_coord fallback for the form.
   const viewportCenter = useMemo<Coordinate | null>(() => {
@@ -345,6 +350,54 @@ export default function RouteBuilder2() {
       { id: 'wp-1', position: end, type: 'end', name: '' },
     ]);
   }, [routeGeometry, waypoints, setWaypointsInStore]);
+
+  // Build a route FROM a past activity (`?from_activity=<id>`) — decode the
+  // activity's polyline into the editable route, then frame it (v1 parity).
+  const fromActivityHandledRef = useRef(false);
+  useEffect(() => {
+    const fromActivityId = searchParams.get('from_activity');
+    if (!fromActivityId || !user?.id || fromActivityHandledRef.current) return;
+    fromActivityHandledRef.current = true;
+    void (async () => {
+      try {
+        const { data: activity, error } = await supabase
+          .from('activities')
+          .select('id, name, map_summary_polyline, distance, total_elevation_gain')
+          .eq('id', fromActivityId)
+          .eq('user_id', user.id)
+          .single();
+        if (error || !activity?.map_summary_polyline) return;
+        const points = decodePolyline(activity.map_summary_polyline);
+        if (points.length < 2) return;
+        const coords = points.map((p) => [p.lng, p.lat] as Coordinate);
+        setRouteInStore({
+          geometry: { type: 'LineString', coordinates: coords },
+          name: activity.name ? `Route from ${activity.name}` : 'Route from activity',
+          stats: {
+            distance_km: activity.distance ? activity.distance / 1000 : 0,
+            elevation_gain_m: activity.total_elevation_gain ?? 0,
+            duration_s: 0,
+          },
+          waypoints: [],
+          source: 'imported',
+        });
+        map.fitBounds(coords);
+        trackRb2('route_from_activity', {});
+      } catch (e) {
+        console.error('[rb2] from_activity load failed', e);
+      } finally {
+        setSearchParams(
+          (prev) => {
+            const p = new URLSearchParams(prev);
+            p.delete('from_activity');
+            return p;
+          },
+          { replace: true },
+        );
+      }
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams, user?.id]);
 
   const handleClearRoute = () => {
     clearRouteInStore();
@@ -748,7 +801,11 @@ export default function RouteBuilder2() {
         <IntervalsLayer geometry={geometryForLayers} cues={workoutCues} />
       )}
       {visibility.poi && (
-        <POILayer poiResults={analysis.poiResults} activeLayers={analysis.activeLayers} />
+        <POILayer
+          poiResults={analysis.poiResults}
+          activeLayers={analysis.activeLayers}
+          onAddWaypoint={(coord) => void map.handleAddWaypointAtClick(coord)}
+        />
       )}
       {visibility.bikeInfra && <BikeInfraLayer bbox={viewportBbox} visible />}
       {visibility.familiar && <FamiliarSegmentsLayer bbox={viewportBbox} visible />}
@@ -762,13 +819,33 @@ export default function RouteBuilder2() {
     </Map>
   );
 
+  // Terrain- and surface-adjusted ride time (v1 parity) — better than the
+  // router's raw duration. Falls back to the raw duration when no elevation
+  // profile is available yet.
+  const personalizedEta = useMemo(() => {
+    const dist = routeStats?.distance_km;
+    const profile = analysis.elevationProfile;
+    if (!dist || dist <= 0 || !profile || profile.length < 2) return null;
+    try {
+      return calculatePersonalizedETA({
+        distanceKm: dist,
+        elevationProfile: profile.map((p) => ({ distance: p.distance_km, elevation: p.elevation_m })),
+        surfaceDistribution: surfaceSegments ? computeSurfaceDistribution(surfaceSegments) : undefined,
+        routeProfile,
+        trainingGoal,
+      }) as { totalSeconds?: number };
+    } catch {
+      return null;
+    }
+  }, [routeStats?.distance_km, analysis.elevationProfile, surfaceSegments, routeProfile, trainingGoal]);
+
   const statsNode =
     hasRoute && routeStats ? (
       <StatsOverlay
         stats={{
           distance_km: routeStats.distance_km,
           elevation_gain_m: routeStats.elevation_gain_m,
-          duration_s: routeStats.duration_s,
+          duration_s: personalizedEta?.totalSeconds ?? routeStats.duration_s,
         }}
         routeName={routeName}
         onClear={handleClearRoute}

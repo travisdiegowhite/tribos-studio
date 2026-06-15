@@ -52,6 +52,7 @@ interface SavedRouteRow {
 const saveRoute = routesService.saveRoute as (data: unknown) => Promise<SavedRouteRow>;
 const getRoute = routesService.getRoute as (id: string) => Promise<SavedRouteRow | null>;
 const listRoutesSvc = routesService.listRoutes as () => Promise<SavedRouteRow[]>;
+const deleteRouteSvc = routesService.deleteRoute as (id: string) => Promise<unknown>;
 
 export type ExportFormat = 'gpx' | 'tcx' | 'fit';
 
@@ -96,6 +97,8 @@ export interface UseRoutePersistenceReturn {
   save: (name?: string, description?: string) => Promise<SavedRoute | null>;
   loadRoute: (id: string) => Promise<boolean>;
   listSavedRoutes: () => Promise<SavedRouteSummary[]>;
+  /** Delete a saved route by id. Clears `savedRouteId` if it was the open one. */
+  deleteRoute: (id: string) => Promise<boolean>;
   exportRoute: (format: ExportFormat) => void;
   /**
    * Parse a .gpx file and load it as the current route. Returns the track
@@ -302,6 +305,22 @@ export function useRoutePersistence(): UseRoutePersistenceReturn {
     }
   }, []);
 
+  const deleteRoute = useCallback(
+    async (id: string): Promise<boolean> => {
+      try {
+        await deleteRouteSvc(id);
+        setSavedRouteId((cur) => (cur === id ? null : cur));
+        trackRb2('route_deleted', {});
+        return true;
+      } catch (e) {
+        const message = e instanceof Error ? e.message : String(e);
+        setLastError(message);
+        return false;
+      }
+    },
+    [],
+  );
+
   const importGpx = useCallback(
     async (file: File): Promise<Coordinate[] | null> => {
       setIsLoading(true);
@@ -473,6 +492,7 @@ export function useRoutePersistence(): UseRoutePersistenceReturn {
     save,
     loadRoute,
     listSavedRoutes,
+    deleteRoute,
     exportRoute,
     importGpx,
     isPushingToDevice,
