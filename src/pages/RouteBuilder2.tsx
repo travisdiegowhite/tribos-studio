@@ -69,7 +69,7 @@ import {
   type ChatMessage,
   type FormPanelControl,
 } from '../features/route-builder-v2/chat';
-import { Stack as StackIcon, MapPin, FolderOpen, MagnifyingGlass, CloudSun, ForkKnife, Gauge, Barbell, PencilSimpleLine, ChartLineUp, FloppyDisk, ChatCircleDots, Compass } from '@phosphor-icons/react';
+import { Stack as StackIcon, MapPin, FolderOpen, MagnifyingGlass, CloudSun, ForkKnife, Gauge, Barbell, PencilSimpleLine, ChartLineUp, FloppyDisk, ChatCircleDots, Compass, SlidersHorizontal } from '@phosphor-icons/react';
 import { supabase } from '../lib/supabase';
 import { SurfaceLayer } from '../features/route-builder-v2/layers/SurfaceLayer';
 import { GradientLayer } from '../features/route-builder-v2/layers/GradientLayer';
@@ -83,6 +83,9 @@ import { useUpcomingPlannedWorkouts } from '../hooks/useUpcomingPlannedWorkouts'
 import { targetDistanceKm } from '../features/route-builder-v2/discover/rankRoutes';
 import { calculatePersonalizedETA } from '../utils/personalizedETA';
 import { stravaService } from '../utils/stravaService';
+import RoadPreferencesCard from '../components/settings/RoadPreferencesCard.jsx';
+import BikeInfrastructureLegend from '../components/BikeInfrastructureLegend.jsx';
+import RaceDayGuide from '../components/fueling/RaceDayGuide';
 import { computeSurfaceDistribution } from '../utils/surfaceOverlay.js';
 import { decodePolyline } from '../utils/activityRouteAnalyzer';
 import type { WorkoutDefinition } from '../types/training';
@@ -202,6 +205,9 @@ export default function RouteBuilder2() {
   const routeDescription = useRouteBuilderStore((s) => s.routeDescription);
   const routeProfile = useRouteBuilderStore((s) => s.routeProfile);
   const trainingGoal = useRouteBuilderStore((s) => s.trainingGoal);
+  const raceType = useRouteBuilderStore((s) => s.raceType);
+  const raceDate = useRouteBuilderStore((s) => s.raceDate);
+  const targetFinishMinutes = useRouteBuilderStore((s) => s.targetFinishMinutes);
   const setRouteProfile = useRouteBuilderStore((s) => s.setRouteProfile);
   const snapToRoads = useRouteBuilderStore((s) => s.snapToRoads);
   const setSnapToRoads = useRouteBuilderStore((s) => s.setSnapToRoads);
@@ -857,6 +863,20 @@ export default function RouteBuilder2() {
     }
   }, [routeStats?.distance_km, analysis.elevationProfile, surfaceSegments, speedProfile, routeProfile, trainingGoal]);
 
+  // Reusable v1 widgets surfaced in RB2 (after personalizedEta is computed).
+  const roadPrefsNode = <RoadPreferencesCard />;
+  const raceDayGuideNode = raceType ? (
+    <RaceDayGuide
+      routeStats={routeStats}
+      personalizedETA={personalizedEta}
+      raceType={raceType}
+      raceDate={raceDate}
+      targetFinishMinutes={targetFinishMinutes}
+      weatherData={weather.weather}
+      useImperial={isImperial}
+    />
+  ) : null;
+
   const statsNode =
     hasRoute && routeStats ? (
       <StatsOverlay
@@ -926,6 +946,11 @@ export default function RouteBuilder2() {
                 <WindLegend weather={weather} isMobile />
               </Box>
             )}
+            {visibility.bikeInfra && (
+              <Box style={{ marginTop: 10 }}>
+                <BikeInfrastructureLegend visible />
+              </Box>
+            )}
           </>
         ),
       },
@@ -983,12 +1008,15 @@ export default function RouteBuilder2() {
         icon: <ForkKnife size={20} weight="duotone" />,
         disabled: !hasRoute,
         panel: (
-          <FuelPanel
-            durationMinutes={(routeStats?.duration_s ?? 0) / 60}
-            elevationGainMeters={routeStats?.elevation_gain_m ?? 0}
-            weather={weather.weather}
-            isImperial={isImperial}
-          />
+          <>
+            <FuelPanel
+              durationMinutes={(routeStats?.duration_s ?? 0) / 60}
+              elevationGainMeters={routeStats?.elevation_gain_m ?? 0}
+              weather={weather.weather}
+              isImperial={isImperial}
+            />
+            {raceDayGuideNode && <Box style={{ marginTop: 12 }}>{raceDayGuideNode}</Box>}
+          </>
         ),
       },
       {
@@ -998,6 +1026,12 @@ export default function RouteBuilder2() {
         label: 'Tire PSI',
         icon: <Gauge size={20} weight="duotone" />,
         panel: <TirePressurePanel routeProfile={routeProfile} isImperial={isImperial} />,
+      },
+      {
+        id: 'roadprefs',
+        label: 'Road prefs',
+        icon: <SlidersHorizontal size={20} weight="duotone" />,
+        panel: roadPrefsNode,
       },
       {
         // Always enabled: Load and Import GPX are entry points that work with
@@ -1186,6 +1220,7 @@ export default function RouteBuilder2() {
               isMobile
             />
           </Box>
+          <Box style={cardStyle}>{roadPrefsNode}</Box>
         </>
       ),
     },
@@ -1213,6 +1248,7 @@ export default function RouteBuilder2() {
             <SurfaceSummaryBar segments={surfaceSegments} isMobile />
           )}
           {visibility.wind && hasRoute && <WindLegend weather={weather} isMobile />}
+          {visibility.bikeInfra && <BikeInfrastructureLegend visible />}
         </>
       ),
     },
@@ -1236,6 +1272,7 @@ export default function RouteBuilder2() {
           <Box style={cardStyle}>
             <TirePressurePanel routeProfile={routeProfile} isImperial={isImperial} />
           </Box>
+          {raceDayGuideNode && <Box style={cardStyle}>{raceDayGuideNode}</Box>}
         </>
       ) : (
         <Text
