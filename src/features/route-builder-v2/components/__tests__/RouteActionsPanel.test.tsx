@@ -23,6 +23,7 @@ function makePersistence(
       { id: 'r-1', name: 'Morning Loop', distance_km: 30, elevation_gain_m: 500 },
       { id: 'r-2', name: 'Hill Repeats', distance_km: 15, elevation_gain_m: 800 },
     ]),
+    deleteRoute: vi.fn().mockResolvedValue(true),
     exportRoute: vi.fn(),
     importGpx: vi.fn().mockResolvedValue([
       [-105.27, 40.01],
@@ -56,15 +57,31 @@ describe('RouteActionsPanel', () => {
     expect(screen.getByTestId('rb2-export-route-button')).toBeInTheDocument();
   });
 
-  it('opens Save modal, calls persistence.save with the entered name, fires onSaved', async () => {
+  it('opens Save modal, calls persistence.save with the entered name + description, fires onSaved', async () => {
     const onSaved = vi.fn();
     const { persistence } = renderPanel({ defaultName: 'Test', onSaved });
     fireEvent.click(screen.getByTestId('rb2-save-route-button'));
     const input = await screen.findByTestId('rb2-save-name-input');
     fireEvent.change(input, { target: { value: 'My Loop' } });
+    fireEvent.change(screen.getByTestId('rb2-save-description-input'), {
+      target: { value: 'Quiet gravel out east' },
+    });
     fireEvent.click(await screen.findByTestId('rb2-save-confirm'));
-    await waitFor(() => expect(persistence.save).toHaveBeenCalledWith('My Loop'));
+    await waitFor(() =>
+      expect(persistence.save).toHaveBeenCalledWith('My Loop', 'Quiet gravel out east'),
+    );
     expect(onSaved).toHaveBeenCalledWith('new-id');
+  });
+
+  it('pre-fills the description and shows "Update" when editing a saved route', async () => {
+    renderPanel({
+      defaultName: 'Existing',
+      defaultDescription: 'Loaded notes',
+      persistence: makePersistence({ savedRouteId: 'route-1' }),
+    });
+    fireEvent.click(screen.getByTestId('rb2-save-route-button'));
+    expect(await screen.findByTestId('rb2-save-description-input')).toHaveValue('Loaded notes');
+    expect(screen.getByTestId('rb2-save-confirm')).toHaveTextContent('Update');
   });
 
   it('opens Load modal, fetches list, and calls loadRoute on selection', async () => {
@@ -76,6 +93,17 @@ describe('RouteActionsPanel', () => {
     fireEvent.click(item);
     await waitFor(() => expect(persistence.loadRoute).toHaveBeenCalledWith('r-1'));
     expect(onLoaded).toHaveBeenCalledWith('r-1');
+  });
+
+  it('deletes a saved route on a two-click confirm', async () => {
+    const { persistence } = renderPanel();
+    fireEvent.click(screen.getByTestId('rb2-load-route-button'));
+    const del = await screen.findByTestId('rb2-delete-route-r-1');
+    fireEvent.click(del); // arm
+    expect(persistence.deleteRoute).not.toHaveBeenCalled();
+    fireEvent.click(del); // confirm
+    await waitFor(() => expect(persistence.deleteRoute).toHaveBeenCalledWith('r-1'));
+    await waitFor(() => expect(screen.queryByTestId('rb2-load-item-r-1')).not.toBeInTheDocument());
   });
 
   it('calls exportRoute with the chosen format', async () => {

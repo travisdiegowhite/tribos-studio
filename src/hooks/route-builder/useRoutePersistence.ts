@@ -41,6 +41,7 @@ const parseGpx = parseGpxFile as (
 interface SavedRouteRow {
   id: string;
   name?: string;
+  description?: string | null;
   geometry?: unknown;
   distance_km?: number | null;
   elevation_gain_m?: number | null;
@@ -51,6 +52,7 @@ interface SavedRouteRow {
 const saveRoute = routesService.saveRoute as (data: unknown) => Promise<SavedRouteRow>;
 const getRoute = routesService.getRoute as (id: string) => Promise<SavedRouteRow | null>;
 const listRoutesSvc = routesService.listRoutes as () => Promise<SavedRouteRow[]>;
+const deleteRouteSvc = routesService.deleteRoute as (id: string) => Promise<unknown>;
 
 export type ExportFormat = 'gpx' | 'tcx' | 'fit';
 
@@ -92,9 +94,11 @@ export interface UseRoutePersistenceReturn {
   isLoading: boolean;
   lastError: string | null;
   savedRouteId: string | null;
-  save: (name?: string) => Promise<SavedRoute | null>;
+  save: (name?: string, description?: string) => Promise<SavedRoute | null>;
   loadRoute: (id: string) => Promise<boolean>;
   listSavedRoutes: () => Promise<SavedRouteSummary[]>;
+  /** Delete a saved route by id. Clears `savedRouteId` if it was the open one. */
+  deleteRoute: (id: string) => Promise<boolean>;
   exportRoute: (format: ExportFormat) => void;
   /**
    * Parse a .gpx file and load it as the current route. Returns the track
@@ -129,6 +133,7 @@ export function useRoutePersistence(): UseRoutePersistenceReturn {
 
   const routeGeometry = useRouteBuilderStore((s) => s.routeGeometry);
   const routeName = useRouteBuilderStore((s) => s.routeName);
+  const routeDescription = useRouteBuilderStore((s) => s.routeDescription);
   const routeStats = useRouteBuilderStore((s) => s.routeStats);
   const waypoints = useRouteBuilderStore((s) => s.waypoints);
   const trainingGoal = useRouteBuilderStore((s) => s.trainingGoal);
@@ -136,9 +141,10 @@ export function useRoutePersistence(): UseRoutePersistenceReturn {
   const routeProfile = useRouteBuilderStore((s) => s.routeProfile);
   const setRouteFromStore = useRouteBuilderStore((s) => s.setRoute);
   const setRouteName = useRouteBuilderStore((s) => s.setRouteName);
+  const setRouteDescription = useRouteBuilderStore((s) => s.setRouteDescription);
 
   const save = useCallback(
-    async (nameOverride?: string): Promise<SavedRoute | null> => {
+    async (nameOverride?: string, descriptionOverride?: string): Promise<SavedRoute | null> => {
       if (!routeGeometry) {
         setLastError('No route to save');
         return null;
@@ -149,12 +155,17 @@ export function useRoutePersistence(): UseRoutePersistenceReturn {
       try {
         const name = nameOverride ?? routeName ?? 'Untitled Route';
         if (nameOverride && nameOverride !== routeName) setRouteName(name);
+        const description = descriptionOverride ?? routeDescription ?? '';
+        if (descriptionOverride !== undefined && descriptionOverride !== routeDescription) {
+          setRouteDescription(description);
+        }
         const distance_km = routeStats?.distance_km ?? null;
         const elevation_gain_m = routeStats?.elevation_gain_m ?? null;
         const duration_s = routeStats?.duration_s ?? null;
         const routeData = {
           id: savedRouteId ?? undefined,
           name,
+          description,
           geometry: routeGeometry,
           distance_km,
           elevation_gain_m,
@@ -188,6 +199,7 @@ export function useRoutePersistence(): UseRoutePersistenceReturn {
     [
       routeGeometry,
       routeName,
+      routeDescription,
       routeStats,
       routeType,
       trainingGoal,
@@ -195,6 +207,7 @@ export function useRoutePersistence(): UseRoutePersistenceReturn {
       waypoints,
       savedRouteId,
       setRouteName,
+      setRouteDescription,
     ],
   );
 
@@ -211,6 +224,7 @@ export function useRoutePersistence(): UseRoutePersistenceReturn {
         setRouteFromStore({
           geometry: route.geometry,
           name: route.name,
+          description: route.description ?? '',
           stats: {
             distance_km: route.distance_km ?? 0,
             elevation_gain_m: route.elevation_gain_m ?? 0,
@@ -290,6 +304,22 @@ export function useRoutePersistence(): UseRoutePersistenceReturn {
       return [];
     }
   }, []);
+
+  const deleteRoute = useCallback(
+    async (id: string): Promise<boolean> => {
+      try {
+        await deleteRouteSvc(id);
+        setSavedRouteId((cur) => (cur === id ? null : cur));
+        trackRb2('route_deleted', {});
+        return true;
+      } catch (e) {
+        const message = e instanceof Error ? e.message : String(e);
+        setLastError(message);
+        return false;
+      }
+    },
+    [],
+  );
 
   const importGpx = useCallback(
     async (file: File): Promise<Coordinate[] | null> => {
@@ -462,6 +492,7 @@ export function useRoutePersistence(): UseRoutePersistenceReturn {
     save,
     loadRoute,
     listSavedRoutes,
+    deleteRoute,
     exportRoute,
     importGpx,
     isPushingToDevice,

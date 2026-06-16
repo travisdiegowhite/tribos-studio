@@ -643,6 +643,10 @@ they want changed in natural language. Your job is to:
 3. Describe the proposed change in your persona voice.
 4. Call the apply_route_edit tool with the structured parameters.
 
+If the rider asks for more than one change in a single message (e.g. "make it
+hillier and a bit longer"), call apply_route_edit once for EACH change in the same
+turn — one tool call per change. They are applied in order.
+
 If the rider rejects a change ("no, not that"), acknowledge it and ask what they'd
 prefer instead — do not retry the same edit. If the rider asks something unrelated
 to route editing, answer conversationally but do not call the tool.`);

@@ -10,15 +10,56 @@
  * useRouteWeather; the panel owns no fetching logic itself.
  */
 
-import { useEffect } from 'react';
-import { Box, Group, Loader, Text, UnstyledButton } from '@mantine/core';
+import { useEffect, useState } from 'react';
+import { Box, Group, Loader, Select, Text, UnstyledButton } from '@mantine/core';
 import { ArrowUp, ArrowClockwise, Wind, Drop } from '@phosphor-icons/react';
 import { RB2, RB2_FONT } from './brand';
+import {
+  WEATHER_TOLERANCE_PRESETS,
+  DEFAULT_WEATHER_PRESET,
+  getWeatherSeverity,
+} from '../../../utils/weather.js';
 import type { UseRouteWeatherReturn } from '../../../hooks/route-builder';
 
 export interface WeatherPanelProps {
   weather: UseRouteWeatherReturn;
   isImperial?: boolean;
+}
+
+const PRESET_OPTIONS = Object.values(
+  WEATHER_TOLERANCE_PRESETS as Record<string, { id: string; name: string }>,
+).map((p) => ({ value: p.id, label: p.name }));
+
+const SEVERITY_COLOR: Record<string, string> = {
+  green: RB2.teal,
+  terracotta: RB2.gold,
+  yellow: RB2.gold,
+  orange: RB2.coral,
+  red: RB2.coral,
+  gray: RB2.textTertiary,
+};
+
+function readSavedPreset(): string {
+  try {
+    const raw = localStorage.getItem('routePreferences');
+    const pref = raw ? JSON.parse(raw)?.weatherTolerance : null;
+    if (typeof pref === 'string' && (WEATHER_TOLERANCE_PRESETS as Record<string, unknown>)[pref]) {
+      return pref;
+    }
+  } catch {
+    /* ignore */
+  }
+  return DEFAULT_WEATHER_PRESET as string;
+}
+
+function savePreset(id: string): void {
+  try {
+    const raw = localStorage.getItem('routePreferences');
+    const prefs = raw ? JSON.parse(raw) : {};
+    localStorage.setItem('routePreferences', JSON.stringify({ ...prefs, weatherTolerance: id }));
+  } catch {
+    /* ignore */
+  }
 }
 
 function cToF(c: number): number {
@@ -37,6 +78,16 @@ const WIND_BAR_COLORS: Record<string, string> = {
 
 export function WeatherPanel({ weather, isImperial = false }: WeatherPanelProps) {
   const { status, error, weather: data, wind, hasRoute, refresh } = weather;
+  const [presetId, setPresetId] = useState<string>(readSavedPreset);
+
+  const severity =
+    data
+      ? (getWeatherSeverity(
+          data,
+          (WEATHER_TOLERANCE_PRESETS as Record<string, object>)[presetId],
+          isImperial,
+        ) as { level: string; color: string; message: string })
+      : null;
 
   // Fetch on open if we have a route and nothing loaded yet.
   useEffect(() => {
@@ -206,6 +257,48 @@ export function WeatherPanel({ weather, isImperial = false }: WeatherPanelProps)
               </Group>
             </Box>
           )}
+
+          {/* Rider-tolerance verdict + preset selector */}
+          {severity && (
+            <Group gap={6} mt={10} data-testid="rb2-weather-verdict">
+              <Box
+                style={{
+                  width: 8,
+                  height: 8,
+                  borderRadius: '50%',
+                  backgroundColor: SEVERITY_COLOR[severity.color] ?? RB2.textTertiary,
+                  flexShrink: 0,
+                }}
+              />
+              <Text style={{ fontFamily: RB2_FONT.body, fontSize: 12, color: RB2.textSecondary }}>
+                {severity.message}
+              </Text>
+            </Group>
+          )}
+          <Select
+            mt={8}
+            size="xs"
+            label="Your weather tolerance"
+            data={PRESET_OPTIONS}
+            value={presetId}
+            allowDeselect={false}
+            onChange={(v) => {
+              if (!v) return;
+              setPresetId(v);
+              savePreset(v);
+            }}
+            data-testid="rb2-weather-preset"
+            styles={{
+              input: { borderRadius: 0 },
+              label: {
+                fontFamily: RB2_FONT.mono,
+                fontSize: 10,
+                letterSpacing: '0.08em',
+                textTransform: 'uppercase',
+                color: RB2.textTertiary,
+              },
+            }}
+          />
         </>
       )}
     </Box>

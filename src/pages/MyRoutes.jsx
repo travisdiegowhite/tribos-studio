@@ -22,6 +22,7 @@ import { notifications } from '@mantine/notifications';
 import { tokens } from '../theme';
 import AppShell from '../components/AppShell.jsx';
 import { useAuth } from '../contexts/AuthContext.jsx';
+import { useRouteBuilderV2Access } from '../hooks/useRouteBuilderV2Access';
 import { listRoutes, deleteRoute, getRoute } from '../utils/routesService';
 import { formatDistance, formatElevation } from '../utils/units';
 import { supabase } from '../lib/supabase';
@@ -36,6 +37,8 @@ import MatchedRouteCard from '../components/ride/MatchedRouteCard.jsx';
 function MyRoutes() {
   const { user } = useAuth();
   const navigate = useNavigate();
+  const { hasAccess: hasRouteBuilderV2 } = useRouteBuilderV2Access();
+  const newRouteHref = hasRouteBuilderV2 ? '/route-builder-2' : '/ride/new';
   const [loading, setLoading] = useState(true);
   const [routes, setRoutes] = useState([]);
   const [deletingId, setDeletingId] = useState(null);
@@ -647,7 +650,7 @@ function MyRoutes() {
                       cursor: 'pointer',
                       minHeight: 100,
                     }}
-                    onClick={() => navigate('/ride/new')}
+                    onClick={() => navigate(newRouteHref)}
                   >
                     <Stack align="center" gap={6}>
                       <Plus size={20} color="var(--color-text-muted)" />

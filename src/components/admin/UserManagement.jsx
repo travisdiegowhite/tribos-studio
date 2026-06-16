@@ -21,9 +21,11 @@ import {
   Tooltip,
   Box,
   Card,
-  SimpleGrid
+  SimpleGrid,
+  Switch
 } from '@mantine/core';
-import { listUsers, getUserDetails, cleanUserData, getStats } from '../../services/adminService';
+import { notifications } from '@mantine/notifications';
+import { listUsers, getUserDetails, cleanUserData, getStats, setRouteBuilderV2 } from '../../services/adminService';
 import { ArrowsClockwise, CaretDown, CaretUp, CaretUpDown, Check, Heartbeat, Info, MagnifyingGlass, Plug, Trash, User, Warning } from '@phosphor-icons/react';
 import AnalyticsExportBar from './AnalyticsExportBar';
 import { exportUsersCSV } from '../../utils/adminExport';
@@ -116,6 +118,27 @@ export default function UserManagement() {
     } else {
       setSortColumn(column);
       setSortDirection('desc');
+    }
+  };
+
+  // Route Builder 2.0 per-user beta toggle (gradual cohort rollout).
+  const handleToggleRb2 = async (user, enabled) => {
+    // Optimistic update; revert on failure.
+    setUsers(prev => prev.map(u => (u.id === user.id ? { ...u, route_builder_v2_enabled: enabled } : u)));
+    try {
+      await setRouteBuilderV2(user.id, enabled);
+      notifications.show({
+        title: 'Route Builder 2.0',
+        message: `${enabled ? 'Enabled' : 'Disabled'} for ${user.email}`,
+        color: enabled ? 'sage' : 'gray',
+      });
+    } catch (e) {
+      setUsers(prev => prev.map(u => (u.id === user.id ? { ...u, route_builder_v2_enabled: !enabled } : u)));
+      notifications.show({
+        title: 'Update failed',
+        message: e?.message || 'Could not update the Route Builder 2.0 flag.',
+        color: 'red',
+      });
     }
   };
 
@@ -274,6 +297,7 @@ export default function UserManagement() {
               <Table.Th onClick={() => handleSort('integrations')} style={{ cursor: 'pointer', userSelect: 'none' }}>
                 <Group gap={4} wrap="nowrap">Integrations <SortIcon column="integrations" /></Group>
               </Table.Th>
+              <Table.Th>RB2 Beta</Table.Th>
               <Table.Th>Actions</Table.Th>
             </Table.Tr>
           </Table.Thead>
@@ -313,6 +337,16 @@ export default function UserManagement() {
                       <Text size="xs" c="dimmed">None</Text>
                     )}
                   </Group>
+                </Table.Td>
+                <Table.Td>
+                  <Tooltip label="Route Builder 2.0 beta access">
+                    <Switch
+                      size="sm"
+                      checked={!!user.route_builder_v2_enabled}
+                      onChange={(e) => handleToggleRb2(user, e.currentTarget.checked)}
+                      aria-label={`Route Builder 2.0 for ${user.email}`}
+                    />
+                  </Tooltip>
                 </Table.Td>
                 <Table.Td>
                   <Group spacing="xs">

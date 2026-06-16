@@ -9,6 +9,11 @@ import { Box, Text, UnstyledButton } from '@mantine/core';
 import { X } from '@phosphor-icons/react';
 import { RB2, RB2_FONT } from './brand';
 import { convertDistance } from '../../../utils/units.jsx';
+import {
+  SURFACE_COLORS,
+  SURFACE_LABELS,
+  computeSurfaceDistribution,
+} from '../../../utils/surfaceOverlay.js';
 
 export interface RouteStats {
   distance_km: number;
@@ -21,7 +26,11 @@ export interface StatsOverlayProps {
   routeName?: string;
   onClear?: () => void;
   isImperial?: boolean;
+  /** Per-segment surface categories (from SurfaceLayer); shows a surface line when present. */
+  surfaceSegments?: string[] | null;
 }
+
+const SURFACE_ORDER = ['paved', 'gravel', 'unpaved', 'mixed'] as const;
 
 function formatDuration(seconds: number): string {
   if (!seconds || seconds <= 0) return '—';
@@ -49,8 +58,27 @@ function formatElevationCompact(m: number, isImperial: boolean): string {
   return `${Math.round(value)}${isImperial ? 'ft' : 'm'}`;
 }
 
-export function StatsOverlay({ stats, routeName, onClear, isImperial = false }: StatsOverlayProps) {
+function surfaceBreakdown(segments: string[] | null | undefined) {
+  if (!segments || segments.length === 0) return [];
+  const dist = computeSurfaceDistribution(segments) as Record<string, number>;
+  return SURFACE_ORDER.filter((k) => (dist[k] ?? 0) > 0).map((k) => ({
+    key: k,
+    pct: dist[k],
+    color: (SURFACE_COLORS as Record<string, string>)[k],
+    label: (SURFACE_LABELS as Record<string, string>)[k],
+  }));
+}
+
+export function StatsOverlay({
+  stats,
+  routeName,
+  onClear,
+  isImperial = false,
+  surfaceSegments,
+}: StatsOverlayProps) {
   if (!stats || stats.distance_km <= 0) return null;
+
+  const surfaces = surfaceBreakdown(surfaceSegments);
 
   return (
     <Box
@@ -115,6 +143,29 @@ export function StatsOverlay({ stats, routeName, onClear, isImperial = false }: 
         <StatCell label="Elevation" value={formatElevationCompact(stats.elevation_gain_m, isImperial)} />
         <StatCell label="Duration" value={formatDuration(stats.duration_s)} />
       </Box>
+      {surfaces.length > 0 && (
+        <Box
+          data-testid="rb2-stats-surface"
+          style={{ display: 'flex', flexWrap: 'wrap', gap: '2px 10px', marginTop: 8 }}
+        >
+          {surfaces.map((s) => (
+            <Box key={s.key} style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+              <Box style={{ width: 8, height: 8, backgroundColor: s.color, flexShrink: 0 }} />
+              <Text
+                style={{
+                  fontFamily: RB2_FONT.mono,
+                  fontSize: 10,
+                  letterSpacing: '0.04em',
+                  color: RB2.textSecondary,
+                  whiteSpace: 'nowrap',
+                }}
+              >
+                {s.pct}% {s.label}
+              </Text>
+            </Box>
+          ))}
+        </Box>
+      )}
     </Box>
   );
 }

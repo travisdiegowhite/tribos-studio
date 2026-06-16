@@ -216,4 +216,24 @@ describe('EditToolbar', () => {
     fireEvent.click(await screen.findByTestId('rb2-profile-gravel'));
     expect(onChangeProfile).toHaveBeenCalledWith('gravel');
   });
+
+  it('offers the Commute routing profile', async () => {
+    const onChangeProfile = vi.fn();
+    render(
+      <MantineProvider>
+        <EditToolbar
+          canUndo
+          canRedo
+          onUndo={vi.fn()}
+          onRedo={vi.fn()}
+          onChangeProfile={onChangeProfile}
+          routeProfile="road"
+          snapEnabled
+        />
+      </MantineProvider>,
+    );
+    fireEvent.click(screen.getByTestId('rb2-profile-menu'));
+    fireEvent.click(await screen.findByTestId('rb2-profile-commuting'));
+    expect(onChangeProfile).toHaveBeenCalledWith('commuting');
+  });
 });

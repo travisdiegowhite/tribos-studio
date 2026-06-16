@@ -135,7 +135,9 @@ export default async function handler(req, res) {
     };
 
     let response = await claude.messages.create({ ...createParams, messages });
-    let proposedEdit = null;
+    // Collect every valid edit in a turn so a compound request ("hillier AND
+    // longer") applies all of them — the client applies them in sequence.
+    const proposedEdits = [];
     let finalText = '';
     let usage = response.usage ?? null;
     let rounds = 0;
@@ -161,7 +163,7 @@ export default async function handler(req, res) {
         if (tu.name === 'apply_route_edit') {
           const normalized = normalizeRouteEdit(tu.input, routeSnapshot);
           if (normalized.ok) {
-            proposedEdit = normalized;
+            proposedEdits.push(normalized);
             validEdit = true;
             toolResults.push({
               type: 'tool_result',
@@ -203,7 +205,7 @@ export default async function handler(req, res) {
     }
 
     if (!finalText) {
-      finalText = proposedEdit
+      finalText = proposedEdits.length
         ? 'Here is the change to your route.'
         : "I didn't quite catch that — what would you like to change about the route?";
     }
@@ -211,7 +213,9 @@ export default async function handler(req, res) {
     return res.status(200).json({
       success: true,
       message: finalText,
-      proposedEdit,
+      proposedEdits,
+      // Back-compat single-edit field for any caller not yet reading the array.
+      proposedEdit: proposedEdits[0] ?? null,
       persona: persona ?? null,
       usage,
     });

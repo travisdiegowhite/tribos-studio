@@ -13,6 +13,7 @@ import {
 } from '@mantine/core';
 import { notifications } from '@mantine/notifications';
 import { useAuth } from '../../contexts/AuthContext.jsx';
+import { useRouteBuilderV2Access } from '../../hooks/useRouteBuilderV2Access';
 import { useActivation } from '../../hooks/useActivation';
 import { useCoachCommandBar } from '../coach/CoachCommandBarContext.jsx';
 import { supabase } from '../../lib/supabase';
@@ -63,6 +64,7 @@ const ACTIVATION_STEPS = [
 
 export default function GetStartedGuide() {
   const { user } = useAuth();
+  const { hasAccess: hasRouteBuilderV2 } = useRouteBuilderV2Access();
   const { open: openCoach } = useCoachCommandBar();
   const {
     activation,
@@ -179,10 +181,18 @@ export default function GetStartedGuide() {
 
       <Stack gap="xs">
         {ACTIVATION_STEPS.map((stepConfig) => {
-          // Override route step CTA if user has synced activities with GPS
-          const step = stepConfig.key === 'first_route' && recentActivityId
-            ? { ...stepConfig, cta: 'Build from your last ride', href: `/routes/new?from_activity=${recentActivityId}` }
-            : stepConfig;
+          // Override the route step: prefer "build from your last ride" (v1's
+          // from_activity flow, which RB2 doesn't consume), otherwise send
+          // RB2-enabled users straight to the new builder.
+          let step = stepConfig;
+          if (stepConfig.key === 'first_route') {
+            const base = hasRouteBuilderV2 ? '/route-builder-2' : '/routes/new';
+            if (recentActivityId) {
+              step = { ...stepConfig, cta: 'Build from your last ride', href: `${base}?from_activity=${recentActivityId}` };
+            } else if (hasRouteBuilderV2) {
+              step = { ...stepConfig, href: base };
+            }
+          }
           const StepIcon = step.icon;
           const isStepComplete = activation.steps?.[step.key]?.completed;
 

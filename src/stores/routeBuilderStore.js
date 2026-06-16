@@ -16,6 +16,7 @@ const initialState = {
   // Route data
   routeGeometry: null,
   routeName: 'Untitled Route',
+  routeDescription: '',
   // UNIT CONTRACT (see src/utils/distanceUnits.ts and CLAUDE.md):
   //   distance_km — KM. Always KM in this store. Router responses are
   //   meters; conversion happens at the boundary in useRouteManipulation
@@ -76,6 +77,11 @@ export const useRouteBuilderStore = create(
 
       setRouteName: (name) => set({
         routeName: name,
+        lastSaved: Date.now()
+      }),
+
+      setRouteDescription: (description) => set({
+        routeDescription: description,
         lastSaved: Date.now()
       }),
 
@@ -173,6 +179,7 @@ export const useRouteBuilderStore = create(
       setRoute: (routeData) => set({
         routeGeometry: routeData.geometry || null,
         routeName: routeData.name || 'Untitled Route',
+        routeDescription: routeData.description || '',
         routeStats: routeData.stats || { distance_km: 0, elevation_gain_m: 0, duration_s: 0 },
         waypoints: routeData.waypoints || [],
         routingSource: routeData.source || null,
@@ -184,6 +191,7 @@ export const useRouteBuilderStore = create(
       clearRoute: () => set({
         routeGeometry: null,
         routeName: 'Untitled Route',
+        routeDescription: '',
         routeStats: { distance_km: 0, elevation_gain_m: 0, duration_s: 0 },
         waypoints: [],
         aiSuggestions: [],
@@ -227,6 +235,7 @@ export const useRouteBuilderStore = create(
       partialize: (state) => ({
         routeGeometry: state.routeGeometry,
         routeName: state.routeName,
+        routeDescription: state.routeDescription,
         routeStats: state.routeStats,
         waypoints: state.waypoints,
         viewport: state.viewport,

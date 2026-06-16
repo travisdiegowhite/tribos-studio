@@ -9,6 +9,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
+  ActionIcon,
   Box,
   Button,
   Divider,
@@ -18,6 +19,7 @@ import {
   Modal,
   Stack,
   Text,
+  Textarea,
   TextInput,
   UnstyledButton,
 } from '@mantine/core';
@@ -30,6 +32,7 @@ import {
   FloppyDisk,
   FolderOpen,
   ShareNetwork,
+  Trash,
   UploadSimple,
 } from '@phosphor-icons/react';
 import { RB2, RB2_FONT } from './brand';
@@ -44,6 +47,8 @@ import type {
 export interface RouteActionsPanelProps {
   persistence: UseRoutePersistenceReturn;
   defaultName?: string;
+  /** Pre-fills the description field in the Save modal (from the loaded route). */
+  defaultDescription?: string;
   /** Whether a route currently exists. Save/Export require one; Load/Import don't. */
   hasRoute?: boolean;
   /** Called after a save succeeds with the new id (e.g. to update URL). */
@@ -73,6 +78,7 @@ const buttonStyles = {
 export function RouteActionsPanel({
   persistence,
   defaultName,
+  defaultDescription,
   hasRoute = true,
   onSaved,
   onLoaded,
@@ -82,8 +88,12 @@ export function RouteActionsPanel({
   const [saveOpen, setSaveOpen] = useState(false);
   const [loadOpen, setLoadOpen] = useState(false);
   const [name, setName] = useState(defaultName ?? '');
+  const [description, setDescription] = useState(defaultDescription ?? '');
+  // Editing a saved route → "Update"; otherwise "Save".
+  const isUpdate = !!persistence.savedRouteId;
   const [savedRoutes, setSavedRoutes] = useState<SavedRouteSummary[]>([]);
   const [loadingList, setLoadingList] = useState(false);
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
   const [garminConnected, setGarminConnected] = useState(false);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
@@ -111,7 +121,16 @@ export function RouteActionsPanel({
       if (!file) return;
       trackRb2('import_gpx_selected', { file_size: file.size });
       const coords = await persistence.importGpx(file);
-      if (coords && onImported) onImported(coords);
+      if (coords) {
+        if (onImported) onImported(coords);
+      } else {
+        notifications.show({
+          title: 'Import failed',
+          message: persistence.lastError || "That GPX file couldn't be read.",
+          color: 'red',
+          autoClose: 6000,
+        });
+      }
     },
     [persistence, onImported],
   );
@@ -123,23 +142,25 @@ export function RouteActionsPanel({
 
   const handleOpenSave = useCallback(() => {
     setName(defaultName ?? '');
+    setDescription(defaultDescription ?? '');
     setSaveOpen(true);
     trackRb2('save_modal_opened', {});
-  }, [defaultName]);
+  }, [defaultName, defaultDescription]);
 
   const handleConfirmSave = useCallback(async () => {
     const trimmed = name.trim();
     if (!trimmed) return;
-    const saved = await persistence.save(trimmed);
+    const saved = await persistence.save(trimmed, description);
     if (saved) {
       setSaveOpen(false);
       if (onSaved) onSaved(saved.id);
     }
-  }, [name, persistence, onSaved]);
+  }, [name, description, persistence, onSaved]);
 
   const handleOpenLoad = useCallback(async () => {
     setLoadOpen(true);
     setLoadingList(true);
+    setConfirmDeleteId(null);
     trackRb2('load_modal_opened', {});
     const rows = await persistence.listSavedRoutes();
     setSavedRoutes(rows);
@@ -155,6 +176,29 @@ export function RouteActionsPanel({
       }
     },
     [persistence, onLoaded],
+  );
+
+  // Two-click delete: first click arms (turns red), second confirms.
+  const handleDeleteRoute = useCallback(
+    async (id: string) => {
+      if (confirmDeleteId !== id) {
+        setConfirmDeleteId(id);
+        return;
+      }
+      const ok = await persistence.deleteRoute(id);
+      setConfirmDeleteId(null);
+      if (ok) {
+        setSavedRoutes((prev) => prev.filter((r) => r.id !== id));
+        notifications.show({ title: 'Route deleted', message: '', color: 'gray' });
+      } else {
+        notifications.show({
+          title: 'Delete failed',
+          message: persistence.lastError || 'Could not delete the route.',
+          color: 'red',
+        });
+      }
+    },
+    [confirmDeleteId, persistence],
   );
 
   const handleExport = useCallback(
@@ -358,7 +402,7 @@ export function RouteActionsPanel({
       <Modal
         opened={saveOpen}
         onClose={() => setSaveOpen(false)}
-        title="Save Route"
+        title={isUpdate ? 'Update Route' : 'Save Route'}
         radius={0}
         data-testid="rb2-save-modal"
       >
@@ -371,6 +415,15 @@ export function RouteActionsPanel({
             data-testid="rb2-save-name-input"
             styles={{ input: { borderRadius: 0 } }}
             autoFocus
+          />
+          <Textarea
+            label="Description (optional)"
+            value={description}
+            onChange={(e) => setDescription(e.currentTarget.value)}
+            placeholder="Where it goes, the surface, anything worth remembering…"
+            data-testid="rb2-save-description-input"
+            rows={3}
+            styles={{ input: { borderRadius: 0 } }}
           />
           <Group justify="flex-end" gap={6}>
             <Button variant="outline" onClick={() => setSaveOpen(false)} styles={buttonStyles}>
@@ -392,7 +445,13 @@ export function RouteActionsPanel({
                 },
               }}
             >
-              {persistence.isSaving ? <Loader size="xs" color="white" /> : 'Save'}
+              {persistence.isSaving ? (
+                <Loader size="xs" color="white" />
+              ) : isUpdate ? (
+                'Update'
+              ) : (
+                'Save'
+              )}
             </Button>
           </Group>
         </Stack>
@@ -417,28 +476,41 @@ export function RouteActionsPanel({
         ) : (
           <Stack gap={4}>
             {savedRoutes.map((r) => (
-              <UnstyledButton
-                key={r.id}
-                onClick={() => handlePickRoute(r.id)}
-                data-testid={`rb2-load-item-${r.id}`}
-                style={{
-                  padding: '10px 12px',
-                  border: `1px solid ${RB2.border}`,
-                  fontFamily: RB2_FONT.body,
-                  display: 'flex',
-                  justifyContent: 'space-between',
-                  alignItems: 'baseline',
-                  gap: 8,
-                }}
-              >
-                <Text style={{ fontWeight: 600, color: RB2.textPrimary }}>
-                  {r.name || 'Untitled Route'}
-                </Text>
-                <Text style={{ fontSize: 12, color: RB2.textTertiary }}>
-                  {r.distance_km != null ? `${r.distance_km.toFixed(1)} km` : ''}
-                  {r.elevation_gain_m != null ? ` · ${Math.round(r.elevation_gain_m)} m` : ''}
-                </Text>
-              </UnstyledButton>
+              <Box key={r.id} style={{ display: 'flex', alignItems: 'stretch', gap: 4 }}>
+                <UnstyledButton
+                  onClick={() => handlePickRoute(r.id)}
+                  data-testid={`rb2-load-item-${r.id}`}
+                  style={{
+                    flex: 1,
+                    minWidth: 0,
+                    padding: '10px 12px',
+                    border: `1px solid ${RB2.border}`,
+                    fontFamily: RB2_FONT.body,
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'baseline',
+                    gap: 8,
+                  }}
+                >
+                  <Text style={{ fontWeight: 600, color: RB2.textPrimary }}>
+                    {r.name || 'Untitled Route'}
+                  </Text>
+                  <Text style={{ fontSize: 12, color: RB2.textTertiary, flexShrink: 0 }}>
+                    {r.distance_km != null ? `${r.distance_km.toFixed(1)} km` : ''}
+                    {r.elevation_gain_m != null ? ` · ${Math.round(r.elevation_gain_m)} m` : ''}
+                  </Text>
+                </UnstyledButton>
+                <ActionIcon
+                  variant="outline"
+                  color={confirmDeleteId === r.id ? 'red' : 'gray'}
+                  data-testid={`rb2-delete-route-${r.id}`}
+                  aria-label={confirmDeleteId === r.id ? 'Confirm delete' : 'Delete route'}
+                  onClick={() => handleDeleteRoute(r.id)}
+                  style={{ borderRadius: 0, width: 38, height: 'auto' }}
+                >
+                  <Trash size={14} />
+                </ActionIcon>
+              </Box>
             ))}
           </Stack>
         )}

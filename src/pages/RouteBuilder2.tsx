@@ -54,6 +54,8 @@ import {
   LoadingState,
   ErrorState,
   RouteActionsPanel,
+  DiscoverPanel,
+  RaceDetailsCard,
   RB2,
   RB2_FONT,
   type LayerVisibilityState,
@@ -68,7 +70,7 @@ import {
   type ChatMessage,
   type FormPanelControl,
 } from '../features/route-builder-v2/chat';
-import { Stack as StackIcon, MapPin, FolderOpen, MagnifyingGlass, CloudSun, ForkKnife, Gauge, Barbell, PencilSimpleLine, ChartLineUp, FloppyDisk, ChatCircleDots } from '@phosphor-icons/react';
+import { Stack as StackIcon, MapPin, FolderOpen, MagnifyingGlass, CloudSun, ForkKnife, Gauge, Barbell, PencilSimpleLine, ChartLineUp, FloppyDisk, ChatCircleDots, Compass, SlidersHorizontal } from '@phosphor-icons/react';
 import { supabase } from '../lib/supabase';
 import { SurfaceLayer } from '../features/route-builder-v2/layers/SurfaceLayer';
 import { GradientLayer } from '../features/route-builder-v2/layers/GradientLayer';
@@ -79,6 +81,13 @@ import { WindArrowsLayer } from '../features/route-builder-v2/layers/WindArrowsL
 import { IntervalsLayer } from '../features/route-builder-v2/layers/IntervalsLayer';
 import { WorkoutOverlayLegend, WorkoutPickerPanel } from '../features/route-builder-v2/components';
 import { useUpcomingPlannedWorkouts } from '../hooks/useUpcomingPlannedWorkouts';
+import { targetDistanceKm } from '../features/route-builder-v2/discover/rankRoutes';
+import { calculatePersonalizedETA } from '../utils/personalizedETA';
+import { stravaService } from '../utils/stravaService';
+import RoadPreferencesCard from '../components/settings/RoadPreferencesCard.jsx';
+import BikeInfrastructureLegend from '../components/BikeInfrastructureLegend.jsx';
+import RaceDayGuide from '../components/fueling/RaceDayGuide';
+import { decodePolyline } from '../utils/activityRouteAnalyzer';
 import type { WorkoutDefinition } from '../types/training';
 import { trackRb2 } from '../features/route-builder-v2/telemetry/trackRb2';
 import { coordinateAtDistanceKm } from '../utils/elevation';
@@ -157,7 +166,7 @@ export default function RouteBuilder2() {
   // selection is stateful (seeded from the URL); the picker mutates it.
   // Resolved from the library → seeds the generate form and paints the
   // intervals on the route. View-only — nothing is persisted.
-  const [searchParams] = useSearchParams();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [pickedWorkoutId, setPickedWorkoutId] = useState<string | null>(
     searchParams.get('workoutId'),
   );
@@ -204,7 +213,12 @@ export default function RouteBuilder2() {
   const routeGeometry = useRouteBuilderStore((s) => s.routeGeometry);
   const routeStats = useRouteBuilderStore((s) => s.routeStats);
   const routeName = useRouteBuilderStore((s) => s.routeName);
+  const routeDescription = useRouteBuilderStore((s) => s.routeDescription);
   const routeProfile = useRouteBuilderStore((s) => s.routeProfile);
+  const trainingGoal = useRouteBuilderStore((s) => s.trainingGoal);
+  const raceType = useRouteBuilderStore((s) => s.raceType);
+  const raceDate = useRouteBuilderStore((s) => s.raceDate);
+  const targetFinishMinutes = useRouteBuilderStore((s) => s.targetFinishMinutes);
   const setRouteProfile = useRouteBuilderStore((s) => s.setRouteProfile);
   const snapToRoads = useRouteBuilderStore((s) => s.snapToRoads);
   const setSnapToRoads = useRouteBuilderStore((s) => s.setSnapToRoads);
@@ -216,6 +230,7 @@ export default function RouteBuilder2() {
   const setRouteNameInStore = useRouteBuilderStore((s) => s.setRouteName);
   const setAiSuggestions = useRouteBuilderStore((s) => s.setAiSuggestions);
   const clearRouteInStore = useRouteBuilderStore((s) => s.clearRoute);
+  const setRouteInStore = useRouteBuilderStore((s) => s.setRoute);
 
   // Map viewport center as a last-resort start_coord fallback for the form.
   const viewportCenter = useMemo<Coordinate | null>(() => {
@@ -265,6 +280,12 @@ export default function RouteBuilder2() {
   const [railOpenId, setRailOpenId] = useState<string | null>(null);
   // Mobile bottom-sheet active tab (null = collapsed, map fully visible).
   const [mobileTab, setMobileTab] = useState<string | null>(null);
+  // Route discovery (lazy-loaded saved routes ranked by today's target).
+  const [discoverRoutes, setDiscoverRoutes] = useState<
+    Array<{ id: string; name?: string; distance_km?: number | null; elevation_gain_m?: number | null }>
+  >([]);
+  const [discoverLoading, setDiscoverLoading] = useState(false);
+  const discoverLoadedRef = useRef(false);
   // Basemap choice — persisted so the map opens on the user's preferred style.
   const [basemapId, setBasemapId] = useLocalStorage<string>({
     key: 'rb2-basemap',
@@ -476,6 +497,54 @@ export default function RouteBuilder2() {
     ]);
   }, [routeGeometry, waypoints, setWaypointsInStore]);
 
+  // Build a route FROM a past activity (`?from_activity=<id>`) — decode the
+  // activity's polyline into the editable route, then frame it (v1 parity).
+  const fromActivityHandledRef = useRef(false);
+  useEffect(() => {
+    const fromActivityId = searchParams.get('from_activity');
+    if (!fromActivityId || !user?.id || fromActivityHandledRef.current) return;
+    fromActivityHandledRef.current = true;
+    void (async () => {
+      try {
+        const { data: activity, error } = await supabase
+          .from('activities')
+          .select('id, name, map_summary_polyline, distance, total_elevation_gain')
+          .eq('id', fromActivityId)
+          .eq('user_id', user.id)
+          .single();
+        if (error || !activity?.map_summary_polyline) return;
+        const points = decodePolyline(activity.map_summary_polyline);
+        if (points.length < 2) return;
+        const coords = points.map((p) => [p.lng, p.lat] as Coordinate);
+        setRouteInStore({
+          geometry: { type: 'LineString', coordinates: coords },
+          name: activity.name ? `Route from ${activity.name}` : 'Route from activity',
+          stats: {
+            distance_km: activity.distance ? activity.distance / 1000 : 0,
+            elevation_gain_m: activity.total_elevation_gain ?? 0,
+            duration_s: 0,
+          },
+          waypoints: [],
+          source: 'imported',
+        });
+        map.fitBounds(coords);
+        trackRb2('route_from_activity', {});
+      } catch (e) {
+        console.error('[rb2] from_activity load failed', e);
+      } finally {
+        setSearchParams(
+          (prev) => {
+            const p = new URLSearchParams(prev);
+            p.delete('from_activity');
+            return p;
+          },
+          { replace: true },
+        );
+      }
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams, user?.id]);
+
   const handleClearRoute = () => {
     clearRouteInStore();
     generation.clearSuggestions();
@@ -657,6 +726,8 @@ export default function RouteBuilder2() {
 
   const handleSaved = useCallback(
     (id: string) => {
+      // A new/updated route should appear in Discover next time it opens.
+      discoverLoadedRef.current = false;
       if (routeIdFromUrl !== id) {
         navigate(`/route-builder-2/${id}`, { replace: true });
       }
@@ -671,6 +742,51 @@ export default function RouteBuilder2() {
       }
     },
     [navigate, routeIdFromUrl],
+  );
+
+  // --- Route discovery: the rider's saved routes ranked by today's target ---
+  const nextPlanned = upcomingPlanned.workouts[0] ?? null;
+  const discoverTargetKm = targetDistanceKm(nextPlanned);
+  const discoverTargetLabel = nextPlanned
+    ? `${nextPlanned.name}${discoverTargetKm ? ` · ~${discoverTargetKm} km` : ''}`
+    : null;
+
+  const loadDiscover = useCallback(async () => {
+    setDiscoverLoading(true);
+    const rows = await persistence.listSavedRoutes();
+    setDiscoverRoutes(rows);
+    setDiscoverLoading(false);
+    discoverLoadedRef.current = true;
+  }, [persistence]);
+
+  // Lazily fetch the discover list the first time its surface opens, and
+  // refresh after a save so a newly-saved route appears.
+  useEffect(() => {
+    const open = railOpenId === 'discover' || mobileTab === 'discover';
+    if (open && !discoverLoadedRef.current) void loadDiscover();
+  }, [railOpenId, mobileTab, loadDiscover]);
+
+  const handlePickDiscover = useCallback(
+    async (id: string) => {
+      const ok = await persistence.loadRoute(id);
+      if (ok) {
+        handleLoaded(id);
+        setRailOpenId(null);
+        setMobileTab(null);
+      }
+    },
+    [persistence, handleLoaded],
+  );
+
+  const discoverPanel = (
+    <DiscoverPanel
+      routes={discoverRoutes}
+      loading={discoverLoading}
+      targetKm={discoverTargetKm}
+      targetLabel={discoverTargetLabel}
+      onPick={handlePickDiscover}
+      isImperial={isImperial}
+    />
   );
 
   // Page mount telemetry
@@ -751,7 +867,8 @@ export default function RouteBuilder2() {
   const isLoading = generation.isGenerating || editing.isApplying || map.isApplying;
   const errorRaw =
     generation.lastError || editing.lastError || map.lastError || persistence.lastError || null;
-  const error = errorRaw && errorRaw !== errorDismissed ? errorRaw : null;
+  const error =
+    errorRaw && errorRaw !== errorDismissed ? friendlyRouteError(errorRaw) : null;
   const dismissError = () => setErrorDismissed(errorRaw);
 
   // Reasonable narrowed geometry typing for layer props
@@ -859,7 +976,11 @@ export default function RouteBuilder2() {
         <IntervalsLayer geometry={geometryForLayers} cues={workoutCues} />
       )}
       {visibility.poi && (
-        <POILayer poiResults={analysis.poiResults} activeLayers={analysis.activeLayers} />
+        <POILayer
+          poiResults={analysis.poiResults}
+          activeLayers={analysis.activeLayers}
+          onAddWaypoint={(coord) => void map.handleAddWaypointAtClick(coord)}
+        />
       )}
       {visibility.bikeInfra && <BikeInfraLayer bbox={viewportBbox} visible />}
       {visibility.familiar && <FamiliarSegmentsLayer bbox={viewportBbox} visible />}
@@ -873,17 +994,69 @@ export default function RouteBuilder2() {
     </Map>
   );
 
+  // The rider's Strava speed profile personalizes the ETA (v1 parity). Fetched
+  // once; null until loaded (ETA then falls back to a profile-based pace).
+  const [speedProfile, setSpeedProfile] = useState<unknown>(null);
+  useEffect(() => {
+    let cancelled = false;
+    (stravaService as { getSpeedProfile?: () => Promise<unknown> })
+      .getSpeedProfile?.()
+      .then((p) => {
+        if (!cancelled) setSpeedProfile(p ?? null);
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  // Terrain-, surface- and (when available) rider-speed-adjusted ride time
+  // (v1 parity) — better than the router's raw duration. Falls back to the raw
+  // duration when no elevation profile is available yet.
+  const personalizedEta = useMemo(() => {
+    const dist = routeStats?.distance_km;
+    const profile = analysis.elevationProfile;
+    if (!dist || dist <= 0 || !profile || profile.length < 2) return null;
+    try {
+      return calculatePersonalizedETA({
+        distanceKm: dist,
+        elevationProfile: profile.map((p) => ({ distance: p.distance_km, elevation: p.elevation_m })),
+        surfaceDistribution: surfaceSegments ? computeSurfaceDistribution(surfaceSegments) : undefined,
+        speedProfile: (speedProfile ?? undefined) as object | undefined,
+        routeProfile,
+        trainingGoal,
+      }) as { totalSeconds?: number };
+    } catch {
+      return null;
+    }
+  }, [routeStats?.distance_km, analysis.elevationProfile, surfaceSegments, speedProfile, routeProfile, trainingGoal]);
+
+  // Reusable v1 widgets surfaced in RB2 (after personalizedEta is computed).
+  const roadPrefsNode = <RoadPreferencesCard />;
+  const raceDayGuideNode = raceType ? (
+    <RaceDayGuide
+      routeStats={routeStats}
+      personalizedETA={personalizedEta}
+      raceType={raceType}
+      raceDate={raceDate}
+      targetFinishMinutes={targetFinishMinutes}
+      weatherData={weather.weather}
+      useImperial={isImperial}
+    />
+  ) : null;
+
   const statsNode =
     hasRoute && routeStats ? (
       <StatsOverlay
         stats={{
           distance_km: routeStats.distance_km,
           elevation_gain_m: routeStats.elevation_gain_m,
-          duration_s: routeStats.duration_s,
+          duration_s: personalizedEta?.totalSeconds ?? routeStats.duration_s,
         }}
         routeName={routeName}
         onClear={handleClearRoute}
         isImperial={isImperial}
+        surfaceSegments={surfaceSegments}
       />
     ) : null;
 
@@ -941,6 +1114,11 @@ export default function RouteBuilder2() {
                 <WindLegend weather={weather} isMobile />
               </Box>
             )}
+            {visibility.bikeInfra && (
+              <Box style={{ marginTop: 10 }}>
+                <BikeInfrastructureLegend visible />
+              </Box>
+            )}
           </>
         ),
       },
@@ -963,6 +1141,12 @@ export default function RouteBuilder2() {
         label: 'Search',
         icon: <MagnifyingGlass size={20} weight="duotone" />,
         panel: <LocationSearch onFlyTo={map.flyTo} proximity={viewportCenter} />,
+      },
+      {
+        id: 'discover',
+        label: 'Discover',
+        icon: <Compass size={20} weight="duotone" />,
+        panel: discoverPanel,
       },
       {
         id: 'waypoints',
@@ -992,12 +1176,18 @@ export default function RouteBuilder2() {
         icon: <ForkKnife size={20} weight="duotone" />,
         disabled: !hasRoute,
         panel: (
-          <FuelPanel
-            durationMinutes={(routeStats?.duration_s ?? 0) / 60}
-            elevationGainMeters={routeStats?.elevation_gain_m ?? 0}
-            weather={weather.weather}
-            isImperial={isImperial}
-          />
+          <>
+            <FuelPanel
+              durationMinutes={(routeStats?.duration_s ?? 0) / 60}
+              elevationGainMeters={routeStats?.elevation_gain_m ?? 0}
+              weather={weather.weather}
+              isImperial={isImperial}
+            />
+            <Box style={{ marginTop: 12 }}>
+              <RaceDetailsCard />
+            </Box>
+            {raceDayGuideNode && <Box style={{ marginTop: 12 }}>{raceDayGuideNode}</Box>}
+          </>
         ),
       },
       {
@@ -1009,6 +1199,12 @@ export default function RouteBuilder2() {
         panel: <TirePressurePanel routeProfile={routeProfile} isImperial={isImperial} />,
       },
       {
+        id: 'roadprefs',
+        label: 'Road prefs',
+        icon: <SlidersHorizontal size={20} weight="duotone" />,
+        panel: roadPrefsNode,
+      },
+      {
         // Always enabled: Load and Import GPX are entry points that work with
         // no current route (Save/Export disable themselves inside the panel).
         id: 'routes',
@@ -1018,6 +1214,7 @@ export default function RouteBuilder2() {
           <RouteActionsPanel
             persistence={persistence}
             defaultName={routeName}
+            defaultDescription={routeDescription}
             hasRoute={hasRoute}
             onSaved={handleSaved}
             onLoaded={handleLoaded}
@@ -1212,6 +1409,7 @@ export default function RouteBuilder2() {
               isMobile
             />
           </Box>
+          <Box style={cardStyle}>{roadPrefsNode}</Box>
         </>
       ),
     },
@@ -1239,6 +1437,7 @@ export default function RouteBuilder2() {
             <SurfaceSummaryBar segments={surfaceSegments} isMobile />
           )}
           {visibility.wind && hasRoute && <WindLegend weather={weather} isMobile />}
+          {visibility.bikeInfra && <BikeInfrastructureLegend visible />}
         </>
       ),
     },
@@ -1262,6 +1461,10 @@ export default function RouteBuilder2() {
           <Box style={cardStyle}>
             <TirePressurePanel routeProfile={routeProfile} isImperial={isImperial} />
           </Box>
+          <Box style={cardStyle}>
+            <RaceDetailsCard />
+          </Box>
+          {raceDayGuideNode && <Box style={cardStyle}>{raceDayGuideNode}</Box>}
         </>
       ) : (
         <Text
@@ -1295,6 +1498,7 @@ export default function RouteBuilder2() {
           <RouteActionsPanel
             persistence={persistence}
             defaultName={routeName}
+            defaultDescription={routeDescription}
             hasRoute={hasRoute}
             onSaved={handleSaved}
             onLoaded={handleLoaded}
@@ -1303,6 +1507,12 @@ export default function RouteBuilder2() {
           />
         </>
       ),
+    },
+    {
+      id: 'discover',
+      label: 'Discover',
+      icon: <Compass size={18} />,
+      content: discoverPanel,
     },
     {
       id: 'chat',
@@ -1422,6 +1632,28 @@ export default function RouteBuilder2() {
       </Box>
     </AppShell>
   );
+}
+
+/**
+ * Map a raw `lastError` reason (from the hooks) to human-readable copy for the
+ * on-map ErrorState. Unknown values pass through (already a sentence) so we
+ * never hide a useful message.
+ */
+function friendlyRouteError(raw: string): string {
+  const KNOWN: Record<string, string> = {
+    routing_failed:
+      "Couldn't route through there — try moving a point, or switch the routing profile.",
+    no_current_route: 'No route yet — generate or draw one first.',
+    'no current route': 'No route yet — generate or draw one first.',
+    no_route: 'No route yet — generate or draw one first.',
+    chat_translation_unavailable: "I couldn't act on that one — try rephrasing it.",
+    'No route to save': 'Draw or generate a route before saving.',
+    'No route to send': 'Draw or generate a route before sending it to your device.',
+    'No route to export': 'Draw or generate a route before exporting.',
+    context_missing: 'Sign in to use the coach.',
+    not_authenticated: 'Sign in to use the coach.',
+  };
+  return KNOWN[raw] ?? raw;
 }
 
 /**

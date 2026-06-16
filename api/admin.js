@@ -140,6 +140,12 @@ export default async function handler(req, res) {
         }
         return await cleanUserData(req, res, adminUser, targetUserId);
 
+      case 'set_route_builder_v2':
+        if (!targetUserId) {
+          return res.status(400).json({ error: 'targetUserId is required' });
+        }
+        return await setRouteBuilderV2(req, res, adminUser, targetUserId);
+
       case 'list_feedback':
         return await listFeedback(req, res, adminUser);
 
@@ -237,6 +243,15 @@ async function listUsers(req, res, adminUser) {
     integrationMap[i.user_id].push(i.provider);
   });
 
+  // Route Builder 2.0 per-user beta flag (migration 090)
+  const { data: rb2Profiles } = await supabase
+    .from('user_profiles')
+    .select('id, route_builder_v2_enabled');
+  const rb2Map = {};
+  (rb2Profiles || []).forEach(p => {
+    rb2Map[p.id] = p.route_builder_v2_enabled === true;
+  });
+
   // Combine data
   const users = authUsers.users.map(user => ({
     id: user.id,
@@ -245,7 +260,8 @@ async function listUsers(req, res, adminUser) {
     last_sign_in_at: user.last_sign_in_at,
     email_confirmed_at: user.email_confirmed_at,
     activity_count: activityCounts[user.id] || 0,
-    integrations: integrationMap[user.id] || []
+    integrations: integrationMap[user.id] || [],
+    route_builder_v2_enabled: rb2Map[user.id] || false
   }));
 
   // Sort by most recent signup
@@ -403,6 +419,28 @@ async function cleanUserData(req, res, adminUser, targetUserId) {
     details: deletionResults,
     errors: errors.length > 0 ? errors : undefined
   });
+}
+
+/**
+ * Toggle the Route Builder 2.0 per-user beta flag (gradual cohort rollout).
+ * The global env flag VITE_ROUTE_BUILDER_V2_ENABLED must also be true for the
+ * user to actually see RB2 (see useRouteBuilderV2Access).
+ */
+async function setRouteBuilderV2(req, res, adminUser, targetUserId) {
+  const enabled = req.body.enabled === true;
+  await logAdminAction(adminUser.id, 'set_route_builder_v2', targetUserId, { enabled });
+
+  const { error } = await supabase
+    .from('user_profiles')
+    .update({ route_builder_v2_enabled: enabled })
+    .eq('id', targetUserId);
+
+  if (error) {
+    console.error('Error setting route_builder_v2_enabled:', error);
+    return res.status(500).json({ error: 'Failed to update Route Builder 2.0 flag' });
+  }
+
+  return res.status(200).json({ success: true, route_builder_v2_enabled: enabled });
 }
 
 /**

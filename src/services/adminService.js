@@ -102,6 +102,13 @@ export async function cleanUserData(targetUserId) {
 }
 
 /**
+ * Toggle the Route Builder 2.0 per-user beta flag (gradual cohort rollout).
+ */
+export async function setRouteBuilderV2(targetUserId, enabled) {
+  return adminFetch('set_route_builder_v2', { targetUserId, enabled });
+}
+
+/**
  * Get all beta feedback submissions
  */
 export async function listFeedback() {

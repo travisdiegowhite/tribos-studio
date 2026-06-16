@@ -12,6 +12,32 @@ function renderOverlay(stats: { distance_km: number; elevation_gain_m: number; d
 }
 
 describe('StatsOverlay', () => {
+  it('shows a surface breakdown when segment data is provided', () => {
+    const segments = [
+      ...Array(7).fill('paved'),
+      ...Array(3).fill('gravel'),
+    ];
+    render(
+      <MantineProvider>
+        <StatsOverlay
+          stats={{ distance_km: 40, elevation_gain_m: 300, duration_s: 5400 }}
+          surfaceSegments={segments}
+        />
+      </MantineProvider>,
+    );
+    const surface = screen.getByTestId('rb2-stats-surface');
+    expect(surface).toHaveTextContent(/%/);
+  });
+
+  it('omits the surface line when no segment data', () => {
+    render(
+      <MantineProvider>
+        <StatsOverlay stats={{ distance_km: 40, elevation_gain_m: 300, duration_s: 5400 }} />
+      </MantineProvider>,
+    );
+    expect(screen.queryByTestId('rb2-stats-surface')).toBeNull();
+  });
+
   it('renders nothing when stats are null', () => {
     renderOverlay(null);
     expect(screen.queryByTestId('rb2-stats-overlay')).toBeNull();

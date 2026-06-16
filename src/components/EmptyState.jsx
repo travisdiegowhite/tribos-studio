@@ -1,6 +1,7 @@
 import React from 'react';
 import { Paper, Stack, Text, Button, ThemeIcon, Group } from '@mantine/core';
 import { useNavigate } from 'react-router-dom';
+import { useRouteBuilderV2Access } from '../hooks/useRouteBuilderV2Access';
 import { Calendar, FileText, Heartbeat, MapTrifold, Path, TrendUp, UploadSimple, Users } from '@phosphor-icons/react';
 
 /**
@@ -100,6 +101,13 @@ const EmptyState = ({
   size = 'md',
 }) => {
   const navigate = useNavigate();
+  const { hasAccess: hasRouteBuilderV2 } = useRouteBuilderV2Access();
+  // Send RB2-enabled users to the new builder wherever an empty state points at
+  // the v1 "new route" path.
+  const remapRoutePath = (path) =>
+    hasRouteBuilderV2 && (path === '/routes/new' || path === '/ride/new')
+      ? '/route-builder-2'
+      : path;
 
   const config = type ? EMPTY_STATE_CONFIGS[type] : null;
   const Icon = CustomIcon || config?.icon || MapTrifold;
@@ -121,7 +129,7 @@ const EmptyState = ({
     if (finalPrimaryAction?.onClick) {
       finalPrimaryAction.onClick();
     } else if (finalPrimaryAction?.path) {
-      navigate(finalPrimaryAction.path);
+      navigate(remapRoutePath(finalPrimaryAction.path));
     }
   };
 
@@ -129,7 +137,7 @@ const EmptyState = ({
     if (finalSecondaryAction?.onClick) {
       finalSecondaryAction.onClick();
     } else if (finalSecondaryAction?.path) {
-      navigate(finalSecondaryAction.path);
+      navigate(remapRoutePath(finalSecondaryAction.path));
     }
   };
 
