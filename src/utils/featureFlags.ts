@@ -7,7 +7,7 @@
  * Falls back to false when flags are missing or malformed. Always safe to call.
  */
 
-export type FeatureFlagName = 'event_anchored_planner';
+export type FeatureFlagName = 'event_anchored_planner' | 'today_routing_glance';
 
 interface ProfileLike {
   feature_flags?: Record<string, unknown> | null;
@@ -17,6 +17,9 @@ interface ProfileLike {
 // An explicit `false` in user_profiles.feature_flags still wins (kill switch).
 const FLAG_DEFAULTS: Record<FeatureFlagName, boolean> = {
   event_anchored_planner: true,
+  // Routing-first Today glance. Off by default — opt-in per user during
+  // rollout; an explicit false in the profile is the kill switch.
+  today_routing_glance: false,
 };
 
 /**

@@ -19,7 +19,9 @@ import NotFound from './pages/NotFound.jsx';
 
 // Pages — lazy loaded (protected, heavy)
 const Dashboard = lazy(() => import('./pages/Dashboard.jsx'));
-const TodayView = lazy(() => import('./views/today/TodayView.tsx'));
+// TodayEntry picks the live Today vs. the routing-first glance via the
+// `today_routing_glance` feature flag (parallel-route swap, live Today untouched).
+const TodayEntry = lazy(() => import('./views/today-glance/TodayEntry.tsx'));
 const RouteBuilder = lazy(() => import('./pages/RouteBuilder.jsx'));
 const TrainingDashboard = lazy(() => import('./pages/TrainingDashboard.jsx'));
 const PlannerPage = lazy(() => import('./pages/PlannerPage.tsx'));
@@ -154,12 +156,13 @@ function AppRoutes() {
 
       {/* ===== PRIMARY TABS ===== */}
 
-      {/* TODAY — front door (three-row cluster layout) */}
+      {/* TODAY — front door. TodayEntry flag-selects the live cluster layout
+          or the routing-first glance. */}
       <Route
         path="/today"
         element={
           <ProtectedRoute>
-            <TodayView />
+            <TodayEntry />
           </ProtectedRoute>
         }
       />
