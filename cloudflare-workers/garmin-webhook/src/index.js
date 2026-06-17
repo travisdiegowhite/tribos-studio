@@ -59,6 +59,7 @@ const HANDLED_HEALTH_TYPES = new Set(['dailies', 'sleeps', 'bodyComps', 'stressD
 
 // Constants mirror api/utils/garmin2/pingQueue.js.
 const ACTIVITY_PING = 'ACTIVITY_DETAIL_PING';
+const ACTIVITY_DETAIL_PUSH = 'ACTIVITY_DETAIL_PUSH';
 const HEALTH_PING_PREFIX = 'HEALTH_';
 const HEALTH_PING_SUFFIX = '_PING';
 
@@ -72,9 +73,9 @@ export default {
       return json(200, {
         status: 'ok',
         service: 'garmin-webhook-proxy-cf',
-        version: '4.0.0',
+        version: '5.0.0',
         timestamp: new Date().toISOString(),
-        model: 'ping-primary, push-fallback-during-cutover',
+        model: 'activityDetails-push-primary (samples inline), ping+legacy-push supported',
         processing: 'async (Vercel cron every 5 min)',
       });
     }
@@ -193,6 +194,58 @@ export default {
             .select('id')
             .single();
           if (!error) eventIds.push(event.id);
+          batchIndex++;
+          continue;
+        }
+
+        if (classified.kind === 'PUSH_ACTIVITY_DETAIL') {
+          // === Activity Details PUSH path (primary) ========================
+          // Store the ITEM (summary + per-second samples[]) so the processor
+          // builds full streams/power/GPS with no FIT download or pull token.
+          const detailActivityId = (item.activityId || item.summaryId)?.toString().replace(/-detail$/, '') || null;
+          if (detailActivityId) {
+            const { data: rows } = await supabase
+              .from('garmin_webhook_events')
+              .select('id, processed')
+              .eq('activity_id', detailActivityId)
+              .eq('garmin_user_id', String(userId))
+              .eq('event_type', eventType)
+              .order('created_at', { ascending: false })
+              .limit(1);
+            const existing = rows?.[0] || null;
+            if (existing) {
+              // Re-pushed details for an unprocessed row: refresh the samples.
+              if (!existing.processed) {
+                storageAttempts++;
+                await supabase.from('garmin_webhook_events')
+                  .update({ payload: item, process_error: null, retry_count: 0, next_retry_at: null })
+                  .eq('id', existing.id);
+                eventIds.push(existing.id);
+              }
+              batchIndex++;
+              continue;
+            }
+          }
+          const startSec = item.summary?.startTimeInSeconds ?? item.startTimeInSeconds ?? null;
+          storageAttempts++;
+          const { data: detailEvent, error: detailErr } = await supabase
+            .from('garmin_webhook_events')
+            .insert({
+              event_type: eventType,                  // 'ACTIVITY_DETAIL_PUSH'
+              garmin_user_id: String(userId),
+              activity_id: detailActivityId,
+              file_url: null,
+              file_type: 'JSON',
+              upload_timestamp: startSec ? new Date(startSec * 1000).toISOString() : null,
+              payload: item,                          // store the ITEM (samples included)
+              processed: false,
+              retry_count: 0,
+              next_retry_at: null,
+              batch_index: batchIndex,
+            })
+            .select('id')
+            .single();
+          if (!detailErr) eventIds.push(detailEvent.id);
           batchIndex++;
           continue;
         }
@@ -326,8 +379,12 @@ function classifyPayload(body) {
   if (Array.isArray(body.activityDetails) && body.activityDetails.length > 0) {
     const sample = body.activityDetails[0];
     const isPing = sample && typeof sample === 'object' && typeof sample.callbackURL === 'string';
+    // Detail items WITHOUT a callbackURL are an Activity Details PUSH: Garmin
+    // inlined the summary + per-second samples[]. That's the rebuild's primary
+    // "full data" path — store the item intact (not as a bare CONNECT_ACTIVITY
+    // summary, which would discard the samples).
     return {
-      kind: isPing ? 'PING_ACTIVITY_DETAIL' : 'PUSH_CONNECT_ACTIVITY',
+      kind: isPing ? 'PING_ACTIVITY_DETAIL' : 'PUSH_ACTIVITY_DETAIL',
       healthType: null,
       items: body.activityDetails,
     };
@@ -365,6 +422,7 @@ function validatePingItem(item) {
 function eventTypeFor({ kind, healthType }) {
   switch (kind) {
     case 'PING_ACTIVITY_DETAIL': return ACTIVITY_PING;
+    case 'PUSH_ACTIVITY_DETAIL': return ACTIVITY_DETAIL_PUSH;
     case 'PING_HEALTH':           return `${HEALTH_PING_PREFIX}${(healthType || '').toUpperCase()}${HEALTH_PING_SUFFIX}`;
     case 'PUSH_ACTIVITY_FILE':    return 'ACTIVITY_FILE_DATA';
     case 'PUSH_CONNECT_ACTIVITY': return 'CONNECT_ACTIVITY';

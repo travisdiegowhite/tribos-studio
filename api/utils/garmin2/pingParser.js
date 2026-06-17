@@ -22,6 +22,11 @@
 
 import { ACTIVITY_PING, HEALTH_PING_PREFIX, HEALTH_PING_SUFFIX } from './pingQueue.js';
 
+// event_type for an Activity Details PUSH (summary + inline samples[]). Kept
+// here (not in pingQueue) because it's a push, not a ping, but mirrored in the
+// Cloudflare worker's eventTypeFor. The legacy processor owns this type.
+const ACTIVITY_DETAIL_PUSH = 'ACTIVITY_DETAIL_PUSH';
+
 /**
  * Health summary types the puller (and `processHealthPushData`) knows how to
  * handle. Other health types Garmin may send (epochs, allDayRespiration,
@@ -47,6 +52,7 @@ export const HANDLED_HEALTH_TYPES = Object.freeze(
  * @param {object} body  Parsed webhook JSON envelope.
  * @returns {{
  *   kind: 'PING_ACTIVITY_DETAIL'
+ *       | 'PUSH_ACTIVITY_DETAIL'
  *       | 'PING_HEALTH'
  *       | 'PUSH_ACTIVITY_FILE'
  *       | 'PUSH_CONNECT_ACTIVITY'
@@ -67,8 +73,11 @@ export function classifyPayload(body) {
     // row shape and event_type.
     const sample = body.activityDetails[0];
     const isPing = sample && typeof sample === 'object' && typeof sample.callbackURL === 'string';
+    // Without a callbackURL it's an Activity Details PUSH (Garmin inlined the
+    // summary + per-second samples[]) — the rebuild's primary full-data path.
+    // Keep it distinct from CONNECT_ACTIVITY so the samples aren't discarded.
     return {
-      kind: isPing ? 'PING_ACTIVITY_DETAIL' : 'PUSH_CONNECT_ACTIVITY',
+      kind: isPing ? 'PING_ACTIVITY_DETAIL' : 'PUSH_ACTIVITY_DETAIL',
       healthType: null,
       items: body.activityDetails,
     };
@@ -138,6 +147,7 @@ export function validatePingItem(item) {
 export function eventTypeFor({ kind, healthType }) {
   switch (kind) {
     case 'PING_ACTIVITY_DETAIL': return ACTIVITY_PING;
+    case 'PUSH_ACTIVITY_DETAIL': return ACTIVITY_DETAIL_PUSH;
     case 'PING_HEALTH':           return `${HEALTH_PING_PREFIX}${(healthType || '').toUpperCase()}${HEALTH_PING_SUFFIX}`;
     case 'PUSH_ACTIVITY_FILE':    return 'ACTIVITY_FILE_DATA';
     case 'PUSH_CONNECT_ACTIVITY': return 'CONNECT_ACTIVITY';
