@@ -29,6 +29,13 @@ export function computeWeekNumber(planStartDate: Date, targetDate: Date): number
   return Math.floor(daysSinceStart / 7) + 1;
 }
 
+/** Optional per-row overrides (e.g. user-tweaked TSS/duration/notes from the modal). */
+export interface LibraryWorkoutOverrides {
+  targetTSS?: number;
+  targetDuration?: number;
+  notes?: string;
+}
+
 export interface BuildLibraryWorkoutRowArgs {
   workout: LibraryWorkoutLike;
   workoutId: string;
@@ -36,6 +43,7 @@ export interface BuildLibraryWorkoutRowArgs {
   userId: string;
   planStartDate: Date;
   targetDate: Date;
+  overrides?: LibraryWorkoutOverrides;
 }
 
 /**
@@ -50,8 +58,10 @@ export function buildLibraryWorkoutRow({
   userId,
   planStartDate,
   targetDate,
+  overrides,
 }: BuildLibraryWorkoutRowArgs) {
-  const targetRss = workout.targetTSS || 0;
+  const targetRss = overrides?.targetTSS ?? (workout.targetTSS || 0);
+  const duration = overrides?.targetDuration ?? (workout.duration || 0);
   return {
     plan_id: planId,
     user_id: userId,
@@ -61,10 +71,11 @@ export function buildLibraryWorkoutRow({
     workout_type: workout.category,
     workout_id: workoutId,
     name: workout.name || `${workout.category} Workout`,
-    duration_minutes: workout.duration || 0,
-    target_duration: workout.duration || 0,
+    duration_minutes: duration,
+    target_duration: duration,
     target_rss: targetRss,
     target_tss: targetRss,
+    notes: overrides?.notes ?? null,
     completed: false,
   };
 }

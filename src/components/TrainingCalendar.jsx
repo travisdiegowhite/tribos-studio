@@ -99,6 +99,8 @@ const TrainingCalendar = ({ activePlan, rides = [], formatDistance: formatDistan
   const [editModalOpen, setEditModalOpen] = useState(false);
   const [selectedWorkout, setSelectedWorkout] = useState(null);
   const [selectedDate, setSelectedDate] = useState(null);
+  // True when the detail modal is open in "add to an empty day" mode.
+  const [isAddMode, setIsAddMode] = useState(false);
   const [saving, setSaving] = useState(false);
 
   // Race goals state
@@ -596,6 +598,7 @@ const TrainingCalendar = ({ activePlan, rides = [], formatDistance: formatDistan
 
   // Open edit modal for a workout or date
   const openEditModal = (workout, date) => {
+    setIsAddMode(false);
     setSelectedWorkout(workout);
     setSelectedDate(date);
 
@@ -603,6 +606,16 @@ const TrainingCalendar = ({ activePlan, rides = [], formatDistance: formatDistan
     setModalPlannedWorkout(mappedWorkout);
     setModalWorkoutDef(mappedWorkout?.workout || null);
 
+    setEditModalOpen(true);
+  };
+
+  // Open the detail modal in "add" mode for an empty day (pick a workout to add).
+  const openAddModal = (date) => {
+    setIsAddMode(true);
+    setSelectedWorkout(null);
+    setSelectedDate(date);
+    setModalPlannedWorkout(null);
+    setModalWorkoutDef(null);
     setEditModalOpen(true);
   };
 
@@ -709,7 +722,7 @@ const TrainingCalendar = ({ activePlan, rides = [], formatDistance: formatDistan
 
   // Add a workout from the library onto a day (drag-drop or mobile tap).
   // Replaces any existing workout on that day (matches prior planner behavior).
-  const handleAddFromLibrary = async (workoutId, targetDate) => {
+  const handleAddFromLibrary = async (workoutId, targetDate, overrides = null) => {
     if (!activePlan || !user || !targetDate) return;
 
     try {
@@ -756,6 +769,7 @@ const TrainingCalendar = ({ activePlan, rides = [], formatDistance: formatDistan
           userId: user.id,
           planStartDate,
           targetDate,
+          overrides: overrides || undefined,
         }));
 
       if (insertError) throw insertError;
@@ -773,6 +787,55 @@ const TrainingCalendar = ({ activePlan, rides = [], formatDistance: formatDistan
     } catch (error) {
       console.error('Failed to add workout from library:', error);
       notifications.show({ title: 'Error', message: 'Failed to add workout', color: 'red' });
+    }
+  };
+
+  // Add the workout chosen in the modal (empty-day add mode).
+  const handleAddWorkoutFromModal = async (workoutId, overrides) => {
+    if (!selectedDate) return;
+    await handleAddFromLibrary(workoutId, selectedDate, overrides);
+    setIsAddMode(false);
+    setEditModalOpen(false);
+  };
+
+  // Swap an existing planned workout to a different library workout.
+  const handleChangeWorkout = async (workoutId) => {
+    if (!selectedWorkout?.id) return;
+    const def = getWorkoutById(workoutId);
+    if (!def) return;
+
+    try {
+      const targetRss = def.targetTSS || 0;
+      const { error } = await supabase
+        .from('planned_workouts')
+        .update({
+          workout_id: workoutId,
+          workout_type: def.category,
+          name: def.name,
+          duration_minutes: def.duration || 0,
+          target_duration: def.duration || 0,
+          // Dual-write canonical + legacy per CLAUDE.md.
+          target_rss: targetRss,
+          target_tss: targetRss,
+        })
+        .eq('id', selectedWorkout.id);
+
+      if (error) throw error;
+
+      // Reflect the swap in the open modal so the profile/timeline update in place.
+      const updatedRow = { ...selectedWorkout, workout_id: workoutId, workout_type: def.category, name: def.name, target_duration: def.duration || 0, target_tss: targetRss, target_rss: targetRss };
+      setSelectedWorkout(updatedRow);
+      const mapped = mapToModalWorkout(updatedRow);
+      setModalPlannedWorkout(mapped);
+      setModalWorkoutDef(mapped?.workout || null);
+
+      await loadPlannedWorkouts();
+      if (onPlanUpdated) onPlanUpdated();
+
+      notifications.show({ title: 'Workout Changed', message: `Changed to ${def.name}`, color: 'terracotta' });
+    } catch (error) {
+      console.error('Failed to change workout:', error);
+      notifications.show({ title: 'Error', message: 'Failed to change workout', color: 'red' });
     }
   };
 
@@ -1386,9 +1449,8 @@ const TrainingCalendar = ({ activePlan, rides = [], formatDistance: formatDistan
                       if (workout) {
                         openEditModal(workout, date);
                       } else {
-                        // Empty day → open the workout library to add one.
-                        if (isMobile) setMobileLibraryOpen(true);
-                        else setSidebarOpen(true);
+                        // Empty day → open the detail modal in "add" mode.
+                        openAddModal(date);
                       }
                     }}
                   >
@@ -1880,9 +1942,12 @@ const TrainingCalendar = ({ activePlan, rides = [], formatDistance: formatDistan
         workout={modalWorkoutDef}
         plannedWorkout={modalPlannedWorkout}
         opened={editModalOpen}
-        onClose={() => setEditModalOpen(false)}
+        onClose={() => { setEditModalOpen(false); setIsAddMode(false); }}
         onSave={handleModalSave}
         onDelete={deleteWorkout}
+        onChangeWorkout={handleChangeWorkout}
+        onAddWorkout={handleAddWorkoutFromModal}
+        isAdd={isAddMode}
         scheduledDate={selectedDate ? formatLocalDate(selectedDate) : undefined}
       />
 

@@ -82,6 +82,23 @@ describe('buildLibraryWorkoutRow', () => {
     expect(row.completed).toBe(false);
   });
 
+  it('applies overrides (TSS/duration/notes) and dual-writes the overridden load', () => {
+    const row = buildLibraryWorkoutRow({
+      workout,
+      workoutId: 'sweet_spot_3x12',
+      planId: 'plan-1',
+      userId: 'user-1',
+      planStartDate: new Date(2026, 5, 1),
+      targetDate: new Date(2026, 5, 10),
+      overrides: { targetTSS: 120, targetDuration: 90, notes: 'easy version' },
+    });
+    expect(row.target_rss).toBe(120);
+    expect(row.target_tss).toBe(120);
+    expect(row.duration_minutes).toBe(90);
+    expect(row.target_duration).toBe(90);
+    expect(row.notes).toBe('easy version');
+  });
+
   it('falls back to a generated name and zero metrics when fields are missing', () => {
     const row = buildLibraryWorkoutRow({
       workout: { category: 'endurance' },

@@ -24,6 +24,7 @@ import {
   ScrollArea,
   Collapse,
   ActionIcon,
+  Select,
 } from '@mantine/core';
 import type {
   WorkoutDefinition,
@@ -58,6 +59,7 @@ import {
 } from '@phosphor-icons/react';
 import { calculateFuelPlanFromWorkout } from '../../utils/fueling';
 import { exportWorkout, downloadWorkout } from '../../utils/workoutExport';
+import { WORKOUT_LIBRARY, getWorkoutById } from '../../data/workoutLibrary';
 
 // ============================================================
 // TYPES
@@ -71,6 +73,15 @@ interface WorkoutModalProps {
   onSave?: (updates: Partial<PlannerWorkout>) => void;
   onDelete?: () => void;
   scheduledDate?: string;
+  /** Swap the existing planned workout to a different library workout. */
+  onChangeWorkout?: (workoutId: string) => void;
+  /** Add a new workout to an empty day (add mode). */
+  onAddWorkout?: (
+    workoutId: string,
+    overrides: { targetTSS: number; targetDuration: number; notes: string }
+  ) => void;
+  /** Render in "add to an empty day" mode: pick a workout, then add it. */
+  isAdd?: boolean;
 }
 
 // ============================================================
@@ -535,19 +546,51 @@ function FuelPlanSummary({ duration, category }: { duration: number; category: W
 // ============================================================
 
 export function WorkoutModal({
-  workout,
+  workout: workoutProp,
   plannedWorkout,
   opened,
   onClose,
   onSave,
   onDelete,
   scheduledDate,
+  onChangeWorkout,
+  onAddWorkout,
+  isAdd = false,
 }: WorkoutModalProps) {
   // Local edit state
   const [editTSS, setEditTSS] = useState<number>(0);
   const [editDuration, setEditDuration] = useState<number>(0);
   const [editNotes, setEditNotes] = useState<string>('');
   const [showIntervalDetails, setShowIntervalDetails] = useState(true);
+  // Workout picker state: `chosenWorkoutId` drives add-mode preview; `pickerOpen`
+  // toggles the "Change workout" selector in view/edit mode.
+  const [chosenWorkoutId, setChosenWorkoutId] = useState<string | null>(null);
+  const [pickerOpen, setPickerOpen] = useState(false);
+
+  // Effective definition to render: the provided one, or the picked one (add mode).
+  const workout = workoutProp ?? (chosenWorkoutId ? getWorkoutById(chosenWorkoutId) : null);
+
+  // Grouped options for the picker (by category).
+  const workoutOptions = useMemo(() => {
+    const byCategory: Record<string, { value: string; label: string }[]> = {};
+    for (const w of Object.values(WORKOUT_LIBRARY)) {
+      (byCategory[w.category] ||= []).push({ value: w.id, label: w.name });
+    }
+    return Object.entries(byCategory)
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([group, items]) => ({
+        group: group.replace('_', ' '),
+        items: items.sort((a, b) => a.label.localeCompare(b.label)),
+      }));
+  }, []);
+
+  // Reset the picker whenever the modal opens.
+  useEffect(() => {
+    if (opened) {
+      setChosenWorkoutId(null);
+      setPickerOpen(false);
+    }
+  }, [opened]);
 
   // Sync local state when modal opens or workout changes
   useEffect(() => {
@@ -573,7 +616,38 @@ export function WorkoutModal({
     return summarizeIntervals(workout.structure);
   }, [workout]);
 
-  if (!workout) return null;
+  // Add mode with nothing picked yet → show just the workout picker.
+  if (!workout) {
+    if (!isAdd) return null;
+    return (
+      <Modal
+        opened={opened}
+        onClose={onClose}
+        title={
+          <Group gap="xs">
+            <Text fw={600} size="lg">Add workout</Text>
+            {scheduledDate && (
+              <Badge variant="light" color="gray" size="sm">{formatDateBadge(scheduledDate)}</Badge>
+            )}
+          </Group>
+        }
+        size="lg"
+      >
+        <Stack gap="md" p="md">
+          <Text size="sm" c="dimmed">Choose a workout to add to this day.</Text>
+          <Select
+            data={workoutOptions}
+            value={chosenWorkoutId}
+            onChange={setChosenWorkoutId}
+            placeholder="Search workouts…"
+            searchable
+            nothingFoundMessage="No workouts found"
+            maxDropdownHeight={320}
+          />
+        </Stack>
+      </Modal>
+    );
+  }
 
   const isOffBike = OFF_BIKE_CATEGORIES.includes(workout.category);
   const hasStructure = !isOffBike && workout.structure;
@@ -684,6 +758,40 @@ export function WorkoutModal({
                 </Text>
               </Group>
             )}
+
+            {/* Change / re-pick the workout */}
+            {(onChangeWorkout || isAdd) && (
+              <Box mt="sm">
+                {pickerOpen ? (
+                  <Select
+                    data={workoutOptions}
+                    value={isAdd ? chosenWorkoutId : null}
+                    onChange={(value) => {
+                      if (!value) return;
+                      if (isAdd) {
+                        setChosenWorkoutId(value);
+                      } else {
+                        onChangeWorkout?.(value);
+                      }
+                      setPickerOpen(false);
+                    }}
+                    placeholder="Search workouts…"
+                    searchable
+                    nothingFoundMessage="No workouts found"
+                    maxDropdownHeight={320}
+                  />
+                ) : (
+                  <Button
+                    variant="subtle"
+                    size="compact-xs"
+                    leftSection={<Repeat size={14} />}
+                    onClick={() => setPickerOpen(true)}
+                  >
+                    {isAdd ? 'Pick a different workout' : 'Change workout'}
+                  </Button>
+                )}
+              </Box>
+            )}
           </Paper>
 
           {/* Workout Structure - Cycling */}
@@ -793,7 +901,7 @@ export function WorkoutModal({
           <Divider label="Settings" labelPosition="center" />
 
           {/* Editable fields */}
-          {plannedWorkout && (
+          {(plannedWorkout || isAdd) && (
             <Group grow>
               <NumberInput
                 label="Target TSS"
@@ -815,13 +923,13 @@ export function WorkoutModal({
           {/* Fuel plan */}
           {!isOffBike && (
             <FuelPlanSummary
-              duration={plannedWorkout ? editDuration : workout.duration}
+              duration={plannedWorkout || isAdd ? editDuration : workout.duration}
               category={workout.category}
             />
           )}
 
           {/* Notes */}
-          {plannedWorkout && (
+          {(plannedWorkout || isAdd) && (
             <Textarea
               label="Notes"
               value={editNotes}
@@ -871,8 +979,8 @@ export function WorkoutModal({
         </Stack>
       </ScrollArea.Autosize>
 
-      {/* Footer with action buttons */}
-      {plannedWorkout && (
+      {/* Footer — edit/delete for an existing planned workout */}
+      {plannedWorkout && !isAdd && (
         <Group justify="space-between" p="md" pt="sm" style={{ borderTop: '1px solid var(--tribos-border-default)' }}>
           <Button
             variant="subtle"
@@ -900,6 +1008,31 @@ export function WorkoutModal({
               Save
             </Button>
           </Group>
+        </Group>
+      )}
+
+      {/* Footer — add the chosen workout to an empty day */}
+      {isAdd && (
+        <Group justify="flex-end" p="md" pt="sm" style={{ borderTop: '1px solid var(--tribos-border-default)' }}>
+          <Button variant="subtle" color="gray" size="sm" onClick={onClose}>
+            Cancel
+          </Button>
+          <Button
+            color="terracotta"
+            size="sm"
+            leftSection={<FloppyDisk size={16} />}
+            onClick={() => {
+              if (!workout) return;
+              onAddWorkout?.(workout.id, {
+                targetTSS: editTSS,
+                targetDuration: editDuration,
+                notes: editNotes,
+              });
+              onClose();
+            }}
+          >
+            Add to day
+          </Button>
         </Group>
       )}
     </Modal>
