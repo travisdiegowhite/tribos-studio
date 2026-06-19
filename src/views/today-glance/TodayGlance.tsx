@@ -27,6 +27,8 @@ import { FitnessRow } from './FitnessRow';
 import { C, FONT } from './tokens';
 import type { UnitsPreference } from './units';
 import type { Today, TodayRoute } from './types';
+import type { RecentRide } from '../today/shared/recentRides';
+import { fixtureRecentRides } from './fixtures/todayFixture';
 
 const HERO_HEIGHT = 380;
 const HERO_HEIGHT_MOBILE = 260;
@@ -201,6 +203,10 @@ export default function TodayGlance({ fixture }: TodayGlanceProps) {
     () => (fixture ? Promise.resolve(fixture.coach.oneLineTake) : live.coachPromise),
     [fixture, live.coachPromise],
   );
+  const recentRoutesPromise = useMemo<Promise<RecentRide[]>>(
+    () => (fixture ? Promise.resolve(fixtureRecentRides) : live.recentRoutesPromise),
+    [fixture, live.recentRoutesPromise],
+  );
   const loading = fixture ? false : live.loading;
 
   const heroHeight = isMobile ? HERO_HEIGHT_MOBILE : HERO_HEIGHT;
@@ -246,7 +252,12 @@ export default function TodayGlance({ fixture }: TodayGlanceProps) {
     // Normal: matched / generated / generating.
     const hero = (
       <Suspense fallback={<HeroSkeleton height={heroHeight} />}>
-        <HeroMap routePromise={routePromise} units={units} height={heroHeight} />
+        <HeroMap
+          routePromise={routePromise}
+          recentRoutesPromise={recentRoutesPromise}
+          units={units}
+          height={heroHeight}
+        />
       </Suspense>
     );
     const rail = (

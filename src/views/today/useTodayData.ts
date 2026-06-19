@@ -34,6 +34,7 @@ import type {
   AthleteActivityRow,
   ServerLoadRow,
 } from './athleteMetrics';
+import { mapRowToRecentRide, type RecentRide } from './shared/recentRides';
 import {
   freshnessFromFormScore,
   fatigueWordFromAFI,
@@ -47,6 +48,8 @@ import {
 // SparklinePoint is re-exported for existing consumers that import it from
 // here; the canonical definition now lives in ./athleteMetrics.
 export type { SparklinePoint };
+// RecentRide likewise now lives in ./shared/recentRides.
+export type { RecentRide };
 
 
 // ────────────────────────────────────────────────────────────────────────────
@@ -149,17 +152,6 @@ export interface ConversationMessage {
   workoutRecommendations?: any[] | null;
   trainingPlanPreview?: any | null;
   anchoredPlanPreview?: any | null;
-}
-
-export interface RecentRide {
-  id: string;
-  name: string;
-  startDate: string;
-  distanceKm: number;
-  elevationM: number;
-  durationSec: number;
-  polyline: string | null;
-  provider: string | null;
 }
 
 export interface RecentRidesData {
@@ -706,27 +698,7 @@ export function useTodayData(userId: string | null): UseTodayDataReturn {
           provider: string | null;
         }>;
         const ridesForMap: RecentRide[] = mapSource
-          .map((a) => ({
-            id: a.id,
-            name: a.name ?? 'Untitled Ride',
-            startDate: a.start_date,
-            distanceKm:
-              (Number(a.distance_meters) || Number(a.distance) || 0) / 1000,
-            elevationM:
-              Number(a.elevation_gain_meters) || Number(a.total_elevation_gain) || 0,
-            durationSec:
-              Number(a.duration_seconds) ||
-              Number(a.moving_time) ||
-              Number(a.elapsed_time) ||
-              0,
-            polyline:
-              (a.polyline as string | null) ||
-              (a.summary_polyline as string | null) ||
-              (a.map_summary_polyline as string | null) ||
-              ((a.map as { summary_polyline?: string } | null)?.summary_polyline ?? null) ||
-              null,
-            provider: a.provider,
-          }))
+          .map(mapRowToRecentRide)
           .filter((r) => r.polyline)
           .slice(0, 5);
 

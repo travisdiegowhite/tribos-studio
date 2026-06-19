@@ -5,11 +5,10 @@ import 'mapbox-gl/dist/mapbox-gl.css';
 import { ClusterCard } from './shared/ClusterCard';
 import { ClusterHeader } from './shared/ClusterHeader';
 import { decodePolyline } from './shared/decodePolyline';
+import { RIDE_PALETTE, filterRidesNearLatest } from './shared/recentRides';
 import type { RecentRide, RecentRidesData } from './useTodayData';
 
 const MAPBOX_TOKEN = import.meta.env.VITE_MAPBOX_TOKEN;
-
-const RIDE_PALETTE = ['#2A8C82', '#3BA89D', '#D4600A', '#C49A0A', '#7A7970'];
 
 interface RecentRidesProps {
   data: RecentRidesData;
@@ -68,21 +67,12 @@ export function RecentRides({ data, loading, onRideClick }: RecentRidesProps) {
       .filter((r) => r.coords.length > 0);
   }, [data.rides]);
 
-  // Filter to rides geographically near the most recent one. Otherwise a
-  // virtual/indoor ride with bogus coordinates can pull the bounds into
-  // the ocean and the map renders as a black tile. Same logic as the
-  // legacy RecentRidesMap.jsx — MAX_DISTANCE_DEG ≈ 200km at mid-latitudes.
-  const ridesForMap = useMemo<DecodedRide[]>(() => {
-    if (decodedRides.length <= 1) return decodedRides;
-    const MAX_DISTANCE_DEG = 2;
-    const [refLng, refLat] = decodedRides[0].coords[0];
-    const nearby = decodedRides.filter((r) => {
-      const [lng, lat] = r.coords[0];
-      const dist = Math.sqrt((lng - refLng) ** 2 + (lat - refLat) ** 2);
-      return dist < MAX_DISTANCE_DEG;
-    });
-    return nearby.length > 0 ? nearby : [decodedRides[0]];
-  }, [decodedRides]);
+  // Filter to rides geographically near the most recent one (drops indoor/
+  // virtual rides with bogus coordinates). Shared with the glance hero map.
+  const ridesForMap = useMemo<DecodedRide[]>(
+    () => filterRidesNearLatest(decodedRides),
+    [decodedRides],
+  );
 
   const initialViewState = useMemo(() => {
     const all = ridesForMap.flatMap((r) => r.coords);
