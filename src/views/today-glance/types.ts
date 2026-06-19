@@ -11,6 +11,9 @@
  */
 
 import type { Coordinate } from '../../types/geo';
+import type { SparklinePoint } from '../today/athleteMetrics';
+
+export type { SparklinePoint };
 
 // ── Hero state machine ──────────────────────────────────────────────────────
 // The hero map is one component that renders a state based on what's known —
@@ -88,19 +91,37 @@ export interface TodayCoach {
   oneLineTake: string | null;
 }
 
-// ── Athlete state / clearance ───────────────────────────────────────────────
+// ── Athlete state / FORM + fitness story ────────────────────────────────────
 export interface TodayAthleteState {
   fs: number | null; // Form Score
   tfi: number | null; // Training Fitness Index
   afi: number | null; // Acute Fatigue Index
   /** §5 display band, e.g. 'optimal training load'. */
   formBand: string | null;
-  /** One-word state for the clearance line (from todayVocabulary). */
+  /** One-word state for the FORM line (from todayVocabulary). */
   formWord: string;
   formColor: string;
+  /** Plain-language verdict, e.g. 'cleared for quality'. */
+  formVerdict: string;
   /** Position of the marker on the heat ramp, 0..1. */
   formRampPos: number;
   confidenceTier: 'high' | 'moderate' | 'low' | null;
+
+  // FITNESS (where you've been / heading) — 28-pt TFI sparkline + trend.
+  fitnessHistory: SparklinePoint[];
+  fitnessWord: string;
+  fitnessColor: string;
+  fitnessSlope14d: number; // TFI/day
+  fitnessDelta28d: number; // signed TFI points
+  fitnessEmpty: boolean;
+
+  // FATIGUE — relative position in the rider's own 28-day AFI range.
+  fatigueRelative: number; // 0..1
+  fatigueWord: string;
+  fatigueColor: string;
+
+  /** 28-day TFI %-change, for the persona fitness summary. */
+  ctlDeltaPct: number;
 }
 
 // ── Plan context (the single chip) ──────────────────────────────────────────
@@ -110,6 +131,16 @@ export interface TodayPlanContext {
   dayTotal: number | null;
   /** Pre-formatted chip, e.g. 'Tempo block · Day 2 of 5'. Null when no plan. */
   chipLabel: string | null;
+}
+
+// ── Forward outlook ("where you're going") ──────────────────────────────────
+export interface TodayOutlook {
+  /** Block intent verb, e.g. 'Sharpening', 'Building aerobic base'. */
+  blockGoal: string | null;
+  raceName: string | null;
+  daysToRace: number | null;
+  /** Pre-composed line, e.g. 'Sharpening for Gravel Worlds · 9 days out'. */
+  line: string | null;
 }
 
 // ── Consistency ribbon (optional, bounded) ──────────────────────────────────
@@ -129,5 +160,7 @@ export interface Today {
   coach: TodayCoach;
   athleteState: TodayAthleteState;
   planContext: TodayPlanContext;
+  /** Forward-looking "where you're going" readout. */
+  outlook: TodayOutlook;
   ribbon: ConsistencyDay[];
 }

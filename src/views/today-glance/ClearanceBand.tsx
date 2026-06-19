@@ -1,10 +1,10 @@
 /**
- * ClearanceBand — the compact "am I cleared" line of the glance.
+ * FormBand — the "am I cleared" line of the glance, labelled FORM.
  *
  * A Form heat ramp (coral → orange → teal → gold → grey, mirroring the
- * todayVocabulary formZones) with a marker at the Form Score position, inline
- * FS / TFI / AFI values, and a one-word state. This is the only athlete-state
- * element the glance keeps; the full three-panel viz moved to Progress.
+ * todayVocabulary formZones) with a marker at the Form Score position, a
+ * plain-language verdict ("cleared for quality" / "keep it easy"), and inline
+ * FS / TFI / AFI values.
  */
 
 import { Box, Group, Text } from '@mantine/core';
@@ -42,7 +42,7 @@ export function ClearanceBand({ state }: { state: TodayAthleteState }) {
             color: C.text3,
           }}
         >
-          Clearance
+          Form
         </Text>
         <Text
           style={{
@@ -74,7 +74,12 @@ export function ClearanceBand({ state }: { state: TodayAthleteState }) {
         />
       </Box>
 
-      <Group gap={16} mt={8}>
+      {/* Plain-language verdict */}
+      <Text style={{ fontFamily: FONT.body, fontSize: 13, color: C.text2, marginTop: 7 }}>
+        {state.formVerdict}
+      </Text>
+
+      <Group gap={16} mt={6}>
         <MetricChip label="FS" value={state.fs} />
         <MetricChip label="TFI" value={state.tfi} />
         <MetricChip label="AFI" value={state.afi} />

@@ -23,6 +23,7 @@ import { GlanceRail } from './GlanceRail';
 import { GlanceFooter } from './GlanceFooter';
 import { ConsistencyRibbon } from './ConsistencyRibbon';
 import { ClearanceBand } from './ClearanceBand';
+import { FitnessRow } from './FitnessRow';
 import { C, FONT } from './tokens';
 import type { UnitsPreference } from './units';
 import type { Today, TodayRoute } from './types';
@@ -75,6 +76,23 @@ function ContextLine({ today }: { today: Today }) {
         </Box>
       )}
     </Group>
+  );
+}
+
+/** Thin forward-looking line ("where you're going") under the context chip. */
+function OutlookLine({ today }: { today: Today }) {
+  if (!today.outlook.line) return null;
+  return (
+    <Text
+      style={{
+        fontFamily: FONT.mono,
+        fontSize: 12,
+        letterSpacing: '0.5px',
+        color: C.text2,
+      }}
+    >
+      → {today.outlook.line}
+    </Text>
   );
 }
 
@@ -179,6 +197,10 @@ export default function TodayGlance({ fixture }: TodayGlanceProps) {
     () => (fixture ? Promise.resolve(fixture.route) : live.routePromise),
     [fixture, live.routePromise],
   );
+  const coachPromise = useMemo<Promise<string | null>>(
+    () => (fixture ? Promise.resolve(fixture.coach.oneLineTake) : live.coachPromise),
+    [fixture, live.coachPromise],
+  );
   const loading = fixture ? false : live.loading;
 
   const heroHeight = isMobile ? HERO_HEIGHT_MOBILE : HERO_HEIGHT;
@@ -201,7 +223,9 @@ export default function TodayGlance({ fixture }: TodayGlanceProps) {
       return (
         <Stack gap={14}>
           <ContextLine today={today} />
+          <OutlookLine today={today} />
           <RestCard today={today} units={units} />
+          <FitnessRow state={today.athleteState} />
           <GlanceFooter routeId={null} />
           <ConsistencyRibbon days={today.ribbon} />
         </Stack>
@@ -211,6 +235,7 @@ export default function TodayGlance({ fixture }: TodayGlanceProps) {
       return (
         <Stack gap={14}>
           <ContextLine today={today} />
+          <OutlookLine today={today} />
           <GeneratePrompt today={today} />
           <GlanceFooter routeId={null} />
           <ConsistencyRibbon days={today.ribbon} />
@@ -225,12 +250,18 @@ export default function TodayGlance({ fixture }: TodayGlanceProps) {
       </Suspense>
     );
     const rail = (
-      <GlanceRail today={today} routePromise={routePromise} units={units} />
+      <GlanceRail
+        today={today}
+        routePromise={routePromise}
+        coachPromise={coachPromise}
+        units={units}
+      />
     );
 
     return (
       <Stack gap={14}>
         <ContextLine today={today} />
+        <OutlookLine today={today} />
         {isMobile ? (
           <Stack gap={14}>
             {hero}
@@ -242,6 +273,8 @@ export default function TodayGlance({ fixture }: TodayGlanceProps) {
             <Box style={{ background: C.card, border: `1px solid ${C.border}`, padding: 16 }}>{rail}</Box>
           </Box>
         )}
+        {/* The fitness story: where you've been / are / heading. */}
+        <FitnessRow state={today.athleteState} />
         <GlanceFooter routeId={today.route?.id ?? null} />
         <ConsistencyRibbon days={today.ribbon} />
       </Stack>
