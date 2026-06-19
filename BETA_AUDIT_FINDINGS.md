@@ -11,6 +11,29 @@ reproduce are listed under **Debunked** so we don't re-litigate them.
 
 ---
 
+## Resolution status (2026-06-19)
+
+**Fixed in this pass** (lint clean, type-check clean, 1532 existing tests pass + new
+`FtpMissingBadge` test):
+- **H1** — `RideHistoryTable` now uses the shared `estimateActivityTSS(ride, ftp)` (ftp
+  wired from `TrainingDashboard`); the divergent private formula and the `|| 3600`
+  fake-duration fallback are gone.
+- **H2** — `PowerDurationCurve` now prefers real `power_curve_summary` (MMP) per activity
+  and only estimates for activities lacking it; shows an "Estimated" badge when no real
+  data exists.
+- **M4** — `FuelCard` returns null on zero/NaN duration (no more "NaNh" / "NaN-NaNg").
+- **M1** — new `FtpMissingBadge` ("Set FTP") shown on Dashboard and TrainingDashboard
+  when FTP is unset. (Onboarding-flow change intentionally NOT done.)
+- **L1** — `Dashboard` `weekStats` initial key fixed (`activities`).
+- **L3** — `RideHistoryTable` bad-date labels unified to one sentinel.
+
+**Deferred (need the blocked Supabase data sweep before action):**
+- **M2** (canonical/legacy dual-write backfill) and **M3** (adaptive-tau unification).
+  M3 also touches frozen metrics code. Run the queries below first to confirm affected
+  rows exist, then scope a fix.
+
+---
+
 ## How to read this
 
 Severity reflects *user-facing impact for beta*, not code aesthetics. Several items

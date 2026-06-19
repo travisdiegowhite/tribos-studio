@@ -68,6 +68,7 @@ import { getWorkoutRecommendation } from '../services/workoutRecommendation';
 import { getAllPlans } from '../data/trainingPlanTemplates';
 import { calculateCTL, calculateATL, calculateTSB, interpretTSB, estimateTSS, calculateTSS, findOptimalSupplementDays } from '../utils/trainingPlans';
 import { estimateActivityTSS } from '../utils/computeFitnessSnapshots';
+import { FtpMissingBadge } from '../components/ui';
 import { translateTSB } from '../lib/fitness/translate';
 import { exportWorkout, downloadWorkout } from '../utils/workoutExport';
 import { formatDistance, formatElevation, formatSpeed } from '../utils/units';
@@ -998,6 +999,13 @@ function TrainingDashboard() {
             loading={loading}
           />
 
+          {/* FTP nudge — TSS/intensity/form below are estimated without an FTP */}
+          {!loading && !ftp && (
+            <Group justify="flex-end">
+              <FtpMissingBadge ftp={ftp} />
+            </Group>
+          )}
+
           {/* Secondary Nav Bar */}
           <SecondaryNavBar activeTab={activeTab} onTabChange={setActiveTab} />
 
@@ -1081,6 +1089,7 @@ function TrainingDashboard() {
                 rides={activities}
                 formatDistance={formatDist}
                 formatElevation={formatElev}
+                ftp={ftp}
                 maxRows={Infinity}
                 onViewRide={handleViewRide}
                 onHideRide={handleHideRide}

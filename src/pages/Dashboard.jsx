@@ -3,6 +3,7 @@ import {
   Container,
   SimpleGrid,
   Stack,
+  Group,
 } from '@mantine/core';
 import { useMediaQuery } from '@mantine/hooks';
 import { useAuth } from '../contexts/AuthContext.jsx';
@@ -15,6 +16,7 @@ import { formatDistance, formatElevation } from '../utils/units';
 import GetStartedGuide from '../components/activation/GetStartedGuide.jsx';
 import ProactiveInsightCard from '../components/activation/ProactiveInsightCard.jsx';
 import StatusBar from '../components/today/StatusBar.jsx';
+import { FtpMissingBadge } from '../components/ui';
 import { useFormConfidence } from '../hooks/useFormConfidence';
 import { useTodayTerrain } from '../hooks/useTodayTerrain';
 import IntelligenceCard from '../components/today/IntelligenceCard.jsx';
@@ -38,7 +40,7 @@ function Dashboard() {
   const [userProfile, setUserProfile] = useState(null);
   const [activePlans, setActivePlans] = useState([]);
   const [todayWorkout, setTodayWorkout] = useState(null);
-  const [weekStats, setWeekStats] = useState({ rides: 0, planned: 0, distance: 0, elevation: 0 });
+  const [weekStats, setWeekStats] = useState({ activities: 0, planned: 0, distance: 0, elevation: 0 });
   const [todayRouteMatch, setTodayRouteMatch] = useState(null);
   const [proprietaryMetrics, setProprietaryMetrics] = useState(null);
   const [metricsLoading, setMetricsLoading] = useState(true);
@@ -451,6 +453,13 @@ function Dashboard() {
             metrics={proprietaryMetrics}
             loading={metricsLoading}
           />
+
+          {/* FTP nudge — metrics below are estimated without an FTP set */}
+          {!loading && !userProfile?.ftp && (
+            <Group justify="flex-end">
+              <FtpMissingBadge ftp={userProfile?.ftp} />
+            </Group>
+          )}
 
           {/* Status Bar — CTL/ATL/TSB/This Week */}
           <StatusBar

@@ -99,6 +99,12 @@ export default function FuelCard({
     }
   }
 
+  // Guard against zero/missing/NaN duration — fueling.ts does not, so an
+  // activity with no moving time would otherwise render "NaNh" / "NaN-NaNg".
+  if (!plan || !Number.isFinite(plan.durationMinutes) || plan.durationMinutes <= 0) {
+    return null;
+  }
+
   // Format temperature for display
   const formatTemp = (celsius) => {
     if (useImperial) {

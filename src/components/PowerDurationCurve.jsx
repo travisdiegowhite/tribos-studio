@@ -51,7 +51,7 @@ const PowerDurationCurve = ({ activities, ftp, weight }) => {
 
   // Calculate best efforts for each duration
   const powerCurveData = useMemo(() => {
-    if (!activities || activities.length === 0) return { current: [], previous: [], bests: {} };
+    if (!activities || activities.length === 0) return { current: [], previous: [], bests: {}, usingRealData: false };
 
     // Filter by time range
     const days = timeRange === 'all' ? 9999 : parseInt(timeRange);
@@ -72,30 +72,41 @@ const PowerDurationCurve = ({ activities, ftp, weight }) => {
       return actDate >= previousCutoff && actDate < cutoffDate && a.average_watts > 0;
     });
 
-    // Calculate best power for each duration
-    // Note: Without raw power stream data, we estimate from average power
-    // This is a simplified version - with full power stream data, we'd calculate actual best efforts
+    // Calculate best power for each duration.
+    // Prefer real Mean Maximal Power from each activity's power_curve_summary
+    // (same JSONB used by ActivityPowerCurve). Only fall back to the avg/max
+    // decay-model estimate for activities that lack it. `usedRealData` lets the
+    // UI label the curve honestly when nothing real was available.
     const calculateBestPowers = (activityList) => {
       const bests = {};
+      let usedRealData = false;
 
       STANDARD_DURATIONS.forEach(({ seconds }) => {
         bests[seconds] = 0;
       });
 
       activityList.forEach(activity => {
+        const pcs = activity.power_curve_summary;
+        const hasPcs = pcs && typeof pcs === 'object';
         const avgWatts = activity.average_watts || 0;
         const maxWatts = activity.max_watts || avgWatts * 1.5;
         const duration = activity.moving_time || 0;
 
-        // Estimate power at different durations using power decay model
-        // P(t) = CP + W' / t (simplified hyperbolic model)
-        // We use the activity's avg and max to estimate
         STANDARD_DURATIONS.forEach(({ seconds }) => {
+          // 1) Real best effort for this duration, if recorded.
+          const realWatts = hasPcs ? pcs[`${seconds}s`] : null;
+          if (realWatts && realWatts > 0) {
+            usedRealData = true;
+            if (realWatts > bests[seconds]) {
+              bests[seconds] = Math.round(realWatts);
+            }
+            return;
+          }
+
+          // 2) Fallback: estimate via simplified power decay model.
           if (duration >= seconds) {
-            // Interpolate between max power (short) and avg power (long)
             const factor = Math.pow(seconds / duration, 0.07); // Decay factor
             const estimatedPower = avgWatts + (maxWatts - avgWatts) * Math.max(0, 1 - factor);
-
             if (estimatedPower > bests[seconds]) {
               bests[seconds] = Math.round(estimatedPower);
             }
@@ -103,11 +114,14 @@ const PowerDurationCurve = ({ activities, ftp, weight }) => {
         });
       });
 
-      return bests;
+      return { bests, usedRealData };
     };
 
-    const currentBests = calculateBestPowers(currentActivities);
-    const previousBests = calculateBestPowers(previousActivities);
+    const currentResult = calculateBestPowers(currentActivities);
+    const previousResult = calculateBestPowers(previousActivities);
+    const currentBests = currentResult.bests;
+    const previousBests = previousResult.bests;
+    const usingRealData = currentResult.usedRealData || previousResult.usedRealData;
 
     // Build chart data
     const chartData = STANDARD_DURATIONS.map(({ seconds, label, name }) => {
@@ -137,7 +151,7 @@ const PowerDurationCurve = ({ activities, ftp, weight }) => {
       sixtyMin: currentBests[3600],
     };
 
-    return { current: chartData, bests };
+    return { current: chartData, bests, usingRealData };
   }, [activities, timeRange, weight]);
 
   // Determine rider type based on power profile
@@ -218,6 +232,17 @@ const PowerDurationCurve = ({ activities, ftp, weight }) => {
             <Badge color={riderType.color} variant="light" size="sm">
               {riderType.type}
             </Badge>
+          )}
+          {!powerCurveData.usingRealData && (
+            <Tooltip
+              multiline
+              w={240}
+              label="Estimated from each ride's average and max power. Upload activities with full power data (FIT files) for true best-effort numbers."
+            >
+              <Badge color="gray" variant="outline" size="sm">
+                Estimated
+              </Badge>
+            </Tooltip>
           )}
         </Group>
         <SegmentedControl
