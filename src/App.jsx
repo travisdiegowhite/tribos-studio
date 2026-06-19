@@ -19,8 +19,8 @@ import NotFound from './pages/NotFound.jsx';
 
 // Pages — lazy loaded (protected, heavy)
 const Dashboard = lazy(() => import('./pages/Dashboard.jsx'));
-// TodayEntry picks the live Today vs. the routing-first glance via the
-// `today_routing_glance` feature flag (parallel-route swap, live Today untouched).
+// TodayEntry picks the live Today vs. the routing-first glance, gated on the
+// Route Builder 2.0 beta cohort (parallel-route swap, live Today untouched).
 const TodayEntry = lazy(() => import('./views/today-glance/TodayEntry.tsx'));
 const RouteBuilder = lazy(() => import('./pages/RouteBuilder.jsx'));
 const TrainingDashboard = lazy(() => import('./pages/TrainingDashboard.jsx'));
