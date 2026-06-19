@@ -4,10 +4,10 @@
  * I cleared / go. The prescribed workout renders as a matched route on the map
  * (the route IS the workout).
  *
- * Built as a parallel view behind a feature flag (see TodayEntry.tsx); the
- * live Today (src/views/today) is untouched. Binds entirely to one getToday()
- * state via useToday(); the hero map streams in via <Suspense> while the shell
- * paints immediately.
+ * Built as a parallel view gated on the Route Builder 2.0 beta cohort (see
+ * TodayEntry.tsx); the live Today (src/views/today) is untouched. Binds
+ * entirely to one getToday() state via useToday(); the hero map streams in via
+ * <Suspense> while the shell paints immediately.
  */
 
 import { Suspense, useMemo } from 'react';
