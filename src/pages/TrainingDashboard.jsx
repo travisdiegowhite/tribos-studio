@@ -1,5 +1,5 @@
 // Training Dashboard - Updated Dec 2024
-import React, { useState, useEffect, useMemo, useCallback, useRef, lazy, Suspense } from 'react';
+import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import {
   Container,
   Text,
@@ -40,12 +40,6 @@ import { supabase } from '../lib/supabase';
 import { CoachCard, CheckInPage } from '../components/coach';
 import TrainingLoadChart from '../components/TrainingLoadChart.jsx';
 import TrainingCalendar from '../components/TrainingCalendar.jsx';
-// Lazy-loaded: the drag-and-drop planner (Calendar tab "Plan" mode) is heavy
-// and only needed when the user opens it, so keep it out of the dashboard chunk.
-const TrainingPlanner = lazy(() =>
-  import('../components/planner').then((m) => ({ default: m.TrainingPlanner }))
-);
-import { usePlannerData } from '../hooks/usePlannerData';
 // TrainingPlanBrowser moved to PlannerPage
 import RideHistoryTable from '../components/RideHistoryTable.jsx';
 import PersonalRecordsCard from '../components/PersonalRecordsCard.jsx';
@@ -101,7 +95,7 @@ function TrainingDashboard() {
   const { user } = useAuth();
   const { activation } = useActivation(user?.id);
   const navigate = useNavigate();
-  const [searchParams, setSearchParams] = useSearchParams();
+  const [searchParams] = useSearchParams();
   const isMobile = useMediaQuery('(max-width: 768px)');
   const [loading, setLoading] = useState(true);
 
@@ -111,11 +105,6 @@ function TrainingDashboard() {
   const validTabs = ['coach', 'race', 'trends', 'power', 'history', 'insights', 'calendar'];
   const initialTab = validTabs.includes(urlTab) ? urlTab : 'calendar';
   const [activeTab, setActiveTab] = useState(initialTab);
-  // Calendar tab has two modes: 'view' (read-friendly monthly grid) and
-  // 'plan' (drag-and-drop planner). Seeded from ?mode= for deep-linking.
-  const [calendarMode, setCalendarMode] = useState(
-    () => (searchParams.get('mode') === 'plan' ? 'plan' : 'view')
-  );
   const [timeRange, setTimeRange] = useState('30');
   const [activities, setActivities] = useState([]);
   const [speedProfile, setSpeedProfile] = useState(null);
@@ -150,10 +139,6 @@ function TrainingDashboard() {
   // Cross-training activities
   const { getRecentActivitiesForContext, getDailyTSSRange } = useCrossTraining();
   const [crossTrainingContext, setCrossTrainingContext] = useState([]);
-
-  // Shared planner data (for the Calendar tab's "Plan" mode). Resolves the
-  // same canonical active plan as the View calendar so the two never diverge.
-  const planner = usePlannerData(user?.id ?? null);
 
   // Unit conversion helpers
   const isImperial = unitsPreference === 'imperial';
@@ -900,7 +885,7 @@ function TrainingDashboard() {
                   color="teal"
                   size="xs"
                   leftSection={<CalendarBlank size={14} />}
-                  onClick={() => navigate('/planner')}
+                  onClick={() => setActiveTab('calendar')}
                 >
                   Plan
                 </Button>
@@ -1012,85 +997,15 @@ function TrainingDashboard() {
           <Box>
             {/* CALENDAR TAB */}
             {activeTab === 'calendar' && (
-              <>
-                <Group justify="center" mb="md">
-                  <SegmentedControl
-                    value={calendarMode}
-                    onChange={(value) => {
-                      setCalendarMode(value);
-                      const next = new URLSearchParams(searchParams);
-                      next.set('tab', 'calendar');
-                      next.set('mode', value);
-                      setSearchParams(next, { replace: true });
-                    }}
-                    data={[
-                      { label: 'View', value: 'view' },
-                      { label: 'Plan', value: 'plan' },
-                    ]}
-                  />
-                </Group>
-
-                {calendarMode === 'view' && (
-                  <TrainingCalendar
-                    activePlan={activePlan}
-                    rides={visibleActivities}
-                    formatDistance={formatDist}
-                    ftp={ftp}
-                    isImperial={isImperial}
-                    refreshKey={calendarRefreshKey}
-                    onPlanUpdated={handlePlanUpdated}
-                  />
-                )}
-
-                {calendarMode === 'plan' && (
-                  planner.loading ? (
-                    <Group justify="center" py="xl">
-                      <Loader color="teal" />
-                    </Group>
-                  ) : planner.activePlans.length === 0 ? (
-                    <Card withBorder p="lg" style={{ borderLeft: '3px solid var(--tribos-terracotta-500, #3A5A8C)' }}>
-                      <Group gap="sm" wrap="nowrap">
-                        <ThemeIcon size="lg" variant="light" color="teal" radius="xl">
-                          <Target size={18} />
-                        </ThemeIcon>
-                        <Box style={{ flex: 1 }}>
-                          <Text size="sm" fw={600}>Ready for structured training?</Text>
-                          <Text size="xs" c="dimmed">
-                            Browse plans to start a structured block, or ask the Coach to add workouts here.
-                          </Text>
-                        </Box>
-                      </Group>
-                    </Card>
-                  ) : (
-                    <>
-                      {planner.activePlans.length > 1 && (
-                        <SegmentedControl
-                          mb="md"
-                          fullWidth
-                          color="teal"
-                          size="sm"
-                          value={planner.selectedPlanId ?? ''}
-                          onChange={planner.setSelectedPlanId}
-                          data={planner.activePlans.map((plan) => ({
-                            value: plan.id,
-                            label: `${plan.name}${plan.sport_type ? ` (${plan.sport_type})` : ''}`,
-                          }))}
-                        />
-                      )}
-                      <Suspense fallback={<Group justify="center" py="xl"><Loader color="teal" /></Group>}>
-                        <TrainingPlanner
-                          userId={user?.id ?? ''}
-                          activePlanId={planner.activePlan?.id}
-                          activities={planner.activities}
-                          ftp={planner.ftp ?? ftp}
-                          userLocation={planner.userLocation}
-                          onPlanUpdated={() => { planner.reload(); handlePlanUpdated(); }}
-                        />
-                      </Suspense>
-                    </>
-                  )
-                )}
-              </>
+              <TrainingCalendar
+                activePlan={activePlan}
+                rides={visibleActivities}
+                formatDistance={formatDist}
+                ftp={ftp}
+                isImperial={isImperial}
+                refreshKey={calendarRefreshKey}
+                onPlanUpdated={handlePlanUpdated}
+              />
             )}
 
             {/* COACH TAB */}
