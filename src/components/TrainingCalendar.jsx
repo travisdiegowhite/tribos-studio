@@ -34,7 +34,7 @@ import { useCrossTraining, ACTIVITY_CATEGORIES } from '../hooks/useCrossTraining
 import CrossTrainingModal from './CrossTrainingModal';
 import { WorkoutModal } from './planner/WorkoutModal';
 import { WorkoutLibrarySidebar } from './planner/WorkoutLibrarySidebar';
-import { ArrowsLeftRight, Barbell, Bicycle, CalendarBlank, CaretLeft, CaretRight, Check, Circle, Clock, Cloud, CloudLightning, CloudRain, CloudSun, DotsSixVertical, Fire, Heartbeat, Moon, Path, PencilSimple, PersonSimpleRun, PersonSimpleWalk, Plus, Snowflake, Sun, Trash, TrendUp, Trophy, Wind, X } from '@phosphor-icons/react';
+import { ArrowsLeftRight, Barbell, Bicycle, CalendarBlank, CalendarX, CaretLeft, CaretRight, Check, Circle, Clock, Cloud, CloudLightning, CloudRain, CloudSun, DotsSixVertical, Fire, Heartbeat, Moon, Path, PencilSimple, PersonSimpleRun, PersonSimpleWalk, Plus, Snowflake, Sun, Trash, TrendUp, Trophy, Wind, X } from '@phosphor-icons/react';
 import { useWeatherForecast } from '../hooks/useWeatherForecast';
 import { useRouteBuilderStore } from '../stores/routeBuilderStore';
 import { getWeatherSeverity, formatTemperature } from '../utils/weather';
@@ -42,6 +42,9 @@ import { useRouteBuilderV2Access } from '../hooks/useRouteBuilderV2Access';
 import { buildWorkoutRouteHref } from '../utils/workoutRouteHref';
 import { buildLibraryWorkoutRow, computeWeekNumber } from '../utils/plannedWorkoutFromLibrary';
 import { useActivityAutoLink } from '../hooks/useActivityAutoLink';
+import { useUserAvailability } from '../hooks/useUserAvailability';
+import { useTrainingPlan } from '../hooks/useTrainingPlan';
+import { AvailabilitySettings } from './settings/AvailabilitySettings';
 
 /**
  * Enhanced Training Calendar Component
@@ -147,6 +150,19 @@ const TrainingCalendar = ({ activePlan, rides = [], formatDistance: formatDistan
       if (onPlanUpdated) onPlanUpdated();
     },
   });
+
+  // Availability + reshuffle (ported from the planner)
+  const [availabilitySettingsOpen, setAvailabilitySettingsOpen] = useState(false);
+  const [reshufflePromptOpen, setReshufflePromptOpen] = useState(false);
+  const [isReshuffling, setIsReshuffling] = useState(false);
+  const {
+    weeklyAvailability,
+    dateOverrides,
+    preferences: availabilityPreferences,
+  } = useUserAvailability({ userId: user?.id, autoLoad: true });
+  // autoLoad so the hook holds its own active plan + workouts, which
+  // reshufflePlan reads from internally.
+  const { reshufflePlan } = useTrainingPlan({ userId: user?.id, autoLoad: true });
 
   const loadPlannedWorkouts = async () => {
     // Early return if no active plan
@@ -1084,6 +1100,17 @@ const TrainingCalendar = ({ activePlan, rides = [], formatDistance: formatDistan
             <Text size="lg" fw={600} style={{ color: 'var(--color-text-primary)' }}>{rangeLabel}</Text>
           </Group>
           <Group gap="xs">
+            <Tooltip label="Set training availability">
+              <Button
+                variant="subtle"
+                size="compact-xs"
+                leftSection={<CalendarX size={14} />}
+                onClick={() => setAvailabilitySettingsOpen(true)}
+                style={{ fontFamily: 'var(--font-mono, monospace)', letterSpacing: '0.05em', textTransform: 'uppercase' }}
+              >
+                Availability
+              </Button>
+            </Tooltip>
             <Button variant="subtle" size="compact-xs" onClick={goToToday} style={{ fontFamily: 'var(--font-mono, monospace)', letterSpacing: '0.05em', textTransform: 'uppercase' }}>
               Today
             </Button>
@@ -1600,6 +1627,105 @@ const TrainingCalendar = ({ activePlan, rides = [], formatDistance: formatDistan
       >
         <Box style={{ height: '70vh' }}>{librarySidebar}</Box>
       </Drawer>
+
+      {/* Availability Settings Drawer */}
+      <Drawer
+        opened={availabilitySettingsOpen}
+        onClose={() => setAvailabilitySettingsOpen(false)}
+        title="Training Availability"
+        position={isMobile ? 'bottom' : 'right'}
+        size={isMobile ? '90%' : 'lg'}
+      >
+        <AvailabilitySettings
+          userId={user?.id}
+          onAvailabilityChange={() => {
+            // Prompt to reshuffle if there's an active plan
+            if (activePlan?.id) {
+              setReshufflePromptOpen(true);
+            }
+          }}
+        />
+      </Drawer>
+
+      {/* Reshuffle prompt — appears when availability changes with an active plan */}
+      {reshufflePromptOpen && activePlan?.id && (
+        <Box
+          style={{
+            position: 'fixed',
+            bottom: 20,
+            left: '50%',
+            transform: 'translateX(-50%)',
+            zIndex: 1000,
+            maxWidth: 420,
+            width: '90%',
+          }}
+        >
+          <Paper p="md" radius="md" shadow="lg" withBorder style={{ borderColor: 'var(--mantine-color-terracotta-7)' }}>
+            <Stack gap="xs">
+              <Group gap="xs" wrap="nowrap">
+                <CalendarX size={18} color="var(--mantine-color-terracotta-5)" />
+                <Text size="sm" fw={500}>Your availability changed</Text>
+              </Group>
+              <Text size="xs" c="dimmed">
+                Would you like to reshuffle your active plan to fit your updated schedule?
+                Workouts on blocked days will be moved to available days.
+              </Text>
+              <Group gap="xs" justify="flex-end">
+                <Button variant="subtle" size="xs" color="gray" onClick={() => setReshufflePromptOpen(false)}>
+                  Not now
+                </Button>
+                <Button
+                  variant="filled"
+                  size="xs"
+                  color="teal"
+                  loading={isReshuffling}
+                  onClick={async () => {
+                    setIsReshuffling(true);
+                    try {
+                      const result = await reshufflePlan({
+                        weeklyAvailability,
+                        dateOverrides,
+                        preferences: {
+                          maxWorkoutsPerWeek: availabilityPreferences?.maxWorkoutsPerWeek ?? null,
+                          preferWeekendLongRides: availabilityPreferences?.preferWeekendLongRides ?? true,
+                        },
+                      });
+
+                      setReshufflePromptOpen(false);
+
+                      if (result.success && result.redistributions.length > 0) {
+                        notifications.show({
+                          title: 'Plan Updated',
+                          message: `${result.redistributions.length} workout${result.redistributions.length > 1 ? 's' : ''} moved to fit your schedule`,
+                          color: 'terracotta',
+                        });
+                        await loadPlannedWorkouts();
+                        if (onPlanUpdated) onPlanUpdated();
+                      } else if (result.success) {
+                        notifications.show({
+                          title: 'No Changes Needed',
+                          message: 'All your workouts already fit your schedule',
+                          color: 'blue',
+                        });
+                      } else {
+                        notifications.show({
+                          title: 'Reshuffle Failed',
+                          message: 'Could not update your plan. Please try again.',
+                          color: 'red',
+                        });
+                      }
+                    } finally {
+                      setIsReshuffling(false);
+                    }
+                  }}
+                >
+                  Reshuffle Plan
+                </Button>
+              </Group>
+            </Stack>
+          </Paper>
+        </Box>
+      )}
 
       {/* Workout Detail + Edit Modal (shared with planner) */}
       <WorkoutModal
