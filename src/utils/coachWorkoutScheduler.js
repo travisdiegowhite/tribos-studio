@@ -23,11 +23,17 @@ const VALID_WORKOUT_TYPES = [
 async function resolveActivePlanId(supabase, userId, planId) {
   if (planId) return planId;
 
+  // Canonical active plan = most-recent-active, tie-broken by created_at.
+  // Must match the dashboard/planner resolvers (usePlannerData,
+  // TrainingDashboard) so the coach writes to the SAME plan those surfaces
+  // display. Diverging sort keys were the root cause of coach-added rides
+  // landing in a plan the planner wasn't showing.
   const { data: activePlan } = await supabase
     .from('training_plans')
     .select('id')
     .eq('user_id', userId)
     .eq('status', 'active')
+    .order('started_at', { ascending: false })
     .order('created_at', { ascending: false })
     .limit(1)
     .maybeSingle();

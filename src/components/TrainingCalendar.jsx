@@ -15,8 +15,13 @@ import {
   Divider,
   SimpleGrid,
   ThemeIcon,
+  Flex,
+  Drawer,
+  Collapse,
+  UnstyledButton,
 } from '@mantine/core';
 import { notifications } from '@mantine/notifications';
+import { useMediaQuery } from '@mantine/hooks';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
 import { WORKOUT_TYPES, TRAINING_PHASES, calculateTSS, estimateTSS } from '../utils/trainingPlans';
@@ -30,12 +35,22 @@ import { FuelBadge } from './fueling';
 import { useCrossTraining, ACTIVITY_CATEGORIES } from '../hooks/useCrossTraining';
 import CrossTrainingModal from './CrossTrainingModal';
 import { WorkoutModal } from './planner/WorkoutModal';
-import { ArrowsLeftRight, Barbell, Bicycle, CalendarBlank, CaretLeft, CaretRight, Check, Circle, Clock, Cloud, CloudLightning, CloudRain, CloudSun, DotsSixVertical, Fire, Heartbeat, Moon, Path, PencilSimple, PersonSimpleRun, PersonSimpleWalk, Plus, Snowflake, Sun, Trash, TrendUp, Trophy, Wind, X } from '@phosphor-icons/react';
+import { WorkoutLibrarySidebar } from './planner/WorkoutLibrarySidebar';
+import { ArrowsLeftRight, Barbell, Bicycle, CalendarBlank, CalendarX, CaretDown, CaretLeft, CaretRight, Check, Circle, Clock, Cloud, CloudLightning, CloudRain, CloudSun, DotsSixVertical, Fire, Heartbeat, Moon, Path, PencilSimple, PersonSimpleRun, PersonSimpleWalk, Plus, Snowflake, Sun, Trash, TrendUp, Trophy, Wind, X } from '@phosphor-icons/react';
 import { useWeatherForecast } from '../hooks/useWeatherForecast';
 import { useRouteBuilderStore } from '../stores/routeBuilderStore';
 import { getWeatherSeverity, formatTemperature } from '../utils/weather';
 import { useRouteBuilderV2Access } from '../hooks/useRouteBuilderV2Access';
 import { buildWorkoutRouteHref } from '../utils/workoutRouteHref';
+import { buildLibraryWorkoutRow, computeWeekNumber } from '../utils/plannedWorkoutFromLibrary';
+import { useActivityAutoLink } from '../hooks/useActivityAutoLink';
+import { useUserAvailability } from '../hooks/useUserAvailability';
+import { useTrainingPlan } from '../hooks/useTrainingPlan';
+import { AvailabilitySettings } from './settings/AvailabilitySettings';
+import { useWorkoutAdaptations } from '../hooks/useWorkoutAdaptations';
+import { AdaptationInsightsPanel } from './planner/AdaptationInsightsPanel';
+import { AdaptationFeedbackModal } from './planner/AdaptationFeedbackModal';
+import { shouldPromptForFeedback } from '../utils/adaptationTrigger';
 
 /**
  * Enhanced Training Calendar Component
@@ -84,6 +99,8 @@ const TrainingCalendar = ({ activePlan, rides = [], formatDistance: formatDistan
   const [editModalOpen, setEditModalOpen] = useState(false);
   const [selectedWorkout, setSelectedWorkout] = useState(null);
   const [selectedDate, setSelectedDate] = useState(null);
+  // True when the detail modal is open in "add to an empty day" mode.
+  const [isAddMode, setIsAddMode] = useState(false);
   const [saving, setSaving] = useState(false);
 
   // Race goals state
@@ -103,6 +120,22 @@ const TrainingCalendar = ({ activePlan, rides = [], formatDistance: formatDistan
   // Drag and drop state
   const [draggedWorkout, setDraggedWorkout] = useState(null);
   const [dragOverDate, setDragOverDate] = useState(null);
+  // True while a workout is being dragged out of the library sidebar (so the
+  // calendar can highlight drop targets even though `draggedWorkout` — which
+  // only tracks reschedule drags — is null).
+  const [libraryDragActive, setLibraryDragActive] = useState(false);
+
+  // Workout library sidebar (drag-to-add) state
+  const isMobile = useMediaQuery('(max-width: 768px)');
+  const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [mobileLibraryOpen, setMobileLibraryOpen] = useState(false);
+  const [sidebarFilter, setSidebarFilter] = useState({
+    category: null,
+    searchQuery: '',
+    difficulty: null,
+  });
+  // Mobile tap-to-assign: the library workout the user picked to drop on a day.
+  const [selectedWorkoutId, setSelectedWorkoutId] = useState(null);
 
   // Helper to get plan start date (supports both old and new schema)
   const getPlanStartDate = (plan) => plan?.started_at || plan?.start_date;
@@ -113,6 +146,106 @@ const TrainingCalendar = ({ activePlan, rides = [], formatDistance: formatDistan
     if (!user?.id || !activePlan?.id) return;
     loadPlannedWorkouts();
   }, [user?.id, activePlan?.id, anchorDate, refreshKey]);
+
+  // Auto-link completed cycling rides to planned workouts on the same day.
+  useActivityAutoLink({
+    userId: user?.id,
+    activities: rides,
+    plannedWorkouts,
+    ftp,
+    onLinked: () => {
+      loadPlannedWorkouts();
+      if (onPlanUpdated) onPlanUpdated();
+    },
+  });
+
+  // Availability + reshuffle (ported from the planner)
+  const [availabilitySettingsOpen, setAvailabilitySettingsOpen] = useState(false);
+  const [reshufflePromptOpen, setReshufflePromptOpen] = useState(false);
+  const [isReshuffling, setIsReshuffling] = useState(false);
+  const {
+    weeklyAvailability,
+    dateOverrides,
+    preferences: availabilityPreferences,
+  } = useUserAvailability({ userId: user?.id, autoLoad: true });
+  // autoLoad so the hook holds its own active plan + workouts, which
+  // reshufflePlan reads from internally.
+  const { reshufflePlan } = useTrainingPlan({ userId: user?.id, autoLoad: true });
+
+  // Adaptation insights + feedback (ported from the planner)
+  const [adaptationsOpen, setAdaptationsOpen] = useState(false);
+  const [feedbackModalOpen, setFeedbackModalOpen] = useState(false);
+  const [selectedAdaptation, setSelectedAdaptation] = useState(null);
+  const [weekSummary, setWeekSummary] = useState(null);
+  const {
+    adaptations,
+    insights,
+    loading: adaptationsLoading,
+    fetchAdaptations,
+    getWeekSummary,
+    updateAdaptationFeedback,
+    dismissInsight,
+    applyInsight,
+  } = useWorkoutAdaptations({ userId: user?.id });
+
+  // The insights panel summarizes the *current* week (Monday of this week),
+  // independent of the 4-week scroll anchor.
+  const currentWeekStart = useMemo(() => {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const dow = today.getDay(); // 0=Sun, 1=Mon...
+    const daysBack = dow === 0 ? 6 : dow - 1; // back to this week's Monday
+    const monday = new Date(today);
+    monday.setDate(today.getDate() - daysBack);
+    return formatLocalDate(monday);
+  }, []);
+
+  // Fetch adaptations + week summary for the current week
+  useEffect(() => {
+    if (!user?.id) return;
+    const weekEnd = new Date(currentWeekStart);
+    weekEnd.setDate(weekEnd.getDate() + 14); // fetch 2 weeks
+    fetchAdaptations({ weekStart: currentWeekStart, weekEnd: weekEnd.toISOString().split('T')[0] });
+    getWeekSummary(currentWeekStart).then(setWeekSummary);
+  }, [user?.id, currentWeekStart, fetchAdaptations, getWeekSummary]);
+
+  // Auto-prompt for feedback on the first adaptation that needs it (but not
+  // while the edit modal is open, so the two modals don't fight).
+  useEffect(() => {
+    if (adaptations.length === 0 || editModalOpen) return;
+    const needsFeedback = adaptations.find(
+      (a) => !a.userFeedback?.reason && shouldPromptForFeedback(a)
+    );
+    if (needsFeedback && !feedbackModalOpen) {
+      setSelectedAdaptation(needsFeedback);
+      setFeedbackModalOpen(true);
+    }
+  }, [adaptations, feedbackModalOpen, editModalOpen]);
+
+  const adaptationsNeedingFeedback = useMemo(
+    () => adaptations.filter((a) => !a.userFeedback?.reason && shouldPromptForFeedback(a)).length,
+    [adaptations]
+  );
+
+  const handleAdaptationFeedback = async (reason, notes) => {
+    if (!selectedAdaptation) return;
+    await updateAdaptationFeedback(selectedAdaptation.id, { reason, notes });
+    setFeedbackModalOpen(false);
+    setSelectedAdaptation(null);
+  };
+
+  const handleViewAdaptation = (adaptation) => {
+    setSelectedAdaptation(adaptation);
+    setFeedbackModalOpen(true);
+  };
+
+  const handleDismissInsight = (insightId) => dismissInsight(insightId);
+
+  const handleApplyInsight = async (insightId) => {
+    const insight = insights.find((i) => i.id === insightId);
+    if (!insight?.suggestedAction) return;
+    await applyInsight(insightId);
+  };
 
   const loadPlannedWorkouts = async () => {
     // Early return if no active plan
@@ -427,7 +560,21 @@ const TrainingCalendar = ({ activePlan, rides = [], formatDistance: formatDistan
   // Map a raw Supabase workout row to PlannerWorkout shape for WorkoutModal
   const mapToModalWorkout = (raw) => {
     if (!raw) return null;
-    const workoutDef = raw.workout_id ? getWorkoutById(raw.workout_id) : undefined;
+    const libraryDef = raw.workout_id ? getWorkoutById(raw.workout_id) : undefined;
+    // Fall back to a minimal definition synthesized from the row so the modal
+    // still opens (and stays editable) for rest days / coach / custom workouts
+    // whose workout_id doesn't resolve to the library. WorkoutModal returns null
+    // without a `workout`, and its definition-only sections (profile, intervals,
+    // exercises, export) self-skip when their fields are absent.
+    const workoutDef = libraryDef || {
+      id: raw.workout_id || 'custom',
+      name: raw.name || (raw.workout_type ? `${raw.workout_type} workout` : 'Workout'),
+      category: raw.workout_type || 'endurance',
+      duration: raw.target_duration || 0,
+      targetTSS: (raw.target_tss ?? raw.target_rss) || 0,
+      intensityFactor: 0,
+      description: '',
+    };
     return {
       id: raw.id || '',
       planId: raw.plan_id || '',
@@ -436,6 +583,7 @@ const TrainingCalendar = ({ activePlan, rides = [], formatDistance: formatDistan
       scheduledDate: raw.scheduled_date || '',
       workoutId: raw.workout_id || null,
       workoutType: raw.workout_type || null,
+      name: raw.name || '',
       targetTSS: raw.target_tss || 0,
       targetDuration: raw.target_duration || 0,
       notes: raw.notes || '',
@@ -444,12 +592,13 @@ const TrainingCalendar = ({ activePlan, rides = [], formatDistance: formatDistan
       activityId: raw.activity_id || null,
       actualTSS: raw.actual_tss || null,
       actualDuration: raw.actual_duration || null,
-      workout: workoutDef || undefined,
+      workout: workoutDef,
     };
   };
 
   // Open edit modal for a workout or date
   const openEditModal = (workout, date) => {
+    setIsAddMode(false);
     setSelectedWorkout(workout);
     setSelectedDate(date);
 
@@ -457,6 +606,16 @@ const TrainingCalendar = ({ activePlan, rides = [], formatDistance: formatDistan
     setModalPlannedWorkout(mappedWorkout);
     setModalWorkoutDef(mappedWorkout?.workout || null);
 
+    setEditModalOpen(true);
+  };
+
+  // Open the detail modal in "add" mode for an empty day (pick a workout to add).
+  const openAddModal = (date) => {
+    setIsAddMode(true);
+    setSelectedWorkout(null);
+    setSelectedDate(date);
+    setModalPlannedWorkout(null);
+    setModalWorkoutDef(null);
     setEditModalOpen(true);
   };
 
@@ -545,7 +704,8 @@ const TrainingCalendar = ({ activePlan, rides = [], formatDistance: formatDistan
   const handleDragOver = (e, date) => {
     e.preventDefault();
     e.dataTransfer.dropEffect = 'move';
-    if (date && draggedWorkout) {
+    // Highlight for both reschedule drags (draggedWorkout) and library drags.
+    if (date && (draggedWorkout || libraryDragActive)) {
       // Use formatLocalDate for consistent date comparison
       setDragOverDate(formatLocalDate(date));
     }
@@ -560,9 +720,143 @@ const TrainingCalendar = ({ activePlan, rides = [], formatDistance: formatDistan
     setDragOverDate(null);
   };
 
+  // Add a workout from the library onto a day (drag-drop or mobile tap).
+  // Replaces any existing workout on that day (matches prior planner behavior).
+  const handleAddFromLibrary = async (workoutId, targetDate, overrides = null) => {
+    if (!activePlan || !user || !targetDate) return;
+
+    try {
+      const workout = getWorkoutById(workoutId);
+      if (!workout) return;
+
+      const planStartDate = parsePlanStartDate(getPlanStartDate(activePlan));
+      if (!planStartDate) {
+        notifications.show({ title: 'Error', message: 'Unable to parse plan start date', color: 'red' });
+        return;
+      }
+
+      const weekNumber = computeWeekNumber(planStartDate, targetDate);
+      if (activePlan.duration_weeks && (weekNumber < 1 || weekNumber > activePlan.duration_weeks)) {
+        notifications.show({
+          title: 'Cannot Add Workout',
+          message: 'That date is outside the plan duration',
+          color: 'yellow',
+        });
+        return;
+      }
+
+      const scheduledDate = formatLocalDate(targetDate);
+
+      // Replace any existing workout on that day (the table has a unique
+      // (plan_id, scheduled_date) constraint, so an insert would otherwise fail).
+      const existing = plannedWorkouts.find((w) => w.scheduled_date === scheduledDate);
+      let replacedName = null;
+      if (existing) {
+        replacedName = getWorkoutById(existing.workout_id)?.name || existing.name || 'workout';
+        const { error: delError } = await supabase
+          .from('planned_workouts')
+          .delete()
+          .eq('id', existing.id);
+        if (delError) throw delError;
+      }
+
+      const { error: insertError } = await supabase
+        .from('planned_workouts')
+        .insert(buildLibraryWorkoutRow({
+          workout,
+          workoutId,
+          planId: activePlan.id,
+          userId: user.id,
+          planStartDate,
+          targetDate,
+          overrides: overrides || undefined,
+        }));
+
+      if (insertError) throw insertError;
+
+      await loadPlannedWorkouts();
+      if (onPlanUpdated) onPlanUpdated();
+
+      notifications.show({
+        title: replacedName ? 'Workout Replaced' : 'Workout Added',
+        message: replacedName
+          ? `Replaced ${replacedName} with ${workout.name}`
+          : `Added ${workout.name} to ${targetDate.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}`,
+        color: 'terracotta',
+      });
+    } catch (error) {
+      console.error('Failed to add workout from library:', error);
+      notifications.show({ title: 'Error', message: 'Failed to add workout', color: 'red' });
+    }
+  };
+
+  // Add the workout chosen in the modal (empty-day add mode).
+  const handleAddWorkoutFromModal = async (workoutId, overrides) => {
+    if (!selectedDate) return;
+    await handleAddFromLibrary(workoutId, selectedDate, overrides);
+    setIsAddMode(false);
+    setEditModalOpen(false);
+  };
+
+  // Swap an existing planned workout to a different library workout.
+  const handleChangeWorkout = async (workoutId) => {
+    if (!selectedWorkout?.id) return;
+    const def = getWorkoutById(workoutId);
+    if (!def) return;
+
+    try {
+      const targetRss = def.targetTSS || 0;
+      const { error } = await supabase
+        .from('planned_workouts')
+        .update({
+          workout_id: workoutId,
+          workout_type: def.category,
+          name: def.name,
+          duration_minutes: def.duration || 0,
+          target_duration: def.duration || 0,
+          // Dual-write canonical + legacy per CLAUDE.md.
+          target_rss: targetRss,
+          target_tss: targetRss,
+        })
+        .eq('id', selectedWorkout.id);
+
+      if (error) throw error;
+
+      // Reflect the swap in the open modal so the profile/timeline update in place.
+      const updatedRow = { ...selectedWorkout, workout_id: workoutId, workout_type: def.category, name: def.name, target_duration: def.duration || 0, target_tss: targetRss, target_rss: targetRss };
+      setSelectedWorkout(updatedRow);
+      const mapped = mapToModalWorkout(updatedRow);
+      setModalPlannedWorkout(mapped);
+      setModalWorkoutDef(mapped?.workout || null);
+
+      await loadPlannedWorkouts();
+      if (onPlanUpdated) onPlanUpdated();
+
+      notifications.show({ title: 'Workout Changed', message: `Changed to ${def.name}`, color: 'terracotta' });
+    } catch (error) {
+      console.error('Failed to change workout:', error);
+      notifications.show({ title: 'Error', message: 'Failed to change workout', color: 'red' });
+    }
+  };
+
   const handleDrop = async (e, targetDate) => {
     e.preventDefault();
     setDragOverDate(null);
+
+    // Library drag-to-add: the library WorkoutCard tags its payload with
+    // application/json {source:'library'}; reschedule drags set only text/plain.
+    let libraryPayload = null;
+    try {
+      const raw = e.dataTransfer.getData('application/json');
+      if (raw) libraryPayload = JSON.parse(raw);
+    } catch {
+      libraryPayload = null;
+    }
+    if (libraryPayload?.source === 'library' && libraryPayload.workoutId) {
+      setLibraryDragActive(false);
+      await handleAddFromLibrary(libraryPayload.workoutId, targetDate);
+      return;
+    }
 
     console.log('handleDrop called:', { draggedWorkout, targetDate, activePlan: activePlan?.id });
 
@@ -787,6 +1081,21 @@ const TrainingCalendar = ({ activePlan, rides = [], formatDistance: formatDistan
   const currentWeek = getCurrentWeekNumber();
   const currentPhase = getCurrentPhase();
 
+  // Workout library sidebar (shared by the desktop rail and the mobile drawer).
+  const librarySidebar = (
+    <WorkoutLibrarySidebar
+      filter={sidebarFilter}
+      onFilterChange={(partial) => setSidebarFilter((prev) => ({ ...prev, ...partial }))}
+      onDragStart={() => setLibraryDragActive(true)}
+      onDragEnd={() => setLibraryDragActive(false)}
+      onWorkoutTap={(workoutId) => {
+        setSelectedWorkoutId(workoutId);
+        setMobileLibraryOpen(false);
+      }}
+      isMobile={isMobile}
+    />
+  );
+
   return (
     <Stack gap="md">
       {/* Plan Overview Header */}
@@ -887,12 +1196,114 @@ const TrainingCalendar = ({ activePlan, rides = [], formatDistance: formatDistan
         </Paper>
       )}
 
-      {/* Calendar */}
-      <Card>
+      {/* Training Insights — collapsible, directly under the weekly summary */}
+      {activePlan && (weekSummary || adaptations.length > 0 || insights.length > 0) && (
+        <Paper p="md" withBorder>
+          <UnstyledButton onClick={() => setAdaptationsOpen((o) => !o)} style={{ width: '100%' }}>
+            <Group justify="space-between">
+              <Group gap="xs">
+                {adaptationsOpen ? <CaretDown size={16} /> : <CaretRight size={16} />}
+                <Text fw={600} size="sm">Training Insights</Text>
+                {adaptationsNeedingFeedback > 0 && (
+                  <Badge color="terracotta" size="sm" variant="filled">
+                    {adaptationsNeedingFeedback}
+                  </Badge>
+                )}
+              </Group>
+              <Text size="xs" c="dimmed">{adaptationsOpen ? 'Hide' : 'Show'}</Text>
+            </Group>
+          </UnstyledButton>
+          <Collapse in={adaptationsOpen}>
+            <Box mt="sm">
+              <AdaptationInsightsPanel
+                weekStart={currentWeekStart}
+                adaptations={adaptations}
+                insights={insights}
+                weekSummary={weekSummary}
+                onDismissInsight={handleDismissInsight}
+                onApplyInsight={handleApplyInsight}
+                onViewAdaptation={handleViewAdaptation}
+                isLoading={adaptationsLoading}
+              />
+            </Box>
+          </Collapse>
+        </Paper>
+      )}
+
+      {/* Mobile tap-to-assign banner */}
+      {isMobile && selectedWorkoutId && (
+        <Paper p="xs" withBorder style={{ borderLeft: '3px solid var(--color-teal)' }}>
+          <Group justify="space-between" wrap="nowrap">
+            <Text size="sm" fw={500}>
+              Tap a day to add {getWorkoutById(selectedWorkoutId)?.name || 'workout'}
+            </Text>
+            <ActionIcon variant="subtle" color="gray" onClick={() => setSelectedWorkoutId(null)}>
+              <X size={16} />
+            </ActionIcon>
+          </Group>
+        </Paper>
+      )}
+
+      {/* Calendar + workout library */}
+      <Flex gap="md" align="flex-start">
+        {/* Desktop library rail */}
+        {!isMobile && sidebarOpen && (
+          <Box
+            style={{
+              width: 280,
+              flexShrink: 0,
+              alignSelf: 'stretch',
+              position: 'sticky',
+              top: 80,
+              height: 'calc(100vh - 120px)',
+            }}
+          >
+            {librarySidebar}
+          </Box>
+        )}
+
+        <Card style={{ flex: 1, minWidth: 0 }}>
         {/* Calendar Header */}
         <Group justify="space-between" mb="md">
-          <Text size="lg" fw={600} style={{ color: 'var(--color-text-primary)' }}>{rangeLabel}</Text>
           <Group gap="xs">
+            {!isMobile && (
+              <Tooltip label={sidebarOpen ? 'Hide workout library' : 'Show workout library'}>
+                <Button
+                  variant="subtle"
+                  size="compact-xs"
+                  leftSection={sidebarOpen ? <CaretLeft size={14} /> : <CaretRight size={14} />}
+                  onClick={() => setSidebarOpen((o) => !o)}
+                  style={{ fontFamily: 'var(--font-mono, monospace)', letterSpacing: '0.05em', textTransform: 'uppercase' }}
+                >
+                  Library
+                </Button>
+              </Tooltip>
+            )}
+            {isMobile && (
+              <Button
+                variant="light"
+                color="teal"
+                size="compact-xs"
+                leftSection={<Plus size={14} />}
+                onClick={() => setMobileLibraryOpen(true)}
+              >
+                Add workout
+              </Button>
+            )}
+            <Text size="lg" fw={600} style={{ color: 'var(--color-text-primary)' }}>{rangeLabel}</Text>
+          </Group>
+          <Group gap="xs">
+            <Tooltip label="Set training availability">
+              <Button
+                variant="subtle"
+                size="compact-xs"
+                leftSection={<CalendarX size={14} />}
+                onClick={() => setAvailabilitySettingsOpen(true)}
+                style={{ fontFamily: 'var(--font-mono, monospace)', letterSpacing: '0.05em', textTransform: 'uppercase' }}
+              >
+                Availability
+              </Button>
+            </Tooltip>
             <Button variant="subtle" size="compact-xs" onClick={goToToday} style={{ fontFamily: 'var(--font-mono, monospace)', letterSpacing: '0.05em', textTransform: 'uppercase' }}>
               Today
             </Button>
@@ -1027,7 +1438,21 @@ const TrainingCalendar = ({ activePlan, rides = [], formatDistance: formatDistan
                       cursor: hasDraggableWorkout ? 'grab' : (activePlan ? 'pointer' : 'default'),
                       transition: 'background-color 0.2s, border 0.2s',
                     }}
-                    onClick={() => activePlan && openEditModal(workout, date)}
+                    onClick={() => {
+                      // Mobile tap-to-assign: a library workout is selected → drop it here.
+                      if (selectedWorkoutId) {
+                        handleAddFromLibrary(selectedWorkoutId, date);
+                        setSelectedWorkoutId(null);
+                        return;
+                      }
+                      if (!activePlan) return;
+                      if (workout) {
+                        openEditModal(workout, date);
+                      } else {
+                        // Empty day → open the detail modal in "add" mode.
+                        openAddModal(date);
+                      }
+                    }}
                   >
                     <Stack gap={4}>
                       {/* Date and completion checkbox */}
@@ -1387,16 +1812,142 @@ const TrainingCalendar = ({ activePlan, rides = [], formatDistance: formatDistan
             </Stack>
           </>
         )}
-      </Card>
+        </Card>
+      </Flex>
+
+      {/* Mobile workout library drawer */}
+      <Drawer
+        opened={isMobile && mobileLibraryOpen}
+        onClose={() => setMobileLibraryOpen(false)}
+        position="bottom"
+        size="80%"
+        title="Workout Library"
+        padding={0}
+      >
+        <Box style={{ height: '70vh' }}>{librarySidebar}</Box>
+      </Drawer>
+
+      {/* Availability Settings Drawer */}
+      <Drawer
+        opened={availabilitySettingsOpen}
+        onClose={() => setAvailabilitySettingsOpen(false)}
+        title="Training Availability"
+        position={isMobile ? 'bottom' : 'right'}
+        size={isMobile ? '90%' : 'lg'}
+      >
+        <AvailabilitySettings
+          userId={user?.id}
+          onAvailabilityChange={() => {
+            // Prompt to reshuffle if there's an active plan
+            if (activePlan?.id) {
+              setReshufflePromptOpen(true);
+            }
+          }}
+        />
+      </Drawer>
+
+      {/* Reshuffle prompt — appears when availability changes with an active plan */}
+      {reshufflePromptOpen && activePlan?.id && (
+        <Box
+          style={{
+            position: 'fixed',
+            bottom: 20,
+            left: '50%',
+            transform: 'translateX(-50%)',
+            zIndex: 1000,
+            maxWidth: 420,
+            width: '90%',
+          }}
+        >
+          <Paper p="md" radius="md" shadow="lg" withBorder style={{ borderColor: 'var(--mantine-color-terracotta-7)' }}>
+            <Stack gap="xs">
+              <Group gap="xs" wrap="nowrap">
+                <CalendarX size={18} color="var(--mantine-color-terracotta-5)" />
+                <Text size="sm" fw={500}>Your availability changed</Text>
+              </Group>
+              <Text size="xs" c="dimmed">
+                Would you like to reshuffle your active plan to fit your updated schedule?
+                Workouts on blocked days will be moved to available days.
+              </Text>
+              <Group gap="xs" justify="flex-end">
+                <Button variant="subtle" size="xs" color="gray" onClick={() => setReshufflePromptOpen(false)}>
+                  Not now
+                </Button>
+                <Button
+                  variant="filled"
+                  size="xs"
+                  color="teal"
+                  loading={isReshuffling}
+                  onClick={async () => {
+                    setIsReshuffling(true);
+                    try {
+                      const result = await reshufflePlan({
+                        weeklyAvailability,
+                        dateOverrides,
+                        preferences: {
+                          maxWorkoutsPerWeek: availabilityPreferences?.maxWorkoutsPerWeek ?? null,
+                          preferWeekendLongRides: availabilityPreferences?.preferWeekendLongRides ?? true,
+                        },
+                      });
+
+                      setReshufflePromptOpen(false);
+
+                      if (result.success && result.redistributions.length > 0) {
+                        notifications.show({
+                          title: 'Plan Updated',
+                          message: `${result.redistributions.length} workout${result.redistributions.length > 1 ? 's' : ''} moved to fit your schedule`,
+                          color: 'terracotta',
+                        });
+                        await loadPlannedWorkouts();
+                        if (onPlanUpdated) onPlanUpdated();
+                      } else if (result.success) {
+                        notifications.show({
+                          title: 'No Changes Needed',
+                          message: 'All your workouts already fit your schedule',
+                          color: 'blue',
+                        });
+                      } else {
+                        notifications.show({
+                          title: 'Reshuffle Failed',
+                          message: 'Could not update your plan. Please try again.',
+                          color: 'red',
+                        });
+                      }
+                    } finally {
+                      setIsReshuffling(false);
+                    }
+                  }}
+                >
+                  Reshuffle Plan
+                </Button>
+              </Group>
+            </Stack>
+          </Paper>
+        </Box>
+      )}
+
+      {/* Adaptation Feedback Modal (shared with planner) */}
+      <AdaptationFeedbackModal
+        adaptation={selectedAdaptation}
+        opened={feedbackModalOpen}
+        onClose={() => {
+          setFeedbackModalOpen(false);
+          setSelectedAdaptation(null);
+        }}
+        onSubmit={handleAdaptationFeedback}
+      />
 
       {/* Workout Detail + Edit Modal (shared with planner) */}
       <WorkoutModal
         workout={modalWorkoutDef}
         plannedWorkout={modalPlannedWorkout}
         opened={editModalOpen}
-        onClose={() => setEditModalOpen(false)}
+        onClose={() => { setEditModalOpen(false); setIsAddMode(false); }}
         onSave={handleModalSave}
         onDelete={deleteWorkout}
+        onChangeWorkout={handleChangeWorkout}
+        onAddWorkout={handleAddWorkoutFromModal}
+        isAdd={isAddMode}
         scheduledDate={selectedDate ? formatLocalDate(selectedDate) : undefined}
       />
 

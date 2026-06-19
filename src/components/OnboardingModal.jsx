@@ -659,7 +659,7 @@ function OnboardingModal({ opened, onClose }) {
                 p="md"
                 withBorder
                 style={{ backgroundColor: 'var(--color-bg-secondary)', cursor: 'pointer' }}
-                onClick={() => { handleComplete(); navigate('/train/planner?tab=browse'); }}
+                onClick={() => { handleComplete(); navigate('/train?tab=browse'); }}
               >
                 <Stack gap="xs" align="center">
                   <ThemeIcon size="lg" color="gray" variant="light">

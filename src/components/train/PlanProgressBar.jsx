@@ -42,7 +42,7 @@ function PlanProgressBar({ activePlan, plannedWorkouts, loading }) {
           </Group>
           <Button
             component={Link}
-            to="/train/planner?tab=browse"
+            to="/train?tab=browse"
             variant="light"
             color="teal"
             size="compact-sm"
@@ -152,7 +152,7 @@ function PlanProgressBar({ activePlan, plannedWorkouts, loading }) {
           )}
           <Button
             component={Link}
-            to="/train/planner"
+            to="/train?tab=calendar"
             variant="subtle"
             color="gray"
             size="compact-xs"

@@ -40,7 +40,7 @@ import { supabase } from '../lib/supabase';
 import { CoachCard, CheckInPage } from '../components/coach';
 import TrainingLoadChart from '../components/TrainingLoadChart.jsx';
 import TrainingCalendar from '../components/TrainingCalendar.jsx';
-// TrainingPlanBrowser moved to PlannerPage
+import TrainingPlanBrowser from '../components/TrainingPlanBrowser.jsx';
 import RideHistoryTable from '../components/RideHistoryTable.jsx';
 import PersonalRecordsCard from '../components/PersonalRecordsCard.jsx';
 import EmptyState from '../components/EmptyState.jsx';
@@ -102,9 +102,17 @@ function TrainingDashboard() {
   // Read tab from URL query parameter, default to 'calendar'
   // Note: 'plans' tab moved to /planner page, 'today' moved to /today, 'routes' moved to /ride
   const urlTab = searchParams.get('tab');
-  const validTabs = ['coach', 'race', 'trends', 'power', 'history', 'insights', 'calendar'];
+  const validTabs = ['coach', 'race', 'trends', 'power', 'history', 'insights', 'calendar', 'browse'];
   const initialTab = validTabs.includes(urlTab) ? urlTab : 'calendar';
   const [activeTab, setActiveTab] = useState(initialTab);
+  // Keep the active tab in sync with the ?tab= param so deep links and CTAs
+  // (e.g. "Browse Plans" → ?tab=browse) work even when already on this page.
+  useEffect(() => {
+    if (urlTab && validTabs.includes(urlTab) && urlTab !== activeTab) {
+      setActiveTab(urlTab);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [urlTab]);
   const [timeRange, setTimeRange] = useState('30');
   const [activities, setActivities] = useState([]);
   const [speedProfile, setSpeedProfile] = useState(null);
@@ -306,6 +314,7 @@ function TrainingDashboard() {
           .eq('user_id', user.id)
           .eq('status', 'active')
           .order('started_at', { ascending: false })
+          .order('created_at', { ascending: false })
           .limit(1)
           .maybeSingle();
 
@@ -351,6 +360,7 @@ function TrainingDashboard() {
           .select('*')
           .eq('user_id', user.id)
           .eq('status', 'active')
+          .order('started_at', { ascending: false })
           .order('created_at', { ascending: false })
           .limit(1)
           .maybeSingle();
@@ -702,6 +712,7 @@ function TrainingDashboard() {
         .eq('user_id', user.id)
         .eq('status', 'active')
         .order('started_at', { ascending: false })
+        .order('created_at', { ascending: false })
         .limit(1)
         .maybeSingle();
       if (planData) {
@@ -882,7 +893,7 @@ function TrainingDashboard() {
                   color="teal"
                   size="xs"
                   leftSection={<CalendarBlank size={14} />}
-                  onClick={() => navigate('/planner')}
+                  onClick={() => setActiveTab('calendar')}
                 >
                   Plan
                 </Button>
@@ -1002,6 +1013,17 @@ function TrainingDashboard() {
                 isImperial={isImperial}
                 refreshKey={calendarRefreshKey}
                 onPlanUpdated={handlePlanUpdated}
+              />
+            )}
+
+            {/* BROWSE PLANS TAB (reached via "Browse Plans" CTAs) */}
+            {activeTab === 'browse' && (
+              <TrainingPlanBrowser
+                activePlan={activePlan}
+                onPlanActivated={async (plan) => {
+                  await handlePlanUpdated();
+                  if (plan) setActiveTab('calendar');
+                }}
               />
             )}
 

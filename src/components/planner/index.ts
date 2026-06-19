@@ -1,13 +1,12 @@
 /**
  * Training Planner Components
- * Barrel export for the planner module
+ * Barrel export for the planner module.
+ *
+ * The drag-and-drop TrainingPlanner and its calendar variants were retired when
+ * planning merged into the unified TrainingCalendar. The remaining exports are
+ * the pieces the calendar (and other surfaces) still reuse.
  */
 
-export { TrainingPlanner } from './TrainingPlanner';
-export { TwoWeekCalendar } from './TwoWeekCalendar';
 export { WorkoutLibrarySidebar } from './WorkoutLibrarySidebar';
-export { CalendarDayCell } from './CalendarDayCell';
 export { WorkoutCard } from './WorkoutCard';
-export { PeriodizationView } from './PeriodizationView';
-export { PlanCalendarOverview } from './PlanCalendarOverview';
 export { GoalInput } from './GoalInput';
