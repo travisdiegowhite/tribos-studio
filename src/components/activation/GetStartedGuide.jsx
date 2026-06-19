@@ -57,7 +57,7 @@ const ACTIVATION_STEPS = [
     label: 'Start a training plan',
     description: 'Structured training based on your goals',
     cta: 'Browse plans',
-    href: '/planner',
+    href: '/train?tab=browse',
     icon: CalendarBlank,
   },
 ];

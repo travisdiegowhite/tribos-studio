@@ -586,7 +586,7 @@ function MyRoutes() {
                   </Text>
                   <Button
                     component={Link}
-                    to="/train/planner?tab=browse"
+                    to="/train?tab=browse"
                     variant="light"
                     color="teal"
                     size="sm"
