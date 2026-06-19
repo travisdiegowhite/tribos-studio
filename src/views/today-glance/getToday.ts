@@ -19,6 +19,7 @@ import { PERSONAS } from '../../data/coachingPersonas';
 import { decodePolyline } from '../today/shared/decodePolyline';
 import { deriveIntervalSegments } from './deriveIntervalSegments';
 import { getAthleteState, EMPTY_ATHLETE_STATE } from './athleteState';
+import { mapRowToRecentRide, type RecentRide } from '../today/shared/recentRides';
 import type {
   ConsistencyDay,
   PersonaId,
@@ -370,6 +371,38 @@ export async function getTodayRoute(
   } catch (err) {
     console.error('getTodayRoute: route match fetch failed', err);
     return null;
+  }
+}
+
+/**
+ * Deferred recent-rides fetch — the last 5 rides with route geometry, used to
+ * fill the hero map when there's no single matched route (the run-day / no-match
+ * case). Mirrors the live Today's map query; mapping/filtering is shared via
+ * ../today/shared/recentRides.
+ */
+export async function getTodayRecentRoutes(userId: string): Promise<RecentRide[]> {
+  try {
+    const { data, error } = await supabase
+      .from('activities')
+      .select(
+        'id, name, start_date, provider, distance, distance_meters, ' +
+          'total_elevation_gain, elevation_gain_meters, moving_time, ' +
+          'duration_seconds, elapsed_time, polyline, summary_polyline, ' +
+          'map_summary_polyline',
+      )
+      .eq('user_id', userId)
+      .is('duplicate_of', null)
+      .or('is_hidden.eq.false,is_hidden.is.null')
+      .order('start_date', { ascending: false })
+      .limit(50);
+    if (error || !data) return [];
+    return (data as unknown as Array<Record<string, unknown> & { id: string; start_date: string }>)
+      .map(mapRowToRecentRide)
+      .filter((r) => r.polyline)
+      .slice(0, 5);
+  } catch (err) {
+    console.error('getTodayRecentRoutes: fetch failed', err);
+    return [];
   }
 }
 

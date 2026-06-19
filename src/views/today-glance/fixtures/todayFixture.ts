@@ -8,6 +8,32 @@
  */
 
 import type { Today } from '../types';
+import type { RecentRide } from '../../today/shared/recentRides';
+
+// Recent rides for the hero fallback (run/no-match days). Encoded polylines are
+// real Google-encoded strings near Boulder, CO so the fixture map renders.
+export const fixtureRecentRides: RecentRide[] = [
+  {
+    id: 'recent-1',
+    name: 'Morning Gravel',
+    startDate: '2026-06-17T13:00:00Z',
+    distanceKm: 42.1,
+    elevationM: 410,
+    durationSec: 5400,
+    polyline: 'wf{aFnk_bM_@_@cAcAo@o@',
+    provider: 'strava',
+  },
+  {
+    id: 'recent-2',
+    name: 'Tempo Loop',
+    startDate: '2026-06-15T13:00:00Z',
+    distanceKm: 31.7,
+    elevationM: 260,
+    durationSec: 4200,
+    polyline: 'sf{aFlk_bMcAcA_@_@o@o@',
+    provider: 'strava',
+  },
+];
 
 // A small, recognizable loop near Boulder, CO — [lng, lat] canonical.
 const LOOP: number[][] = [

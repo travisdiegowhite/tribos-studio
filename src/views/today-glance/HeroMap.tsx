@@ -15,12 +15,16 @@ import { Box, Text } from '@mantine/core';
 import 'mapbox-gl/dist/mapbox-gl.css';
 import { C, FONT } from './tokens';
 import { formatDistanceKm, formatElevationM, type UnitsPreference } from './units';
+import { HeroRecentRides } from './HeroRecentRides';
 import type { TodayRoute } from './types';
+import type { RecentRide } from '../today/shared/recentRides';
 
 const MAPBOX_TOKEN = import.meta.env.VITE_MAPBOX_TOKEN;
 
 interface HeroMapProps {
   routePromise: Promise<TodayRoute | null>;
+  /** Recent rides to fall back to when there's no single matched route. */
+  recentRoutesPromise: Promise<RecentRide[]>;
   units: UnitsPreference;
   height: number;
 }
@@ -68,7 +72,7 @@ function buildIntervalOverlay(
   return { type: 'FeatureCollection', features };
 }
 
-export function HeroMap({ routePromise, units, height }: HeroMapProps) {
+export function HeroMap({ routePromise, recentRoutesPromise, units, height }: HeroMapProps) {
   const route = use(routePromise);
 
   const coords = useMemo(() => getCoords(route?.geojson ?? null), [route]);
@@ -84,23 +88,10 @@ export function HeroMap({ routePromise, units, height }: HeroMapProps) {
   );
 
   if (!route?.geojson || !bounds || !MAPBOX_TOKEN) {
-    // 'generated' with no geometry yet, or no token in this env.
-    return (
-      <Box
-        style={{
-          height,
-          background: C.secondary,
-          border: `1px solid ${C.border}`,
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-        }}
-      >
-        <Text style={{ fontFamily: FONT.mono, fontSize: 12, color: C.text3 }}>
-          No matched route — generate one to ride today.
-        </Text>
-      </Box>
-    );
+    // No single matched route ('generated' / run day / no token). Fall back to
+    // the rider's recent rides so the hero isn't dead space. HeroRecentRides
+    // itself shows the generate-prompt copy when there are no GPS rides.
+    return <HeroRecentRides recentRoutesPromise={recentRoutesPromise} height={height} />;
   }
 
   const hasIntervals = !!overlay && overlay.features.length > 0;

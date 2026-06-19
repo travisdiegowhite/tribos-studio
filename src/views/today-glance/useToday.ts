@@ -9,8 +9,14 @@
  */
 
 import { useEffect, useState } from 'react';
-import { getTodayShell, getTodayRoute, getTodayCoach } from './getToday';
+import {
+  getTodayShell,
+  getTodayRoute,
+  getTodayCoach,
+  getTodayRecentRoutes,
+} from './getToday';
 import type { Today, TodayRoute } from './types';
+import type { RecentRide } from '../today/shared/recentRides';
 
 export interface UseTodayResult {
   loading: boolean;
@@ -19,10 +25,13 @@ export interface UseTodayResult {
   routePromise: Promise<TodayRoute | null>;
   /** Resolves to the persona fitness take (or null). Stable across renders. */
   coachPromise: Promise<string | null>;
+  /** Resolves to recent rides for the hero fallback. Stable across renders. */
+  recentRoutesPromise: Promise<RecentRide[]>;
 }
 
 const NULL_ROUTE: Promise<TodayRoute | null> = Promise.resolve(null);
 const NULL_COACH: Promise<string | null> = Promise.resolve(null);
+const NO_RECENT: Promise<RecentRide[]> = Promise.resolve([]);
 
 export function useToday(userId: string | null): UseTodayResult {
   const [loading, setLoading] = useState(true);
@@ -31,6 +40,8 @@ export function useToday(userId: string | null): UseTodayResult {
     useState<Promise<TodayRoute | null>>(NULL_ROUTE);
   const [coachPromise, setCoachPromise] =
     useState<Promise<string | null>>(NULL_COACH);
+  const [recentRoutesPromise, setRecentRoutesPromise] =
+    useState<Promise<RecentRide[]>>(NO_RECENT);
 
   useEffect(() => {
     if (!userId) {
@@ -38,10 +49,13 @@ export function useToday(userId: string | null): UseTodayResult {
       setToday(null);
       setRoutePromise(NULL_ROUTE);
       setCoachPromise(NULL_COACH);
+      setRecentRoutesPromise(NO_RECENT);
       return;
     }
     let cancelled = false;
     setLoading(true);
+    // Recent rides don't depend on the shell — start immediately.
+    setRecentRoutesPromise(getTodayRecentRoutes(userId));
 
     getTodayShell(userId)
       .then((shell) => {
@@ -64,5 +78,5 @@ export function useToday(userId: string | null): UseTodayResult {
     };
   }, [userId]);
 
-  return { loading, today, routePromise, coachPromise };
+  return { loading, today, routePromise, coachPromise, recentRoutesPromise };
 }

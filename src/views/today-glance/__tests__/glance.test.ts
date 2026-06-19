@@ -3,7 +3,8 @@ import { finalizeHeroState, prescriptionIsRun } from '../getToday';
 import { deriveIntervalSegments, intervalColoringEnabled } from '../deriveIntervalSegments';
 import { formatDistanceKm, formatElevationM, formatDurationMin } from '../units';
 import { formVerdict } from '../athleteState';
-import { todayFixture } from '../fixtures/todayFixture';
+import { mapRowToRecentRide, filterRidesNearLatest } from '../../today/shared/recentRides';
+import { todayFixture, fixtureRecentRides } from '../fixtures/todayFixture';
 import type { TodayRoute } from '../types';
 
 function route(matchPct: number, hasGeo = true): TodayRoute {
@@ -76,6 +77,54 @@ describe('prescriptionIsRun (sport gate)', () => {
   it('treats rides as non-run', () => {
     expect(prescriptionIsRun({ ...base, type: 'tempo', title: 'Tempo Intervals' })).toBe(false);
     expect(prescriptionIsRun(null)).toBe(false);
+  });
+});
+
+describe('recent rides (hero fallback helpers)', () => {
+  it('maps a row with canonical columns', () => {
+    const r = mapRowToRecentRide({
+      id: 'a1',
+      name: 'Gravel',
+      start_date: '2026-06-17T13:00:00Z',
+      provider: 'strava',
+      distance_meters: 42100,
+      elevation_gain_meters: 410,
+      duration_seconds: 5400,
+      polyline: 'abc',
+    });
+    expect(r.distanceKm).toBeCloseTo(42.1, 1);
+    expect(r.elevationM).toBe(410);
+    expect(r.durationSec).toBe(5400);
+    expect(r.polyline).toBe('abc');
+  });
+
+  it('falls back to legacy distance/duration and nested Strava polyline', () => {
+    const r = mapRowToRecentRide({
+      id: 'a2',
+      name: null,
+      start_date: '2026-06-15T13:00:00Z',
+      distance: 31700, // legacy meters
+      total_elevation_gain: 260,
+      moving_time: 4200,
+      map: { summary_polyline: 'xyz' },
+    });
+    expect(r.name).toBe('Untitled Ride');
+    expect(r.distanceKm).toBeCloseTo(31.7, 1);
+    expect(r.durationSec).toBe(4200);
+    expect(r.polyline).toBe('xyz');
+  });
+
+  it('drops a geographically distant (indoor/bogus) ride', () => {
+    const near = { id: 'n1', coords: [[-105.27, 40.02]] as Array<[number, number]> };
+    const near2 = { id: 'n2', coords: [[-105.25, 40.03]] as Array<[number, number]> };
+    const farOutlier = { id: 'f1', coords: [[0, 0]] as Array<[number, number]> };
+    const kept = filterRidesNearLatest([near, near2, farOutlier]);
+    expect(kept.map((r) => r.id)).toEqual(['n1', 'n2']);
+  });
+
+  it('fixture provides rides with polylines for the hero fallback', () => {
+    expect(fixtureRecentRides.length).toBeGreaterThan(0);
+    expect(fixtureRecentRides.every((r) => r.polyline)).toBe(true);
   });
 });
 
