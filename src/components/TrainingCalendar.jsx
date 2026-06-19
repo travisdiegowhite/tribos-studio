@@ -17,6 +17,8 @@ import {
   ThemeIcon,
   Flex,
   Drawer,
+  Collapse,
+  UnstyledButton,
 } from '@mantine/core';
 import { notifications } from '@mantine/notifications';
 import { useMediaQuery } from '@mantine/hooks';
@@ -34,7 +36,7 @@ import { useCrossTraining, ACTIVITY_CATEGORIES } from '../hooks/useCrossTraining
 import CrossTrainingModal from './CrossTrainingModal';
 import { WorkoutModal } from './planner/WorkoutModal';
 import { WorkoutLibrarySidebar } from './planner/WorkoutLibrarySidebar';
-import { ArrowsLeftRight, Barbell, Bicycle, CalendarBlank, CalendarX, CaretLeft, CaretRight, Check, Circle, Clock, Cloud, CloudLightning, CloudRain, CloudSun, DotsSixVertical, Fire, Heartbeat, Moon, Path, PencilSimple, PersonSimpleRun, PersonSimpleWalk, Plus, Snowflake, Sun, Trash, TrendUp, Trophy, Wind, X } from '@phosphor-icons/react';
+import { ArrowsLeftRight, Barbell, Bicycle, CalendarBlank, CalendarX, CaretDown, CaretLeft, CaretRight, Check, Circle, Clock, Cloud, CloudLightning, CloudRain, CloudSun, DotsSixVertical, Fire, Heartbeat, Moon, Path, PencilSimple, PersonSimpleRun, PersonSimpleWalk, Plus, Snowflake, Sun, Trash, TrendUp, Trophy, Wind, X } from '@phosphor-icons/react';
 import { useWeatherForecast } from '../hooks/useWeatherForecast';
 import { useRouteBuilderStore } from '../stores/routeBuilderStore';
 import { getWeatherSeverity, formatTemperature } from '../utils/weather';
@@ -45,6 +47,10 @@ import { useActivityAutoLink } from '../hooks/useActivityAutoLink';
 import { useUserAvailability } from '../hooks/useUserAvailability';
 import { useTrainingPlan } from '../hooks/useTrainingPlan';
 import { AvailabilitySettings } from './settings/AvailabilitySettings';
+import { useWorkoutAdaptations } from '../hooks/useWorkoutAdaptations';
+import { AdaptationInsightsPanel } from './planner/AdaptationInsightsPanel';
+import { AdaptationFeedbackModal } from './planner/AdaptationFeedbackModal';
+import { shouldPromptForFeedback } from '../utils/adaptationTrigger';
 
 /**
  * Enhanced Training Calendar Component
@@ -163,6 +169,81 @@ const TrainingCalendar = ({ activePlan, rides = [], formatDistance: formatDistan
   // autoLoad so the hook holds its own active plan + workouts, which
   // reshufflePlan reads from internally.
   const { reshufflePlan } = useTrainingPlan({ userId: user?.id, autoLoad: true });
+
+  // Adaptation insights + feedback (ported from the planner)
+  const [adaptationsOpen, setAdaptationsOpen] = useState(false);
+  const [feedbackModalOpen, setFeedbackModalOpen] = useState(false);
+  const [selectedAdaptation, setSelectedAdaptation] = useState(null);
+  const [weekSummary, setWeekSummary] = useState(null);
+  const {
+    adaptations,
+    insights,
+    loading: adaptationsLoading,
+    fetchAdaptations,
+    getWeekSummary,
+    updateAdaptationFeedback,
+    dismissInsight,
+    applyInsight,
+  } = useWorkoutAdaptations({ userId: user?.id });
+
+  // The insights panel summarizes the *current* week (Monday of this week),
+  // independent of the 4-week scroll anchor.
+  const currentWeekStart = useMemo(() => {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const dow = today.getDay(); // 0=Sun, 1=Mon...
+    const daysBack = dow === 0 ? 6 : dow - 1; // back to this week's Monday
+    const monday = new Date(today);
+    monday.setDate(today.getDate() - daysBack);
+    return formatLocalDate(monday);
+  }, []);
+
+  // Fetch adaptations + week summary for the current week
+  useEffect(() => {
+    if (!user?.id) return;
+    const weekEnd = new Date(currentWeekStart);
+    weekEnd.setDate(weekEnd.getDate() + 14); // fetch 2 weeks
+    fetchAdaptations({ weekStart: currentWeekStart, weekEnd: weekEnd.toISOString().split('T')[0] });
+    getWeekSummary(currentWeekStart).then(setWeekSummary);
+  }, [user?.id, currentWeekStart, fetchAdaptations, getWeekSummary]);
+
+  // Auto-prompt for feedback on the first adaptation that needs it (but not
+  // while the edit modal is open, so the two modals don't fight).
+  useEffect(() => {
+    if (adaptations.length === 0 || editModalOpen) return;
+    const needsFeedback = adaptations.find(
+      (a) => !a.userFeedback?.reason && shouldPromptForFeedback(a)
+    );
+    if (needsFeedback && !feedbackModalOpen) {
+      setSelectedAdaptation(needsFeedback);
+      setFeedbackModalOpen(true);
+    }
+  }, [adaptations, feedbackModalOpen, editModalOpen]);
+
+  const adaptationsNeedingFeedback = useMemo(
+    () => adaptations.filter((a) => !a.userFeedback?.reason && shouldPromptForFeedback(a)).length,
+    [adaptations]
+  );
+
+  const handleAdaptationFeedback = async (reason, notes) => {
+    if (!selectedAdaptation) return;
+    await updateAdaptationFeedback(selectedAdaptation.id, { reason, notes });
+    setFeedbackModalOpen(false);
+    setSelectedAdaptation(null);
+  };
+
+  const handleViewAdaptation = (adaptation) => {
+    setSelectedAdaptation(adaptation);
+    setFeedbackModalOpen(true);
+  };
+
+  const handleDismissInsight = (insightId) => dismissInsight(insightId);
+
+  const handleApplyInsight = async (insightId) => {
+    const insight = insights.find((i) => i.id === insightId);
+    if (!insight?.suggestedAction) return;
+    await applyInsight(insightId);
+  };
 
   const loadPlannedWorkouts = async () => {
     // Early return if no active plan
@@ -1037,6 +1118,40 @@ const TrainingCalendar = ({ activePlan, rides = [], formatDistance: formatDistan
         </Paper>
       )}
 
+      {/* Training Insights — collapsible, directly under the weekly summary */}
+      {activePlan && (weekSummary || adaptations.length > 0 || insights.length > 0) && (
+        <Paper p="md" withBorder>
+          <UnstyledButton onClick={() => setAdaptationsOpen((o) => !o)} style={{ width: '100%' }}>
+            <Group justify="space-between">
+              <Group gap="xs">
+                {adaptationsOpen ? <CaretDown size={16} /> : <CaretRight size={16} />}
+                <Text fw={600} size="sm">Training Insights</Text>
+                {adaptationsNeedingFeedback > 0 && (
+                  <Badge color="terracotta" size="sm" variant="filled">
+                    {adaptationsNeedingFeedback}
+                  </Badge>
+                )}
+              </Group>
+              <Text size="xs" c="dimmed">{adaptationsOpen ? 'Hide' : 'Show'}</Text>
+            </Group>
+          </UnstyledButton>
+          <Collapse in={adaptationsOpen}>
+            <Box mt="sm">
+              <AdaptationInsightsPanel
+                weekStart={currentWeekStart}
+                adaptations={adaptations}
+                insights={insights}
+                weekSummary={weekSummary}
+                onDismissInsight={handleDismissInsight}
+                onApplyInsight={handleApplyInsight}
+                onViewAdaptation={handleViewAdaptation}
+                isLoading={adaptationsLoading}
+              />
+            </Box>
+          </Collapse>
+        </Paper>
+      )}
+
       {/* Mobile tap-to-assign banner */}
       {isMobile && selectedWorkoutId && (
         <Paper p="xs" withBorder style={{ borderLeft: '3px solid var(--color-teal)' }}>
@@ -1726,6 +1841,17 @@ const TrainingCalendar = ({ activePlan, rides = [], formatDistance: formatDistan
           </Paper>
         </Box>
       )}
+
+      {/* Adaptation Feedback Modal (shared with planner) */}
+      <AdaptationFeedbackModal
+        adaptation={selectedAdaptation}
+        opened={feedbackModalOpen}
+        onClose={() => {
+          setFeedbackModalOpen(false);
+          setSelectedAdaptation(null);
+        }}
+        onSubmit={handleAdaptationFeedback}
+      />
 
       {/* Workout Detail + Edit Modal (shared with planner) */}
       <WorkoutModal
