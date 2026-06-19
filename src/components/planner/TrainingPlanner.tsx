@@ -37,6 +37,7 @@ import { supabase } from '../../lib/supabase';
 import { useTrainingPlannerStore } from '../../stores/trainingPlannerStore';
 import { useUserAvailability } from '../../hooks/useUserAvailability';
 import { useTrainingPlan } from '../../hooks/useTrainingPlan';
+import { usePlannerRefreshSync } from '../../hooks/usePlannerRefreshSync';
 import { useWorkoutAdaptations } from '../../hooks/useWorkoutAdaptations';
 import { useWeatherForecast } from '../../hooks/useWeatherForecast';
 import { useRouteBuilderStore } from '../../stores/routeBuilderStore';
@@ -138,6 +139,10 @@ export function TrainingPlanner({
   userLocation,
 }: TrainingPlannerProps) {
   const store = useTrainingPlannerStore();
+
+  // Reload when workouts are added elsewhere (e.g. the AI coach) without
+  // clobbering in-progress drag edits.
+  const refreshSync = usePlannerRefreshSync();
 
   // Weather forecast — initialize coords synchronously from viewport, optionally geocode user location
   const viewport = useRouteBuilderStore((s: { viewport: { latitude: number; longitude: number } }) => s.viewport);
@@ -1069,6 +1074,35 @@ export function TrainingPlanner({
             )}
           </Group>
         </Box>
+
+        {/* External-update banner: coach (or another surface) added workouts
+            while the user has unsaved drag edits. Non-destructive — the user
+            chooses how to reconcile. */}
+        {refreshSync.refreshAvailable && (
+          <Alert
+            color="blue"
+            variant="light"
+            icon={<ArrowsClockwise size={16} />}
+            withCloseButton
+            onClose={refreshSync.dismiss}
+            styles={{ root: { borderRadius: 0 } }}
+          >
+            <Group justify="space-between" wrap="nowrap" gap="sm">
+              <Text size="sm">
+                New workouts were added to this plan (e.g. by your coach).
+                Refreshing will discard your unsaved changes.
+              </Text>
+              <Group gap="xs" wrap="nowrap" style={{ flexShrink: 0 }}>
+                <Button size="xs" variant="default" onClick={refreshSync.saveAndRefresh}>
+                  Save &amp; refresh
+                </Button>
+                <Button size="xs" color="blue" onClick={refreshSync.refresh}>
+                  Refresh
+                </Button>
+              </Group>
+            </Group>
+          </Alert>
+        )}
 
         {/* Calendar Area */}
         <Box style={{ flex: 1, overflow: 'auto', padding: 16 }}>

@@ -14,13 +14,16 @@ import { scheduleCoachWorkout } from './coachWorkoutScheduler';
 // Minimal controllable Supabase stub. `activePlan` decides whether the
 // training_plans lookup finds a plan; inserts/upserts are captured for asserts.
 function makeSupabase({ activePlan = null } = {}) {
-  const calls = { inserts: [], upserts: [] };
+  const calls = { inserts: [], upserts: [], orders: [] };
   const supabase = {
     from(table) {
       const builder = {
         select: () => builder,
         eq: () => builder,
-        order: () => builder,
+        order: (column, opts) => {
+          calls.orders.push({ table, column, opts });
+          return builder;
+        },
         limit: () => builder,
         gte: () => builder,
         lte: () => builder,
@@ -84,6 +87,21 @@ describe('scheduleCoachWorkout', () => {
     expect(result.success).toBe(true);
     expect(calls.inserts.find((c) => c.table === 'training_plans')).toBeUndefined();
     expect(calls.upserts[0].payload.plan_id).toBe('plan-1');
+  });
+
+  it('resolves the active plan by the canonical sort (started_at, then created_at)', async () => {
+    // This ordering must match the dashboard/planner resolvers so the coach
+    // writes to the SAME plan those surfaces display.
+    const { supabase, calls } = makeSupabase({ activePlan: { id: 'plan-1' } });
+
+    await scheduleCoachWorkout(supabase, {
+      userId: 'u1',
+      recommendation: { workout_id: 'three_by_ten_sst', scheduled_date: '2026-07-02', reason: 'x' },
+    });
+
+    const planOrders = calls.orders.filter((o) => o.table === 'training_plans');
+    expect(planOrders.map((o) => o.column)).toEqual(['started_at', 'created_at']);
+    expect(planOrders.every((o) => o.opts?.ascending === false)).toBe(true);
   });
 
   it('falls back to recommendation load + endurance type when the workout is unknown', async () => {
