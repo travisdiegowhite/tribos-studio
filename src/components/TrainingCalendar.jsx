@@ -15,8 +15,11 @@ import {
   Divider,
   SimpleGrid,
   ThemeIcon,
+  Flex,
+  Drawer,
 } from '@mantine/core';
 import { notifications } from '@mantine/notifications';
+import { useMediaQuery } from '@mantine/hooks';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
 import { WORKOUT_TYPES, TRAINING_PHASES, calculateTSS, estimateTSS } from '../utils/trainingPlans';
@@ -30,12 +33,14 @@ import { FuelBadge } from './fueling';
 import { useCrossTraining, ACTIVITY_CATEGORIES } from '../hooks/useCrossTraining';
 import CrossTrainingModal from './CrossTrainingModal';
 import { WorkoutModal } from './planner/WorkoutModal';
+import { WorkoutLibrarySidebar } from './planner/WorkoutLibrarySidebar';
 import { ArrowsLeftRight, Barbell, Bicycle, CalendarBlank, CaretLeft, CaretRight, Check, Circle, Clock, Cloud, CloudLightning, CloudRain, CloudSun, DotsSixVertical, Fire, Heartbeat, Moon, Path, PencilSimple, PersonSimpleRun, PersonSimpleWalk, Plus, Snowflake, Sun, Trash, TrendUp, Trophy, Wind, X } from '@phosphor-icons/react';
 import { useWeatherForecast } from '../hooks/useWeatherForecast';
 import { useRouteBuilderStore } from '../stores/routeBuilderStore';
 import { getWeatherSeverity, formatTemperature } from '../utils/weather';
 import { useRouteBuilderV2Access } from '../hooks/useRouteBuilderV2Access';
 import { buildWorkoutRouteHref } from '../utils/workoutRouteHref';
+import { buildLibraryWorkoutRow, computeWeekNumber } from '../utils/plannedWorkoutFromLibrary';
 
 /**
  * Enhanced Training Calendar Component
@@ -103,6 +108,22 @@ const TrainingCalendar = ({ activePlan, rides = [], formatDistance: formatDistan
   // Drag and drop state
   const [draggedWorkout, setDraggedWorkout] = useState(null);
   const [dragOverDate, setDragOverDate] = useState(null);
+  // True while a workout is being dragged out of the library sidebar (so the
+  // calendar can highlight drop targets even though `draggedWorkout` — which
+  // only tracks reschedule drags — is null).
+  const [libraryDragActive, setLibraryDragActive] = useState(false);
+
+  // Workout library sidebar (drag-to-add) state
+  const isMobile = useMediaQuery('(max-width: 768px)');
+  const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [mobileLibraryOpen, setMobileLibraryOpen] = useState(false);
+  const [sidebarFilter, setSidebarFilter] = useState({
+    category: null,
+    searchQuery: '',
+    difficulty: null,
+  });
+  // Mobile tap-to-assign: the library workout the user picked to drop on a day.
+  const [selectedWorkoutId, setSelectedWorkoutId] = useState(null);
 
   // Helper to get plan start date (supports both old and new schema)
   const getPlanStartDate = (plan) => plan?.started_at || plan?.start_date;
@@ -545,7 +566,8 @@ const TrainingCalendar = ({ activePlan, rides = [], formatDistance: formatDistan
   const handleDragOver = (e, date) => {
     e.preventDefault();
     e.dataTransfer.dropEffect = 'move';
-    if (date && draggedWorkout) {
+    // Highlight for both reschedule drags (draggedWorkout) and library drags.
+    if (date && (draggedWorkout || libraryDragActive)) {
       // Use formatLocalDate for consistent date comparison
       setDragOverDate(formatLocalDate(date));
     }
@@ -560,9 +582,93 @@ const TrainingCalendar = ({ activePlan, rides = [], formatDistance: formatDistan
     setDragOverDate(null);
   };
 
+  // Add a workout from the library onto a day (drag-drop or mobile tap).
+  // Replaces any existing workout on that day (matches prior planner behavior).
+  const handleAddFromLibrary = async (workoutId, targetDate) => {
+    if (!activePlan || !user || !targetDate) return;
+
+    try {
+      const workout = getWorkoutById(workoutId);
+      if (!workout) return;
+
+      const planStartDate = parsePlanStartDate(getPlanStartDate(activePlan));
+      if (!planStartDate) {
+        notifications.show({ title: 'Error', message: 'Unable to parse plan start date', color: 'red' });
+        return;
+      }
+
+      const weekNumber = computeWeekNumber(planStartDate, targetDate);
+      if (activePlan.duration_weeks && (weekNumber < 1 || weekNumber > activePlan.duration_weeks)) {
+        notifications.show({
+          title: 'Cannot Add Workout',
+          message: 'That date is outside the plan duration',
+          color: 'yellow',
+        });
+        return;
+      }
+
+      const scheduledDate = formatLocalDate(targetDate);
+
+      // Replace any existing workout on that day (the table has a unique
+      // (plan_id, scheduled_date) constraint, so an insert would otherwise fail).
+      const existing = plannedWorkouts.find((w) => w.scheduled_date === scheduledDate);
+      let replacedName = null;
+      if (existing) {
+        replacedName = getWorkoutById(existing.workout_id)?.name || existing.name || 'workout';
+        const { error: delError } = await supabase
+          .from('planned_workouts')
+          .delete()
+          .eq('id', existing.id);
+        if (delError) throw delError;
+      }
+
+      const { error: insertError } = await supabase
+        .from('planned_workouts')
+        .insert(buildLibraryWorkoutRow({
+          workout,
+          workoutId,
+          planId: activePlan.id,
+          userId: user.id,
+          planStartDate,
+          targetDate,
+        }));
+
+      if (insertError) throw insertError;
+
+      await loadPlannedWorkouts();
+      if (onPlanUpdated) onPlanUpdated();
+
+      notifications.show({
+        title: replacedName ? 'Workout Replaced' : 'Workout Added',
+        message: replacedName
+          ? `Replaced ${replacedName} with ${workout.name}`
+          : `Added ${workout.name} to ${targetDate.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}`,
+        color: 'terracotta',
+      });
+    } catch (error) {
+      console.error('Failed to add workout from library:', error);
+      notifications.show({ title: 'Error', message: 'Failed to add workout', color: 'red' });
+    }
+  };
+
   const handleDrop = async (e, targetDate) => {
     e.preventDefault();
     setDragOverDate(null);
+
+    // Library drag-to-add: the library WorkoutCard tags its payload with
+    // application/json {source:'library'}; reschedule drags set only text/plain.
+    let libraryPayload = null;
+    try {
+      const raw = e.dataTransfer.getData('application/json');
+      if (raw) libraryPayload = JSON.parse(raw);
+    } catch {
+      libraryPayload = null;
+    }
+    if (libraryPayload?.source === 'library' && libraryPayload.workoutId) {
+      setLibraryDragActive(false);
+      await handleAddFromLibrary(libraryPayload.workoutId, targetDate);
+      return;
+    }
 
     console.log('handleDrop called:', { draggedWorkout, targetDate, activePlan: activePlan?.id });
 
@@ -787,6 +893,21 @@ const TrainingCalendar = ({ activePlan, rides = [], formatDistance: formatDistan
   const currentWeek = getCurrentWeekNumber();
   const currentPhase = getCurrentPhase();
 
+  // Workout library sidebar (shared by the desktop rail and the mobile drawer).
+  const librarySidebar = (
+    <WorkoutLibrarySidebar
+      filter={sidebarFilter}
+      onFilterChange={(partial) => setSidebarFilter((prev) => ({ ...prev, ...partial }))}
+      onDragStart={() => setLibraryDragActive(true)}
+      onDragEnd={() => setLibraryDragActive(false)}
+      onWorkoutTap={(workoutId) => {
+        setSelectedWorkoutId(workoutId);
+        setMobileLibraryOpen(false);
+      }}
+      isMobile={isMobile}
+    />
+  );
+
   return (
     <Stack gap="md">
       {/* Plan Overview Header */}
@@ -887,11 +1008,68 @@ const TrainingCalendar = ({ activePlan, rides = [], formatDistance: formatDistan
         </Paper>
       )}
 
-      {/* Calendar */}
-      <Card>
+      {/* Mobile tap-to-assign banner */}
+      {isMobile && selectedWorkoutId && (
+        <Paper p="xs" withBorder style={{ borderLeft: '3px solid var(--color-teal)' }}>
+          <Group justify="space-between" wrap="nowrap">
+            <Text size="sm" fw={500}>
+              Tap a day to add {getWorkoutById(selectedWorkoutId)?.name || 'workout'}
+            </Text>
+            <ActionIcon variant="subtle" color="gray" onClick={() => setSelectedWorkoutId(null)}>
+              <X size={16} />
+            </ActionIcon>
+          </Group>
+        </Paper>
+      )}
+
+      {/* Calendar + workout library */}
+      <Flex gap="md" align="flex-start">
+        {/* Desktop library rail */}
+        {!isMobile && sidebarOpen && (
+          <Box
+            style={{
+              width: 280,
+              flexShrink: 0,
+              alignSelf: 'stretch',
+              position: 'sticky',
+              top: 80,
+              height: 'calc(100vh - 120px)',
+            }}
+          >
+            {librarySidebar}
+          </Box>
+        )}
+
+        <Card style={{ flex: 1, minWidth: 0 }}>
         {/* Calendar Header */}
         <Group justify="space-between" mb="md">
-          <Text size="lg" fw={600} style={{ color: 'var(--color-text-primary)' }}>{rangeLabel}</Text>
+          <Group gap="xs">
+            {!isMobile && (
+              <Tooltip label={sidebarOpen ? 'Hide workout library' : 'Show workout library'}>
+                <Button
+                  variant="subtle"
+                  size="compact-xs"
+                  leftSection={sidebarOpen ? <CaretLeft size={14} /> : <CaretRight size={14} />}
+                  onClick={() => setSidebarOpen((o) => !o)}
+                  style={{ fontFamily: 'var(--font-mono, monospace)', letterSpacing: '0.05em', textTransform: 'uppercase' }}
+                >
+                  Library
+                </Button>
+              </Tooltip>
+            )}
+            {isMobile && (
+              <Button
+                variant="light"
+                color="teal"
+                size="compact-xs"
+                leftSection={<Plus size={14} />}
+                onClick={() => setMobileLibraryOpen(true)}
+              >
+                Add workout
+              </Button>
+            )}
+            <Text size="lg" fw={600} style={{ color: 'var(--color-text-primary)' }}>{rangeLabel}</Text>
+          </Group>
           <Group gap="xs">
             <Button variant="subtle" size="compact-xs" onClick={goToToday} style={{ fontFamily: 'var(--font-mono, monospace)', letterSpacing: '0.05em', textTransform: 'uppercase' }}>
               Today
@@ -1027,7 +1205,15 @@ const TrainingCalendar = ({ activePlan, rides = [], formatDistance: formatDistan
                       cursor: hasDraggableWorkout ? 'grab' : (activePlan ? 'pointer' : 'default'),
                       transition: 'background-color 0.2s, border 0.2s',
                     }}
-                    onClick={() => activePlan && openEditModal(workout, date)}
+                    onClick={() => {
+                      // Mobile tap-to-assign: a library workout is selected → drop it here.
+                      if (selectedWorkoutId) {
+                        handleAddFromLibrary(selectedWorkoutId, date);
+                        setSelectedWorkoutId(null);
+                        return;
+                      }
+                      if (activePlan) openEditModal(workout, date);
+                    }}
                   >
                     <Stack gap={4}>
                       {/* Date and completion checkbox */}
@@ -1387,7 +1573,20 @@ const TrainingCalendar = ({ activePlan, rides = [], formatDistance: formatDistan
             </Stack>
           </>
         )}
-      </Card>
+        </Card>
+      </Flex>
+
+      {/* Mobile workout library drawer */}
+      <Drawer
+        opened={isMobile && mobileLibraryOpen}
+        onClose={() => setMobileLibraryOpen(false)}
+        position="bottom"
+        size="80%"
+        title="Workout Library"
+        padding={0}
+      >
+        <Box style={{ height: '70vh' }}>{librarySidebar}</Box>
+      </Drawer>
 
       {/* Workout Detail + Edit Modal (shared with planner) */}
       <WorkoutModal
