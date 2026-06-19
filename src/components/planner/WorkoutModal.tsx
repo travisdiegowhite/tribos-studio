@@ -640,9 +640,11 @@ export function WorkoutModal({
                 <Badge color={categoryColor} variant="light">
                   {workout.category.replace('_', ' ')}
                 </Badge>
-                <Badge color="gray" variant="light">
-                  {workout.difficulty}
-                </Badge>
+                {workout.difficulty && (
+                  <Badge color="gray" variant="light">
+                    {workout.difficulty}
+                  </Badge>
+                )}
                 {workout.focusArea && (
                   <Badge color="gray" variant="outline" size="xs">
                     {workout.focusArea.replace('_', ' ')}

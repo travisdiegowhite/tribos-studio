@@ -558,7 +558,21 @@ const TrainingCalendar = ({ activePlan, rides = [], formatDistance: formatDistan
   // Map a raw Supabase workout row to PlannerWorkout shape for WorkoutModal
   const mapToModalWorkout = (raw) => {
     if (!raw) return null;
-    const workoutDef = raw.workout_id ? getWorkoutById(raw.workout_id) : undefined;
+    const libraryDef = raw.workout_id ? getWorkoutById(raw.workout_id) : undefined;
+    // Fall back to a minimal definition synthesized from the row so the modal
+    // still opens (and stays editable) for rest days / coach / custom workouts
+    // whose workout_id doesn't resolve to the library. WorkoutModal returns null
+    // without a `workout`, and its definition-only sections (profile, intervals,
+    // exercises, export) self-skip when their fields are absent.
+    const workoutDef = libraryDef || {
+      id: raw.workout_id || 'custom',
+      name: raw.name || (raw.workout_type ? `${raw.workout_type} workout` : 'Workout'),
+      category: raw.workout_type || 'endurance',
+      duration: raw.target_duration || 0,
+      targetTSS: (raw.target_tss ?? raw.target_rss) || 0,
+      intensityFactor: 0,
+      description: '',
+    };
     return {
       id: raw.id || '',
       planId: raw.plan_id || '',
@@ -567,6 +581,7 @@ const TrainingCalendar = ({ activePlan, rides = [], formatDistance: formatDistan
       scheduledDate: raw.scheduled_date || '',
       workoutId: raw.workout_id || null,
       workoutType: raw.workout_type || null,
+      name: raw.name || '',
       targetTSS: raw.target_tss || 0,
       targetDuration: raw.target_duration || 0,
       notes: raw.notes || '',
@@ -575,7 +590,7 @@ const TrainingCalendar = ({ activePlan, rides = [], formatDistance: formatDistan
       activityId: raw.activity_id || null,
       actualTSS: raw.actual_tss || null,
       actualDuration: raw.actual_duration || null,
-      workout: workoutDef || undefined,
+      workout: workoutDef,
     };
   };
 
@@ -1367,7 +1382,14 @@ const TrainingCalendar = ({ activePlan, rides = [], formatDistance: formatDistan
                         setSelectedWorkoutId(null);
                         return;
                       }
-                      if (activePlan) openEditModal(workout, date);
+                      if (!activePlan) return;
+                      if (workout) {
+                        openEditModal(workout, date);
+                      } else {
+                        // Empty day → open the workout library to add one.
+                        if (isMobile) setMobileLibraryOpen(true);
+                        else setSidebarOpen(true);
+                      }
                     }}
                   >
                     <Stack gap={4}>
