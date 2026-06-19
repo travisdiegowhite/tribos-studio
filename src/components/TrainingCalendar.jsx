@@ -41,6 +41,7 @@ import { getWeatherSeverity, formatTemperature } from '../utils/weather';
 import { useRouteBuilderV2Access } from '../hooks/useRouteBuilderV2Access';
 import { buildWorkoutRouteHref } from '../utils/workoutRouteHref';
 import { buildLibraryWorkoutRow, computeWeekNumber } from '../utils/plannedWorkoutFromLibrary';
+import { useActivityAutoLink } from '../hooks/useActivityAutoLink';
 
 /**
  * Enhanced Training Calendar Component
@@ -134,6 +135,18 @@ const TrainingCalendar = ({ activePlan, rides = [], formatDistance: formatDistan
     if (!user?.id || !activePlan?.id) return;
     loadPlannedWorkouts();
   }, [user?.id, activePlan?.id, anchorDate, refreshKey]);
+
+  // Auto-link completed cycling rides to planned workouts on the same day.
+  useActivityAutoLink({
+    userId: user?.id,
+    activities: rides,
+    plannedWorkouts,
+    ftp,
+    onLinked: () => {
+      loadPlannedWorkouts();
+      if (onPlanUpdated) onPlanUpdated();
+    },
+  });
 
   const loadPlannedWorkouts = async () => {
     // Early return if no active plan
