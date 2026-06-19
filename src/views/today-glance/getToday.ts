@@ -16,17 +16,15 @@
 import { supabase } from '../../lib/supabase';
 import { getPlanTemplate } from '../../data/trainingPlanTemplates';
 import { PERSONAS } from '../../data/coachingPersonas';
-import {
-  classifyFormBandDisplay,
-  classifyFsConfidenceTier,
-} from '../../utils/formBands';
-import { freshnessFromFormScore, todayColors } from '../../utils/todayVocabulary';
 import { decodePolyline } from '../today/shared/decodePolyline';
 import { deriveIntervalSegments } from './deriveIntervalSegments';
+import { getAthleteState, EMPTY_ATHLETE_STATE } from './athleteState';
 import type {
   ConsistencyDay,
   PersonaId,
   Today,
+  TodayAthleteState,
+  TodayOutlook,
   TodayPrescription,
   TodayRoute,
   RibbonKind,
@@ -41,21 +39,41 @@ function todayLocalDateString(): string {
   ).padStart(2, '0')}`;
 }
 
-function clamp01(v: number): number {
-  return Math.min(1, Math.max(0, v));
-}
-
-function firstSentence(text: string | null | undefined): string | null {
-  if (!text) return null;
-  const trimmed = text.trim();
-  if (!trimmed) return null;
-  const m = trimmed.match(/^.*?[.!?](\s|$)/);
-  return (m ? m[0] : trimmed).trim();
-}
-
 function isRunType(type: string | null | undefined): boolean {
   if (!type) return false;
   return /run/i.test(type);
+}
+
+/**
+ * Whether a prescription is a running session. Checks both the workout type
+ * and the title, since some plans label a run with a generic type
+ * (e.g. 'endurance') and only the name ("Easy Aerobic Run") says "run".
+ */
+export function prescriptionIsRun(p: TodayPrescription | null): boolean {
+  return isRunType(p?.type) || isRunType(p?.title);
+}
+
+/** Short intent verb for a training block, for the forward outlook. */
+function blockGoalFor(blockType: string | null | undefined): string | null {
+  switch (blockType) {
+    case 'taper':
+      return 'Sharpening';
+    case 'aerobic_build':
+      return 'Building aerobic base';
+    case 'threshold':
+      return 'Lifting threshold';
+    case 'vo2':
+      return 'Building top-end';
+    case 'race_specific':
+      return 'Race-specific prep';
+    case 'recovery':
+    case 'reactivation':
+      return 'Recovering';
+    case 'maintenance':
+      return 'Holding fitness';
+    default:
+      return null;
+  }
 }
 
 // ── Shell ───────────────────────────────────────────────────────────────────
@@ -83,16 +101,14 @@ export async function getTodayShell(userId: string): Promise<Today> {
     .limit(1)
     .maybeSingle();
 
-  // Canonical athlete state — most recent training_load_daily row.
-  const loadQuery = supabase
-    .from('training_load_daily')
-    .select('date, form_score, tfi, afi, fs_confidence')
-    .eq('user_id', userId)
-    .order('date', { ascending: false })
-    .limit(1)
-    .maybeSingle();
+  // Full athlete state (FORM + fitness story) computed from the activities
+  // table, canonical-first — never blank for a rider with history.
+  const athleteStatePromise = getAthleteState(userId).catch((err) => {
+    console.error('getTodayShell: athlete state failed', err);
+    return EMPTY_ATHLETE_STATE;
+  });
 
-  // Active micro-block covering today (for the single context chip).
+  // Active micro-block covering today (for the single context chip + outlook).
   const blockQuery = supabase
     .from('block_instances')
     .select('block_type, start_date, end_date, status')
@@ -103,15 +119,15 @@ export async function getTodayShell(userId: string): Promise<Today> {
     .limit(1)
     .maybeSingle();
 
-  // Latest coach message → one-line take.
-  const coachMsgQuery = supabase
-    .from('coach_conversations')
-    .select('message, role, timestamp')
+  // Next race (prefer priority A) for the forward outlook.
+  const raceQuery = supabase
+    .from('race_goals')
+    .select('name, race_date, priority, status')
     .eq('user_id', userId)
-    .eq('role', 'coach')
-    .order('timestamp', { ascending: false })
-    .limit(1)
-    .maybeSingle();
+    .eq('status', 'upcoming')
+    .gte('race_date', today)
+    .order('race_date', { ascending: true })
+    .limit(5);
 
   // 7-day ribbon + history presence (for suggested vs first-run).
   const ribbonQuery = supabase
@@ -131,13 +147,13 @@ export async function getTodayShell(userId: string): Promise<Today> {
     .is('duplicate_of', null)
     .gte('start_date', ninetyDaysAgo.toISOString());
 
-  const [personaRes, planRes, loadRes, blockRes, coachRes, ribbonRes, historyRes] =
+  const [personaRes, planRes, athleteState, blockRes, raceRes, ribbonRes, historyRes] =
     await Promise.all([
       personaQuery,
       planQuery,
-      loadQuery,
+      athleteStatePromise,
       blockQuery,
-      coachMsgQuery,
+      raceQuery,
       ribbonQuery,
       historyQuery,
     ]);
@@ -186,22 +202,16 @@ export async function getTodayShell(userId: string): Promise<Today> {
     }
   }
 
-  // ── Athlete clearance ──────────────────────────────────────────────────────
-  const load = loadRes.data;
-  const fs = (load?.form_score as number | null) ?? null;
-  const tfi = (load?.tfi as number | null) ?? null;
-  const afi = (load?.afi as number | null) ?? null;
-  const fsConfidence = (load?.fs_confidence as number | null) ?? null;
-  const formVerdict = freshnessFromFormScore(fs);
-
   // ── Plan context chip ──────────────────────────────────────────────────────
   let blockName: string | null = null;
   let dayIndex: number | null = null;
   let dayTotal: number | null = null;
   let chipLabel: string | null = null;
   const block = blockRes.data;
+  let blockGoal: string | null = null;
   if (block?.start_date && block?.end_date) {
     blockName = humanizeBlock(block.block_type as string);
+    blockGoal = blockGoalFor(block.block_type as string);
     const start = new Date(block.start_date as string);
     const end = new Date(block.end_date as string);
     const now = new Date(today);
@@ -221,8 +231,8 @@ export async function getTodayShell(userId: string): Promise<Today> {
     }
   }
 
-  // ── Coach one-line take ────────────────────────────────────────────────────
-  const oneLineTake = firstSentence(coachRes.data?.message as string | null);
+  // ── Forward outlook ("where you're going") ──────────────────────────────────
+  const outlook = buildOutlook(raceRes.data ?? [], blockGoal, today);
 
   // ── Ribbon ─────────────────────────────────────────────────────────────────
   const ribbon = buildRibbon((ribbonRes.data ?? []) as RibbonActivityRow[], today);
@@ -246,20 +256,51 @@ export async function getTodayShell(userId: string): Promise<Today> {
     heroState,
     prescription,
     route: null,
-    coach: { personaId, personaName, oneLineTake },
-    athleteState: {
-      fs,
-      tfi,
-      afi,
-      formBand: classifyFormBandDisplay(fs),
-      formWord: fs == null ? 'Building baseline' : formVerdict.word,
-      formColor: fs == null ? todayColors.gray : formVerdict.color,
-      formRampPos: fs == null ? 0.5 : clamp01((fs + 30) / 60),
-      confidenceTier: classifyFsConfidenceTier(fsConfidence),
-    },
+    // oneLineTake is filled by the deferred persona summary (getTodayCoach);
+    // the shell leaves it null so the rail can stream it in.
+    coach: { personaId, personaName, oneLineTake: null },
+    athleteState,
     planContext: { blockName, dayIndex, dayTotal, chipLabel },
+    outlook,
     ribbon,
   };
+}
+
+/**
+ * Deferred persona-voiced fitness take. Calls the same /api/fitness-summary
+ * endpoint the live Today uses (surface=today), so the coach line speaks to
+ * current fitness rather than echoing the last chat message.
+ */
+export async function getTodayCoach(
+  athleteState: TodayAthleteState,
+): Promise<string | null> {
+  const { tfi, afi, fs, ctlDeltaPct } = athleteState;
+  if (tfi == null || afi == null || fs == null) return null;
+  try {
+    const {
+      data: { session },
+    } = await supabase.auth.getSession();
+    if (!session?.access_token) return null;
+
+    const res = await fetch('/api/fitness-summary', {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${session.access_token}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        surface: 'today',
+        clientMetrics: { tfi, afi, formScore: fs, ctlDeltaPct },
+        timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+      }),
+    });
+    if (!res.ok) return null;
+    const json = await res.json();
+    return (json.summary as string | null) ?? null;
+  } catch (err) {
+    console.error('getTodayCoach: fitness-summary fetch failed', err);
+    return null;
+  }
 }
 
 // ── Deferred route ───────────────────────────────────────────────────────────
@@ -297,7 +338,16 @@ export async function getTodayRoute(
     if (!res.ok) return null;
     const json = await res.json();
     const matches = json.matches?.[prescription.workoutId] ?? [];
-    const top = matches[0];
+
+    // Sport gate: a run workout must match a run activity (and vice versa) so we
+    // never show a gravel ride for an "Easy Aerobic Run". route-analysis ranks
+    // by workout category only, so filter by the activity's sport here.
+    const wantRun = prescriptionIsRun(prescription);
+    const sportMatched = matches.filter((m: { activity?: { type?: string | null; sport_type?: string | null } }) => {
+      const sport = m.activity?.sport_type || m.activity?.type;
+      return isRunType(sport) === wantRun;
+    });
+    const top = sportMatched[0];
     if (!top?.activity) return null;
 
     const polyline: string | null =
@@ -368,6 +418,37 @@ function buildRibbon(rows: RibbonActivityRow[], today: string): ConsistencyDay[]
     }
   }
   return days;
+}
+
+interface RaceRow {
+  name?: string | null;
+  race_date?: string | null;
+  priority?: string | null;
+}
+
+function buildOutlook(
+  raceRows: RaceRow[],
+  blockGoal: string | null,
+  today: string,
+): TodayOutlook {
+  const aRace = raceRows.find((r) => r.priority === 'A') ?? raceRows[0] ?? null;
+  let daysToRace: number | null = null;
+  const raceName = aRace?.name ?? null;
+  if (aRace?.race_date) {
+    const ms = new Date(aRace.race_date).getTime() - new Date(today).getTime();
+    daysToRace = Math.max(0, Math.ceil(ms / 86400000));
+  }
+
+  let line: string | null = null;
+  if (blockGoal && raceName && daysToRace != null) {
+    line = `${blockGoal} for ${raceName} · ${daysToRace} days out`;
+  } else if (raceName && daysToRace != null) {
+    line = `${raceName} · ${daysToRace} days out`;
+  } else if (blockGoal) {
+    line = blockGoal;
+  }
+
+  return { blockGoal, raceName, daysToRace, line };
 }
 
 function humanizeBlock(blockType: string | null | undefined): string {

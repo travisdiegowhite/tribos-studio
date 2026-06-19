@@ -950,7 +950,9 @@ async function getAnalysis(req, res, authUser) {
         moving_time,
         map_summary_polyline,
         provider,
-        provider_activity_id
+        provider_activity_id,
+        type,
+        sport_type
       )
     `)
     .eq('user_id', authUser.id)
@@ -996,7 +998,9 @@ async function getWorkoutMatches(req, res, authUser) {
         moving_time,
         map_summary_polyline,
         provider,
-        provider_activity_id
+        provider_activity_id,
+        type,
+        sport_type
       )
     `)
     .eq('user_id', authUser.id);

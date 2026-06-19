@@ -1,7 +1,8 @@
 import { describe, it, expect } from 'vitest';
-import { finalizeHeroState } from '../getToday';
+import { finalizeHeroState, prescriptionIsRun } from '../getToday';
 import { deriveIntervalSegments, intervalColoringEnabled } from '../deriveIntervalSegments';
 import { formatDistanceKm, formatElevationM, formatDurationMin } from '../units';
+import { formVerdict } from '../athleteState';
 import { todayFixture } from '../fixtures/todayFixture';
 import type { TodayRoute } from '../types';
 
@@ -65,13 +66,43 @@ describe('units', () => {
   });
 });
 
+describe('prescriptionIsRun (sport gate)', () => {
+  const base = { durationMin: 40, targetRSS: 45, structure: null, workoutId: 'w' };
+  it('detects a run from type or title', () => {
+    expect(prescriptionIsRun({ ...base, type: 'run', title: 'Intervals' })).toBe(true);
+    // generic type, run only in the title — the screenshot case
+    expect(prescriptionIsRun({ ...base, type: 'endurance', title: 'Easy Aerobic Run' })).toBe(true);
+  });
+  it('treats rides as non-run', () => {
+    expect(prescriptionIsRun({ ...base, type: 'tempo', title: 'Tempo Intervals' })).toBe(false);
+    expect(prescriptionIsRun(null)).toBe(false);
+  });
+});
+
+describe('formVerdict', () => {
+  it('maps Form Score to a plain-language verdict', () => {
+    expect(formVerdict(null)).toBe('building baseline');
+    expect(formVerdict(20)).toBe('fresh — add load');
+    expect(formVerdict(8)).toBe('primed — cleared for quality');
+    expect(formVerdict(0)).toBe('cleared for quality');
+    expect(formVerdict(-15)).toBe('steady aerobic only');
+    expect(formVerdict(-30)).toBe('keep it easy — recover');
+  });
+});
+
 describe('todayFixture is internally coherent', () => {
   it('matched state agrees with a strong route match and a real prescription', () => {
     expect(todayFixture.heroState).toBe('matched');
     expect(todayFixture.prescription).not.toBeNull();
     expect(todayFixture.prescription?.type).not.toBe('rest');
     expect(todayFixture.route?.matchPct ?? 0).toBeGreaterThanOrEqual(75);
-    // Clearance word and color are consistent with the fixture's FS.
     expect(todayFixture.athleteState.fs).not.toBeNull();
+  });
+
+  it('fills the fitness story and forward outlook', () => {
+    expect(todayFixture.athleteState.fitnessHistory.length).toBeGreaterThanOrEqual(2);
+    expect(todayFixture.athleteState.fitnessEmpty).toBe(false);
+    expect(todayFixture.athleteState.formVerdict).toBeTruthy();
+    expect(todayFixture.outlook.line).toContain('Gravel Worlds');
   });
 });

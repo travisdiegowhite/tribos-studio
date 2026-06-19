@@ -6,7 +6,7 @@
  * route on click rather than blocking render.
  */
 
-import { Suspense, useCallback, useState } from 'react';
+import { Suspense, use, useCallback, useState } from 'react';
 import { Box, Button, Group, Loader, Skeleton, Stack, Text } from '@mantine/core';
 import { notifications } from '@mantine/notifications';
 import { useNavigate } from 'react-router-dom';
@@ -23,14 +23,26 @@ import type { Today, TodayRoute } from './types';
 interface GlanceRailProps {
   today: Today;
   routePromise: Promise<TodayRoute | null>;
+  coachPromise: Promise<string | null>;
   units: UnitsPreference;
   onSendToGarmin?: () => void;
   onRideToday?: () => void;
 }
 
+/** Streams the persona fitness take in once /api/fitness-summary resolves. */
+function CoachTakeText({ coachPromise }: { coachPromise: Promise<string | null> }) {
+  const take = use(coachPromise);
+  return (
+    <Text style={{ fontFamily: FONT.body, fontSize: 14, lineHeight: 1.5, color: C.text2 }}>
+      {take ?? 'Your coach is warming up — log a few rides for a daily take.'}
+    </Text>
+  );
+}
+
 export function GlanceRail({
   today,
   routePromise,
+  coachPromise,
   units,
   onSendToGarmin,
   onRideToday,
@@ -135,9 +147,9 @@ export function GlanceRail({
             Coach · {coach.personaName}
           </Text>
         </Group>
-        <Text style={{ fontFamily: FONT.body, fontSize: 14, lineHeight: 1.5, color: C.text2 }}>
-          {coach.oneLineTake ?? 'Your coach is warming up — log a few rides for a daily take.'}
-        </Text>
+        <Suspense fallback={<Skeleton height={36} radius={0} />}>
+          <CoachTakeText coachPromise={coachPromise} />
+        </Suspense>
       </Box>
 
       {/* Clearance */}
