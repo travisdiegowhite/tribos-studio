@@ -208,9 +208,12 @@ export function buildActivityData(userId, activityId, activityInfo, source = 'we
       ?? activityInfo.maxHeartRate
       ?? activityInfo.max_heart_rate
       ?? null,
-    // Cadence
+    // Cadence (Activity Details §7.3 summary uses the *RoundsPerMinute /
+    // *StepsPerMinute names; the older push summary used *InRPM)
     average_cadence: activityInfo.averageBikingCadenceInRPM
+      ?? activityInfo.averageBikeCadenceInRoundsPerMinute
       ?? activityInfo.averageRunningCadenceInStepsPerMinute
+      ?? activityInfo.averageRunCadenceInStepsPerMinute
       ?? activityInfo.avgCadence
       ?? activityInfo.avg_cadence
       ?? null,

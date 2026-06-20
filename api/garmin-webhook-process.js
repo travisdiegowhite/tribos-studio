@@ -21,6 +21,7 @@ import { extractAndStoreActivitySegments } from './utils/roadSegmentExtractor.js
 import { parseWebhookPayload } from './utils/garmin/webhookPayloadParser.js';
 import { shouldFilterActivityType, hasMinimumActivityMetrics } from './utils/garmin/activityFilters.js';
 import { buildActivityData } from './utils/garmin/activityBuilder.js';
+import { extractStreamsFromActivityDetails } from './utils/garmin/activityDetailsParser.js';
 import { fetchGarminActivityDetails, requestActivityDetailsBackfill, fetchGarminUserId } from './utils/garmin/garminApiClient.js';
 import { ensureValidAccessToken } from './utils/garmin/tokenManager.js';
 import { processHealthPushData, extractAndSaveHealthMetrics } from './utils/garmin/healthDataProcessor.js';
@@ -37,7 +38,48 @@ const BATCH_SIZE = 20;
 // 24h cutoff silently dropped them forever; widen it so the safety-net
 // requestActivityDetailsBackfill in downloadAndProcessActivity actually gets
 // to run. Health events keep the tight window — they're cheap to lose.
-const ACTIVITY_EVENT_TYPES = ['CONNECT_ACTIVITY', 'ACTIVITY_DETAIL', 'ACTIVITY_FILE_DATA'];
+const ACTIVITY_EVENT_TYPES = ['CONNECT_ACTIVITY', 'ACTIVITY_DETAIL', 'ACTIVITY_DETAIL_PUSH', 'ACTIVITY_FILE_DATA'];
+
+// Activity Details PUSH (Activity API §5 + §7.3): Garmin delivers the activity
+// summary AND the per-second samples[] (GPS, HR, power, cadence) directly in
+// the webhook body — no FIT file, no pull token. This is the primary "full
+// data" path of the consolidated rebuild; it replaces the FIT-file dependency
+// that left Edge 540 rides stranded as summary_only. Both event_type values
+// below carry the same §7.3 detail shape; 'ACTIVITY_DETAIL_PUSH' is what the
+// Cloudflare worker / Vercel ping door tag it as, 'ACTIVITY_DETAIL' is the
+// legacy push-door label for the same payload.
+const DETAIL_EVENT_TYPES = ['ACTIVITY_DETAIL_PUSH', 'ACTIVITY_DETAIL'];
+
+/**
+ * Pull the §7.3 Activity Details object out of a stored event, tolerating
+ * both shapes that reach the queue:
+ *   - the bare detail item (worker / ping door store `payload: item`)
+ *   - the full push envelope `{ activityDetails: [ {detail}, ... ] }`
+ *     (legacy push door stores `payload: webhookData`)
+ */
+function getActivityDetailFromEvent(event) {
+  const payload = event.payload || {};
+  if (Array.isArray(payload.activityDetails) && payload.activityDetails.length > 0) {
+    const idx = event.batch_index || 0;
+    return payload.activityDetails[idx] || payload.activityDetails[0];
+  }
+  return payload;
+}
+
+/**
+ * Flatten a §7.3 detail into the camelCase shape `buildActivityData` reads.
+ * The summary fields live under `detail.summary`; ids live on the detail.
+ */
+function detailToActivityInfo(detail) {
+  const s = (detail && detail.summary) || detail || {};
+  return {
+    ...s,
+    activityType: s.activityType ?? detail?.activityType,
+    activityName: s.activityName ?? detail?.activityName,
+    summaryId: detail?.summaryId,
+    activityId: detail?.activityId,
+  };
+}
 
 // Ping event types that belong to the NEW garmin2-pull pipeline, NOT this
 // legacy processor. The Cloudflare worker tags ping payloads with these
@@ -392,6 +434,14 @@ async function processActivityEvent(event, integrationCache) {
     console.log('✅ Token refreshed proactively');
   }
 
+  // For Activity Details PUSH/§7.3 events, the per-second samples[] ride along
+  // in the stored payload. Convert them once (no FIT download, no pull token)
+  // into the same shape the FIT writer consumes. `null` for all other events
+  // keeps the legacy FIT path untouched.
+  const detailResult = DETAIL_EVENT_TYPES.includes(event.event_type)
+    ? extractStreamsFromActivityDetails(getActivityDetailFromEvent(event))
+    : null;
+
   // Check if activity already imported
   if (event.activity_id) {
     const { data: existing } = await supabase
@@ -403,13 +453,13 @@ async function processActivityEvent(event, integrationCache) {
       .maybeSingle();
 
     if (existing) {
-      await handleExistingActivity(event, existing, integration);
+      await handleExistingActivity(event, existing, integration, detailResult);
       return;
     }
   }
 
   // Process new activity
-  await downloadAndProcessActivity(event, integration);
+  await downloadAndProcessActivity(event, integration, detailResult);
 
   // Update integration last sync
   await supabase
@@ -418,7 +468,25 @@ async function processActivityEvent(event, integrationCache) {
     .eq('id', integration.id);
 }
 
-async function handleExistingActivity(event, existing, integration) {
+async function handleExistingActivity(event, existing, integration, detailResult = null) {
+  // Activity Details PUSH path: the samples already arrived in the webhook.
+  // Merge them into the existing row (upgrading summary_only → full) without
+  // touching the FIT pipeline. This is how a row first created by a bare
+  // CONNECT_ACTIVITY summary gets enriched once the detail push lands.
+  if (DETAIL_EVENT_TYPES.includes(event.event_type)) {
+    const usable = detailResult && !detailResult.error &&
+      (detailResult.activityStreams || detailResult.polyline || detailResult.powerMetrics);
+    if (usable) {
+      await applyParsedResultToActivity(existing.id, detailResult, integration.user_id);
+      await markEventProcessed(event.id, 'Activity Details samples merged into existing activity', existing.id);
+    } else {
+      // No per-second data (manual entry, or a device that records no samples).
+      // Don't retry forever — mark processed; the summary row stands as-is.
+      await markEventProcessed(event.id, 'Activity Details push had no usable samples', existing.id);
+    }
+    return;
+  }
+
   // Extract FIT URL from event column OR from webhook payload callbackURL
   const parsed = parseWebhookPayload(event.payload || {});
   const idx = event.batch_index || 0;
@@ -589,21 +657,29 @@ async function handleExistingActivity(event, existing, integration) {
   }
 }
 
-async function downloadAndProcessActivity(event, integration) {
+async function downloadAndProcessActivity(event, integration, detailResult = null) {
   const payload = event.payload;
-  const parsed = parseWebhookPayload(payload);
+  const isDetailEvent = DETAIL_EVENT_TYPES.includes(event.event_type);
 
   let webhookInfo = null;
   let isPushNotification = false;
 
-  if (parsed.items.length > 0) {
-    // Use batch_index to find the correct item from the batch
-    const idx = event.batch_index || 0;
-    webhookInfo = parsed.items[idx] || parsed.items[0];
-    isPushNotification = parsed.isPush !== false;
-  } else {
-    webhookInfo = payload;
+  if (isDetailEvent) {
+    // Activity Details PUSH: the stored payload is the §7.3 detail (summary +
+    // samples). Flatten the summary into the camelCase shape the builder reads.
+    webhookInfo = detailToActivityInfo(getActivityDetailFromEvent(event));
     isPushNotification = true;
+  } else {
+    const parsed = parseWebhookPayload(payload);
+    if (parsed.items.length > 0) {
+      // Use batch_index to find the correct item from the batch
+      const idx = event.batch_index || 0;
+      webhookInfo = parsed.items[idx] || parsed.items[0];
+      isPushNotification = parsed.isPush !== false;
+    } else {
+      webhookInfo = payload;
+      isPushNotification = true;
+    }
   }
 
   const summaryId = webhookInfo?.summaryId || event.activity_id;
@@ -634,23 +710,29 @@ async function downloadAndProcessActivity(event, integration) {
     return;
   }
 
-  // Fetch from API if needed
+  // Fetch from API if needed. Detail-push events already carry the full
+  // summary + samples, so never make the extra (and now dead, Bearer-only)
+  // summary call for them.
   let activityDetails = null;
   const hasSufficientData = webhookInfo &&
     (webhookInfo.distanceInMeters || webhookInfo.durationInSeconds || webhookInfo.startTimeInSeconds);
 
-  if (!isPushNotification && integration.access_token && summaryId) {
-    activityDetails = await fetchGarminActivityDetails(integration.access_token, summaryId);
-  } else if (!hasSufficientData && integration.access_token && summaryId) {
-    activityDetails = await fetchGarminActivityDetails(integration.access_token, summaryId);
+  if (!isDetailEvent) {
+    if (!isPushNotification && integration.access_token && summaryId) {
+      activityDetails = await fetchGarminActivityDetails(integration.access_token, summaryId);
+    } else if (!hasSufficientData && integration.access_token && summaryId) {
+      activityDetails = await fetchGarminActivityDetails(integration.access_token, summaryId);
+    }
   }
 
   const activityInfo = activityDetails || webhookInfo || {};
 
   // Build activity data
-  const source = activityDetails ? 'webhook_with_api' : 'webhook_push';
+  const source = isDetailEvent ? 'activity_detail_push' : (activityDetails ? 'webhook_with_api' : 'webhook_push');
   const activityData = buildActivityData(integration.user_id, event.activity_id, activityInfo, source);
-  activityData.raw_data = { webhook: payload, api: activityDetails };
+  activityData.raw_data = isDetailEvent
+    ? { activityDetailSummary: webhookInfo, sampleCount: detailResult?.pointCount ?? 0 }
+    : { webhook: payload, api: activityDetails };
   // Stamp completeness on insert so the row is honest the moment it lands.
   // The FIT enrichment in processFitFile / handleExistingActivity will
   // refresh this to 'full' once streams/power/polyline land.
@@ -666,7 +748,7 @@ async function downloadAndProcessActivity(event, integration) {
   );
 
   if (dupCheck.isDuplicate) {
-    await handleDuplicateActivity(event, integration, activityData, activityInfo, dupCheck, webhookInfo);
+    await handleDuplicateActivity(event, integration, activityData, activityInfo, dupCheck, webhookInfo, detailResult);
     return;
   }
 
@@ -709,6 +791,22 @@ async function downloadAndProcessActivity(event, integration) {
     await updateBackfillChunkIfApplicable(integration.user_id, activityInfo.startTimeInSeconds);
   }
 
+  // Detailed data: for Activity Details PUSH the per-second streams/power/GPS
+  // are already parsed from the in-webhook samples[] — apply them directly,
+  // no FIT download. For everything else, fall back to the FIT pipeline.
+  if (isDetailEvent) {
+    const usable = detailResult && !detailResult.error &&
+      (detailResult.activityStreams || detailResult.polyline || detailResult.powerMetrics);
+    if (usable) {
+      await applyParsedResultToActivity(activity.id, detailResult, integration.user_id);
+    } else {
+      // Indoor/manual activity with no samples — legitimately summary_only.
+      console.warn(`[DETAIL:EMPTY] activity ${activity.id}: Activity Details push had no usable samples (pointCount=${detailResult?.pointCount ?? 0})`);
+    }
+    await finalizeImportedActivity(event, activity, integration, activityInfo);
+    return;
+  }
+
   // FIT file processing
   const fitFileUrl = event.file_url || webhookInfo?.callbackURL;
   if (fitFileUrl && integration.access_token) {
@@ -725,6 +823,16 @@ async function downloadAndProcessActivity(event, integration) {
     await requestActivityDetailsBackfill(integration.access_token, activityInfo.startTimeInSeconds);
   }
 
+  await finalizeImportedActivity(event, activity, integration, activityInfo);
+}
+
+/**
+ * Post-insert hooks shared by every new-activity path (FIT and Activity
+ * Details PUSH): fitness snapshot, proprietary metrics, activation tracking,
+ * coaching check-in, deviation analysis, post-ride push, and finally marking
+ * the webhook event processed. All steps are non-critical except the last.
+ */
+async function finalizeImportedActivity(event, activity, integration, activityInfo) {
   // Update fitness snapshot for the week of this activity
   try {
     await updateSnapshotForActivity(supabase, integration.user_id, activity.start_date);
@@ -795,7 +903,88 @@ async function downloadAndProcessActivity(event, integration) {
     .eq('id', event.id);
 }
 
-async function handleDuplicateActivity(event, integration, activityData, activityInfo, dupCheck, webhookInfo) {
+/**
+ * Canonical writer for parsed per-second activity data. Accepts the shape
+ * returned by BOTH `parseFitBuffer` (FIT download) and
+ * `extractStreamsFromActivityDetails` (§7.3 samples PUSH) and writes
+ * streams / polyline / power onto an activity row, dual-writing canonical +
+ * legacy metric columns and refreshing completeness. Returns the list of
+ * applied field groups (for logging / tests).
+ */
+async function applyParsedResultToActivity(activityId, result, userId = null) {
+  const activityUpdate = { updated_at: new Date().toISOString() };
+
+  if (result.polyline) activityUpdate.map_summary_polyline = result.polyline;
+  if (result.activityStreams) activityUpdate.activity_streams = result.activityStreams;
+
+  if (result.powerMetrics) {
+    const pm = result.powerMetrics;
+    if (pm.avgPower) activityUpdate.average_watts = pm.avgPower;
+    // Dual-write legacy + canonical metric columns (CLAUDE.md § Metrics-Frozen).
+    if (pm.normalizedPower) {
+      activityUpdate.normalized_power = pm.normalizedPower;
+      activityUpdate.effective_power = pm.normalizedPower;
+    }
+    if (pm.maxPower) activityUpdate.max_watts = pm.maxPower;
+    if (pm.trainingStressScore) {
+      activityUpdate.tss = pm.trainingStressScore;
+      activityUpdate.rss = pm.trainingStressScore;
+    }
+    if (pm.intensityFactor) {
+      activityUpdate.intensity_factor = pm.intensityFactor;
+      activityUpdate.ride_intensity = pm.intensityFactor;
+    }
+    if (pm.powerCurveSummary) activityUpdate.power_curve_summary = pm.powerCurveSummary;
+    if (pm.workKj) activityUpdate.kilojoules = pm.workKj;
+    activityUpdate.device_watts = true;
+  }
+
+  if (result.rideAnalytics) activityUpdate.ride_analytics = result.rideAnalytics;
+  const fitCoachCtx = result.fitCoachContext ?? null;
+
+  // Nothing beyond updated_at → nothing to persist.
+  if (Object.keys(activityUpdate).length <= 1) return { updated: [] };
+
+  const { error: updateError } = await supabase
+    .from('activities')
+    .update(activityUpdate)
+    .eq('id', activityId);
+
+  if (updateError) {
+    console.error('❌ Failed to save parsed activity data:', updateError);
+    return { updated: [] };
+  }
+
+  const updates = [];
+  if (result.polyline) updates.push(`GPS: ${result.simplifiedCount} points`);
+  if (result.activityStreams) updates.push('streams');
+  if (result.powerMetrics?.normalizedPower) updates.push(`NP: ${result.powerMetrics.normalizedPower}W`);
+  console.log(`✅ Activity data saved (${activityId}): ${updates.join(', ')}`);
+
+  // Re-derive completeness now that streams/power/polyline have landed.
+  refreshCompleteness(supabase, activityId).catch(err =>
+    console.warn(`⚠️ completeness refresh failed for ${activityId}:`, err.message)
+  );
+
+  if (result.polyline) {
+    extractAndStoreActivitySegments(activityId, null).catch(err => {
+      console.warn(`⚠️ Segment extraction failed:`, err.message);
+    });
+  }
+
+  if (fitCoachCtx) {
+    supabase.from('activities')
+      .update({ fit_coach_context: fitCoachCtx })
+      .eq('id', activityId)
+      .then(({ error }) => {
+        if (error) console.warn(`⚠️ fit_coach_context write failed (non-critical):`, error.message);
+      });
+  }
+
+  return { updated: updates };
+}
+
+async function handleDuplicateActivity(event, integration, activityData, activityInfo, dupCheck, webhookInfo, detailResult = null) {
   if (dupCheck.shouldTakeover) {
     console.log('🔄 Garmin taking over from', dupCheck.existingActivity.provider);
 
@@ -807,6 +996,15 @@ async function handleDuplicateActivity(event, integration, activityData, activit
     );
 
     if (result.success) {
+      if (detailResult) {
+        // Activity Details PUSH: per-second samples already parsed — apply
+        // directly to the taken-over row; no FIT download / backfill nudge.
+        const usable = !detailResult.error &&
+          (detailResult.activityStreams || detailResult.polyline || detailResult.powerMetrics);
+        if (usable) {
+          await applyParsedResultToActivity(dupCheck.existingActivity.id, detailResult, integration.user_id);
+        }
+      } else {
       const fitFileUrl = event.file_url || webhookInfo?.callbackURL;
       if (fitFileUrl && integration.access_token) {
         try {
@@ -862,6 +1060,7 @@ async function handleDuplicateActivity(event, integration, activityData, activit
         console.log(`[FIT:BACKFILL] No FIT URL on takeover for activity ${dupCheck.existingActivity.id}, requesting backfill`);
         await requestActivityDetailsBackfill(integration.access_token, activityInfo.startTimeInSeconds);
       }
+      }
 
       if (activityInfo.startTimeInSeconds) {
         await updateBackfillChunkIfApplicable(integration.user_id, activityInfo.startTimeInSeconds);
@@ -882,6 +1081,14 @@ async function handleDuplicateActivity(event, integration, activityData, activit
     };
     await mergeActivityData(dupCheck.existingActivity.id, garminData, 'garmin');
 
+    if (detailResult) {
+      // Activity Details PUSH: apply the in-webhook samples to the merged row.
+      const usable = !detailResult.error &&
+        (detailResult.activityStreams || detailResult.polyline || detailResult.powerMetrics);
+      if (usable) {
+        await applyParsedResultToActivity(dupCheck.existingActivity.id, detailResult, integration.user_id);
+      }
+    } else {
     // Also process FIT file if available and activity is missing detailed data
     const fitFileUrl = event.file_url || webhookInfo?.callbackURL;
     if (fitFileUrl && integration.access_token) {
@@ -909,6 +1116,7 @@ async function handleDuplicateActivity(event, integration, activityData, activit
       // Defensive symmetry with the takeover branch / new-activity path.
       console.log(`[FIT:BACKFILL] No FIT URL on merge for activity ${dupCheck.existingActivity.id}, requesting backfill`);
       await requestActivityDetailsBackfill(integration.access_token, activityInfo.startTimeInSeconds);
+    }
     }
 
     if (activityInfo.startTimeInSeconds) {
@@ -974,87 +1182,13 @@ async function processFitFile(activityId, fitFileUrl, accessToken, userId = null
       return;
     }
 
-    const activityUpdate = { updated_at: new Date().toISOString() };
-
-    if (fitResult.polyline) {
-      activityUpdate.map_summary_polyline = fitResult.polyline;
+    if (fitResult.fitCoachContext) {
+      console.log(`[FIT:SUCCESS] Coach context: ${fitResult.fitCoachContext.sample_count} samples @ ${fitResult.fitCoachContext.interval_seconds}s`);
     }
 
-    if (fitResult.activityStreams) {
-      activityUpdate.activity_streams = fitResult.activityStreams;
-    }
-
-    if (fitResult.powerMetrics) {
-      const pm = fitResult.powerMetrics;
-      if (pm.avgPower) activityUpdate.average_watts = pm.avgPower;
-      // Dual-write legacy + canonical (spec §2). See note at line 312.
-      if (pm.normalizedPower) {
-        activityUpdate.normalized_power = pm.normalizedPower;
-        activityUpdate.effective_power = pm.normalizedPower;
-      }
-      if (pm.maxPower) activityUpdate.max_watts = pm.maxPower;
-      if (pm.trainingStressScore) {
-        activityUpdate.tss = pm.trainingStressScore;
-        activityUpdate.rss = pm.trainingStressScore;
-      }
-      if (pm.intensityFactor) {
-        activityUpdate.intensity_factor = pm.intensityFactor;
-        activityUpdate.ride_intensity = pm.intensityFactor;
-      }
-      if (pm.powerCurveSummary) activityUpdate.power_curve_summary = pm.powerCurveSummary;
-      if (pm.workKj) activityUpdate.kilojoules = pm.workKj;
-      activityUpdate.device_watts = true;
-
-      console.log(`[FIT:SUCCESS] Power metrics: Avg=${pm.avgPower}W, NP=${pm.normalizedPower}W, Max=${pm.maxPower}W, Work=${pm.workKj}kJ`);
-    }
-
-    // Store advanced ride analytics
-    if (fitResult.rideAnalytics) {
-      activityUpdate.ride_analytics = fitResult.rideAnalytics;
-    }
-
-    // fit_coach_context written separately so a missing column never blocks GPS/streams/power
-    const fitCoachCtx = fitResult.fitCoachContext ?? null;
-    if (fitCoachCtx) {
-      console.log(`[FIT:SUCCESS] Coach context: ${fitCoachCtx.sample_count} samples @ ${fitCoachCtx.interval_seconds}s`);
-    }
-
-    if (Object.keys(activityUpdate).length > 1) {
-      const { error: updateError } = await supabase
-        .from('activities')
-        .update(activityUpdate)
-        .eq('id', activityId);
-
-      if (updateError) {
-        console.error('❌ Failed to save FIT data:', updateError);
-      } else {
-        const updates = [];
-        if (fitResult.polyline) updates.push(`GPS: ${fitResult.simplifiedCount} points`);
-        if (fitResult.powerMetrics?.normalizedPower) updates.push(`NP: ${fitResult.powerMetrics.normalizedPower}W`);
-        console.log(`✅ FIT data saved: ${updates.join(', ')}`);
-
-        // Re-derive completeness now that streams/power/polyline have landed.
-        // Failure here is non-critical (Phase 4 reconciliation will fix drift).
-        refreshCompleteness(supabase, activityId).catch(err =>
-          console.warn(`⚠️ completeness refresh failed for ${activityId}:`, err.message)
-        );
-
-        if (fitResult.polyline) {
-          extractAndStoreActivitySegments(activityId, null).catch(err => {
-            console.warn(`⚠️ Segment extraction failed:`, err.message);
-          });
-        }
-
-        if (fitCoachCtx) {
-          supabase.from('activities')
-            .update({ fit_coach_context: fitCoachCtx })
-            .eq('id', activityId)
-            .then(({ error }) => {
-              if (error) console.warn(`⚠️ fit_coach_context write failed (non-critical):`, error.message);
-            });
-        }
-      }
-    }
+    // Single canonical writer (shared with the Activity Details PUSH path):
+    // streams / polyline / dual-written power, completeness refresh, segments.
+    await applyParsedResultToActivity(activityId, fitResult, userId);
   } catch (fitError) {
     console.error('⚠️ FIT file processing failed (activity still saved):', fitError.message);
   }

@@ -22,10 +22,15 @@ describe('classifyPayload', () => {
     expect(r.healthType).toBeNull();
   });
 
-  it('classifies an activityDetails array WITHOUT callbackURL as legacy push', () => {
-    // Garmin's old PUSH ACTIVITY_DETAIL inlined the full data; no callbackURL.
-    const r = classifyPayload({ activityDetails: [{ userId: 'x', summaryId: 'y' }] });
-    expect(r.kind).toBe('PUSH_CONNECT_ACTIVITY');
+  it('classifies an activityDetails array WITHOUT callbackURL as an Activity Details PUSH', () => {
+    // Activity Details PUSH inlines the summary + per-second samples[]; no
+    // callbackURL. It must stay distinct from CONNECT_ACTIVITY so the samples
+    // survive to the processor (the rebuild's primary full-data path).
+    const r = classifyPayload({
+      activityDetails: [{ userId: 'x', summaryId: 'y', summary: {}, samples: [{ startTimeInSeconds: 1 }] }],
+    });
+    expect(r.kind).toBe('PUSH_ACTIVITY_DETAIL');
+    expect(eventTypeFor(r)).toBe('ACTIVITY_DETAIL_PUSH');
   });
 
   it('detects PUSH_ACTIVITY_FILE for activityFiles[]', () => {
@@ -89,6 +94,7 @@ describe('validatePingItem', () => {
 describe('eventTypeFor', () => {
   it('maps each kind to the canonical event_type value', () => {
     expect(eventTypeFor({ kind: 'PING_ACTIVITY_DETAIL' })).toBe('ACTIVITY_DETAIL_PING');
+    expect(eventTypeFor({ kind: 'PUSH_ACTIVITY_DETAIL' })).toBe('ACTIVITY_DETAIL_PUSH');
     expect(eventTypeFor({ kind: 'PING_HEALTH', healthType: 'dailies' })).toBe('HEALTH_DAILIES_PING');
     expect(eventTypeFor({ kind: 'PING_HEALTH', healthType: 'sleeps' })).toBe('HEALTH_SLEEPS_PING');
     expect(eventTypeFor({ kind: 'PUSH_ACTIVITY_FILE' })).toBe('ACTIVITY_FILE_DATA');
