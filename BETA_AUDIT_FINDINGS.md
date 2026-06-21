@@ -32,6 +32,36 @@ reproduce are listed under **Debunked** so we don't re-litigate them.
   M3 also touches frozen metrics code. Run the queries below first to confirm affected
   rows exist, then scope a fix.
 
+## Round 2 (2026-06-21) — "what else needs fixing"
+
+Three more Explore passes (API/hygiene, remaining display surfaces, import/sync). Most
+high-severity candidates were **false positives** removed on verification.
+
+**Fixed** (lint clean, 1535 tests pass):
+- **R1** — `api/road-segments.js:299`: `familiarityPercent` guarded against `totalKm === 0`
+  (was returning `NaN` in a 200 response for routes with no matched segments).
+- **R3** — `api/road-segments.js`: `parseInt(minRideCount) || 2` at all 3 sites (agent only
+  spotted one).
+- **R4** — lazy Resend init in `api/admin.js`, `api/email.js`, `api/email-tool.js` (was
+  `new Resend(undefined)` at module load → would 500 every endpoint in the file if the key
+  is unset).
+
+**Verified PASS (no action):** Supabase connection hygiene (single `createClient`), writer
+dual-write compliance, cron frequency all conform to CLAUDE.md.
+
+**Debunked on verification (do NOT re-file):**
+- `AthleteBenchmarking` weight÷0 — guarded by `if (!weight) return null` (246) + null-analysis
+  empty state (321). Never divides without a positive weight.
+- `RideAnalysisModal` W/kg (550/576/633) `{weight > 0 && …}`; IF/VI (591/608) `&&`-guarded.
+- `ActivityPowerCurve` W/kg (71/93) — `weight ? … : null` (0 is falsy → null, no Infinity).
+- `PersonalRecordsCard` (156) — `&&`-guarded.
+- Garmin `start_date_local` "CRITICAL timezone" — intended Strava-compatible "local
+  wall-clock as UTC" encoding, has a passing test.
+
+**Still needs the (blocked) data sweep:** R6 (cross-provider duplicate merge not
+re-triggering training-load recompute — likely mitigated by per-(user,date) upsert), plus
+M2/M3. R5 (dead components in `TrainingDashboard.jsx`) left as optional cleanup.
+
 ---
 
 ## How to read this
