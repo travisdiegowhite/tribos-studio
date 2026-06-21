@@ -10,7 +10,14 @@ import { Resend } from 'resend';
 import { setupCors } from './utils/cors.js';
 import { rateLimitMiddleware } from './utils/rateLimit.js';
 
-const resend = new Resend(process.env.RESEND_API_KEY);
+// Lazy Resend init — constructing with an undefined key throws, so defer until
+// first use (handler checks RESEND_API_KEY before sending). Avoids a module-load
+// crash that would 500 every endpoint in this file when the key is unset.
+let _resend = null;
+function getResend() {
+  if (!_resend) _resend = new Resend(process.env.RESEND_API_KEY);
+  return _resend;
+}
 
 const supabase = getSupabaseAdmin();
 
@@ -335,7 +342,7 @@ async function sendTestEmail(req, res, adminUser) {
   await logAdminAction(adminUser.id, 'send_test_email', null, { subject });
 
   try {
-    const { data, error } = await resend.emails.send({
+    const { data, error } = await getResend().emails.send({
       from: `${fromName || 'Tribos Studio'} <${fromEmail || 'noreply@tribos.studio'}>`,
       to: [adminUser.email],
       subject: `[TEST] ${subject}`,
@@ -440,7 +447,7 @@ async function sendCampaign(req, res, adminUser) {
 
         console.log(`Sending batch ${batchNum + 1} with ${emailBatch.length} emails`);
 
-        const { data: batchResult, error: batchError } = await resend.batch.send(emailBatch);
+        const { data: batchResult, error: batchError } = await getResend().batch.send(emailBatch);
 
         if (batchError) {
           const errorMsg = batchError.message || JSON.stringify(batchError) || 'Batch send failed';

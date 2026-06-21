@@ -296,7 +296,7 @@ async function scoreRouteFromCoordinates(coordinates, userId) {
     totalSegments: routeSegments.length,
     familiarKm: parseFloat(familiarKm.toFixed(2)),
     unknownKm: parseFloat(unknownKm.toFixed(2)),
-    familiarityPercent: parseFloat(((familiarKm / totalKm) * 100).toFixed(1)),
+    familiarityPercent: totalKm > 0 ? parseFloat(((familiarKm / totalKm) * 100).toFixed(1)) : 0,
     confidence: familiarCount > 5 ? 'high' : familiarCount > 0 ? 'medium' : 'unknown',
   };
 }
@@ -500,7 +500,7 @@ async function getFamiliarSegments(req, res, authUser) {
     p_max_lat: parseFloat(maxLat),
     p_min_lng: parseFloat(minLng),
     p_max_lng: parseFloat(maxLng),
-    p_min_ride_count: parseInt(minRideCount) || 1
+    p_min_ride_count: parseInt(minRideCount) || 2 || 1
   });
 
   if (error) {
@@ -625,7 +625,7 @@ async function getLoopWaypoints(req, res, authUser) {
     p_max_lat: cLat + latOffset,
     p_min_lng: cLng - lngOffset,
     p_max_lng: cLng + lngOffset,
-    p_min_ride_count: parseInt(minRideCount)
+    p_min_ride_count: parseInt(minRideCount) || 2
   });
 
   if (error) {
@@ -802,7 +802,7 @@ async function visualizeSegments(req, res, authUser) {
     p_max_lat: parseFloat(maxLat),
     p_min_lng: parseFloat(minLng),
     p_max_lng: parseFloat(maxLng),
-    p_min_ride_count: parseInt(minRideCount) || 1
+    p_min_ride_count: parseInt(minRideCount) || 2 || 1
   });
 
   if (error) {

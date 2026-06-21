@@ -4,7 +4,14 @@
 import { Resend } from 'resend';
 import { setupCors } from './utils/cors.js';
 
-const resend = new Resend(process.env.RESEND_API_KEY);
+// Lazy Resend init — constructing with an undefined key throws, so defer until
+// first use (handler checks RESEND_API_KEY before sending). Avoids a module-load
+// crash that would 500 every route in this file when the key is unset.
+let _resend = null;
+function getResend() {
+  if (!_resend) _resend = new Resend(process.env.RESEND_API_KEY);
+  return _resend;
+}
 
 /**
  * Escape HTML special characters to prevent XSS
@@ -91,7 +98,7 @@ async function sendConfirmationEmail(req, res) {
     return res.status(400).json({ error: 'Email and confirmationUrl are required' });
   }
 
-  const { data, error } = await resend.emails.send({
+  const { data, error } = await getResend().emails.send({
     from: 'Tribos Studio <noreply@tribos.studio>',
     to: [email],
     subject: 'Confirm Your Tribos.Studio Account',
@@ -120,7 +127,7 @@ async function sendImportEmail(req, res) {
 
   const { totalActivities, imported, skipped, errors } = stats;
 
-  const { data, error } = await resend.emails.send({
+  const { data, error } = await getResend().emails.send({
     from: 'tribos.studio <noreply@tribos.studio>',
     to: [email],
     subject: 'Your Strava import is complete! 🚴',
@@ -151,7 +158,7 @@ async function sendBetaNotifyEmail(req, res) {
     const htmlContent = getBetaNotifyEmailHtml();
     console.log('HTML content generated, length:', htmlContent?.length);
 
-    const { data, error } = await resend.emails.send({
+    const { data, error } = await getResend().emails.send({
       from: 'Tribos Studio <noreply@tribos.studio>',
       to: [email],
       subject: "You're on the Tribos.Studio Beta List! 🚴",
@@ -179,7 +186,7 @@ async function sendWelcomeEmail(req, res) {
     return res.status(400).json({ error: 'Name and email are required' });
   }
 
-  const { data, error } = await resend.emails.send({
+  const { data, error } = await getResend().emails.send({
     from: 'Tribos Studio <onboarding@tribos.studio>',
     to: [email],
     subject: 'Welcome to Tribos Studio Cycling AI Beta!',
