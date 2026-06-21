@@ -20,6 +20,7 @@ import { useMediaQuery } from '@mantine/hooks';
 import { ViewOnStravaLink, StravaLogo, PoweredByStrava, STRAVA_ORANGE } from './StravaBranding';
 import { PoweredByGarmin } from './GarminBranding';
 import { Bicycle, CaretLeft, CaretRight, ChartBar, Eye, EyeSlash, Funnel, MagnifyingGlass, Path, PersonSimpleRun, UploadSimple, Watch } from '@phosphor-icons/react';
+import { estimateActivityTSS } from '../utils/computeFitnessSnapshots';
 
 /**
  * Ride History Table Component
@@ -32,6 +33,7 @@ const RideHistoryTable = ({
   onHideRide,
   formatDistance,
   formatElevation,
+  ftp = null,
   maxRows = 10,
   pageSize = 25,
 }) => {
@@ -148,9 +150,10 @@ const RideHistoryTable = ({
     const dateYear = date.getFullYear();
     const currentYear = new Date().getFullYear();
 
-    // Flag obviously wrong dates (before 2010 or more than 1 year in future)
+    // Flag obviously wrong dates (before 2010 or more than 1 year in future).
+    // Use the same sentinel as missing dates so bad data reads consistently.
     if (dateYear < 2010 || dateYear > currentYear + 1) {
-      return 'Invalid';
+      return 'Unknown';
     }
 
     // Show year if not current year
@@ -193,15 +196,10 @@ const RideHistoryTable = ({
 
   const getCadence = (r) => r.average_cadence || 0;
 
-  // Estimate TSS
-  const estimateTSS = (ride) => {
-    const distanceKm = getDistance(ride);
-    const elevationM = getElevation(ride);
-    const durationSeconds = getDuration(ride) || 3600;
-    const baseTSS = (durationSeconds / 3600) * 50;
-    const elevationFactor = (elevationM / 300) * 10;
-    return Math.round(baseTSS + elevationFactor);
-  };
+  // Estimate TSS — use the shared canonical estimator so the History tab
+  // matches the Dashboard/Training views (reads stored rss/tss first, then
+  // power/HR/kJ/inferred tiers). Cap at 500 to match those callers.
+  const estimateTSS = (ride) => Math.min(estimateActivityTSS(ride, ftp), 500);
 
   if (!rides || rides.length === 0) {
     return (

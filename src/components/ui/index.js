@@ -15,6 +15,7 @@ export { default as PrimaryButton, SecondaryButton } from './PrimaryButton';
 // Badges
 export { default as StatusBadge, FormStatusBadge, PriorityBadge } from './StatusBadge';
 export { default as MetricBadge, MetricText, MetricGroup } from './MetricBadge';
+export { default as FtpMissingBadge } from './FtpMissingBadge';
 
 // Zone Colors (for charts/visualization only - NOT for interactive elements)
 export {
