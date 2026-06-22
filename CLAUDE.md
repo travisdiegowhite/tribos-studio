@@ -385,7 +385,14 @@ All distance variables in `src/` end in either `_km` (kilometers) or `_m` / `_me
 
 ### When you see `distance` without a suffix
 
-Treat it as a bug, especially in any new code. The grep audit in `audit-report.md` enumerates the ~80 Category C sites that exist today; most are inside `aiRouteGenerator.js`, `iterativeRouteBuilder.js`, `segmentDetector.ts`, and `directions.js` internals where the name didn't change to keep the PR tractable. They are unit-correct at boundaries but name-incorrect; a follow-up sweep should finish them.
+Treat it as a bug, especially in any new code. The grep audit in `audit-report.md` enumerates the ~80 Category C sites; they were unit-correct at boundaries but name-incorrect. The follow-up name sweep has since landed for three of the four files:
+
+- **`segmentDetector.ts` — done.** The internal `StreamPoint`/`DetectedStop`/`BoundaryPoint`/`CandidateSegment` `distance` fields are now `distanceMeters` (matching the file's existing `distanceMeters`/`totalDistanceMeters` style). No external consumer read those fields.
+- **`directions.js` — done.** Route-result return objects now emit `distance_m`/`duration_s` (canonical) alongside the legacy `distance`/`duration` aliases, matching `smartCyclingRouter`/`stadiaMapsRouter`; the header comment is now accurate. Internal `totalDistance` → `totalDistanceMeters`. `radius` is left (Category D / snap-tolerance, not a route distance).
+- **`iterativeRouteBuilder.js` — done.** Internal km locals are suffixed (`totalDistanceKm`, `actualDistanceKm`, `straightLineDistKm`, `halfDistanceKm`, `remainingDistanceKm`, etc.) and the internal `segment.distance` field is now `segment.distanceKm`. Route-level returns keep `distance` (legacy m) + `distanceKm` (canonical), so callers are unaffected.
+- **`aiRouteGenerator.js` — partial.** Self-contained km geometry locals are suffixed (`halfDistanceKm`, `outboundDistanceKm`, `outboundGeometricDistanceKm`, the bare `const distance` waypoint locals → `distanceKm`). **`targetDistance` is intentionally NOT renamed**: it is a cross-module object-key contract — `generateRouteFromPatterns` (`rideAnalysis.js`) and `analyzeRidingPatternsWithClaude` (`claudeRouteService.js`) destructure `params.targetDistance`, so finishing it cascades beyond these four files and needs its own scoped PR. `radius` is also left (Category D — sometimes km, sometimes degrees).
+
+What remains: the `aiRouteGenerator.js` ↔ `rideAnalysis.js`/`claudeRouteService.js` `targetDistance` key rename, plus the elevation-profile-point `distance` alias and the Supabase column renames already documented as out of scope by the migration freeze.
 
 ## Coordinate Format Convention — Critical Rules (DO NOT BREAK)
 

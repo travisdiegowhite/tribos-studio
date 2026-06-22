@@ -964,7 +964,7 @@ async function generateMapboxLoop(startLocation, targetDistance, pattern, traini
 // Generate single Mapbox out-and-back route
 async function generateMapboxOutBack(startLocation, targetDistance, direction, trainingGoal, mapboxToken, patternBasedSuggestions, userPreferences = null, userSpeed = null) {
   const [startLon, startLat] = startLocation;
-  const halfDistance = targetDistance / 2;
+  const halfDistanceKm = targetDistance / 2;
   
   // Check for nearby frequent areas in the preferred direction
   const nearbyAreas = patternBasedSuggestions?.nearbyFrequentAreas || [];
@@ -980,8 +980,8 @@ async function generateMapboxOutBack(startLocation, targetDistance, direction, t
     
     // Use area if it's roughly in the right direction and distance
     if (normalizedDiff < 45 && 
-        distanceToArea > halfDistance * 0.5 && 
-        distanceToArea < halfDistance * 1.5) {
+        distanceToArea > halfDistanceKm * 0.5 && 
+        distanceToArea < halfDistanceKm * 1.5) {
       targetPoint = area.center;
       console.log(`Using frequent area as turnaround point for ${direction.name}`);
       break;
@@ -993,7 +993,7 @@ async function generateMapboxOutBack(startLocation, targetDistance, direction, t
     // Add some variation to avoid perfectly straight lines
     const angle = direction.bearing * (Math.PI / 180);
     const angleVariation = angle + (Math.random() - 0.5) * 0.2;
-    const distanceVariation = halfDistance * (0.8 + Math.random() * 0.4);
+    const distanceVariation = halfDistanceKm * (0.8 + Math.random() * 0.4);
     
     const deltaLat = (distanceVariation / 111.32) * Math.cos(angleVariation);
     const deltaLon = (distanceVariation / (111.32 * Math.cos(startLat * Math.PI / 180))) * Math.sin(angleVariation);
@@ -1271,10 +1271,10 @@ function generateLoopWaypoints(startLocation, targetDistance, directions, pastRi
     
     // Vary distance to create interesting shapes (not perfect circles)
     const distanceVariation = Math.sin(i * Math.PI / 2) * 0.3 + 1; // Creates oval/figure-8 shapes
-    const distance = baseRadius * distanceVariation + Math.random() * (baseRadius * 0.2) - (baseRadius * 0.1);
-    
-    const waypoint = calculateDestinationPoint(startLocation, distance, angle);
-    console.log(`📍 Loop Waypoint ${i}:`, {angle: Math.round(angle), distance: Math.round(distance), waypoint});
+    const distanceKm = baseRadius * distanceVariation + Math.random() * (baseRadius * 0.2) - (baseRadius * 0.1);
+
+    const waypoint = calculateDestinationPoint(startLocation, distanceKm, angle);
+    console.log(`📍 Loop Waypoint ${i}:`, {angle: Math.round(angle), distance: Math.round(distanceKm), waypoint});
     waypoints.push(waypoint);
   }
   
@@ -1287,7 +1287,7 @@ function generateLoopWaypoints(startLocation, targetDistance, directions, pastRi
 // Generate out-and-back route waypoints
 function generateOutAndBackWaypoints(startLocation, targetDistance, directions, pastRidePatterns) {
   const waypoints = [startLocation];
-  const outboundDistance = targetDistance / 2;
+  const outboundDistanceKm = targetDistance / 2;
   
   // Choose a primary direction for the out-and-back
   let primaryBearing = Math.random() * 360;
@@ -1303,22 +1303,22 @@ function generateOutAndBackWaypoints(startLocation, targetDistance, directions, 
   }
   
   // Add some waypoints along the outbound journey
-  const numOutboundWaypoints = Math.min(3, Math.max(1, Math.floor(outboundDistance / 10)));
+  const numOutboundWaypoints = Math.min(3, Math.max(1, Math.floor(outboundDistanceKm / 10)));
   
   for (let i = 1; i <= numOutboundWaypoints; i++) {
     const progress = i / (numOutboundWaypoints + 1);
-    const distance = outboundDistance * progress;
+    const distanceKm = outboundDistanceKm * progress;
     const bearing = primaryBearing + Math.random() * 20 - 10; // Small variations
-    
-    const waypoint = calculateDestinationPoint(startLocation, distance, bearing);
-    console.log(`📍 Outbound Waypoint ${i}:`, {bearing: Math.round(bearing), distance: Math.round(distance)});
+
+    const waypoint = calculateDestinationPoint(startLocation, distanceKm, bearing);
+    console.log(`📍 Outbound Waypoint ${i}:`, {bearing: Math.round(bearing), distance: Math.round(distanceKm)});
     waypoints.push(waypoint);
   }
   
   // Final outbound point (turnaround)
-  const turnaroundPoint = calculateDestinationPoint(startLocation, outboundDistance, primaryBearing);
+  const turnaroundPoint = calculateDestinationPoint(startLocation, outboundDistanceKm, primaryBearing);
   waypoints.push(turnaroundPoint);
-  console.log(`🔄 Turnaround point:`, {bearing: Math.round(primaryBearing), distance: Math.round(outboundDistance)});
+  console.log(`🔄 Turnaround point:`, {bearing: Math.round(primaryBearing), distance: Math.round(outboundDistanceKm)});
   
   // Return journey - same points in reverse (Mapbox will route back)
   waypoints.push(startLocation);
@@ -1347,11 +1347,11 @@ function generatePointToPointWaypoints(startLocation, targetDistance, directions
   
   for (let i = 1; i <= numWaypoints; i++) {
     const progress = i / (numWaypoints + 1);
-    const distance = targetDistance * progress;
+    const distanceKm = targetDistance * progress;
     const bearing = destinationBearing + Math.random() * 30 - 15; // Allow some meandering
-    
-    const waypoint = calculateDestinationPoint(startLocation, distance, bearing);
-    console.log(`📍 P2P Waypoint ${i}:`, {bearing: Math.round(bearing), distance: Math.round(distance)});
+
+    const waypoint = calculateDestinationPoint(startLocation, distanceKm, bearing);
+    console.log(`📍 P2P Waypoint ${i}:`, {bearing: Math.round(bearing), distance: Math.round(distanceKm)});
     waypoints.push(waypoint);
   }
   
@@ -2048,7 +2048,7 @@ function calculateRouteComplexity(coordinates) {
 // Generate out-and-back routes
 async function generateOutAndBackRoutes(startLocation, targetDistance, trainingGoal, weatherData, patternBasedSuggestions) {
   const routes = [];
-  const halfDistance = targetDistance / 2;
+  const halfDistanceKm = targetDistance / 2;
   
   // Generate different directions, prioritizing user preferences
   let directions = [
@@ -2072,7 +2072,7 @@ async function generateOutAndBackRoutes(startLocation, targetDistance, trainingG
     try {
       const route = await generateOutAndBackPattern(
         startLocation,
-        halfDistance,
+        halfDistanceKm,
         direction,
         trainingGoal,
         weatherData,
@@ -2685,7 +2685,7 @@ function generateMockCoordinates(startLocation, targetDistance) {
 }
 
 // Generate out-and-back pattern
-async function generateOutAndBackPattern(startLocation, halfDistance, direction, trainingGoal, weatherData, patternBasedSuggestions) {
+async function generateOutAndBackPattern(startLocation, halfDistanceKm, direction, trainingGoal, weatherData, patternBasedSuggestions) {
   const [startLon, startLat] = startLocation;
   
   // Calculate target point for out-and-back
@@ -2705,8 +2705,8 @@ async function generateOutAndBackPattern(startLocation, halfDistance, direction,
     
     // Use area if it's roughly in the right direction and distance
     if (normalizedDiff < 45 && 
-        distanceToArea > halfDistance * 0.5 && 
-        distanceToArea < halfDistance * 1.5) {
+        distanceToArea > halfDistanceKm * 0.5 && 
+        distanceToArea < halfDistanceKm * 1.5) {
       targetPoint = area.center;
       console.log(`Using frequent area as turnaround point for ${direction.name}`);
       break;
@@ -2717,7 +2717,7 @@ async function generateOutAndBackPattern(startLocation, halfDistance, direction,
   if (!targetPoint) {
     // Add some variation to avoid perfectly straight lines
     const angleVariation = angle + (Math.random() - 0.5) * 0.2;
-    const distanceVariation = halfDistance * (0.8 + Math.random() * 0.4);
+    const distanceVariation = halfDistanceKm * (0.8 + Math.random() * 0.4);
     
     const deltaLat = (distanceVariation / 111.32) * Math.cos(angleVariation);
     const deltaLon = (distanceVariation / (111.32 * Math.cos(startLat * Math.PI / 180))) * Math.sin(angleVariation);
@@ -3087,9 +3087,9 @@ function generateLoopWaypointsSimple(startLocation, targetDistance, preferredDir
 
     // Vary radius for more natural shape (0.9 to 1.1x base)
     const radiusVariation = 0.9 + Math.random() * 0.2;
-    const distance = baseRadius * radiusVariation;
+    const distanceKm = baseRadius * radiusVariation;
 
-    const waypoint = calculateDestinationPoint(startLocation, distance, angle);
+    const waypoint = calculateDestinationPoint(startLocation, distanceKm, angle);
     waypoints.push(waypoint);
   }
 
@@ -3107,7 +3107,7 @@ function generateOutAndBackWaypointsSimple(startLocation, targetDistance, prefer
   // Roads are curvy - actual distance is ~65-75% of straight-line distance
   // For out-and-back: we go out half distance, return same way (but routed on roads)
   // So geometric outbound distance should be ~0.7x the target one-way distance
-  const outboundGeometricDistance = (targetDistance / 2) * 0.7;
+  const outboundGeometricDistanceKm = (targetDistance / 2) * 0.7;
 
   // Determine bearing
   let bearing = Math.random() * 360;
@@ -3124,17 +3124,17 @@ function generateOutAndBackWaypointsSimple(startLocation, targetDistance, prefer
 
   for (let i = 1; i <= numOutbound; i++) {
     const progress = i / numOutbound;
-    const distance = outboundGeometricDistance * progress;
+    const distanceKm = outboundGeometricDistanceKm * progress;
     // Add slight bearing variations for more interesting route
     const bearingVariation = (Math.random() * 20 - 10) * (1 - progress); // Less variation near turnaround
-    const waypoint = calculateDestinationPoint(startLocation, distance, bearing + bearingVariation);
+    const waypoint = calculateDestinationPoint(startLocation, distanceKm, bearing + bearingVariation);
     waypoints.push(waypoint);
   }
 
   // Return to start (routing will handle the actual path)
   waypoints.push(startLocation);
 
-  console.log(`📍 Generated ${waypoints.length} out-and-back waypoints for ${targetDistance.toFixed(1)}km target (outbound: ${outboundGeometricDistance.toFixed(1)}km geometric)`);
+  console.log(`📍 Generated ${waypoints.length} out-and-back waypoints for ${targetDistance.toFixed(1)}km target (outbound: ${outboundGeometricDistanceKm.toFixed(1)}km geometric)`);
   return waypoints;
 }
 

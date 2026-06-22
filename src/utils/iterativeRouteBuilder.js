@@ -154,7 +154,7 @@ function removeTangentAtJoin(coordinates, previousEndPoint, maxTangentLength = 1
     const segmentBearing = calculateBearing(point, nextPoint);
 
     // Calculate how far this point is from the previous segment's end point
-    const distFromPrevEnd = calculateDistance(previousEndPoint, point);
+    const distFromPrevEndKm = calculateDistance(previousEndPoint, point);
 
     // Calculate bearing difference from overall direction
     let bearingDiff = Math.abs(segmentBearing - overallBearing);
@@ -162,7 +162,7 @@ function removeTangentAtJoin(coordinates, previousEndPoint, maxTangentLength = 1
 
     // If we're moving back toward the overall direction AND we were close to the previous end
     // AND the bearing is now within 45° of the overall direction, this might be after a tangent
-    if (bearingDiff < 45 && distFromPrevEnd < 0.3) { // 0.3 km = 300m
+    if (bearingDiff < 45 && distFromPrevEndKm < 0.3) { // 0.3 km = 300m
       // Check if points before this were deviating
       const startBearing = calculateBearing(coordinates[0], coordinates[1]);
       let startBearingDiff = Math.abs(startBearing - overallBearing);
@@ -219,16 +219,16 @@ function joinSegmentsWithTangentRemoval(existingCoords, newSegmentCoords, isFirs
     const firstNewPoint = segmentToAdd[0];
 
     if (firstNewPoint) {
-      const connectionDist = calculateDistance(lastPoint, firstNewPoint);
+      const connectionDistKm = calculateDistance(lastPoint, firstNewPoint);
 
       // If the connection point is very close, check if there's backtracking before it
-      if (connectionDist < 0.1) { // Within 100m
+      if (connectionDistKm < 0.1) { // Within 100m
         for (let i = existingCoords.length - 2; i >= Math.max(0, existingCoords.length - 8); i--) {
           const checkPoint = existingCoords[i];
-          const distToNew = calculateDistance(checkPoint, firstNewPoint);
+          const distToNewKm = calculateDistance(checkPoint, firstNewPoint);
 
           // If an earlier point is closer to the new segment start than the last point
-          if (distToNew < connectionDist * 0.5) {
+          if (distToNewKm < connectionDistKm * 0.5) {
             trimFromEnd = existingCoords.length - 1 - i;
             console.log(`🔧 Trimming ${trimFromEnd} trailing tangent points from previous segment`);
             break;
@@ -276,12 +276,12 @@ async function routeSegment(start, end, options = {}) {
     });
 
     if (result && result.coordinates && result.coordinates.length > 0) {
-      const actualDistance = result.distance / 1000; // Convert meters to km
-      console.log(`   ✅ Routed: ${actualDistance.toFixed(2)}km, ${result.coordinates.length} points`);
+      const actualDistanceKm = (result.distance_m ?? result.distance) / 1000; // Convert meters to km
+      console.log(`   ✅ Routed: ${actualDistanceKm.toFixed(2)}km, ${result.coordinates.length} points`);
 
       return {
         coordinates: result.coordinates,
-        distance: actualDistance,
+        distanceKm: actualDistanceKm,
         duration: result.duration || 0,
         elevationGain: result.elevationGain || 0,
         source: result.source,
@@ -293,7 +293,7 @@ async function routeSegment(start, end, options = {}) {
     console.warn(`   ⚠️ Routing failed, using straight line`);
     return {
       coordinates: [start, end],
-      distance: calculateDistance(start, end),
+      distanceKm: calculateDistance(start, end),
       duration: 0,
       elevationGain: 0,
       source: 'fallback',
@@ -303,7 +303,7 @@ async function routeSegment(start, end, options = {}) {
     console.error(`   ❌ Routing error:`, error);
     return {
       coordinates: [start, end],
-      distance: calculateDistance(start, end),
+      distanceKm: calculateDistance(start, end),
       duration: 0,
       elevationGain: 0,
       source: 'error_fallback',
@@ -351,7 +351,7 @@ async function buildQuarterLoop(params) {
   const segments = [];
   let currentPoint = startPoint;
   let currentBearing = initialBearing;
-  let totalDistance = 0;
+  let totalDistanceKm = 0;
   let totalElevationGain = 0;
   let allCoordinates = [];
   let adaptiveRoutingFactor = defaultRoutingFactor;
@@ -364,7 +364,7 @@ async function buildQuarterLoop(params) {
 
     // Use adaptive factor (learned from Q1) for Q2+, default for Q1
     const routingFactor = i === 0 ? defaultRoutingFactor : adaptiveRoutingFactor;
-    const straightLineTarget = targetQuarterDistanceKm * routingFactor;
+    const straightLineTargetKm = targetQuarterDistanceKm * routingFactor;
     // Minimal variation (±2%) for slight route diversity
     const variation = 0.98 + Math.random() * 0.04;
 
@@ -372,7 +372,7 @@ async function buildQuarterLoop(params) {
     const targetPoint = calculateDestinationPoint(
       currentPoint,
       currentBearing,
-      straightLineTarget * variation
+      straightLineTargetKm * variation
     );
 
     // Route this segment
@@ -381,12 +381,12 @@ async function buildQuarterLoop(params) {
 
     // After Q1: learn the actual road-detour ratio for this area
     if (i === 0) {
-      const straightLineDist = calculateDistance(startPoint, segment.endPoint);
-      if (straightLineDist > 0.1) { // Avoid division by near-zero
-        const actualRatio = straightLineDist / segment.distance;
+      const straightLineDistKm = calculateDistance(startPoint, segment.endPoint);
+      if (straightLineDistKm > 0.1) { // Avoid division by near-zero
+        const actualRatio = straightLineDistKm / segment.distanceKm;
         // Clamp to reasonable bounds: urban grid ~0.85, mountain switchbacks ~0.4
         adaptiveRoutingFactor = Math.max(0.4, Math.min(0.9, actualRatio));
-        console.log(`📐 Adaptive routing factor: ${adaptiveRoutingFactor.toFixed(3)} (from Q1: ${segment.distance.toFixed(1)}km routed / ${straightLineDist.toFixed(1)}km straight)`);
+        console.log(`📐 Adaptive routing factor: ${adaptiveRoutingFactor.toFixed(3)} (from Q1: ${segment.distanceKm.toFixed(1)}km routed / ${straightLineDistKm.toFixed(1)}km straight)`);
       }
     }
 
@@ -397,7 +397,7 @@ async function buildQuarterLoop(params) {
       i === 0 // isFirstSegment
     );
 
-    totalDistance += segment.distance;
+    totalDistanceKm += segment.distanceKm;
     totalElevationGain += segment.elevationGain || 0;
 
     // Use the actual routed end point for the next segment
@@ -412,8 +412,8 @@ async function buildQuarterLoop(params) {
   onProgress && onProgress(0.8);
   console.log(`\n📐 Quarter 4/4: Closing loop back to start`);
 
-  const remainingDistance = calculateDistance(currentPoint, startPoint);
-  console.log(`   Distance to start: ${remainingDistance.toFixed(2)}km`);
+  const remainingDistanceKm = calculateDistance(currentPoint, startPoint);
+  console.log(`   Distance to start: ${remainingDistanceKm.toFixed(2)}km`);
 
   const closingSegment = await routeSegment(currentPoint, startPoint, options);
   segments.push(closingSegment);
@@ -424,20 +424,20 @@ async function buildQuarterLoop(params) {
     closingSegment.coordinates,
     false // not first segment
   );
-  totalDistance += closingSegment.distance;
+  totalDistanceKm += closingSegment.distanceKm;
   totalElevationGain += closingSegment.elevationGain || 0;
 
   onProgress && onProgress(1.0);
 
   console.log(`\n✅ Loop complete!`);
-  console.log(`   Total distance: ${totalDistance.toFixed(2)}km (target: ${targetDistanceKm.toFixed(1)}km)`);
-  console.log(`   Accuracy: ${((totalDistance / targetDistanceKm) * 100).toFixed(1)}%`);
+  console.log(`   Total distance: ${totalDistanceKm.toFixed(2)}km (target: ${targetDistanceKm.toFixed(1)}km)`);
+  console.log(`   Accuracy: ${((totalDistanceKm / targetDistanceKm) * 100).toFixed(1)}%`);
   console.log(`   Total points: ${allCoordinates.length}`);
 
   return {
     coordinates: allCoordinates,
-    distance: totalDistance * 1000, // Convert to meters for consistency
-    distanceKm: totalDistance,
+    distance: totalDistanceKm * 1000, // Convert to meters for consistency
+    distanceKm: totalDistanceKm,
     duration: segments.reduce((sum, s) => sum + (s.duration || 0), 0),
     elevationGain: totalElevationGain,
     segments: segments,
@@ -469,10 +469,10 @@ async function buildOutAndBack(params) {
   console.log(`📏 Target distance: ${targetDistanceKm.toFixed(1)}km`);
   console.log(`🧭 Direction: ${getDirectionName(initialBearing)} (${initialBearing}°)`);
 
-  const halfDistance = targetDistanceKm / 2;
+  const halfDistanceKm = targetDistanceKm / 2;
 
   // Calculate turnaround point
-  const turnaroundPoint = calculateDestinationPoint(startPoint, initialBearing, halfDistance);
+  const turnaroundPoint = calculateDestinationPoint(startPoint, initialBearing, halfDistanceKm);
 
   onProgress && onProgress(0.25);
 
@@ -495,15 +495,15 @@ async function buildOutAndBack(params) {
     false // not first segment - need to join at turnaround
   );
 
-  const totalDistance = outbound.distance + returnSegment.distance;
+  const totalDistanceKm = outbound.distanceKm + returnSegment.distanceKm;
 
   console.log(`\n✅ Out-and-back complete!`);
-  console.log(`   Total distance: ${totalDistance.toFixed(2)}km`);
+  console.log(`   Total distance: ${totalDistanceKm.toFixed(2)}km`);
 
   return {
     coordinates: allCoordinates,
-    distance: totalDistance * 1000,
-    distanceKm: totalDistance,
+    distance: totalDistanceKm * 1000,
+    distanceKm: totalDistanceKm,
     duration: (outbound.duration || 0) + (returnSegment.duration || 0),
     elevationGain: (outbound.elevationGain || 0) + (returnSegment.elevationGain || 0),
     segments: [outbound, returnSegment],
@@ -540,7 +540,7 @@ async function buildPointToPoint(params) {
   const allPoints = [startPoint, ...waypoints];
   const segments = [];
   let allCoordinates = [];
-  let totalDistance = 0;
+  let totalDistanceKm = 0;
   let totalElevationGain = 0;
 
   for (let i = 0; i < allPoints.length - 1; i++) {
@@ -556,19 +556,19 @@ async function buildPointToPoint(params) {
       i === 0 // isFirstSegment
     );
 
-    totalDistance += segment.distance;
+    totalDistanceKm += segment.distanceKm;
     totalElevationGain += segment.elevationGain || 0;
   }
 
   onProgress && onProgress(1.0);
 
   console.log(`\n✅ Point-to-point complete!`);
-  console.log(`   Total distance: ${totalDistance.toFixed(2)}km`);
+  console.log(`   Total distance: ${totalDistanceKm.toFixed(2)}km`);
 
   return {
     coordinates: allCoordinates,
-    distance: totalDistance * 1000,
-    distanceKm: totalDistance,
+    distance: totalDistanceKm * 1000,
+    distanceKm: totalDistanceKm,
     duration: segments.reduce((sum, s) => sum + (s.duration || 0), 0),
     elevationGain: totalElevationGain,
     segments: segments,
