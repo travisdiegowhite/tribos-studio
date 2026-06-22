@@ -95,7 +95,7 @@ export async function generateAIRoutes(params, onProgress = null) {
       ridingPatterns = analyzeRidingPatterns(pastRides);
       patternBasedSuggestions = generateRouteFromPatterns(ridingPatterns, {
         startLocation,
-        targetDistance: calculateTargetDistance(timeAvailable, trainingGoal, ridingPatterns?.performanceMetrics, speedProfile, speedModifier),
+        targetDistanceKm: calculateTargetDistance(timeAvailable, trainingGoal, ridingPatterns?.performanceMetrics, speedProfile, speedModifier),
         trainingGoal
       });
 
@@ -103,7 +103,7 @@ export async function generateAIRoutes(params, onProgress = null) {
       claudeAnalysis = await analyzeRidingPatternsWithClaude(ridingPatterns, {
         trainingGoal,
         timeAvailable,
-        targetDistance: calculateTargetDistance(timeAvailable, trainingGoal, ridingPatterns?.performanceMetrics, speedProfile, speedModifier)
+        targetDistanceKm: calculateTargetDistance(timeAvailable, trainingGoal, ridingPatterns?.performanceMetrics, speedProfile, speedModifier)
       });
       
       console.log('Found riding patterns:', ridingPatterns);
@@ -116,20 +116,20 @@ export async function generateAIRoutes(params, onProgress = null) {
 
   // Calculate target distance, enhanced with Strava performance data
   const baseTargetDistance = calculateTargetDistance(timeAvailable, trainingGoal, null, speedProfile, speedModifier);
-  let targetDistance = calculateTargetDistance(timeAvailable, trainingGoal, ridingPatterns?.performanceMetrics, speedProfile, speedModifier);
+  let targetDistanceKm = calculateTargetDistance(timeAvailable, trainingGoal, ridingPatterns?.performanceMetrics, speedProfile, speedModifier);
 
-  console.log(`📏 Distance calculation: ${timeAvailable}min × ${(targetDistance / (timeAvailable / 60)).toFixed(1)}km/h = ${targetDistance.toFixed(1)}km (${(targetDistance * 0.621371).toFixed(1)} miles)`);
+  console.log(`📏 Distance calculation: ${timeAvailable}min × ${(targetDistanceKm / (timeAvailable / 60)).toFixed(1)}km/h = ${targetDistanceKm.toFixed(1)}km (${(targetDistanceKm * 0.621371).toFixed(1)} miles)`);
   console.log(`🔍 DEBUG INPUT - Speed Profile:`, speedProfile);
   console.log(`🔍 DEBUG INPUT - Speed Modifier:`, speedModifier);
   console.log(`🔍 DEBUG INPUT - Training Goal:`, trainingGoal);
   console.log(`🔍 DEBUG INPUT - Time Available:`, timeAvailable);
-  console.log(`🔍 DEBUG OUTPUT - Target Distance (km):`, targetDistance);
+  console.log(`🔍 DEBUG OUTPUT - Target Distance (km):`, targetDistanceKm);
 
   // DISABLED: Pattern-based adjustment was causing routes to be 2-3x longer than expected
   // User's explicit time/pace selection should take priority
   if (patternBasedSuggestions?.adjustedDistance) {
-    console.log(`ℹ️ Pattern suggested distance: ${patternBasedSuggestions.adjustedDistance.toFixed(1)}km (ignored - using user's time/pace: ${targetDistance.toFixed(1)}km)`);
-    // targetDistance = patternBasedSuggestions.adjustedDistance; // DISABLED
+    console.log(`ℹ️ Pattern suggested distance: ${patternBasedSuggestions.adjustedDistance.toFixed(1)}km (ignored - using user's time/pace: ${targetDistanceKm.toFixed(1)}km)`);
+    // targetDistanceKm = patternBasedSuggestions.adjustedDistance; // DISABLED
   }
   
   // Log enhanced pattern information
@@ -161,7 +161,7 @@ export async function generateAIRoutes(params, onProgress = null) {
   // Priority 0: Generate Claude AI route suggestions first
   onProgress?.({ step: 'analyzing', message: 'Analyzing terrain & roads' });
   console.log('🧠 Generating intelligent routes with Claude AI...');
-  console.log('Claude parameters:', { startLocation, timeAvailable, trainingGoal, routeType, targetDistance });
+  console.log('Claude parameters:', { startLocation, timeAvailable, trainingGoal, routeType, targetDistanceKm });
   
   // Track why the Claude path failed so the fallback can record it.
   // `null` here means Claude succeeded and produced usable suggestions.
@@ -191,7 +191,7 @@ export async function generateAIRoutes(params, onProgress = null) {
       routeType,
       weatherData,
       ridingPatterns,
-      targetDistance,
+      targetDistanceKm,
       claudeAnalysis,
       userId,
       trainingContext,
@@ -212,15 +212,15 @@ export async function generateAIRoutes(params, onProgress = null) {
       const hasValidName = route.name && !route.name.match(/^Claude Route \d+$/i);
       const hasValidDistance = routeDistance && routeDistance > 10;
       const isCloseToTarget = hasValidDistance &&
-        routeDistance >= targetDistance * 0.4 &&
-        routeDistance <= targetDistance * 2.0;
+        routeDistance >= targetDistanceKm * 0.4 &&
+        routeDistance <= targetDistanceKm * 2.0;
 
       if (!hasValidDistance) {
         console.warn(`🚫 Filtering out "${route.name}": missing or invalid distance (${routeDistance}km)`);
         return false;
       }
       if (!isCloseToTarget) {
-        console.warn(`🚫 Filtering out "${route.name}": distance ${routeDistance}km is too far from target ${targetDistance.toFixed(1)}km`);
+        console.warn(`🚫 Filtering out "${route.name}": distance ${routeDistance}km is too far from target ${targetDistanceKm.toFixed(1)}km`);
         return false;
       }
       if (!hasValidName) {
@@ -242,7 +242,7 @@ export async function generateAIRoutes(params, onProgress = null) {
             routeType,
             pastRidePatterns: ridingPatterns
           };
-          return convertClaudeToFullRoute(routeWithContext, startLocation, targetDistance, userPreferences, userSpeed);
+          return convertClaudeToFullRoute(routeWithContext, startLocation, targetDistanceKm, userPreferences, userSpeed);
         })
       );
       for (const result of conversionResults) {
@@ -289,7 +289,7 @@ export async function generateAIRoutes(params, onProgress = null) {
     try {
       const fallback = await generateFallbackRoute({
         startLocation,
-        targetDistanceKm: targetDistance,
+        targetDistanceKm: targetDistanceKm,
         trainingGoal,
         routeProfile: routeType,
         userId,
@@ -300,7 +300,7 @@ export async function generateAIRoutes(params, onProgress = null) {
         reason: fallback.fallbackReason,
         userId,
         trainingGoal,
-        targetDistanceKm: targetDistance,
+        targetDistanceKm: targetDistanceKm,
       });
       console.log(`🛟 Fallback tier ${fallback.fallbackTier} generated (${fallback.fallbackReason})`);
       return [fallback];
@@ -316,7 +316,7 @@ export async function generateAIRoutes(params, onProgress = null) {
     
     const personalizedRoutes = await generateRoutesFromPersonalHistory({
       startLocation,
-      targetDistance,
+      targetDistanceKm,
       trainingGoal,
       routeType,
       ridingPatterns,
@@ -333,7 +333,7 @@ export async function generateAIRoutes(params, onProgress = null) {
     
     const segmentBasedRoute = buildRouteFromSegments(
       startLocation,
-      targetDistance,
+      targetDistanceKm,
       trainingGoal,
       ridingPatterns
     );
@@ -354,7 +354,7 @@ export async function generateAIRoutes(params, onProgress = null) {
 
     const templateRoutes = await generateRoutesFromTemplates({
       startLocation,
-      targetDistance,
+      targetDistanceKm,
       trainingGoal,
       routeType,
       weatherData,
@@ -377,7 +377,7 @@ export async function generateAIRoutes(params, onProgress = null) {
     console.log(`Only found ${routes.length} routes from history, generating Mapbox-based routes`);
     const mapboxRoutes = await generateMapboxBasedRoutes({
       startLocation,
-      targetDistance,
+      targetDistanceKm,
       trainingGoal,
       routeType,
       weatherData,
@@ -398,9 +398,9 @@ export async function generateAIRoutes(params, onProgress = null) {
 
   if (validRoutes.length === 0) {
     console.warn('⚠️ NO VALID ROUTES - All routes rejected by validation checks');
-    console.warn(`⚠️ Creating fallback geometric route for ${targetDistance.toFixed(1)}km`);
+    console.warn(`⚠️ Creating fallback geometric route for ${targetDistanceKm.toFixed(1)}km`);
     // Create one simple fallback route as last resort
-    const fallbackRoute = createMockRoute('Fallback Route', targetDistance, trainingGoal, startLocation);
+    const fallbackRoute = createMockRoute('Fallback Route', targetDistanceKm, trainingGoal, startLocation);
     return [fallbackRoute];
   }
 
@@ -503,14 +503,14 @@ function calculateTargetDistance(timeMinutes, trainingGoal, performanceMetrics =
 
     const adjustedSpeed = userSpeed * speedModifier;
     const hours = timeMinutes / 60;
-    const targetDistance = hours * adjustedSpeed;
+    const targetDistanceKm = hours * adjustedSpeed;
 
     console.log(`🚴 Using user's speed profile:`, {
       userSpeed,
       trainingGoal,
       speedModifier,
       adjustedSpeed,
-      targetDistance,
+      targetDistanceKm,
       ridesAnalyzed: speedProfile.rides_analyzed,
       availableSpeeds: {
         road: speedProfile.road_speed,
@@ -521,7 +521,7 @@ function calculateTargetDistance(timeMinutes, trainingGoal, performanceMetrics =
       }
     });
 
-    return targetDistance;
+    return targetDistanceKm;
   }
 
   // Default average speeds by training type (km/h) - LOWERED to more realistic values
@@ -562,7 +562,7 @@ function calculateTargetDistance(timeMinutes, trainingGoal, performanceMetrics =
   }
 
   const hours = timeMinutes / 60;
-  let targetDistance = hours * baseSpeed;
+  let targetDistanceKm = hours * baseSpeed;
 
   // Apply fitness level adjustments if available
   if (performanceMetrics?.fitnessLevel) {
@@ -574,18 +574,18 @@ function calculateTargetDistance(timeMinutes, trainingGoal, performanceMetrics =
     };
 
     const multiplier = fitnessMultipliers[performanceMetrics.fitnessLevel] || 1.0;
-    targetDistance *= multiplier;
+    targetDistanceKm *= multiplier;
   }
 
   // Apply speed modifier
-  targetDistance *= speedModifier;
+  targetDistanceKm *= speedModifier;
 
-  return targetDistance;
+  return targetDistanceKm;
 }
 
 // Generate routes using Mapbox Directions API (NO geometric patterns)
 async function generateMapboxBasedRoutes(params) {
-  const { startLocation, targetDistance, trainingGoal, routeType, weatherData, patternBasedSuggestions, userPreferences, speedProfile } = params;
+  const { startLocation, targetDistanceKm, trainingGoal, routeType, weatherData, patternBasedSuggestions, userPreferences, speedProfile } = params;
   const routes = [];
 
   // Calculate user's actual cycling speed from speed profile
@@ -597,22 +597,22 @@ async function generateMapboxBasedRoutes(params) {
   const mapboxToken = import.meta.env.VITE_MAPBOX_TOKEN;
   if (!mapboxToken) {
     console.warn('Mapbox token not available for route generation');
-    return [createMockRoute('No Mapbox Token', targetDistance, trainingGoal, startLocation)];
+    return [createMockRoute('No Mapbox Token', targetDistanceKm, trainingGoal, startLocation)];
   }
   
   try {
     // Generate different route types using Mapbox
     if (routeType === 'loop') {
-      const loopRoutes = await generateMapboxLoops(startLocation, targetDistance, trainingGoal, weatherData, patternBasedSuggestions, userPreferences, userSpeed);
+      const loopRoutes = await generateMapboxLoops(startLocation, targetDistanceKm, trainingGoal, weatherData, patternBasedSuggestions, userPreferences, userSpeed);
       routes.push(...loopRoutes);
     } else if (routeType === 'out_back') {
-      const outBackRoutes = await generateMapboxOutAndBack(startLocation, targetDistance, trainingGoal, weatherData, patternBasedSuggestions, userPreferences, userSpeed);
+      const outBackRoutes = await generateMapboxOutAndBack(startLocation, targetDistanceKm, trainingGoal, weatherData, patternBasedSuggestions, userPreferences, userSpeed);
       routes.push(...outBackRoutes);
     } else {
       // Generate both types in parallel
       const [loopRoutes, outBackRoutes] = await Promise.all([
-        generateMapboxLoops(startLocation, targetDistance, trainingGoal, weatherData, patternBasedSuggestions, userPreferences, userSpeed),
-        generateMapboxOutAndBack(startLocation, targetDistance, trainingGoal, weatherData, patternBasedSuggestions, userPreferences, userSpeed)
+        generateMapboxLoops(startLocation, targetDistanceKm, trainingGoal, weatherData, patternBasedSuggestions, userPreferences, userSpeed),
+        generateMapboxOutAndBack(startLocation, targetDistanceKm, trainingGoal, weatherData, patternBasedSuggestions, userPreferences, userSpeed)
       ]);
       routes.push(...loopRoutes.slice(0, 2), ...outBackRoutes.slice(0, 1));
     }
@@ -620,7 +620,7 @@ async function generateMapboxBasedRoutes(params) {
   } catch (error) {
     console.warn('Mapbox-based route generation failed:', error);
     // Only as absolute last resort, generate one carefully validated route
-    const lastResort = await generateSingleValidatedRoute(startLocation, targetDistance, trainingGoal);
+    const lastResort = await generateSingleValidatedRoute(startLocation, targetDistanceKm, trainingGoal);
     if (lastResort) {
       routes.push(lastResort);
     }
@@ -685,11 +685,11 @@ async function generateMapboxBasedRoutes(params) {
 }
 
 // Generate smart cycling destinations using real cycling data
-async function generateSmartDestinations(startLocation, targetDistance, isochrone) {
+async function generateSmartDestinations(startLocation, targetDistanceKm, isochrone) {
   const destinations = [];
   
   if (!isochrone.features || isochrone.features.length === 0) {
-    return generateFallbackDestinations(startLocation, targetDistance);
+    return generateFallbackDestinations(startLocation, targetDistanceKm);
   }
   
   // Use the isochrone boundaries to find realistic destinations
@@ -713,14 +713,14 @@ async function generateSmartDestinations(startLocation, targetDistance, isochron
   
   // Sort by how close they are to target distance
   return destinations.sort((a, b) => {
-    const aDiff = Math.abs(a.distance - targetDistance / 2);
-    const bDiff = Math.abs(b.distance - targetDistance / 2);
+    const aDiff = Math.abs(a.distance - targetDistanceKm / 2);
+    const bDiff = Math.abs(b.distance - targetDistanceKm / 2);
     return aDiff - bDiff;
   });
 }
 
 // Generate Mapbox-based loop routes
-async function generateMapboxLoops(startLocation, targetDistance, trainingGoal, weatherData, patternBasedSuggestions, userPreferences = null, userSpeed = null) {
+async function generateMapboxLoops(startLocation, targetDistanceKm, trainingGoal, weatherData, patternBasedSuggestions, userPreferences = null, userSpeed = null) {
   const routes = [];
   const mapboxToken = import.meta.env.VITE_MAPBOX_TOKEN;
 
@@ -749,7 +749,7 @@ async function generateMapboxLoops(startLocation, targetDistance, trainingGoal, 
   // Generate all candidates in parallel — they're independent patterns
   const results = await Promise.allSettled(
     loopPatterns.slice(0, 3).map(pattern =>
-      generateMapboxLoop(startLocation, targetDistance, pattern, trainingGoal, mapboxToken, userPreferences, userSpeed)
+      generateMapboxLoop(startLocation, targetDistanceKm, pattern, trainingGoal, mapboxToken, userPreferences, userSpeed)
     )
   );
 
@@ -772,7 +772,7 @@ async function generateMapboxLoops(startLocation, targetDistance, trainingGoal, 
 }
 
 // Generate Mapbox-based out-and-back routes
-async function generateMapboxOutAndBack(startLocation, targetDistance, trainingGoal, weatherData, patternBasedSuggestions, userPreferences = null, userSpeed = null) {
+async function generateMapboxOutAndBack(startLocation, targetDistanceKm, trainingGoal, weatherData, patternBasedSuggestions, userPreferences = null, userSpeed = null) {
   const routes = [];
   const mapboxToken = import.meta.env.VITE_MAPBOX_TOKEN;
 
@@ -797,7 +797,7 @@ async function generateMapboxOutAndBack(startLocation, targetDistance, trainingG
   // Generate all candidates in parallel — they're independent directions
   const results = await Promise.allSettled(
     directions.slice(0, 3).map(direction =>
-      generateMapboxOutBack(startLocation, targetDistance, direction, trainingGoal, mapboxToken, patternBasedSuggestions, userPreferences, userSpeed)
+      generateMapboxOutBack(startLocation, targetDistanceKm, direction, trainingGoal, mapboxToken, patternBasedSuggestions, userPreferences, userSpeed)
     )
   );
 
@@ -816,20 +816,20 @@ async function generateMapboxOutAndBack(startLocation, targetDistance, trainingG
 }
 
 // Generate single Mapbox loop with strategic waypoints
-async function generateMapboxLoop(startLocation, targetDistance, pattern, trainingGoal, mapboxToken, userPreferences = null, userSpeed = null) {
+async function generateMapboxLoop(startLocation, targetDistanceKm, pattern, trainingGoal, mapboxToken, userPreferences = null, userSpeed = null) {
   const [startLon, startLat] = startLocation;
 
   // Calculate strategic waypoints for a realistic loop
   // The actual routed distance is typically 40-50% of the geometric circle
   // So we need to increase the radius to compensate
-  const baseRadius = (targetDistance / (2 * Math.PI)) * pattern.radius;
+  const baseRadius = (targetDistanceKm / (2 * Math.PI)) * pattern.radius;
 
   // Increase radius by 1.5x to account for routing taking shorter paths
   // Reduced from 2.2x which was making routes too long
   const radius = baseRadius * 1.5;
   const waypoints = [startLocation];
 
-  console.log(`📏 Target distance: ${targetDistance.toFixed(1)}km, calculated radius: ${radius.toFixed(2)}km (increased 1.5x for routing)`);
+  console.log(`📏 Target distance: ${targetDistanceKm.toFixed(1)}km, calculated radius: ${radius.toFixed(2)}km (increased 1.5x for routing)`);
 
   // Create 3-4 strategic waypoints instead of many geometric points
   const numWaypoints = 3;
@@ -962,9 +962,9 @@ async function generateMapboxLoop(startLocation, targetDistance, pattern, traini
 }
 
 // Generate single Mapbox out-and-back route
-async function generateMapboxOutBack(startLocation, targetDistance, direction, trainingGoal, mapboxToken, patternBasedSuggestions, userPreferences = null, userSpeed = null) {
+async function generateMapboxOutBack(startLocation, targetDistanceKm, direction, trainingGoal, mapboxToken, patternBasedSuggestions, userPreferences = null, userSpeed = null) {
   const [startLon, startLat] = startLocation;
-  const halfDistanceKm = targetDistance / 2;
+  const halfDistanceKm = targetDistanceKm / 2;
   
   // Check for nearby frequent areas in the preferred direction
   const nearbyAreas = patternBasedSuggestions?.nearbyFrequentAreas || [];
@@ -1076,7 +1076,7 @@ function calculateDestinationPoint(start, distanceKm, bearingDegrees) {
 }
 
 // Convert Claude route suggestion to full route with coordinates
-async function convertClaudeToFullRoute(claudeRoute, startLocation, targetDistance, preferences = null, userSpeed = null) {
+async function convertClaudeToFullRoute(claudeRoute, startLocation, targetDistanceKm, preferences = null, userSpeed = null) {
   const mapboxToken = import.meta.env.VITE_MAPBOX_TOKEN;
   if (!mapboxToken) {
     console.warn('Mapbox token not available for Claude route conversion');
@@ -1098,13 +1098,13 @@ async function convertClaudeToFullRoute(claudeRoute, startLocation, targetDistan
 
   try {
     // Generate strategic waypoints based on Claude's directions
-    // IMPORTANT: Use actual targetDistance, not claudeRoute.distance which may be a fallback default
+    // IMPORTANT: Use actual targetDistanceKm, not claudeRoute.distance which may be a fallback default
     const routeDistance = claudeRoute.distance || claudeRoute.estimatedDistance;
-    const effectiveDistance = (routeDistance && routeDistance > 10 && Math.abs(routeDistance - targetDistance) / targetDistance < 0.5)
+    const effectiveDistance = (routeDistance && routeDistance > 10 && Math.abs(routeDistance - targetDistanceKm) / targetDistanceKm < 0.5)
       ? routeDistance
-      : targetDistance; // Use target if Claude's distance is missing or way off
+      : targetDistanceKm; // Use target if Claude's distance is missing or way off
 
-    console.log(`📏 Claude route distance: ${routeDistance}km, target: ${targetDistance}km, using: ${effectiveDistance}km`);
+    console.log(`📏 Claude route distance: ${routeDistance}km, target: ${targetDistanceKm}km, using: ${effectiveDistance}km`);
 
     const waypoints = await generateWaypointsFromDirections(
       claudeRoute.keyDirections,
@@ -1220,30 +1220,30 @@ async function convertClaudeToFullRoute(claudeRoute, startLocation, targetDistan
 }
 
 // Generate waypoints from Claude's turn-by-turn directions with route type awareness
-async function generateWaypointsFromDirections(directions, startLocation, targetDistance, routeType = 'loop', pastRidePatterns = null) {
-  console.log('🧭 Generating waypoints:', {directions, startLocation, targetDistance, routeType});
+async function generateWaypointsFromDirections(directions, startLocation, targetDistanceKm, routeType = 'loop', pastRidePatterns = null) {
+  console.log('🧭 Generating waypoints:', {directions, startLocation, targetDistanceKm, routeType});
   const waypoints = [startLocation];
   
   // Use different strategies based on route type
   if (routeType === 'loop') {
-    return generateLoopWaypoints(startLocation, targetDistance, directions, pastRidePatterns);
+    return generateLoopWaypoints(startLocation, targetDistanceKm, directions, pastRidePatterns);
   } else if (routeType === 'out_back') {
-    return generateOutAndBackWaypoints(startLocation, targetDistance, directions, pastRidePatterns);
+    return generateOutAndBackWaypoints(startLocation, targetDistanceKm, directions, pastRidePatterns);
   } else if (routeType === 'point_to_point') {
-    return generatePointToPointWaypoints(startLocation, targetDistance, directions, pastRidePatterns);
+    return generatePointToPointWaypoints(startLocation, targetDistanceKm, directions, pastRidePatterns);
   }
   
   // Fallback to loop if route type not recognized
-  return generateLoopWaypoints(startLocation, targetDistance, directions, pastRidePatterns);
+  return generateLoopWaypoints(startLocation, targetDistanceKm, directions, pastRidePatterns);
 }
 
 // Generate realistic loop route waypoints
-function generateLoopWaypoints(startLocation, targetDistance, directions, pastRidePatterns) {
+function generateLoopWaypoints(startLocation, targetDistanceKm, directions, pastRidePatterns) {
   const waypoints = [startLocation];
-  const numWaypoints = Math.min(6, Math.max(3, Math.floor(targetDistance / 12)));
+  const numWaypoints = Math.min(6, Math.max(3, Math.floor(targetDistanceKm / 12)));
   
   // Create a more realistic loop using varied distances and intelligent bearing selection
-  const baseRadius = targetDistance / (2 * Math.PI) * 0.8;
+  const baseRadius = targetDistanceKm / (2 * Math.PI) * 0.8;
   
   // If we have past ride patterns, bias towards those areas
   const preferredDirections = pastRidePatterns?.preferredDirections || [];
@@ -1285,9 +1285,9 @@ function generateLoopWaypoints(startLocation, targetDistance, directions, pastRi
 }
 
 // Generate out-and-back route waypoints
-function generateOutAndBackWaypoints(startLocation, targetDistance, directions, pastRidePatterns) {
+function generateOutAndBackWaypoints(startLocation, targetDistanceKm, directions, pastRidePatterns) {
   const waypoints = [startLocation];
-  const outboundDistanceKm = targetDistance / 2;
+  const outboundDistanceKm = targetDistanceKm / 2;
   
   // Choose a primary direction for the out-and-back
   let primaryBearing = Math.random() * 360;
@@ -1328,7 +1328,7 @@ function generateOutAndBackWaypoints(startLocation, targetDistance, directions, 
 }
 
 // Generate point-to-point route waypoints  
-function generatePointToPointWaypoints(startLocation, targetDistance, directions, pastRidePatterns) {
+function generatePointToPointWaypoints(startLocation, targetDistanceKm, directions, pastRidePatterns) {
   const waypoints = [startLocation];
   
   // Choose destination direction
@@ -1343,11 +1343,11 @@ function generatePointToPointWaypoints(startLocation, targetDistance, directions
   }
   
   // Add intermediate waypoints
-  const numWaypoints = Math.min(4, Math.max(2, Math.floor(targetDistance / 15)));
+  const numWaypoints = Math.min(4, Math.max(2, Math.floor(targetDistanceKm / 15)));
   
   for (let i = 1; i <= numWaypoints; i++) {
     const progress = i / (numWaypoints + 1);
-    const distanceKm = targetDistance * progress;
+    const distanceKm = targetDistanceKm * progress;
     const bearing = destinationBearing + Math.random() * 30 - 15; // Allow some meandering
 
     const waypoint = calculateDestinationPoint(startLocation, distanceKm, bearing);
@@ -1356,7 +1356,7 @@ function generatePointToPointWaypoints(startLocation, targetDistance, directions
   }
   
   // Final destination
-  const destination = calculateDestinationPoint(startLocation, targetDistance, destinationBearing);
+  const destination = calculateDestinationPoint(startLocation, targetDistanceKm, destinationBearing);
   waypoints.push(destination);
   
   console.log('🧭 Final point-to-point waypoints:', waypoints.length);
@@ -1367,7 +1367,7 @@ function generatePointToPointWaypoints(startLocation, targetDistance, directions
 async function generateRoutesFromPersonalHistory(params) {
   const {
     startLocation,
-    targetDistance,
+    targetDistanceKm,
     trainingGoal,
     routeType,
     ridingPatterns,
@@ -1390,8 +1390,8 @@ async function generateRoutesFromPersonalHistory(params) {
       
       // Filter by similar distance (within 50% of target)
       const templateDistanceKm = template.baseDistance / 1000; // Convert meters to km
-      const distanceDiff = Math.abs(templateDistanceKm - targetDistance) / targetDistance;
-      console.log(`📊 Template distance filter: "${template.name}" ${templateDistanceKm.toFixed(1)}km vs target ${targetDistance.toFixed(1)}km (diff: ${(distanceDiff * 100).toFixed(1)}%)`);
+      const distanceDiff = Math.abs(templateDistanceKm - targetDistanceKm) / targetDistanceKm;
+      console.log(`📊 Template distance filter: "${template.name}" ${templateDistanceKm.toFixed(1)}km vs target ${targetDistanceKm.toFixed(1)}km (diff: ${(distanceDiff * 100).toFixed(1)}%)`);
       if (distanceDiff > 0.5) return false; // Allow up to 50% difference
       
       // Filter by training goal compatibility
@@ -1414,7 +1414,7 @@ async function generateRoutesFromPersonalHistory(params) {
       console.log(`🔄 Adapting template: ${template.name}`);
       
       // Adapt the template to start from current location
-      const adaptedRoute = await adaptTemplateToNewStart(template, startLocation, targetDistance, mapboxToken);
+      const adaptedRoute = await adaptTemplateToNewStart(template, startLocation, targetDistanceKm, mapboxToken);
       
       if (adaptedRoute) {
         // Enhance with weather and training goal context
@@ -1455,7 +1455,7 @@ function isTemplateCompatibleWithTrainingGoal(template, trainingGoal) {
 }
 
 // Adapt a route template to start from a new location
-async function adaptTemplateToNewStart(template, newStartLocation, targetDistance, mapboxToken) {
+async function adaptTemplateToNewStart(template, newStartLocation, targetDistanceKm, mapboxToken) {
   try {
     // Calculate how to modify the template
     const originalStart = template.startArea;
@@ -1497,7 +1497,7 @@ async function adaptTemplateToNewStart(template, newStartLocation, targetDistanc
     }
 
     // Scale the route to match target distance
-    const scaleFactor = targetDistance / (route.distance / 1000);
+    const scaleFactor = targetDistanceKm / (route.distance / 1000);
     if (scaleFactor < 0.7 || scaleFactor > 1.3) {
       // Too much scaling needed, skip this template
       console.warn(`Route scaling factor ${scaleFactor.toFixed(2)} too extreme, skipping`);
@@ -1582,13 +1582,13 @@ function analyzePersonalizedFeatures(template, ridingPatterns) {
 }
 
 // Generate fallback destinations when isochrone fails
-function generateFallbackDestinations(startLocation, targetDistance) {
+function generateFallbackDestinations(startLocation, targetDistanceKm) {
   const destinations = [];
   const numDestinations = 4;
   
   for (let i = 0; i < numDestinations; i++) {
     const bearing = (360 / numDestinations) * i + Math.random() * 30 - 15; // Add some variation
-    const distance = targetDistance * (0.3 + Math.random() * 0.4); // 30-70% of target
+    const distance = targetDistanceKm * (0.3 + Math.random() * 0.4); // 30-70% of target
     
     const destination = calculateDestinationPoint(startLocation, distance, bearing);
     destinations.push({
@@ -1605,7 +1605,7 @@ function generateFallbackDestinations(startLocation, targetDistance) {
 // Get display name for route type
 
 // Generate single validated route as absolute last resort
-async function generateSingleValidatedRoute(startLocation, targetDistance, trainingGoal) {
+async function generateSingleValidatedRoute(startLocation, targetDistanceKm, trainingGoal) {
   console.log('Generating single validated route as last resort using Mapbox');
   
   const mapboxToken = import.meta.env.VITE_MAPBOX_TOKEN;
@@ -1615,7 +1615,7 @@ async function generateSingleValidatedRoute(startLocation, targetDistance, train
   }
   
   // Try a simple out-and-back in the most promising direction
-  const destination = calculateDestinationPoint(startLocation, targetDistance / 2, 45); // Northeast
+  const destination = calculateDestinationPoint(startLocation, targetDistanceKm / 2, 45); // Northeast
   
   try {
     const route = await getCyclingDirections([startLocation, destination], mapboxToken, {
@@ -1658,13 +1658,13 @@ async function generateRouteVariations(params) {
 }
 
 // Generate loop routes using real ride data
-async function generateLoopRoutes(startLocation, targetDistance, trainingGoal, weatherData, patternBasedSuggestions, userPreferences = null) {
+async function generateLoopRoutes(startLocation, targetDistanceKm, trainingGoal, weatherData, patternBasedSuggestions, userPreferences = null) {
   const routes = [];
   
   // Priority 1: Try to build loops from actual route segments
   const segmentBasedLoops = await buildLoopsFromSegments(
     startLocation, 
-    targetDistance, 
+    targetDistanceKm, 
     trainingGoal, 
     patternBasedSuggestions
   );
@@ -1674,7 +1674,7 @@ async function generateLoopRoutes(startLocation, targetDistance, trainingGoal, w
   if (patternBasedSuggestions?.nearbyFrequentAreas?.length > 0) {
     const frequentAreaLoops = await buildLoopsFromFrequentAreas(
       startLocation,
-      targetDistance,
+      targetDistanceKm,
       trainingGoal,
       weatherData,
       patternBasedSuggestions.nearbyFrequentAreas
@@ -1687,7 +1687,7 @@ async function generateLoopRoutes(startLocation, targetDistance, trainingGoal, w
     console.log('No routes found from ride data, using Mapbox cycling intelligence');
     const mapboxToken = import.meta.env.VITE_MAPBOX_TOKEN;
     if (mapboxToken) {
-      const mapboxRoute = await generateMapboxLoop(startLocation, targetDistance, 
+      const mapboxRoute = await generateMapboxLoop(startLocation, targetDistanceKm, 
         { name: 'Fallback Loop', bearing: 45, radius: 0.8 }, trainingGoal, mapboxToken, userPreferences);
       
       if (mapboxRoute) {
@@ -1702,7 +1702,7 @@ async function generateLoopRoutes(startLocation, targetDistance, trainingGoal, w
 }
 
 // Build loops using actual route segments from past rides
-async function buildLoopsFromSegments(startLocation, targetDistance, trainingGoal, patternBasedSuggestions) {
+async function buildLoopsFromSegments(startLocation, targetDistanceKm, trainingGoal, patternBasedSuggestions) {
   const routes = [];
   
   if (!patternBasedSuggestions?.ridingPatterns?.routeSegments) {
@@ -1742,7 +1742,7 @@ async function buildLoopsFromSegments(startLocation, targetDistance, trainingGoa
     });
     
     if (completingSegments.length > 0) {
-      const loop = await buildSegmentLoop(startLocation, primarySegment, completingSegments[0], targetDistance, trainingGoal);
+      const loop = await buildSegmentLoop(startLocation, primarySegment, completingSegments[0], targetDistanceKm, trainingGoal);
       if (loop) {
         routes.push(loop);
       }
@@ -1753,13 +1753,13 @@ async function buildLoopsFromSegments(startLocation, targetDistance, trainingGoa
 }
 
 // Build loops using frequent riding areas
-async function buildLoopsFromFrequentAreas(startLocation, targetDistance, trainingGoal, weatherData, frequentAreas) {
+async function buildLoopsFromFrequentAreas(startLocation, targetDistanceKm, trainingGoal, weatherData, frequentAreas) {
   const routes = [];
   
   // Find areas that would make good loop destinations
   const suitableAreas = frequentAreas.filter(area => {
     const distance = calculateDistance(startLocation, area.center);
-    return distance > targetDistance * 0.2 && distance < targetDistance * 0.8; // Between 20-80% of target distance
+    return distance > targetDistanceKm * 0.2 && distance < targetDistanceKm * 0.8; // Between 20-80% of target distance
   });
   
   if (suitableAreas.length === 0) {
@@ -1770,7 +1770,7 @@ async function buildLoopsFromFrequentAreas(startLocation, targetDistance, traini
   for (let i = 0; i < Math.min(2, suitableAreas.length); i++) {
     const area = suitableAreas[i];
     
-    const loop = await createLoopThroughArea(startLocation, area.center, targetDistance, trainingGoal);
+    const loop = await createLoopThroughArea(startLocation, area.center, targetDistanceKm, trainingGoal);
     if (loop) {
       routes.push({
         ...loop,
@@ -1788,7 +1788,7 @@ async function buildLoopsFromFrequentAreas(startLocation, targetDistance, traini
 // REMOVED: No more geometric patterns! All routes now use OpenStreetMap cycling intelligence.
 
 // Build a loop from two segments
-async function buildSegmentLoop(startLocation, segment1, segment2, targetDistance, trainingGoal) {
+async function buildSegmentLoop(startLocation, segment1, segment2, targetDistanceKm, trainingGoal) {
   const mapboxToken = import.meta.env.VITE_MAPBOX_TOKEN;
   if (!mapboxToken) return null;
   
@@ -1850,7 +1850,7 @@ async function buildSegmentLoop(startLocation, segment1, segment2, targetDistanc
 }
 
 // Create loop through a frequent area
-async function createLoopThroughArea(startLocation, areaCenter, targetDistance, trainingGoal) {
+async function createLoopThroughArea(startLocation, areaCenter, targetDistanceKm, trainingGoal) {
   const mapboxToken = import.meta.env.VITE_MAPBOX_TOKEN;
   if (!mapboxToken) return null;
   
@@ -1883,11 +1883,11 @@ async function createLoopThroughArea(startLocation, areaCenter, targetDistance, 
 }
 
 // Generate a specific loop pattern
-async function generateLoopPattern(startLocation, targetDistance, pattern, trainingGoal, weatherData, patternBasedSuggestions) {
+async function generateLoopPattern(startLocation, targetDistanceKm, pattern, trainingGoal, weatherData, patternBasedSuggestions) {
   const [startLon, startLat] = startLocation;
   
   // Calculate approximate radius for the loop
-  const radius = (targetDistance / (2 * Math.PI)) * 0.9; // Slightly larger for realistic cycling routes
+  const radius = (targetDistanceKm / (2 * Math.PI)) * 0.9; // Slightly larger for realistic cycling routes
   
   // Check if we have nearby frequent areas to incorporate
   const nearbyAreas = patternBasedSuggestions?.nearbyFrequentAreas || [];
@@ -1896,7 +1896,7 @@ async function generateLoopPattern(startLocation, targetDistance, pattern, train
   const waypoints = [startLocation];
   
   // Try a simpler approach: create 2-3 intermediate points for a more natural route
-  const numIntermediatePoints = Math.min(3, Math.max(2, Math.floor(targetDistance / 15))); // 1 point per 15km roughly
+  const numIntermediatePoints = Math.min(3, Math.max(2, Math.floor(targetDistanceKm / 15))); // 1 point per 15km roughly
   
   for (let i = 1; i <= numIntermediatePoints; i++) {
     let targetPoint;
@@ -1907,7 +1907,7 @@ async function generateLoopPattern(startLocation, targetDistance, pattern, train
       const distanceToArea = calculateDistance(startLocation, area.center);
       
       // Use frequent area if it's within reasonable distance
-      if (distanceToArea < targetDistance * 0.8 && distanceToArea > targetDistance * 0.2) {
+      if (distanceToArea < targetDistanceKm * 0.8 && distanceToArea > targetDistanceKm * 0.2) {
         targetPoint = area.center;
         console.log(`Using frequent area for waypoint ${i}:`, area.center);
       }
@@ -1939,7 +1939,7 @@ async function generateLoopPattern(startLocation, targetDistance, pattern, train
   const mapboxToken = import.meta.env.VITE_MAPBOX_TOKEN;
   if (!mapboxToken) {
     console.warn('Mapbox token not available for route generation');
-    return createMockRoute(pattern.name, targetDistance, trainingGoal);
+    return createMockRoute(pattern.name, targetDistanceKm, trainingGoal);
   }
 
   try {
@@ -1954,8 +1954,8 @@ async function generateLoopPattern(startLocation, targetDistance, pattern, train
     const isDirectionsValid = snappedRoute.coordinates && 
                              snappedRoute.coordinates.length > 10 && // Ensure reasonable detail
                              snappedRoute.confidence > 0.7 && // High confidence
-                             snappedRoute.distance > (targetDistance * 0.5 * 1000) && // At least 50% of target distance
-                             snappedRoute.distance < (targetDistance * 2 * 1000); // Not more than 200% of target
+                             snappedRoute.distance > (targetDistanceKm * 0.5 * 1000) && // At least 50% of target distance
+                             snappedRoute.distance < (targetDistanceKm * 2 * 1000); // Not more than 200% of target
 
     // If directions API fails or gives poor results, try map matching
     if (!isDirectionsValid) {
@@ -1968,7 +1968,7 @@ async function generateLoopPattern(startLocation, targetDistance, pattern, train
       const isMapMatchValid = snappedRoute.coordinates && 
                              snappedRoute.coordinates.length > 5 && 
                              snappedRoute.confidence > 0.3 &&
-                             snappedRoute.distance > (targetDistance * 0.3 * 1000);
+                             snappedRoute.distance > (targetDistanceKm * 0.3 * 1000);
       
       if (!isMapMatchValid) {
         console.warn('Both directions and map matching produced poor results for:', pattern.name);
@@ -2006,7 +2006,7 @@ async function generateLoopPattern(startLocation, targetDistance, pattern, train
 
   } catch (error) {
     console.warn('Route snapping failed, using mock route:', error);
-    return createMockRoute(pattern.name, targetDistance, trainingGoal, startLocation);
+    return createMockRoute(pattern.name, targetDistanceKm, trainingGoal, startLocation);
   }
 }
 
@@ -2046,9 +2046,9 @@ function calculateRouteComplexity(coordinates) {
 }
 
 // Generate out-and-back routes
-async function generateOutAndBackRoutes(startLocation, targetDistance, trainingGoal, weatherData, patternBasedSuggestions) {
+async function generateOutAndBackRoutes(startLocation, targetDistanceKm, trainingGoal, weatherData, patternBasedSuggestions) {
   const routes = [];
-  const halfDistanceKm = targetDistance / 2;
+  const halfDistanceKm = targetDistanceKm / 2;
   
   // Generate different directions, prioritizing user preferences
   let directions = [
@@ -2093,10 +2093,10 @@ async function generateOutAndBackRoutes(startLocation, targetDistance, trainingG
 }
 
 // Generate point-to-point routes
-async function generatePointToPointRoutes(startLocation, targetDistance, trainingGoal, weatherData, patternBasedSuggestions) {
+async function generatePointToPointRoutes(startLocation, targetDistanceKm, trainingGoal, weatherData, patternBasedSuggestions) {
   // For now, convert to out-and-back since we need a return journey
   // In future, could integrate with public transport APIs
-  return generateOutAndBackRoutes(startLocation, targetDistance, trainingGoal, weatherData, patternBasedSuggestions);
+  return generateOutAndBackRoutes(startLocation, targetDistanceKm, trainingGoal, weatherData, patternBasedSuggestions);
 }
 
 // Calculate wind factor for entire route
@@ -2633,24 +2633,24 @@ function calculateTurnDensity(coordinates) {
 }
 
 // Create mock route for fallback
-function createMockRoute(name, targetDistance, trainingGoal, startLocation = null) {
-  const elevationGain = trainingGoal === 'hills' ? targetDistance * 25 : 
-                      trainingGoal === 'recovery' ? targetDistance * 5 : 
-                      targetDistance * 15;
+function createMockRoute(name, targetDistanceKm, trainingGoal, startLocation = null) {
+  const elevationGain = trainingGoal === 'hills' ? targetDistanceKm * 25 : 
+                      trainingGoal === 'recovery' ? targetDistanceKm * 5 : 
+                      targetDistanceKm * 15;
 
   // Generate mock coordinates if we have a start location
   let coordinates = [];
   if (startLocation) {
-    coordinates = generateMockCoordinates(startLocation, targetDistance);
+    coordinates = generateMockCoordinates(startLocation, targetDistanceKm);
   }
 
   return {
     name: `${name} - ${getRouteNameByGoal(trainingGoal)}`,
-    distance: targetDistance,
+    distance: targetDistanceKm,
     elevationGain: Math.round(elevationGain),
     elevationLoss: Math.round(elevationGain * 0.9),
     coordinates,
-    difficulty: calculateDifficulty(targetDistance, elevationGain),
+    difficulty: calculateDifficulty(targetDistanceKm, elevationGain),
     description: generateRouteDescription(trainingGoal, 'mock', { gain: elevationGain }),
     trainingGoal,
     pattern: 'mock',
@@ -2662,12 +2662,12 @@ function createMockRoute(name, targetDistance, trainingGoal, startLocation = nul
 }
 
 // Generate mock coordinates for a route
-function generateMockCoordinates(startLocation, targetDistance) {
+function generateMockCoordinates(startLocation, targetDistanceKm) {
   const [startLon, startLat] = startLocation;
   const coordinates = [startLocation];
   
   // Approximate: 1 degree ≈ 111 km
-  const radius = (targetDistance / (2 * Math.PI)) / 111; // Convert to degrees
+  const radius = (targetDistanceKm / (2 * Math.PI)) / 111; // Convert to degrees
   const numPoints = 8; // Create octagonal route
   
   for (let i = 1; i <= numPoints; i++) {
@@ -2787,7 +2787,7 @@ async function generateOutAndBackPattern(startLocation, halfDistanceKm, directio
 
 // Generate routes from past ride templates
 async function generateRoutesFromTemplates(params) {
-  const { startLocation, targetDistance, trainingGoal, routeType, templates } = params;
+  const { startLocation, targetDistanceKm, trainingGoal, routeType, templates } = params;
   const routes = [];
   
   // Find templates that match the desired route type and are near the start location
@@ -2807,26 +2807,26 @@ async function generateRoutesFromTemplates(params) {
     const templateDistanceKm = (template.baseDistance || template.distance || 0) / 1000;
 
     // Debug the template data
-    console.log(`📋 Evaluating template: "${template.name}" - ${templateDistanceKm.toFixed(1)}km for target ${targetDistance}km`);
+    console.log(`📋 Evaluating template: "${template.name}" - ${templateDistanceKm.toFixed(1)}km for target ${targetDistanceKm}km`);
 
     // Check if template distance is reasonable for target
-    const distanceRatio = Math.abs(templateDistanceKm - targetDistance) / targetDistance;
+    const distanceRatio = Math.abs(templateDistanceKm - targetDistanceKm) / targetDistanceKm;
 
     // Exclude very short routes (under 5km) unless specifically looking for short routes
-    if (templateDistanceKm < 5 && targetDistance > 15) {
-      console.log(`🚫 Filtering out short route: ${templateDistanceKm.toFixed(1)}km (target: ${targetDistance}km)`);
+    if (templateDistanceKm < 5 && targetDistanceKm > 15) {
+      console.log(`🚫 Filtering out short route: ${templateDistanceKm.toFixed(1)}km (target: ${targetDistanceKm}km)`);
       return false;
     }
 
     // Exclude routes that are too far from target distance
     if (distanceRatio > 0.5) {
-      console.log(`🚫 Distance too far from target: ${templateDistanceKm.toFixed(1)}km vs ${targetDistance}km (ratio: ${distanceRatio.toFixed(2)})`);
+      console.log(`🚫 Distance too far from target: ${templateDistanceKm.toFixed(1)}km vs ${targetDistanceKm}km (ratio: ${distanceRatio.toFixed(2)})`);
       return false;
     }
 
     // For longer target distances, be more strict about minimum distance
-    if (targetDistance > 25 && templateDistanceKm < targetDistance * 0.6) {
-      console.log(`🚫 Route too short for long target: ${templateDistanceKm.toFixed(1)}km vs ${targetDistance}km`);
+    if (targetDistanceKm > 25 && templateDistanceKm < targetDistanceKm * 0.6) {
+      console.log(`🚫 Route too short for long target: ${templateDistanceKm.toFixed(1)}km vs ${targetDistanceKm}km`);
       return false;
     }
 
@@ -2837,7 +2837,7 @@ async function generateRoutesFromTemplates(params) {
 
   // Add diversity bonus - prefer routes not used recently
   const templatesWithDiversity = suitableTemplates.map(template => {
-    const baseScore = calculateTemplateScore(template, targetDistance, trainingGoal);
+    const baseScore = calculateTemplateScore(template, targetDistanceKm, trainingGoal);
 
     // Diversity bonus: prefer routes not used recently
     const daysSinceUsed = template.timestamp ?
@@ -2879,7 +2879,7 @@ async function generateRoutesFromTemplates(params) {
     
     try {
       // Adapt the template to the new start location
-      const adaptedRoute = await adaptTemplateToLocation(template, startLocation, targetDistance, trainingGoal);
+      const adaptedRoute = await adaptTemplateToLocation(template, startLocation, targetDistanceKm, trainingGoal);
       
       if (adaptedRoute && adaptedRoute.coordinates && adaptedRoute.coordinates.length > 10) {
         routes.push(adaptedRoute);
@@ -2895,7 +2895,7 @@ async function generateRoutesFromTemplates(params) {
 }
 
 // Adapt a route template to a new location
-async function adaptTemplateToLocation(template, newStartLocation, targetDistance, trainingGoal) {
+async function adaptTemplateToLocation(template, newStartLocation, targetDistanceKm, trainingGoal) {
   const mapboxToken = import.meta.env.VITE_MAPBOX_TOKEN;
   if (!mapboxToken) return null;
   
@@ -2908,7 +2908,7 @@ async function adaptTemplateToLocation(template, newStartLocation, targetDistanc
   
   // Scale factor to adjust distance
   const templateDistanceKm = (template.baseDistance || template.distance || 0) / 1000;
-  const scaleFactor = targetDistance / templateDistanceKm;
+  const scaleFactor = targetDistanceKm / templateDistanceKm;
   
   const adaptedKeyPoints = template.keyPoints.map((point, index) => {
     if (index === 0) {
@@ -2965,15 +2965,15 @@ async function adaptTemplateToLocation(template, newStartLocation, targetDistanc
 /**
  * Calculate quality score for a route template based on relevance to target distance and training goal
  */
-function calculateTemplateScore(template, targetDistance, trainingGoal) {
+function calculateTemplateScore(template, targetDistanceKm, trainingGoal) {
   let score = 0;
 
   // Get distance consistently - templates use baseDistance (in meters), convert to km
   const templateDistanceKm = (template.baseDistance || template.distance || 0) / 1000;
 
   // Distance match score (0-40 points)
-  const distanceDiff = Math.abs(templateDistanceKm - targetDistance);
-  const distanceRatio = distanceDiff / targetDistance;
+  const distanceDiff = Math.abs(templateDistanceKm - targetDistanceKm);
+  const distanceRatio = distanceDiff / targetDistanceKm;
 
   if (distanceRatio <= 0.1) { // Within 10%
     score += 40;
@@ -3018,13 +3018,13 @@ function calculateTemplateScore(template, targetDistance, trainingGoal) {
   }
 
   // Heavy penalty for very short routes when targeting longer distances
-  if (templateDistanceKm < 5 && targetDistance > 15) {
-    console.log(`⚠️ Heavy penalty for short route: ${templateDistanceKm.toFixed(1)}km for ${targetDistance}km target`);
+  if (templateDistanceKm < 5 && targetDistanceKm > 15) {
+    console.log(`⚠️ Heavy penalty for short route: ${templateDistanceKm.toFixed(1)}km for ${targetDistanceKm}km target`);
     score *= 0.05; // Heavily penalize very short routes for longer targets (95% penalty)
   }
 
   // Penalty for excessively long routes for short targets
-  if (templateDistanceKm > targetDistance * 2) {
+  if (templateDistanceKm > targetDistanceKm * 2) {
     score *= 0.3; // Penalize routes that are more than 2x the target
   }
 
@@ -3044,31 +3044,31 @@ function calculateTemplateScore(template, targetDistance, trainingGoal) {
  */
 export function generateSmartWaypoints(startLocation, durationMinutes, routeType = 'loop', trainingGoal = 'endurance', speedProfile = null, direction = null) {
   // Calculate target distance
-  const targetDistance = calculateTargetDistance(durationMinutes, trainingGoal, null, speedProfile, 1.0);
+  const targetDistanceKm = calculateTargetDistance(durationMinutes, trainingGoal, null, speedProfile, 1.0);
 
-  console.log(`🎯 Generating smart waypoints: ${durationMinutes}min → ${targetDistance.toFixed(1)}km ${routeType}`);
+  console.log(`🎯 Generating smart waypoints: ${durationMinutes}min → ${targetDistanceKm.toFixed(1)}km ${routeType}`);
 
   // Generate waypoints based on route type
   if (routeType === 'out_back') {
-    return generateOutAndBackWaypointsSimple(startLocation, targetDistance, direction);
+    return generateOutAndBackWaypointsSimple(startLocation, targetDistanceKm, direction);
   }
 
   // Default to loop
-  return generateLoopWaypointsSimple(startLocation, targetDistance, direction);
+  return generateLoopWaypointsSimple(startLocation, targetDistanceKm, direction);
 }
 
 // Simplified loop waypoint generation for NL requests
-function generateLoopWaypointsSimple(startLocation, targetDistance, preferredDirection = null) {
+function generateLoopWaypointsSimple(startLocation, targetDistanceKm, preferredDirection = null) {
   const waypoints = [startLocation];
 
   // More waypoints for longer routes, fewer for shorter
-  const numWaypoints = Math.min(6, Math.max(3, Math.floor(targetDistance / 8)));
+  const numWaypoints = Math.min(6, Math.max(3, Math.floor(targetDistanceKm / 8)));
 
   // Roads are curvy! Actual routed distance is typically 60-70% of straight-line waypoint distances.
   // So we need to place waypoints FURTHER apart to achieve target road distance.
   // For a loop: perimeter = target distance, but road adds ~40% over straight lines
   // So we size the geometric shape for ~1.5x the target distance
-  const effectiveCircumference = targetDistance * 1.5;
+  const effectiveCircumference = targetDistanceKm * 1.5;
   const baseRadius = effectiveCircumference / (2 * Math.PI);
 
   // Determine starting angle based on preferred direction
@@ -3096,18 +3096,18 @@ function generateLoopWaypointsSimple(startLocation, targetDistance, preferredDir
   // Return to start
   waypoints.push(startLocation);
 
-  console.log(`📍 Generated ${waypoints.length} loop waypoints for ${targetDistance.toFixed(1)}km target (radius: ${baseRadius.toFixed(1)}km)`);
+  console.log(`📍 Generated ${waypoints.length} loop waypoints for ${targetDistanceKm.toFixed(1)}km target (radius: ${baseRadius.toFixed(1)}km)`);
   return waypoints;
 }
 
 // Simplified out-and-back waypoint generation
-function generateOutAndBackWaypointsSimple(startLocation, targetDistance, preferredDirection = null) {
+function generateOutAndBackWaypointsSimple(startLocation, targetDistanceKm, preferredDirection = null) {
   const waypoints = [startLocation];
 
   // Roads are curvy - actual distance is ~65-75% of straight-line distance
   // For out-and-back: we go out half distance, return same way (but routed on roads)
   // So geometric outbound distance should be ~0.7x the target one-way distance
-  const outboundGeometricDistanceKm = (targetDistance / 2) * 0.7;
+  const outboundGeometricDistanceKm = (targetDistanceKm / 2) * 0.7;
 
   // Determine bearing
   let bearing = Math.random() * 360;
@@ -3120,7 +3120,7 @@ function generateOutAndBackWaypointsSimple(startLocation, targetDistance, prefer
   }
 
   // Add 2-3 waypoints outbound with slight meanders for more interesting route
-  const numOutbound = Math.min(3, Math.max(2, Math.floor(targetDistance / 15)));
+  const numOutbound = Math.min(3, Math.max(2, Math.floor(targetDistanceKm / 15)));
 
   for (let i = 1; i <= numOutbound; i++) {
     const progress = i / numOutbound;
@@ -3134,7 +3134,7 @@ function generateOutAndBackWaypointsSimple(startLocation, targetDistance, prefer
   // Return to start (routing will handle the actual path)
   waypoints.push(startLocation);
 
-  console.log(`📍 Generated ${waypoints.length} out-and-back waypoints for ${targetDistance.toFixed(1)}km target (outbound: ${outboundGeometricDistanceKm.toFixed(1)}km geometric)`);
+  console.log(`📍 Generated ${waypoints.length} out-and-back waypoints for ${targetDistanceKm.toFixed(1)}km target (outbound: ${outboundGeometricDistanceKm.toFixed(1)}km geometric)`);
   return waypoints;
 }
 
