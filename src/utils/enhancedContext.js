@@ -88,7 +88,7 @@ export class EnhancedContextCollector {
       familiarRoads: await this.getFamiliarRoads(
         userId,
         baseParams.startLocation,
-        baseParams.targetDistance,
+        baseParams.targetDistanceKm,
       ),
       localKnowledge: await this.getLocalKnowledge(baseParams.startLocation, userId),
       // Include cross-training activities for holistic training view
@@ -537,7 +537,7 @@ export class EnhancedContextCollector {
    *
    * @param {string} userId
    * @param {[number, number] | object} startLocation - canonical [lng, lat] or {lng/lon, lat}
-   * @param {number} targetDistanceKm - already km (see RouteBuilder.jsx targetDistance calc)
+   * @param {number} targetDistanceKm - already km (see RouteBuilder.jsx targetDistanceKm calc)
    * @returns {Promise<object|null>}
    */
   static async getFamiliarRoads(userId, startLocation, targetDistanceKm) {
@@ -780,7 +780,7 @@ export class EnhancedContextCollector {
       routeType,
       weatherData,
       ridingPatterns,
-      targetDistance,
+      targetDistanceKm,
       routingPreferences,
       surfacePreferences,
       safetyPreferences,
@@ -815,7 +815,7 @@ export class EnhancedContextCollector {
 
 LOCATION & CONSTRAINTS:
 - Start coordinates: ${latitude}, ${longitude}
-- Target distance: ${targetDistance.toFixed(1)}km
+- Target distance: ${targetDistanceKm.toFixed(1)}km
 - Time available: ${timeAvailable} minutes
 - Route type preference: ${routeType}
 
@@ -1036,7 +1036,7 @@ FORMAT YOUR RESPONSE AS JSON:
 
 CRITICAL REQUIREMENTS:
 - Each route MUST have a unique descriptive "name" (do NOT use generic names like "Route 1")
-- Each route MUST have an accurate "estimatedDistance" within 20% of the target distance (${targetDistance.toFixed(1)}km)
+- Each route MUST have an accurate "estimatedDistance" within 20% of the target distance (${targetDistanceKm.toFixed(1)}km)
 - Respond with raw JSON only - do NOT wrap in markdown code blocks (no \`\`\`json)
 - Prioritize rider safety above all else
 - Safety language (bike infrastructure warnings, traffic cautions, dangerous-turn callouts) MUST appear in every route regardless of coach voice. The voice never softens, omits, or trivializes safety content.

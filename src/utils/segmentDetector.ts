@@ -21,7 +21,7 @@ export interface StreamPoint {
   power: number;       // watts (0 if unavailable)
   heartRate: number;   // bpm (0 if unavailable)
   cadence: number;     // rpm (0 if unavailable)
-  distance: number;    // cumulative meters from start
+  distanceMeters: number;    // cumulative meters from start
   timestamp: number;   // seconds from ride start (estimated from speed/distance)
 }
 
@@ -29,7 +29,7 @@ export interface DetectedStop {
   pointIndex: number;
   lat: number;
   lng: number;
-  distance: number;        // meters from start
+  distanceMeters: number;        // meters from start
   durationSeconds: number;
   type: 'unknown';         // classified later via cross-ride analysis
 }
@@ -182,14 +182,14 @@ export function detectSegments(
   // Step 8: Characterize each segment (terrain, stops, turns, quality)
   const segments = merged.map(seg => characterizeSegment(seg, points, stops));
 
-  const totalDist = points.length > 0 ? points[points.length - 1].distance : 0;
+  const totalDistanceMeters = points.length > 0 ? points[points.length - 1].distanceMeters : 0;
   const totalDur = points.length > 0 ? points[points.length - 1].timestamp : 0;
 
   return {
     segments,
     stops,
     totalPoints: points.length,
-    totalDistanceMeters: totalDist,
+    totalDistanceMeters,
     totalDurationSeconds: totalDur,
   };
 }
@@ -203,7 +203,7 @@ function buildStreamPoints(streams: ActivityStreams): StreamPoint[] {
   if (!coords || coords.length === 0) return [];
 
   const points: StreamPoint[] = [];
-  let cumulativeDistance = 0;
+  let cumulativeDistanceMeters = 0;
   let cumulativeTime = 0;
 
   for (let i = 0; i < coords.length; i++) {
@@ -211,19 +211,19 @@ function buildStreamPoints(streams: ActivityStreams): StreamPoint[] {
 
     // Calculate distance from previous point
     if (i > 0) {
-      const dist = haversineMeters(
+      const stepMeters = haversineMeters(
         points[i - 1].lat, points[i - 1].lng,
         lat, lng
       );
-      cumulativeDistance += dist;
+      cumulativeDistanceMeters += stepMeters;
 
       // Estimate timestamp from speed or distance
       const spd = speed?.[i] ?? speed?.[i - 1] ?? 5; // default 5 m/s (~18 km/h)
       if (spd > 0.1) {
-        cumulativeTime += dist / spd;
+        cumulativeTime += stepMeters / spd;
       } else {
         // Stopped — estimate time from distance at walking pace
-        cumulativeTime += dist / 1.4;
+        cumulativeTime += stepMeters / 1.4;
       }
     }
 
@@ -235,7 +235,7 @@ function buildStreamPoints(streams: ActivityStreams): StreamPoint[] {
       power: power?.[i] ?? 0,
       heartRate: heartRate?.[i] ?? 0,
       cadence: cadence?.[i] ?? 0,
-      distance: cumulativeDistance,
+      distanceMeters: cumulativeDistanceMeters,
       timestamp: cumulativeTime,
     });
   }
@@ -291,7 +291,7 @@ function detectStops(points: StreamPoint[]): DetectedStop[] {
           pointIndex: stopStart,
           lat: points[stopStart].lat,
           lng: points[stopStart].lng,
-          distance: points[stopStart].distance,
+          distanceMeters: points[stopStart].distanceMeters,
           durationSeconds: Math.round(duration),
           type: 'unknown',
         });
@@ -309,7 +309,7 @@ function detectStops(points: StreamPoint[]): DetectedStop[] {
         pointIndex: stopStart,
         lat: points[stopStart].lat,
         lng: points[stopStart].lng,
-        distance: points[stopStart].distance,
+        distanceMeters: points[stopStart].distanceMeters,
         durationSeconds: Math.round(duration),
         type: 'unknown',
       });
@@ -336,14 +336,14 @@ function calculateGradients(points: StreamPoint[]): number[] {
     let lookBack = i;
     let lookForward = i;
 
-    while (lookBack > 0 && points[i].distance - points[lookBack].distance < window / 2) {
+    while (lookBack > 0 && points[i].distanceMeters - points[lookBack].distanceMeters < window / 2) {
       lookBack--;
     }
-    while (lookForward < points.length - 1 && points[lookForward].distance - points[i].distance < window / 2) {
+    while (lookForward < points.length - 1 && points[lookForward].distanceMeters - points[i].distanceMeters < window / 2) {
       lookForward++;
     }
 
-    const distDiff = points[lookForward].distance - points[lookBack].distance;
+    const distDiff = points[lookForward].distanceMeters - points[lookBack].distanceMeters;
     const elevDiff = points[lookForward].elevation - points[lookBack].elevation;
 
     if (distDiff > 10) { // need at least 10m for meaningful gradient
@@ -360,7 +360,7 @@ function calculateGradients(points: StreamPoint[]): number[] {
 
 interface BoundaryPoint {
   index: number;
-  distance: number;
+  distanceMeters: number;
   reason: 'gradient_change' | 'extended_stop' | 'start' | 'end';
 }
 
@@ -374,7 +374,7 @@ function findGradientBoundaries(
   // Always include start
   boundaries.push({
     index: 0,
-    distance: 0,
+    distanceMeters: 0,
     reason: 'start',
   });
 
@@ -384,7 +384,7 @@ function findGradientBoundaries(
 
   for (let i = 1; i < points.length; i++) {
     const currentGradient = gradients[i];
-    const distStep = points[i].distance - points[i - 1].distance;
+    const distStep = points[i].distanceMeters - points[i - 1].distanceMeters;
 
     // Check if gradient has changed significantly
     const gradientDiff = Math.abs(currentGradient - prevAvgGradient);
@@ -398,7 +398,7 @@ function findGradientBoundaries(
         const boundaryIdx = Math.max(0, i - Math.ceil(sustainedDistance / Math.max(distStep, 1)));
         boundaries.push({
           index: boundaryIdx,
-          distance: points[boundaryIdx].distance,
+          distanceMeters: points[boundaryIdx].distanceMeters,
           reason: 'gradient_change',
         });
 
@@ -417,7 +417,7 @@ function findGradientBoundaries(
     if (stop.durationSeconds >= CONFIG.EXTENDED_STOP_DURATION) {
       boundaries.push({
         index: stop.pointIndex,
-        distance: stop.distance,
+        distanceMeters: stop.distanceMeters,
         reason: 'extended_stop',
       });
     }
@@ -426,12 +426,12 @@ function findGradientBoundaries(
   // Always include end
   boundaries.push({
     index: points.length - 1,
-    distance: points[points.length - 1].distance,
+    distanceMeters: points[points.length - 1].distanceMeters,
     reason: 'end',
   });
 
   // Sort by distance and deduplicate (merge boundaries within 50m)
-  boundaries.sort((a, b) => a.distance - b.distance);
+  boundaries.sort((a, b) => a.distanceMeters - b.distanceMeters);
   return deduplicateBoundaries(boundaries);
 }
 
@@ -442,7 +442,7 @@ function deduplicateBoundaries(boundaries: BoundaryPoint[]): BoundaryPoint[] {
 
   for (let i = 1; i < boundaries.length; i++) {
     const prev = result[result.length - 1];
-    if (boundaries[i].distance - prev.distance > 50) {
+    if (boundaries[i].distanceMeters - prev.distanceMeters > 50) {
       result.push(boundaries[i]);
     }
     // If within 50m, keep the one with higher-priority reason
@@ -458,8 +458,8 @@ function deduplicateBoundaries(boundaries: BoundaryPoint[]): BoundaryPoint[] {
 interface CandidateSegment {
   startIdx: number;
   endIdx: number;
-  startDistance: number;
-  endDistance: number;
+  startDistanceMeters: number;
+  endDistanceMeters: number;
 }
 
 function buildCandidateSegments(
@@ -473,16 +473,16 @@ function buildCandidateSegments(
   for (let i = 0; i < boundaries.length - 1; i++) {
     const start = boundaries[i];
     const end = boundaries[i + 1];
-    const distance = end.distance - start.distance;
+    const distanceMeters = end.distanceMeters - start.distanceMeters;
 
     // Skip segments that are too short
-    if (distance < CONFIG.MIN_SEGMENT_DISTANCE) continue;
+    if (distanceMeters < CONFIG.MIN_SEGMENT_DISTANCE) continue;
 
     candidates.push({
       startIdx: start.index,
       endIdx: end.index,
-      startDistance: start.distance,
-      endDistance: end.distance,
+      startDistanceMeters: start.distanceMeters,
+      endDistanceMeters: end.distanceMeters,
     });
   }
 
@@ -501,25 +501,25 @@ function mergeSmallSegments(candidates: CandidateSegment[]): CandidateSegment[] 
 
   for (let i = 1; i < candidates.length; i++) {
     const next = candidates[i];
-    const currentDist = current.endDistance - current.startDistance;
-    const nextDist = next.endDistance - next.startDistance;
+    const currentDistMeters = current.endDistanceMeters - current.startDistanceMeters;
+    const nextDistMeters = next.endDistanceMeters - next.startDistanceMeters;
 
     // If current segment is very short, merge it with next
-    if (currentDist < CONFIG.MIN_SEGMENT_DISTANCE) {
+    if (currentDistMeters < CONFIG.MIN_SEGMENT_DISTANCE) {
       current = {
         startIdx: current.startIdx,
         endIdx: next.endIdx,
-        startDistance: current.startDistance,
-        endDistance: next.endDistance,
+        startDistanceMeters: current.startDistanceMeters,
+        endDistanceMeters: next.endDistanceMeters,
       };
     }
     // If next segment is very short and there's another after it, merge
-    else if (nextDist < CONFIG.MIN_SEGMENT_DISTANCE && i < candidates.length - 1) {
+    else if (nextDistMeters < CONFIG.MIN_SEGMENT_DISTANCE && i < candidates.length - 1) {
       current = {
         startIdx: current.startIdx,
         endIdx: candidates[i + 1].endIdx,
-        startDistance: current.startDistance,
-        endDistance: candidates[i + 1].endDistance,
+        startDistanceMeters: current.startDistanceMeters,
+        endDistanceMeters: candidates[i + 1].endDistanceMeters,
       };
       i++; // skip the one we merged into
     } else {
@@ -543,7 +543,7 @@ function characterizeSegment(
 ): DetectedSegment {
   const { startIdx, endIdx } = candidate;
   const segPoints = points.slice(startIdx, endIdx + 1);
-  const distanceMeters = candidate.endDistance - candidate.startDistance;
+  const distanceMeters = candidate.endDistanceMeters - candidate.startDistanceMeters;
   const durationSeconds = segPoints.length > 1
     ? segPoints[segPoints.length - 1].timestamp - segPoints[0].timestamp
     : 0;
@@ -558,7 +558,7 @@ function characterizeSegment(
 
   for (let i = 1; i < segPoints.length; i++) {
     const elevDiff = segPoints[i].elevation - segPoints[i - 1].elevation;
-    const distDiff = segPoints[i].distance - segPoints[i - 1].distance;
+    const distDiff = segPoints[i].distanceMeters - segPoints[i - 1].distanceMeters;
 
     if (Math.abs(elevDiff) >= CONFIG.ELEVATION_NOISE_THRESHOLD) {
       if (elevDiff > 0) elevGain += elevDiff;
@@ -619,7 +619,7 @@ function characterizeSegment(
 
   // Stops within this segment
   const segStops = allStops.filter(
-    s => s.distance >= candidate.startDistance && s.distance <= candidate.endDistance
+    s => s.distanceMeters >= candidate.startDistanceMeters && s.distanceMeters <= candidate.endDistanceMeters
   );
   const distKm = distanceMeters / 1000;
 
@@ -834,21 +834,21 @@ export function calculateObstructionScore(segment: DetectedSegment): {
   let maxUninterrupted = segment.durationSeconds;
   if (segment.stops.length > 0) {
     // Find the longest gap between stops
-    const stopDistances = segment.stops.map(s => s.distance);
+    const stopDistances = segment.stops.map(s => s.distanceMeters);
     stopDistances.unshift(segment.coordinates.length > 0
       ? 0
       : 0);
 
     // Rough estimate: proportional to distance between stops
     const segStart = segment.stops.length > 0
-      ? segment.stops[0].distance - (segment.distanceMeters * (segment.startIdx / (segment.endIdx || 1)))
+      ? segment.stops[0].distanceMeters - (segment.distanceMeters * (segment.startIdx / (segment.endIdx || 1)))
       : segment.distanceMeters;
 
     if (segment.stops.length > 0 && segment.durationSeconds > 0) {
       const avgSpeedMs = segment.distanceMeters / segment.durationSeconds;
       // Find longest gap between consecutive stops
       let maxGap = 0;
-      const allDists = [0, ...segment.stops.map(s => s.distance - (segment.startIdx > 0 ? segment.stops[0].distance - segment.distanceMeters : 0)), segment.distanceMeters];
+      const allDists = [0, ...segment.stops.map(s => s.distanceMeters - (segment.startIdx > 0 ? segment.stops[0].distanceMeters - segment.distanceMeters : 0)), segment.distanceMeters];
       for (let i = 1; i < allDists.length; i++) {
         const gap = Math.abs(allDists[i] - allDists[i - 1]);
         if (gap > maxGap) maxGap = gap;

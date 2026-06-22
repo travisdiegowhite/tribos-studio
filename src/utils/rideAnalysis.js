@@ -561,14 +561,14 @@ function normalizeLocation(location) {
 
 // Generate route suggestions based on patterns
 export function generateRouteFromPatterns(patterns, params) {
-  const { startLocation: rawStartLocation, targetDistance, trainingGoal } = params;
+  const { startLocation: rawStartLocation, targetDistanceKm, trainingGoal } = params;
 
   // Normalize startLocation to array format
   const startLocation = normalizeLocation(rawStartLocation);
   if (!startLocation) {
     console.warn('Invalid startLocation in generateRouteFromPatterns:', rawStartLocation);
     return {
-      adjustedDistance: targetDistance,
+      adjustedDistance: targetDistanceKm,
       preferredDirection: { bearing: 90, preference: 0.5, source: 'default' },
       nearbyFrequentAreas: [],
       elevationTarget: 300,
@@ -587,7 +587,7 @@ export function generateRouteFromPatterns(patterns, params) {
   const preferredDirection = selectPreferredDirection(patterns.preferredDirections, params);
 
   // Adjust target distance based on patterns
-  const adjustedDistance = adjustDistanceBasedOnPatterns(targetDistance, patterns, trainingGoal);
+  const adjustedDistance = adjustDistanceBasedOnPatterns(targetDistanceKm, patterns, trainingGoal);
 
   return {
     adjustedDistance,
@@ -634,25 +634,25 @@ function selectPreferredDirection(directions, params) {
 }
 
 // Adjust distance based on historical patterns
-function adjustDistanceBasedOnPatterns(targetDistance, patterns, trainingGoal) {
-  if (!patterns.preferredDistances.mean) return targetDistance;
+function adjustDistanceBasedOnPatterns(targetDistanceKm, patterns, trainingGoal) {
+  if (!patterns.preferredDistances.mean) return targetDistanceKm;
 
   const userMean = patterns.preferredDistances.mean;
   const confidence = patterns.preferredDistances.range.max > patterns.preferredDistances.range.min ? 1 : 0.5;
 
   // For recovery rides, bias towards shorter distances
   if (trainingGoal === 'recovery') {
-    return Math.min(targetDistance, userMean * 0.8);
+    return Math.min(targetDistanceKm, userMean * 0.8);
   }
 
   // For endurance rides, can go longer
   if (trainingGoal === 'endurance') {
-    return Math.max(targetDistance, userMean * 1.2);
+    return Math.max(targetDistanceKm, userMean * 1.2);
   }
 
   // Otherwise, blend target with user's typical distance
   const weight = confidence * 0.3; // 30% influence maximum
-  return targetDistance * (1 - weight) + userMean * weight;
+  return targetDistanceKm * (1 - weight) + userMean * weight;
 }
 
 // Get elevation target based on patterns and training goal
@@ -703,7 +703,7 @@ function calculatePatternConfidence(patterns) {
 
 
 // Use real route segments to build new routes
-export function buildRouteFromSegments(rawStartLocation, targetDistance, trainingGoal, patterns) {
+export function buildRouteFromSegments(rawStartLocation, targetDistanceKm, trainingGoal, patterns) {
   if (!patterns.routeSegments || patterns.routeSegments.length === 0) {
     return null;
   }
@@ -726,11 +726,11 @@ export function buildRouteFromSegments(rawStartLocation, targetDistance, trainin
   }
 
   // Try to chain segments together to build a route
-  const route = chainSegments(nearbySegments, startLocation, targetDistance);
+  const route = chainSegments(nearbySegments, startLocation, targetDistanceKm);
 
   // Validate route quality before returning
   // Must have good coordinate data AND be at least 50% of target distance (minimum 5km)
-  const minDistance = Math.max(5, targetDistance * 0.5);
+  const minDistance = Math.max(5, targetDistanceKm * 0.5);
 
   if (route && route.coordinates.length > 10 && route.distance >= minDistance) {
     return {
@@ -752,7 +752,7 @@ export function buildRouteFromSegments(rawStartLocation, targetDistance, trainin
 }
 
 // Chain route segments together to build a complete route
-function chainSegments(segments, startLocation, targetDistance) {
+function chainSegments(segments, startLocation, targetDistanceKm) {
   // Simple implementation: find the best segment near start and use it
   // In a more advanced version, this would intelligently chain multiple segments
   
@@ -764,7 +764,7 @@ function chainSegments(segments, startLocation, targetDistance) {
     const distanceToEnd = calculateDistance(startLocation, segment.endPoint);
     const minDistance = Math.min(distanceToStart, distanceToEnd);
     
-    if (minDistance < bestDistance && segment.distance <= targetDistance * 1.5) {
+    if (minDistance < bestDistance && segment.distance <= targetDistanceKm * 1.5) {
       bestDistance = minDistance;
       bestSegment = segment;
     }
