@@ -177,25 +177,92 @@ queries run, because they only matter if real rows actually hit those paths.
 
 ---
 
-## BLOCKED — production-data sweep (run when Supabase MCP is approved)
+## Production-data sweep — RESULTS (2026-06-23, Supabase MCP)
 
-The Supabase MCP tools returned "MCP tool call requires approval" and did not execute in
-this session. Once enabled, these SELECT-only queries finalize severity on M1–M3 and may
-surface new Critical items (real corrupted rows). Ready to run:
+Ran read-only against project `xbziuusxagasizxnlwwn` (Tribos). Volume: **40,603
+activities, 63 user_profiles, 899 fitness_snapshots, 1,418 planned_workouts.**
 
-1. **`training_load_daily`** — NULL/negative/absurd `tfi/afi/form_score/rss`; `rss <> rss`
-   (NaN); `rss > 1000`; counts by `rss_source` and `confidence < 0.5`.
-2. **`activities`** — zero `moving_time` with non-zero distance; negative `average_watts`/
-   `max_power`; `max_power > 2500`; km-vs-m magnitude sanity; `effective_power` present but
-   `rss` AND `tss` both NULL.
-3. **Canonical/legacy divergence** — `rss IS NULL AND tss IS NOT NULL` (+ EP/RI twins).
-4. **`fitness_snapshots`** — NULL/absurd fitness columns; weeks missing `rss_source`.
-5. **`user_profiles`** — count non-default `tfi_tau`/`afi_tau`; count `ftp IS NULL OR ftp = 0`.
-6. **FTP coverage** — active athletes who would hit the 200/150 W fallback.
-7. **`planned_workouts`** — `target_rss IS NULL AND target_tss IS NOT NULL` (and reverse).
+### Confirmed / promoted
 
-Plus `get_advisors` (security + performance) for RLS gaps and missing indexes that matter
-at larger beta scale.
+- **S0 — `training_load_daily` is EMPTY (0 rows).** STRUCTURAL, verify before beta.
+  Despite 40k activities + 899 snapshots, the daily training-load table has no rows.
+  Either daily granularity isn't live (dashboard reads `fitness_snapshots` instead) or the
+  daily rollup never ran/backfilled. **Action:** confirm whether any UI/API reads
+  `training_load_daily`; if yes this is a Critical data gap, if it's superseded by
+  `fitness_snapshots` it should be dropped/ignored (cf. the orphaned-table policy).
+- **M1 (FTP coverage) — CONFIRMED real.** 21/63 profiles have NULL/0 FTP; **15 of them
+  have activities** → 15 active athletes get fallback-FTP (200/150 W) RSS, badge-only
+  warning. Onboarding FTP prompt recommended before broad beta.
+- **M2 (canonical/legacy divergence) — CONFIRMED but bounded and already stopped.** Every
+  divergent cohort ends on/before **2026-05-08** (the documented Garmin window); there is
+  **no reverse divergence** (`tss IS NOT NULL AND rss IS NULL` reverse = 0), so no live
+  writer is producing new bad rows. One-time canonical-from-legacy backfill resolves it:
+  - `activities`: 64 rows `rss` NULL + `tss` present (Jan 22–May 8); 920 `effective_power`
+    NULL + `normalized_power` present (2023–May 8); 64 `ride_intensity` NULL + `intensity_factor` present.
+  - `fitness_snapshots`: 361 rows `weekly_rss` NULL + `weekly_tss` present (= the 361 `tfi` NULL).
+  - `planned_workouts`: 92 rows `actual_rss` NULL + `actual_tss` present (through Jun 3);
+    **target_rss/target_tss are clean (0 divergence).**
+- **S1 — persisted-scoring gap — NEW, needs a decision.** 2,387 activities have
+  `effective_power` but NEITHER `rss` NOR `tss`. **1,652 (69%) belong to 31 FTP-set users**
+  (not just the FTP-less cohort), and 563 are from the last 30 days (116 last 7d) — ongoing,
+  not historical-only, and NOT the zero-duration cohort (they have valid `moving_time` and
+  `average_watts`). **Action:** determine whether stored `rss` is authoritative or computed
+  lazily on read (`computeFitnessSnapshots.ts`). If authoritative → real scoring gap, backfill
+  + fix the scorer; if lazy → benign, but worth documenting.
+- **M3 (adaptive tau) — CONFIRMED, tiny.** 2 users with non-default `tfi_tau`, 1 with
+  non-default `afi_tau`. Their projections/recomputed history diverge from live values.
+  Low prevalence; fix when convenient (touches frozen metrics code).
+
+### Minor data-quality (tiny counts; guards already shipped via H1/M4)
+
+- 18 activities with zero/NULL `moving_time` but non-zero distance.
+- 4 activities `max_watts > 2500`; 1 activity `distance > 1,000 km`. No negative `average_watts`.
+- `training_load_daily` NaN/negative/absurd checks: all zero (table empty).
+
+### Advisors (122 security lints, 750 performance lints)
+
+**Security — ERROR (fix before beta):**
+- **2 SECURITY DEFINER views** — `public.daily_training_load`, `public.garmin_completeness_audit`
+  run with creator privileges and bypass the caller's RLS. **`daily_training_load` ties to
+  S0** (it's the view over the empty `training_load_daily` table — likely the read path).
+  Verify it doesn't leak other users' rows; recreate with `security_invoker = true`.
+- `rls_disabled_in_public` on `spatial_ref_sys` (PostGIS system table) — accepted/low-risk.
+
+**Security — WARN (auth-relevant):**
+- **`function_search_path_mutable` on 52 functions** (e.g. `get_current_ftp`,
+  `set_ftp_and_zones`, `calculate_tss`, `update_training_metrics`, `create_user_activation`).
+  **Directly conflicts with the CLAUDE.md auth rule** (all `SECURITY DEFINER` fns must
+  `SET search_path = public`). Prioritize any that touch `auth.users` / run as DEFINER.
+- 26 DEFINER cleanup/maintenance fns EXECUTE-able by `anon`/`authenticated`
+  (`cleanup_*`, `create_planned_workouts`) → `REVOKE EXECUTE FROM anon, authenticated`.
+- `rls_policy_always_true` — always-true UPDATE policies on `coros_webhook_events` /
+  `garmin_webhook_events` let any role rewrite webhook rows; tighten (signup/insert ones intentional).
+- **Auth leaked-password protection is DISABLED** — enable before opening signups.
+- INFO: 6 tables RLS-on-no-policy (deny-all) — confirm `track_points` (route/activity data)
+  isn't read by the frontend, else it silently returns empty.
+
+**Performance — WARN/INFO (beta scale):**
+- **`auth_rls_initplan` — 235 policies** re-evaluate `auth.uid()` per-row. Biggest win:
+  `activities` (9), `fitness_snapshots` (5), `planned_workouts` (5), `user_profiles` (3).
+  Fix by wrapping as `(select auth.uid())`.
+- **`multiple_permissive_policies` — 356**; `activities` and `fitness_snapshots` have **20 each**.
+  Consolidate per action.
+- **32 unindexed FKs** — incl. `activities.matched_planned_workout_id`,
+  `planned_workouts.template_id`, and webhook `activity_id`/`integration_id` FKs. Cheap
+  covering indexes, high value before traffic.
+- 2 duplicate indexes (drop one each on `bike_computer_integrations`, `training_plans`);
+  124 "unused" indexes (likely low-traffic false positives — review, don't bulk-drop).
+
+(Full advisor payloads were ~101k/large; fetched via MCP and summarized — re-run
+`get_advisors` directly for the complete object lists when actioning.)
+
+### Recommended pre-beta order
+
+1. **S0** — verify `training_load_daily` is not a live read against an empty table.
+2. **M2 backfill** — one-time canonical-from-legacy (~1,500 rows total, bounded, safe).
+3. **S1** — investigate the 1,652 FTP-set unscored-power activities (authoritative vs lazy).
+4. **M1** — onboarding FTP prompt (15 active users).
+5. **M3** tau unification (3 users); minor data cleanup; **re-run `get_advisors`.**
 
 ---
 
