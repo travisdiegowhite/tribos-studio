@@ -184,31 +184,37 @@ activities, 63 user_profiles, 899 fitness_snapshots, 1,418 planned_workouts.**
 
 ### Confirmed / promoted
 
-- **S0 — `training_load_daily` is EMPTY (0 rows).** STRUCTURAL, verify before beta.
-  Despite 40k activities + 899 snapshots, the daily training-load table has no rows.
-  Either daily granularity isn't live (dashboard reads `fitness_snapshots` instead) or the
-  daily rollup never ran/backfilled. **Action:** confirm whether any UI/API reads
-  `training_load_daily`; if yes this is a Critical data gap, if it's superseded by
-  `fitness_snapshots` it should be dropped/ignored (cf. the orphaned-table policy).
+- **S0 — `training_load_daily` is EMPTY (0 rows) — RESOLVED: by-design, not a blocker.**
+  Follow-up code check (2026-06-23): the table is read by Dashboard/Today/FitnessProgressChart
+  but its **only writer is `upsertTrainingLoadDaily`, called solely from
+  `api/process-deviation.js`** (the sync webhooks only read it). Population of server-side
+  TFI/AFI is **deliberately deferred** per `docs/tfi-duality-decision.md` (status: "implementation
+  deferred"), and every reader **falls back to client-side compute from `activities`/
+  `fitness_snapshots`** (`Dashboard.jsx:308–408`, with `serverLoadHistory.length > 0` guards).
+  `fitness_snapshots` is healthy and fresh (899 rows, 53 users, updated today). → **Not a beta
+  blocker.** The genuine open item it surfaces is the **TFI duality** (client vs server TFI
+  disagree materially — see the memo) which is a pending product decision, already tracked.
 - **M1 (FTP coverage) — CONFIRMED real.** 21/63 profiles have NULL/0 FTP; **15 of them
   have activities** → 15 active athletes get fallback-FTP (200/150 W) RSS, badge-only
   warning. Onboarding FTP prompt recommended before broad beta.
-- **M2 (canonical/legacy divergence) — CONFIRMED but bounded and already stopped.** Every
-  divergent cohort ends on/before **2026-05-08** (the documented Garmin window); there is
-  **no reverse divergence** (`tss IS NOT NULL AND rss IS NULL` reverse = 0), so no live
-  writer is producing new bad rows. One-time canonical-from-legacy backfill resolves it:
+- **M2 (canonical/legacy divergence) — CONFIRMED, bounded, FIX WRITTEN.** Every divergent
+  cohort ends on/before **2026-05-08** (the documented Garmin window); there is **no reverse
+  divergence** (`tss IS NOT NULL AND rss IS NULL` reverse = 0), so no live writer is producing
+  new bad rows. **Backfill migration written: `database/migrations/090_backfill_canonical_from_legacy.sql`**
+  (idempotent UPDATEs, canonical ← legacy; not yet applied — review then run via MCP/psql):
   - `activities`: 64 rows `rss` NULL + `tss` present (Jan 22–May 8); 920 `effective_power`
     NULL + `normalized_power` present (2023–May 8); 64 `ride_intensity` NULL + `intensity_factor` present.
   - `fitness_snapshots`: 361 rows `weekly_rss` NULL + `weekly_tss` present (= the 361 `tfi` NULL).
   - `planned_workouts`: 92 rows `actual_rss` NULL + `actual_tss` present (through Jun 3);
     **target_rss/target_tss are clean (0 divergence).**
-- **S1 — persisted-scoring gap — NEW, needs a decision.** 2,387 activities have
-  `effective_power` but NEITHER `rss` NOR `tss`. **1,652 (69%) belong to 31 FTP-set users**
-  (not just the FTP-less cohort), and 563 are from the last 30 days (116 last 7d) — ongoing,
-  not historical-only, and NOT the zero-duration cohort (they have valid `moving_time` and
-  `average_watts`). **Action:** determine whether stored `rss` is authoritative or computed
-  lazily on read (`computeFitnessSnapshots.ts`). If authoritative → real scoring gap, backfill
-  + fix the scorer; if lazy → benign, but worth documenting.
+- **S1 — power activities with no rss/tss — RESOLVED: benign.** 2,387 activities have
+  `effective_power` but neither `rss` nor `tss`; 1,652 (69%) belong to 31 FTP-set users, 116
+  in the last 7d. Follow-up code check: both server (`fitnessSnapshots.js:318`,
+  `computeFitnessMetrics.js:47`) and client (`computeFitnessSnapshots.ts:110`) read
+  `activity.rss ?? activity.tss` and **fall through to the 6-tier `estimateTSSWithSource`
+  estimator** (power → kJ → HR) when both are NULL. So these rides **do** contribute to
+  fitness numbers (estimated live from power). Null stored `rss` = "not persisted," not
+  "not counted." → **Not user-facing-wrong**; persisting would only be a perf/cleanliness win.
 - **M3 (adaptive tau) — CONFIRMED, tiny.** 2 users with non-default `tfi_tau`, 1 with
   non-default `afi_tau`. Their projections/recomputed history diverge from live values.
   Low prevalence; fix when convenient (touches frozen metrics code).
@@ -256,13 +262,22 @@ activities, 63 user_profiles, 899 fitness_snapshots, 1,418 planned_workouts.**
 (Full advisor payloads were ~101k/large; fetched via MCP and summarized — re-run
 `get_advisors` directly for the complete object lists when actioning.)
 
-### Recommended pre-beta order
+### Recommended pre-beta order (post code-check)
 
-1. **S0** — verify `training_load_daily` is not a live read against an empty table.
-2. **M2 backfill** — one-time canonical-from-legacy (~1,500 rows total, bounded, safe).
-3. **S1** — investigate the 1,652 FTP-set unscored-power activities (authoritative vs lazy).
-4. **M1** — onboarding FTP prompt (15 active users).
-5. **M3** tau unification (3 users); minor data cleanup; **re-run `get_advisors`.**
+S0 and S1 both **resolved to benign** on follow-up code inspection (see above) and drop off
+the gating list. Remaining:
+
+1. **M2 backfill** — apply `database/migrations/090_backfill_canonical_from_legacy.sql`
+   (written, idempotent, ~1,500 rows; review then run). The only confirmed data-correctness item.
+2. **Security ERRORs** — recreate the 2 SECURITY DEFINER views with `security_invoker`
+   (esp. `daily_training_load`); enable Auth leaked-password protection before signups;
+   `SET search_path` on the 52 mutable-search_path functions (CLAUDE.md auth mandate).
+3. **M1** — onboarding FTP prompt (15 active users on fallback FTP).
+4. **Product decision (not a bug):** resolve the TFI duality per `docs/tfi-duality-decision.md`
+   (client vs server TFI disagree on the displayed number).
+5. **Perf at scale** — `auth_rls_initplan` fix + permissive-policy consolidation on
+   `activities`/`fitness_snapshots`; add the 32 FK indexes; drop 2 duplicate indexes.
+6. **Low:** M3 tau unification (3 users); minor data cleanup (18 zero-time, 4 max_watts>2500).
 
 ---
 
