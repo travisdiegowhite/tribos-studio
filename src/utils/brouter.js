@@ -5,6 +5,7 @@
  */
 
 import { canonicalToBRouter } from './coordConverters';
+import { brouterUsesFerry } from './ferryGuard';
 
 // BRouter profiles for different cycling types
 export const BROUTER_PROFILES = {
@@ -66,6 +67,14 @@ export async function getBRouterDirections(coordinates, options = {}) {
     const route = data.features[0];
     const geometry = route.geometry;
     const properties = route.properties;
+
+    // Ferries are forbidden, 100%. BRouter's stock profiles penalize ferries
+    // but will still cross water by ferry when there's no land route — reject
+    // those so the caller falls back (or fails) rather than routing onto one.
+    if (brouterUsesFerry(properties)) {
+      console.warn('⛔ BRouter: route requires a ferry — rejecting (ferries forbidden)');
+      return null;
+    }
 
     // Extract route information
     // BRouter returns properties as strings, so parse them as numbers
