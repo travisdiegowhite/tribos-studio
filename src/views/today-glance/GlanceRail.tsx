@@ -6,15 +6,16 @@
  * route on click rather than blocking render.
  */
 
-import { Suspense, use, useCallback, useState } from 'react';
+import { Suspense, useCallback, useState } from 'react';
 import { Box, Button, Group, Loader, Skeleton, Stack, Text } from '@mantine/core';
 import { notifications } from '@mantine/notifications';
 import { useNavigate } from 'react-router-dom';
-import { PaperPlaneTilt, Play, Sparkle } from '@phosphor-icons/react';
+import { PaperPlaneTilt, Play } from '@phosphor-icons/react';
 import garminService from '../../utils/garminService';
 import { decodePolyline } from '../today/shared/decodePolyline';
 import { C, FONT } from './tokens';
 import { ClearanceBand } from './ClearanceBand';
+import { CoachTakeBox } from './CoachTake';
 import { RouteMatch } from './RouteMatch';
 import { formatDurationMin } from './units';
 import type { UnitsPreference } from './units';
@@ -27,16 +28,6 @@ interface GlanceRailProps {
   units: UnitsPreference;
   onSendToGarmin?: () => void;
   onRideToday?: () => void;
-}
-
-/** Streams the persona fitness take in once /api/fitness-summary resolves. */
-function CoachTakeText({ coachPromise }: { coachPromise: Promise<string | null> }) {
-  const take = use(coachPromise);
-  return (
-    <Text style={{ fontFamily: FONT.body, fontSize: 14, lineHeight: 1.5, color: C.text2 }}>
-      {take ?? 'Your coach is warming up — log a few rides for a daily take.'}
-    </Text>
-  );
 }
 
 export function GlanceRail({
@@ -131,26 +122,7 @@ export function GlanceRail({
       </Suspense>
 
       {/* Coach take — one line, persona-labeled */}
-      <Box style={{ backgroundColor: '#FBF6F2', borderLeft: `3px solid ${C.teal}`, padding: '10px 12px' }}>
-        <Group gap={6} mb={4} align="center">
-          <Sparkle size={12} color={C.teal} weight="fill" />
-          <Text
-            style={{
-              fontFamily: FONT.mono,
-              fontSize: 10,
-              fontWeight: 700,
-              letterSpacing: '1.5px',
-              textTransform: 'uppercase',
-              color: C.teal,
-            }}
-          >
-            Coach · {coach.personaName}
-          </Text>
-        </Group>
-        <Suspense fallback={<Skeleton height={36} radius={0} />}>
-          <CoachTakeText coachPromise={coachPromise} />
-        </Suspense>
-      </Box>
+      <CoachTakeBox coachPromise={coachPromise} personaName={coach.personaName} />
 
       {/* Clearance */}
       <ClearanceBand state={athleteState} />

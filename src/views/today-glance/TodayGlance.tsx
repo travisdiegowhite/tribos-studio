@@ -20,6 +20,7 @@ import { useUserPreferences } from '../../contexts/UserPreferencesContext.jsx';
 import { useToday } from './useToday';
 import { HeroMap } from './HeroMap';
 import { GlanceRail } from './GlanceRail';
+import { SuggestedRail } from './SuggestedRail';
 import { GlanceFooter } from './GlanceFooter';
 import { ConsistencyRibbon } from './ConsistencyRibbon';
 import { ClearanceBand } from './ClearanceBand';
@@ -134,57 +135,6 @@ function RestCard({ today, units }: { today: Today; units: UnitsPreference }) {
 }
 
 /** First-run / suggested: no plan. A prompt to generate a route to ride. */
-function GeneratePrompt({ today }: { today: Today }) {
-  const navigate = useNavigate();
-  const firstRun = today.heroState === 'first-run';
-  return (
-    <Box style={{ border: `1px solid ${C.border}`, background: C.card, padding: 20 }}>
-      <Text style={{ fontFamily: FONT.heading, fontSize: 26, fontWeight: 700, color: C.text }}>
-        {firstRun ? 'Let’s build your first route' : 'No workout today — here’s a spin on roads you know'}
-      </Text>
-      <Text style={{ fontFamily: FONT.body, fontSize: 14, color: C.text2, marginTop: 6, marginBottom: 16 }}>
-        {firstRun
-          ? 'Generate a ride now, then set a goal and connect a device for training-aware routes.'
-          : 'We’ll propose a loop on familiar roads. Want something specific? Generate one.'}
-      </Text>
-      <Group gap={8}>
-        {['60 min easy', '90 min gravel', '2 hr endurance'].map((preset) => (
-          <Box
-            key={preset}
-            component="button"
-            onClick={() => navigate('/route-builder-2')}
-            style={{
-              fontFamily: FONT.mono,
-              fontSize: 12,
-              color: C.text,
-              backgroundColor: C.secondary,
-              border: `1px solid ${C.border}`,
-              padding: '6px 12px',
-              cursor: 'pointer',
-            }}
-          >
-            {preset}
-          </Box>
-        ))}
-        <Box
-          component="button"
-          onClick={() => navigate('/route-builder-2')}
-          style={{
-            fontFamily: FONT.mono,
-            fontSize: 12,
-            color: '#FFFFFF',
-            backgroundColor: C.teal,
-            border: 'none',
-            padding: '6px 14px',
-            cursor: 'pointer',
-          }}
-        >
-          GENERATE
-        </Box>
-      </Group>
-    </Box>
-  );
-}
 
 export default function TodayGlance({ fixture }: TodayGlanceProps) {
   const { user } = useAuth() as { user: { id: string } | null };
@@ -238,11 +188,38 @@ export default function TodayGlance({ fixture }: TodayGlanceProps) {
       );
     }
     if (state === 'first-run' || state === 'suggested') {
+      // Same rich two-column layout as the normal state: the hero shows recent
+      // rides (route is null → HeroMap falls back to HeroRecentRides), and the
+      // rail leads with a generate CTA instead of a workout card.
+      const suggestedHero = (
+        <Suspense fallback={<HeroSkeleton height={heroHeight} />}>
+          <HeroMap
+            routePromise={routePromise}
+            recentRoutesPromise={recentRoutesPromise}
+            units={units}
+            height={heroHeight}
+          />
+        </Suspense>
+      );
+      const suggestedRail = <SuggestedRail today={today} coachPromise={coachPromise} />;
       return (
         <Stack gap={14}>
           <ContextLine today={today} />
           <OutlookLine today={today} />
-          <GeneratePrompt today={today} />
+          {isMobile ? (
+            <Stack gap={14}>
+              {suggestedHero}
+              {suggestedRail}
+            </Stack>
+          ) : (
+            <Box style={{ display: 'grid', gridTemplateColumns: '58fr 42fr', gap: 16, alignItems: 'stretch' }}>
+              {suggestedHero}
+              <Box style={{ background: C.card, border: `1px solid ${C.border}`, padding: 16 }}>
+                {suggestedRail}
+              </Box>
+            </Box>
+          )}
+          <FitnessRow state={today.athleteState} />
           <GlanceFooter routeId={null} />
           <ConsistencyRibbon days={today.ribbon} />
         </Stack>
