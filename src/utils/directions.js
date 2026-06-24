@@ -18,7 +18,7 @@ export async function mapMatchRoute(waypoints, accessToken, options = {}) {
   console.log(`🔧 mapMatchRoute called with ${waypoints.length} waypoints`);
   
   if (waypoints.length < 2) {
-    return { coordinates: waypoints, distance: 0, duration: 0, confidence: 0, profile: 'none' };
+    return { coordinates: waypoints, distance_m: 0, duration_s: 0, distance: 0, duration: 0, confidence: 0, profile: 'none' };
   }
   
   // Mapbox Map Matching API has a limit of 100 waypoints
@@ -76,8 +76,10 @@ export async function mapMatchRoute(waypoints, accessToken, options = {}) {
       if (matching.confidence > minConfidence || matching.geometry.coordinates.length > waypoints.length * 1.5) {
         return {
           coordinates: matching.geometry.coordinates,
-          distance: matching.distance || 0,
-          duration: matching.duration || 0,
+          distance_m: matching.distance || 0,
+          duration_s: matching.duration || 0,
+          distance: matching.distance || 0, // legacy alias (meters)
+          duration: matching.duration || 0, // legacy alias (seconds)
           confidence: matching.confidence || 0,
           profile: profile,
           radius: radius
@@ -112,7 +114,7 @@ export async function fetchElevationProfile(coordinates, accessToken) {
     }
 
     // Calculate total distance for proper distance values
-    const totalDistance = calculateRouteDistance(coordinates);
+    const totalDistanceMeters = calculateRouteDistance(coordinates);
     
     // Try to get real elevation data from multiple sources
     let elevationData = [];
@@ -140,7 +142,7 @@ export async function fetchElevationProfile(coordinates, accessToken) {
             return {
               coordinate,
               elevation: Math.round(elevation),
-              distance: Math.round((index / (sampledCoords.length - 1)) * totalDistance),
+              distance: Math.round((index / (sampledCoords.length - 1)) * totalDistanceMeters),
             };
           });
           return elevationData;
@@ -175,7 +177,7 @@ export async function fetchElevationProfile(coordinates, accessToken) {
             return {
               coordinate: [lon, lat],
               elevation: Math.round(elevation),
-              distance: Math.round((index / (sampledCoords.length - 1)) * totalDistance)
+              distance: Math.round((index / (sampledCoords.length - 1)) * totalDistanceMeters)
             };
           }
           
@@ -183,7 +185,7 @@ export async function fetchElevationProfile(coordinates, accessToken) {
           return {
             coordinate: [lon, lat],
             elevation: Math.round(getRealisticElevation(lat, lon)),
-            distance: Math.round((index / (sampledCoords.length - 1)) * totalDistance)
+            distance: Math.round((index / (sampledCoords.length - 1)) * totalDistanceMeters)
           };
         });
         
@@ -201,7 +203,7 @@ export async function fetchElevationProfile(coordinates, accessToken) {
       return {
         coordinate: [lon, lat],
         elevation: Math.round(getRealisticElevation(lat, lon)),
-        distance: Math.round((index / (sampledCoords.length - 1)) * totalDistance)
+        distance: Math.round((index / (sampledCoords.length - 1)) * totalDistanceMeters)
       };
     });
 
@@ -338,7 +340,7 @@ export async function fetchCyclingSegment(start, end, accessToken) {
 // Get cycling directions between points using Directions API
 export async function getCyclingDirections(waypoints, accessToken, options = {}) {
   if (waypoints.length < 2) {
-    return { coordinates: waypoints, distance: 0, duration: 0, confidence: 0 };
+    return { coordinates: waypoints, distance_m: 0, duration_s: 0, distance: 0, duration: 0, confidence: 0 };
   }
 
   const {
@@ -434,8 +436,10 @@ export async function getCyclingDirections(waypoints, accessToken, options = {})
       const route = quietRoute.route;
       return {
         coordinates: route.geometry.coordinates,
-        distance: route.distance || 0,
-        duration: route.duration || 0,
+        distance_m: route.distance || 0,
+        duration_s: route.duration || 0,
+        distance: route.distance || 0, // legacy alias (meters)
+        duration: route.duration || 0, // legacy alias (seconds)
         confidence: 0.85, // Slightly lower confidence for walking profile
         profile: 'walking',
         trafficScore: calculateTrafficScore(route, 'low'),
@@ -461,8 +465,10 @@ export async function getCyclingDirections(waypoints, accessToken, options = {})
         console.log('✅ Moderate quiet routing successful with cycling profile');
         return {
           coordinates: bestRoute.geometry.coordinates,
-          distance: bestRoute.distance || 0,
-          duration: bestRoute.duration || 0,
+          distance_m: bestRoute.distance || 0,
+          duration_s: bestRoute.duration || 0,
+          distance: bestRoute.distance || 0, // legacy alias (meters)
+          duration: bestRoute.duration || 0, // legacy alias (seconds)
           confidence: 0.9,
           profile: 'cycling',
           trafficScore: calculateTrafficScore(bestRoute, 'medium'),
@@ -493,14 +499,14 @@ export async function getCyclingDirections(waypoints, accessToken, options = {})
       const errorText = await response.text();
       console.error(`Directions API error: ${response.status} ${response.statusText}`);
       console.error(`Error details:`, errorText);
-      return { coordinates: waypoints, distance: 0, duration: 0, confidence: 0 };
+      return { coordinates: waypoints, distance_m: 0, duration_s: 0, distance: 0, duration: 0, confidence: 0 };
     }
 
     const data = await response.json();
     
     if (!data.routes || !data.routes.length) {
       console.warn('No routes found in directions response');
-      return { coordinates: waypoints, distance: 0, duration: 0, confidence: 0 };
+      return { coordinates: waypoints, distance_m: 0, duration_s: 0, distance: 0, duration: 0, confidence: 0 };
     }
 
     const route = data.routes[0];
@@ -509,8 +515,10 @@ export async function getCyclingDirections(waypoints, accessToken, options = {})
     console.log(`✅ Standard routing successful with ${routingProfile} profile`);
     return {
       coordinates: route.geometry.coordinates,
-      distance: route.distance || 0,
-      duration: route.duration || 0,
+      distance_m: route.distance || 0,
+      duration_s: route.duration || 0,
+      distance: route.distance || 0, // legacy alias (meters)
+      duration: route.duration || 0, // legacy alias (seconds)
       confidence: 0.9,
       profile: routingProfile,
       trafficScore: calculateTrafficScore(route, trafficTolerance),
@@ -519,7 +527,7 @@ export async function getCyclingDirections(waypoints, accessToken, options = {})
     };
   } catch (error) {
     console.error('Directions request failed:', error);
-    return { coordinates: waypoints, distance: 0, duration: 0, confidence: 0 };
+    return { coordinates: waypoints, distance_m: 0, duration_s: 0, distance: 0, duration: 0, confidence: 0 };
   }
 }
 

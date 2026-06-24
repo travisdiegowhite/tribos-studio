@@ -53,7 +53,7 @@ export async function generateClaudeRoutes(params) {
     routeType,
     weatherData,
     ridingPatterns,
-    targetDistance,
+    targetDistanceKm,
     userId,
     trainingContext,
     suppressPrescription,
@@ -120,7 +120,7 @@ export async function generateClaudeRoutesOrThrow(params) {
     routeType,
     weatherData,
     ridingPatterns,
-    targetDistance,
+    targetDistanceKm,
     userId,
     trainingContext,
     suppressPrescription,
@@ -286,7 +286,7 @@ function buildRoutePrompt(params) {
     routeType,
     weatherData,
     ridingPatterns,
-    targetDistance,
+    targetDistanceKm,
     trainingContext,
     suppressPrescription,
     coachPersona,
@@ -315,7 +315,7 @@ function buildRoutePrompt(params) {
 
 LOCATION & DISTANCE:
 - Start coordinates: ${latitude}, ${longitude}
-- Target distance: ${targetDistance.toFixed(1)}km
+- Target distance: ${targetDistanceKm.toFixed(1)}km
 - Time available: ${timeAvailable} minutes
 - Route type: ${routeType}
 
@@ -758,7 +758,7 @@ ${JSON.stringify(patterns, null, 2)}
 CURRENT REQUEST:
 - Training goal: ${currentParams.trainingGoal}
 - Time available: ${currentParams.timeAvailable} minutes
-- Target distance: ${currentParams.targetDistance}km
+- Target distance: ${currentParams.targetDistanceKm}km
 
 Analyze their patterns and provide recommendations in JSON format:
 {

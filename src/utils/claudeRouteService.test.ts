@@ -20,7 +20,7 @@ const baseParams = {
   timeAvailable: 90,
   trainingGoal: 'endurance',
   routeType: 'road',
-  targetDistance: 30,
+  targetDistanceKm: 30,
 };
 
 let fetchSpy: ReturnType<typeof vi.fn>;
