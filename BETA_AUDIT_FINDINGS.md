@@ -278,12 +278,26 @@ the gating list. Remaining:
    untouched). **Remaining (manual, no SQL surface):** enable Auth **leaked-password
    protection** in the Supabase dashboard before opening public signups. *Recommend a signup
    smoke-test on staging to confirm the `search_path` change is benign per CLAUDE.md.*
-3. **M1** — onboarding FTP prompt (15 active users on fallback FTP).
-4. **Product decision (not a bug):** resolve the TFI duality per `docs/tfi-duality-decision.md`
-   (client vs server TFI disagree on the displayed number).
-5. **Perf at scale** — `auth_rls_initplan` fix + permissive-policy consolidation on
-   `activities`/`fitness_snapshots`; add the 32 FK indexes; drop 2 duplicate indexes.
-6. **Low:** M3 tau unification (3 users); minor data cleanup (18 zero-time, 4 max_watts>2500).
+3. **M1 — ✅ ALREADY SATISFIED (no code needed).** Onboarding already prompts for FTP
+   (`OnboardingModal.jsx` Screen 8 "Fitness Baseline"), `/api/onboarding-complete` persists
+   it, and `FtpMissingBadge` is wired on Dashboard + TrainingDashboard. The 15 FTP-less users
+   either skipped the optional field or pre-date the v2 modal; the badge already nudges them.
+4. **Perf at scale — ✅ APPLIED (2026-06-23) via `migration 092`.** Added covering indexes
+   for all 32 unindexed FKs; dropped the 2 confirmed duplicate indexes (`idx_integrations_user`,
+   `idx_plans_user_status`). The `activities` cols=0 "duplicate" group was a false positive
+   (distinct partial/expression indexes) and left intact. Verified: 0 unindexed FKs, 0 dups remaining.
+
+### Still open (manual / product / dedicated-review — intentionally NOT auto-applied)
+
+- **Auth leaked-password protection** — dashboard toggle, no SQL surface. Enable before public signups.
+- **TFI duality** — a product decision per `docs/tfi-duality-decision.md` (client vs server TFI
+   disagree on the displayed number). Needs Travis's call, not an auto-fix.
+- **RLS `auth_rls_initplan` + permissive-policy consolidation** (235 + 356 policies) — the largest
+   remaining perf win, but a mechanical-looking RLS rewrite at that scale has security blast radius
+   (a wrong role/command = data exposure or lockout). Deserves its own focused, verified pass — NOT
+   a blind bulk apply. Recommend doing it as a dedicated migration with per-policy diff review.
+- **M3 adaptive tau** (3 users) and minor data-quality rows (18 zero-time, 4 max_watts>2500,
+   1 distance>1000km) — low priority; guards already handle display.
 
 ---
 
