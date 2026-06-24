@@ -177,25 +177,127 @@ queries run, because they only matter if real rows actually hit those paths.
 
 ---
 
-## BLOCKED — production-data sweep (run when Supabase MCP is approved)
+## Production-data sweep — RESULTS (2026-06-23, Supabase MCP)
 
-The Supabase MCP tools returned "MCP tool call requires approval" and did not execute in
-this session. Once enabled, these SELECT-only queries finalize severity on M1–M3 and may
-surface new Critical items (real corrupted rows). Ready to run:
+Ran read-only against project `xbziuusxagasizxnlwwn` (Tribos). Volume: **40,603
+activities, 63 user_profiles, 899 fitness_snapshots, 1,418 planned_workouts.**
 
-1. **`training_load_daily`** — NULL/negative/absurd `tfi/afi/form_score/rss`; `rss <> rss`
-   (NaN); `rss > 1000`; counts by `rss_source` and `confidence < 0.5`.
-2. **`activities`** — zero `moving_time` with non-zero distance; negative `average_watts`/
-   `max_power`; `max_power > 2500`; km-vs-m magnitude sanity; `effective_power` present but
-   `rss` AND `tss` both NULL.
-3. **Canonical/legacy divergence** — `rss IS NULL AND tss IS NOT NULL` (+ EP/RI twins).
-4. **`fitness_snapshots`** — NULL/absurd fitness columns; weeks missing `rss_source`.
-5. **`user_profiles`** — count non-default `tfi_tau`/`afi_tau`; count `ftp IS NULL OR ftp = 0`.
-6. **FTP coverage** — active athletes who would hit the 200/150 W fallback.
-7. **`planned_workouts`** — `target_rss IS NULL AND target_tss IS NOT NULL` (and reverse).
+### Confirmed / promoted
 
-Plus `get_advisors` (security + performance) for RLS gaps and missing indexes that matter
-at larger beta scale.
+- **S0 — `training_load_daily` is EMPTY (0 rows) — RESOLVED: by-design, not a blocker.**
+  Follow-up code check (2026-06-23): the table is read by Dashboard/Today/FitnessProgressChart
+  but its **only writer is `upsertTrainingLoadDaily`, called solely from
+  `api/process-deviation.js`** (the sync webhooks only read it). Population of server-side
+  TFI/AFI is **deliberately deferred** per `docs/tfi-duality-decision.md` (status: "implementation
+  deferred"), and every reader **falls back to client-side compute from `activities`/
+  `fitness_snapshots`** (`Dashboard.jsx:308–408`, with `serverLoadHistory.length > 0` guards).
+  `fitness_snapshots` is healthy and fresh (899 rows, 53 users, updated today). → **Not a beta
+  blocker.** The genuine open item it surfaces is the **TFI duality** (client vs server TFI
+  disagree materially — see the memo) which is a pending product decision, already tracked.
+- **M1 (FTP coverage) — CONFIRMED real.** 21/63 profiles have NULL/0 FTP; **15 of them
+  have activities** → 15 active athletes get fallback-FTP (200/150 W) RSS, badge-only
+  warning. Onboarding FTP prompt recommended before broad beta.
+- **M2 (canonical/legacy divergence) — CONFIRMED, bounded, FIX WRITTEN.** Every divergent
+  cohort ends on/before **2026-05-08** (the documented Garmin window); there is **no reverse
+  divergence** (`tss IS NOT NULL AND rss IS NULL` reverse = 0), so no live writer is producing
+  new bad rows. **Backfill migration written: `database/migrations/090_backfill_canonical_from_legacy.sql`**
+  (idempotent UPDATEs, canonical ← legacy; not yet applied — review then run via MCP/psql):
+  - `activities`: 64 rows `rss` NULL + `tss` present (Jan 22–May 8); 920 `effective_power`
+    NULL + `normalized_power` present (2023–May 8); 64 `ride_intensity` NULL + `intensity_factor` present.
+  - `fitness_snapshots`: 361 rows `weekly_rss` NULL + `weekly_tss` present (= the 361 `tfi` NULL).
+  - `planned_workouts`: 92 rows `actual_rss` NULL + `actual_tss` present (through Jun 3);
+    **target_rss/target_tss are clean (0 divergence).**
+- **S1 — power activities with no rss/tss — RESOLVED: benign.** 2,387 activities have
+  `effective_power` but neither `rss` nor `tss`; 1,652 (69%) belong to 31 FTP-set users, 116
+  in the last 7d. Follow-up code check: both server (`fitnessSnapshots.js:318`,
+  `computeFitnessMetrics.js:47`) and client (`computeFitnessSnapshots.ts:110`) read
+  `activity.rss ?? activity.tss` and **fall through to the 6-tier `estimateTSSWithSource`
+  estimator** (power → kJ → HR) when both are NULL. So these rides **do** contribute to
+  fitness numbers (estimated live from power). Null stored `rss` = "not persisted," not
+  "not counted." → **Not user-facing-wrong**; persisting would only be a perf/cleanliness win.
+- **M3 (adaptive tau) — CONFIRMED, tiny.** 2 users with non-default `tfi_tau`, 1 with
+  non-default `afi_tau`. Their projections/recomputed history diverge from live values.
+  Low prevalence; fix when convenient (touches frozen metrics code).
+
+### Minor data-quality (tiny counts; guards already shipped via H1/M4)
+
+- 18 activities with zero/NULL `moving_time` but non-zero distance.
+- 4 activities `max_watts > 2500`; 1 activity `distance > 1,000 km`. No negative `average_watts`.
+- `training_load_daily` NaN/negative/absurd checks: all zero (table empty).
+
+### Advisors (122 security lints, 750 performance lints)
+
+**Security — ERROR (fix before beta):**
+- **2 SECURITY DEFINER views** — `public.daily_training_load`, `public.garmin_completeness_audit`
+  run with creator privileges and bypass the caller's RLS. **`daily_training_load` ties to
+  S0** (it's the view over the empty `training_load_daily` table — likely the read path).
+  Verify it doesn't leak other users' rows; recreate with `security_invoker = true`.
+- `rls_disabled_in_public` on `spatial_ref_sys` (PostGIS system table) — accepted/low-risk.
+
+**Security — WARN (auth-relevant):**
+- **`function_search_path_mutable` on 52 functions** (e.g. `get_current_ftp`,
+  `set_ftp_and_zones`, `calculate_tss`, `update_training_metrics`, `create_user_activation`).
+  **Directly conflicts with the CLAUDE.md auth rule** (all `SECURITY DEFINER` fns must
+  `SET search_path = public`). Prioritize any that touch `auth.users` / run as DEFINER.
+- 26 DEFINER cleanup/maintenance fns EXECUTE-able by `anon`/`authenticated`
+  (`cleanup_*`, `create_planned_workouts`) → `REVOKE EXECUTE FROM anon, authenticated`.
+- `rls_policy_always_true` — always-true UPDATE policies on `coros_webhook_events` /
+  `garmin_webhook_events` let any role rewrite webhook rows; tighten (signup/insert ones intentional).
+- **Auth leaked-password protection is DISABLED** — enable before opening signups.
+- INFO: 6 tables RLS-on-no-policy (deny-all) — confirm `track_points` (route/activity data)
+  isn't read by the frontend, else it silently returns empty.
+
+**Performance — WARN/INFO (beta scale):**
+- **`auth_rls_initplan` — 235 policies** re-evaluate `auth.uid()` per-row. Biggest win:
+  `activities` (9), `fitness_snapshots` (5), `planned_workouts` (5), `user_profiles` (3).
+  Fix by wrapping as `(select auth.uid())`.
+- **`multiple_permissive_policies` — 356**; `activities` and `fitness_snapshots` have **20 each**.
+  Consolidate per action.
+- **32 unindexed FKs** — incl. `activities.matched_planned_workout_id`,
+  `planned_workouts.template_id`, and webhook `activity_id`/`integration_id` FKs. Cheap
+  covering indexes, high value before traffic.
+- 2 duplicate indexes (drop one each on `bike_computer_integrations`, `training_plans`);
+  124 "unused" indexes (likely low-traffic false positives — review, don't bulk-drop).
+
+(Full advisor payloads were ~101k/large; fetched via MCP and summarized — re-run
+`get_advisors` directly for the complete object lists when actioning.)
+
+### Recommended pre-beta order (post code-check)
+
+S0 and S1 both **resolved to benign** on follow-up code inspection (see above) and drop off
+the gating list. Remaining:
+
+1. **M2 backfill — ✅ APPLIED (2026-06-23) & verified.** `migration 090` run against
+   production; all five divergence counts now 0, reverse-divergence guard 0. (1,061 rows
+   repaired: 64 rss, 920 effective_power, 64 ride_intensity, 361 weekly_rss, 92 actual_rss.)
+2. **Security ERRORs — ✅ MOSTLY APPLIED (2026-06-23) via `migration 091`.** Both SECURITY
+   DEFINER views (`daily_training_load`, `garmin_completeness_audit`) flipped to
+   `security_invoker` (underlying RLS verified); `SET search_path = public` pinned on all
+   SECURITY DEFINER functions in `public` missing it (PostGIS excluded; none referenced the
+   `auth.` schema; the `create_user_activation` signup trigger already had it and was
+   untouched). **Remaining (manual, no SQL surface):** enable Auth **leaked-password
+   protection** in the Supabase dashboard before opening public signups. *Recommend a signup
+   smoke-test on staging to confirm the `search_path` change is benign per CLAUDE.md.*
+3. **M1 — ✅ ALREADY SATISFIED (no code needed).** Onboarding already prompts for FTP
+   (`OnboardingModal.jsx` Screen 8 "Fitness Baseline"), `/api/onboarding-complete` persists
+   it, and `FtpMissingBadge` is wired on Dashboard + TrainingDashboard. The 15 FTP-less users
+   either skipped the optional field or pre-date the v2 modal; the badge already nudges them.
+4. **Perf at scale — ✅ APPLIED (2026-06-23) via `migration 092`.** Added covering indexes
+   for all 32 unindexed FKs; dropped the 2 confirmed duplicate indexes (`idx_integrations_user`,
+   `idx_plans_user_status`). The `activities` cols=0 "duplicate" group was a false positive
+   (distinct partial/expression indexes) and left intact. Verified: 0 unindexed FKs, 0 dups remaining.
+
+### Still open (manual / product / dedicated-review — intentionally NOT auto-applied)
+
+- **Auth leaked-password protection** — dashboard toggle, no SQL surface. Enable before public signups.
+- **TFI duality** — a product decision per `docs/tfi-duality-decision.md` (client vs server TFI
+   disagree on the displayed number). Needs Travis's call, not an auto-fix.
+- **RLS `auth_rls_initplan` + permissive-policy consolidation** (235 + 356 policies) — the largest
+   remaining perf win, but a mechanical-looking RLS rewrite at that scale has security blast radius
+   (a wrong role/command = data exposure or lockout). Deserves its own focused, verified pass — NOT
+   a blind bulk apply. Recommend doing it as a dedicated migration with per-policy diff review.
+- **M3 adaptive tau** (3 users) and minor data-quality rows (18 zero-time, 4 max_watts>2500,
+   1 distance>1000km) — low priority; guards already handle display.
 
 ---
 
