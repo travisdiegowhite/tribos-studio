@@ -267,11 +267,17 @@ activities, 63 user_profiles, 899 fitness_snapshots, 1,418 planned_workouts.**
 S0 and S1 both **resolved to benign** on follow-up code inspection (see above) and drop off
 the gating list. Remaining:
 
-1. **M2 backfill** — apply `database/migrations/090_backfill_canonical_from_legacy.sql`
-   (written, idempotent, ~1,500 rows; review then run). The only confirmed data-correctness item.
-2. **Security ERRORs** — recreate the 2 SECURITY DEFINER views with `security_invoker`
-   (esp. `daily_training_load`); enable Auth leaked-password protection before signups;
-   `SET search_path` on the 52 mutable-search_path functions (CLAUDE.md auth mandate).
+1. **M2 backfill — ✅ APPLIED (2026-06-23) & verified.** `migration 090` run against
+   production; all five divergence counts now 0, reverse-divergence guard 0. (1,061 rows
+   repaired: 64 rss, 920 effective_power, 64 ride_intensity, 361 weekly_rss, 92 actual_rss.)
+2. **Security ERRORs — ✅ MOSTLY APPLIED (2026-06-23) via `migration 091`.** Both SECURITY
+   DEFINER views (`daily_training_load`, `garmin_completeness_audit`) flipped to
+   `security_invoker` (underlying RLS verified); `SET search_path = public` pinned on all
+   SECURITY DEFINER functions in `public` missing it (PostGIS excluded; none referenced the
+   `auth.` schema; the `create_user_activation` signup trigger already had it and was
+   untouched). **Remaining (manual, no SQL surface):** enable Auth **leaked-password
+   protection** in the Supabase dashboard before opening public signups. *Recommend a signup
+   smoke-test on staging to confirm the `search_path` change is benign per CLAUDE.md.*
 3. **M1** — onboarding FTP prompt (15 active users on fallback FTP).
 4. **Product decision (not a bug):** resolve the TFI duality per `docs/tfi-duality-decision.md`
    (client vs server TFI disagree on the displayed number).
