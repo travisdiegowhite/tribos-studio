@@ -137,6 +137,28 @@ function RestCard({ today, units }: { today: Today; units: UnitsPreference }) {
 
 /** First-run / suggested: no plan. A prompt to generate a route to ride. */
 
+/**
+ * The fitness story + coach, as two columns: stats stacked on the left, the
+ * coach conversation on the right (so you can interrogate the numbers next to
+ * them). Stacks to a single column on mobile.
+ */
+function StatsCoachSection({ today, isMobile }: { today: Today; isMobile: boolean }) {
+  if (isMobile) {
+    return (
+      <>
+        <FitnessRow state={today.athleteState} />
+        <GlanceCoach today={today} maxMessages={2} />
+      </>
+    );
+  }
+  return (
+    <Box style={{ display: 'grid', gridTemplateColumns: '1fr 1.5fr', gap: 16, alignItems: 'start' }}>
+      <FitnessRow state={today.athleteState} orientation="column" />
+      <GlanceCoach today={today} maxMessages={4} />
+    </Box>
+  );
+}
+
 export default function TodayGlance({ fixture }: TodayGlanceProps) {
   const { user } = useAuth() as { user: { id: string } | null };
   const { unitsPreference } = useUserPreferences() as { unitsPreference: UnitsPreference };
@@ -182,8 +204,7 @@ export default function TodayGlance({ fixture }: TodayGlanceProps) {
           <ContextLine today={today} />
           <OutlookLine today={today} />
           <RestCard today={today} units={units} />
-          <FitnessRow state={today.athleteState} />
-          <GlanceCoach today={today} maxMessages={isMobile ? 2 : 4} />
+          <StatsCoachSection today={today} isMobile={!!isMobile} />
           <GlanceFooter routeId={null} />
           <ConsistencyRibbon days={today.ribbon} />
         </Stack>
@@ -221,8 +242,7 @@ export default function TodayGlance({ fixture }: TodayGlanceProps) {
               </Box>
             </Box>
           )}
-          <FitnessRow state={today.athleteState} />
-          <GlanceCoach today={today} maxMessages={isMobile ? 2 : 4} />
+          <StatsCoachSection today={today} isMobile={!!isMobile} />
           <GlanceFooter routeId={null} />
           <ConsistencyRibbon days={today.ribbon} />
         </Stack>
@@ -264,9 +284,8 @@ export default function TodayGlance({ fixture }: TodayGlanceProps) {
             <Box style={{ background: C.card, border: `1px solid ${C.border}`, padding: 16 }}>{rail}</Box>
           </Box>
         )}
-        {/* The fitness story: where you've been / are / heading. */}
-        <FitnessRow state={today.athleteState} />
-        <GlanceCoach today={today} maxMessages={isMobile ? 2 : 4} />
+        {/* The fitness story + coach: where you are, and a place to ask why. */}
+        <StatsCoachSection today={today} isMobile={!!isMobile} />
         <GlanceFooter routeId={today.route?.id ?? null} />
         <ConsistencyRibbon days={today.ribbon} />
       </Stack>

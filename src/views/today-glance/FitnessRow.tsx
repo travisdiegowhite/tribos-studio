@@ -53,13 +53,22 @@ function ValueWord({ word, color }: { word: string; color: string }) {
   );
 }
 
-export function FitnessRow({ state }: { state: TodayAthleteState }) {
+export function FitnessRow({
+  state,
+  orientation = 'row',
+}: {
+  state: TodayAthleteState;
+  /** 'row' = three cards across (default); 'column' = stacked for a side rail. */
+  orientation?: 'row' | 'column';
+}) {
   const delta = state.fitnessDelta28d;
   const arrow = delta > 0 ? '↗' : delta < 0 ? '↘' : '→';
   const deltaLabel = `${delta > 0 ? '+' : ''}${Math.round(delta)} (28d)`;
 
+  const gridTemplateColumns = orientation === 'column' ? '1fr' : '1fr 1.4fr 1fr';
+
   return (
-    <Box style={{ display: 'grid', gridTemplateColumns: '1fr 1.4fr 1fr', gap: 14 }}>
+    <Box style={{ display: 'grid', gridTemplateColumns, gap: 14 }}>
       {/* FORM — where you are */}
       <CellShell label="Form">
         <ValueWord word={state.formWord} color={state.formColor} />
