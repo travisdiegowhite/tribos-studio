@@ -22,6 +22,7 @@ import { HeroMap } from './HeroMap';
 import { GlanceRail } from './GlanceRail';
 import { SuggestedRail } from './SuggestedRail';
 import { GlanceFooter } from './GlanceFooter';
+import { GlanceCoach } from './GlanceCoach';
 import { ConsistencyRibbon } from './ConsistencyRibbon';
 import { ClearanceBand } from './ClearanceBand';
 import { FitnessRow } from './FitnessRow';
@@ -182,6 +183,7 @@ export default function TodayGlance({ fixture }: TodayGlanceProps) {
           <OutlookLine today={today} />
           <RestCard today={today} units={units} />
           <FitnessRow state={today.athleteState} />
+          <GlanceCoach today={today} maxMessages={isMobile ? 2 : 4} />
           <GlanceFooter routeId={null} />
           <ConsistencyRibbon days={today.ribbon} />
         </Stack>
@@ -220,6 +222,7 @@ export default function TodayGlance({ fixture }: TodayGlanceProps) {
             </Box>
           )}
           <FitnessRow state={today.athleteState} />
+          <GlanceCoach today={today} maxMessages={isMobile ? 2 : 4} />
           <GlanceFooter routeId={null} />
           <ConsistencyRibbon days={today.ribbon} />
         </Stack>
@@ -263,6 +266,7 @@ export default function TodayGlance({ fixture }: TodayGlanceProps) {
         )}
         {/* The fitness story: where you've been / are / heading. */}
         <FitnessRow state={today.athleteState} />
+        <GlanceCoach today={today} maxMessages={isMobile ? 2 : 4} />
         <GlanceFooter routeId={today.route?.id ?? null} />
         <ConsistencyRibbon days={today.ribbon} />
       </Stack>
