@@ -291,20 +291,27 @@ DROP TABLE IF EXISTS far_daily;
 Do not drop them without explicit approval — the same "wait and watch" policy
 that governs legacy column drops applies here.
 
-### Orphaned column: `user_profiles.route_builder_v2_enabled` — retained, do not read
+### Route Builder 2.0 is canonical — the gate is fully removed
 
-The Route Builder 2.0 / routing-first Today rollout used a two-layer gate (env
-kill-switch `VITE_ROUTE_BUILDER_V2_ENABLED` + this per-user cohort column, added
-by migration 090, defaulted TRUE by migration 100). When the beta opened to
-everyone the **per-user layer was removed**: `useRouteBuilderV2Access` is now
-env-flag-only, the admin per-user toggle is gone (UI + service + `api/admin.js`
-action), and nothing reads or writes `route_builder_v2_enabled` anymore. The
-`VITE_ROUTE_BUILDER_V2_ENABLED` env flag is the **sole** gate (the retained
-instant-rollback lever).
+The Route Builder 2.0 / routing-first Today rollout originally used a two-layer
+gate (env kill-switch `VITE_ROUTE_BUILDER_V2_ENABLED` + per-user cohort column
+`user_profiles.route_builder_v2_enabled`, added by migration 090, defaulted TRUE
+by migration 100). **The gate is now gone entirely.** RB2 is the one and only
+route builder and the routing-first `TodayGlance` is the one and only Today:
 
-The column is kept in the DB (and in `src/types/database.ts`, since it still
-exists) under the same "wait and watch" policy — **do not add new readers/writers
-and do not drop it without explicit approval.**
+- **`/ride/new` and `/ride/:routeId` render `RouteBuilder2`** (RB2). The legacy
+  v1 `RouteBuilder` is retained only as a hidden fallback at **`/ride/new/classic`**.
+  `/route-builder-2[/:routeId]` still render RB2 as working aliases.
+- `useRouteBuilderV2Access` and `RouteBuilderV2Guard` were **deleted**; the
+  `VITE_ROUTE_BUILDER_V2_ENABLED` env flag was **removed** (no longer read). There
+  is no per-user or env gate anymore.
+- `src/views/today-glance/TodayEntry.tsx` always renders `TodayGlance`. The old
+  `src/views/today/TodayView.tsx` is orphaned (kept on disk, not mounted).
+- The admin per-user toggle is gone (UI + service + `api/admin.js` action).
+
+The `route_builder_v2_enabled` column is kept in the DB (and in
+`src/types/database.ts`, since it still exists) under the "wait and watch" policy
+— **do not add new readers/writers and do not drop it without explicit approval.**
 
 ## Auth Flow — Critical Path (DO NOT BREAK)
 
