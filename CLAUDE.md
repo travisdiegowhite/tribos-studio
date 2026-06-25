@@ -291,6 +291,21 @@ DROP TABLE IF EXISTS far_daily;
 Do not drop them without explicit approval — the same "wait and watch" policy
 that governs legacy column drops applies here.
 
+### Orphaned column: `user_profiles.route_builder_v2_enabled` — retained, do not read
+
+The Route Builder 2.0 / routing-first Today rollout used a two-layer gate (env
+kill-switch `VITE_ROUTE_BUILDER_V2_ENABLED` + this per-user cohort column, added
+by migration 090, defaulted TRUE by migration 100). When the beta opened to
+everyone the **per-user layer was removed**: `useRouteBuilderV2Access` is now
+env-flag-only, the admin per-user toggle is gone (UI + service + `api/admin.js`
+action), and nothing reads or writes `route_builder_v2_enabled` anymore. The
+`VITE_ROUTE_BUILDER_V2_ENABLED` env flag is the **sole** gate (the retained
+instant-rollback lever).
+
+The column is kept in the DB (and in `src/types/database.ts`, since it still
+exists) under the same "wait and watch" policy — **do not add new readers/writers
+and do not drop it without explicit approval.**
+
 ## Auth Flow — Critical Path (DO NOT BREAK)
 
 The signup and login flow is the most critical path in the app. Any breakage blocks all new users. Follow these rules strictly:

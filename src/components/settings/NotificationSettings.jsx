@@ -240,7 +240,10 @@ export default function NotificationSettings({ userId }) {
             </Group>
           ) : (
             <Stack gap="sm">
-              {NOTIFICATION_TYPES.map(({ key, label, description, comingSoon }) => (
+              {/* Hide not-yet-wired types (comingSoon) so settings don't look
+                  half-built to new users. Remove the flag in NOTIFICATION_TYPES
+                  to re-show a type once it's implemented. */}
+              {NOTIFICATION_TYPES.filter((t) => !t.comingSoon).map(({ key, label, description, comingSoon }) => (
                 <Group
                   key={key}
                   justify="space-between"

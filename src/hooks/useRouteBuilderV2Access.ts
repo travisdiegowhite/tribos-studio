@@ -1,20 +1,20 @@
 /**
- * useRouteBuilderV2Access — per-user gate for Route Builder 2.0 BETA.
+ * useRouteBuilderV2Access — env-level gate for Route Builder 2.0 + the
+ * routing-first Today page.
  *
- * Access requires BOTH:
- *   1. VITE_ROUTE_BUILDER_V2_ENABLED === 'true' (env-level kill switch)
- *   2. user_profiles.route_builder_v2_enabled === true (per-user beta cohort)
+ * Access is now driven solely by the env kill-switch:
+ *   VITE_ROUTE_BUILDER_V2_ENABLED === 'true'
  *
- * Fails closed: any error reading the column returns no access.
+ * The per-user beta cohort layer (user_profiles.route_builder_v2_enabled) was
+ * removed when the beta opened to everyone — that column is retained in the DB
+ * but no longer read. Flipping the env flag to 'false' instantly reverts every
+ * user to v1 (the /route-builder-2 guard redirects to /ride/new) and the live
+ * Today (TodayEntry falls back to TodayView). Fails closed when the flag is off.
  *
- * Used to gate the BUILDER 2.0 nav link in AppShell and to guard the
- * /route-builder-2 routes in App.jsx. When access is denied, the route
- * guard redirects to /ride/new (the v1 builder).
+ * The return shape ({ hasAccess, isLoading }) is unchanged so every consumer —
+ * the App.jsx route guard, TodayEntry, and the "which builder to link to" call
+ * sites — keeps working without edits.
  */
-
-import { useEffect, useState } from 'react';
-import { useAuth } from '../contexts/AuthContext';
-import { supabase } from '../lib/supabase';
 
 const ENV_FLAG = import.meta.env.VITE_ROUTE_BUILDER_V2_ENABLED === 'true';
 
@@ -24,58 +24,10 @@ export interface RouteBuilderV2Access {
 }
 
 export function useRouteBuilderV2Access(): RouteBuilderV2Access {
-  const { user, loading: authLoading } = useAuth();
-  const [columnValue, setColumnValue] = useState<boolean | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
-
-  useEffect(() => {
-    // Env-level kill switch off — skip the DB read entirely.
-    if (!ENV_FLAG) {
-      setColumnValue(false);
-      setIsLoading(false);
-      return;
-    }
-
-    // Wait until auth state has settled before deciding.
-    if (authLoading) {
-      setIsLoading(true);
-      return;
-    }
-
-    if (!user?.id) {
-      setColumnValue(false);
-      setIsLoading(false);
-      return;
-    }
-
-    let cancelled = false;
-    setIsLoading(true);
-
-    (async () => {
-      const { data, error } = await supabase
-        .from('user_profiles')
-        .select('route_builder_v2_enabled')
-        .eq('id', user.id)
-        .maybeSingle();
-
-      if (cancelled) return;
-
-      if (error) {
-        console.warn('useRouteBuilderV2Access: failed to read flag', error);
-        setColumnValue(false);
-      } else {
-        setColumnValue(data?.route_builder_v2_enabled === true);
-      }
-      setIsLoading(false);
-    })();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [user?.id, authLoading]);
-
+  // ENV_FLAG is a build-time constant, so access is resolved synchronously —
+  // no DB read, no auth dependency, never loading.
   return {
-    hasAccess: ENV_FLAG && columnValue === true,
-    isLoading,
+    hasAccess: ENV_FLAG,
+    isLoading: false,
   };
 }
