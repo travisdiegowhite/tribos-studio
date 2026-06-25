@@ -6,9 +6,8 @@
  * call v1 services directly (no executor adapter), so the buttons
  * exercise the same paths the production page does.
  *
- * Gating: this page is mounted only when
- *   - `import.meta.env.DEV === true`, AND
- *   - `VITE_ROUTE_BUILDER_V2_ENABLED === 'true'`
+ * Gating: this page is mounted only when `import.meta.env.DEV === true`
+ * (the route does not exist in production builds).
  *
  * Intentionally unstyled — this is a verification surface, not a UI.
  */

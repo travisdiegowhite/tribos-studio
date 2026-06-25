@@ -22,7 +22,6 @@ import { notifications } from '@mantine/notifications';
 import { tokens } from '../theme';
 import AppShell from '../components/AppShell.jsx';
 import { useAuth } from '../contexts/AuthContext.jsx';
-import { useRouteBuilderV2Access } from '../hooks/useRouteBuilderV2Access';
 import { listRoutes, deleteRoute, getRoute } from '../utils/routesService';
 import { formatDistance, formatElevation } from '../utils/units';
 import { supabase } from '../lib/supabase';
@@ -37,8 +36,7 @@ import MatchedRouteCard from '../components/ride/MatchedRouteCard.jsx';
 function MyRoutes() {
   const { user } = useAuth();
   const navigate = useNavigate();
-  const { hasAccess: hasRouteBuilderV2 } = useRouteBuilderV2Access();
-  const newRouteHref = hasRouteBuilderV2 ? '/route-builder-2' : '/ride/new';
+  const newRouteHref = '/ride/new';
   const [loading, setLoading] = useState(true);
   const [routes, setRoutes] = useState([]);
   const [deletingId, setDeletingId] = useState(null);
@@ -737,7 +735,7 @@ function MyRoutes() {
                     leftSection={<Path size={18} />}
                     onClick={() => {
                       trackFeature(EventType.ROUTE_CREATE_FROM_EMPTY_STATE, 'empty_state_past_ride');
-                      navigate('/routes/new?mode=activity');
+                      navigate('/ride/new?mode=activity');
                     }}
                     styles={{ root: { height: 'auto', padding: '12px 16px' } }}
                   >
@@ -755,7 +753,7 @@ function MyRoutes() {
                       trackFeature(EventType.ROUTE_CREATE_FROM_EMPTY_STATE, 'empty_state_ai_route');
                       const params = new URLSearchParams({ mode: 'ai' });
                       if (medianDistanceKm) params.set('distance', String(medianDistanceKm));
-                      navigate(`/routes/new?${params.toString()}`);
+                      navigate(`/ride/new?${params.toString()}`);
                     }}
                     styles={{ root: { height: 'auto', padding: '12px 16px' } }}
                   >
@@ -775,7 +773,7 @@ function MyRoutes() {
                     leftSection={<MapTrifold size={18} />}
                     onClick={() => {
                       trackFeature(EventType.ROUTE_CREATE_FROM_EMPTY_STATE, 'empty_state_scratch');
-                      navigate('/routes/new');
+                      navigate('/ride/new');
                     }}
                     styles={{ root: { height: 'auto', padding: '12px 16px' } }}
                   >

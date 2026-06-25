@@ -1893,9 +1893,10 @@ function RouteBuilder() {
     setCalendarContext(null);
     setIntervalCues(null);
 
-    // Navigate to clean route builder URL (remove any route ID from URL)
+    // Navigate to clean route builder URL (remove any route ID from URL).
+    // This is the v1 (classic) builder, so stay on the classic path.
     if (routeId) {
-      navigate('/routes/new', { replace: true });
+      navigate('/ride/new/classic', { replace: true });
     }
 
     notifications.show({

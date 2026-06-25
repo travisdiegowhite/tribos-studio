@@ -1,7 +1,6 @@
 import React from 'react';
 import { Paper, Stack, Text, Button, ThemeIcon, Group } from '@mantine/core';
 import { useNavigate } from 'react-router-dom';
-import { useRouteBuilderV2Access } from '../hooks/useRouteBuilderV2Access';
 import { Calendar, FileText, Heartbeat, MapTrifold, Path, TrendUp, UploadSimple, Users } from '@phosphor-icons/react';
 
 /**
@@ -28,7 +27,7 @@ const EMPTY_STATE_CONFIGS = {
     description: 'Create your first route or import your ride history.',
     primaryAction: {
       label: 'Create a Route',
-      path: '/routes/new',
+      path: '/ride/new',
     },
     secondaryAction: {
       label: 'Connect Devices',
@@ -101,13 +100,9 @@ const EmptyState = ({
   size = 'md',
 }) => {
   const navigate = useNavigate();
-  const { hasAccess: hasRouteBuilderV2 } = useRouteBuilderV2Access();
-  // Send RB2-enabled users to the new builder wherever an empty state points at
-  // the v1 "new route" path.
+  // Normalize the legacy "new route" path onto the canonical builder entry.
   const remapRoutePath = (path) =>
-    hasRouteBuilderV2 && (path === '/routes/new' || path === '/ride/new')
-      ? '/route-builder-2'
-      : path;
+    path === '/routes/new' ? '/ride/new' : path;
 
   const config = type ? EMPTY_STATE_CONFIGS[type] : null;
   const Icon = CustomIcon || config?.icon || MapTrifold;

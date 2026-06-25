@@ -40,7 +40,6 @@ import { ArrowsLeftRight, Barbell, Bicycle, CalendarBlank, CalendarX, CaretDown,
 import { useWeatherForecast } from '../hooks/useWeatherForecast';
 import { useRouteBuilderStore } from '../stores/routeBuilderStore';
 import { getWeatherSeverity, formatTemperature } from '../utils/weather';
-import { useRouteBuilderV2Access } from '../hooks/useRouteBuilderV2Access';
 import { buildWorkoutRouteHref } from '../utils/workoutRouteHref';
 import { buildLibraryWorkoutRow, computeWeekNumber } from '../utils/plannedWorkoutFromLibrary';
 import { useActivityAutoLink } from '../hooks/useActivityAutoLink';
@@ -60,7 +59,6 @@ import { shouldPromptForFeedback } from '../utils/adaptationTrigger';
 const TrainingCalendar = ({ activePlan, rides = [], formatDistance: formatDistanceProp, ftp, onPlanUpdated, isImperial = false, refreshKey = 0 }) => {
   const { user } = useAuth();
   const navigate = useNavigate();
-  const { hasAccess: hasRouteBuilderV2 } = useRouteBuilderV2Access();
 
   // Weather forecast for calendar days
   const viewport = useRouteBuilderStore.getState().viewport;
@@ -353,7 +351,7 @@ const TrainingCalendar = ({ activePlan, rides = [], formatDistance: formatDistan
   // interval overlay) when the user is in the v2 cohort, else the v1 builder.
   const handleCreateRoute = (e, workout, date) => {
     e.stopPropagation(); // Prevent opening edit modal
-    const href = buildWorkoutRouteHref(workout, formatLocalDate(date), hasRouteBuilderV2);
+    const href = buildWorkoutRouteHref(workout, formatLocalDate(date));
     navigate(href);
   };
 
