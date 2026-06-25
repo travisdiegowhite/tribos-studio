@@ -729,7 +729,7 @@ export default function RouteBuilder2() {
       // A new/updated route should appear in Discover next time it opens.
       discoverLoadedRef.current = false;
       if (routeIdFromUrl !== id) {
-        navigate(`/route-builder-2/${id}`, { replace: true });
+        navigate(`/ride/${id}`, { replace: true });
       }
     },
     [navigate, routeIdFromUrl],
@@ -738,7 +738,7 @@ export default function RouteBuilder2() {
   const handleLoaded = useCallback(
     (id: string) => {
       if (routeIdFromUrl !== id) {
-        navigate(`/route-builder-2/${id}`, { replace: true });
+        navigate(`/ride/${id}`, { replace: true });
       }
     },
     [navigate, routeIdFromUrl],

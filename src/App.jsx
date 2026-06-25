@@ -1,4 +1,4 @@
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { lazy, Suspense } from 'react';
 import { MantineProvider, ColorSchemeScript, Center, Loader } from '@mantine/core';
 import { DatesProvider } from '@mantine/dates';
@@ -7,7 +7,6 @@ import { Analytics } from '@vercel/analytics/react';
 import { SpeedInsights } from '@vercel/speed-insights/react';
 import { AuthProvider, useAuth } from './contexts/AuthContext.jsx';
 import { UserPreferencesProvider } from './contexts/UserPreferencesContext.jsx';
-import { useRouteBuilderV2Access } from './hooks/useRouteBuilderV2Access.ts';
 import { theme } from './theme';
 
 // Pages — eagerly loaded (critical path)
@@ -36,10 +35,9 @@ const MetricsCalculatorPage = lazy(() => import('./pages/MetricsCalculatorPage.t
 const RouteBuilder2 = lazy(() => import('./pages/RouteBuilder2.tsx'));
 const RouteBuilder2HarnessDev = lazy(() => import('./pages/RouteBuilder2HarnessDev.tsx'));
 
-// Dev harness gate: only mount when running in dev AND the v2 flag is on.
-const ROUTE_BUILDER_V2_DEV_HARNESS_ENABLED =
-  Boolean(import.meta.env?.DEV) &&
-  import.meta.env?.VITE_ROUTE_BUILDER_V2_ENABLED === 'true';
+// Dev harness gate: only mount when running in dev. The route doesn't exist in
+// production builds.
+const ROUTE_BUILDER_V2_DEV_HARNESS_ENABLED = Boolean(import.meta.env?.DEV);
 
 // OAuth Callbacks
 import StravaCallback from './pages/oauth/StravaCallback.jsx';
@@ -80,25 +78,11 @@ function ProtectedRoute({ children }) {
   return children;
 }
 
-// Route Builder 2.0 BETA gate (Stabilize S1). Requires the env flag AND the
-// per-user user_profiles.route_builder_v2_enabled column. Falls through to v1
-// at /ride/new when access is denied.
-function RouteBuilderV2Guard({ children }) {
-  const { hasAccess, isLoading } = useRouteBuilderV2Access();
-
-  if (isLoading) {
-    return (
-      <div className="loading-screen">
-        <div className="loading-spinner" />
-      </div>
-    );
-  }
-
-  if (!hasAccess) {
-    return <Navigate to="/ride/new" replace />;
-  }
-
-  return children;
+// Redirect that preserves the query string (a static <Navigate to="/ride/new">
+// would drop ?from_activity=…, ?distance=…, etc. that the builder reads).
+function RedirectToRideNew() {
+  const location = useLocation();
+  return <Navigate to={`/ride/new${location.search}`} replace />;
 }
 
 // Public Route wrapper (redirects to today if already logged in)
@@ -185,33 +169,40 @@ function AppRoutes() {
           </ProtectedRoute>
         }
       />
+      {/* New route — RB2 is the canonical builder. */}
       <Route
         path="/ride/new"
         element={
           <ProtectedRoute>
+            <RouteBuilder2 />
+          </ProtectedRoute>
+        }
+      />
+      {/* Hidden v1 fallback (kept reachable by direct URL). */}
+      <Route
+        path="/ride/new/classic"
+        element={
+          <ProtectedRoute>
             <RouteBuilder />
           </ProtectedRoute>
         }
       />
+      {/* Edit an existing route — RB2 loads it by id. */}
       <Route
         path="/ride/:routeId"
         element={
           <ProtectedRoute>
-            <RouteBuilder />
+            <RouteBuilder2 />
           </ProtectedRoute>
         }
       />
 
-      {/* Route Builder 2.0 BETA (Stabilize S1: per-user gate). */}
-      {/* RouteBuilderV2Guard redirects to /ride/new when the env flag is off */}
-      {/* OR user_profiles.route_builder_v2_enabled is false. */}
+      {/* Legacy aliases for RB2 (kept working for deep links + internal nav). */}
       <Route
         path="/route-builder-2"
         element={
           <ProtectedRoute>
-            <RouteBuilderV2Guard>
-              <RouteBuilder2 />
-            </RouteBuilderV2Guard>
+            <RouteBuilder2 />
           </ProtectedRoute>
         }
       />
@@ -219,23 +210,18 @@ function AppRoutes() {
         path="/route-builder-2/:routeId"
         element={
           <ProtectedRoute>
-            <RouteBuilderV2Guard>
-              <RouteBuilder2 />
-            </RouteBuilderV2Guard>
+            <RouteBuilder2 />
           </ProtectedRoute>
         }
       />
 
-      {/* Hook test harness (P1.2). DEV+env gate at mount, per-user gate via */}
-      {/* RouteBuilderV2Guard. The route doesn't even exist in production. */}
+      {/* Hook test harness (P1.2). DEV-only — the route doesn't exist in production. */}
       {ROUTE_BUILDER_V2_DEV_HARNESS_ENABLED && (
         <Route
           path="/route-builder-2/dev-harness"
           element={
             <ProtectedRoute>
-              <RouteBuilderV2Guard>
-                <RouteBuilder2HarnessDev />
-              </RouteBuilderV2Guard>
+              <RouteBuilder2HarnessDev />
             </ProtectedRoute>
           }
         />
@@ -309,17 +295,17 @@ function AppRoutes() {
       <Route path="/dashboard" element={<Navigate to="/today" replace />} />
       <Route path="/routes" element={<Navigate to="/ride" replace />} />
       <Route path="/routes/list" element={<Navigate to="/ride" replace />} />
-      <Route path="/routes/new" element={<Navigate to="/ride/new" replace />} />
-      {/* /routes/:routeId — serve directly (can't redirect with params easily) */}
+      <Route path="/routes/new" element={<RedirectToRideNew />} />
+      {/* /routes/:routeId — serve RB2 directly (it loads the route by id). */}
       <Route
         path="/routes/:routeId"
         element={
           <ProtectedRoute>
-            <RouteBuilder />
+            <RouteBuilder2 />
           </ProtectedRoute>
         }
       />
-      <Route path="/routes/manual" element={<Navigate to="/ride/new" replace />} />
+      <Route path="/routes/manual" element={<RedirectToRideNew />} />
       <Route path="/routes/manual/:routeId" element={<Navigate to="/ride/new" replace />} />
       <Route path="/training" element={<Navigate to="/train" replace />} />
       <Route path="/planner" element={<Navigate to="/train/planner" replace />} />
