@@ -43,7 +43,7 @@ export function GlanceFooter({ routeId }: GlanceFooterProps) {
     <Group gap={20} mt={4}>
       <FooterLink
         label="Adjust route →"
-        onClick={() => navigate(routeId ? `/route-builder-2/${routeId}` : '/route-builder-2')}
+        onClick={() => navigate(routeId ? `/ride/${routeId}` : '/ride/new')}
       />
       <FooterLink label="Full workout →" onClick={() => navigate('/train')} />
       <FooterLink label="Talk to coach →" onClick={() => open()} />

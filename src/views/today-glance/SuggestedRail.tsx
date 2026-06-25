@@ -40,7 +40,7 @@ export function SuggestedRail({ today, coachPromise }: SuggestedRailProps) {
             <Box
               key={preset}
               component="button"
-              onClick={() => navigate('/route-builder-2')}
+              onClick={() => navigate('/ride/new')}
               style={{
                 fontFamily: FONT.mono,
                 fontSize: 12,
@@ -56,7 +56,7 @@ export function SuggestedRail({ today, coachPromise }: SuggestedRailProps) {
           ))}
           <Box
             component="button"
-            onClick={() => navigate('/route-builder-2')}
+            onClick={() => navigate('/ride/new')}
             style={{
               fontFamily: FONT.mono,
               fontSize: 12,

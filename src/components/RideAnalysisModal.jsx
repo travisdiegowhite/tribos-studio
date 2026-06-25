@@ -777,7 +777,7 @@ const RideAnalysisModal = ({
                 onClick={() => {
                   trackFeature(EventType.ROUTE_CREATE_FROM_ACTIVITY_NUDGE, 'activity_nudge_click', { activityId: ride.id });
                   onClose();
-                  navigate(`/routes/new?from_activity=${ride.id}`);
+                  navigate(`/ride/new?from_activity=${ride.id}`);
                 }}
                 style={{ flexShrink: 0 }}
               >

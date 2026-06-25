@@ -13,7 +13,6 @@ import {
 } from '@mantine/core';
 import { notifications } from '@mantine/notifications';
 import { useAuth } from '../../contexts/AuthContext.jsx';
-import { useRouteBuilderV2Access } from '../../hooks/useRouteBuilderV2Access';
 import { useActivation } from '../../hooks/useActivation';
 import { useCoachCommandBar } from '../coach/CoachCommandBarContext.jsx';
 import { supabase } from '../../lib/supabase';
@@ -49,7 +48,7 @@ const ACTIVATION_STEPS = [
     label: 'Build a route',
     description: 'Plan your next ride with smart assistance',
     cta: 'Route builder',
-    href: '/routes/new',
+    href: '/ride/new',
     icon: MapTrifold,
   },
   {
@@ -64,7 +63,6 @@ const ACTIVATION_STEPS = [
 
 export default function GetStartedGuide() {
   const { user } = useAuth();
-  const { hasAccess: hasRouteBuilderV2 } = useRouteBuilderV2Access();
   const { open: openCoach } = useCoachCommandBar();
   const {
     activation,
@@ -186,12 +184,10 @@ export default function GetStartedGuide() {
           // RB2-enabled users straight to the new builder.
           let step = stepConfig;
           if (stepConfig.key === 'first_route') {
-            const base = hasRouteBuilderV2 ? '/route-builder-2' : '/routes/new';
-            if (recentActivityId) {
-              step = { ...stepConfig, cta: 'Build from your last ride', href: `${base}?from_activity=${recentActivityId}` };
-            } else if (hasRouteBuilderV2) {
-              step = { ...stepConfig, href: base };
-            }
+            const base = '/ride/new';
+            step = recentActivityId
+              ? { ...stepConfig, cta: 'Build from your last ride', href: `${base}?from_activity=${recentActivityId}` }
+              : { ...stepConfig, href: base };
           }
           const StepIcon = step.icon;
           const isStepComplete = activation.steps?.[step.key]?.completed;

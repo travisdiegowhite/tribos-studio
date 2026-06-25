@@ -10,9 +10,9 @@ const workout = {
 };
 
 describe('buildWorkoutRouteHref', () => {
-  it('targets Route Builder 2.0 when the user has v2 access', () => {
-    const href = buildWorkoutRouteHref(workout, '2026-06-10', true);
-    expect(href.startsWith('/route-builder-2?')).toBe(true);
+  it('targets the canonical builder at /ride/new with the RB2 query contract', () => {
+    const href = buildWorkoutRouteHref(workout, '2026-06-10');
+    expect(href.startsWith('/ride/new?')).toBe(true);
     const p = new URLSearchParams(href.split('?')[1]);
     expect(p.get('workoutId')).toBe('thr_4x8');
     expect(p.get('goal')).toBe('threshold');
@@ -22,18 +22,8 @@ describe('buildWorkoutRouteHref', () => {
     expect(p.get('scheduledDate')).toBe('2026-06-10');
   });
 
-  it('falls back to the v1 builder with the legacy trainingGoal contract', () => {
-    const href = buildWorkoutRouteHref(workout, '2026-06-10', false);
-    expect(href.startsWith('/routes/new?')).toBe(true);
-    const p = new URLSearchParams(href.split('?')[1]);
-    expect(p.get('workoutType')).toBe('threshold');
-    expect(p.get('trainingGoal')).toBe('intervals'); // threshold → intervals in v1
-    expect(p.get('duration')).toBe('75');
-    expect(p.get('workoutId')).toBe('thr_4x8');
-  });
-
   it('omits optional params and defaults duration when absent', () => {
-    const href = buildWorkoutRouteHref({ workout_type: 'endurance' }, '2026-06-10', true);
+    const href = buildWorkoutRouteHref({ workout_type: 'endurance' }, '2026-06-10');
     const p = new URLSearchParams(href.split('?')[1]);
     expect(p.get('duration')).toBe('60');
     expect(p.has('workoutId')).toBe(false);
