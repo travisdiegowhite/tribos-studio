@@ -27,14 +27,13 @@ import { useAuth } from '../contexts/AuthContext.jsx';
 import { supabase } from '../lib/supabase';
 import { useGear } from '../hooks/useGear.ts';
 import { useActivation } from '../hooks/useActivation.ts';
-import { useRouteBuilderV2Access } from '../hooks/useRouteBuilderV2Access.ts';
 import { formatDistance } from '../utils/units';
 import { ListChecks } from '@phosphor-icons/react';
 
-// Four-tab primary navigation: TODAY · RIDE · TRAIN · PROGRESS
-// Stabilize S1: the fifth BUILDER 2.0 BETA tab is gated per-user via
-// useRouteBuilderV2Access (env flag AND user_profiles.route_builder_v2_enabled).
-const baseNavItems = [
+// Four-tab primary navigation: TODAY · RIDE · TRAIN · PROGRESS.
+// The route builder lives under RIDE (the ride hub launches it and the RIDE
+// tab stays active while you're in the builder); there is no separate tab.
+const navItems = [
   { path: '/today', label: 'TODAY' },
   { path: '/ride', label: 'RIDE' },
   { path: '/train', label: 'TRAIN' },
@@ -54,15 +53,6 @@ function AppShell({ children, fullWidth = false, hideNav = false }) {
 
   // Activation guide — undismiss support
   const { isDismissed: guideIsDismissed, isComplete: guideIsComplete, undismissGuide } = useActivation(user?.id);
-
-  // Route Builder 2.0 BETA gate (S1: env flag + per-user column).
-  const { hasAccess: routeBuilderV2Access } = useRouteBuilderV2Access();
-  const navItems = routeBuilderV2Access
-    ? [
-        ...baseNavItems,
-        { path: '/route-builder-2', label: 'BUILDER 2.0', beta: true },
-      ]
-    : baseNavItems;
 
   // Persist pending consent from signup flow to user_profiles
   useEffect(() => {
@@ -88,16 +78,17 @@ function AppShell({ children, fullWidth = false, hideNav = false }) {
       return location.pathname === '/today' || location.pathname === '/dashboard';
     }
     if (item.path === '/ride') {
-      return location.pathname.startsWith('/ride') || location.pathname.startsWith('/routes');
+      return (
+        location.pathname.startsWith('/ride') ||
+        location.pathname.startsWith('/routes') ||
+        location.pathname.startsWith('/route-builder-2')
+      );
     }
     if (item.path === '/train') {
       return location.pathname.startsWith('/train') || location.pathname === '/planner';
     }
     if (item.path === '/progress') {
       return location.pathname === '/progress';
-    }
-    if (item.path === '/route-builder-2') {
-      return location.pathname === '/route-builder-2';
     }
     return false;
   };
@@ -189,29 +180,9 @@ function AppShell({ children, fullWidth = false, hideNav = false }) {
                             textTransform: 'uppercase',
                             color: active ? '#FFFFFF' : '#9A9990',
                             transition: 'color 150ms ease',
-                            display: 'inline-flex',
-                            alignItems: 'center',
-                            gap: 8,
                           }}
                         >
                           {item.label}
-                          {item.beta && (
-                            <Box
-                              component="span"
-                              style={{
-                                backgroundColor: '#2A8C82',
-                                color: '#FFFFFF',
-                                fontSize: 10,
-                                fontWeight: 700,
-                                letterSpacing: '1.5px',
-                                padding: '2px 6px',
-                                borderRadius: 0,
-                                lineHeight: 1,
-                              }}
-                            >
-                              BETA
-                            </Box>
-                          )}
                         </Text>
                         {/* Active indicator — 2px teal underline flush to bottom */}
                         {active && (
@@ -522,29 +493,9 @@ function MobileBottomNav({ navItems, isActive }) {
                 letterSpacing: '2px',
                 textTransform: 'uppercase',
                 color: active ? '#FFFFFF' : '#9A9990',
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: 4,
               }}
             >
               {item.label}
-              {item.beta && (
-                <Box
-                  component="span"
-                  style={{
-                    backgroundColor: '#2A8C82',
-                    color: '#FFFFFF',
-                    fontSize: 8,
-                    fontWeight: 700,
-                    letterSpacing: '1px',
-                    padding: '1px 4px',
-                    borderRadius: 0,
-                    lineHeight: 1,
-                  }}
-                >
-                  BETA
-                </Box>
-              )}
             </Text>
           </UnstyledButton>
         );
