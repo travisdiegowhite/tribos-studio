@@ -35,10 +35,13 @@ function chain() {
   return obj;
 }
 
+// Per-test override for `from`, so a test can simulate a real plan + workout write.
+let fromOverride = null;
+
 vi.mock('./utils/supabaseAdmin.js', () => ({
   getSupabaseAdmin: () => ({
     auth: { getUser },
-    from: () => chain(),
+    from: (table) => (fromOverride ? fromOverride(table) : chain()),
     rpc: () => Promise.resolve({ data: null, error: null }),
   }),
 }));
@@ -104,6 +107,7 @@ const planToolResponse = (text) => ({
 beforeEach(() => {
   messagesCreate.mockReset();
   getUser.mockReset();
+  fromOverride = null;
   process.env.ANTHROPIC_API_KEY = 'sk-test';
   getUser.mockResolvedValue({ data: { user: { id: 'user-1' } }, error: null });
 });
@@ -166,6 +170,31 @@ describe('coach handler — forced tool pass', () => {
     expect(res.statusCode).toBe(200);
     expect(messagesCreate).toHaveBeenCalledTimes(1);
     expect(res.body.workoutRecommendations).toHaveLength(1);
+  });
+
+  it('persists a recommended workout server-side and returns it as added', async () => {
+    // Simulate an existing active plan so the workout resolves a plan and writes.
+    fromOverride = (table) => {
+      const c = chain();
+      if (table === 'training_plans') {
+        c.maybeSingle = () => Promise.resolve({ data: { id: 'plan-1' }, error: null });
+      }
+      return c;
+    };
+    messagesCreate.mockResolvedValueOnce(workoutToolResponse('Easy spin coming up.'));
+
+    const res = makeRes();
+    await handler(makeReq({ message: 'what should I ride today' }), res);
+
+    expect(res.statusCode).toBe(200);
+    // No continuation turn — recommend_workout persists without a second Claude call.
+    expect(messagesCreate).toHaveBeenCalledTimes(1);
+    expect(res.body.workoutRecommendations).toHaveLength(1);
+    const rec = res.body.workoutRecommendations[0];
+    expect(rec.added).toBe(true);
+    expect(rec.workout_id).toBe('recovery_spin');
+    expect(rec.name).toBeTruthy();
+    expect(rec.scheduledDate).toMatch(/^\d{4}-\d{2}-\d{2}$/);
   });
 
   it('re-calls forcing the matched tool when the first pass was prose-only', async () => {

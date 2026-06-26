@@ -7,7 +7,7 @@ import { rateLimitMiddleware } from './utils/rateLimit.js';
 import { WORKOUT_LIBRARY_FOR_AI, ALL_COACH_TOOLS } from './utils/workoutLibrary.js';
 import { handleFitnessHistoryQuery } from './utils/fitnessHistoryTool.js';
 import { handleTrainingDataQuery } from './utils/trainingDataTool.js';
-import { generateTrainingPlan } from './utils/planGenerator.js';
+import { generateTrainingPlan, getWorkoutMeta } from './utils/planGenerator.js';
 import { buildAnchoredPreview } from './utils/sequencerPreview.js';
 import { setupCors } from './utils/cors.js';
 import { generateFuelPlan } from './utils/fuelPlanGenerator.js';
@@ -245,6 +245,129 @@ async function swapWorkoutDates(planId, sourceId, sourceDate, targetId, targetDa
       day_of_week: new Date(targetDate + 'T12:00:00').getDay()
     })
     .eq('id', sourceId);
+}
+
+// planned_workouts.workout_type is a constrained enum; map free-form types onto it.
+// Mirrors VALID_WORKOUT_TYPES in src/utils/coachWorkoutScheduler.js.
+const VALID_WORKOUT_TYPES = [
+  'endurance', 'tempo', 'threshold', 'intervals', 'recovery',
+  'sweet_spot', 'vo2max', 'anaerobic', 'sprint', 'rest',
+];
+
+// Resolve (or create) the plan a coach-recommended workout attaches to. Mirrors
+// resolveActivePlanId in src/utils/coachWorkoutScheduler.js so the coach writes to
+// the SAME plan the dashboard/planner show: most-recent-active, tie-broken by
+// created_at, else a lightweight auto-created "coach_recommended" plan.
+async function resolveActivePlanIdForRecommendation(userId, planId, timezone) {
+  if (planId) return planId;
+
+  const { data: activePlan } = await supabase
+    .from('training_plans')
+    .select('id')
+    .eq('user_id', userId)
+    .eq('status', 'active')
+    .order('started_at', { ascending: false })
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (activePlan) return activePlan.id;
+
+  const startDateStr = formatDateInTimezone(new Date(), timezone);
+  const { data: newPlan, error: planError } = await supabase
+    .from('training_plans')
+    .insert({
+      user_id: userId,
+      template_id: 'coach_recommended',
+      name: 'Coach Recommended Workouts',
+      duration_weeks: 52,
+      methodology: 'coach_guided',
+      goal: 'general_fitness',
+      fitness_level: 'intermediate',
+      started_at: startDateStr,
+      start_date: startDateStr,
+      status: 'active',
+    })
+    .select('id')
+    .single();
+
+  if (planError) throw planError;
+  return newPlan.id;
+}
+
+// Persist a single coach-recommended workout to the athlete's calendar immediately.
+// This is the server-side twin of scheduleCoachWorkout (src/utils) — it runs when the
+// coach calls recommend_workout so "I've added that to your calendar" is actually true
+// without waiting on a client-side card click. Dual-writes target_rss (canonical) and
+// target_tss (legacy) per the metrics-freeze policy in CLAUDE.md.
+async function handleRecommendWorkout(userId, input, planId = null, timezone = 'UTC') {
+  if (!userId || !input?.workout_id) {
+    return { success: false, error: 'Missing user or workout' };
+  }
+
+  try {
+    const meta = getWorkoutMeta(input.workout_id);
+    const workoutName = meta?.name || input.name || input.workout_id || 'Workout';
+
+    const resolvedPlanId = await resolveActivePlanIdForRecommendation(userId, planId, timezone);
+    if (!resolvedPlanId) {
+      return { success: false, error: 'Could not find or create a training plan' };
+    }
+
+    const scheduledDate = resolveScheduledDate(input.scheduled_date, timezone);
+    const dayOfWeek = new Date(scheduledDate + 'T12:00:00').getDay();
+
+    const normalizedType = (meta?.category || input.workout_type || '')
+      .toLowerCase().replace(/[\s-]/g, '_');
+    const dbWorkoutType = VALID_WORKOUT_TYPES.includes(normalizedType) ? normalizedType : 'endurance';
+
+    const targetLoad = meta?.tss ?? input.target_rss ?? input.target_tss ?? null;
+    const targetDuration = meta?.duration ?? input.duration_minutes ?? null;
+
+    // Detect an existing workout on the date so we can report replace vs add.
+    const { data: existingWorkout } = await supabase
+      .from('planned_workouts')
+      .select('id, name')
+      .eq('plan_id', resolvedPlanId)
+      .eq('scheduled_date', scheduledDate)
+      .maybeSingle();
+
+    const { error: dbError } = await supabase
+      .from('planned_workouts')
+      .upsert({
+        plan_id: resolvedPlanId,
+        user_id: userId,
+        scheduled_date: scheduledDate,
+        day_of_week: dayOfWeek,
+        week_number: 1,
+        workout_type: dbWorkoutType,
+        workout_id: input.workout_id,
+        name: workoutName,
+        target_rss: targetLoad,
+        target_tss: targetLoad,
+        target_duration: targetDuration,
+        duration_minutes: targetDuration || 0,
+        notes: input.reason ? `Coach recommendation: ${input.reason}` : '',
+        completed: false,
+      }, {
+        onConflict: 'plan_id,scheduled_date',
+        ignoreDuplicates: false,
+      });
+
+    if (dbError) throw dbError;
+
+    return {
+      success: true,
+      replaced: !!existingWorkout,
+      replacedName: existingWorkout?.name || null,
+      workoutName,
+      scheduledDate,
+      planId: resolvedPlanId,
+    };
+  } catch (err) {
+    console.error('handleRecommendWorkout failed:', err);
+    return { success: false, error: err.message || 'Failed to add workout to calendar' };
+  }
 }
 
 // Handle schedule adjustment tool calls — modifies existing active plan workouts
@@ -531,7 +654,7 @@ ${WORKOUT_LIBRARY_FOR_AI}
 
 **HOW TO RECOMMEND WORKOUTS:**
 
-When you recommend specific workouts, you MUST use the recommend_workout tool. Never just describe workouts in text.
+When you recommend specific workouts, you MUST use the recommend_workout tool. Never just describe workouts in text. Calling recommend_workout IMMEDIATELY adds that workout to the athlete's calendar (the server schedules it on the spot — no confirmation tap needed). So only call it for workouts you actually want on their calendar now, not for hypothetical options you're asking them to pick between. Once you've called it, you may say plainly that you've added the workout (e.g., "Added Sweet Spot for tomorrow.").
 
 **Trigger phrases that require tool use:**
 - "what should I ride" / "what should I run"
@@ -553,10 +676,12 @@ When you recommend specific workouts, you MUST use the recommend_workout tool. N
 - Multiple workouts = multiple tool calls
 - scheduled_date format: "today", "tomorrow", "this_monday", "next_tuesday", or "YYYY-MM-DD"
 
-Remember: The tool is how athletes add workouts to their calendar. Without it, they can't act on your advice!
+Remember: The tool is how athletes get workouts onto their calendar. Calling it adds the workout immediately — without it, nothing lands on their calendar!
 
 **NEVER PROMISE AN ACTION WITHOUT PERFORMING IT:**
-This is critical. If your reply says or implies that you are doing something — "let me get that on the calendar", "let's build the final block right now", "I'll add that workout", "let me map out the rest of your week", "I'll move that to Saturday" — you MUST emit the matching tool call (recommend_workout / create_training_plan / adjust_schedule) in that SAME response. Narrating an action in prose and then not calling the tool leaves the athlete with an empty promise and nothing on their calendar. If you are not going to call a tool, do not claim you are taking the action.
+This is critical. If your reply says or implies that you are doing something — "let me get that on the calendar", "I'll add that workout", "I'll move that to Saturday" — you MUST emit the matching tool call (recommend_workout / adjust_schedule) in that SAME response. recommend_workout and adjust_schedule take effect immediately, so after calling them you can state the outcome as done ("Added Sweet Spot for tomorrow.", "Moved Tuesday's ride to Saturday.").
+
+Full training plans are different: create_training_plan produces a PREVIEW that the athlete activates with one tap — calling it does NOT load the plan onto their calendar by itself. So when you offer a plan or block, invite the tap; do NOT claim the plan is already on the calendar. Say "I've built a 12-week block — tap Review & activate to load it" rather than "I've added your plan." Narrating an action in prose and then not calling the matching tool leaves the athlete with an empty promise and nothing on their calendar. If you are not going to call a tool, do not claim you are taking the action.
 
 **CREATING FULL TRAINING PLANS:**
 
@@ -1315,6 +1440,7 @@ ${conversationSummary}
     const fuelPlanUses = toolUses.filter(tool => tool.name === 'generate_fuel_plan');
     const memoryUses = toolUses.filter(tool => tool.name === 'save_coach_memory');
     const scheduleAdjustUses = toolUses.filter(tool => tool.name === 'adjust_schedule');
+    const recommendWorkoutUses = toolUses.filter(tool => tool.name === 'recommend_workout');
 
     // Detailed logging for debugging
     console.log(`🤖 Coach response: ${toolUses.length} tool uses`);
@@ -1325,6 +1451,7 @@ ${conversationSummary}
     console.log(`   - Plan creations: ${planCreationUses.length}`);
     console.log(`   - Memory saves: ${memoryUses.length}`);
     console.log(`   - Schedule adjustments: ${scheduleAdjustUses.length}`);
+    console.log(`   - Workout recommendations: ${recommendWorkoutUses.length}`);
     if (planCreationUses.length > 0) {
       console.log(`   - Plan creation input:`, JSON.stringify(planCreationUses[0].input, null, 2));
     }
@@ -1336,6 +1463,8 @@ ${conversationSummary}
 
     // Preserve client-side tool calls (recommend_workout, create_training_plan, generate_fuel_plan)
     // from the first response — these would be lost when toolUses is overwritten by the continuation.
+    // recommend_workout is persisted server-side AFTER this block (no extra Claude turn), so it
+    // must survive the continuation merge — keep it in this set.
     const clientSideToolNames = new Set(['recommend_workout', 'create_training_plan', 'generate_fuel_plan']);
     const firstResponseClientTools = toolUses.filter(tool => clientSideToolNames.has(tool.name));
 
@@ -1431,6 +1560,37 @@ ${conversationSummary}
       toolUses = [...firstResponseClientTools, ...continuationToolUses];
     }
 
+    // Persist recommend_workout calls straight to the calendar (no extra Claude turn).
+    // This is what makes "I've added that workout" true instead of an empty promise:
+    // the workout is written here, server-side, exactly like adjust_schedule. A failed
+    // write falls back to a pending card (added: false) so the athlete can still tap Add.
+    // Full plans (create_training_plan) stay preview-only and are activated with a tap.
+    const addedWorkouts = [];
+    const recommendToolUses = toolUses.filter(t => t.name === 'recommend_workout');
+    for (const tool of recommendToolUses) {
+      try {
+        const result = await handleRecommendWorkout(verifiedUserId, tool.input, planId, resolvedTimezone);
+        console.log(`🚴 Recommend workout (auto-add) result:`, JSON.stringify(result));
+        addedWorkouts.push(
+          result.success
+            ? {
+                id: tool.id,
+                ...tool.input,
+                added: true,
+                name: result.workoutName,
+                scheduledDate: result.scheduledDate,
+                planId: result.planId,
+                replaced: result.replaced,
+                replacedName: result.replacedName,
+              }
+            : { id: tool.id, ...tool.input, added: false }
+        );
+      } catch (err) {
+        console.error('recommend_workout persist failed (non-blocking):', err.message);
+        addedWorkouts.push({ id: tool.id, ...tool.input, added: false });
+      }
+    }
+
     // Extract text response
     const textContent = response.content.find(block => block.type === 'text');
     let responseText = textContent?.text || '';
@@ -1440,10 +1600,17 @@ ${conversationSummary}
       responseText = "I've put together a plan for you — review it below and confirm to add it to your calendar.";
     }
 
-    // If Claude only called recommend_workout without text, provide a default message so the
-    // chat bubble is never blank — the workout card renders below it.
-    if (!responseText && toolUses.some(t => t.name === 'recommend_workout')) {
-      responseText = "Here's a workout you can add to your calendar — tap it to schedule it.";
+    // If Claude added workout(s) without text, provide a default confirmation so the
+    // chat bubble is never blank. The workout is already on the calendar by this point.
+    const successfullyAdded = addedWorkouts.filter(w => w.added);
+    if (!responseText && successfullyAdded.length > 0) {
+      const first = successfullyAdded[0];
+      responseText = successfullyAdded.length === 1
+        ? `Added ${first.name} to your calendar for ${first.scheduledDate}.`
+        : `Added ${successfullyAdded.length} workouts to your calendar.`;
+    } else if (!responseText && addedWorkouts.length > 0) {
+      // Persist failed — fall back to a pending card the athlete can tap.
+      responseText = "Here's a workout for you — tap Add to put it on your calendar.";
     }
 
     // Final guard: never return an empty bubble (no text and no tools to explain the silence).
@@ -1451,13 +1618,10 @@ ${conversationSummary}
       responseText = "Sorry, I didn't catch that — could you rephrase?";
     }
 
-    // Extract workout recommendations from tool uses
-    const workoutRecommendations = toolUses
-      .filter(tool => tool.name === 'recommend_workout')
-      .map(tool => ({
-        id: tool.id,
-        ...tool.input
-      }));
+    // Workout recommendations returned to the client are the ones we already persisted
+    // server-side (added: true). The client renders these as "✓ Added" confirmations
+    // rather than an "Add" button, since the write already happened.
+    const workoutRecommendations = addedWorkouts;
 
     // Handle training plan creation tool (generates plan preview)
     let trainingPlanPreview = null;
@@ -1538,9 +1702,11 @@ ${conversationSummary}
     if (quickMode) {
       suggestedActions = [];
 
-      // If there are workout recommendations, suggest adding to calendar
-      if (workoutRecommendations.length > 0) {
-        workoutRecommendations.forEach((rec, idx) => {
+      // Workouts are persisted server-side now (added: true), so don't offer an "Add"
+      // action for them — only surface any that somehow weren't added.
+      const pendingRecs = workoutRecommendations.filter((rec) => !rec.added);
+      if (pendingRecs.length > 0) {
+        pendingRecs.forEach((rec, idx) => {
           suggestedActions.push({
             id: `add-workout-${idx}`,
             label: `Add ${rec.workout_id} to ${rec.scheduled_date}`,
@@ -1557,7 +1723,7 @@ ${conversationSummary}
           id: 'activate-plan',
           label: 'Activate Training Plan',
           actionType: 'create_plan',
-          primary: workoutRecommendations.length === 0,
+          primary: pendingRecs.length === 0,
           payload: trainingPlanPreview
         });
       }
