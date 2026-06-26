@@ -90,7 +90,7 @@ Use CYCLING workouts for cycling athletes and RUNNING workouts for running athle
 export const WORKOUT_TOOLS = [
   {
     name: "recommend_workout",
-    description: "Recommend a workout from the library for the athlete to complete. Use this when you want to suggest a specific workout that can be added to their training calendar.",
+    description: "Add a specific workout from the library to the athlete's training calendar. Calling this IMMEDIATELY schedules the workout on the given date — the athlete does NOT need to confirm or tap anything. Because it acts immediately, only call it for a workout you actually want on their calendar right now; do not call it for hypothetical alternatives you're asking the athlete to choose between. After calling it you may truthfully say you've added the workout.",
     input_schema: {
       type: "object",
       properties: {

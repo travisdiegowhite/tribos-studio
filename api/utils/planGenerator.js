@@ -819,4 +819,17 @@ function getPhaseDescription(phase) {
   return descriptions[phase] || 'Training phase';
 }
 
-export default { generateTrainingPlan };
+/**
+ * Look up static metadata ({ name, duration, tss, category }) for a workout id from
+ * either the cycling or running library. Used server-side by the coach when it
+ * persists a single recommend_workout call to the calendar, so the planned_workouts
+ * row carries a real name, duration, and load instead of a bare id.
+ * @param {string} workoutId
+ * @returns {{ name: string, duration: number, tss: number, category: string } | null}
+ */
+export function getWorkoutMeta(workoutId) {
+  if (!workoutId) return null;
+  return WORKOUT_LIBRARY[workoutId] || RUNNING_WORKOUT_LIBRARY[workoutId] || null;
+}
+
+export default { generateTrainingPlan, getWorkoutMeta };

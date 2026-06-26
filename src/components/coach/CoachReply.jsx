@@ -1,9 +1,23 @@
-import { useState } from 'react';
-import { Box, Button, Group, Modal } from '@mantine/core';
-import { CalendarPlus } from '@phosphor-icons/react';
+import { useEffect, useState } from 'react';
+import { Box, Button, Group, Modal, Text } from '@mantine/core';
+import { CalendarCheck, CalendarPlus } from '@phosphor-icons/react';
 import { CoachMarkdown } from './CoachMarkdown';
 import TrainingPlanPreview from './TrainingPlanPreview';
 import AnchoredPlanPreview from './AnchoredPlanPreview';
+
+// Format a 'YYYY-MM-DD' scheduled date as e.g. "Tue, Jun 30" for the added-workout chip.
+function formatScheduledDate(dateStr) {
+  if (!dateStr || !/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) return dateStr || '';
+  try {
+    return new Date(dateStr + 'T12:00:00').toLocaleDateString('en-US', {
+      weekday: 'short',
+      month: 'short',
+      day: 'numeric',
+    });
+  } catch {
+    return dateStr;
+  }
+}
 
 /**
  * Single shared renderer for the AI coach's structured response. Every coach surface
@@ -46,9 +60,22 @@ export function CoachReply({
   const [reviewOpen, setReviewOpen] = useState(false);
   const [anchorOpen, setAnchorOpen] = useState(false);
 
-  const hasWorkouts = Array.isArray(workoutRecommendations) && workoutRecommendations.length > 0;
+  const recs = Array.isArray(workoutRecommendations) ? workoutRecommendations : [];
+  const hasWorkouts = recs.length > 0;
+  // Workouts the coach already persisted server-side (recommend_workout auto-add).
+  // These render as confirmations, not "Add" buttons, and trigger a calendar refresh.
+  const addedRecs = recs.filter((r) => r && r.added);
+  const pendingRecs = recs.filter((r) => !r || !r.added);
   const hasPlan = !!trainingPlanPreview && !trainingPlanPreview.error;
   const hasAnchored = !!anchoredPlanPreview && anchoredPlanPreview.ok !== false;
+
+  // When the server reports added workouts, refresh the calendar/planner surfaces once.
+  const addedKey = addedRecs.map((r) => r.id || r.workout_id).join(',');
+  useEffect(() => {
+    if (addedKey) {
+      window.dispatchEvent(new CustomEvent('training-plan-updated'));
+    }
+  }, [addedKey]);
 
   return (
     <>
@@ -59,10 +86,19 @@ export function CoachReply({
       ) : null}
 
       {hasWorkouts && (
-        <Group gap={4} mt={4}>
-          {workoutRecommendations.map((rec, idx) => (
+        <Group gap={6} mt={4}>
+          {addedRecs.map((rec, idx) => (
+            <Group key={rec.id || rec.workout_id || `added-${idx}`} gap={4} wrap="nowrap">
+              <CalendarCheck size={12} color="var(--color-sage, #6B8E6B)" weight="fill" />
+              <Text size="xs" c="dimmed">
+                Added {rec.name || rec.workout_id}
+                {rec.scheduledDate ? ` · ${formatScheduledDate(rec.scheduledDate)}` : ''}
+              </Text>
+            </Group>
+          ))}
+          {pendingRecs.map((rec, idx) => (
             <Button
-              key={rec.id || rec.workout_id || idx}
+              key={rec.id || rec.workout_id || `pending-${idx}`}
               size="compact-xs"
               variant="light"
               color="teal"

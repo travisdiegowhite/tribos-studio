@@ -247,9 +247,14 @@ function CoachCommandBar({ trainingContext, onAddWorkout }) {
         setAnchoredPlanPreview(data.anchoredPlanPreview);
       }
 
-      // Map workout recommendations to suggested actions if present
-      if (data.workoutRecommendations?.length > 0) {
-        const workoutActions = data.workoutRecommendations.map((rec, idx) => ({
+      // Map workout recommendations to suggested actions if present. recommend_workout
+      // now persists server-side (rec.added), so those are already on the calendar —
+      // surface only any not-yet-added recs as "Add" buttons; the rest are confirmed
+      // by the coach's reply text.
+      const recs = data.workoutRecommendations || [];
+      const pendingRecs = recs.filter((rec) => !rec.added);
+      if (pendingRecs.length > 0) {
+        const workoutActions = pendingRecs.map((rec, idx) => ({
           id: `workout-${idx}`,
           label: `Add ${rec.workout_id} to calendar`,
           actionType: 'add_to_calendar',
@@ -261,8 +266,9 @@ function CoachCommandBar({ trainingContext, onAddWorkout }) {
         setSuggestedActions(data.suggestedActions);
       }
 
-      // If the coach adjusted the schedule server-side, notify dashboard to refresh
-      if (data.scheduleAdjusted) {
+      // If the coach adjusted the schedule OR auto-added a workout server-side, notify
+      // the dashboard/planner to refresh.
+      if (data.scheduleAdjusted || recs.some((rec) => rec.added)) {
         window.dispatchEvent(new CustomEvent('training-plan-updated'));
       }
 
