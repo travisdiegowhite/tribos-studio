@@ -176,9 +176,11 @@ export function detectIntentFromResponse(responseText) {
   return null;
 }
 
-// Read the event_anchored_planner feature flag server-side. Mirrors the default-on
-// logic in src/utils/featureFlags.ts (an explicit `false` in the JSONB still wins as a
-// kill switch). Defaults to false only if the profile read fails.
+// Read the event_anchored_planner feature flag server-side. Mirrors the default-OFF
+// logic in src/utils/featureFlags.ts (an explicit `true` in the JSONB still wins as an
+// opt-in). As of the calendar redesign (Phase 0) this defaults OFF so the coach routes
+// plan requests to the static generator (the visible path) instead of the anchored
+// sequencer, which projected onto a phantom plan the single-plan calendar never showed.
 async function isEventAnchoredEnabled(supabase, userId) {
   try {
     const { data } = await supabase
@@ -191,7 +193,7 @@ async function isEventAnchoredEnabled(supabase, userId) {
       const v = flags.event_anchored_planner;
       return v === true || v === 'true';
     }
-    return true; // default on
+    return false; // default OFF (redesign): coach uses the static generator
   } catch (err) {
     console.error('feature flag read failed (event_anchored_planner):', err.message);
     return false;

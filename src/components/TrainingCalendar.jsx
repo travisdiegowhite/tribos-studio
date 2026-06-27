@@ -138,10 +138,14 @@ const TrainingCalendar = ({ activePlan, rides = [], formatDistance: formatDistan
   // Helper to get plan start date (supports both old and new schema)
   const getPlanStartDate = (plan) => plan?.started_at || plan?.start_date;
 
-  // Load planned workouts for current 4-week view
-  // refreshKey allows parent to force a reload when workouts are added externally
+  // Load planned workouts for current 4-week view.
+  // User-scoped (not plan-scoped): the calendar shows ALL of the athlete's planned
+  // workouts in range regardless of which plan they belong to, so coach adds, manual
+  // adds, and any plan's workouts are always visible. refreshKey lets the parent force
+  // a reload when workouts are added externally; activePlan?.id stays in deps so the
+  // view also reloads when the active plan switches.
   useEffect(() => {
-    if (!user?.id || !activePlan?.id) return;
+    if (!user?.id) return;
     loadPlannedWorkouts();
   }, [user?.id, activePlan?.id, anchorDate, refreshKey]);
 
@@ -246,21 +250,20 @@ const TrainingCalendar = ({ activePlan, rides = [], formatDistance: formatDistan
   };
 
   const loadPlannedWorkouts = async () => {
-    // Early return if no active plan
-    if (!activePlan?.id) {
-      return;
-    }
+    if (!user?.id) return;
 
     try {
       // Calculate date range for the 4-week rolling view
       const startDateStr = formatLocalDate(anchorDate);
       const endDateStr = formatLocalDate(addDays(anchorDate, 28));
 
-      // Query by scheduled_date range for simpler, more reliable matching
+      // User-scoped read: every planned workout in range, across all of the athlete's
+      // plans. The grid places each by scheduled_date, so plan membership doesn't affect
+      // rendering. (RLS still restricts to the athlete's own rows via user_id.)
       const { data } = await supabase
         .from('planned_workouts')
         .select('*')
-        .eq('plan_id', activePlan.id)
+        .eq('user_id', user.id)
         .gte('scheduled_date', startDateStr)
         .lte('scheduled_date', endDateStr);
 
@@ -364,12 +367,11 @@ const TrainingCalendar = ({ activePlan, rides = [], formatDistance: formatDistan
     return days;
   };
 
-  // Get workout for a specific date
+  // Get workout for a specific date. User-scoped: match by scheduled_date across all
+  // loaded workouts (no activePlan requirement). If two plans somehow share a date, the
+  // first loaded wins — acceptable until plan membership is fully demoted to metadata.
   const getWorkoutForDate = (date) => {
-    if (!date || !activePlan) return null;
-
-    // Match by scheduled_date for reliable date matching
-    // Use formatLocalDate to avoid timezone issues
+    if (!date) return null;
     const dateStr = formatLocalDate(date);
     return plannedWorkouts.find(w => w.scheduled_date === dateStr);
   };
@@ -1314,15 +1316,15 @@ const TrainingCalendar = ({ activePlan, rides = [], formatDistance: formatDistan
           </Group>
         </Group>
 
-        {/* Show info about no active plan */}
-        {!activePlan && rides.length === 0 && (
+        {/* Show info about no content yet */}
+        {!activePlan && rides.length === 0 && plannedWorkouts.length === 0 && (
           <Text style={{ color: 'var(--color-text-muted)' }} ta="center" py="xl">
             No rides recorded yet. Connect Strava or upload rides to see them on the calendar.
           </Text>
         )}
 
-        {/* Show calendar if there's a plan OR rides */}
-        {(activePlan || rides.length > 0) && (
+        {/* Show calendar if there's a plan, any planned workouts, OR rides */}
+        {(activePlan || rides.length > 0 || plannedWorkouts.length > 0) && (
           <>
             {/* Day Names */}
             <div style={{

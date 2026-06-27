@@ -14,6 +14,7 @@
  */
 
 import { supabase } from '../../lib/supabase';
+import { resolveActivePlan } from '../../utils/activePlan';
 import { getPlanTemplate } from '../../data/trainingPlanTemplates';
 import { PERSONAS } from '../../data/coachingPersonas';
 import { decodePolyline } from '../today/shared/decodePolyline';
@@ -93,14 +94,8 @@ export async function getTodayShell(userId: string): Promise<Today> {
     .eq('user_id', userId)
     .maybeSingle();
 
-  const planQuery = supabase
-    .from('training_plans')
-    .select('*')
-    .eq('user_id', userId)
-    .eq('status', 'active')
-    .order('started_at', { ascending: false })
-    .limit(1)
-    .maybeSingle();
+  // Canonical resolver (priority-first), shared with the dashboard/calendar.
+  const planQuery = resolveActivePlan(supabase, userId);
 
   // Full athlete state (FORM + fitness story) computed from the activities
   // table, canonical-first — never blank for a rider with history.
@@ -170,14 +165,16 @@ export async function getTodayShell(userId: string): Promise<Today> {
     'The Pragmatist';
 
   // ── Prescription ───────────────────────────────────────────────────────────
-  const activePlan = planRes.data;
+  const activePlan = planRes;
   let prescription: TodayPrescription | null = null;
-  if (activePlan?.id) {
+  {
+    // User-scoped: today's workout from any plan/source, not just the active plan.
     const { data: workoutRow } = await supabase
       .from('planned_workouts')
       .select('id, name, workout_type, duration_minutes, target_duration, target_rss, target_tss')
-      .eq('plan_id', activePlan.id)
+      .eq('user_id', userId)
       .eq('scheduled_date', today)
+      .order('plan_id', { ascending: true, nullsFirst: false })
       .limit(1)
       .maybeSingle();
     if (workoutRow) {
