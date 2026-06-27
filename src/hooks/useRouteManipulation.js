@@ -287,8 +287,9 @@ export const useRouteManipulation = ({
         const profile = cyclingProfiles.includes(routingProfile) ? 'cycling' :
                         routingProfile === 'walking' ? 'walking' : 'driving';
 
+        // Ferries are forbidden, 100% — exclude them at request time.
         const url = `https://api.mapbox.com/directions/v5/mapbox/${profile}/${coordinates}?` +
-          `geometries=geojson&overview=full&steps=false&access_token=${mapboxToken}`;
+          `geometries=geojson&overview=full&steps=false&exclude=ferry&access_token=${mapboxToken}`;
 
         const response = await fetch(url);
         if (!response.ok) {

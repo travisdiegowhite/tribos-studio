@@ -316,8 +316,11 @@ async function tryMapboxRouting(waypoints, options) {
     // Format coordinates for Mapbox
     const coordinates = waypoints.map(([lon, lat]) => `${lon},${lat}`).join(';');
 
+    // Ferries are forbidden, 100% — exclude them at request time (Mapbox
+    // doesn't return per-segment way tags, so this is the only ferry defense
+    // on the Mapbox path).
     const url = `https://api.mapbox.com/directions/v5/mapbox/cycling/${coordinates}?` +
-      `geometries=geojson&overview=full&access_token=${mapboxToken}`;
+      `geometries=geojson&overview=full&exclude=ferry&access_token=${mapboxToken}`;
 
     const response = await fetch(url);
 

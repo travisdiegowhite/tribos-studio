@@ -9,6 +9,7 @@
 import { fetchBikeInfrastructure, INFRASTRUCTURE_TYPES } from './bikeInfrastructureService';
 import { canonicalToValhalla } from './coordConverters';
 import { assertCoordinate } from '../types/geo';
+import { valhallaTripUsesFerry, FERRY_REJECTED_REASON } from './ferryGuard';
 
 const STADIA_MAPS_API_URL = 'https://api.stadiamaps.com/route/v1';
 
@@ -343,6 +344,14 @@ export async function getStadiaMapsRoute(waypoints, options = {}) {
 
     // Extract route data - process ALL legs for multi-waypoint routes
     const trip = data.trip;
+
+    // Ferries are forbidden, 100%. `use_ferry = 0` only *avoids* ferries; when
+    // Valhalla crosses water by ferry anyway (no land route), reject the route
+    // so the caller falls back or fails rather than handing the rider a ferry.
+    if (valhallaTripUsesFerry(trip)) {
+      console.warn('⛔ Stadia Maps: route requires a ferry — rejecting (ferries forbidden)');
+      throw new Error(FERRY_REJECTED_REASON);
+    }
 
     console.log(`📍 Processing ${trip.legs.length} route leg(s) from Valhalla`);
 
