@@ -241,6 +241,29 @@ describe('coach handler — forced tool pass', () => {
     expect(res.body.trainingPlanPreview.error).toBeFalsy();
   });
 
+  it('auto-activates a created plan and returns autoActivatedPlan (no tap needed)', async () => {
+    // Simulate a successful training_plans insert so handleActivatePlan resolves a plan id.
+    fromOverride = (table) => {
+      const c = chain();
+      if (table === 'training_plans') {
+        c.single = () => Promise.resolve({ data: { id: 'newplan-1' }, error: null });
+      }
+      return c;
+    };
+    messagesCreate.mockResolvedValueOnce(planToolResponse('Building your block to the race.'));
+
+    const res = makeRes();
+    await handler(makeReq({ message: 'build me a training plan for my race' }), res);
+
+    expect(res.statusCode).toBe(200);
+    expect(messagesCreate).toHaveBeenCalledTimes(1);
+    expect(res.body.trainingPlanPreview).toBeTruthy();
+    expect(res.body.trainingPlanPreview.error).toBeFalsy();
+    expect(res.body.autoActivatedPlan).toBeTruthy();
+    expect(res.body.autoActivatedPlan.planId).toBe('newplan-1');
+    expect(res.body.autoActivatedPlan.workoutCount).toBeGreaterThan(0);
+  });
+
   it('never returns a blank bubble when only a workout card is produced', async () => {
     // Add-to-calendar follow-up: Claude returns the card with no accompanying prose.
     messagesCreate.mockResolvedValueOnce(workoutToolResponse(null));

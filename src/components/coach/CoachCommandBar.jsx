@@ -52,6 +52,7 @@ function CoachCommandBar({ trainingContext, onAddWorkout }) {
   const [loadingRecent, setLoadingRecent] = useState(false);
   const [conversationHistory, setConversationHistory] = useState([]);
   const [trainingPlanPreview, setTrainingPlanPreview] = useState(null);
+  const [planActivated, setPlanActivated] = useState(false);
   const [anchoredPlanPreview, setAnchoredPlanPreview] = useState(null);
   const [aiConsentStatus, setAiConsentStatus] = useState(null); // null=loading, true=granted, false=not granted
   const [consentGranting, setConsentGranting] = useState(false);
@@ -241,6 +242,21 @@ function CoachCommandBar({ trainingContext, onAddWorkout }) {
       // Handle training plan preview from AI
       if (data.trainingPlanPreview && !data.trainingPlanPreview.error) {
         setTrainingPlanPreview(data.trainingPlanPreview);
+        // The coach now auto-activates static plans server-side; show as added (no tap)
+        // and refresh the calendar.
+        if (data.autoActivatedPlan) {
+          setPlanActivated(true);
+          notifications.show({
+            title: 'Training Plan Added',
+            message: `${data.autoActivatedPlan.planName ?? 'Your plan'} — ${data.autoActivatedPlan.workoutCount ?? ''} workouts on your calendar`,
+            color: 'sage',
+          });
+          window.dispatchEvent(new CustomEvent('training-plan-activated', {
+            detail: { planId: data.autoActivatedPlan.planId },
+          }));
+        } else {
+          setPlanActivated(false);
+        }
       }
       // Event-anchored (sequencer) plan preview — confirm to anchor.
       if (data.anchoredPlanPreview && data.anchoredPlanPreview.ok !== false) {
@@ -586,6 +602,7 @@ function CoachCommandBar({ trainingContext, onAddWorkout }) {
                     showMessage={false}
                     trainingPlanPreview={trainingPlanPreview}
                     planDisplay="inline"
+                    planActivated={planActivated}
                     onActivatePlan={handleActivatePlan}
                     onDismissPlan={() => setTrainingPlanPreview(null)}
                   />

@@ -40,6 +40,7 @@ function formatScheduledDate(dateStr) {
  * @param {object}   [props.trainingPlanPreview]
  * @param {object}   [props.anchoredPlanPreview]
  * @param {'inline'|'cta'} [props.planDisplay='inline']
+ * @param {boolean}  [props.planActivated=false]
  * @param {(rec:object)=>void}        [props.onAddWorkout]
  * @param {(plan:object)=>Promise}    [props.onActivatePlan]
  * @param {()=>void}                  [props.onDismissPlan]
@@ -52,6 +53,7 @@ export function CoachReply({
   trainingPlanPreview,
   anchoredPlanPreview,
   planDisplay = 'inline',
+  planActivated = false,
   onAddWorkout,
   onActivatePlan,
   onDismissPlan,
@@ -69,13 +71,19 @@ export function CoachReply({
   const hasPlan = !!trainingPlanPreview && !trainingPlanPreview.error;
   const hasAnchored = !!anchoredPlanPreview && anchoredPlanPreview.ok !== false;
 
-  // When the server reports added workouts, refresh the calendar/planner surfaces once.
+  // When the server reports added workouts OR an auto-activated plan, refresh the
+  // calendar/planner surfaces once.
   const addedKey = addedRecs.map((r) => r.id || r.workout_id).join(',');
   useEffect(() => {
     if (addedKey) {
       window.dispatchEvent(new CustomEvent('training-plan-updated'));
     }
   }, [addedKey]);
+  useEffect(() => {
+    if (planActivated && hasPlan) {
+      window.dispatchEvent(new CustomEvent('training-plan-activated'));
+    }
+  }, [planActivated, hasPlan]);
 
   return (
     <>
@@ -117,6 +125,7 @@ export function CoachReply({
             plan={trainingPlanPreview}
             onActivate={onActivatePlan}
             onDismiss={onDismissPlan}
+            activated={planActivated}
             compact
           />
         </Box>
@@ -124,7 +133,13 @@ export function CoachReply({
 
       {hasPlan && planDisplay === 'cta' && (
         <>
-          <Group gap={6} mt={6}>
+          <Group gap={6} mt={6} align="center">
+            {planActivated && (
+              <Group gap={4} wrap="nowrap">
+                <CalendarCheck size={12} color="var(--color-sage, #6B8E6B)" weight="fill" />
+                <Text size="xs" c="dimmed">Added to your calendar</Text>
+              </Group>
+            )}
             <Button
               size="compact-xs"
               variant="light"
@@ -132,19 +147,20 @@ export function CoachReply({
               leftSection={<CalendarPlus size={12} />}
               onClick={() => setReviewOpen(true)}
             >
-              Review &amp; activate{trainingPlanPreview.name ? ` — ${trainingPlanPreview.name}` : ''}
+              {planActivated ? 'View plan' : 'Review & activate'}{trainingPlanPreview.name ? ` — ${trainingPlanPreview.name}` : ''}
             </Button>
           </Group>
           <Modal
             opened={reviewOpen}
             onClose={() => setReviewOpen(false)}
-            title="Review training plan"
+            title={planActivated ? 'Training plan' : 'Review training plan'}
             size="lg"
             centered
             styles={{ content: { borderRadius: 0 } }}
           >
             <TrainingPlanPreview
               plan={trainingPlanPreview}
+              activated={planActivated}
               onActivate={async (plan) => {
                 await onActivatePlan?.(plan);
                 setReviewOpen(false);

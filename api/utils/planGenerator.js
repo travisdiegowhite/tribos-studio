@@ -655,6 +655,16 @@ function redistributeForAvailability(workouts, availability) {
   return { workouts, redistributedCount };
 }
 
+// Derive a plan length in whole weeks from start → event date, clamped to a sane
+// range (4–24). Inclusive of race week. Returns null if the date is unparseable.
+function deriveWeeksToEvent(startDate, targetEventDate) {
+  const race = new Date(`${targetEventDate}T00:00:00`);
+  if (Number.isNaN(race.getTime())) return null;
+  const days = Math.round((race.getTime() - startDate.getTime()) / 86400000) + 1;
+  if (days <= 0) return 4; // event today/past → minimum plan
+  return Math.max(4, Math.min(24, Math.ceil(days / 7)));
+}
+
 // Generate a complete training plan
 export function generateTrainingPlan(params) {
   const {
@@ -675,6 +685,13 @@ export function generateTrainingPlan(params) {
   const startDate = resolveStartDate(start_date);
   const hasTargetEvent = !!target_event_date;
 
+  // Race-aware sizing: when a target event date is given, derive the plan length
+  // from start_date → event_date (whole weeks, clamped 4–24) so the taper actually
+  // LANDS on race week, rather than trusting the caller's duration_weeks guess.
+  // Falls back to the requested duration (or 8) when there's no/invalid target.
+  const derivedWeeks = hasTargetEvent ? deriveWeeksToEvent(startDate, target_event_date) : null;
+  const effectiveWeeks = derivedWeeks ?? duration_weeks ?? 8;
+
   // Get methodology patterns based on sport type
   const allPatterns = isRunning ? RUNNING_METHODOLOGY_PATTERNS : METHODOLOGY_PATTERNS;
   const defaultMethodology = isRunning ? 'polarized' : 'sweet_spot';
@@ -690,12 +707,13 @@ export function generateTrainingPlan(params) {
   let currentPhase = null;
   let phaseStartWeek = 1;
 
-  for (let week = 1; week <= duration_weeks; week++) {
+  for (let week = 1; week <= effectiveWeeks; week++) {
     // Determine phase for this week
-    let phase = getPhase(week, duration_weeks, hasTargetEvent);
+    let phase = getPhase(week, effectiveWeeks, hasTargetEvent);
 
-    // Insert recovery weeks every 4th week if enabled
-    if (include_rest_weeks && week % 4 === 0 && phase !== 'taper') {
+    // Insert recovery weeks every 4th week if enabled — but never override the
+    // peak or taper phases, so the race-specific build and the taper land intact.
+    if (include_rest_weeks && week % 4 === 0 && phase !== 'taper' && phase !== 'peak') {
       phase = 'recovery';
     }
 
@@ -748,7 +766,7 @@ export function generateTrainingPlan(params) {
   if (currentPhase !== null) {
     phases.push({
       phase: currentPhase,
-      weeks: [phaseStartWeek, duration_weeks],
+      weeks: [phaseStartWeek, effectiveWeeks],
     });
   }
 
@@ -756,7 +774,7 @@ export function generateTrainingPlan(params) {
   const { redistributedCount } = redistributeForAvailability(workouts, userAvailability);
 
   // Calculate end date
-  const endDate = addDays(startDate, duration_weeks * 7 - 1);
+  const endDate = addDays(startDate, effectiveWeeks * 7 - 1);
 
   // Count workouts by type
   const workoutCounts = workouts.reduce((acc, w) => {
@@ -767,13 +785,13 @@ export function generateTrainingPlan(params) {
   }, {});
 
   // Calculate average weekly stats
-  const avgWeeklyTSS = Math.round(totalTSS / duration_weeks);
-  const avgWeeklyHours = Math.round(totalDuration / duration_weeks / 60 * 10) / 10;
+  const avgWeeklyTSS = Math.round(totalTSS / effectiveWeeks);
+  const avgWeeklyHours = Math.round(totalDuration / effectiveWeeks / 60 * 10) / 10;
 
   return {
     // Plan metadata
     name,
-    duration_weeks,
+    duration_weeks: effectiveWeeks,
     methodology,
     goal,
     sport_type,
@@ -832,4 +850,66 @@ export function getWorkoutMeta(workoutId) {
   return WORKOUT_LIBRARY[workoutId] || RUNNING_WORKOUT_LIBRARY[workoutId] || null;
 }
 
-export default { generateTrainingPlan, getWorkoutMeta };
+// A light recovery day used to sharpen/recover around an interim race.
+const WAYPOINT_RECOVERY = {
+  workout_type: 'recovery',
+  workout_id: 'easy_recovery_ride',
+  name: 'Easy Recovery Ride',
+  duration_minutes: 45,
+  target_tss: 30,
+};
+
+/**
+ * Annotate a generated plan with a short sharpen + light taper around each interim
+ * (B/C) race that falls inside the plan window, so the athlete arrives fresh-ish
+ * without derailing the build toward the A race. Mutates and returns `workouts`.
+ *
+ * For each interim race date present in the plan:
+ *   - the 2 days before  → easy recovery (drop volume to sharpen)
+ *   - the race day        → rest (left open for the race itself)
+ *   - the day after       → easy recovery
+ * Rest days and the surrounding build days are otherwise left intact.
+ *
+ * @param {Array<object>} workouts   `generateTrainingPlan(...).workouts`
+ * @param {string[]} interimRaceDates  YYYY-MM-DD dates of interim races
+ * @returns {Array<object>} the same workouts array, mutated
+ */
+export function applyInterimRaceWaypoints(workouts, interimRaceDates) {
+  if (!Array.isArray(workouts) || !Array.isArray(interimRaceDates)) return workouts;
+  const byDate = new Map(workouts.map((w) => [w.scheduled_date, w]));
+
+  const shift = (dateStr, deltaDays) => {
+    const d = new Date(`${dateStr}T00:00:00`);
+    d.setDate(d.getDate() + deltaDays);
+    return formatDate(d);
+  };
+  const makeRecovery = (w) => {
+    if (!w || w.workout_type === 'rest') return; // leave planned rest alone
+    Object.assign(w, WAYPOINT_RECOVERY);
+  };
+
+  for (const raceDate of interimRaceDates) {
+    if (!byDate.has(raceDate)) continue; // race outside the plan window
+
+    // 2 days before → recovery sharpen
+    makeRecovery(byDate.get(shift(raceDate, -1)));
+    makeRecovery(byDate.get(shift(raceDate, -2)));
+
+    // race day → rest (open for the race)
+    const raceDay = byDate.get(raceDate);
+    if (raceDay) {
+      raceDay.workout_type = 'rest';
+      raceDay.workout_id = null;
+      raceDay.name = 'Race Day';
+      raceDay.duration_minutes = 0;
+      raceDay.target_tss = 0;
+    }
+
+    // day after → recovery
+    makeRecovery(byDate.get(shift(raceDate, 1)));
+  }
+
+  return workouts;
+}
+
+export default { generateTrainingPlan, getWorkoutMeta, applyInterimRaceWaypoints };
