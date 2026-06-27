@@ -110,6 +110,11 @@ export async function ensureEventAnchoredPlan(supabase, userId, race) {
       duration_weeks: 0,
       status: 'active',
       started_at: today,
+      // start_date is NOT NULL on training_plans. Omitting it made this insert
+      // throw, which the init endpoint swallowed as "best-effort" — so anchoring
+      // created the sequence but never projected sessions onto the calendar. Set
+      // both date columns (started_at is nullable; start_date is the required one).
+      start_date: today,
     })
     .select('id')
     .single();
