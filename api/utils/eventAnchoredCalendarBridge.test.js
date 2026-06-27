@@ -52,6 +52,9 @@ describe('ensureEventAnchoredPlan', () => {
     expect(payload.template_id).toBe('event_anchored');
     expect(payload.status).toBe('active');
     expect(payload.name).toBe('Race: Ned Gravel');
+    // Must be 'secondary' so it doesn't collide with the athlete's real primary
+    // plan on idx_training_plans_one_primary_per_sport.
+    expect(payload.priority).toBe('secondary');
   });
 
   it('reuses an existing phantom plan without re-inserting', async () => {
