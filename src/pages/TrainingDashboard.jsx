@@ -37,6 +37,7 @@ import { useAuth } from '../contexts/AuthContext.jsx';
 import { useActivation } from '../hooks/useActivation';
 import { parsePlanStartDate, formatLocalDate, getTodayString } from '../utils/dateUtils';
 import { supabase } from '../lib/supabase';
+import { resolveActivePlan } from '../utils/activePlan';
 import { CoachCard, CheckInPage } from '../components/coach';
 import TrainingLoadChart from '../components/TrainingLoadChart.jsx';
 import TrainingCalendar from '../components/TrainingCalendar.jsx';
@@ -308,38 +309,26 @@ function TrainingDashboard() {
           console.log(`Loaded ${healthHistoryData.length} days of health history`);
         }
 
-        // Load active training plan (use maybeSingle to handle 0 or 1 result gracefully)
-        const { data: planData, error: planError } = await supabase
-          .from('training_plans')
-          .select('*')
-          .eq('user_id', user.id)
-          .eq('status', 'active')
-          .order('started_at', { ascending: false })
-          .order('created_at', { ascending: false })
-          .limit(1)
-          .maybeSingle();
-
-        if (planError) {
-          console.error('Error loading active plan:', planError);
-        }
-
+        // Resolve the active plan via the single canonical resolver (priority-first).
+        const planData = await resolveActivePlan(supabase, user.id);
         if (planData) {
           setActivePlan(planData);
           console.log('Active training plan loaded:', planData.name);
-
-          // Load planned workouts for the active plan
-          const { data: workoutsData } = await supabase
-            .from('planned_workouts')
-            .select('*')
-            .eq('plan_id', planData.id)
-            .order('scheduled_date', { ascending: true });
-
-          if (workoutsData) {
-            setPlannedWorkouts(workoutsData);
-            console.log(`Loaded ${workoutsData.length} planned workouts`);
-          }
         } else {
           console.log('No active training plan found');
+        }
+
+        // Load planned workouts USER-scoped (not plan-scoped) so dashboard widgets see
+        // every workout — coach adds, manual adds, any plan — matching the calendar.
+        const { data: workoutsData } = await supabase
+          .from('planned_workouts')
+          .select('*')
+          .eq('user_id', user.id)
+          .order('scheduled_date', { ascending: true });
+
+        if (workoutsData) {
+          setPlannedWorkouts(workoutsData);
+          console.log(`Loaded ${workoutsData.length} planned workouts`);
         }
       } catch (error) {
         console.error('Error loading training data:', error);
@@ -356,25 +345,17 @@ function TrainingDashboard() {
     const handlePlanActivated = async () => {
       if (!user?.id) return;
       try {
-        const { data: planData } = await supabase
-          .from('training_plans')
+        const planData = await resolveActivePlan(supabase, user.id);
+        setActivePlan(planData || null);
+
+        // User-scoped reload so newly-added workouts from any source appear.
+        const { data: workoutsData } = await supabase
+          .from('planned_workouts')
           .select('*')
           .eq('user_id', user.id)
-          .eq('status', 'active')
-          .order('started_at', { ascending: false })
-          .order('created_at', { ascending: false })
-          .limit(1)
-          .maybeSingle();
+          .order('scheduled_date', { ascending: true });
+        if (workoutsData) setPlannedWorkouts(workoutsData);
 
-        if (planData) {
-          setActivePlan(planData);
-          const { data: workoutsData } = await supabase
-            .from('planned_workouts')
-            .select('*')
-            .eq('plan_id', planData.id)
-            .order('scheduled_date', { ascending: true });
-          if (workoutsData) setPlannedWorkouts(workoutsData);
-        }
         setCalendarRefreshKey((prev) => prev + 1);
       } catch (err) {
         console.error('Error refreshing after plan activation:', err);

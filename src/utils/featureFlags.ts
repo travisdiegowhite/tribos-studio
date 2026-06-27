@@ -14,9 +14,16 @@ interface ProfileLike {
 }
 
 // Per-flag defaults applied when the JSONB key is absent on the profile.
-// An explicit `false` in user_profiles.feature_flags still wins (kill switch).
+// An explicit value in user_profiles.feature_flags still wins (kill switch / opt-in).
+//
+// event_anchored_planner defaults to FALSE as of the calendar redesign (Phase 0): the
+// event-anchored sequencer projected onto a phantom plan the (now single-plan) calendar
+// could never display, so plans built there were invisible. With the flag off, the coach
+// uses the static generator (the visible path) and the sequencer UI/cron stay dormant.
+// A user who has explicitly opted in (feature_flags.event_anchored_planner === true) still
+// gets it.
 const FLAG_DEFAULTS: Record<FeatureFlagName, boolean> = {
-  event_anchored_planner: true,
+  event_anchored_planner: false,
 };
 
 /**
