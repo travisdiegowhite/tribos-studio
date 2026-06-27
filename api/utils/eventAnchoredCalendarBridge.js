@@ -110,6 +110,17 @@ export async function ensureEventAnchoredPlan(supabase, userId, race) {
       duration_weeks: 0,
       status: 'active',
       started_at: today,
+      // start_date is NOT NULL on training_plans. Omitting it made this insert
+      // throw, which the init endpoint swallowed as "best-effort" — so anchoring
+      // created the sequence but never projected sessions onto the calendar. Set
+      // both date columns (started_at is nullable; start_date is the required one).
+      start_date: today,
+      // The partial unique index idx_training_plans_one_primary_per_sport allows
+      // only ONE (status='active', priority='primary') plan per sport. The phantom
+      // plan coexists alongside the athlete's real primary plan, so it must NOT be
+      // primary — otherwise this insert collides and the projection is lost (the
+      // second half of the "anchored plan never reached the calendar" bug).
+      priority: 'secondary',
     })
     .select('id')
     .single();
