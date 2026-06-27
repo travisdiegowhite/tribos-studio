@@ -48,6 +48,8 @@ interface ChatMessage {
   workoutRecommendations?: unknown[] | null;
   trainingPlanPreview?: Record<string, unknown> | null;
   anchoredPlanPreview?: Record<string, unknown> | null;
+  /** Set when the coach auto-activated a generated plan server-side. */
+  autoActivatedPlan?: Record<string, unknown> | null;
 }
 
 interface GlanceCoachProps {
@@ -226,6 +228,7 @@ export function GlanceCoach({ today, maxMessages = 4 }: GlanceCoachProps) {
           data.trainingPlanPreview && !data.trainingPlanPreview.error ? data.trainingPlanPreview : null;
         const anchoredPlanPreview =
           data.anchoredPlanPreview && data.anchoredPlanPreview.ok !== false ? data.anchoredPlanPreview : null;
+        const autoActivatedPlan = data.autoActivatedPlan ?? null;
 
         const coachMsg: ChatMessage = {
           id: nextId(),
@@ -234,11 +237,20 @@ export function GlanceCoach({ today, maxMessages = 4 }: GlanceCoachProps) {
           workoutRecommendations,
           trainingPlanPreview,
           anchoredPlanPreview,
+          autoActivatedPlan,
         };
         setMessages((prev) => [...prev, coachMsg]);
 
         if (data.scheduleAdjusted) {
           window.dispatchEvent(new CustomEvent('training-plan-updated'));
+        }
+        if (autoActivatedPlan) {
+          // CoachReply also fires training-plan-activated; surface a confirmation here.
+          notifications.show({
+            title: 'Training Plan Added',
+            message: `${autoActivatedPlan.planName ?? 'Your plan'} — ${autoActivatedPlan.workoutCount ?? ''} workouts on your calendar`,
+            color: 'sage',
+          });
         }
 
         await saveTurn('user', message);
@@ -246,6 +258,7 @@ export function GlanceCoach({ today, maxMessages = 4 }: GlanceCoachProps) {
           ...(workoutRecommendations ? { workoutRecommendations } : {}),
           ...(trainingPlanPreview ? { trainingPlanPreview } : {}),
           ...(anchoredPlanPreview ? { anchoredPlanPreview } : {}),
+          ...(autoActivatedPlan ? { autoActivatedPlan } : {}),
         });
       } catch (err) {
         console.error('coach send failed', err);
@@ -399,6 +412,7 @@ export function GlanceCoach({ today, maxMessages = 4 }: GlanceCoachProps) {
                     trainingPlanPreview={m.trainingPlanPreview ?? undefined}
                     anchoredPlanPreview={m.anchoredPlanPreview ?? undefined}
                     planDisplay="cta"
+                    planActivated={!!m.autoActivatedPlan}
                     onAddWorkout={handleAddWorkout}
                     onActivatePlan={handleActivatePlan}
                   />

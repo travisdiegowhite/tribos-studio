@@ -30,7 +30,7 @@ const METHODOLOGY_LABELS = {
   endurance: 'Endurance',
 };
 
-function TrainingPlanPreview({ plan, onActivate, onDismiss, compact = false }) {
+function TrainingPlanPreview({ plan, onActivate, onDismiss, compact = false, activated = false }) {
   const [activating, setActivating] = useState(false);
 
   if (!plan) return null;
@@ -140,17 +140,24 @@ function TrainingPlanPreview({ plan, onActivate, onDismiss, compact = false }) {
           {plan.start_date} to {plan.end_date}
         </Text>
 
-        {/* Activate button */}
-        <Button
-          color="teal"
-          size={compact ? 'xs' : 'sm'}
-          leftSection={activating ? <Loader size={14} color="dark" /> : <Trophy size={16} />}
-          onClick={handleActivate}
-          disabled={activating}
-          fullWidth
-        >
-          {activating ? 'Activating...' : 'Activate Plan & Add to Calendar'}
-        </Button>
+        {/* Activate button — or a confirmation when the plan was already added server-side */}
+        {activated ? (
+          <Group gap={6} wrap="nowrap">
+            <Trophy size={16} style={{ color: 'var(--color-sage, #6B8E6B)' }} />
+            <Text size="sm" c="dimmed">Added to your calendar</Text>
+          </Group>
+        ) : (
+          <Button
+            color="teal"
+            size={compact ? 'xs' : 'sm'}
+            leftSection={activating ? <Loader size={14} color="dark" /> : <Trophy size={16} />}
+            onClick={handleActivate}
+            disabled={activating}
+            fullWidth
+          >
+            {activating ? 'Activating...' : 'Activate Plan & Add to Calendar'}
+          </Button>
+        )}
       </Stack>
     </Paper>
   );

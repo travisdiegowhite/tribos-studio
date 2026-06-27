@@ -7,7 +7,7 @@ import { rateLimitMiddleware } from './utils/rateLimit.js';
 import { WORKOUT_LIBRARY_FOR_AI, ALL_COACH_TOOLS } from './utils/workoutLibrary.js';
 import { handleFitnessHistoryQuery } from './utils/fitnessHistoryTool.js';
 import { handleTrainingDataQuery } from './utils/trainingDataTool.js';
-import { generateTrainingPlan, getWorkoutMeta } from './utils/planGenerator.js';
+import { generateTrainingPlan, getWorkoutMeta, applyInterimRaceWaypoints } from './utils/planGenerator.js';
 import { buildAnchoredPreview } from './utils/sequencerPreview.js';
 import { setupCors } from './utils/cors.js';
 import { generateFuelPlan } from './utils/fuelPlanGenerator.js';
@@ -372,6 +372,102 @@ async function handleRecommendWorkout(userId, input, planId = null, timezone = '
   }
 }
 
+// Fetch the athlete's upcoming races (today onward), soonest first.
+async function fetchUpcomingRaces(supabase, userId) {
+  const today = new Date().toISOString().slice(0, 10);
+  const { data } = await supabase
+    .from('race_goals')
+    .select('id, name, race_date, priority, status')
+    .eq('user_id', userId)
+    .eq('status', 'upcoming')
+    .gte('race_date', today)
+    .order('race_date', { ascending: true });
+  return data || [];
+}
+
+// Activate a freshly generated static plan onto the calendar, server-side, with the
+// admin singleton — so the coach's "I've built and loaded your plan" is actually true
+// (no client tap). Mirrors src/utils/coachPlanActivation.js but additionally CLEARS the
+// FUTURE workouts of the plans it supersedes, so the now user-scoped calendar isn't
+// cluttered by a stale plan (past/completed workouts are kept as history). Dual-writes
+// target_rss (canonical) + target_tss (legacy) per CLAUDE.md.
+async function handleActivatePlan(userId, plan) {
+  if (!userId) return { success: false, error: 'Not signed in' };
+  if (!plan || !Array.isArray(plan.workouts) || plan.workouts.length === 0) {
+    return { success: false, error: 'Plan has no workouts to activate' };
+  }
+  try {
+    const startDate = plan.start_date;
+
+    // Complete prior active plans and clear their FUTURE workouts (keep past/history).
+    const { data: priorPlans } = await supabase
+      .from('training_plans')
+      .select('id')
+      .eq('user_id', userId)
+      .eq('status', 'active');
+    const priorIds = (priorPlans || []).map((p) => p.id);
+    if (priorIds.length > 0) {
+      await supabase
+        .from('training_plans')
+        .update({ status: 'completed', ended_at: new Date().toISOString() })
+        .in('id', priorIds);
+      await supabase
+        .from('planned_workouts')
+        .delete()
+        .in('plan_id', priorIds)
+        .gte('scheduled_date', startDate);
+    }
+
+    const actualWorkouts = plan.workouts.filter((w) => w.workout_type !== 'rest' && w.workout_id);
+
+    const { data: newPlan, error: planError } = await supabase
+      .from('training_plans')
+      .insert({
+        user_id: userId,
+        template_id: `ai_coach_${plan.methodology}`,
+        name: plan.name,
+        duration_weeks: plan.duration_weeks,
+        methodology: plan.methodology,
+        goal: plan.goal,
+        status: 'active',
+        priority: 'primary',
+        start_date: startDate,
+        started_at: startDate,
+        target_event_date: plan.target_event_date || null,
+        current_week: 1,
+        workouts_completed: 0,
+        workouts_total: actualWorkouts.length,
+        compliance_percentage: 0,
+      })
+      .select('id')
+      .single();
+    if (planError) throw planError;
+
+    const rows = plan.workouts.map((w) => ({
+      plan_id: newPlan.id,
+      user_id: userId,
+      week_number: w.week_number,
+      day_of_week: w.day_of_week,
+      scheduled_date: w.scheduled_date,
+      workout_type: w.workout_type || 'rest',
+      workout_id: w.workout_id || null,
+      name: w.name || w.workout_id || 'Workout',
+      target_rss: w.target_rss ?? w.target_tss ?? null,
+      target_tss: w.target_rss ?? w.target_tss ?? null,
+      target_duration: w.duration_minutes || null,
+      duration_minutes: w.duration_minutes || 0,
+      completed: false,
+    }));
+    const { error: wErr } = await supabase.from('planned_workouts').insert(rows);
+    if (wErr) throw wErr;
+
+    return { success: true, planId: newPlan.id, planName: plan.name, workoutCount: actualWorkouts.length };
+  } catch (err) {
+    console.error('handleActivatePlan failed:', err);
+    return { success: false, error: err.message || 'Failed to activate plan' };
+  }
+}
+
 // Handle schedule adjustment tool calls — modifies existing active plan workouts
 async function handleScheduleAdjustment(userId, input, targetPlanId = null, timezone = 'UTC') {
   const { adjustments, summary } = input;
@@ -713,15 +809,19 @@ When an athlete asks for a complete training plan (not just a single workout), y
    - endurance: Pure aerobic base building, good for beginners or off-season
 3. Set duration based on time until target event (ideally 8-16 weeks)
 4. Call the create_training_plan tool with appropriate parameters
-5. The athlete will see a plan preview with phases, total workouts, and weekly Ride Stress Score (RSS)
-6. They can activate it with one click to load ALL workouts to their calendar
+5. Calling the tool IMMEDIATELY builds a race-aware periodized plan and loads ALL its
+   workouts onto the athlete's calendar — there is no confirm/tap step. The plan is
+   sized and tapered to the target race automatically, and any interim (B/C) race
+   between now and the target gets a short sharpen + light taper without derailing the
+   build. So after calling it you may state plainly that it's done (e.g., "Built and
+   loaded your 12-week plan to The Rad — Ned Gravel sits inside it as a tune-up.").
 
 **Important:**
 - Use create_training_plan for multi-week structured plans (4+ weeks)
 - Use recommend_workout for single workouts or short-term suggestions
-- When the athlete references their A race, next race, or any event ("plan for my race", "prepare me for X"), you MUST set target_event_date to the NEXT_A_RACE (or NEXT_RACE) date in the TEMPORAL ANCHOR above, and size duration_weeks to fit the time until that date. Never ask the athlete for the race date — it is already resolved in the anchor.
+- When the athlete references their A race, next race, or any event ("plan for my race", "prepare me for X"), you MUST set target_event_date to the NEXT_A_RACE (or NEXT_RACE) date in the TEMPORAL ANCHOR above. The server sizes the plan to that date and handles interim races — never ask the athlete for the race date.
 - Always set start_date to 'next_monday' unless they specify otherwise
-- NEVER just describe a training plan - ALWAYS call the tool so the athlete can activate it
+- NEVER just describe a training plan - ALWAYS call the tool; calling it is what puts the plan on their calendar
 
 **ADJUSTING THE EXISTING SCHEDULE:**
 
@@ -1597,10 +1697,8 @@ ${conversationSummary}
     const textContent = response.content.find(block => block.type === 'text');
     let responseText = textContent?.text || '';
 
-    // If Claude only called create_training_plan without text, provide a default message
-    if (!responseText && toolUses.some(t => t.name === 'create_training_plan')) {
-      responseText = "I've put together a plan for you — review it below and confirm to add it to your calendar.";
-    }
+    // (create_training_plan default message is set AFTER the plan block below, once we
+    // know whether it auto-activated — see "Default message for the plan".)
 
     // If Claude added workout(s) without text, provide a default confirmation so the
     // chat bubble is never blank. The workout is already on the calendar by this point.
@@ -1628,6 +1726,7 @@ ${conversationSummary}
     // Handle training plan creation tool (generates plan preview)
     let trainingPlanPreview = null;
     let anchoredPlanPreview = null;
+    let autoActivatedPlan = null;
     const planCreationTool = toolUses.find(tool => tool.name === 'create_training_plan');
 
     if (planCreationTool) {
@@ -1656,27 +1755,78 @@ ${conversationSummary}
         console.error('Event-anchored routing failed (non-blocking):', routeErr.message);
       }
 
-      // Fall back to the static generator when not routed to the sequencer
-      // (no upcoming race, flag off, or sequencer conflict).
+      // Static generator path (default now that the sequencer is off): build a
+      // RACE-AWARE periodized plan and AUTO-ACTIVATE it onto the (visible) calendar.
       if (!anchoredPlanPreview) {
         console.log(`🤖 Generating training plan:`, planCreationTool.input);
         try {
-          // Pass user availability so plan generator can avoid blocked days
+          // Resolve the A-target race (LLM-provided date, else soonest A/B/upcoming),
+          // so the generator sizes/tapers to the real race rather than a guess.
+          const races = verifiedUserId ? await fetchUpcomingRaces(supabase, verifiedUserId) : [];
+          const inputTarget = planCreationTool.input.target_event_date || null;
+          let targetRace = inputTarget ? races.find((r) => r.race_date === inputTarget) : null;
+          if (!targetRace) {
+            const ofTier = (t) => races.find((r) => (r.priority ?? 'B') === t);
+            targetRace = ofTier('A') || ofTier('B') || races[0] || null;
+          }
+          const targetDate = targetRace?.race_date || inputTarget || null;
+
           const planInput = {
             ...planCreationTool.input,
+            ...(targetDate ? { target_event_date: targetDate } : {}),
             userAvailability: userAvailability || null,
           };
-          trainingPlanPreview = generateTrainingPlan(planInput);
-          console.log(`✅ Plan generated: ${trainingPlanPreview.summary.total_workouts} workouts over ${trainingPlanPreview.duration_weeks} weeks`);
-          if (trainingPlanPreview.redistributedCount > 0) {
-            console.log(`📅 ${trainingPlanPreview.redistributedCount} workouts redistributed to fit schedule`);
+          const plan = generateTrainingPlan(planInput);
+
+          // Interim B/C races strictly inside (start, target) → sharpen + light taper.
+          const interimDates = targetDate
+            ? races
+                .filter((r) => r.race_date > plan.start_date && r.race_date < targetDate)
+                .map((r) => r.race_date)
+            : [];
+          if (interimDates.length > 0) {
+            applyInterimRaceWaypoints(plan.workouts, interimDates);
+            console.log(`🏁 Inserted ${interimDates.length} interim race waypoint(s): ${interimDates.join(', ')}`);
+          }
+          console.log(`✅ Plan generated: ${plan.summary.total_workouts} workouts over ${plan.duration_weeks} weeks → ${plan.end_date}`);
+
+          // Auto-activate onto the calendar (no tap). Fall back to a tappable preview
+          // if the write fails, so the athlete is never left empty-handed.
+          if (verifiedUserId) {
+            const act = await handleActivatePlan(verifiedUserId, plan);
+            if (act.success) {
+              trainingPlanPreview = plan;
+              autoActivatedPlan = {
+                planId: act.planId,
+                planName: act.planName,
+                workoutCount: act.workoutCount,
+                raceName: targetRace?.name || null,
+                raceDate: targetDate || null,
+              };
+              console.log(`📅 Auto-activated plan ${act.planId} (${act.workoutCount} workouts).`);
+            } else {
+              console.error('Auto-activation failed; returning tappable preview:', act.error);
+              trainingPlanPreview = plan;
+            }
+          } else {
+            trainingPlanPreview = plan;
           }
         } catch (error) {
-          console.error('Plan generation error:', error);
+          console.error('Plan generation/activation error:', error);
           trainingPlanPreview = {
             error: true,
             message: 'Failed to generate training plan. Please try again.'
           };
+        }
+      }
+
+      // Default message for the plan, now that we know if it auto-activated. Only used
+      // when the model produced no prose of its own.
+      if (!responseText) {
+        if (autoActivatedPlan) {
+          responseText = `Done — loaded your ${autoActivatedPlan.workoutCount}-workout plan${autoActivatedPlan.raceName ? ` to ${autoActivatedPlan.raceName}` : ''} onto your calendar.`;
+        } else if (trainingPlanPreview && !trainingPlanPreview.error) {
+          responseText = "I've put together a plan for you — review it below and add it to your calendar.";
         }
       }
     }
@@ -1761,6 +1911,7 @@ ${conversationSummary}
       workoutRecommendations: workoutRecommendations.length > 0 ? workoutRecommendations : null,
       trainingPlanPreview: trainingPlanPreview,
       anchoredPlanPreview: anchoredPlanPreview,
+      autoActivatedPlan: autoActivatedPlan,
       fuelPlan: fuelPlan,
       scheduleAdjusted: scheduleAdjustUses.length > 0,
       suggestedActions: suggestedActions,
