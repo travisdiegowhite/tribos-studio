@@ -3,7 +3,6 @@ import { Box, Button, Group, Modal, Text } from '@mantine/core';
 import { CalendarCheck, CalendarPlus } from '@phosphor-icons/react';
 import { CoachMarkdown } from './CoachMarkdown';
 import TrainingPlanPreview from './TrainingPlanPreview';
-import AnchoredPlanPreview from './AnchoredPlanPreview';
 
 // Format a 'YYYY-MM-DD' scheduled date as e.g. "Tue, Jun 30" for the added-workout chip.
 function formatScheduledDate(dateStr) {
@@ -38,29 +37,24 @@ function formatScheduledDate(dateStr) {
  * @param {boolean}  [props.showMessage=true]
  * @param {Array}    [props.workoutRecommendations]
  * @param {object}   [props.trainingPlanPreview]
- * @param {object}   [props.anchoredPlanPreview]
  * @param {'inline'|'cta'} [props.planDisplay='inline']
  * @param {boolean}  [props.planActivated=false]
  * @param {(rec:object)=>void}        [props.onAddWorkout]
  * @param {(plan:object)=>Promise}    [props.onActivatePlan]
  * @param {()=>void}                  [props.onDismissPlan]
- * @param {()=>void}                  [props.onDismissAnchored]
  */
 export function CoachReply({
   message,
   showMessage = true,
   workoutRecommendations,
   trainingPlanPreview,
-  anchoredPlanPreview,
   planDisplay = 'inline',
   planActivated = false,
   onAddWorkout,
   onActivatePlan,
   onDismissPlan,
-  onDismissAnchored,
 }) {
   const [reviewOpen, setReviewOpen] = useState(false);
-  const [anchorOpen, setAnchorOpen] = useState(false);
 
   const recs = Array.isArray(workoutRecommendations) ? workoutRecommendations : [];
   const hasWorkouts = recs.length > 0;
@@ -69,7 +63,6 @@ export function CoachReply({
   const addedRecs = recs.filter((r) => r && r.added);
   const pendingRecs = recs.filter((r) => !r || !r.added);
   const hasPlan = !!trainingPlanPreview && !trainingPlanPreview.error;
-  const hasAnchored = !!anchoredPlanPreview && anchoredPlanPreview.ok !== false;
 
   // When the server reports added workouts OR an auto-activated plan, refresh the
   // calendar/planner surfaces once.
@@ -168,42 +161,6 @@ export function CoachReply({
               onDismiss={() => {
                 onDismissPlan?.();
                 setReviewOpen(false);
-              }}
-            />
-          </Modal>
-        </>
-      )}
-
-      {hasAnchored && planDisplay === 'inline' && (
-        <AnchoredPlanPreview preview={anchoredPlanPreview} onDismiss={onDismissAnchored} compact />
-      )}
-
-      {hasAnchored && planDisplay === 'cta' && (
-        <>
-          <Group gap={6} mt={6}>
-            <Button
-              size="compact-xs"
-              variant="light"
-              color="terracotta"
-              leftSection={<CalendarPlus size={12} />}
-              onClick={() => setAnchorOpen(true)}
-            >
-              Review &amp; anchor{anchoredPlanPreview.horizon_event?.name ? ` — ${anchoredPlanPreview.horizon_event.name}` : ''}
-            </Button>
-          </Group>
-          <Modal
-            opened={anchorOpen}
-            onClose={() => setAnchorOpen(false)}
-            title="Review race plan"
-            size="lg"
-            centered
-            styles={{ content: { borderRadius: 0 } }}
-          >
-            <AnchoredPlanPreview
-              preview={anchoredPlanPreview}
-              onDismiss={() => {
-                onDismissAnchored?.();
-                setAnchorOpen(false);
               }}
             />
           </Modal>

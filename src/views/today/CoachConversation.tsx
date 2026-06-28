@@ -125,17 +125,12 @@ export function CoachConversation({
         data.trainingPlanPreview && !data.trainingPlanPreview.error
           ? data.trainingPlanPreview
           : null;
-      const anchoredPlanPreview =
-        data.anchoredPlanPreview && data.anchoredPlanPreview.ok !== false
-          ? data.anchoredPlanPreview
-          : null;
       const coachMsg: ConversationMessage = {
         role: 'coach',
         content: data.message,
         timestamp: new Date().toISOString(),
         workoutRecommendations,
         trainingPlanPreview,
-        anchoredPlanPreview,
       };
       setOptimistic((prev) => [...prev, coachMsg]);
 
@@ -162,7 +157,6 @@ export function CoachConversation({
               surface: 'today',
               ...(workoutRecommendations ? { workoutRecommendations } : {}),
               ...(trainingPlanPreview ? { trainingPlanPreview } : {}),
-              ...(anchoredPlanPreview ? { anchoredPlanPreview } : {}),
             },
             coach_type: 'strategist',
             timestamp: coachMsg.timestamp,
@@ -294,7 +288,6 @@ export function CoachConversation({
                     message={m.content}
                     workoutRecommendations={m.workoutRecommendations ?? undefined}
                     trainingPlanPreview={m.trainingPlanPreview ?? undefined}
-                    anchoredPlanPreview={m.anchoredPlanPreview ?? undefined}
                     planDisplay="cta"
                     onAddWorkout={handleAddWorkout}
                     onActivatePlan={handleActivatePlan}

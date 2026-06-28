@@ -47,7 +47,6 @@ interface ChatMessage {
   /** Structured payloads, present only on live in-session coach turns. */
   workoutRecommendations?: unknown[] | null;
   trainingPlanPreview?: Record<string, unknown> | null;
-  anchoredPlanPreview?: Record<string, unknown> | null;
   /** Set when the coach auto-activated a generated plan server-side. */
   autoActivatedPlan?: Record<string, unknown> | null;
 }
@@ -226,8 +225,6 @@ export function GlanceCoach({ today, maxMessages = 4 }: GlanceCoachProps) {
         const workoutRecommendations = data.workoutRecommendations ?? null;
         const trainingPlanPreview =
           data.trainingPlanPreview && !data.trainingPlanPreview.error ? data.trainingPlanPreview : null;
-        const anchoredPlanPreview =
-          data.anchoredPlanPreview && data.anchoredPlanPreview.ok !== false ? data.anchoredPlanPreview : null;
         const autoActivatedPlan = data.autoActivatedPlan ?? null;
 
         const coachMsg: ChatMessage = {
@@ -236,7 +233,6 @@ export function GlanceCoach({ today, maxMessages = 4 }: GlanceCoachProps) {
           content: data.message,
           workoutRecommendations,
           trainingPlanPreview,
-          anchoredPlanPreview,
           autoActivatedPlan,
         };
         setMessages((prev) => [...prev, coachMsg]);
@@ -257,7 +253,6 @@ export function GlanceCoach({ today, maxMessages = 4 }: GlanceCoachProps) {
         await saveTurn('coach', data.message, {
           ...(workoutRecommendations ? { workoutRecommendations } : {}),
           ...(trainingPlanPreview ? { trainingPlanPreview } : {}),
-          ...(anchoredPlanPreview ? { anchoredPlanPreview } : {}),
           ...(autoActivatedPlan ? { autoActivatedPlan } : {}),
         });
       } catch (err) {
@@ -410,7 +405,6 @@ export function GlanceCoach({ today, maxMessages = 4 }: GlanceCoachProps) {
                     message={m.content}
                     workoutRecommendations={m.workoutRecommendations ?? undefined}
                     trainingPlanPreview={m.trainingPlanPreview ?? undefined}
-                    anchoredPlanPreview={m.anchoredPlanPreview ?? undefined}
                     planDisplay="cta"
                     planActivated={!!m.autoActivatedPlan}
                     onAddWorkout={handleAddWorkout}

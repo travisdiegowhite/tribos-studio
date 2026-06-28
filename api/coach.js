@@ -8,7 +8,6 @@ import { WORKOUT_LIBRARY_FOR_AI, ALL_COACH_TOOLS } from './utils/workoutLibrary.
 import { handleFitnessHistoryQuery } from './utils/fitnessHistoryTool.js';
 import { handleTrainingDataQuery } from './utils/trainingDataTool.js';
 import { generateTrainingPlan, getWorkoutMeta, applyInterimRaceWaypoints } from './utils/planGenerator.js';
-import { buildAnchoredPreview } from './utils/sequencerPreview.js';
 import { setupCors } from './utils/cors.js';
 import { generateFuelPlan } from './utils/fuelPlanGenerator.js';
 import { fetchCalendarContext } from './utils/calendarHelper.js';
@@ -176,52 +175,6 @@ export function detectIntentFromResponse(responseText) {
   return null;
 }
 
-// Read the event_anchored_planner feature flag server-side. Mirrors the default-OFF
-// logic in src/utils/featureFlags.ts (an explicit `true` in the JSONB still wins as an
-// opt-in). As of the calendar redesign (Phase 0) this defaults OFF so the coach routes
-// plan requests to the static generator (the visible path) instead of the anchored
-// sequencer, which projected onto a phantom plan the single-plan calendar never showed.
-async function isEventAnchoredEnabled(supabase, userId) {
-  try {
-    const { data } = await supabase
-      .from('user_profiles')
-      .select('feature_flags')
-      .eq('id', userId)
-      .maybeSingle();
-    const flags = data?.feature_flags;
-    if (flags && 'event_anchored_planner' in flags) {
-      const v = flags.event_anchored_planner;
-      return v === true || v === 'true';
-    }
-    return false; // default OFF (redesign): coach uses the static generator
-  } catch (err) {
-    console.error('feature flag read failed (event_anchored_planner):', err.message);
-    return false;
-  }
-}
-
-// Resolve which upcoming race the coach's plan request is targeting. The LLM provides
-// target_event_date (not a race_goal_id), so match on the exact date first, then fall
-// back to the soonest A race, then soonest B, then soonest upcoming. Returns null when
-// the athlete has no upcoming races (→ caller uses the static generator).
-async function resolveRaceGoalIdForPlan(supabase, userId, targetEventDate) {
-  const today = new Date().toISOString().slice(0, 10);
-  const { data: races } = await supabase
-    .from('race_goals')
-    .select('id, race_date, priority, status')
-    .eq('user_id', userId)
-    .eq('status', 'upcoming')
-    .gte('race_date', today)
-    .order('race_date', { ascending: true });
-
-  if (!races || races.length === 0) return null;
-  if (targetEventDate) {
-    const exact = races.find((r) => r.race_date === targetEventDate);
-    if (exact) return exact.id;
-  }
-  const soonestOfTier = (tier) => races.find((r) => (r.priority ?? 'B') === tier);
-  return (soonestOfTier('A') ?? soonestOfTier('B') ?? races[0]).id;
-}
 
 // Swap two workouts' dates atomically, using a null parking date to avoid unique constraint violation.
 // The planned_workouts table has UNIQUE(plan_id, scheduled_date), so we can't have two rows
@@ -1723,41 +1676,15 @@ ${conversationSummary}
     // rather than an "Add" button, since the write already happened.
     const workoutRecommendations = addedWorkouts;
 
-    // Handle training plan creation tool (generates plan preview)
+    // Handle training plan creation tool (race-aware static generator + auto-activate)
     let trainingPlanPreview = null;
-    let anchoredPlanPreview = null;
     let autoActivatedPlan = null;
     const planCreationTool = toolUses.find(tool => tool.name === 'create_training_plan');
 
     if (planCreationTool) {
-      // Prefer the event-anchored sequencer when the request targets a real upcoming
-      // race and the feature flag is on — it's race-anchored (cannot overshoot) and
-      // fitness-gated. This is a no-write PREVIEW; nothing is persisted until the
-      // athlete taps "Anchor plan" in the UI.
-      try {
-        if (verifiedUserId && await isEventAnchoredEnabled(supabase, verifiedUserId)) {
-          const raceGoalId = await resolveRaceGoalIdForPlan(
-            supabase, verifiedUserId, planCreationTool.input.target_event_date
-          );
-          if (raceGoalId) {
-            const preview = await buildAnchoredPreview({
-              supabase, user_id: verifiedUserId, race_goal_id: raceGoalId,
-            });
-            if (preview.ok) {
-              anchoredPlanPreview = preview;
-              console.log(`🎯 Routed plan to event-anchored sequencer (race ${raceGoalId}, ${preview.horizon_days}d, chain ${preview.chain_used?.join('→')})`);
-            } else {
-              console.log(`↩️ Sequencer preview not usable (${preview.error}); using static generator.`);
-            }
-          }
-        }
-      } catch (routeErr) {
-        console.error('Event-anchored routing failed (non-blocking):', routeErr.message);
-      }
-
-      // Static generator path (default now that the sequencer is off): build a
-      // RACE-AWARE periodized plan and AUTO-ACTIVATE it onto the (visible) calendar.
-      if (!anchoredPlanPreview) {
+      // Build a RACE-AWARE periodized plan with the static generator and AUTO-ACTIVATE
+      // it onto the (visible) calendar.
+      {
         console.log(`🤖 Generating training plan:`, planCreationTool.input);
         try {
           // Resolve the A-target race (LLM-provided date, else soonest A/B/upcoming),
@@ -1910,7 +1837,6 @@ ${conversationSummary}
       message: responseText,
       workoutRecommendations: workoutRecommendations.length > 0 ? workoutRecommendations : null,
       trainingPlanPreview: trainingPlanPreview,
-      anchoredPlanPreview: anchoredPlanPreview,
       autoActivatedPlan: autoActivatedPlan,
       fuelPlan: fuelPlan,
       scheduleAdjusted: scheduleAdjustUses.length > 0,
