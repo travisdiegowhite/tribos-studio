@@ -55,10 +55,6 @@
     {
       "path": "/api/coach-correction-trigger",
       "schedule": "0 12 * * *"
-    },
-    {
-      "path": "/api/sequencer-daily-rollover",
-      "schedule": "0 3 * * *"
     }
   ],
   "functions": {

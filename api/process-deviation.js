@@ -16,7 +16,6 @@ import {
   buildTFICompositionForUser,
 } from './utils/fitnessSnapshots.js';
 import { upsertTrainingLoadDaily } from './utils/trainingLoad.js';
-import { proposeBlockRebalance } from './utils/sequencerRebalance.js';
 
 const supabase = getSupabaseAdmin();
 
@@ -212,20 +211,6 @@ export default async function handler(req, res) {
     // (migration 073 added the canonical twins; both coexist indefinitely
     // under the metrics-rollout freeze — see docs/METRICS_ROLLOUT_FREEZE.md).
     //
-    // If the athlete is on an active event-anchored sequence, suppress the
-    // classic planned_workouts options_json — the sequencer owns those days via
-    // session_prescriptions, and we instead build a block-native rebalance
-    // proposal below (step 11). Surfacing both would double-propose on the
-    // phantom plan and the projection bridge would revert classic edits anyway.
-    const { data: activeSeq } = await supabase
-      .from('sequences')
-      .select('id')
-      .eq('user_id', userId)
-      .eq('is_active', true)
-      .limit(1)
-      .maybeSingle();
-    const hasActiveSequence = !!activeSeq;
-
     const actualLoad = analysis.tss_estimate?.tss;
     const loadDelta = analysis.tss_estimate ? analysis.tss_estimate.tss - plannedRef.tss : 0;
     await supabase.from('plan_deviations').insert({
@@ -240,7 +225,7 @@ export default async function handler(req, res) {
       rss_delta: loadDelta,
       deviation_type: analysis.deviation_type,
       severity_score: analysis.severity_score,
-      options_json: hasActiveSequence ? null : (analysis.adjustment_options || null),
+      options_json: analysis.adjustment_options || null,
     });
 
     // 9. Update daily training load
@@ -261,23 +246,6 @@ export default async function handler(req, res) {
       afi_tau: afiTau,
     });
 
-    // 11. If on an active sequence, build a block-native rebalance PROPOSAL
-    // (suggest-and-confirm). Best-effort: never block the deviation pipeline.
-    // Runs after the load update so the proposal reflects post-ride fatigue.
-    let rebalance = null;
-    if (hasActiveSequence) {
-      try {
-        rebalance = await proposeBlockRebalance({
-          supabase,
-          user_id: userId,
-          fromDate: today,
-          reason: `After your last ride (${analysis.deviation_type.replace(/_/g, ' ')}), here's a suggested adjustment to your upcoming sessions.`,
-        });
-      } catch (rebErr) {
-        console.error('[process-deviation] rebalance proposal failed (non-blocking):', rebErr);
-      }
-    }
-
     // 10. Update calibration if we have both power and HR
     if (activityData.normalized_power && activityData.ftp && activityData.avg_hr) {
       const { updateCalibration } = await import('../src/lib/training/fatigue-estimation.ts');
@@ -295,7 +263,7 @@ export default async function handler(req, res) {
       }, { onConflict: 'user_id' });
     }
 
-    return res.status(200).json({ status: 'deviation_recorded', analysis, rebalance });
+    return res.status(200).json({ status: 'deviation_recorded', analysis });
   } catch (error) {
     console.error('process-deviation error:', error);
     return res.status(500).json({ error: error.message });
