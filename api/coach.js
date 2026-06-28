@@ -7,7 +7,8 @@ import { rateLimitMiddleware } from './utils/rateLimit.js';
 import { WORKOUT_LIBRARY_FOR_AI, ALL_COACH_TOOLS } from './utils/workoutLibrary.js';
 import { handleFitnessHistoryQuery } from './utils/fitnessHistoryTool.js';
 import { handleTrainingDataQuery } from './utils/trainingDataTool.js';
-import { generateTrainingPlan, getWorkoutMeta, applyInterimRaceWaypoints } from './utils/planGenerator.js';
+import { generateTrainingPlan, getWorkoutMeta } from './utils/planGenerator.js';
+import { buildArc, generateArcWorkouts } from './utils/arcBuilder.js';
 import { setupCors } from './utils/cors.js';
 import { generateFuelPlan } from './utils/fuelPlanGenerator.js';
 import { fetchCalendarContext } from './utils/calendarHelper.js';
@@ -303,6 +304,7 @@ async function handleRecommendWorkout(userId, input, planId = null, timezone = '
         target_duration: targetDuration,
         duration_minutes: targetDuration || 0,
         notes: input.reason ? `Coach recommendation: ${input.reason}` : '',
+        source: 'coach',
         completed: false,
       }, {
         onConflict: 'plan_id,scheduled_date',
@@ -409,6 +411,7 @@ async function handleActivatePlan(userId, plan) {
       target_tss: w.target_rss ?? w.target_tss ?? null,
       target_duration: w.duration_minutes || null,
       duration_minutes: w.duration_minutes || 0,
+      source: 'coach_static',
       completed: false,
     }));
     const { error: wErr } = await supabase.from('planned_workouts').insert(rows);
@@ -418,6 +421,104 @@ async function handleActivatePlan(userId, plan) {
   } catch (err) {
     console.error('handleActivatePlan failed:', err);
     return { success: false, error: err.message || 'Failed to activate plan' };
+  }
+}
+
+// Activate a LIVING ARC onto the calendar, server-side, with the admin singleton.
+// The arc IS a training_plans row (template_id='ai_arc') carrying its phase bands
+// (`tier` + `blocks` JSONB, migration 101); the workouts are deterministic arc
+// fill, already shaped by generateArcWorkouts (source='arc', phase set, dual-write
+// load). Mirrors handleActivatePlan's "set/replace active plan" semantics: complete
+// prior active plans and clear their FUTURE workouts (keep past/history).
+async function handleActivateArc(userId, { race, blocks, workouts }) {
+  if (!userId) return { success: false, error: 'Not signed in' };
+  if (!Array.isArray(workouts) || workouts.length === 0) {
+    return { success: false, error: 'Arc has no workouts to activate' };
+  }
+  try {
+    const startDate = workouts[0].scheduled_date;
+    const raceName = race?.name || 'your race';
+    const raceDate = race?.race_date || null;
+    const tier = race?.priority || 'A';
+
+    // Complete prior active plans and clear their FUTURE workouts (keep past/history).
+    const { data: priorPlans } = await supabase
+      .from('training_plans')
+      .select('id')
+      .eq('user_id', userId)
+      .eq('status', 'active');
+    const priorIds = (priorPlans || []).map((p) => p.id);
+    if (priorIds.length > 0) {
+      await supabase
+        .from('training_plans')
+        .update({ status: 'completed', ended_at: new Date().toISOString() })
+        .in('id', priorIds);
+      await supabase
+        .from('planned_workouts')
+        .delete()
+        .in('plan_id', priorIds)
+        .gte('scheduled_date', startDate);
+    }
+
+    // A "real" (countable) workout is any non-rest day.
+    const actualCount = workouts.filter((w) => w.workout_type !== 'rest').length;
+    const durationWeeks = Math.max(1, Math.ceil(workouts.length / 7));
+
+    const { data: newPlan, error: planError } = await supabase
+      .from('training_plans')
+      .insert({
+        user_id: userId,
+        template_id: 'ai_arc',
+        name: `Plan: ${raceName}`,
+        duration_weeks: durationWeeks,
+        methodology: 'event_anchored',
+        goal: `Peak for ${raceName}`,
+        status: 'active',
+        priority: 'primary',
+        start_date: startDate,
+        started_at: startDate,
+        target_event_date: raceDate,
+        tier,
+        blocks: blocks || null,
+        current_week: 1,
+        workouts_completed: 0,
+        workouts_total: actualCount,
+        compliance_percentage: 0,
+      })
+      .select('id')
+      .single();
+    if (planError) throw planError;
+
+    const rows = workouts.map((w) => ({
+      plan_id: newPlan.id,
+      user_id: userId,
+      week_number: w.week_number,
+      day_of_week: w.day_of_week,
+      scheduled_date: w.scheduled_date,
+      workout_type: w.workout_type || 'rest',
+      workout_id: null,
+      name: w.name || 'Workout',
+      target_rss: w.target_rss ?? null,
+      target_tss: w.target_tss ?? w.target_rss ?? null,
+      target_duration: w.target_duration ?? null,
+      duration_minutes: w.duration_minutes || 0,
+      notes: w.notes || '',
+      phase: w.phase || null,
+      source: 'arc',
+      completed: false,
+    }));
+    const { error: wErr } = await supabase.from('planned_workouts').insert(rows);
+    if (wErr) throw wErr;
+
+    return {
+      success: true,
+      planId: newPlan.id,
+      planName: `Plan: ${raceName}`,
+      workoutCount: actualCount,
+    };
+  } catch (err) {
+    console.error('handleActivateArc failed:', err);
+    return { success: false, error: err.message || 'Failed to activate arc' };
   }
 }
 
@@ -732,7 +833,7 @@ Remember: The tool is how athletes get workouts onto their calendar. Calling it 
 **NEVER PROMISE AN ACTION WITHOUT PERFORMING IT:**
 This is critical. If your reply says or implies that you are doing something — "let me get that on the calendar", "I'll add that workout", "I'll move that to Saturday" — you MUST emit the matching tool call (recommend_workout / adjust_schedule) in that SAME response. recommend_workout and adjust_schedule take effect immediately, so after calling them you can state the outcome as done ("Added Sweet Spot for tomorrow.", "Moved Tuesday's ride to Saturday.").
 
-Full training plans are different: create_training_plan produces a PREVIEW that the athlete activates with one tap — calling it does NOT load the plan onto their calendar by itself. So when you offer a plan or block, invite the tap; do NOT claim the plan is already on the calendar. Say "I've built a 12-week block — tap Review & activate to load it" rather than "I've added your plan." Narrating an action in prose and then not calling the matching tool leaves the athlete with an empty promise and nothing on their calendar. If you are not going to call a tool, do not claim you are taking the action.
+Full training plans work the same way now: create_training_plan builds the plan AND loads it onto the athlete's calendar immediately (no tap required). When there's a target race it's a block-periodized arc (aerobic base → threshold → VO2 → taper, sized to the race); with no race it's a methodology plan for general fitness. So after calling create_training_plan you CAN state it as done — "Built and loaded your plan to The Rad" — and the workouts will be on the calendar. As always, never claim you built a plan without actually calling the tool: narrating it in prose and skipping the tool call leaves the athlete with an empty promise and nothing on their calendar.
 
 **CREATING FULL TRAINING PLANS:**
 
@@ -1089,7 +1190,7 @@ export default async function handler(req, res) {
       // Fetch user timezone
       supabase
         .from('user_profiles')
-        .select('timezone')
+        .select('timezone, recovery_mode')
         .eq('id', verifiedUserId)
         .maybeSingle(),
       // Fetch all active training plans for multi-plan context
@@ -1119,6 +1220,7 @@ export default async function handler(req, res) {
     const calendarContext = calendarContextResult;
     const unresolvedDeviations = deviationsResult?.data || [];
     const userDbTimezone = userProfileResult?.data?.timezone || null;
+    const userRecoveryMode = userProfileResult?.data?.recovery_mode || 'standard';
     const allActivePlans = allActivePlansResult?.data || [];
     const healthMetrics = healthMetricsResult?.data || null;
 
@@ -1682,13 +1784,14 @@ ${conversationSummary}
     const planCreationTool = toolUses.find(tool => tool.name === 'create_training_plan');
 
     if (planCreationTool) {
-      // Build a RACE-AWARE periodized plan with the static generator and AUTO-ACTIVATE
-      // it onto the (visible) calendar.
+      // Build a plan and AUTO-ACTIVATE it onto the (visible) calendar. Two paths:
+      //   • a target race resolves → the LIVING ARC (deterministic block periodization:
+      //     aerobic_build → threshold → vo2 → … → taper, sized to the race);
+      //   • no race → the static methodology generator (general fitness).
       {
         console.log(`🤖 Generating training plan:`, planCreationTool.input);
         try {
-          // Resolve the A-target race (LLM-provided date, else soonest A/B/upcoming),
-          // so the generator sizes/tapers to the real race rather than a guess.
+          // Resolve the A-target race (LLM-provided date, else soonest A/B/upcoming).
           const races = verifiedUserId ? await fetchUpcomingRaces(supabase, verifiedUserId) : [];
           const inputTarget = planCreationTool.input.target_event_date || null;
           let targetRace = inputTarget ? races.find((r) => r.race_date === inputTarget) : null;
@@ -1697,46 +1800,79 @@ ${conversationSummary}
             targetRace = ofTier('A') || ofTier('B') || races[0] || null;
           }
           const targetDate = targetRace?.race_date || inputTarget || null;
+          const today = formatDateInTimezone(new Date(), resolvedTimezone);
 
-          const planInput = {
-            ...planCreationTool.input,
-            ...(targetDate ? { target_event_date: targetDate } : {}),
-            userAvailability: userAvailability || null,
-          };
-          const plan = generateTrainingPlan(planInput);
+          if (targetDate) {
+            // ── LIVING ARC PATH (race-targeted, block-periodized) ──────────────
+            const tier = targetRace?.priority || 'A';
+            const arc = buildArc({ today, raceDate: targetDate, tier, recoveryMode: userRecoveryMode });
+            const arcWorkouts = generateArcWorkouts(arc.blocks, {
+              ctx: {
+                coefficients: undefined, // generateArcWorkouts seeds nothing fatigue-related (B1)
+                upcoming_events: [{ tier, date: targetDate }],
+              },
+              arcStart: today,
+            });
+            console.log(`✅ Arc built: chain [${(arc.chain_used || []).join(' → ')}], ${arcWorkouts.length} sessions over ${arc.blocks.length} blocks → ${targetDate} (${arc.validation_status}).`);
 
-          // Interim B/C races strictly inside (start, target) → sharpen + light taper.
-          const interimDates = targetDate
-            ? races
-                .filter((r) => r.race_date > plan.start_date && r.race_date < targetDate)
-                .map((r) => r.race_date)
-            : [];
-          if (interimDates.length > 0) {
-            applyInterimRaceWaypoints(plan.workouts, interimDates);
-            console.log(`🏁 Inserted ${interimDates.length} interim race waypoint(s): ${interimDates.join(', ')}`);
-          }
-          console.log(`✅ Plan generated: ${plan.summary.total_workouts} workouts over ${plan.duration_weeks} weeks → ${plan.end_date}`);
-
-          // Auto-activate onto the calendar (no tap). Fall back to a tappable preview
-          // if the write fails, so the athlete is never left empty-handed.
-          if (verifiedUserId) {
-            const act = await handleActivatePlan(verifiedUserId, plan);
-            if (act.success) {
-              trainingPlanPreview = plan;
-              autoActivatedPlan = {
-                planId: act.planId,
-                planName: act.planName,
-                workoutCount: act.workoutCount,
-                raceName: targetRace?.name || null,
-                raceDate: targetDate || null,
-              };
-              console.log(`📅 Auto-activated plan ${act.planId} (${act.workoutCount} workouts).`);
-            } else {
-              console.error('Auto-activation failed; returning tappable preview:', act.error);
-              trainingPlanPreview = plan;
+            if (verifiedUserId) {
+              const act = await handleActivateArc(verifiedUserId, {
+                race: targetRace || { name: planCreationTool.input.goal || 'your race', race_date: targetDate, priority: tier },
+                blocks: arc.blocks,
+                workouts: arcWorkouts,
+              });
+              if (act.success) {
+                trainingPlanPreview = {
+                  name: act.planName,
+                  methodology: 'event_anchored',
+                  duration_weeks: Math.max(1, Math.ceil(arcWorkouts.length / 7)),
+                  target_event_date: targetDate,
+                  start_date: today,
+                  workouts: arcWorkouts,
+                  summary: { total_workouts: act.workoutCount },
+                  phases: (arc.blocks || []).map((b) => ({ phase: b.block_type, start_date: b.start_date, end_date: b.end_date })),
+                };
+                autoActivatedPlan = {
+                  planId: act.planId,
+                  planName: act.planName,
+                  workoutCount: act.workoutCount,
+                  raceName: targetRace?.name || null,
+                  raceDate: targetDate,
+                };
+                console.log(`📅 Auto-activated arc ${act.planId} (${act.workoutCount} workouts).`);
+              } else {
+                console.error('Arc activation failed:', act.error);
+                trainingPlanPreview = { error: true, message: 'Failed to build your race plan. Please try again.' };
+              }
             }
           } else {
-            trainingPlanPreview = plan;
+            // ── STATIC GENERATOR PATH (no race / general fitness) ──────────────
+            const planInput = {
+              ...planCreationTool.input,
+              userAvailability: userAvailability || null,
+            };
+            const plan = generateTrainingPlan(planInput);
+            console.log(`✅ Static plan generated: ${plan.summary.total_workouts} workouts over ${plan.duration_weeks} weeks → ${plan.end_date}`);
+
+            if (verifiedUserId) {
+              const act = await handleActivatePlan(verifiedUserId, plan);
+              if (act.success) {
+                trainingPlanPreview = plan;
+                autoActivatedPlan = {
+                  planId: act.planId,
+                  planName: act.planName,
+                  workoutCount: act.workoutCount,
+                  raceName: null,
+                  raceDate: null,
+                };
+                console.log(`📅 Auto-activated static plan ${act.planId} (${act.workoutCount} workouts).`);
+              } else {
+                console.error('Auto-activation failed; returning tappable preview:', act.error);
+                trainingPlanPreview = plan;
+              }
+            } else {
+              trainingPlanPreview = plan;
+            }
           }
         } catch (error) {
           console.error('Plan generation/activation error:', error);
