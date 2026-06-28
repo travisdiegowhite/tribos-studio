@@ -19,6 +19,7 @@ import {
   Drawer,
   Collapse,
   UnstyledButton,
+  Modal,
 } from '@mantine/core';
 import { notifications } from '@mantine/notifications';
 import { useMediaQuery } from '@mantine/hooks';
@@ -100,6 +101,13 @@ const TrainingCalendar = ({ activePlan, rides = [], formatDistance: formatDistan
   // True when the detail modal is open in "add to an empty day" mode.
   const [isAddMode, setIsAddMode] = useState(false);
   const [saving, setSaving] = useState(false);
+
+  // "Clear planned sessions" state. clearCount is the number of upcoming
+  // incomplete planned workouts the action will delete (fetched on open so the
+  // confirm dialog shows an accurate total, not just the visible 4-week window).
+  const [clearModalOpen, setClearModalOpen] = useState(false);
+  const [clearCount, setClearCount] = useState(null);
+  const [clearing, setClearing] = useState(false);
 
   // Race goals state
   const [raceGoals, setRaceGoals] = useState([]);
@@ -687,6 +695,67 @@ const TrainingCalendar = ({ activePlan, rides = [], formatDistance: formatDistan
       });
     } finally {
       setSaving(false);
+    }
+  };
+
+  // Open the "clear planned sessions" confirm dialog, fetching the exact count of
+  // upcoming incomplete planned workouts (today onward) so the user sees what the
+  // action will remove before confirming.
+  const openClearModal = async () => {
+    if (!user?.id) return;
+    setClearCount(null);
+    setClearModalOpen(true);
+    try {
+      const todayStr = formatLocalDate(new Date());
+      const { count } = await supabase
+        .from('planned_workouts')
+        .select('id', { count: 'exact', head: true })
+        .eq('user_id', user.id)
+        .eq('completed', false)
+        .gte('scheduled_date', todayStr);
+      setClearCount(count ?? 0);
+    } catch (error) {
+      console.error('Failed to count planned workouts:', error);
+      setClearCount(0);
+    }
+  };
+
+  // Delete all upcoming incomplete planned workouts (today onward) for the user.
+  // Completed sessions and past history are preserved, as are logged activities.
+  const handleClearPlanned = async () => {
+    if (!user?.id) return;
+    setClearing(true);
+    try {
+      const todayStr = formatLocalDate(new Date());
+      const { error } = await supabase
+        .from('planned_workouts')
+        .delete()
+        .eq('user_id', user.id)
+        .eq('completed', false)
+        .gte('scheduled_date', todayStr);
+
+      if (error) throw error;
+
+      notifications.show({
+        title: 'Calendar cleared',
+        message: 'Upcoming planned sessions have been removed.',
+        color: 'gray',
+      });
+
+      setClearModalOpen(false);
+      await loadPlannedWorkouts();
+      if (onPlanUpdated) onPlanUpdated();
+      // Let other surfaces (dashboard, Today) refresh.
+      window.dispatchEvent(new CustomEvent('training-plan-updated'));
+    } catch (error) {
+      console.error('Failed to clear planned workouts:', error);
+      notifications.show({
+        title: 'Error',
+        message: 'Failed to clear the calendar. Please try again.',
+        color: 'red',
+      });
+    } finally {
+      setClearing(false);
     }
   };
 
@@ -1302,6 +1371,18 @@ const TrainingCalendar = ({ activePlan, rides = [], formatDistance: formatDistan
                 style={{ fontFamily: 'var(--font-mono, monospace)', letterSpacing: '0.05em', textTransform: 'uppercase' }}
               >
                 Availability
+              </Button>
+            </Tooltip>
+            <Tooltip label="Remove upcoming planned sessions">
+              <Button
+                variant="subtle"
+                color="red"
+                size="compact-xs"
+                leftSection={<Trash size={14} />}
+                onClick={openClearModal}
+                style={{ fontFamily: 'var(--font-mono, monospace)', letterSpacing: '0.05em', textTransform: 'uppercase' }}
+              >
+                Clear
               </Button>
             </Tooltip>
             <Button variant="subtle" size="compact-xs" onClick={goToToday} style={{ fontFamily: 'var(--font-mono, monospace)', letterSpacing: '0.05em', textTransform: 'uppercase' }}>
@@ -1979,6 +2060,38 @@ const TrainingCalendar = ({ activePlan, rides = [], formatDistance: formatDistan
           fetchActivities(formatLocalDate(anchorDate), formatLocalDate(addDays(anchorDate, 28)));
         }}
       />
+
+      {/* Clear planned sessions confirm */}
+      <Modal
+        opened={clearModalOpen}
+        onClose={() => setClearModalOpen(false)}
+        title="Clear planned sessions?"
+        centered
+      >
+        <Stack gap="md">
+          <Text size="sm" c="dimmed">
+            {clearCount === null
+              ? 'Checking your calendar…'
+              : clearCount === 0
+                ? 'There are no upcoming planned sessions to clear.'
+                : `This removes ${clearCount} upcoming planned session${clearCount === 1 ? '' : 's'} from today onward. Completed sessions and past history are kept, and your logged rides are not affected.`}
+          </Text>
+          <Group justify="flex-end" gap="xs">
+            <Button variant="subtle" color="gray" onClick={() => setClearModalOpen(false)} disabled={clearing}>
+              Cancel
+            </Button>
+            <Button
+              color="red"
+              leftSection={<Trash size={16} />}
+              onClick={handleClearPlanned}
+              loading={clearing}
+              disabled={clearCount === 0}
+            >
+              Clear {clearCount ? `${clearCount} session${clearCount === 1 ? '' : 's'}` : 'sessions'}
+            </Button>
+          </Group>
+        </Stack>
+      </Modal>
     </Stack>
   );
 };
