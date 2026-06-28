@@ -97,7 +97,7 @@ const planToolResponse = (text) => ({
         methodology: 'sweet_spot',
         goal: 'racing',
         start_date: 'next_monday',
-        target_event_date: '2026-06-21',
+        // No target_event_date and no race_goals ⇒ the static generator path.
       },
     },
   ],
@@ -241,8 +241,9 @@ describe('coach handler — forced tool pass', () => {
     expect(res.body.trainingPlanPreview.error).toBeFalsy();
   });
 
-  it('auto-activates a created plan and returns autoActivatedPlan (no tap needed)', async () => {
-    // Simulate a successful training_plans insert so handleActivatePlan resolves a plan id.
+  it('auto-activates a static plan (no race) and returns autoActivatedPlan (no tap needed)', async () => {
+    // No race resolves ⇒ the static generator path. Simulate a successful
+    // training_plans insert so handleActivatePlan resolves a plan id.
     fromOverride = (table) => {
       const c = chain();
       if (table === 'training_plans') {
@@ -250,10 +251,10 @@ describe('coach handler — forced tool pass', () => {
       }
       return c;
     };
-    messagesCreate.mockResolvedValueOnce(planToolResponse('Building your block to the race.'));
+    messagesCreate.mockResolvedValueOnce(planToolResponse('Building your general-fitness block.'));
 
     const res = makeRes();
-    await handler(makeReq({ message: 'build me a training plan for my race' }), res);
+    await handler(makeReq({ message: 'build me a training plan' }), res);
 
     expect(res.statusCode).toBe(200);
     expect(messagesCreate).toHaveBeenCalledTimes(1);
@@ -261,7 +262,47 @@ describe('coach handler — forced tool pass', () => {
     expect(res.body.trainingPlanPreview.error).toBeFalsy();
     expect(res.body.autoActivatedPlan).toBeTruthy();
     expect(res.body.autoActivatedPlan.planId).toBe('newplan-1');
+    expect(res.body.autoActivatedPlan.raceName).toBeNull();
     expect(res.body.autoActivatedPlan.workoutCount).toBeGreaterThan(0);
+  });
+
+  it('auto-activates a LIVING ARC when a target race resolves', async () => {
+    // A future race in race_goals routes create_training_plan to the deterministic
+    // block-periodized arc instead of the static generator.
+    const raceDate = new Date(Date.now() + 120 * 86400000).toISOString().slice(0, 10);
+    let insertedPlan = null;
+    fromOverride = (table) => {
+      const c = chain();
+      if (table === 'race_goals') {
+        c.then = (resolve) => Promise.resolve({
+          data: [{ id: 'race-1', name: 'The Rad', race_date: raceDate, priority: 'A', status: 'upcoming' }],
+          error: null,
+        }).then(resolve);
+      }
+      if (table === 'training_plans') {
+        c.insert = (payload) => { insertedPlan = payload; return c; };
+        c.single = () => Promise.resolve({ data: { id: 'arcplan-1' }, error: null });
+      }
+      return c;
+    };
+    messagesCreate.mockResolvedValueOnce(planToolResponse('Building your race arc.'));
+
+    const res = makeRes();
+    await handler(makeReq({ message: 'plan me to my race' }), res);
+
+    expect(res.statusCode).toBe(200);
+    expect(res.body.autoActivatedPlan).toBeTruthy();
+    expect(res.body.autoActivatedPlan.planId).toBe('arcplan-1');
+    expect(res.body.autoActivatedPlan.raceName).toBe('The Rad');
+    expect(res.body.autoActivatedPlan.workoutCount).toBeGreaterThan(0);
+    // The arc IS a training_plan row carrying the block bands.
+    expect(insertedPlan).toBeTruthy();
+    expect(insertedPlan.template_id).toBe('ai_arc');
+    expect(insertedPlan.tier).toBe('A');
+    expect(Array.isArray(insertedPlan.blocks)).toBe(true);
+    expect(insertedPlan.blocks.length).toBeGreaterThan(0);
+    // Preview reflects the arc, not the static methodology.
+    expect(res.body.trainingPlanPreview.methodology).toBe('event_anchored');
   });
 
   it('never returns a blank bubble when only a workout card is produced', async () => {
