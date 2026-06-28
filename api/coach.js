@@ -472,7 +472,8 @@ async function handleActivateArc(userId, { race, blocks, workouts }) {
         name: `Plan: ${raceName}`,
         duration_weeks: durationWeeks,
         methodology: 'event_anchored',
-        goal: `Peak for ${raceName}`,
+        // goal is CHECK-constrained to a fixed enum; an arc always targets a race.
+        goal: 'racing',
         status: 'active',
         priority: 'primary',
         start_date: startDate,
@@ -1843,6 +1844,9 @@ ${conversationSummary}
               } else {
                 console.error('Arc activation failed:', act.error);
                 trainingPlanPreview = { error: true, message: 'Failed to build your race plan. Please try again.' };
+                // Fail loud: don't let the model's "building it now" prose stand when
+                // nothing landed on the calendar.
+                responseText = "I hit a snag loading that plan onto your calendar — nothing was added. Mind trying again?";
               }
             }
           } else {

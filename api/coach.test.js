@@ -299,6 +299,8 @@ describe('coach handler — forced tool pass', () => {
     expect(insertedPlan).toBeTruthy();
     expect(insertedPlan.template_id).toBe('ai_arc');
     expect(insertedPlan.tier).toBe('A');
+    // goal is CHECK-constrained to a fixed enum — must be a valid value, not free text.
+    expect(['general_fitness', 'endurance', 'climbing', 'racing', 'gran_fondo', 'weight_loss', 'custom']).toContain(insertedPlan.goal);
     expect(Array.isArray(insertedPlan.blocks)).toBe(true);
     expect(insertedPlan.blocks.length).toBeGreaterThan(0);
     // Preview reflects the arc, not the static methodology.
