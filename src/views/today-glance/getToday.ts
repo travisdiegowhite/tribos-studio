@@ -55,29 +55,6 @@ export function prescriptionIsRun(p: TodayPrescription | null): boolean {
   return isRunType(p?.type) || isRunType(p?.title);
 }
 
-/** Short intent verb for a training block, for the forward outlook. */
-function blockGoalFor(blockType: string | null | undefined): string | null {
-  switch (blockType) {
-    case 'taper':
-      return 'Sharpening';
-    case 'aerobic_build':
-      return 'Building aerobic base';
-    case 'threshold':
-      return 'Lifting threshold';
-    case 'vo2':
-      return 'Building top-end';
-    case 'race_specific':
-      return 'Race-specific prep';
-    case 'recovery':
-    case 'reactivation':
-      return 'Recovering';
-    case 'maintenance':
-      return 'Holding fitness';
-    default:
-      return null;
-  }
-}
-
 // ── Shell ───────────────────────────────────────────────────────────────────
 
 export async function getTodayShell(userId: string): Promise<Today> {
@@ -103,17 +80,6 @@ export async function getTodayShell(userId: string): Promise<Today> {
     console.error('getTodayShell: athlete state failed', err);
     return EMPTY_ATHLETE_STATE;
   });
-
-  // Active micro-block covering today (for the single context chip + outlook).
-  const blockQuery = supabase
-    .from('block_instances')
-    .select('block_type, start_date, end_date, status')
-    .eq('user_id', userId)
-    .lte('start_date', today)
-    .gte('end_date', today)
-    .order('start_date', { ascending: false })
-    .limit(1)
-    .maybeSingle();
 
   // Next race (prefer priority A) for the forward outlook.
   const raceQuery = supabase
@@ -143,12 +109,11 @@ export async function getTodayShell(userId: string): Promise<Today> {
     .is('duplicate_of', null)
     .gte('start_date', ninetyDaysAgo.toISOString());
 
-  const [personaRes, planRes, athleteState, blockRes, raceRes, ribbonRes, historyRes] =
+  const [personaRes, planRes, athleteState, raceRes, ribbonRes, historyRes] =
     await Promise.all([
       personaQuery,
       planQuery,
       athleteStatePromise,
-      blockQuery,
       raceQuery,
       ribbonQuery,
       historyQuery,
@@ -201,23 +166,14 @@ export async function getTodayShell(userId: string): Promise<Today> {
   }
 
   // ── Plan context chip ──────────────────────────────────────────────────────
+  // Derived from the active training plan's phase (the sequencer's block chip was
+  // retired with System B). blockGoal stays null; the outlook falls back to the race line.
   let blockName: string | null = null;
-  let dayIndex: number | null = null;
-  let dayTotal: number | null = null;
+  const dayIndex: number | null = null;
+  const dayTotal: number | null = null;
   let chipLabel: string | null = null;
-  const block = blockRes.data;
-  let blockGoal: string | null = null;
-  if (block?.start_date && block?.end_date) {
-    blockName = humanizeBlock(block.block_type as string);
-    blockGoal = blockGoalFor(block.block_type as string);
-    const start = new Date(block.start_date as string);
-    const end = new Date(block.end_date as string);
-    const now = new Date(today);
-    const msDay = 86400000;
-    dayIndex = Math.floor((now.getTime() - start.getTime()) / msDay) + 1;
-    dayTotal = Math.floor((end.getTime() - start.getTime()) / msDay) + 1;
-    chipLabel = `${blockName} · Day ${dayIndex} of ${dayTotal}`;
-  } else if (activePlan) {
+  const blockGoal: string | null = null;
+  if (activePlan) {
     const template = activePlan.template_id ? getPlanTemplate(activePlan.template_id) : undefined;
     const week = (activePlan.current_week as number) ?? 1;
     const phase = template?.phases?.find((p) => p.weeks.includes(week));
@@ -479,15 +435,6 @@ function buildOutlook(
   }
 
   return { blockGoal, raceName, daysToRace, line };
-}
-
-function humanizeBlock(blockType: string | null | undefined): string {
-  if (!blockType) return 'Training block';
-  const label = blockType
-    .split('_')
-    .map((w) => capitalize(w))
-    .join(' ');
-  return `${label} block`;
 }
 
 function capitalize(s: string): string {
