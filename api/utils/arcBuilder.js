@@ -127,4 +127,121 @@ export function generateArcWorkouts(blocks, options = {}) {
   return rows;
 }
 
+// The session-content fields that move when we swap two day-slots to honour
+// availability. `scheduled_date`/`day_of_week`/`week_number`/`phase`/`source` stay
+// put — phase stays tied to its calendar date (the block banding is date-accurate),
+// only the prescription itself moves.
+const ARC_SWAP_FIELDS = [
+  'workout_type',
+  'name',
+  'target_rss',
+  'target_tss',
+  'target_duration',
+  'duration_minutes',
+  'long_ride_flag',
+  'notes',
+];
+
+function swapArcContent(a, b) {
+  for (const f of ARC_SWAP_FIELDS) {
+    const tmp = a[f];
+    a[f] = b[f];
+    b[f] = tmp;
+  }
+}
+
+/**
+ * Move quality sessions off the athlete's blocked days, honouring training
+ * preferences (preferred days, weekend long rides). Mirrors the static
+ * generator's redistributeForAvailability, adapted to arc rows: it swaps the
+ * session CONTENT between day-slots within a week, so dates/day_of_week/phase
+ * stay fixed. Mutates + returns the rows.
+ *
+ * @param {Array<object>} rows arc planned-workout rows (from generateArcWorkouts)
+ * @param {object} [availability] { weeklyAvailability:[{dayOfWeek,status}], preferences:{...} }
+ * @returns {{ workouts: Array<object>, redistributedCount: number }}
+ */
+export function applyAvailabilityToArcWorkouts(rows, availability) {
+  const list = Array.isArray(rows) ? rows : [];
+  if (!availability?.weeklyAvailability || list.length === 0) {
+    return { workouts: list, redistributedCount: 0 };
+  }
+
+  const dayStatus = {};
+  for (const d of availability.weeklyAvailability) dayStatus[d.dayOfWeek] = d.status;
+
+  const blockedDays = new Set(
+    Object.entries(dayStatus)
+      .filter(([, status]) => status === 'blocked')
+      .map(([day]) => Number(day)),
+  );
+  if (blockedDays.size === 0) return { workouts: list, redistributedCount: 0 };
+
+  const preferredDays = new Set(
+    Object.entries(dayStatus)
+      .filter(([, status]) => status === 'preferred')
+      .map(([day]) => Number(day)),
+  );
+  const preferWeekendLong =
+    availability.preferences?.preferWeekendLongRides
+    ?? availability.preferences?.preferWeekendLongRuns
+    ?? true;
+
+  const isReal = (w) => w.workout_type !== 'rest' && (w.target_rss > 0 || w.duration_minutes > 0);
+
+  // Group by week so swaps stay within a 7-day microcycle.
+  const weekMap = new Map();
+  for (const w of list) {
+    if (!weekMap.has(w.week_number)) weekMap.set(w.week_number, []);
+    weekMap.get(w.week_number).push(w);
+  }
+
+  let redistributedCount = 0;
+
+  for (const [, weekWorkouts] of weekMap) {
+    const onBlockedDays = weekWorkouts.filter(
+      (w) => blockedDays.has(w.day_of_week) && isReal(w),
+    );
+
+    for (const blocked of onBlockedDays) {
+      let bestTarget = null;
+      let bestScore = -Infinity;
+
+      for (const candidate of weekWorkouts) {
+        if (candidate === blocked) continue;
+        if (blockedDays.has(candidate.day_of_week)) continue;
+
+        const candidateIsReal = isReal(candidate);
+        let score = 50;
+        // Prefer dropping the session onto a rest/easy slot, not doubling up.
+        if (!candidateIsReal) score += 25;
+        else score -= 20;
+        if (preferredDays.has(candidate.day_of_week)) score += 15;
+        // Weekend bonus for long rides.
+        if (preferWeekendLong && (candidate.day_of_week === 0 || candidate.day_of_week === 6)) {
+          const isLong = blocked.long_ride_flag || blocked.duration_minutes >= 120;
+          if (isLong) score += 10;
+        }
+        const dist = Math.min(
+          Math.abs(candidate.day_of_week - blocked.day_of_week),
+          7 - Math.abs(candidate.day_of_week - blocked.day_of_week),
+        );
+        score -= dist * 3;
+
+        if (score > bestScore) {
+          bestScore = score;
+          bestTarget = candidate;
+        }
+      }
+
+      if (bestTarget) {
+        swapArcContent(blocked, bestTarget);
+        redistributedCount++;
+      }
+    }
+  }
+
+  return { workouts: list, redistributedCount };
+}
+
 export { SESSION_TYPE_TO_WORKOUT_TYPE, SESSION_TYPE_TO_NAME };

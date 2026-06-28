@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import {
   buildArc,
   generateArcWorkouts,
+  applyAvailabilityToArcWorkouts,
   SESSION_TYPE_TO_WORKOUT_TYPE,
 } from './arcBuilder.js';
 
@@ -88,5 +89,88 @@ describe('generateArcWorkouts', () => {
   it('returns [] for an empty block list', () => {
     expect(generateArcWorkouts([])).toEqual([]);
     expect(generateArcWorkouts(null)).toEqual([]);
+  });
+});
+
+describe('applyAvailabilityToArcWorkouts', () => {
+  const makeRow = (overrides) => ({
+    week_number: 1,
+    day_of_week: 0,
+    scheduled_date: '2026-06-28',
+    workout_type: 'rest',
+    workout_id: null,
+    name: 'Rest Day',
+    target_rss: 0,
+    target_tss: 0,
+    target_duration: 0,
+    duration_minutes: 0,
+    long_ride_flag: false,
+    notes: '',
+    phase: 'threshold',
+    source: 'arc',
+    completed: false,
+    ...overrides,
+  });
+
+  it('swaps a quality session off a blocked day into a rest slot', () => {
+    const week = [
+      makeRow({ day_of_week: 1, scheduled_date: '2026-06-29', workout_type: 'threshold', name: 'Threshold Intervals', target_rss: 75, target_tss: 75, target_duration: 65, duration_minutes: 65 }),
+      makeRow({ day_of_week: 2, scheduled_date: '2026-06-30' }), // rest
+    ];
+    const availability = { weeklyAvailability: [{ dayOfWeek: 1, status: 'blocked' }], preferences: {} };
+    const { redistributedCount } = applyAvailabilityToArcWorkouts(week, availability);
+
+    expect(redistributedCount).toBe(1);
+    // Blocked Monday now holds the rest; the threshold moved to the open Tuesday.
+    expect(week[0].workout_type).toBe('rest');
+    expect(week[1].workout_type).toBe('threshold');
+    expect(week[1].target_rss).toBe(75);
+    // Dates / day_of_week / phase stay put — only the prescription moved.
+    expect(week[0].day_of_week).toBe(1);
+    expect(week[1].day_of_week).toBe(2);
+    expect(week[0].phase).toBe('threshold');
+  });
+
+  it('is a no-op when there are no blocked days', () => {
+    const week = [makeRow({ day_of_week: 1, workout_type: 'vo2max', target_rss: 80 })];
+    const before = JSON.parse(JSON.stringify(week));
+    const { redistributedCount } = applyAvailabilityToArcWorkouts(week, {
+      weeklyAvailability: [{ dayOfWeek: 1, status: 'available' }],
+      preferences: {},
+    });
+    expect(redistributedCount).toBe(0);
+    expect(week).toEqual(before);
+  });
+
+  it('is a no-op when no availability is provided', () => {
+    const week = [makeRow({ day_of_week: 1, workout_type: 'vo2max', target_rss: 80 })];
+    expect(applyAvailabilityToArcWorkouts(week, null).redistributedCount).toBe(0);
+    expect(applyAvailabilityToArcWorkouts(week, undefined).redistributedCount).toBe(0);
+  });
+
+  it('clears real sessions off blocked days across a realistic arc when rest slots exist', () => {
+    const arc = buildArc({ today: TODAY, raceDate: RACE, tier: 'A' });
+    const rows = generateArcWorkouts(arc.blocks, { arcStart: TODAY });
+    const blocked = new Set([2, 4]); // Tue/Thu
+    const availability = {
+      weeklyAvailability: [
+        { dayOfWeek: 2, status: 'blocked' },
+        { dayOfWeek: 4, status: 'blocked' },
+      ],
+      preferences: { preferWeekendLongRides: true },
+    };
+    const realOnBlocked = (rs) =>
+      rs.filter((r) => blocked.has(r.day_of_week) && r.workout_type !== 'rest' && (r.target_rss > 0 || r.duration_minutes > 0)).length;
+    const beforeReal = realOnBlocked(rows);
+    const totalRealBefore = rows.filter((r) => r.workout_type !== 'rest').length;
+
+    const { redistributedCount } = applyAvailabilityToArcWorkouts(rows, availability);
+
+    expect(beforeReal).toBeGreaterThan(0);
+    expect(redistributedCount).toBeGreaterThan(0);
+    // Sessions were moved, not created/destroyed.
+    expect(rows.filter((r) => r.workout_type !== 'rest').length).toBe(totalRealBefore);
+    // Fewer quality sessions remain on blocked days than before.
+    expect(realOnBlocked(rows)).toBeLessThan(beforeReal);
   });
 });

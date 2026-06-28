@@ -8,7 +8,7 @@ import { WORKOUT_LIBRARY_FOR_AI, ALL_COACH_TOOLS } from './utils/workoutLibrary.
 import { handleFitnessHistoryQuery } from './utils/fitnessHistoryTool.js';
 import { handleTrainingDataQuery } from './utils/trainingDataTool.js';
 import { generateTrainingPlan, getWorkoutMeta } from './utils/planGenerator.js';
-import { buildArc, generateArcWorkouts } from './utils/arcBuilder.js';
+import { buildArc, generateArcWorkouts, applyAvailabilityToArcWorkouts } from './utils/arcBuilder.js';
 import { setupCors } from './utils/cors.js';
 import { generateFuelPlan } from './utils/fuelPlanGenerator.js';
 import { fetchCalendarContext } from './utils/calendarHelper.js';
@@ -1210,9 +1210,21 @@ export default async function handler(req, res) {
         .order('recorded_date', { ascending: false })
         .limit(1)
         .maybeSingle(),
+      // Fetch weekly availability (blocked/preferred days) so plans honour it
+      // server-side regardless of which client called the coach.
+      supabase
+        .from('user_day_availability')
+        .select('day_of_week, is_blocked, is_preferred')
+        .eq('user_id', verifiedUserId),
+      // Fetch training preferences (weekend long rides, max workouts/week, …)
+      supabase
+        .from('user_training_preferences')
+        .select('prefer_weekend_long_rides, prefer_weekend_long_runs, max_workouts_per_week')
+        .eq('user_id', verifiedUserId)
+        .maybeSingle(),
     ];
 
-    const [coachSettingsResult, coachMemoryResult, recentCheckInsResult, calendarContextResult, checkInResult, deviationsResult, userProfileResult, allActivePlansResult, healthMetricsResult] = await Promise.all(parallelFetches);
+    const [coachSettingsResult, coachMemoryResult, recentCheckInsResult, calendarContextResult, checkInResult, deviationsResult, userProfileResult, allActivePlansResult, healthMetricsResult, dayAvailabilityResult, trainingPrefsResult] = await Promise.all(parallelFetches);
 
     const coachSettings = coachSettingsResult.data;
     const activeCheckIn = checkInResult?.data || null;
@@ -1224,6 +1236,37 @@ export default async function handler(req, res) {
     const userRecoveryMode = userProfileResult?.data?.recovery_mode || 'standard';
     const allActivePlans = allActivePlansResult?.data || [];
     const healthMetrics = healthMetricsResult?.data || null;
+
+    // Resolve training availability: prefer a client-supplied payload, else build it
+    // from the DB so the arc/static plan and the coaching prose honour blocked days +
+    // preferences no matter which surface called the coach.
+    let resolvedAvailability = userAvailability;
+    if (!resolvedAvailability) {
+      const dayRows = dayAvailabilityResult?.data || [];
+      const prefs = trainingPrefsResult?.data || null;
+      if (dayRows.length > 0 || prefs) {
+        const weeklyAvailability = [];
+        for (let d = 0; d < 7; d++) {
+          const row = dayRows.find((r) => r.day_of_week === d);
+          weeklyAvailability.push({
+            dayOfWeek: d,
+            status: row
+              ? (row.is_blocked ? 'blocked' : row.is_preferred ? 'preferred' : 'available')
+              : 'available',
+          });
+        }
+        resolvedAvailability = {
+          weeklyAvailability,
+          preferences: prefs
+            ? {
+                preferWeekendLongRides: prefs.prefer_weekend_long_rides,
+                preferWeekendLongRuns: prefs.prefer_weekend_long_runs,
+                maxWorkoutsPerWeek: prefs.max_workouts_per_week,
+              }
+            : {},
+        };
+      }
+    }
 
     // Fetch proprietary metrics (EFI/TWL/TCAS) — non-blocking
     const proprietaryMetrics = await fetchProprietaryMetrics(supabase, verifiedUserId);
@@ -1352,19 +1395,19 @@ Active plan: "${p.name}" — ${p.sport_type || 'cycling'} (id: ${p.id})`;
     }
 
     // Add schedule availability context if provided
-    if (userAvailability?.weeklyAvailability) {
+    if (resolvedAvailability?.weeklyAvailability) {
       const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
-      const availLines = userAvailability.weeklyAvailability.map((d) => {
+      const availLines = resolvedAvailability.weeklyAvailability.map((d) => {
         let line = `  ${days[d.dayOfWeek]}: ${d.status.toUpperCase()}`;
         if (d.maxDurationMinutes) line += ` (max ${d.maxDurationMinutes} min)`;
         return line;
       });
 
-      const blockedDays = userAvailability.weeklyAvailability
+      const blockedDays = resolvedAvailability.weeklyAvailability
         .filter((d) => d.status === 'blocked')
         .map((d) => days[d.dayOfWeek]);
 
-      const preferredDays = userAvailability.weeklyAvailability
+      const preferredDays = resolvedAvailability.weeklyAvailability
         .filter((d) => d.status === 'preferred')
         .map((d) => days[d.dayOfWeek]);
 
@@ -1374,8 +1417,8 @@ The athlete has configured which days they can and cannot train:
 ${availLines.join('\n')}
 ${blockedDays.length > 0 ? `\nBLOCKED DAYS (cannot train): ${blockedDays.join(', ')}` : ''}
 ${preferredDays.length > 0 ? `\nPREFERRED DAYS (prioritize key workouts here): ${preferredDays.join(', ')}` : ''}
-${userAvailability.preferences?.maxWorkoutsPerWeek ? `\nMax workouts per week: ${userAvailability.preferences.maxWorkoutsPerWeek}` : ''}
-${userAvailability.preferences?.preferWeekendLongRides ? `\nPrefers long rides on weekends: Yes` : ''}
+${resolvedAvailability.preferences?.maxWorkoutsPerWeek ? `\nMax workouts per week: ${resolvedAvailability.preferences.maxWorkoutsPerWeek}` : ''}
+${resolvedAvailability.preferences?.preferWeekendLongRides ? `\nPrefers long rides on weekends: Yes` : ''}
 
 IMPORTANT: When creating training plans or recommending workouts:
 - NEVER schedule workouts on blocked days
@@ -1814,7 +1857,10 @@ ${conversationSummary}
               },
               arcStart: today,
             });
-            console.log(`✅ Arc built: chain [${(arc.chain_used || []).join(' → ')}], ${arcWorkouts.length} sessions over ${arc.blocks.length} blocks → ${targetDate} (${arc.validation_status}).`);
+            // Honour the athlete's blocked days + training preferences (preferred
+            // days, weekend long rides) by swapping quality sessions off blocked days.
+            const { redistributedCount } = applyAvailabilityToArcWorkouts(arcWorkouts, resolvedAvailability);
+            console.log(`✅ Arc built: chain [${(arc.chain_used || []).join(' → ')}], ${arcWorkouts.length} sessions over ${arc.blocks.length} blocks → ${targetDate} (${arc.validation_status}); ${redistributedCount} session(s) moved off blocked days.`);
 
             if (verifiedUserId) {
               const act = await handleActivateArc(verifiedUserId, {
@@ -1853,7 +1899,7 @@ ${conversationSummary}
             // ── STATIC GENERATOR PATH (no race / general fitness) ──────────────
             const planInput = {
               ...planCreationTool.input,
-              userAvailability: userAvailability || null,
+              userAvailability: resolvedAvailability || null,
             };
             const plan = generateTrainingPlan(planInput);
             console.log(`✅ Static plan generated: ${plan.summary.total_workouts} workouts over ${plan.duration_weeks} weeks → ${plan.end_date}`);
