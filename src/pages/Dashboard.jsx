@@ -26,7 +26,6 @@ import WeekChart from '../components/today/WeekChart.jsx';
 import FitnessSummary from '../components/today/FitnessSummary.jsx';
 import ProprietaryMetricsBar from '../components/today/ProprietaryMetricsBar.tsx';
 import { ActivePlanCard } from '../components/training';
-import AnchorRaceBanner from '../components/training/AnchorRaceBanner';
 import { calculateCTL, calculateATL, calculateTSB } from '../utils/trainingPlans';
 import { estimateActivityTSS } from '../utils/computeFitnessSnapshots';
 
@@ -442,8 +441,6 @@ function Dashboard() {
             title={displayName}
             titleOrder={2}
           />
-
-          <AnchorRaceBanner />
 
           {/* Activation Guide (new users) */}
           <GetStartedGuide />

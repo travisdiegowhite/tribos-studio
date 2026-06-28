@@ -5,16 +5,12 @@ import { usePostHog } from 'posthog-js/react';
 import { useNavigate } from 'react-router-dom';
 import AppShell from '../../components/AppShell.jsx';
 import { useAuth } from '../../contexts/AuthContext.jsx';
-import { useFeatureFlag } from '../../hooks/useFeatureFlag';
 import { useTodayData } from './useTodayData';
 import { TodaysBrief } from './TodaysBrief';
 import { AthleteState } from './AthleteState';
 import { PlanExecution } from './PlanExecution';
 import { CoachConversation } from './CoachConversation';
 import { RecentRides } from './RecentRides';
-import SequencerPrescriptionCard from '../../components/training/SequencerPrescriptionCard';
-import EventAnchoredPlanCard from '../../components/training/EventAnchoredPlanCard';
-import BlockExtensionStrip from '../../components/coach/BlockExtensionStrip';
 import TodayRpePrompt from '../../components/coach/TodayRpePrompt';
 
 const VIEW_VERSION = 'today_v3_clusters';
@@ -25,7 +21,6 @@ export default function TodayView() {
   const navigate = useNavigate();
   const posthog = usePostHog();
   const isMobile = useMediaQuery('(max-width: 768px)');
-  const eventAnchoredEnabled = useFeatureFlag('event_anchored_planner');
 
   const {
     loading,
@@ -143,13 +138,6 @@ export default function TodayView() {
       >
         {isMobile ? (
           <Box style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-            {eventAnchoredEnabled && (
-              <>
-                <BlockExtensionStrip />
-                <EventAnchoredPlanCard />
-                <SequencerPrescriptionCard />
-              </>
-            )}
             <TodayRpePrompt />
             <TodaysBrief
               brief={brief}
@@ -185,13 +173,6 @@ export default function TodayView() {
           </Box>
         ) : (
           <Box style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-            {eventAnchoredEnabled && (
-              <>
-                <BlockExtensionStrip />
-                <EventAnchoredPlanCard />
-                <SequencerPrescriptionCard />
-              </>
-            )}
             <TodayRpePrompt />
             {/* Row 1 — full width */}
             <TodaysBrief
