@@ -3,6 +3,10 @@ import {
   buildArc,
   generateArcWorkouts,
   applyAvailabilityToArcWorkouts,
+  buildArcExplanation,
+  buildArcFactSpine,
+  isCleanPersonaVoice,
+  assembleHybridArcMessage,
   SESSION_TYPE_TO_WORKOUT_TYPE,
 } from './arcBuilder.js';
 
@@ -172,5 +176,105 @@ describe('applyAvailabilityToArcWorkouts', () => {
     expect(rows.filter((r) => r.workout_type !== 'rest').length).toBe(totalRealBefore);
     // Fewer quality sessions remain on blocked days than before.
     expect(realOnBlocked(rows)).toBeLessThan(beforeReal);
+  });
+});
+
+describe('buildArcExplanation', () => {
+  const arc = buildArc({ today: TODAY, raceDate: RACE, tier: 'A' });
+
+  it('explains the race, tier rationale, every block, and the taper', () => {
+    const text = buildArcExplanation(arc, {
+      raceName: 'The Rad',
+      raceDate: RACE,
+      tier: 'A',
+      today: TODAY,
+      workoutCount: 102,
+    });
+    expect(text).toContain('The Rad');
+    expect(text).toContain('A-priority');
+    // Mentions every block label present in the arc.
+    for (const b of arc.blocks) {
+      const label = {
+        reactivation: 'Reactivation', maintenance: 'Maintenance', recovery: 'Recovery',
+        aerobic_build: 'Aerobic Base', threshold: 'Threshold', vo2: 'VO2 Max',
+        race_specific: 'Race-Specific', taper: 'Taper',
+      }[b.block_type];
+      expect(text).toContain(label);
+    }
+    expect(text.toLowerCase()).toContain('taper');
+    expect(text).toContain('102 sessions');
+  });
+
+  it('mentions blocked-day accommodation only when sessions were moved', () => {
+    const withMove = buildArcExplanation(arc, {
+      raceName: 'The Rad', raceDate: RACE, tier: 'A', today: TODAY,
+      redistributedCount: 3, blockedDayNames: ['Wednesday'],
+    });
+    expect(withMove).toContain('Wednesday');
+
+    const noMove = buildArcExplanation(arc, {
+      raceName: 'The Rad', raceDate: RACE, tier: 'A', today: TODAY,
+      redistributedCount: 0, blockedDayNames: ['Wednesday'],
+    });
+    expect(noMove).not.toContain('Wednesday');
+  });
+
+  it('returns empty string for an arc with no blocks', () => {
+    expect(buildArcExplanation({ blocks: [] }, { raceName: 'X' })).toBe('');
+  });
+});
+
+describe('isCleanPersonaVoice', () => {
+  it('accepts short voice-only lines', () => {
+    expect(isCleanPersonaVoice('Time to point everything at The Rad.')).toBe(true);
+    expect(isCleanPersonaVoice('Now go put in the work — no excuses.')).toBe(true);
+  });
+
+  it('rejects anything with a digit (no fabricated counts/dates)', () => {
+    expect(isCleanPersonaVoice('You have 13 weeks to get ready.')).toBe(false);
+    expect(isCleanPersonaVoice('3 phases of pain await.')).toBe(false);
+  });
+
+  it('rejects month names (no fabricated dates)', () => {
+    expect(isCleanPersonaVoice('Your taper is in September, stay patient.')).toBe(false);
+    expect(isCleanPersonaVoice('See you on the start line in Sep.')).toBe(false);
+  });
+
+  it('rejects empty, overly long, and non-string input', () => {
+    expect(isCleanPersonaVoice('')).toBe(false);
+    expect(isCleanPersonaVoice('   ')).toBe(false);
+    expect(isCleanPersonaVoice('word '.repeat(60))).toBe(false);
+    expect(isCleanPersonaVoice(null)).toBe(false);
+    expect(isCleanPersonaVoice(undefined)).toBe(false);
+    expect(isCleanPersonaVoice(42)).toBe(false);
+  });
+});
+
+describe('assembleHybridArcMessage', () => {
+  const arc = buildArc({ today: TODAY, raceDate: RACE, tier: 'A' });
+  const opts = { tier: 'A', workoutCount: 102 };
+
+  it('wraps the verbatim fact spine with valid persona lines', () => {
+    const spine = buildArcFactSpine(arc, opts);
+    const msg = assembleHybridArcMessage(arc, opts, {
+      leadIn: 'Alright — we point everything at The Rad now.',
+      signOff: 'Show up and do the work. I will hold you to it.',
+    });
+    expect(msg).not.toBeNull();
+    // The factual spine appears verbatim, untouched by the persona layer.
+    expect(msg).toContain(spine);
+    expect(msg.startsWith('Alright')).toBe(true);
+    expect(msg.trimEnd().endsWith('I will hold you to it.')).toBe(true);
+    expect(msg).toContain('102 sessions');
+  });
+
+  it('returns null when either wrapper line fails validation (→ caller falls back)', () => {
+    expect(assembleHybridArcMessage(arc, opts, { leadIn: 'You have 13 weeks.', signOff: 'Go.' })).toBeNull();
+    expect(assembleHybridArcMessage(arc, opts, { leadIn: 'Good luck.', signOff: '' })).toBeNull();
+    expect(assembleHybridArcMessage(arc, opts, {})).toBeNull();
+  });
+
+  it('returns null for an empty arc', () => {
+    expect(assembleHybridArcMessage({ blocks: [] }, opts, { leadIn: 'Hi.', signOff: 'Bye.' })).toBeNull();
   });
 });
