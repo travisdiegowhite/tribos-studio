@@ -22,7 +22,9 @@ vi.mock('./utils/temporalAnchor.js', () => ({
   buildTemporalAnchor: () => 'ANCHOR',
   fetchTemporalAnchorData: vi.fn().mockResolvedValue({ plannedWorkouts: [], raceGoals: [] }),
 }));
-vi.mock('./utils/personaData.js', () => ({ PERSONA_DATA: {} }));
+vi.mock('./utils/personaData.js', () => ({
+  PERSONA_DATA: { hammer: { name: 'The Hammer', voice: 'Direct, brief, no filler.' } },
+}));
 
 // Chainable Supabase stub: any await resolves to an empty list, maybeSingle to null.
 function chain() {
@@ -305,6 +307,62 @@ describe('coach handler — forced tool pass', () => {
     expect(insertedPlan.blocks.length).toBeGreaterThan(0);
     // Preview reflects the arc, not the static methodology.
     expect(res.body.trainingPlanPreview.methodology).toBe('event_anchored');
+  });
+
+  // Shared setup for the hybrid-explanation tests: a resolvable A-race, a chosen
+  // persona, and a successful arc plan insert.
+  const arcWithPersona = () => {
+    const raceDate = new Date(Date.now() + 120 * 86400000).toISOString().slice(0, 10);
+    fromOverride = (table) => {
+      const c = chain();
+      if (table === 'user_coach_settings') {
+        c.maybeSingle = () => Promise.resolve({ data: { coaching_persona: 'hammer' }, error: null });
+      }
+      if (table === 'race_goals') {
+        c.then = (resolve) => Promise.resolve({
+          data: [{ id: 'race-1', name: 'The Rad', race_date: raceDate, priority: 'A', status: 'upcoming' }],
+          error: null,
+        }).then(resolve);
+      }
+      if (table === 'training_plans') {
+        c.single = () => Promise.resolve({ data: { id: 'arcplan-1' }, error: null });
+      }
+      return c;
+    };
+  };
+
+  it('wraps the arc explanation in persona voice when the wrapper is clean (hybrid)', async () => {
+    arcWithPersona();
+    messagesCreate
+      .mockResolvedValueOnce(planToolResponse('Building it now.'))
+      .mockResolvedValueOnce(textResponse('{"leadIn":"Time to point everything at The Rad.","signOff":"Now go do the work."}'));
+
+    const res = makeRes();
+    await handler(makeReq({ message: 'plan me to my race' }), res);
+
+    expect(res.statusCode).toBe(200);
+    expect(res.body.autoActivatedPlan).toBeTruthy();
+    // Persona lead-in + sign-off wrap the verbatim factual spine.
+    expect(res.body.message).toContain('Time to point everything at The Rad.');
+    expect(res.body.message).toContain('Now go do the work.');
+    expect(res.body.message).toContain('A-priority'); // a fact from the deterministic spine
+  });
+
+  it('falls back to the deterministic explanation when the persona wrapper leaks facts', async () => {
+    arcWithPersona();
+    messagesCreate
+      .mockResolvedValueOnce(planToolResponse('Building it now.'))
+      // Wrapper tries to state a week count → must be rejected, deterministic message used.
+      .mockResolvedValueOnce(textResponse('{"leadIn":"You have 13 weeks to suffer.","signOff":"Go."}'));
+
+    const res = makeRes();
+    await handler(makeReq({ message: 'plan me to my race' }), res);
+
+    expect(res.statusCode).toBe(200);
+    expect(res.body.autoActivatedPlan).toBeTruthy();
+    // The hallucinated wrapper is discarded; the deterministic intro is used instead.
+    expect(res.body.message).not.toContain('You have 13 weeks to suffer.');
+    expect(res.body.message).toContain('the thinking behind it');
   });
 
   it('never returns a blank bubble when only a workout card is produced', async () => {

@@ -88,32 +88,27 @@ function fmtSpan(days) {
 }
 
 /**
- * Build a grounded, coach-toned explanation of WHY the arc is shaped the way it
- * is, from the real block structure. Pure + testable. Returns markdown.
+ * The FACTUAL spine of the arc explanation — tier rationale, every phase with
+ * dates/durations/purpose, the taper note, an optional compression heads-up, an
+ * optional blocked-day note, and the calendar/session-count line. Every number,
+ * date, and phase name is computed here from the real block structure. This text
+ * is meant to be used VERBATIM — it must never be paraphrased by an LLM, so the
+ * facts can't drift. Pure + testable. Returns markdown.
  *
- * @param {object} arc result of buildArc ({ blocks, chain_used, validation_status })
+ * @param {object} arc result of buildArc ({ blocks, validation_status })
  * @param {object} opts
- * @param {string} opts.raceName
- * @param {string} opts.raceDate    YYYY-MM-DD
- * @param {'A'|'B'|'C'} opts.tier
- * @param {string} opts.today       YYYY-MM-DD (arc start)
+ * @param {'A'|'B'|'C'} [opts.tier]
  * @param {number} [opts.workoutCount]
  * @param {number} [opts.redistributedCount]
  * @param {string[]} [opts.blockedDayNames]
  * @returns {string}
  */
-export function buildArcExplanation(arc, opts = {}) {
+export function buildArcFactSpine(arc, opts = {}) {
   const blocks = Array.isArray(arc?.blocks) ? arc.blocks : [];
-  const { raceName, raceDate, tier = 'A', today, workoutCount, redistributedCount = 0, blockedDayNames = [] } = opts;
+  const { tier = 'A', workoutCount, redistributedCount = 0, blockedDayNames = [] } = opts;
   if (blocks.length === 0) return '';
 
-  const weeksOut = today && raceDate ? Math.max(1, Math.round(daysBetween(today, raceDate) / 7)) : null;
   const lines = [];
-
-  lines.push(
-    `Here's your plan to **${raceName || 'your race'}**${raceDate ? ` (${fmtDate(raceDate)})` : ''}${weeksOut ? `, ${weeksOut} weeks out` : ''} — and the thinking behind it:`,
-  );
-  lines.push('');
   const tierArticle = tier === 'A' ? 'an' : 'a';
   lines.push(`Because it's ${tierArticle} **${tier}-priority race**, I built ${TIER_RATIONALE[tier] || TIER_RATIONALE.A}.`);
   lines.push('');
@@ -138,9 +133,74 @@ export function buildArcExplanation(arc, opts = {}) {
   }
 
   lines.push('');
-  lines.push(`It's all on your calendar${typeof workoutCount === 'number' ? ` — ${workoutCount} sessions` : ''}. Tap any day to see the details, and tell me if anything needs to move.`);
+  lines.push(`It's all on your calendar${typeof workoutCount === 'number' ? ` — ${workoutCount} sessions` : ''}.`);
 
   return lines.join('\n');
+}
+
+/**
+ * Build a grounded, coach-toned explanation of WHY the arc is shaped the way it
+ * is. Fully deterministic — used directly, and as the FALLBACK when the persona
+ * hybrid is unavailable or fails validation. Pure + testable. Returns markdown.
+ *
+ * @param {object} arc result of buildArc ({ blocks, chain_used, validation_status })
+ * @param {object} opts see buildArcFactSpine, plus:
+ * @param {string} [opts.raceName]
+ * @param {string} [opts.raceDate]   YYYY-MM-DD
+ * @param {string} [opts.today]      YYYY-MM-DD (arc start)
+ * @returns {string}
+ */
+export function buildArcExplanation(arc, opts = {}) {
+  const spine = buildArcFactSpine(arc, opts);
+  if (!spine) return '';
+
+  const { raceName, raceDate, today } = opts;
+  const weeksOut = today && raceDate ? Math.max(1, Math.round(daysBetween(today, raceDate) / 7)) : null;
+  const intro = `Here's your plan to **${raceName || 'your race'}**${raceDate ? ` (${fmtDate(raceDate)})` : ''}${weeksOut ? `, ${weeksOut} weeks out` : ''} — and the thinking behind it:`;
+  const outro = 'Tap any day to see the details, and tell me if anything needs to move.';
+
+  return `${intro}\n\n${spine}\n\n${outro}`;
+}
+
+// Month-abbreviation guard for persona-voice validation (a bare month word is
+// low-risk, but combined with the no-digit rule it keeps dates out entirely).
+const MONTH_RE = /\b(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\b/i;
+
+/**
+ * Gate for LLM-generated persona wrapper text (lead-in / sign-off). Returns true
+ * only for short, voice-only lines that contain NO digits and NO month names — so
+ * a hallucinated date, week count, session count, or phase number is structurally
+ * impossible in the persona layer. All real facts live in the deterministic spine.
+ *
+ * @param {unknown} text
+ * @returns {boolean}
+ */
+export function isCleanPersonaVoice(text) {
+  if (typeof text !== 'string') return false;
+  const t = text.trim();
+  if (t.length === 0 || t.length > 180) return false;
+  if (/[0-9]/.test(t)) return false;           // no numerals → no fabricated counts/dates
+  if (MONTH_RE.test(t)) return false;          // no month words → no fabricated dates
+  return true;
+}
+
+/**
+ * Assemble the hybrid message: a persona-voiced lead-in, the verbatim factual
+ * spine, and a persona-voiced sign-off. Returns null if either wrapper line fails
+ * validation, so the caller falls back to the fully-deterministic explanation.
+ *
+ * @param {object} arc
+ * @param {object} opts see buildArcFactSpine
+ * @param {{ leadIn?: string, signOff?: string }} wrapper
+ * @returns {string|null}
+ */
+export function assembleHybridArcMessage(arc, opts, wrapper) {
+  const spine = buildArcFactSpine(arc, opts);
+  if (!spine) return null;
+  const leadIn = wrapper?.leadIn?.trim();
+  const signOff = wrapper?.signOff?.trim();
+  if (!isCleanPersonaVoice(leadIn) || !isCleanPersonaVoice(signOff)) return null;
+  return `${leadIn}\n\n${spine}\n\n${signOff}`;
 }
 
 /**

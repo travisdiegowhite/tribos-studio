@@ -8,7 +8,7 @@ import { WORKOUT_LIBRARY_FOR_AI, ALL_COACH_TOOLS } from './utils/workoutLibrary.
 import { handleFitnessHistoryQuery } from './utils/fitnessHistoryTool.js';
 import { handleTrainingDataQuery } from './utils/trainingDataTool.js';
 import { generateTrainingPlan, getWorkoutMeta } from './utils/planGenerator.js';
-import { buildArc, generateArcWorkouts, applyAvailabilityToArcWorkouts, buildArcExplanation } from './utils/arcBuilder.js';
+import { buildArc, generateArcWorkouts, applyAvailabilityToArcWorkouts, buildArcExplanation, assembleHybridArcMessage } from './utils/arcBuilder.js';
 import { setupCors } from './utils/cors.js';
 import { generateFuelPlan } from './utils/fuelPlanGenerator.js';
 import { fetchCalendarContext } from './utils/calendarHelper.js';
@@ -520,6 +520,38 @@ async function handleActivateArc(userId, { race, blocks, workouts }) {
   } catch (err) {
     console.error('handleActivateArc failed:', err);
     return { success: false, error: err.message || 'Failed to activate arc' };
+  }
+}
+
+// Generate a SHORT persona-voiced lead-in + sign-off to wrap the deterministic arc
+// fact spine. Voice only — the prompt forbids any numbers/dates/specifics, and the
+// caller re-validates (isCleanPersonaVoice) before use, so facts can never leak in
+// here. Returns { leadIn, signOff } or null (→ caller uses the deterministic message).
+async function generateArcPersonaWrapper(claude, model, persona, raceName) {
+  if (!persona) return null;
+  try {
+    const sys = `You are ${persona.name}, a cycling coach. Voice: ${persona.voice}
+You just built a periodized training plan for the athlete and loaded it onto their calendar. A factual, numbered breakdown of the phases (with dates and session counts) is shown to the athlete separately — you do NOT need to restate any of it.
+Write TWO things in your voice:
+- leadIn: one short sentence introducing the plan (a hook, in character).
+- signOff: one short sentence to close (encouragement / a nudge to follow it, in character).
+HARD RULES: No numbers, no digits, no dates, no month names, no week counts, no phase names. Voice only — the facts live in the breakdown. One sentence each, under 25 words. You may mention the race by name ("${raceName}").
+Respond with ONLY a JSON object: {"leadIn": "...", "signOff": "..."}`;
+    const resp = await claude.messages.create({
+      model,
+      max_tokens: 200,
+      system: sys,
+      messages: [{ role: 'user', content: `Write the leadIn and signOff for the plan to ${raceName}.` }],
+    });
+    const text = resp?.content?.find((c) => c.type === 'text')?.text || '';
+    const match = text.match(/\{[\s\S]*\}/);
+    if (!match) return null;
+    const parsed = JSON.parse(match[0]);
+    if (!parsed?.leadIn || !parsed?.signOff) return null;
+    return { leadIn: String(parsed.leadIn), signOff: String(parsed.signOff) };
+  } catch (err) {
+    console.error('generateArcPersonaWrapper failed (using deterministic message):', err.message);
+    return null;
   }
 }
 
@@ -1888,11 +1920,13 @@ ${conversationSummary}
                 };
                 // Explain WHY the arc is shaped this way, grounded in the real block
                 // structure (the model can't know what the deterministic builder
-                // produced). This replaces the model's vague "building it now" prose.
+                // produced). HYBRID: the factual spine is verbatim; the persona only
+                // voices a lead-in + sign-off, re-validated to contain no facts. Any
+                // failure falls back to the fully-deterministic explanation.
                 const blockedDayNames = (resolvedAvailability?.weeklyAvailability || [])
                   .filter((d) => d.status === 'blocked')
                   .map((d) => ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'][d.dayOfWeek]);
-                responseText = buildArcExplanation(arc, {
+                const explanationOpts = {
                   raceName: targetRace?.name || 'your race',
                   raceDate: targetDate,
                   tier,
@@ -1900,8 +1934,11 @@ ${conversationSummary}
                   workoutCount: act.workoutCount,
                   redistributedCount,
                   blockedDayNames,
-                });
-                console.log(`📅 Auto-activated arc ${act.planId} (${act.workoutCount} workouts).`);
+                };
+                const wrapper = await generateArcPersonaWrapper(claude, model, persona, explanationOpts.raceName);
+                const hybrid = wrapper ? assembleHybridArcMessage(arc, explanationOpts, wrapper) : null;
+                responseText = hybrid || buildArcExplanation(arc, explanationOpts);
+                console.log(`📅 Auto-activated arc ${act.planId} (${act.workoutCount} workouts); explanation: ${hybrid ? 'hybrid persona' : 'deterministic'}.`);
               } else {
                 console.error('Arc activation failed:', act.error);
                 trainingPlanPreview = { error: true, message: 'Failed to build your race plan. Please try again.' };
