@@ -8,7 +8,7 @@ import { WORKOUT_LIBRARY_FOR_AI, ALL_COACH_TOOLS } from './utils/workoutLibrary.
 import { handleFitnessHistoryQuery } from './utils/fitnessHistoryTool.js';
 import { handleTrainingDataQuery } from './utils/trainingDataTool.js';
 import { generateTrainingPlan, getWorkoutMeta } from './utils/planGenerator.js';
-import { buildArc, generateArcWorkouts, applyAvailabilityToArcWorkouts } from './utils/arcBuilder.js';
+import { buildArc, generateArcWorkouts, applyAvailabilityToArcWorkouts, buildArcExplanation } from './utils/arcBuilder.js';
 import { setupCors } from './utils/cors.js';
 import { generateFuelPlan } from './utils/fuelPlanGenerator.js';
 import { fetchCalendarContext } from './utils/calendarHelper.js';
@@ -1886,6 +1886,21 @@ ${conversationSummary}
                   raceName: targetRace?.name || null,
                   raceDate: targetDate,
                 };
+                // Explain WHY the arc is shaped this way, grounded in the real block
+                // structure (the model can't know what the deterministic builder
+                // produced). This replaces the model's vague "building it now" prose.
+                const blockedDayNames = (resolvedAvailability?.weeklyAvailability || [])
+                  .filter((d) => d.status === 'blocked')
+                  .map((d) => ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'][d.dayOfWeek]);
+                responseText = buildArcExplanation(arc, {
+                  raceName: targetRace?.name || 'your race',
+                  raceDate: targetDate,
+                  tier,
+                  today,
+                  workoutCount: act.workoutCount,
+                  redistributedCount,
+                  blockedDayNames,
+                });
                 console.log(`📅 Auto-activated arc ${act.planId} (${act.workoutCount} workouts).`);
               } else {
                 console.error('Arc activation failed:', act.error);

@@ -3,6 +3,7 @@ import {
   buildArc,
   generateArcWorkouts,
   applyAvailabilityToArcWorkouts,
+  buildArcExplanation,
   SESSION_TYPE_TO_WORKOUT_TYPE,
 } from './arcBuilder.js';
 
@@ -172,5 +173,50 @@ describe('applyAvailabilityToArcWorkouts', () => {
     expect(rows.filter((r) => r.workout_type !== 'rest').length).toBe(totalRealBefore);
     // Fewer quality sessions remain on blocked days than before.
     expect(realOnBlocked(rows)).toBeLessThan(beforeReal);
+  });
+});
+
+describe('buildArcExplanation', () => {
+  const arc = buildArc({ today: TODAY, raceDate: RACE, tier: 'A' });
+
+  it('explains the race, tier rationale, every block, and the taper', () => {
+    const text = buildArcExplanation(arc, {
+      raceName: 'The Rad',
+      raceDate: RACE,
+      tier: 'A',
+      today: TODAY,
+      workoutCount: 102,
+    });
+    expect(text).toContain('The Rad');
+    expect(text).toContain('A-priority');
+    // Mentions every block label present in the arc.
+    for (const b of arc.blocks) {
+      const label = {
+        reactivation: 'Reactivation', maintenance: 'Maintenance', recovery: 'Recovery',
+        aerobic_build: 'Aerobic Base', threshold: 'Threshold', vo2: 'VO2 Max',
+        race_specific: 'Race-Specific', taper: 'Taper',
+      }[b.block_type];
+      expect(text).toContain(label);
+    }
+    expect(text.toLowerCase()).toContain('taper');
+    expect(text).toContain('102 sessions');
+  });
+
+  it('mentions blocked-day accommodation only when sessions were moved', () => {
+    const withMove = buildArcExplanation(arc, {
+      raceName: 'The Rad', raceDate: RACE, tier: 'A', today: TODAY,
+      redistributedCount: 3, blockedDayNames: ['Wednesday'],
+    });
+    expect(withMove).toContain('Wednesday');
+
+    const noMove = buildArcExplanation(arc, {
+      raceName: 'The Rad', raceDate: RACE, tier: 'A', today: TODAY,
+      redistributedCount: 0, blockedDayNames: ['Wednesday'],
+    });
+    expect(noMove).not.toContain('Wednesday');
+  });
+
+  it('returns empty string for an arc with no blocks', () => {
+    expect(buildArcExplanation({ blocks: [] }, { raceName: 'X' })).toBe('');
   });
 });

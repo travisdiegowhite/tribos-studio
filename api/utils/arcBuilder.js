@@ -51,6 +51,98 @@ function daysBetween(startStr, endStr) {
   return Math.round((b - a) / 86400000);
 }
 
+// Per-block: a display label and the one-line "why" the coach uses to explain the
+// arc. Keyed by block_type from buildEventAnchoredSequence.
+const BLOCK_INFO = {
+  reactivation: { label: 'Reactivation', why: 'ease back into structure and rebuild the habit after time off the bike' },
+  maintenance: { label: 'Maintenance', why: 'hold your aerobic base while the race is still far out' },
+  recovery: { label: 'Recovery', why: 'absorb the work and let your body adapt' },
+  aerobic_build: { label: 'Aerobic Base', why: 'build aerobic durability and raise your base — the foundation everything else sits on' },
+  threshold: { label: 'Threshold', why: 'lift your sustainable power (FTP) with sweet-spot and threshold work' },
+  vo2: { label: 'VO2 Max', why: 'sharpen your top-end for the hard surges and accelerations' },
+  race_specific: { label: 'Race-Specific', why: 'rehearse the demands of race day with race-pace efforts' },
+  taper: { label: 'Taper', why: 'shed fatigue so you arrive fresh and fast on race day' },
+};
+
+const TIER_RATIONALE = {
+  A: 'a full periodization — base, then threshold, then VO2, then a taper — because this is your top goal',
+  B: 'a focused sharpening block — threshold into VO2, then a short taper — since it\'s an important but secondary race',
+  C: 'a short, sharp build — VO2 into a brief taper — since it\'s a lower-priority tune-up',
+};
+
+const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+
+// Format a YYYY-MM-DD as "Mon D" without timezone drift.
+function fmtDate(dateStr) {
+  const [y, m, d] = String(dateStr).split('-').map(Number);
+  if (!y || !m || !d) return dateStr;
+  return `${MONTHS[m - 1]} ${d}`;
+}
+
+function fmtSpan(days) {
+  if (days >= 7) {
+    const wks = Math.round(days / 7);
+    return `${wks} wk${wks === 1 ? '' : 's'}`;
+  }
+  return `${days} day${days === 1 ? '' : 's'}`;
+}
+
+/**
+ * Build a grounded, coach-toned explanation of WHY the arc is shaped the way it
+ * is, from the real block structure. Pure + testable. Returns markdown.
+ *
+ * @param {object} arc result of buildArc ({ blocks, chain_used, validation_status })
+ * @param {object} opts
+ * @param {string} opts.raceName
+ * @param {string} opts.raceDate    YYYY-MM-DD
+ * @param {'A'|'B'|'C'} opts.tier
+ * @param {string} opts.today       YYYY-MM-DD (arc start)
+ * @param {number} [opts.workoutCount]
+ * @param {number} [opts.redistributedCount]
+ * @param {string[]} [opts.blockedDayNames]
+ * @returns {string}
+ */
+export function buildArcExplanation(arc, opts = {}) {
+  const blocks = Array.isArray(arc?.blocks) ? arc.blocks : [];
+  const { raceName, raceDate, tier = 'A', today, workoutCount, redistributedCount = 0, blockedDayNames = [] } = opts;
+  if (blocks.length === 0) return '';
+
+  const weeksOut = today && raceDate ? Math.max(1, Math.round(daysBetween(today, raceDate) / 7)) : null;
+  const lines = [];
+
+  lines.push(
+    `Here's your plan to **${raceName || 'your race'}**${raceDate ? ` (${fmtDate(raceDate)})` : ''}${weeksOut ? `, ${weeksOut} weeks out` : ''} — and the thinking behind it:`,
+  );
+  lines.push('');
+  const tierArticle = tier === 'A' ? 'an' : 'a';
+  lines.push(`Because it's ${tierArticle} **${tier}-priority race**, I built ${TIER_RATIONALE[tier] || TIER_RATIONALE.A}.`);
+  lines.push('');
+
+  blocks.forEach((b, i) => {
+    const info = BLOCK_INFO[b.block_type] || { label: b.block_type, why: '' };
+    const span = fmtSpan(b.duration_days ?? (daysBetween(b.start_date, b.end_date) + 1));
+    lines.push(`${i + 1}. **${info.label}** (${fmtDate(b.start_date)}–${fmtDate(b.end_date)}, ${span})${info.why ? ` — ${info.why}.` : ''}`);
+  });
+
+  lines.push('');
+  lines.push('Each block builds on the one before it — base before intensity — and the taper lands the week of the race so you peak at the right time.');
+
+  if (arc.validation_status === 'warning') {
+    lines.push('');
+    lines.push('Heads up: the race is close, so I compressed the early blocks to fit a proper taper in. A bit more lead time would let the base phase do more.');
+  }
+
+  if (redistributedCount > 0 && blockedDayNames.length > 0) {
+    lines.push('');
+    lines.push(`You've got **${blockedDayNames.join(' and ')}** blocked, so I shifted your hard sessions off ${blockedDayNames.length > 1 ? 'those days' : 'that day'} onto open days.`);
+  }
+
+  lines.push('');
+  lines.push(`It's all on your calendar${typeof workoutCount === 'number' ? ` — ${workoutCount} sessions` : ''}. Tap any day to see the details, and tell me if anything needs to move.`);
+
+  return lines.join('\n');
+}
+
 /**
  * Build the deterministic arc shape (phase bands) toward a race. Pure: no I/O.
  *
