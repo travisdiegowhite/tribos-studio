@@ -1650,6 +1650,30 @@ const TrainingCalendar = ({ activePlan, rides = [], formatDistance: formatDistan
                               </Badge>
                             </Tooltip>
                           )}
+
+                          {/* Readiness-gated easing indicator (adaptive arc refill) */}
+                          {workout.adjustment_reason && (
+                            <Tooltip
+                              label={
+                                <Stack gap={2}>
+                                  <Text size="xs" fw={600}>Eased for readiness</Text>
+                                  <Text size="xs">{workout.adjustment_reason}</Text>
+                                </Stack>
+                              }
+                              position="bottom"
+                              withArrow
+                            >
+                              <Badge
+                                size="xs"
+                                variant="light"
+                                color="teal"
+                                leftSection={<Heartbeat size={10} />}
+                                style={{ cursor: 'help' }}
+                              >
+                                Eased
+                              </Badge>
+                            </Tooltip>
+                          )}
                           {/* Create Route button - only for today or future workouts */}
                           {!isPast && (
                             <Tooltip label="Create route for this workout" withArrow>
