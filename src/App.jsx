@@ -21,6 +21,9 @@ const Dashboard = lazy(() => import('./pages/Dashboard.jsx'));
 // TodayEntry picks the live Today vs. the routing-first glance, gated on the
 // Route Builder 2.0 beta cohort (parallel-route swap, live Today untouched).
 const TodayEntry = lazy(() => import('./views/today-glance/TodayEntry.tsx'));
+// Training-Arc Today (docs/today-view) — built alongside the glance; mounted at
+// /today/spine for iteration, /today stays on TodayEntry until we flip it.
+const TodaySpine = lazy(() => import('./views/today-spine/TodaySpine.tsx'));
 const RouteBuilder = lazy(() => import('./pages/RouteBuilder.jsx'));
 const TrainingDashboard = lazy(() => import('./pages/TrainingDashboard.jsx'));
 const PlannerPage = lazy(() => import('./pages/PlannerPage.tsx'));
@@ -147,6 +150,15 @@ function AppRoutes() {
         element={
           <ProtectedRoute>
             <TodayEntry />
+          </ProtectedRoute>
+        }
+      />
+      {/* Training-Arc Today — parallel redesign, live /today untouched. */}
+      <Route
+        path="/today/spine"
+        element={
+          <ProtectedRoute>
+            <TodaySpine />
           </ProtectedRoute>
         }
       />
