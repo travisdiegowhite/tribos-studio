@@ -461,6 +461,47 @@ function TrainingDashboard() {
     return () => clearTimeout(timer);
   }, [user]);
 
+  // Adaptive arc refill — ease upcoming arc sessions when the athlete is carrying
+  // fatigue (Increment B2). Stateless/reversible server recompute; runs once per
+  // mount and refreshes the calendar only when something actually changed.
+  const arcRefillRanRef = useRef(false);
+  useEffect(() => {
+    if (!user || arcRefillRanRef.current) return;
+    arcRefillRanRef.current = true;
+
+    const runArcRefill = async () => {
+      try {
+        const token = (await supabase.auth.getSession()).data.session?.access_token;
+        if (!token) return;
+        const response = await fetch('/api/arc-refill', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+          body: JSON.stringify({ userLocalDate: getTodayString() }),
+        });
+        if (!response.ok) return;
+        const result = await response.json();
+        if (result?.count > 0) {
+          // Refresh the calendar/plan views via the existing reload event.
+          window.dispatchEvent(new CustomEvent('training-plan-updated'));
+          const eased = (result.changes || []).filter((c) => c.reason).length;
+          notifications.show({
+            title: 'Plan adapted to your readiness',
+            message: eased > 0
+              ? `Eased ${eased} upcoming session${eased === 1 ? '' : 's'} — you're carrying fatigue.`
+              : `Restored ${result.count} session${result.count === 1 ? '' : 's'} as you've recovered.`,
+            color: 'teal',
+          });
+        }
+      } catch (err) {
+        // Silent fail — background optimization.
+        console.log('ℹ️ Arc refill not available:', err.message);
+      }
+    };
+
+    const timer = setTimeout(runArcRefill, 2500);
+    return () => clearTimeout(timer);
+  }, [user]);
+
   // Load race goals for AI coach context
   useEffect(() => {
     const loadRaceGoals = async () => {

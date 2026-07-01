@@ -225,6 +225,49 @@ export function buildArc({ today, raceDate, tier, recoveryMode }) {
 }
 
 /**
+ * Map one sequencer session to a `planned_workouts`-shaped arc row. Pure.
+ * The row also carries `session_type` + `prescribed_intervals` — these are NOT
+ * `planned_workouts` columns (writers insert an explicit column list and ignore
+ * them), but the refill loop needs them to re-run `evaluateGating`, and the
+ * availability swap keeps them in sync (see ARC_SWAP_FIELDS).
+ *
+ * @param {object} s        a session from generateSessionsForBlock
+ * @param {string} blockType the block's block_type → row.phase
+ * @param {string} arcStart  arc start date (for week_number)
+ * @returns {object} planned_workouts-shaped row (no plan_id/user_id)
+ */
+export function arcSessionToRow(s, blockType, arcStart) {
+  const workoutType = SESSION_TYPE_TO_WORKOUT_TYPE[s.session_type] || 'endurance';
+  const name = SESSION_TYPE_TO_NAME[s.session_type] || 'Workout';
+  const load = s.target_rss ?? null;
+  const duration = s.target_duration_min ?? 0;
+  const dow = new Date(s.date + 'T12:00:00').getDay();
+  const weekNumber = Math.floor(daysBetween(arcStart, s.date) / 7) + 1;
+
+  return {
+    scheduled_date: s.date,
+    day_of_week: dow,
+    week_number: weekNumber,
+    workout_type: workoutType,
+    workout_id: null,
+    name,
+    // dual-write canonical + legacy load per CLAUDE.md metrics freeze
+    target_rss: load,
+    target_tss: load,
+    target_duration: duration || null,
+    duration_minutes: duration || 0,
+    long_ride_flag: !!s.long_ride_flag,
+    notes: s.notes || '',
+    phase: blockType,
+    source: 'arc',
+    completed: false,
+    // transient — not persisted; used by the refill gating pass
+    session_type: s.session_type,
+    prescribed_intervals: s.prescribed_intervals ?? null,
+  };
+}
+
+/**
  * Expand the arc's phase bands into one `planned_workouts` row per day.
  * Pure + unit-testable.
  *
@@ -249,31 +292,7 @@ export function generateArcWorkouts(blocks, options = {}) {
       ctx,
     );
     for (const s of sessions) {
-      const workoutType = SESSION_TYPE_TO_WORKOUT_TYPE[s.session_type] || 'endurance';
-      const name = SESSION_TYPE_TO_NAME[s.session_type] || 'Workout';
-      const load = s.target_rss ?? null;
-      const duration = s.target_duration_min ?? 0;
-      const dow = new Date(s.date + 'T12:00:00').getDay();
-      const weekNumber = Math.floor(daysBetween(arcStart, s.date) / 7) + 1;
-
-      rows.push({
-        scheduled_date: s.date,
-        day_of_week: dow,
-        week_number: weekNumber,
-        workout_type: workoutType,
-        workout_id: null,
-        name,
-        // dual-write canonical + legacy load per CLAUDE.md metrics freeze
-        target_rss: load,
-        target_tss: load,
-        target_duration: duration || null,
-        duration_minutes: duration || 0,
-        long_ride_flag: !!s.long_ride_flag,
-        notes: s.notes || '',
-        phase: block.block_type,
-        source: 'arc',
-        completed: false,
-      });
+      rows.push(arcSessionToRow(s, block.block_type, arcStart));
     }
   }
   return rows;
@@ -292,6 +311,10 @@ const ARC_SWAP_FIELDS = [
   'duration_minutes',
   'long_ride_flag',
   'notes',
+  // transient gating fields — kept in sync so a swapped slot's session_type/intervals
+  // still match its (swapped) workout content for the refill gating pass.
+  'session_type',
+  'prescribed_intervals',
 ];
 
 function swapArcContent(a, b) {

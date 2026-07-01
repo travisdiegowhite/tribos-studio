@@ -3,6 +3,7 @@ import {
   buildArc,
   generateArcWorkouts,
   applyAvailabilityToArcWorkouts,
+  arcSessionToRow,
   buildArcExplanation,
   buildArcFactSpine,
   isCleanPersonaVoice,
@@ -93,6 +94,43 @@ describe('generateArcWorkouts', () => {
   it('returns [] for an empty block list', () => {
     expect(generateArcWorkouts([])).toEqual([]);
     expect(generateArcWorkouts(null)).toEqual([]);
+  });
+});
+
+describe('arcSessionToRow', () => {
+  it('carries transient session_type + prescribed_intervals (not persisted columns)', () => {
+    const s = {
+      date: '2026-07-01',
+      session_type: 'threshold',
+      target_rss: 80,
+      target_duration_min: 65,
+      prescribed_intervals: [{ duration_min: 20, repeats: 2 }],
+      long_ride_flag: false,
+      notes: 'SST',
+    };
+    const row = arcSessionToRow(s, 'threshold', '2026-06-29');
+    expect(row.workout_type).toBe('threshold');
+    expect(row.target_rss).toBe(80);
+    expect(row.target_tss).toBe(80); // dual-write
+    expect(row.phase).toBe('threshold');
+    expect(row.source).toBe('arc');
+    // transient fields the refill gating pass needs
+    expect(row.session_type).toBe('threshold');
+    expect(row.prescribed_intervals).toEqual([{ duration_min: 20, repeats: 2 }]);
+  });
+
+  it('availability swap keeps session_type in sync with moved content', () => {
+    // Two rows in the same week: a threshold on a (to-be) blocked day + a rest day.
+    const rows = [
+      arcSessionToRow({ date: '2026-06-29', session_type: 'threshold', target_rss: 80, target_duration_min: 65 }, 'threshold', '2026-06-29'),
+      arcSessionToRow({ date: '2026-06-30', session_type: 'rest', target_rss: 0, target_duration_min: 0 }, 'threshold', '2026-06-29'),
+    ];
+    applyAvailabilityToArcWorkouts(rows, { weeklyAvailability: [{ dayOfWeek: 1, status: 'blocked' }], preferences: {} });
+    // Monday (blocked) now holds rest; Tuesday holds the threshold — and session_type tracks it.
+    expect(rows[0].workout_type).toBe('rest');
+    expect(rows[0].session_type).toBe('rest');
+    expect(rows[1].workout_type).toBe('threshold');
+    expect(rows[1].session_type).toBe('threshold');
   });
 });
 
