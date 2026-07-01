@@ -49,10 +49,12 @@ describe('buildYScale', () => {
 function makeDays(): DayGeom[] {
   const days: DayGeom[] = [];
   for (let i = 0; i <= 42; i++) {
-    days.push({ index: i, tfi: 44 + (i / 42) * 18, afi: 45, rss: i % 7 === 1 ? 0 : 60, isFuture: false });
+    const rss = i % 7 === 1 ? 0 : 60;
+    days.push({ index: i, tfi: 44 + (i / 42) * 18, afi: 45, rss, isFuture: false, planned: rss > 0 });
   }
   for (let k = 0; k < 21; k++) {
-    days.push({ index: 43 + k, tfi: 62 + k * 0.2, afi: 55, rss: k < 11 ? 90 : 20, isFuture: true });
+    const rss = k < 11 ? 90 : 20;
+    days.push({ index: 43 + k, tfi: 62 + k * 0.2, afi: 55, rss, isFuture: true, planned: true });
   }
   return days;
 }
@@ -104,6 +106,20 @@ describe('buildChart', () => {
     const flat = makeDays().map((d) => (d.isFuture ? { ...d, tfi: 60 } : d)); // below today (62)
     const chart = buildChart(flat, 42, null, dates);
     expect(chart.peak).toBeNull();
+  });
+
+  it('draws future bars only for planned sessions, not projection fill', () => {
+    const noPlan = makeDays().map((d) => (d.isFuture ? { ...d, planned: false } : d));
+    const chart = buildChart(noPlan, 42, null, dates);
+    expect(chart.bars.some((b) => b.stroke === '#e0c9a3')).toBe(false); // no hollow bars
+    expect(chart.futureLine.length).toBeGreaterThan(0); // dashed line still drawn
+  });
+
+  it('marks at most one key-session dot per planned week', () => {
+    const chart = buildChart(makeDays(), 42, null, dates);
+    // 21 future days = 3 week-chunks; weeks whose max RSS is only 20 get no dot.
+    expect(chart.plannedDots.length).toBeLessThanOrEqual(3);
+    expect(chart.plannedDots.length).toBeGreaterThan(0);
   });
 });
 

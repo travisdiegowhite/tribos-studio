@@ -91,6 +91,8 @@ export interface DayGeom {
   afi: number;
   rss: number;
   isFuture: boolean;
+  /** Real session (ride done / plan-row workout) vs projection-only fill. */
+  planned: boolean;
 }
 
 export interface SpineChart {
@@ -109,7 +111,7 @@ export interface SpineChart {
 }
 
 const HARD_RSS = 72; // past ride gets a solid dot at/above this
-const PLANNED_DOT_RSS = 70; // future planned session gets a hollow dot
+const PLANNED_DOT_RSS = 50; // floor for a week's key session to earn a hollow dot
 
 /**
  * Build all static chart geometry. `days` is ascending; `todayIndex` is the
@@ -157,8 +159,10 @@ export function buildChart(
       });
     }
   });
+  // Hollow planned bars only for real plan sessions — the no-plan maintenance
+  // fill shapes the dashed line but must not masquerade as scheduled workouts.
   future.forEach((d, k) => {
-    if (d.rss > 0) {
+    if (d.planned && d.rss > 0) {
       const h = barHeight(d.rss);
       bars.push({
         x: xFuture(k + 1, future.length || 1) - 4,
@@ -176,10 +180,23 @@ export function buildChart(
     .filter((o) => o.d.rss >= HARD_RSS)
     .map((o) => ({ x: xPast(o.i, pastDays), y: yOf(o.d.tfi) }));
 
-  const plannedDots = future
-    .map((d, k) => ({ d, k }))
-    .filter((o) => o.d.rss >= PLANNED_DOT_RSS)
-    .map((o) => ({ x: xFuture(o.k + 1, future.length || 1), y: yOf(o.d.tfi) }));
+  // Hollow dots mark the key session of each planned week (the max-RSS plan-row
+  // day per 7-day chunk) — a handful of markers, not one per hard day.
+  const plannedDots: Array<{ x: number; y: number }> = [];
+  for (let start = 0; start < future.length; start += 7) {
+    let bestK = -1;
+    let bestRss = 0;
+    for (let k = start; k < Math.min(start + 7, future.length); k++) {
+      const d = future[k];
+      if (d.planned && d.rss > bestRss) {
+        bestRss = d.rss;
+        bestK = k;
+      }
+    }
+    if (bestK >= 0 && bestRss >= PLANNED_DOT_RSS) {
+      plannedDots.push({ x: xFuture(bestK + 1, future.length), y: yOf(future[bestK].tfi) });
+    }
+  }
 
   // Peak = highest projected TFI — but only marked when it's a genuine future
   // build (climbing ≥2 TFI and ≥3 days out). A flat/declining rest-week

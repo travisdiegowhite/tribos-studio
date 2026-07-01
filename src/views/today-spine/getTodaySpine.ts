@@ -15,6 +15,7 @@
 import { supabase } from '../../lib/supabase';
 import { estimateActivityTSS } from '../../utils/computeFitnessSnapshots';
 import { stepDay } from '../../lib/training/tsb-projection';
+import { TYPE_TSS_PER_HOUR } from '../../lib/training/constants';
 import { PERSONAS } from '../../data/coachingPersonas';
 import { fmtDate } from '../today/athleteMetrics';
 import type { AthleteActivityRow, ServerLoadRow } from '../today/athleteMetrics';
@@ -55,6 +56,24 @@ function readinessFromFS(fs: number): number {
 }
 function daysStr(n: number): string {
   return n === 1 ? '1 day' : `${n} days`;
+}
+
+const REST_TYPES = /rest|recover|off/i;
+
+/**
+ * Resolve a planned workout row's daily RSS. Canonical-first, then estimate from
+ * workout type × duration via the training lib's TYPE_TSS_PER_HOUR convention —
+ * coach-generated plans can carry null target_rss, and a coach-built plan must
+ * shape the projection exactly like a library plan.
+ */
+export function plannedRowRSS(p: PlannedRow): number {
+  if (REST_TYPES.test(p.workout_type ?? '')) return 0;
+  const stored = p.target_rss ?? p.target_tss;
+  if (stored != null && Number(stored) > 0) return Number(stored);
+  const type = (p.workout_type ?? 'endurance').toLowerCase();
+  const perHour = TYPE_TSS_PER_HOUR[type] ?? TYPE_TSS_PER_HOUR.endurance;
+  const minutes = Number(p.duration_minutes ?? p.target_duration ?? 0) || 60;
+  return Math.round(perHour.mid * (minutes / 60));
 }
 function formWord(fs: number): string {
   if (fs > 10) return 'fresh and building';
@@ -234,6 +253,7 @@ export function assembleSpine(input: AssembleInput): SpineData {
       afi: dAfi,
       fs,
       rss,
+      planned: rss > 0,
       readiness: readinessFromFS(fs),
       volHours: volHoursAt(date),
       activity: labelActivity({
@@ -248,12 +268,14 @@ export function assembleSpine(input: AssembleInput): SpineData {
     });
   }
 
-  // ── Future 21 days (projection) ─────────────────────────────────────────
+  // ── Future days (projection) ────────────────────────────────────────────
   const plannedByDate = new Map<string, PlannedRow>();
   for (const p of planned) plannedByDate.set(p.scheduled_date, p);
+  const hasPlan = planned.length > 0;
 
-  // Fill unplanned future days with the rider's recent daily rhythm so the
-  // curve reflects "keep this up", not an artificial nosedive to zero.
+  // With no plan at all, fill future days with the rider's recent daily rhythm
+  // so the curve reflects "keep this up" instead of an artificial nosedive.
+  // With a plan, an empty day IS a rest day — no phantom fill.
   let trailing = 0;
   for (let k = 0; k < 7; k++) trailing += dailyRSS[fmtDate(addDays(today, -k))] || 0;
   const maintenanceRSS = trailing / 7;
@@ -269,8 +291,8 @@ export function assembleSpine(input: AssembleInput): SpineData {
   for (let k = 1; k <= futureSpan; k++) {
     const date = fmtDate(addDays(today, k));
     const p = plannedByDate.get(date);
-    const plannedRSS = p ? (p.target_rss ?? p.target_tss ?? null) : null;
-    const rss = plannedRSS != null ? Number(plannedRSS) : maintenanceRSS;
+    const rss = p ? plannedRowRSS(p) : hasPlan ? 0 : maintenanceRSS;
+    const isPlannedSession = !!p && rss > 0;
     state = stepDay(state, rss);
     const dTfi = Math.round(state.tfi);
     const dAfi = Math.round(state.afi);
@@ -285,6 +307,7 @@ export function assembleSpine(input: AssembleInput): SpineData {
       afi: dAfi,
       fs,
       rss: Math.round(rss),
+      planned: isPlannedSession,
       readiness: readinessFromFS(fs),
       volHours: durationMin / 60,
       activity: labelActivity({

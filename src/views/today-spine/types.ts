@@ -42,6 +42,12 @@ export interface DayNode {
   afi: number; // Acute Fatigue Index (displayed as ATL)
   fs: number; // Form Score = TFI − AFI (displayed as TSB)
   rss: number; // daily load (0 on a rest day); planned target on future days
+  /**
+   * True when the day carries a real session — a completed ride in the past, a
+   * plan-row workout in the future. False for rest days AND for the no-plan
+   * maintenance fill that only shapes the projection line (never drawn as bars).
+   */
+  planned: boolean;
   readiness: number; // derived from FS, clamped 28..96
   volHours: number; // rolling 7-day ride time, hours
   activity: DayActivity;
