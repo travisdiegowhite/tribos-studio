@@ -1,0 +1,560 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet data-dc-atomics>
+<meta name="design_doc_mode" content="canvas">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700;800&family=Barlow:wght@400;500;600&family=DM+Mono:wght@300;400;500&display=swap" rel="stylesheet">
+<style>
+  *{box-sizing:border-box}
+  body{margin:0;background:#e6e5e1;font-family:'Barlow',system-ui,sans-serif;letter-spacing:-.01em;-webkit-font-smoothing:antialiased}
+  @keyframes tbob{0%,80%,100%{transform:translateY(0);opacity:.35}40%{transform:translateY(-4px);opacity:1}}
+  @keyframes tpulse{0%,100%{opacity:.5;r:5}50%{opacity:1;r:7}}
+  .tb-dot{animation:tbob 1.4s ease-in-out infinite}
+  .tb-scroll::-webkit-scrollbar{width:8px}
+  .tb-scroll::-webkit-scrollbar-thumb{background:#cfcdc6}
+</style>
+</helmet>
+
+<div style="display:flex;gap:40px;align-items:flex-start;padding:40px 46px 56px">
+
+  <!-- ============================ DESKTOP ============================ -->
+  <div data-screen-label="Today — desktop" style="flex:none;width:1180px;background:#F4F4F2;border:1.5px solid #23211d;box-shadow:0 10px 40px rgba(20,16,8,.14)">
+
+    <!-- top app nav -->
+    <div style="display:flex;align-items:center;gap:30px;background:#141410;padding:0 22px;height:54px">
+      <div style="display:flex;align-items:center;gap:9px">
+        <div style="width:22px;height:22px;background:#2A8C82;display:flex;align-items:center;justify-content:center;font:800 15px 'Barlow Condensed';color:#141410">T</div>
+        <span style="font:500 12px 'DM Mono',monospace;letter-spacing:2.5px;color:#F4F4F2">TRIBOS.STUDIO</span>
+      </div>
+      <div style="display:flex;gap:26px;margin-left:8px">
+        <span style="font:500 11px 'DM Mono',monospace;letter-spacing:1.5px;color:#F4F4F2;border-bottom:2px solid #2A8C82;padding:18px 0">TODAY</span>
+        <span style="font:500 11px 'DM Mono',monospace;letter-spacing:1.5px;color:#7A7970;padding:18px 0">TRAIN</span>
+        <span style="font:500 11px 'DM Mono',monospace;letter-spacing:1.5px;color:#7A7970;padding:18px 0">ROUTES</span>
+        <span style="font:500 11px 'DM Mono',monospace;letter-spacing:1.5px;color:#7A7970;padding:18px 0">COMMUNITY</span>
+      </div>
+      <div style="margin-left:auto;display:flex;align-items:center;gap:16px">
+        <div style="display:flex;align-items:center;gap:6px"><span style="width:6px;height:6px;border-radius:50%;background:#2A8C82"></span><span style="font:400 10px 'DM Mono',monospace;letter-spacing:1px;color:#7A7970">SYNCED · STRAVA</span></div>
+        <div style="width:28px;height:28px;border-radius:50%;background:#3D3C36;border:1.5px solid #2A8C82"></div>
+      </div>
+    </div>
+
+    <!-- page header -->
+    <div style="display:flex;align-items:flex-end;justify-content:space-between;padding:26px 30px 18px">
+      <div>
+        <div style="font:500 11px 'DM Mono',monospace;letter-spacing:3px;color:#2A8C82;margin-bottom:5px">DEPARTMENT OF CYCLING INTELLIGENCE</div>
+        <h1 style="margin:0;font:700 34px 'Barlow Condensed';letter-spacing:.04em;text-transform:uppercase;color:#141410">Today <span style="color:#7A7970;font-weight:600">— Tue 30 Jun</span></h1>
+      </div>
+      <div style="text-align:right">
+        <div style="font:400 13px/1.5 'Barlow';color:#3D3C36;max-width:280px;text-align:right">You're fresh and building. Peak lands in <strong style="color:#141410">9 days</strong>, right on the gran fondo.</div>
+      </div>
+    </div>
+
+    <!-- =================== ZONE 02 — SPINE (with 01 node) =================== -->
+    <div style="margin:0 30px;background:#FFFFFF;border:1.5px solid #DDDDD8;box-shadow:0 1px 3px rgba(20,16,8,.07),0 4px 12px rgba(20,16,8,.05)">
+      <div style="display:flex;align-items:center;justify-content:space-between;padding:13px 18px 4px">
+        <div style="display:flex;align-items:center;gap:9px"><span style="font:500 10px 'DM Mono',monospace;letter-spacing:2px;color:#7A7970">02</span><span style="width:5px;height:5px;background:#D4600A"></span><span style="font:500 11px 'DM Mono',monospace;letter-spacing:2px;color:#141410">TRAINING ARC</span></div>
+        <div style="display:flex;gap:16px;align-items:center;font:400 10px 'DM Mono',monospace;letter-spacing:1px;color:#7A7970">
+          <span style="display:flex;align-items:center;gap:5px"><span style="width:16px;height:2px;background:#141410"></span>FITNESS · CTL</span>
+          <span style="display:flex;align-items:center;gap:5px"><span style="width:16px;height:0;border-top:2px dashed #7A7970"></span>PROJECTED</span>
+          <span style="display:flex;align-items:center;gap:5px"><span style="width:10px;height:10px;background:#e9e6dd"></span>DAILY TSS</span>
+        </div>
+      </div>
+
+      <div style="padding:6px 18px 16px">
+        <div ref="{{ spineRef }}" onPointerDown="{{ onScrubDown }}" style="position:relative;cursor:ew-resize;touch-action:none">
+          <svg viewBox="0 0 1144 216" width="100%" style="display:block" preserveAspectRatio="none">
+            <defs>
+              <linearGradient id="ctlfill" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#141410" stop-opacity=".07"></stop><stop offset="1" stop-color="#141410" stop-opacity="0"></stop></linearGradient>
+            </defs>
+            <g stroke="#efeee9" stroke-width="1">
+              <line x1="40" y1="14" x2="40" y2="188"></line><line x1="150" y1="14" x2="150" y2="188"></line><line x1="260" y1="14" x2="260" y2="188"></line><line x1="370" y1="14" x2="370" y2="188"></line><line x1="480" y1="14" x2="480" y2="188"></line><line x1="590" y1="14" x2="590" y2="188"></line><line x1="810" y1="14" x2="810" y2="188"></line><line x1="920" y1="14" x2="920" y2="188"></line><line x1="1030" y1="14" x2="1030" y2="188"></line>
+            </g>
+            <line x1="24" y1="188" x2="1120" y2="188" stroke="#dcdad3" stroke-width="1.5"></line>
+            <rect x="{{ selBandX }}" y="14" width="14" height="174" fill="rgba(42,140,130,.09)"></rect>
+            <sc-for list="{{ bars }}" as="b" hint-placeholder-count="16"><rect x="{{ b.x }}" y="{{ b.y }}" width="8" height="{{ b.h }}" fill="{{ b.fill }}" stroke="{{ b.stroke }}" stroke-dasharray="{{ b.dash }}"></rect></sc-for>
+            <path d="{{ pastArea }}" fill="url(#ctlfill)"></path>
+            <path d="{{ pastPath }}" fill="none" stroke="#141410" stroke-width="2.75"></path>
+            <path d="{{ futurePath }}" fill="none" stroke="#7A7970" stroke-width="2.5" stroke-dasharray="5 4"></path>
+            <sc-for list="{{ pastDots }}" as="pd" hint-placeholder-count="5"><circle cx="{{ pd.x }}" cy="{{ pd.y }}" r="3" fill="#141410"></circle></sc-for>
+            <sc-for list="{{ plannedDots }}" as="pl" hint-placeholder-count="2"><circle cx="{{ pl.x }}" cy="{{ pl.y }}" r="4" fill="#F4F4F2" stroke="#C49A0A" stroke-width="2"></circle></sc-for>
+            <line x1="{{ peakX }}" y1="20" x2="{{ peakX }}" y2="188" stroke="#C49A0A" stroke-width="1.2" stroke-dasharray="3 3"></line>
+            <circle cx="{{ peakX }}" cy="{{ peakY }}" r="4.5" fill="#C49A0A"></circle>
+            <text x="{{ peakLabelX }}" y="30" style="font:500 9px 'DM Mono',monospace;fill:#C49A0A;letter-spacing:1px">PEAK</text>
+            <line x1="1080" y1="20" x2="1080" y2="188" stroke="#C43C2A" stroke-width="1.2"></line>
+            <path d="M1080,20 h34 v13 h-34 z" fill="#C43C2A"></path>
+            <text x="1084" y="30" style="font:500 8px 'DM Mono',monospace;fill:#fff;letter-spacing:.5px">FONDO</text>
+            <sc-if value="{{ selBarShow }}" hint-placeholder-val="{{ false }}"><rect x="{{ selBarX }}" y="{{ selBarY }}" width="8" height="{{ selBarH }}" fill="#2A8C82" opacity=".55"></rect></sc-if>
+            <line x1="{{ selX }}" y1="28" x2="{{ selX }}" y2="188" stroke="#2A8C82" stroke-width="1.6" stroke-dasharray="4 3"></line>
+            <rect x="{{ selLabelX }}" y="10" width="88" height="17" fill="#2A8C82"></rect>
+            <text x="{{ selLabelTX }}" y="22" text-anchor="middle" style="font:500 9px 'DM Mono',monospace;fill:#fff;letter-spacing:1px">{{ selDateShort }}</text>
+            <circle cx="{{ selX }}" cy="{{ selY }}" r="5.5" fill="#2A8C82" stroke="#fff" stroke-width="2"></circle>
+            <text x="40" y="208" style="font:500 9px 'DM Mono',monospace;fill:#9a988f;letter-spacing:1px">6 WK AGO</text>
+            <text x="380" y="208" style="font:500 9px 'DM Mono',monospace;fill:#9a988f;letter-spacing:1px">PAST</text>
+            <text x="880" y="208" style="font:500 9px 'DM Mono',monospace;fill:#c0a878;letter-spacing:1px">NEXT 3 WEEKS · PLANNED</text>
+          </svg>
+
+          <!-- ===== ZONE 01 — TODAY NODE (scrubs along the spine) ===== -->
+          <div style="position:absolute;left:{{ nodeLeftPct }};top:52px;transform:translateX(-50%);width:236px;background:rgba(255,255,255,.18);backdrop-filter:blur(6px) saturate(1.05);-webkit-backdrop-filter:blur(6px) saturate(1.05);border:1.5px solid #2A8C82;box-shadow:0 12px 30px rgba(20,16,8,.16)">
+            <div style="padding:7px 12px 8px;border-bottom:1px solid rgba(255,255,255,.32);background:rgba(42,140,130,.62);cursor:grab">
+              <div style="display:flex;align-items:center;justify-content:space-between">
+                <span style="font:500 8.5px 'DM Mono',monospace;letter-spacing:1px;color:rgba(255,255,255,.88);white-space:nowrap">{{ headerLabel }}</span>
+                <sc-if value="{{ notToday }}" hint-placeholder-val="{{ false }}">
+                  <button onPointerDown="{{ stop }}" onClick="{{ snapToday }}" style="border:1px solid rgba(255,255,255,.55);background:rgba(255,255,255,.16);color:#fff;font:500 8px 'DM Mono',monospace;letter-spacing:1.5px;padding:2px 7px;cursor:pointer">TODAY ▸</button>
+                </sc-if>
+              </div>
+              <div style="display:flex;align-items:center;gap:7px;margin-top:5px">
+                <span style="flex:none;font:500 8px 'DM Mono',monospace;letter-spacing:.5px;color:{{ actTagColor }};border:1px solid rgba(255,255,255,.5);padding:1px 5px">{{ actTag }}</span>
+                <span style="min-width:0;font:600 12.5px 'Barlow';color:#fff;letter-spacing:.01em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ actName }}</span>
+                <span style="margin-left:auto;flex:none;font:400 9px 'DM Mono',monospace;color:rgba(255,255,255,.82)">{{ actMeta }}</span>
+              </div>
+            </div>
+            <div onPointerDown="{{ stop }}" onClick="{{ toggleFlip }}" style="cursor:pointer;position:relative">
+              <sc-if value="{{ showFront }}" hint-placeholder-val="{{ true }}">
+                <div style="padding:11px 12px 9px">
+                  <div style="display:flex;align-items:flex-start;justify-content:space-between">
+                    <div>
+                      <div style="font:500 9px 'DM Mono',monospace;letter-spacing:1.5px;color:#45443f;text-shadow:0 1px 1px rgba(244,244,242,.9)">FORM · TSB</div>
+                      <div style="display:flex;align-items:baseline;gap:6px"><span style="font:500 41px/.9 'DM Mono',monospace;color:#0e0e0b;font-variant-numeric:tabular-nums;text-shadow:0 1px 3px rgba(244,244,242,1),0 0 3px rgba(244,244,242,1),0 0 6px rgba(244,244,242,.8)">{{ formTSB }}</span><span style="font:500 15px 'DM Mono',monospace;color:{{ arrowColor }}">{{ arrowChar }}</span></div>
+                      <div style="font:600 11px 'Barlow';color:{{ stateColor }};letter-spacing:.02em;margin-top:2px;text-shadow:0 1px 2px rgba(244,244,242,.95)">{{ stateText }}</div>
+                    </div>
+                    <div onMouseEnter="{{ ringEnter }}" onMouseLeave="{{ ringLeave }}" onClick="{{ stop }}" style="text-align:center;cursor:help">
+                      <svg width="54" height="54" viewBox="0 0 64 64"><circle cx="32" cy="32" r="25" fill="none" stroke="#EBEBE8" stroke-width="7"></circle><circle cx="32" cy="32" r="25" fill="none" stroke="{{ ringColor }}" stroke-width="7" stroke-dasharray="{{ ringDash }}" stroke-linecap="round" transform="rotate(-90 32 32)"></circle><text x="32" y="34" text-anchor="middle" style="font:500 18px 'DM Mono',monospace;fill:#0e0e0b;paint-order:stroke;stroke:rgba(244,244,242,1);stroke-width:3.5px">{{ readyNum }}</text><text x="32" y="45" text-anchor="middle" style="font:500 6px 'DM Mono',monospace;fill:#7A7970;letter-spacing:1px">READY</text></svg>
+                    </div>
+                  </div>
+                  <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:0;margin-top:11px;border-top:1px dashed #DDDDD8">
+                    <div style="padding:8px 0 0"><div style="font:500 8px 'DM Mono',monospace;letter-spacing:1px;color:#55544e;text-shadow:0 1px 1px rgba(244,244,242,.85)">CTL · FITNESS</div><div style="font:500 20px 'DM Mono',monospace;color:#0e0e0b;text-shadow:0 1px 2px rgba(244,244,242,1),0 0 4px rgba(244,244,242,.85)">{{ selCtl }}</div></div>
+                    <div style="padding:8px 0 0;border-left:1px solid #eeece6;padding-left:12px"><div style="font:500 8px 'DM Mono',monospace;letter-spacing:1px;color:#55544e;text-shadow:0 1px 1px rgba(244,244,242,.85)">ATL · FATIGUE</div><div style="font:500 20px 'DM Mono',monospace;color:#0e0e0b;text-shadow:0 1px 2px rgba(244,244,242,1),0 0 4px rgba(244,244,242,.85)">{{ selAtl }}</div></div>
+                    <div style="padding:8px 0 0;border-left:1px solid #eeece6;padding-left:12px"><div style="font:500 8px 'DM Mono',monospace;letter-spacing:1px;color:#55544e;text-shadow:0 1px 1px rgba(244,244,242,.85)">WK VOLUME</div><div style="font:500 20px 'DM Mono',monospace;color:#0e0e0b;text-shadow:0 1px 2px rgba(244,244,242,1),0 0 4px rgba(244,244,242,.85)">{{ selVol }}</div></div>
+                  </div>
+                  <div style="font:400 8.5px 'DM Mono',monospace;letter-spacing:1px;color:#c9c7c0;margin-top:9px;text-align:center">CLICK FOR CTL / ATL DETAIL</div>
+                </div>
+                <sc-if value="{{ ringHover }}" hint-placeholder-val="{{ false }}">
+                  <div style="position:absolute;right:12px;top:98px;width:206px;background:#141410;border:1px solid #2A8C82;box-shadow:0 10px 24px rgba(20,16,8,.35);padding:11px 12px;z-index:5">
+                    <div style="font:500 8px 'DM Mono',monospace;letter-spacing:1.5px;color:#3BA89D;margin-bottom:8px">WHY READINESS {{ readyNum }}</div>
+                    <sc-for list="{{ reasons }}" as="r" hint-placeholder-count="4">
+                      <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:5px">
+                        <span style="font:400 11px 'Barlow';color:#B0B0A8">{{ r.k }}</span>
+                        <span style="font:500 10px 'DM Mono',monospace;color:{{ r.c }}">{{ r.v }}</span>
+                      </div>
+                    </sc-for>
+                    <div style="border-top:1px solid #2E2E2A;margin-top:6px;padding-top:6px;font:400 10px/1.35 'Barlow';color:#7A7970">→ feeds today's coach call</div>
+                  </div>
+                </sc-if>
+              </sc-if>
+              <sc-if value="{{ flipped }}" hint-placeholder-val="{{ false }}">
+                <div style="padding:11px 12px 9px">
+                  <div style="font:500 9px 'DM Mono',monospace;letter-spacing:1.5px;color:#7A7970;margin-bottom:10px">TREND · {{ headerDate }}</div>
+                  <div style="margin-bottom:12px">
+                    <div style="display:flex;align-items:baseline;justify-content:space-between;margin-bottom:3px"><span style="font:400 9px 'DM Mono',monospace;color:#9a988f">CTL · 42-DAY FITNESS</span><span style="font:500 13px 'DM Mono',monospace;color:#141410">{{ selCtl }} <span style="color:{{ ctlDeltaColor }};font-size:10px">{{ ctlDelta }}</span></span></div>
+                    <svg viewBox="0 0 130 32" width="100%" height="34" preserveAspectRatio="none"><polyline points="{{ ctlSpark }}" fill="none" stroke="#141410" stroke-width="1.6"></polyline></svg>
+                  </div>
+                  <div>
+                    <div style="display:flex;align-items:baseline;justify-content:space-between;margin-bottom:3px"><span style="font:400 9px 'DM Mono',monospace;color:#9a988f">ATL · 7-DAY FATIGUE</span><span style="font:500 13px 'DM Mono',monospace;color:#141410">{{ selAtl }} <span style="color:{{ atlDeltaColor }};font-size:10px">{{ atlDelta }}</span></span></div>
+                    <svg viewBox="0 0 130 32" width="100%" height="34" preserveAspectRatio="none"><polyline points="{{ atlSpark }}" fill="none" stroke="#D4600A" stroke-width="1.6"></polyline></svg>
+                  </div>
+                  <div style="font:400 8.5px 'DM Mono',monospace;letter-spacing:1px;color:#c9c7c0;margin-top:10px;text-align:center">CLICK TO CLOSE</div>
+                </div>
+              </sc-if>
+            </div>
+          </div>
+        </div>
+        <div style="font:400 10.5px 'Barlow';color:#9a988f;margin-top:12px;text-align:center">Drag the node along the spine to scrub past days · click it for the CTL/ATL trend · hover the ring for readiness</div>
+      </div>
+    </div>
+
+    <!-- =================== ZONE 03 + 04 =================== -->
+    <div style="display:grid;grid-template-columns:1.32fr 1fr;gap:20px;padding:20px 30px 30px">
+
+      <!-- ZONE 03 — WHERE YOU RIDE (dark map) -->
+      <div style="background:#FFFFFF;border:1.5px solid #DDDDD8;box-shadow:0 1px 3px rgba(20,16,8,.07),0 4px 12px rgba(20,16,8,.05);display:flex;flex-direction:column">
+        <div style="display:flex;align-items:center;justify-content:space-between;padding:13px 16px 11px">
+          <div style="display:flex;align-items:center;gap:9px"><span style="font:500 10px 'DM Mono',monospace;letter-spacing:2px;color:#7A7970">03</span><span style="width:5px;height:5px;background:#C49A0A"></span><span style="font:500 11px 'DM Mono',monospace;letter-spacing:2px;color:#141410">WHERE YOU RIDE</span></div>
+          <span style="font:400 10px 'DM Mono',monospace;letter-spacing:1px;color:#7A7970">LAST 4 RIDES</span>
+        </div>
+        <div style="position:relative;flex:1;min-height:230px;background:#141410;overflow:hidden">
+          <svg viewBox="0 0 560 260" width="100%" height="100%" preserveAspectRatio="xMidYMid slice" style="display:block">
+            <defs><filter id="rl" x="-20%" y="-20%" width="140%" height="140%"><feGaussianBlur stdDeviation="4"/></filter></defs>
+            <!-- faint street grid -->
+            <g stroke="#232320" stroke-width="1">
+              <path d="M0,64 H560 M0,128 H560 M0,192 H560 M120,0 V260 M250,0 V260 M380,0 V260 M480,0 V260"/>
+            </g>
+            <g stroke="#1e1e1b" stroke-width="6" opacity=".6"><path d="M120,0 V260"/><path d="M0,128 H560"/></g>
+            <!-- secondary rides (dim teal) -->
+            <g stroke="#2A8C82" stroke-width="3" fill="none" stroke-linecap="round" opacity=".35">
+              <path d="M92,206 C150,150 210,182 250,140 S340,96 402,132"/>
+              <path d="M150,224 C210,196 262,214 316,178 S420,168 470,120"/>
+              <path d="M72,150 C118,120 158,150 214,122 S300,150 356,104"/>
+            </g>
+            <!-- hero ride: blurred shadow + solid -->
+            <path d="M96,214 C146,150 214,176 258,128 S356,74 402,102 S492,70 512,96" stroke="#2A8C82" stroke-width="8" fill="none" stroke-linecap="round" opacity=".18" filter="url(#rl)"/>
+            <path d="M96,214 C146,150 214,176 258,128 S356,74 402,102 S492,70 512,96" stroke="#2A8C82" stroke-width="3.2" fill="none" stroke-linecap="round" opacity=".95"/>
+            <circle cx="96" cy="214" r="5" fill="#141410" stroke="#2A8C82" stroke-width="2.5"/>
+            <circle cx="512" cy="96" r="5" fill="#C43C2A"/>
+          </svg>
+          <!-- map chips -->
+          <div style="position:absolute;left:14px;bottom:14px;display:flex;gap:10px">
+            <div style="background:rgba(20,16,8,.72);backdrop-filter:blur(8px);border:1px solid rgba(255,255,255,.12);padding:7px 10px"><div style="font:400 8px 'DM Mono',monospace;letter-spacing:1px;color:#9a988f">THIS WEEK</div><div style="font:500 16px 'DM Mono',monospace;color:#F4F4F2">182<span style="font-size:10px;color:#9a988f"> km</span></div></div>
+            <div style="background:rgba(20,16,8,.72);backdrop-filter:blur(8px);border:1px solid rgba(255,255,255,.12);padding:7px 10px"><div style="font:400 8px 'DM Mono',monospace;letter-spacing:1px;color:#9a988f">ELEV</div><div style="font:500 16px 'DM Mono',monospace;color:#F4F4F2">2,140<span style="font-size:10px;color:#9a988f"> m</span></div></div>
+            <div style="background:rgba(20,16,8,.72);backdrop-filter:blur(8px);border:1px solid rgba(255,255,255,.12);padding:7px 10px"><div style="font:400 8px 'DM Mono',monospace;letter-spacing:1px;color:#9a988f">RIDES</div><div style="font:500 16px 'DM Mono',monospace;color:#F4F4F2">4</div></div>
+          </div>
+          <div style="position:absolute;right:14px;top:14px;background:rgba(20,16,8,.72);backdrop-filter:blur(8px);border:1px solid rgba(255,255,255,.12);padding:6px 9px;font:400 9px 'DM Mono',monospace;letter-spacing:1px;color:#9a988f">BOULDER FOOTHILLS</div>
+        </div>
+      </div>
+
+      <!-- ZONE 04 — COACH -->
+      <div style="background:#FFFFFF;border:1.5px solid #2A8C82;box-shadow:0 1px 3px rgba(20,16,8,.07),0 4px 12px rgba(20,16,8,.05);display:flex;flex-direction:column">
+        <div style="display:flex;align-items:center;justify-content:space-between;padding:13px 16px 11px;border-bottom:1px solid #DDDDD8">
+          <div style="display:flex;align-items:center;gap:9px"><span style="font:500 10px 'DM Mono',monospace;letter-spacing:2px;color:#7A7970">04</span><span style="width:6px;height:6px;border-radius:50%;background:#C49A0A"></span><span style="font:500 11px 'DM Mono',monospace;letter-spacing:2px;color:#141410">COACH</span></div>
+          <span style="font:400 10px 'DM Mono',monospace;letter-spacing:1px;color:#7A7970">AI · LIVE</span>
+        </div>
+
+        <!-- recommendation -->
+        <div style="padding:13px 16px 0">
+          <div style="border-left:3px solid #2A8C82;background:rgba(42,140,130,.10);padding:11px 13px">
+            <div style="font:500 9px 'DM Mono',monospace;letter-spacing:2px;color:#2A8C82;margin-bottom:5px">TODAY'S CALL</div>
+            <div style="font:700 18px 'Barlow Condensed';letter-spacing:.03em;text-transform:uppercase;color:#141410">Hygiene Loop</div>
+            <div style="font:400 13px/1.5 'Barlow';color:#3D3C36;margin-top:3px">32 km · ~195W · Z2 endurance. You're fresh — keep it easy and bank the aerobic time.</div>
+          </div>
+        </div>
+
+        <!-- chat thread -->
+        <div class="tb-scroll" style="flex:1;min-height:120px;max-height:180px;overflow-y:auto;padding:12px 16px;display:flex;flex-direction:column;gap:8px">
+          <sc-for list="{{ messages }}" as="m" hint-placeholder-count="2">
+            <div style="align-self:{{ m.align }};max-width:82%;background:{{ m.bg }};border:1px solid {{ m.border }};padding:8px 11px">
+              <div style="font:400 13px/1.45 'Barlow';color:#141410">{{ m.text }}</div>
+            </div>
+          </sc-for>
+          <sc-if value="{{ typing }}" hint-placeholder-val="{{ false }}">
+            <div style="align-self:flex-start;background:rgba(42,140,130,.10);border:1px solid rgba(42,140,130,.22);padding:9px 12px;display:flex;gap:4px;align-items:center">
+              <span class="tb-dot" style="width:6px;height:6px;border-radius:50%;background:#2A8C82;animation-delay:0s"></span>
+              <span class="tb-dot" style="width:6px;height:6px;border-radius:50%;background:#2A8C82;animation-delay:.2s"></span>
+              <span class="tb-dot" style="width:6px;height:6px;border-radius:50%;background:#2A8C82;animation-delay:.4s"></span>
+            </div>
+          </sc-if>
+        </div>
+
+        <!-- input -->
+        <div style="padding:10px 16px 14px;border-top:1px solid #DDDDD8">
+          <div style="display:flex;gap:7px;flex-wrap:wrap;margin-bottom:9px">
+            <button onClick="{{ askChip }}" data-q="I only have 60 min today" style="border:1px solid #DDDDD8;background:#F4F4F2;padding:5px 9px;font:400 11px 'Barlow';color:#3D3C36;cursor:pointer">60 min today?</button>
+            <button onClick="{{ askChip }}" data-q="Should I push harder this week?" style="border:1px solid #DDDDD8;background:#F4F4F2;padding:5px 9px;font:400 11px 'Barlow';color:#3D3C36;cursor:pointer">Push harder?</button>
+          </div>
+          <div style="display:flex;gap:8px">
+            <input value="{{ draft }}" onInput="{{ onInput }}" onKeyDown="{{ onKey }}" placeholder="Ask your coach…" style="flex:1;border:1.5px solid #DDDDD8;background:#fff;padding:10px 12px;font:400 13px 'Barlow';color:#141410;outline:none"/>
+            <button onClick="{{ send }}" style="border:1.5px solid #141410;background:#141410;color:#fff;padding:0 16px;font:500 10px 'DM Mono',monospace;letter-spacing:2px;cursor:pointer">ASK</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============================ MOBILE ============================ -->
+  <div style="flex:none;display:flex;flex-direction:column;gap:12px;align-items:center">
+    <div style="font:500 10px 'DM Mono',monospace;letter-spacing:2px;color:#7a7970">MOBILE REFLOW</div>
+    <div data-screen-label="Today — mobile" style="width:340px;background:#141410;border-radius:34px;padding:9px;box-shadow:0 14px 40px rgba(20,16,8,.28)">
+      <div style="background:#F4F4F2;border-radius:26px;overflow:hidden">
+        <!-- status + header -->
+        <div style="background:#141410;padding:10px 18px 14px">
+          <div style="display:flex;justify-content:space-between;align-items:center;font:500 10px 'DM Mono',monospace;color:#F4F4F2"><span>9:41</span><span style="letter-spacing:2px;color:#7A7970">TRIBOS</span></div>
+          <div style="font:500 9px 'DM Mono',monospace;letter-spacing:2px;color:#2A8C82;margin-top:12px">TODAY — TUE 30 JUN</div>
+        </div>
+        <!-- 01 form headline card -->
+        <div style="margin:12px;background:#fff;border:1.5px solid #2A8C82;box-shadow:0 6px 18px rgba(42,140,130,.16)">
+          <div style="background:#2A8C82;padding:7px 12px;font:500 9px 'DM Mono',monospace;letter-spacing:2px;color:#fff">01 — FITNESS STATE</div>
+          <div style="padding:12px;display:flex;align-items:center;justify-content:space-between">
+            <div><div style="font:400 8px 'DM Mono',monospace;letter-spacing:1.5px;color:#7A7970">FORM · TSB</div><div style="display:flex;align-items:baseline;gap:5px"><span style="font:500 38px/.9 'DM Mono',monospace">+14</span><span style="color:#2A8C82;font:500 15px 'DM Mono',monospace">▲</span></div><div style="font:500 9px 'Barlow';color:#2A8C82">FRESH · trending up</div></div>
+            <svg width="56" height="56" viewBox="0 0 64 64"><circle cx="32" cy="32" r="25" fill="none" stroke="#EBEBE8" stroke-width="7"/><circle cx="32" cy="32" r="25" fill="none" stroke="#2A8C82" stroke-width="7" stroke-dasharray="122.5 157" stroke-linecap="round" transform="rotate(-90 32 32)"/><text x="32" y="35" text-anchor="middle" style="font:500 15px 'DM Mono',monospace;fill:#141410">78</text></svg>
+          </div>
+          <div style="display:grid;grid-template-columns:1fr 1fr 1fr;border-top:1px dashed #DDDDD8">
+            <div style="padding:8px 10px"><div style="font:400 7.5px 'DM Mono',monospace;color:#9a988f">CTL</div><div style="font:500 17px 'DM Mono',monospace">62</div></div>
+            <div style="padding:8px 10px;border-left:1px solid #eeece6"><div style="font:400 7.5px 'DM Mono',monospace;color:#9a988f">ATL</div><div style="font:500 17px 'DM Mono',monospace">48</div></div>
+            <div style="padding:8px 10px;border-left:1px solid #eeece6"><div style="font:400 7.5px 'DM Mono',monospace;color:#9a988f">VOL</div><div style="font:500 17px 'DM Mono',monospace">6.5h</div></div>
+          </div>
+        </div>
+        <!-- 02 spine (compact, horizontally scrollable feel) -->
+        <div style="margin:0 12px 12px;background:#fff;border:1.5px solid #DDDDD8">
+          <div style="padding:9px 12px 2px;font:500 9px 'DM Mono',monospace;letter-spacing:2px;color:#141410"><span style="color:#7A7970">02</span> · TRAINING ARC</div>
+          <svg viewBox="0 0 300 96" width="100%" style="display:block;padding:4px 8px 8px" preserveAspectRatio="none"><line x1="8" y1="82" x2="292" y2="82" stroke="#e6e3dc"/><path d="M8,72 C50,68 78,58 118,48 S172,32 176,30" fill="none" stroke="#141410" stroke-width="2.5"/><path d="M176,30 C210,26 244,30 292,20" fill="none" stroke="#7A7970" stroke-width="2.5" stroke-dasharray="4 3"/><line x1="176" y1="8" x2="176" y2="88" stroke="#2A8C82" stroke-width="1.4" stroke-dasharray="3 3"/><circle cx="176" cy="30" r="4" fill="#2A8C82"/><text x="180" y="16" style="font:500 7px 'DM Mono',monospace;fill:#2A8C82">TODAY</text><circle cx="250" cy="24" r="3.5" fill="#C49A0A"/><text x="235" y="94" style="font:500 7px 'DM Mono',monospace;fill:#c0a878">PLANNED</text></svg>
+          <div style="padding:0 12px 10px;font:400 11px 'Barlow';color:#3D3C36">Peak in 9 days — right on the fondo.</div>
+        </div>
+        <!-- 03 map -->
+        <div style="margin:0 12px 12px;border:1.5px solid #DDDDD8;background:#141410;position:relative;height:120px;overflow:hidden">
+          <svg viewBox="0 0 300 120" width="100%" height="100%" preserveAspectRatio="xMidYMid slice"><g stroke="#232320"><path d="M0,40 H300 M0,80 H300 M100,0 V120 M200,0 V120"/></g><path d="M40,100 C80,64 130,84 160,54 S240,34 272,58" stroke="#2A8C82" stroke-width="3" fill="none" stroke-linecap="round" opacity=".9"/><path d="M60,110 C110,88 150,98 190,74 S250,74 280,50" stroke="#2A8C82" stroke-width="2.5" fill="none" opacity=".35"/><circle cx="40" cy="100" r="4" fill="#141410" stroke="#2A8C82" stroke-width="2"/><circle cx="272" cy="58" r="4" fill="#C43C2A"/></svg>
+          <div style="position:absolute;left:8px;bottom:8px;display:flex;gap:6px"><div style="background:rgba(20,16,8,.72);padding:4px 7px;font:500 10px 'DM Mono',monospace;color:#F4F4F2">182<span style="font-size:8px;color:#9a988f"> km</span></div><div style="background:rgba(20,16,8,.72);padding:4px 7px;font:500 10px 'DM Mono',monospace;color:#F4F4F2">4 rides</div></div>
+          <div style="position:absolute;left:8px;top:8px;font:500 8px 'DM Mono',monospace;letter-spacing:1px;color:#9a988f">03 · WHERE YOU RIDE</div>
+        </div>
+        <!-- 04 coach -->
+        <div style="margin:0 12px 14px;border:1.5px solid #2A8C82;background:#fff">
+          <div style="padding:8px 12px;border-bottom:1px solid #DDDDD8;font:500 9px 'DM Mono',monospace;letter-spacing:2px;color:#141410"><span style="color:#7A7970">04</span> · COACH</div>
+          <div style="padding:11px 12px 0"><div style="border-left:3px solid #2A8C82;background:rgba(42,140,130,.10);padding:8px 10px"><div style="font:500 8px 'DM Mono',monospace;letter-spacing:1.5px;color:#2A8C82">TODAY'S CALL</div><div style="font:700 15px 'Barlow Condensed';letter-spacing:.03em;text-transform:uppercase;color:#141410">Hygiene Loop</div><div style="font:400 11px/1.4 'Barlow';color:#3D3C36;margin-top:2px">32 km · ~195W · Z2. Keep it easy.</div></div></div>
+          <div style="display:flex;gap:7px;padding:11px 12px 14px"><div style="flex:1;border:1.5px solid #DDDDD8;padding:9px 10px;font:400 11px 'Barlow';color:#9a988f">Ask your coach…</div><div style="border:1.5px solid #141410;background:#141410;color:#fff;padding:9px 12px;font:500 9px 'DM Mono',monospace;letter-spacing:2px">ASK</div></div>
+        </div>
+      </div>
+    </div>
+    <div style="width:340px;font:400 12px/1.55 'Barlow';color:#7a7970;text-align:center">Same 01→02→03→04 order, stacked — form headline first, so the whole story still reads on one thumb-scroll.</div>
+  </div>
+
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:1700,&quot;height&quot;:1000}}">
+class Component extends DCLogic {
+  constructor(props) {
+    super(props);
+    this.past = this.buildSeries();
+    this.buildGeometry();
+    this.state = {
+      selected: 42,
+      flipped: false,
+      ringHover: false,
+      dispTSB: 0,
+      dispReady: 0,
+      draft: "",
+      typing: false,
+      messages: [
+        { align: "flex-end", bg: "#F4F4F2", border: "#DDDDD8", text: "I have 90 min before work. What should I ride?" },
+        { align: "flex-start", bg: "rgba(42,140,130,.10)", border: "rgba(42,140,130,.22)", text: "Your CTL is 62 and you rested yesterday — you're fresh. I'd suggest the Hygiene Loop at ~195W. Endurance pace, keep it easy." }
+      ]
+    };
+  }
+
+  componentDidMount() {
+    const d = this.past[42];
+    this.animate(d.tsb, d.ready);
+  }
+
+  /* ---------- data ---------- */
+  buildSeries() {
+    const N = 42, smooth = t => t * t * (3 - 2 * t), days = [];
+    for (let i = 0; i <= N; i++) {
+      const t = i / N;
+      let ctl = 44 + 18 * smooth(t);
+      let atl = ctl - 2 + 6 * Math.sin(i * 0.8 + 1);
+      let tss = (i % 7 === 1 || i % 7 === 5) ? 0 : Math.round(38 + 52 * (0.5 + 0.5 * Math.sin(i * 1.3)));
+      days.push({ ctl, atl, tss });
+    }
+    days[N].ctl = 62; days[N].atl = 48;
+    days[N - 1].atl = 52; days[N - 2].atl = 57;
+    days.forEach(d => {
+      d.ctl = Math.round(d.ctl);
+      d.atl = Math.round(d.atl);
+      d.tsb = d.ctl - d.atl;
+      d.ready = Math.max(28, Math.min(96, Math.round(52 + d.tsb * 1.86)));
+    });
+    days.forEach((d, i) => {
+      let s = 0;
+      for (let k = Math.max(0, i - 6); k <= i; k++) s += days[k].tss;
+      d.vol = (s / 58).toFixed(1) + "h";
+    });
+    days[N].vol = "6.5h";
+    const base = new Date(2026, 5, 30);
+    days.forEach((d, i) => {
+      const dt = new Date(base);
+      dt.setDate(base.getDate() + (i - N));
+      d.date = dt.toLocaleDateString("en-GB", { weekday: "short", day: "2-digit", month: "short" }).toUpperCase();
+    });
+    days.forEach((d, i) => { d.act = this.activity(d, i); });
+    return days;
+  }
+
+  activity(d, i) {
+    if (i === 42) return { tag: "PLAN", name: "Hygiene Loop", meta: "32 km · ~195W", tagColor: "#ffffff" };
+    if (d.tss === 0) return { tag: "REST", name: "Recovery day", meta: "off the bike", tagColor: "#dfeae6" };
+    const min = Math.round(d.tss * 1.4);
+    const dur = Math.floor(min / 60) + "h" + ("0" + (min % 60)).slice(-2);
+    const endur = ["Foothills loop", "Valley endurance", "Reservoir loop", "Canyon spin"];
+    if (d.tss < 45) return { tag: "Z1", name: "Recovery spin", meta: dur + " · " + d.tss + " TSS", tagColor: "#d3efe1" };
+    if (d.tss < 70) return { tag: "Z2", name: endur[i % endur.length], meta: dur + " · " + d.tss + " TSS", tagColor: "#d3efe1" };
+    if (d.tss < 88) return { tag: "Z3", name: "Tempo blocks", meta: dur + " · " + d.tss + " TSS", tagColor: "#ffe1a0" };
+    return { tag: "Z4", name: "Threshold 4×8", meta: dur + " · " + d.tss + " TSS", tagColor: "#ffcf8f" };
+  }
+
+  xPast(i) { return 40 + 660 * (i / 42); }
+  yCtl(c) { return Math.max(24, Math.min(178, 170 - (c - 40) / 26 * 130)); }
+
+  buildGeometry() {
+    const days = this.past;
+    // future projection (IR toward a hard block then taper)
+    const pts = []; let c = 62;
+    for (let k = 1; k <= 21; k++) {
+      const load = k <= 11 ? 96 : 22;
+      c = c + (load - c) / 42;
+      pts.push({ k, x: 700 + 390 * (k / 21), ctl: c, y: this.yCtl(c) });
+    }
+    this.peak = pts.reduce((a, b) => (b.ctl > a.ctl ? b : a), pts[0]);
+
+    this.pastPath = days.map((d, i) => `${i ? "L" : "M"}${this.xPast(i).toFixed(1)},${this.yCtl(d.ctl).toFixed(1)}`).join(" ");
+    this.pastArea = this.pastPath + " L700,188 L40,188 Z";
+    this.futurePath = `M700,${this.yCtl(62).toFixed(1)} ` + pts.map(p => `L${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(" ");
+
+    const bars = [];
+    days.forEach((d, i) => {
+      if (d.tss > 0) {
+        const h = Math.min(72, d.tss / 95 * 72);
+        bars.push({ x: (this.xPast(i) - 4).toFixed(1), y: (188 - h).toFixed(1), h: h.toFixed(1), fill: "#e9e6dd", stroke: "none", dash: "" });
+      }
+    });
+    const fk = [1, 3, 5, 7, 9, 13, 17], fh = [68, 44, 80, 42, 58, 40, 50];
+    fk.forEach((k, idx) => {
+      const p = pts[k - 1], h = fh[idx];
+      bars.push({ x: (p.x - 4).toFixed(1), y: (188 - h).toFixed(1), h: "" + h, fill: "none", stroke: "#e0c9a3", dash: "2 2" });
+    });
+    this.bars = bars;
+
+    this.pastDots = days.map((d, i) => ({ d, i })).filter(o => o.d.tss >= 72)
+      .map(o => ({ x: this.xPast(o.i).toFixed(1), y: this.yCtl(o.d.ctl).toFixed(1) }));
+    this.plannedDots = [pts[4], pts[10]].map(p => ({ x: p.x.toFixed(1), y: p.y.toFixed(1) }));
+  }
+
+  /* ---------- interaction ---------- */
+  animate(tsb, ready) {
+    const dur = 750, t0 = performance.now(), ease = x => 1 - Math.pow(1 - x, 3);
+    const step = now => {
+      const p = Math.min(1, (now - t0) / dur);
+      this.setState({ dispTSB: tsb * ease(p), dispReady: ready * ease(p) });
+      if (p < 1) requestAnimationFrame(step);
+    };
+    requestAnimationFrame(step);
+  }
+
+  select(i) {
+    i = Math.max(0, Math.min(42, i));
+    if (i === this.state.selected) return;
+    const d = this.past[i];
+    this.setState({ selected: i, dispTSB: d.tsb, dispReady: d.ready, flipped: false, ringHover: false });
+  }
+
+  scrub(e) {
+    if (!this.spineEl) return;
+    const r = this.spineEl.getBoundingClientRect();
+    const svgX = ((e.clientX - r.left) / r.width) * 1144;
+    this.select(Math.round((svgX - 40) / 660 * 42));
+  }
+
+  onScrubDown(e) {
+    this.scrub(e);
+    const mv = ev => this.scrub(ev);
+    const up = () => { window.removeEventListener("pointermove", mv); window.removeEventListener("pointerup", up); };
+    window.addEventListener("pointermove", mv);
+    window.addEventListener("pointerup", up);
+  }
+
+  snapToday(e) {
+    e.stopPropagation();
+    const d = this.past[42];
+    this.setState({ selected: 42, flipped: false, ringHover: false, dispTSB: 0, dispReady: 0 });
+    this.animate(d.tsb, d.ready);
+  }
+
+  /* ---------- coach chat ---------- */
+  reply(q) {
+    const t = q.toLowerCase();
+    if (t.includes("60") || t.includes("min")) return "60 min is plenty for the aerobic stimulus you need. Ride the front half of the Hygiene Loop at ~185W, skip the ridge, keep it Z2.";
+    if (t.includes("harder") || t.includes("push")) return "Not yet — your form is +14 and I want you fresh for the fondo. Two quality days are already queued Thu/Sat. Hold easy today.";
+    return "Given your form is +14 and fitness is trending up, keep today endurance. I'll adjust the plan if you tell me your available time.";
+  }
+
+  push(text, mine) {
+    this.setState(s => ({
+      messages: s.messages.concat([mine
+        ? { align: "flex-end", bg: "#F4F4F2", border: "#DDDDD8", text }
+        : { align: "flex-start", bg: "rgba(42,140,130,.10)", border: "rgba(42,140,130,.22)", text }])
+    }));
+  }
+
+  ask(q) {
+    if (!q || !q.trim()) return;
+    this.push(q.trim(), true);
+    this.setState({ draft: "", typing: true });
+    setTimeout(() => { this.setState({ typing: false }); this.push(this.reply(q), false); }, 1100);
+  }
+
+  /* ---------- render ---------- */
+  renderVals() {
+    const C = 157.0796, S = this.state, days = this.past, i = S.selected, d = days[i];
+    const act = d.act || this.activity(d, i);
+    const ringColor = d.ready >= 70 ? "#2A8C82" : d.ready >= 45 ? "#C49A0A" : "#C43C2A";
+    const arrowChar = d.tsb > 3 ? "▲" : d.tsb < -3 ? "▼" : "—";
+    const arrowColor = d.tsb > 3 ? "#2A8C82" : d.tsb < -3 ? "#C43C2A" : "#C49A0A";
+    let stateText, stateColor;
+    if (d.tsb > 10) { stateText = "FRESH · trending up"; stateColor = "#2A8C82"; }
+    else if (d.tsb >= 5) { stateText = "FRESH"; stateColor = "#2A8C82"; }
+    else if (d.tsb >= -5) { stateText = "NEUTRAL · grey zone"; stateColor = "#7A7970"; }
+    else if (d.tsb >= -20) { stateText = "FATIGUED · loading"; stateColor = "#D4600A"; }
+    else { stateText = "DEEP FATIGUE"; stateColor = "#C43C2A"; }
+
+    const ctl7 = days[Math.max(0, i - 7)].ctl, atlY = days[Math.max(0, i - 1)].atl;
+    const ctlDeltaN = d.ctl - ctl7, atlDeltaN = d.atl - atlY;
+    const ctlDelta = (ctlDeltaN >= 0 ? "+" : "") + ctlDeltaN, atlDelta = (atlDeltaN >= 0 ? "+" : "") + atlDeltaN;
+    const ctlDeltaColor = ctlDeltaN > 8 ? "#C43C2A" : ctlDeltaN >= 0 ? "#2A8C82" : "#7A7970";
+    const atlDeltaColor = atlDeltaN > 0 ? "#C43C2A" : "#2A8C82";
+
+    const cy = v => (28 - (v - 40) / 26 * 24).toFixed(1);
+    const ctlSpark = days.map((x, k) => `${(2 + k / 42 * 126).toFixed(1)},${cy(x.ctl)}`).join(" ");
+    const l7 = days.slice(Math.max(0, i - 6), i + 1);
+    const atlSpark = l7.map((x, k) => `${(2 + k / (l7.length - 1 || 1) * 126).toFixed(1)},${cy(x.atl)}`).join(" ");
+
+    const prevTss = i > 0 ? days[i - 1].tss : 0;
+    const prevLabel = prevTss === 0 ? "Rest day" : prevTss < 45 ? "Easy" : prevTss < 75 ? "Moderate" : "Hard";
+    const prevColor = prevTss < 45 ? "#3BA89D" : prevTss < 75 ? "#C49A0A" : "#D45035";
+    const rampColor = ctlDeltaN > 8 ? "#D45035" : ctlDeltaN >= 0 ? "#3BA89D" : "#7A7970";
+    const reasons = [
+      { k: "Sleep", v: "7h 20m", c: "#3BA89D" },
+      { k: "HRV", v: "62 ms ▲", c: "#3BA89D" },
+      { k: "Yesterday", v: prevLabel, c: prevColor },
+      { k: "7-day ramp", v: ctlDelta + " CTL", c: rampColor }
+    ];
+
+    return {
+      // spine (static)
+      bars: this.bars, pastDots: this.pastDots, plannedDots: this.plannedDots,
+      pastPath: this.pastPath, pastArea: this.pastArea, futurePath: this.futurePath,
+      peakX: this.peak.x.toFixed(1), peakY: this.peak.y.toFixed(1), peakLabelX: (this.peak.x + 8).toFixed(1),
+      // selected node
+      selX: this.xPast(i).toFixed(1), selY: this.yCtl(d.ctl).toFixed(1),
+      selBandX: (this.xPast(i) - 7).toFixed(1),
+      selLabelX: Math.max(24, Math.min(1052, this.xPast(i) - 44)).toFixed(1),
+      selLabelTX: (Math.max(24, Math.min(1052, this.xPast(i) - 44)) + 44).toFixed(1),
+      selDateShort: d.date,
+      selBarShow: d.tss > 0,
+      selBarX: (this.xPast(i) - 4).toFixed(1),
+      selBarH: Math.min(72, d.tss / 95 * 72).toFixed(1),
+      selBarY: (188 - Math.min(72, d.tss / 95 * 72)).toFixed(1),
+      nodeLeftPct: (this.xPast(i) / 1144 * 100).toFixed(2) + "%",
+      headerLabel: i === 42 ? "01 · TODAY · " + d.date : "01 · " + d.date,
+      actTag: act.tag, actName: act.name, actMeta: act.meta, actTagColor: act.tagColor,
+      headerDate: i === 42 ? "TODAY · " + d.date : d.date,
+      notToday: i !== 42,
+      showFront: !S.flipped, flipped: S.flipped, ringHover: S.ringHover,
+      formTSB: (S.dispTSB >= 0 ? "+" : "") + Math.round(S.dispTSB),
+      arrowChar, arrowColor, stateText, stateColor,
+      ringColor, ringDash: `${(S.dispReady / 100 * C).toFixed(1)} ${C.toFixed(1)}`, readyNum: Math.round(S.dispReady),
+      selCtl: d.ctl, selAtl: d.atl, selVol: d.vol,
+      ctlDelta, ctlDeltaColor, atlDelta, atlDeltaColor, ctlSpark, atlSpark, reasons,
+      // handlers
+      spineRef: el => { this.spineEl = el; },
+      onScrubDown: e => this.onScrubDown(e),
+      stop: e => e.stopPropagation(),
+      toggleFlip: () => this.setState(s => ({ flipped: !s.flipped, ringHover: false })),
+      snapToday: e => this.snapToday(e),
+      ringEnter: () => this.setState({ ringHover: true }),
+      ringLeave: () => this.setState({ ringHover: false }),
+      // chat
+      messages: S.messages, typing: S.typing, draft: S.draft,
+      onInput: e => this.setState({ draft: e.target.value }),
+      onKey: e => { if (e.key === "Enter") this.ask(e.target.value); },
+      send: () => this.ask(this.state.draft),
+      askChip: e => this.ask(e.currentTarget.getAttribute("data-q"))
+    };
+  }
+}
+</script>
+</body>
+</html>
