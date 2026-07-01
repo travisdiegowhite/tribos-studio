@@ -32,6 +32,11 @@ interface SpinePanelProps {
   onRingLeave: () => void;
 }
 
+/** Short, article-stripped event name for the coral flag (e.g. "The Rad" → "RAD"). */
+function eventShortLabel(name: string): string {
+  return name.replace(/^(the|a|an)\s+/i, '').trim().slice(0, 6).toUpperCase() || 'GOAL';
+}
+
 function LegendKey({ swatch, label }: { swatch: React.ReactNode; label: string }) {
   return (
     <span style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
@@ -58,6 +63,8 @@ export function SpinePanel({
 }: SpinePanelProps) {
   const spineRef = useRef<HTMLDivElement>(null);
   const { days, todayIndex, event } = data;
+  const futureDays = days.length - todayIndex - 1;
+  const futureWeeks = Math.max(1, Math.round(futureDays / 7));
 
   const chart = useMemo(() => {
     const geom: DayGeom[] = days.map((d) => ({
@@ -203,13 +210,28 @@ export function SpinePanel({
             )}
 
             {/* event flag */}
-            {chart.event && (
+            {chart.event && event && (
               <>
                 <line x1={chart.event.x} y1="20" x2={chart.event.x} y2={BASELINE_Y} stroke={C.coral} strokeWidth="1.2" />
-                <path d={`M${chart.event.x},20 h34 v13 h-34 z`} fill={C.coral} />
-                <text x={chart.event.labelX} y="30" style={{ fontFamily: FONT.mono, fontWeight: 500, fontSize: 8, fill: '#fff', letterSpacing: '.5px' }}>
-                  {(event?.name ?? 'EVENT').slice(0, 5).toUpperCase()}
+                <path d={`M${chart.event.x - 34},20 h34 v13 h-34 z`} fill={C.coral} />
+                <text
+                  x={chart.event.x - 31}
+                  y="30"
+                  style={{ fontFamily: FONT.mono, fontWeight: 500, fontSize: 8, fill: '#fff', letterSpacing: '.5px' }}
+                >
+                  {eventShortLabel(event.name)}
                 </text>
+                {/* When the event is past the projection window, say how far. */}
+                {chart.event.beyond && (
+                  <text
+                    x={chart.event.x - 3}
+                    y="44"
+                    textAnchor="end"
+                    style={{ fontFamily: FONT.mono, fontWeight: 500, fontSize: 8, fill: C.coral, letterSpacing: '.5px' }}
+                  >
+                    {chart.event.daysOut}d →
+                  </text>
+                )}
               </>
             )}
 
@@ -236,7 +258,7 @@ export function SpinePanel({
               PAST
             </text>
             <text x="880" y="208" style={{ fontFamily: FONT.mono, fontWeight: 500, fontSize: 9, fill: CHART.axisFuture, letterSpacing: '1px' }}>
-              NEXT 3 WEEKS · PLANNED
+              NEXT {futureWeeks} WEEKS · PLANNED
             </text>
           </svg>
 

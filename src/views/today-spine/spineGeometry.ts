@@ -104,7 +104,8 @@ export interface SpineChart {
   /** Hollow dots on key planned future sessions. */
   plannedDots: Array<{ x: number; y: number }>;
   peak: { x: number; y: number; labelX: number } | null;
-  event: { x: number; labelX: number } | null;
+  /** `beyond` = the event falls past the projection window; pinned at the edge. */
+  event: { x: number; labelX: number; beyond: boolean; daysOut: number } | null;
 }
 
 const HARD_RSS = 72; // past ride gets a solid dot at/above this
@@ -180,7 +181,9 @@ export function buildChart(
     .filter((o) => o.d.rss >= PLANNED_DOT_RSS)
     .map((o) => ({ x: xFuture(o.k + 1, future.length || 1), y: yOf(o.d.tfi) }));
 
-  // Peak = highest projected TFI.
+  // Peak = highest projected TFI — but only marked when it's a genuine future
+  // build (climbing ≥2 TFI and ≥3 days out). A flat/declining rest-week
+  // projection would otherwise plant a "PEAK" flag right next to today.
   let peak: SpineChart['peak'] = null;
   if (future.length) {
     let best = future[0];
@@ -191,23 +194,24 @@ export function buildChart(
         bestK = k + 1;
       }
     });
-    const px = xFuture(bestK, future.length);
-    peak = { x: px, y: yOf(best.tfi), labelX: px + 8 };
+    const todayTfi = past.length ? past[past.length - 1].tfi : best.tfi;
+    if (best.tfi >= todayTfi + 2 && bestK >= 3) {
+      const px = xFuture(bestK, future.length);
+      peak = { x: px, y: yOf(best.tfi), labelX: px + 8 };
+    }
   }
 
   // Event flag — map the goal date onto the future axis when it falls inside
   // the projection window; otherwise pin it at the far-right flag position.
   let eventGeom: SpineChart['event'] = null;
-  if (event?.date) {
-    const todayDate = dayDates[todayIndex];
+  const todayDate = dayDates[todayIndex];
+  if (event?.date && todayDate) {
     const evMs = new Date(`${event.date}T00:00:00`).getTime();
     const todayMs = new Date(`${todayDate}T00:00:00`).getTime();
     const daysOut = Math.round((evMs - todayMs) / 86_400_000);
-    let ex = EVENT_FLAG_X;
-    if (future.length && daysOut > 0 && daysOut <= future.length) {
-      ex = xFuture(daysOut, future.length);
-    }
-    eventGeom = { x: ex, labelX: ex + 4 };
+    const inWindow = future.length > 0 && daysOut > 0 && daysOut <= future.length;
+    const ex = inWindow ? xFuture(daysOut, future.length) : EVENT_FLAG_X;
+    eventGeom = { x: ex, labelX: ex + 4, beyond: !inWindow, daysOut };
   }
 
   return { scale, pastLine, pastArea, futureLine, bars, pastDots, plannedDots, peak, event: eventGeom };

@@ -85,6 +85,35 @@ describe('assembleSpine', () => {
     expect(data.summaryLine).toContain('Gran Fondo');
   });
 
+  it('extends the projection window to reach a far-out event', () => {
+    const event = { name: 'The Rad', date: fmt(addDays(NOW, 64)), daysToRace: 64, priority: 'A' };
+    const data = assembleSpine(baseInput({ event }));
+    expect(data.days).toHaveLength(43 + 64); // 43 past + 64 projected
+    expect(data.days[data.days.length - 1].isFuture).toBe(true);
+  });
+
+  it('caps the projection window at 16 weeks for very distant events', () => {
+    const event = { name: 'Nationals', date: fmt(addDays(NOW, 300)), daysToRace: 300, priority: 'A' };
+    const data = assembleSpine(baseInput({ event }));
+    expect(data.days).toHaveLength(43 + 112);
+  });
+
+  it('writes a pluralized, article-free event summary (no "the The Rad", no "1 days")', () => {
+    const far = { name: 'The Rad', date: fmt(addDays(NOW, 64)), daysToRace: 64, priority: 'A' };
+    const farData = assembleSpine(baseInput({ event: far }));
+    expect(farData.summaryLine).toContain('64 days to The Rad');
+    expect(farData.summaryLine).not.toContain('the The Rad');
+
+    const soon = { name: 'Crit', date: fmt(addDays(NOW, 1)), daysToRace: 1, priority: 'A' };
+    const soonData = assembleSpine(baseInput({ event: soon }));
+    expect(soonData.summaryLine).toContain('1 day to Crit');
+  });
+
+  it('does not claim a peak when the projection is flat/declining', () => {
+    const data = assembleSpine(baseInput()); // no event, no activities → decays
+    expect(data.summaryLine).not.toContain('Peak');
+  });
+
   it('labels a rest day and a today PLAN chip', () => {
     const data = assembleSpine(
       baseInput({ todaysWorkout: { name: 'Hygiene Loop', type: 'endurance', durationMin: 90 } }),

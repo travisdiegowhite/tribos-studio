@@ -22,7 +22,9 @@ import { mapRowToRecentRide, type RecentRide } from '../today/shared/recentRides
 import type { DayActivity, DayNode, SpineData, SpineEvent, WeekRollup, CoachSeed } from './types';
 
 const PAST_SPAN = 42; // 43-day history incl. today (indices 0..42)
-const FUTURE_SPAN = 21; // 3-week projection (indices 43..63)
+const DEFAULT_FUTURE_SPAN = 21; // 3-week projection when there's no goal event
+const MIN_FUTURE_SPAN = 21; // never show less than 3 weeks ahead
+const MAX_FUTURE_SPAN = 112; // cap the projection at 16 weeks
 const KM_PER_MILE = 1.609344;
 const M_PER_FOOT = 0.3048;
 const RSS_CAP = 500;
@@ -50,6 +52,9 @@ function dateLabel(dateKey: string): string {
 
 function readinessFromFS(fs: number): number {
   return Math.max(28, Math.min(96, Math.round(52 + fs * 1.86)));
+}
+function daysStr(n: number): string {
+  return n === 1 ? '1 day' : `${n} days`;
 }
 function formWord(fs: number): string {
   if (fs > 10) return 'fresh and building';
@@ -253,8 +258,15 @@ export function assembleSpine(input: AssembleInput): SpineData {
   for (let k = 0; k < 7; k++) trailing += dailyRSS[fmtDate(addDays(today, -k))] || 0;
   const maintenanceRSS = trailing / 7;
 
+  // Size the projection window to the goal event (so it lands on the axis, not
+  // pinned misleadingly at the 3-week edge), clamped to a sane 3–16 week range.
+  const futureSpan =
+    event && event.daysToRace > 0
+      ? Math.min(Math.max(event.daysToRace, MIN_FUTURE_SPAN), MAX_FUTURE_SPAN)
+      : DEFAULT_FUTURE_SPAN;
+
   let state = { tfi: tfiByDate[todayKey] ?? 0, afi: afiByDate[todayKey] ?? 0, formScore: 0 };
-  for (let k = 1; k <= FUTURE_SPAN; k++) {
+  for (let k = 1; k <= futureSpan; k++) {
     const date = fmtDate(addDays(today, k));
     const p = plannedByDate.get(date);
     const plannedRSS = p ? (p.target_rss ?? p.target_tss ?? null) : null;
@@ -288,6 +300,8 @@ export function assembleSpine(input: AssembleInput): SpineData {
   }
 
   // ── Header summary line ─────────────────────────────────────────────────
+  // Only treat the projection as a "peak" when it's a genuine future build —
+  // otherwise a flat/declining rest-week projection reads as "peak in 1 day".
   const todayNode = days[PAST_SPAN];
   const futureNodes = days.slice(PAST_SPAN + 1);
   let peakDaysOut: number | null = null;
@@ -296,31 +310,42 @@ export function assembleSpine(input: AssembleInput): SpineData {
     futureNodes.forEach((n) => {
       if (n.tfi > best.tfi) best = n;
     });
-    if (best.tfi >= todayNode.tfi) peakDaysOut = best.index - PAST_SPAN;
+    const climbing = best.tfi >= todayNode.tfi + 2 && best.index - PAST_SPAN >= 7;
+    if (climbing) peakDaysOut = best.index - PAST_SPAN;
   }
   let summaryLine: string | null = null;
   const fw = formWord(todayNode.fs);
-  if (event && peakDaysOut && peakDaysOut > 0) {
-    summaryLine = `You're ${fw}. Peak lands in ${peakDaysOut} days, right on the ${event.name}.`;
+  if (event && peakDaysOut) {
+    const gap = event.daysToRace - peakDaysOut;
+    const timing = Math.abs(gap) <= 7 ? 'right on' : gap > 0 ? 'ahead of' : 'past';
+    summaryLine = `You're ${fw}. Peak in ${daysStr(peakDaysOut)}, ${timing} ${event.name}.`;
   } else if (event) {
-    summaryLine = `You're ${fw}. ${event.daysToRace} days to ${event.name}.`;
-  } else if (peakDaysOut && peakDaysOut > 0) {
-    summaryLine = `You're ${fw}. Fitness peaks in about ${peakDaysOut} days on your current rhythm.`;
+    summaryLine = `You're ${fw}. ${daysStr(event.daysToRace)} to ${event.name}.`;
+  } else if (peakDaysOut) {
+    summaryLine = `You're ${fw}. Fitness peaks in about ${daysStr(peakDaysOut)} on your current rhythm.`;
   } else {
     summaryLine = `You're ${fw}.`;
   }
 
   // ── Coach seed (recommendation block) ───────────────────────────────────
+  const isRestToday = todaysWorkout != null && /rest|recover/i.test(todaysWorkout.type);
+  let recBody: string;
+  if (!todaysWorkout) {
+    recBody = `No session prescribed today. You're ${fw} — an easy spin or full rest both work.`;
+  } else if (isRestToday) {
+    recBody = `Rest day. You're ${fw} — stay off the bike and let the work settle in.`;
+  } else {
+    const dur = formatDur(todaysWorkout.durationMin);
+    recBody = `${dur ? `${dur} ` : ''}${todaysWorkout.type}. You're ${fw} — ${
+      todayNode.fs >= 5 ? 'keep it controlled and bank the work.' : 'respect the fatigue and keep it honest.'
+    }`;
+  }
   const rec: CoachSeed = {
     personaId: persona.id,
     personaName: persona.name,
     oneLineTake: null,
     recTitle: todaysWorkout?.name ?? (todayNode.rss > 0 ? todayNode.activity.name : 'Recovery day'),
-    recBody: todaysWorkout
-      ? `${formatDur(todaysWorkout.durationMin)} ${todaysWorkout.type}. You're ${fw} — ${
-          todayNode.fs >= 5 ? 'keep it controlled and bank the work.' : 'respect the fatigue and keep it honest.'
-        }`
-      : `No session prescribed today. You're ${fw} — an easy spin or full rest both work.`,
+    recBody,
   };
 
   return {
@@ -379,7 +404,7 @@ export async function getTodaySpine(userId: string): Promise<SpineData> {
         .eq('user_id', userId)
         .gte('scheduled_date', todayKey)
         .order('scheduled_date', { ascending: true })
-        .limit(40),
+        .limit(120),
       supabase
         .from('race_goals')
         .select('id, name, race_date, priority, status')

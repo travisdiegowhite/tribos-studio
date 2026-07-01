@@ -87,8 +87,23 @@ describe('buildChart', () => {
     const eventDate = dates[42 + 7]; // 7 days out
     const chart = buildChart(makeDays(), 42, { date: eventDate }, dates);
     expect(chart.event).not.toBeNull();
+    expect(chart.event!.beyond).toBe(false);
     expect(chart.event!.x).toBeGreaterThan(700);
     expect(chart.event!.x).toBeLessThan(1090);
+  });
+
+  it('marks an event past the projection window as beyond, pinned at the edge', () => {
+    const d = new Date(Date.UTC(2026, 5, 30));
+    d.setUTCDate(d.getUTCDate() + 40); // 40 days out, but only 21 future days here
+    const chart = buildChart(makeDays(), 42, { date: d.toISOString().slice(0, 10) }, dates);
+    expect(chart.event!.beyond).toBe(true);
+    expect(chart.event!.daysOut).toBe(40);
+  });
+
+  it('suppresses the peak when the projection is flat or declining', () => {
+    const flat = makeDays().map((d) => (d.isFuture ? { ...d, tfi: 60 } : d)); // below today (62)
+    const chart = buildChart(flat, 42, null, dates);
+    expect(chart.peak).toBeNull();
   });
 });
 
