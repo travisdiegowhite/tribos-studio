@@ -18,11 +18,11 @@ import NotFound from './pages/NotFound.jsx';
 
 // Pages — lazy loaded (protected, heavy)
 const Dashboard = lazy(() => import('./pages/Dashboard.jsx'));
-// TodayEntry picks the live Today vs. the routing-first glance, gated on the
-// Route Builder 2.0 beta cohort (parallel-route swap, live Today untouched).
+// The routing-first glance — the previous /today, kept reachable at
+// /today/glance as a fallback after the Spine flip.
 const TodayEntry = lazy(() => import('./views/today-glance/TodayEntry.tsx'));
-// Training-Arc Today (docs/today-view) — built alongside the glance; mounted at
-// /today/spine for iteration, /today stays on TodayEntry until we flip it.
+// Training-Arc Today (docs/today-view) — the canonical /today since the flip;
+// /today/spine remains a working alias.
 const TodaySpine = lazy(() => import('./views/today-spine/TodaySpine.tsx'));
 const RouteBuilder = lazy(() => import('./pages/RouteBuilder.jsx'));
 const TrainingDashboard = lazy(() => import('./pages/TrainingDashboard.jsx'));
@@ -143,22 +143,30 @@ function AppRoutes() {
 
       {/* ===== PRIMARY TABS ===== */}
 
-      {/* TODAY — front door. TodayEntry flag-selects the live cluster layout
-          or the routing-first glance. */}
+      {/* TODAY — front door. The Training-Arc Spine is the canonical Today. */}
       <Route
         path="/today"
         element={
           <ProtectedRoute>
-            <TodayEntry />
+            <TodaySpine />
           </ProtectedRoute>
         }
       />
-      {/* Training-Arc Today — parallel redesign, live /today untouched. */}
+      {/* Alias kept so existing /today/spine links keep working post-flip. */}
       <Route
         path="/today/spine"
         element={
           <ProtectedRoute>
             <TodaySpine />
+          </ProtectedRoute>
+        }
+      />
+      {/* The routing-first glance — previous /today, kept as a fallback. */}
+      <Route
+        path="/today/glance"
+        element={
+          <ProtectedRoute>
+            <TodayEntry />
           </ProtectedRoute>
         }
       />

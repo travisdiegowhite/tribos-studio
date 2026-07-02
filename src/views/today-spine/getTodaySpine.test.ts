@@ -312,3 +312,12 @@ describe('null-valued server load rows', () => {
     expect(today.fs).toBe(today.tfi - today.afi);
   });
 });
+
+describe('first-run (no history)', () => {
+  it('suppresses the summary line and form-claiming coach copy when history is thin', () => {
+    const data = assembleSpine(baseInput({ serverLoad: [], activities: [] }));
+    expect(data.hasHistory).toBe(false);
+    expect(data.summaryLine).toBeNull();
+    expect(data.coach.recBody).not.toMatch(/grey zone|fresh|fatigued|loading/);
+  });
+});

@@ -19,6 +19,7 @@ import { SpinePanel } from './SpinePanel';
 import { FitnessNode } from './FitnessNode';
 import { RidesMap } from './RidesMap';
 import { CoachPanel } from './CoachPanel';
+import { SpineEmptyState } from './SpineEmptyState';
 import { buildNodeVM } from './nodeView';
 import { C, FONT } from './tokens';
 import type { UnitsPreference } from './units';
@@ -190,6 +191,18 @@ export default function TodaySpine() {
             <Skeleton height={260} radius={0} />
             <Skeleton height={260} radius={0} />
           </Box>
+        </Stack>
+      );
+    }
+
+    // First-run: no ride history yet → an honest empty state instead of a
+    // plausible-looking dashboard of zeros. Coach still works without history.
+    if (!data.hasHistory) {
+      return (
+        <Stack gap={20}>
+          <PageHeader data={data} />
+          <SpineEmptyState />
+          <CoachPanel data={data} />
         </Stack>
       );
     }

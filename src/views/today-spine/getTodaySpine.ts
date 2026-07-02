@@ -412,9 +412,13 @@ export function assembleSpine(input: AssembleInput): SpineData {
     const climbing = best.tfi >= todayNode.tfi + 2 && best.index - PAST_SPAN >= 7;
     if (climbing) peakDaysOut = best.index - PAST_SPAN;
   }
+  const hasHistory = daysWithLoad >= 7;
+
   let summaryLine: string | null = null;
   const fw = formWord(todayNode.fs);
-  if (event && peakDaysOut) {
+  if (!hasHistory) {
+    summaryLine = null; // no data — don't claim a form state
+  } else if (event && peakDaysOut) {
     const gap = event.daysToRace - peakDaysOut;
     const timing = Math.abs(gap) <= 7 ? 'right on' : gap > 0 ? 'ahead of' : 'past';
     summaryLine = `You're ${fw}. Peak in ${daysStr(peakDaysOut)}, ${timing} ${event.name}.`;
@@ -429,7 +433,9 @@ export function assembleSpine(input: AssembleInput): SpineData {
   // ── Coach seed (recommendation block) ───────────────────────────────────
   const isRestToday = todaysWorkout != null && /rest|recover/i.test(todaysWorkout.type);
   let recBody: string;
-  if (!todaysWorkout) {
+  if (!todaysWorkout && !hasHistory) {
+    recBody = "No session prescribed. Log a few rides and I'll start calling the day here.";
+  } else if (!todaysWorkout) {
     recBody = `No session prescribed today. You're ${fw} — an easy spin or full rest both work.`;
   } else if (isRestToday) {
     recBody = `Rest day. You're ${fw} — stay off the bike and let the work settle in.`;
@@ -455,7 +461,7 @@ export function assembleSpine(input: AssembleInput): SpineData {
     recentRides,
     coach: rec,
     summaryLine,
-    hasHistory: daysWithLoad >= 7,
+    hasHistory,
   };
 }
 
