@@ -113,7 +113,16 @@ export function buildAthleteMetrics(
     tfiYesterday = tfi;
     afiYesterday = afi;
     const server = serverByDate.get(day);
-    if (server && Number.isFinite(Number(server.tfi)) && Number.isFinite(Number(server.afi))) {
+    // Trust a server row only when tfi/afi are actually present — Number(null)
+    // is 0 (finite), so a null-valued row would silently zero fitness instead
+    // of falling through to the client EWA.
+    if (
+      server &&
+      server.tfi != null &&
+      server.afi != null &&
+      Number.isFinite(Number(server.tfi)) &&
+      Number.isFinite(Number(server.afi))
+    ) {
       tfi = Number(server.tfi);
       afi = Number(server.afi);
     } else {
@@ -133,7 +142,7 @@ export function buildAthleteMetrics(
   const todayKey = fmtDate(today);
   const todayServer = serverByDate.get(todayKey);
   const formScore =
-    todayServer && Number.isFinite(Number(todayServer.form_score))
+    todayServer?.form_score != null && Number.isFinite(Number(todayServer.form_score))
       ? Math.round(Number(todayServer.form_score))
       : Math.round(tfiYesterday - afiYesterday);
 
