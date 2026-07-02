@@ -374,6 +374,10 @@ export function assembleSpine(input: AssembleInput): SpineData {
     const dAfi = Math.round(state.afi);
     const fs = dTfi - dAfi;
     const durationMin = p ? Number(p.duration_minutes ?? p.target_duration ?? 0) : 0;
+    // Extend the per-day seconds map with the planned duration so a future
+    // day's WK VOLUME is a real trailing-7-day blend of actuals + plan (the
+    // old durationMin/60 showed one day's plan mislabeled as a week).
+    dailySec[date] = durationMin * 60;
     days.push({
       index: PAST_SPAN + k,
       date,
@@ -385,7 +389,7 @@ export function assembleSpine(input: AssembleInput): SpineData {
       rss: Math.round(rss),
       planned: isPlannedSession,
       readiness: readinessFromFS(fs),
-      volHours: durationMin / 60,
+      volHours: volHoursAt(date),
       activity: labelActivity({
         rss: Math.round(rss),
         durationSec: durationMin * 60,
@@ -532,15 +536,8 @@ export async function getTodaySpine(userId: string): Promise<SpineData> {
         .gte('race_date', todayKey)
         .order('race_date', { ascending: true })
         .limit(5),
-      supabase
-        .from('activities')
-        .select('*')
-        .eq('user_id', userId)
-        .is('duplicate_of', null)
-        .or('is_hidden.eq.false,is_hidden.is.null')
-        .gte('start_date', sevenDaysAgo.toISOString())
-        .order('start_date', { ascending: false })
-        .limit(20),
+      // Map rides + this-week rollup both come from this one read (last 50
+      // rides is a superset of the trailing week for any realistic athlete).
       supabase
         .from('activities')
         .select('*')
@@ -557,7 +554,7 @@ export async function getTodaySpine(userId: string): Promise<SpineData> {
   // All user-scoped reads empty with no errors + no profile row → the queries
   // almost certainly raced the auth client and went out anonymous. Re-probe the
   // session and, once a token exists, retry the batch a single time.
-  if (looksLikeAnonEmpty([batch[2], batch[3], batch[4], batch[5], batch[6], batch[7]], batch[1])) {
+  if (looksLikeAnonEmpty([batch[2], batch[3], batch[4], batch[5], batch[6]], batch[1])) {
     const reprobe = await raceTimeout(supabase.auth.getSession(), SESSION_PROBE_MS);
     if (reprobe !== 'timeout' && reprobe.data.session?.access_token) {
       console.warn('[today-spine] all user-scoped reads came back empty — retrying once (auth token race)');
@@ -566,7 +563,7 @@ export async function getTodaySpine(userId: string): Promise<SpineData> {
     }
   }
 
-  const [personaRes, profileRes, activitiesRes, serverLoadRes, plannedRes, raceRes, recentRes, mapRes] = batch;
+  const [personaRes, profileRes, activitiesRes, serverLoadRes, plannedRes, raceRes, mapRes] = batch;
 
   // One structured line per load so a console screenshot tells us exactly what
   // each read returned — row counts, not inferences.
@@ -577,7 +574,7 @@ export async function getTodaySpine(userId: string): Promise<SpineData> {
     : 0;
   console.info(
     `[today-spine] loaded: activities=${n(activitiesRes)} load=${n(serverLoadRes)} (tfi≠null=${loadRowsWithTfi}) ` +
-      `planned=${n(plannedRes)} races=${n(raceRes)} recent7d=${n(recentRes)} map=${n(mapRes)} ` +
+      `planned=${n(plannedRes)} races=${n(raceRes)} map=${n(mapRes)} ` +
       `profile=${n(profileRes)} ftp=${profileRes.data?.ftp ?? 'null'} retried=${retried}`,
   );
 
@@ -589,7 +586,6 @@ export async function getTodaySpine(userId: string): Promise<SpineData> {
     ['training_load_daily', serverLoadRes],
     ['planned_workouts', plannedRes],
     ['race_goals', raceRes],
-    ['activities (7-day)', recentRes],
     ['activities (map)', mapRes],
   ];
   for (const [table, res] of results) {
@@ -648,7 +644,7 @@ export async function getTodaySpine(userId: string): Promise<SpineData> {
   }
 
   // Recent rides for the map — last 4 with usable geometry.
-  const mapSource = (mapRes.data && mapRes.data.length > 0 ? mapRes.data : recentRes.data ?? []) as Array<
+  const mapSource = (mapRes.data ?? []) as Array<
     Record<string, unknown> & { id: string; name: string | null; start_date: string; provider: string | null }
   >;
   const recentRides = mapSource
@@ -656,8 +652,10 @@ export async function getTodaySpine(userId: string): Promise<SpineData> {
     .filter((r) => r.polyline)
     .slice(0, 4);
 
-  // This-week rollup for the map chips.
-  const week = recentRes.data ?? [];
+  // This-week rollup for the map chips, derived from the same read (the last
+  // 50 rides always cover the trailing week).
+  const sevenDaysIso = sevenDaysAgo.toISOString();
+  const week = mapSource.filter((a) => a.start_date >= sevenDaysIso);
   const distanceM = week.reduce(
     (s: number, a) => s + (Number(a.distance_meters) || Number(a.distance) || 0),
     0,

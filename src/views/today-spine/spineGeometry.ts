@@ -36,6 +36,28 @@ export function xFuture(k: number, futureDays: number): number {
   return X_TODAY + X_FUTURE_SPAN * (k / futureDays);
 }
 
+/** Day index (past or future) → x. The single source for marker/node placement. */
+export function xOfIndex(index: number, todayIndex: number, futureLen: number): number {
+  return index <= todayIndex
+    ? xPast(index, todayIndex)
+    : xFuture(index - todayIndex, Math.max(1, futureLen));
+}
+
+/**
+ * Inverse of xPast/xFuture over the full domain — maps a pointer's SVG x to the
+ * nearest day index (0..todayIndex+futureLen). The past and future halves have
+ * different day-widths, so the branch point is X_TODAY, not a single ratio.
+ */
+export function svgXToIndex(svgX: number, todayIndex: number, futureLen: number): number {
+  let idx: number;
+  if (svgX <= X_TODAY) {
+    idx = Math.round(((svgX - X_LEFT) / PAST_SPAN) * todayIndex);
+  } else {
+    idx = todayIndex + Math.round(((svgX - X_TODAY) / X_FUTURE_SPAN) * Math.max(1, futureLen));
+  }
+  return clamp(idx, 0, todayIndex + futureLen);
+}
+
 export function clamp(v: number, lo: number, hi: number): number {
   return Math.max(lo, Math.min(hi, v));
 }
@@ -257,8 +279,9 @@ export function selectionGeometry(
   day: { tfi: number; rss: number },
   todayIndex: number,
   scale: YScale,
+  futureLen = 0,
 ): SelectionGeom {
-  const selX = xPast(selectedIndex, todayIndex);
+  const selX = xOfIndex(selectedIndex, todayIndex, futureLen);
   const selY = scale.yOf(day.tfi);
   const labelX = clamp(selX - LABEL_W / 2, X_LEFT / 2 + 12, SPINE_VIEW.w - LABEL_W - 4);
   const barH = barHeight(day.rss);

@@ -12,6 +12,9 @@ import { Anchor, Box, Group, Text, TextInput } from '@mantine/core';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext.jsx';
 import { supabase } from '../../lib/supabase';
+import { getTodayCoach } from '../today-glance/getToday';
+import { EMPTY_ATHLETE_STATE } from '../today-glance/athleteState';
+import { ctlDeltaPctFromDays } from './nodeView';
 import { C, FONT } from './tokens';
 import type { SpineData } from './types';
 
@@ -50,6 +53,28 @@ export function CoachPanel({ data }: CoachPanelProps) {
   const [error, setError] = useState<string | null>(null);
   const [consent, setConsent] = useState<boolean | null>(null);
   const [consentGranting, setConsentGranting] = useState(false);
+  const [take, setTake] = useState<string | null>(null);
+
+  // Deferred persona-voiced TODAY'S CALL — the same /api/fitness-summary line
+  // the glance shows. Non-blocking: the deterministic recBody renders first
+  // and upgrades in place when (if) the AI line arrives.
+  useEffect(() => {
+    if (!data.hasHistory) return;
+    let cancelled = false;
+    const today = data.days[data.todayIndex];
+    getTodayCoach({
+      ...EMPTY_ATHLETE_STATE,
+      tfi: today.tfi,
+      afi: today.afi,
+      fs: today.fs,
+      ctlDeltaPct: ctlDeltaPctFromDays(data.days, data.todayIndex),
+    }).then((line) => {
+      if (!cancelled && line) setTake(line);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [data]);
 
   const threadRef = useRef<HTMLDivElement>(null);
   const idRef = useRef(0);
@@ -243,7 +268,7 @@ export function CoachPanel({ data }: CoachPanelProps) {
             {coach.recTitle}
           </Text>
           <Text style={{ fontFamily: FONT.body, fontSize: 13, lineHeight: 1.5, color: C.text2, marginTop: 3 }}>
-            {coach.oneLineTake ?? coach.recBody}
+            {take ?? coach.oneLineTake ?? coach.recBody}
           </Text>
         </Box>
       </Box>

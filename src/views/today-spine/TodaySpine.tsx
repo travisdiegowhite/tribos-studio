@@ -147,8 +147,10 @@ export default function TodaySpine() {
     [data, animate],
   );
 
+  const toggleRing = useCallback(() => setRingHover((v) => !v), []);
+
   const vm = useMemo(
-    () => (data ? buildNodeVM(data.days, Math.min(selected, data.todayIndex), data.todayIndex) : null),
+    () => (data ? buildNodeVM(data.days, Math.min(selected, data.days.length - 1), data.todayIndex) : null),
     [data, selected],
   );
 
@@ -210,10 +212,11 @@ export default function TodaySpine() {
     const spine = (
       <SpinePanel
         data={data}
-        selectedIndex={Math.min(selected, data.todayIndex)}
+        selectedIndex={Math.min(selected, data.days.length - 1)}
         onSelect={handleSelect}
         vm={vm}
         showNode={!isMobile}
+        interactive
         dispTSB={dispTSB}
         dispReady={dispReady}
         flipped={flipped}
@@ -225,6 +228,7 @@ export default function TodaySpine() {
         onSnapToday={snapToday}
         onRingEnter={() => setRingHover(true)}
         onRingLeave={() => setRingHover(false)}
+        onRingToggle={toggleRing}
       />
     );
 
@@ -236,11 +240,20 @@ export default function TodaySpine() {
     );
 
     if (isMobile) {
-      // 01 → 02 → 03 → 04: node as a normal top card, spine read-only below it.
+      // 01 → 02 → 03 → 04: node as a normal top card; tap a day on the compact
+      // spine below to select it (per the design handoff's mobile parity note).
       return (
         <Stack gap={16}>
           <PageHeader data={data} />
-          <FitnessNode vm={vm} dispTSB={dispTSB} dispReady={dispReady} flipped={false} ringHover={false} compact />
+          <FitnessNode
+            vm={vm}
+            dispTSB={dispTSB}
+            dispReady={dispReady}
+            flipped={false}
+            ringHover={false}
+            compact
+            onSnapToday={snapToday}
+          />
           {spine}
           {bottomRow}
         </Stack>
