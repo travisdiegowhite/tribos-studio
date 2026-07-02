@@ -115,6 +115,14 @@ export function RidesMap({ rides, weekRollup, units, height = 230 }: RidesMapPro
     };
   }, [ridesForMap]);
 
+  // Identity for the highlighted (most recent) ride — name + weekday.
+  const highlighted = ridesForMap[0] ?? null;
+  const highlightLabel = highlighted
+    ? `${
+        highlighted.name.length > 24 ? `${highlighted.name.slice(0, 23)}…` : highlighted.name
+      } · ${new Date(highlighted.startDate).toLocaleDateString('en-GB', { weekday: 'short' })}`.toUpperCase()
+    : null;
+
   const distanceLabel =
     units === 'metric'
       ? { value: Math.round(weekRollup.distanceKm).toLocaleString(), unit: 'km' }
@@ -206,6 +214,26 @@ export function RidesMap({ rides, weekRollup, units, height = 230 }: RidesMapPro
             <OverlayChip label="ELEV" value={elevLabel.value} unit={elevLabel.unit} />
             <OverlayChip label="RIDES" value={String(weekRollup.rideCount)} />
           </Box>
+
+          {highlightLabel && (
+            <Box
+              style={{
+                position: 'absolute',
+                right: 14,
+                top: 12,
+                background: 'rgba(20,16,8,.72)',
+                backdropFilter: 'blur(8px)',
+                WebkitBackdropFilter: 'blur(8px)',
+                border: '1px solid rgba(255,255,255,.12)',
+                padding: '5px 9px',
+              }}
+            >
+              <Text style={{ fontFamily: FONT.mono, fontSize: 9, letterSpacing: '1px', color: C.base }}>
+                <span style={{ display: 'inline-block', width: 12, height: 2, background: C.teal, verticalAlign: 'middle', marginRight: 6 }} />
+                {highlightLabel}
+              </Text>
+            </Box>
+          )}
         </Box>
       )}
     </Box>

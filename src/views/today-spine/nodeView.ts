@@ -46,6 +46,17 @@ export interface NodeVM {
   reasons: ReasonRow[];
 }
 
+/**
+ * % TFI change over the trailing 28 days (vs 27 days back) — the same window
+ * the glance's getAthleteState feeds to /api/fitness-summary as ctlDeltaPct.
+ */
+export function ctlDeltaPctFromDays(days: Array<{ tfi: number }>, todayIndex: number): number {
+  const today = days[todayIndex]?.tfi;
+  const base = days[Math.max(0, todayIndex - 27)]?.tfi;
+  if (!Number.isFinite(today) || !Number.isFinite(base) || base <= 0) return 0;
+  return ((today - base) / base) * 100;
+}
+
 export function buildNodeVM(days: DayNode[], i: number, todayIndex: number): NodeVM {
   const d = days[i];
   const isToday = i === todayIndex;
