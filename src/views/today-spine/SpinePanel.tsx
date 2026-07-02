@@ -73,6 +73,7 @@ export function SpinePanel({
       afi: d.afi,
       rss: d.rss,
       isFuture: d.isFuture,
+      planned: d.planned,
     }));
     return buildChart(
       geom,
