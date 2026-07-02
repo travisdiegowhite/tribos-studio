@@ -71,7 +71,7 @@ export default function TodaySpine() {
   const isMobile = useMediaQuery('(max-width: 768px)');
   const units: UnitsPreference = unitsPreference === 'metric' ? 'metric' : 'imperial';
 
-  const { loading, data, error } = useTodaySpine(user?.id ?? null);
+  const { loading, data, error, retry } = useTodaySpine(user?.id ?? null);
 
   const [selected, setSelected] = useState(0);
   const [flipped, setFlipped] = useState(false);
@@ -160,6 +160,23 @@ export default function TodaySpine() {
           <Text style={{ fontFamily: FONT.mono, fontSize: 12, letterSpacing: '1px', color: C.coral }}>
             COULDN’T LOAD YOUR TRAINING ARC. {error.toUpperCase()}
           </Text>
+          <Box
+            component="button"
+            onClick={retry}
+            style={{
+              marginTop: 14,
+              border: `1.5px solid ${C.navy}`,
+              background: C.navy,
+              color: '#fff',
+              fontFamily: FONT.mono,
+              fontSize: 10,
+              letterSpacing: '2px',
+              padding: '8px 16px',
+              cursor: 'pointer',
+            }}
+          >
+            RETRY
+          </Box>
         </Box>
       );
     }

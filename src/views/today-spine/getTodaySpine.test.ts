@@ -1,5 +1,13 @@
-import { describe, it, expect } from 'vitest';
-import { assembleSpine, plannedRowRSS, type AssembleInput, type PlannedRow } from './getTodaySpine';
+import { describe, it, expect, vi } from 'vitest';
+import {
+  assembleSpine,
+  plannedRowRSS,
+  raceTimeout,
+  withLoadWatchdog,
+  looksLikeAnonEmpty,
+  type AssembleInput,
+  type PlannedRow,
+} from './getTodaySpine';
 import type { ServerLoadRow } from '../today/athleteMetrics';
 
 const NOW = new Date(2026, 5, 30, 9, 0, 0); // Tue 30 Jun 2026, local
@@ -216,5 +224,64 @@ describe('assembleSpine', () => {
     );
     expect(data.coach.personaName).toBe('The Hammer');
     expect(data.weekRollup.rideCount).toBe(4);
+  });
+});
+
+describe('loader guards', () => {
+  it('raceTimeout resolves the value when the promise settles in time', async () => {
+    await expect(raceTimeout(Promise.resolve('ok'), 1000)).resolves.toBe('ok');
+  });
+
+  it('raceTimeout resolves the timeout sentinel when the promise hangs', async () => {
+    vi.useFakeTimers();
+    try {
+      const hang = new Promise<string>(() => {});
+      const raced = raceTimeout(hang, 4000);
+      await vi.advanceTimersByTimeAsync(4001);
+      await expect(raced).resolves.toBe('timeout');
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('raceTimeout propagates rejection', async () => {
+    await expect(raceTimeout(Promise.reject(new Error('boom')), 1000)).rejects.toThrow('boom');
+  });
+
+  it('withLoadWatchdog rejects with a legible error when the load hangs', async () => {
+    vi.useFakeTimers();
+    try {
+      const hang = new Promise<never>(() => {});
+      const guarded = withLoadWatchdog(hang, 15000);
+      const assertion = expect(guarded).rejects.toThrow(/took too long to load/);
+      await vi.advanceTimersByTimeAsync(15001);
+      await assertion;
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('withLoadWatchdog passes through a timely result', async () => {
+    await expect(withLoadWatchdog(Promise.resolve(42), 15000)).resolves.toBe(42);
+  });
+
+  it('looksLikeAnonEmpty trips only when every list is empty AND the profile row is missing', () => {
+    const empty = { data: [], error: null };
+    const nullData = { data: null, error: null };
+    const rows = { data: [{ id: 1 }], error: null };
+    const failed = { data: null, error: { message: 'boom' } };
+    const noProfile = { data: null, error: null };
+    const profile = { data: { ftp: 250 }, error: null };
+
+    // The anon-race signature: all empty, no errors, no profile row.
+    expect(looksLikeAnonEmpty([empty, empty, nullData], noProfile)).toBe(true);
+    // A signed-in user always has a profile row → a genuinely-empty new
+    // account does not trip the gate.
+    expect(looksLikeAnonEmpty([empty, empty, empty], profile)).toBe(false);
+    // Any rows anywhere → not the race.
+    expect(looksLikeAnonEmpty([empty, rows, empty], noProfile)).toBe(false);
+    // Any error anywhere → a different failure, handled by the error path.
+    expect(looksLikeAnonEmpty([empty, failed, empty], noProfile)).toBe(false);
+    expect(looksLikeAnonEmpty([empty, empty, empty], failed)).toBe(false);
   });
 });

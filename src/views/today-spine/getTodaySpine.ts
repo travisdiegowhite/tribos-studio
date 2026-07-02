@@ -29,6 +29,73 @@ const MAX_FUTURE_SPAN = 112; // cap the projection at 16 weeks
 const KM_PER_MILE = 1.609344;
 const M_PER_FOOT = 0.3048;
 const RSS_CAP = 500;
+const SESSION_PROBE_MS = 4_000;
+const LOAD_WATCHDOG_MS = 15_000;
+
+// ── loader guards ────────────────────────────────────────────────────────────
+// supabase-js v2 serializes auth work (getSession + each query's token lookup)
+// behind the Navigator LockManager. Two production failure modes follow:
+//  1. getSession() can wedge under lock contention (several tabs open) — a bare
+//     await hangs the page in its loading state forever.
+//  2. Queries fired before the session is restored go out with the anon key;
+//     RLS answers 200-with-zero-rows (not an error), rendering an all-zero page.
+// raceTimeout/withLoadWatchdog guard against (1); looksLikeAnonEmpty detects (2)
+// so the loader can retry the batch once with the token attached.
+
+/** Resolve with the sentinel `'timeout'` instead of hanging past `ms`. */
+export function raceTimeout<T>(promise: Promise<T>, ms: number): Promise<T | 'timeout'> {
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(() => resolve('timeout'), ms);
+    promise.then(
+      (v) => {
+        clearTimeout(timer);
+        resolve(v);
+      },
+      (err) => {
+        clearTimeout(timer);
+        reject(err);
+      },
+    );
+  });
+}
+
+/** Reject with a legible error if the load doesn't settle within `ms`. */
+export function withLoadWatchdog<T>(promise: Promise<T>, ms: number): Promise<T> {
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(
+      () => reject(new Error('Today took too long to load — check your connection and retry.')),
+      ms,
+    );
+    promise.then(
+      (v) => {
+        clearTimeout(timer);
+        resolve(v);
+      },
+      (err) => {
+        clearTimeout(timer);
+        reject(err);
+      },
+    );
+  });
+}
+
+export interface QueryResultLike {
+  data: unknown;
+  error: unknown;
+}
+
+/**
+ * The signature of the anon-token race: every user-scoped list read returned
+ * zero rows with zero errors AND even the user's own profile row (which always
+ * exists for a signed-in user) came back null. A genuinely new account still
+ * has a profile row, so it does not trip this gate.
+ */
+export function looksLikeAnonEmpty(listResults: QueryResultLike[], profileResult: QueryResultLike): boolean {
+  const listsEmpty = listResults.every(
+    (r) => !r.error && (!Array.isArray(r.data) || r.data.length === 0),
+  );
+  return listsEmpty && !profileResult.error && profileResult.data == null;
+}
 
 // ── date helpers ─────────────────────────────────────────────────────────────
 
@@ -400,15 +467,17 @@ export async function getTodaySpine(userId: string): Promise<SpineData> {
 
   // Fail loudly, not with a fake all-zero page: an expired session makes every
   // RLS-guarded query return empty, which would otherwise render as CTL 0 etc.
-  const {
-    data: { session },
-  } = await supabase.auth.getSession();
-  if (!session) {
+  // The probe is timeout-guarded — a wedged auth lock degrades to "proceed and
+  // let the queries speak" instead of hanging the page in its loading state.
+  const probe = await raceTimeout(supabase.auth.getSession(), SESSION_PROBE_MS);
+  if (probe === 'timeout') {
+    console.warn('[today-spine] auth session probe timed out — proceeding without the gate');
+  } else if (!probe.data.session) {
     throw new Error('Session expired — sign in again to load your training arc.');
   }
 
-  const [personaRes, profileRes, activitiesRes, serverLoadRes, plannedRes, raceRes, recentRes, mapRes] =
-    await Promise.all([
+  const runQueries = () =>
+    Promise.all([
       supabase.from('user_coach_settings').select('coaching_persona').eq('user_id', userId).maybeSingle(),
       supabase.from('user_profiles').select('ftp').eq('id', userId).maybeSingle(),
       supabase
@@ -466,6 +535,21 @@ export async function getTodaySpine(userId: string): Promise<SpineData> {
         .order('start_date', { ascending: false })
         .limit(50),
     ]);
+
+  let batch = await withLoadWatchdog(runQueries(), LOAD_WATCHDOG_MS);
+
+  // All user-scoped reads empty with no errors + no profile row → the queries
+  // almost certainly raced the auth client and went out anonymous. Re-probe the
+  // session and, once a token exists, retry the batch a single time.
+  if (looksLikeAnonEmpty([batch[2], batch[3], batch[4], batch[5], batch[6], batch[7]], batch[1])) {
+    const reprobe = await raceTimeout(supabase.auth.getSession(), SESSION_PROBE_MS);
+    if (reprobe !== 'timeout' && reprobe.data.session?.access_token) {
+      console.warn('[today-spine] all user-scoped reads came back empty — retrying once (auth token race)');
+      batch = await withLoadWatchdog(runQueries(), LOAD_WATCHDOG_MS);
+    }
+  }
+
+  const [personaRes, profileRes, activitiesRes, serverLoadRes, plannedRes, raceRes, recentRes, mapRes] = batch;
 
   // Name any failed query in the console instead of silently rendering zeros.
   const results: Array<[string, { error: { message?: string } | null }]> = [

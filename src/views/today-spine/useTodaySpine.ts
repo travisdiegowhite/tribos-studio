@@ -3,9 +3,11 @@
  *
  * One-shot fetch on mount via getTodaySpine() (no Realtime, per the connection
  * hygiene rules). Mirrors the loading/return shape of the glance's useToday().
+ * `retry()` re-runs the fetch so the error card can offer a way out of a
+ * timed-out or failed load.
  */
 
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { getTodaySpine } from './getTodaySpine';
 import type { SpineData } from './types';
 
@@ -13,12 +15,16 @@ export interface UseTodaySpineResult {
   loading: boolean;
   data: SpineData | null;
   error: string | null;
+  retry: () => void;
 }
 
 export function useTodaySpine(userId: string | null): UseTodaySpineResult {
   const [loading, setLoading] = useState(true);
   const [data, setData] = useState<SpineData | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [attempt, setAttempt] = useState(0);
+
+  const retry = useCallback(() => setAttempt((n) => n + 1), []);
 
   useEffect(() => {
     if (!userId) {
@@ -43,7 +49,7 @@ export function useTodaySpine(userId: string | null): UseTodaySpineResult {
     return () => {
       cancelled = true;
     };
-  }, [userId]);
+  }, [userId, attempt]);
 
-  return { loading, data, error };
+  return { loading, data, error, retry };
 }
