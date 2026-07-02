@@ -10,6 +10,8 @@ import {
   ringDash,
   RING_CIRCUMFERENCE,
   SPINE_VIEW,
+  svgXToIndex,
+  xOfIndex,
   type DayGeom,
 } from './spineGeometry';
 
@@ -165,5 +167,46 @@ describe('ringDash', () => {
     const full = ringDash(100);
     expect(parseFloat(full.split(' ')[0])).toBeCloseTo(RING_CIRCUMFERENCE, 1);
     expect(clamp(200, 0, 100)).toBe(100);
+  });
+});
+
+describe('svgXToIndex (pointer → day index over the full domain)', () => {
+  const TODAY = 42;
+  const FUTURE = 21;
+
+  it('round-trips xPast for every past index', () => {
+    for (let i = 0; i <= TODAY; i++) {
+      expect(svgXToIndex(xPast(i, TODAY), TODAY, FUTURE)).toBe(i);
+    }
+  });
+
+  it('round-trips xFuture for every future step', () => {
+    for (let k = 1; k <= FUTURE; k++) {
+      expect(svgXToIndex(xFuture(k, FUTURE), TODAY, FUTURE)).toBe(TODAY + k);
+    }
+  });
+
+  it('maps the boundary at today (x=700) to the today index', () => {
+    expect(svgXToIndex(700, TODAY, FUTURE)).toBe(TODAY);
+  });
+
+  it('clamps outside the chart on both sides', () => {
+    expect(svgXToIndex(-100, TODAY, FUTURE)).toBe(0);
+    expect(svgXToIndex(4000, TODAY, FUTURE)).toBe(TODAY + FUTURE);
+  });
+
+  it('xOfIndex matches xPast/xFuture on each half', () => {
+    expect(xOfIndex(10, TODAY, FUTURE)).toBe(xPast(10, TODAY));
+    expect(xOfIndex(TODAY + 5, TODAY, FUTURE)).toBe(xFuture(5, FUTURE));
+  });
+});
+
+describe('selectionGeometry future placement', () => {
+  it('places a future index on the future axis, not extrapolated past x=700', () => {
+    const scale = buildYScale([40, 66]);
+    const sel = selectionGeometry(52, { tfi: 55, rss: 60 }, 42, scale, 21);
+    expect(sel.selX).toBeCloseTo(xFuture(10, 21), 5);
+    expect(sel.selX).toBeGreaterThan(700);
+    expect(sel.selX).toBeLessThanOrEqual(1090);
   });
 });

@@ -8,7 +8,8 @@
 
 import { useCallback, useMemo, useRef } from 'react';
 import { Box, Group, Text } from '@mantine/core';
-import { buildChart, selectionGeometry, SPINE_VIEW, type DayGeom } from './spineGeometry';
+import { useNavigate } from 'react-router-dom';
+import { buildChart, selectionGeometry, svgXToIndex, SPINE_VIEW, type DayGeom } from './spineGeometry';
 import { FitnessNode } from './FitnessNode';
 import type { NodeVM } from './nodeView';
 import { C, CHART, FONT, GRIDLINE_XS } from './tokens';
@@ -22,6 +23,8 @@ interface SpinePanelProps {
   onSelect: (index: number) => void;
   vm: NodeVM;
   showNode?: boolean;
+  /** Scrub/keyboard selection. On mobile the node hides but taps still select. */
+  interactive?: boolean;
   dispTSB: number;
   dispReady: number;
   flipped: boolean;
@@ -30,6 +33,7 @@ interface SpinePanelProps {
   onSnapToday: (e: React.MouseEvent) => void;
   onRingEnter: () => void;
   onRingLeave: () => void;
+  onRingToggle: () => void;
 }
 
 /** Short, article-stripped event name for the coral flag (e.g. "The Rad" → "RAD"). */
@@ -52,6 +56,7 @@ export function SpinePanel({
   onSelect,
   vm,
   showNode = true,
+  interactive = true,
   dispTSB,
   dispReady,
   flipped,
@@ -60,8 +65,11 @@ export function SpinePanel({
   onSnapToday,
   onRingEnter,
   onRingLeave,
+  onRingToggle,
 }: SpinePanelProps) {
   const spineRef = useRef<HTMLDivElement>(null);
+  const navigate = useNavigate();
+  const goToGoals = useCallback(() => navigate('/training'), [navigate]);
   const { days, todayIndex, event } = data;
   const futureDays = days.length - todayIndex - 1;
   const futureWeeks = Math.max(1, Math.round(futureDays / 7));
@@ -84,7 +92,8 @@ export function SpinePanel({
   }, [days, todayIndex, event]);
 
   const selDay = days[selectedIndex] ?? days[todayIndex];
-  const sel = selectionGeometry(selectedIndex, selDay, todayIndex, chart.scale);
+  const sel = selectionGeometry(selectedIndex, selDay, todayIndex, chart.scale, futureDays);
+  const lastIndex = days.length - 1;
 
   const scrub = useCallback(
     (clientX: number) => {
@@ -92,15 +101,14 @@ export function SpinePanel({
       if (!el) return;
       const r = el.getBoundingClientRect();
       const svgX = ((clientX - r.left) / r.width) * SPINE_VIEW.w;
-      const idx = Math.round(((svgX - 40) / 660) * todayIndex);
-      onSelect(Math.max(0, Math.min(todayIndex, idx)));
+      onSelect(svgXToIndex(svgX, todayIndex, futureDays));
     },
-    [onSelect, todayIndex],
+    [onSelect, todayIndex, futureDays],
   );
 
   const onScrubDown = useCallback(
     (e: React.PointerEvent) => {
-      if (!showNode) return;
+      if (!interactive) return;
       scrub(e.clientX);
       const mv = (ev: PointerEvent) => scrub(ev.clientX);
       const up = () => {
@@ -110,7 +118,24 @@ export function SpinePanel({
       window.addEventListener('pointermove', mv);
       window.addEventListener('pointerup', up);
     },
-    [scrub, showNode],
+    [scrub, interactive],
+  );
+
+  const onScrubKey = useCallback(
+    (e: React.KeyboardEvent) => {
+      if (!interactive) return;
+      let next: number | null = null;
+      if (e.key === 'ArrowLeft') next = Math.max(0, selectedIndex - 1);
+      else if (e.key === 'ArrowRight') next = Math.min(lastIndex, selectedIndex + 1);
+      else if (e.key === 'Home') next = 0;
+      else if (e.key === 'End') next = lastIndex;
+      else if (e.key === 't' || e.key === 'T') next = todayIndex;
+      if (next !== null) {
+        e.preventDefault();
+        onSelect(next);
+      }
+    },
+    [interactive, selectedIndex, lastIndex, todayIndex, onSelect],
   );
 
   return (
@@ -145,10 +170,20 @@ export function SpinePanel({
       </Group>
 
       <Box style={{ padding: '6px 18px 16px' }}>
+        <style>{`.spine-scrub:focus-visible{outline:2px solid ${C.teal};outline-offset:2px}`}</style>
         <div
           ref={spineRef}
+          className="spine-scrub"
           onPointerDown={onScrubDown}
-          style={{ position: 'relative', cursor: showNode ? 'ew-resize' : 'default', touchAction: 'none' }}
+          onKeyDown={onScrubKey}
+          tabIndex={interactive ? 0 : -1}
+          role="slider"
+          aria-label="Training day"
+          aria-valuemin={0}
+          aria-valuemax={lastIndex}
+          aria-valuenow={selectedIndex}
+          aria-valuetext={selDay.dateLabel}
+          style={{ position: 'relative', cursor: interactive ? 'ew-resize' : 'default', touchAction: 'none' }}
         >
           <svg viewBox={`0 0 ${SPINE_VIEW.w} ${SPINE_VIEW.h}`} width="100%" style={{ display: 'block' }} preserveAspectRatio="none">
             <defs>
@@ -236,6 +271,27 @@ export function SpinePanel({
               </>
             )}
 
+            {/* No goal set — ghost flag where the event would land. */}
+            {!event && (
+              <g
+                onPointerDown={(e) => e.stopPropagation()}
+                onClick={goToGoals}
+                style={{ cursor: 'pointer' }}
+                role="link"
+                aria-label="Set a goal event"
+              >
+                <rect x="1004" y="20" width="76" height="14" fill="none" stroke={C.coral} strokeWidth="1" strokeDasharray="3 2" opacity=".65" />
+                <text
+                  x="1042"
+                  y="30"
+                  textAnchor="middle"
+                  style={{ fontFamily: FONT.mono, fontWeight: 500, fontSize: 8, fill: C.coral, letterSpacing: '.5px', opacity: 0.85 }}
+                >
+                  SET A GOAL →
+                </text>
+              </g>
+            )}
+
             {/* selected highlight bar */}
             {sel.barShow && <rect x={sel.barX} y={sel.barY} width="8" height={sel.barH} fill={C.teal} opacity=".55" />}
 
@@ -276,14 +332,15 @@ export function SpinePanel({
               onToggleFlip={onToggleFlip}
               onRingEnter={onRingEnter}
               onRingLeave={onRingLeave}
+              onRingToggle={onRingToggle}
             />
           )}
         </div>
 
         <Text style={{ fontFamily: FONT.body, fontSize: 10.5, color: CHART.axisMuted, marginTop: 12, textAlign: 'center' }}>
           {showNode
-            ? 'Drag the node along the spine to scrub past days · click it for the CTL/ATL trend · hover the ring for readiness'
-            : 'Your fitness over the last 6 weeks and the 3-week projection ahead.'}
+            ? 'Drag the node to scrub past days or ahead into the plan · click it for the CTL/ATL trend · click the ring for readiness'
+            : `Tap a day to inspect it — the last 6 weeks and the ${futureWeeks}-week projection ahead.`}
         </Text>
       </Box>
     </Box>

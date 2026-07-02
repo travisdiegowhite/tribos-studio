@@ -143,7 +143,7 @@ export function RidesMap({ rides, weekRollup, units, height = 230 }: RidesMapPro
           </Text>
         </Group>
         <Text style={{ fontFamily: FONT.mono, fontSize: 10, letterSpacing: '1px', color: C.text3 }}>
-          LAST {rides.length || 0} RIDES
+          {ridesForMap.length > 0 ? `LAST ${ridesForMap.length} RIDES` : 'NO RIDES'}
         </Text>
       </Group>
 

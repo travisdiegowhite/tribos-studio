@@ -321,3 +321,23 @@ describe('first-run (no history)', () => {
     expect(data.coach.recBody).not.toMatch(/grey zone|fresh|fatigued|loading/);
   });
 });
+
+describe('future-day weekly volume', () => {
+  it("computes a future day's volHours as the trailing-7-day blend of actuals and plan", () => {
+    // 90 min ridden yesterday + a 60-min planned workout tomorrow.
+    const activities = [
+      { start_date: `${fmt(addDays(NOW, -1))}T10:00:00Z`, rss: 80, moving_time: 5400 },
+    ];
+    const planned: PlannedRow[] = [
+      { scheduled_date: fmt(addDays(NOW, 1)), name: 'Endurance', workout_type: 'endurance', target_rss: 60, duration_minutes: 60 },
+    ];
+    const data = assembleSpine(baseInput({ activities, planned }));
+    const tomorrow = data.days[data.todayIndex + 1];
+    // Window covers both: 1.5h actual + 1h planned = 2.5h — not the old
+    // single-day 1.0h mislabeled as a week.
+    expect(tomorrow.volHours).toBeCloseTo(2.5, 5);
+    // 8 days out the ridden 90 min has left the window; only the plan remains.
+    const dayEight = data.days[data.todayIndex + 8];
+    expect(dayEight.volHours).toBeCloseTo(0, 5);
+  });
+});

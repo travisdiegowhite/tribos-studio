@@ -26,6 +26,7 @@ interface FitnessNodeProps {
   onToggleFlip?: () => void;
   onRingEnter?: () => void;
   onRingLeave?: () => void;
+  onRingToggle?: () => void;
 }
 
 const HALO_STRONG =
@@ -46,6 +47,7 @@ export function FitnessNode({
   onToggleFlip,
   onRingEnter,
   onRingLeave,
+  onRingToggle,
 }: FitnessNodeProps) {
   const readyNum = Math.round(dispReady);
   const tsbLabel = `${dispTSB >= 0 ? '+' : ''}${Math.round(dispTSB)}`;
@@ -95,7 +97,7 @@ export function FitnessNode({
           >
             {vm.headerLabel}
           </span>
-          {!vm.isToday && !compact && (
+          {!vm.isToday && onSnapToday && (
             <button
               onPointerDown={(e) => e.stopPropagation()}
               onClick={onSnapToday}
@@ -111,7 +113,7 @@ export function FitnessNode({
                 cursor: 'pointer',
               }}
             >
-              TODAY ▸
+              {vm.isFuture ? '◂ TODAY' : 'TODAY ▸'}
             </button>
           )}
         </div>
@@ -159,10 +161,24 @@ export function FitnessNode({
         </div>
       </div>
 
-      {/* Body — click flips FRONT ↔ BACK. */}
+      {/* Body — click (or Enter/Space) flips FRONT ↔ BACK. */}
       <div
         onPointerDown={compact ? undefined : (e) => e.stopPropagation()}
         onClick={compact ? undefined : onToggleFlip}
+        onKeyDown={
+          compact
+            ? undefined
+            : (e) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                  e.preventDefault();
+                  onToggleFlip?.();
+                }
+              }
+        }
+        role={compact ? undefined : 'button'}
+        tabIndex={compact ? undefined : 0}
+        aria-pressed={compact ? undefined : flipped}
+        aria-label={compact ? undefined : 'Show fitness and fatigue trend'}
         style={{ cursor: compact ? 'default' : 'pointer', position: 'relative' }}
       >
         {!flipped ? (
@@ -216,7 +232,12 @@ export function FitnessNode({
               <div
                 onMouseEnter={onRingEnter}
                 onMouseLeave={onRingLeave}
-                onClick={(e) => e.stopPropagation()}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onRingToggle?.();
+                }}
+                role="button"
+                aria-label={`Readiness ${readyNum} — show reasoning`}
                 style={{ textAlign: 'center', cursor: 'help' }}
               >
                 <svg width="54" height="54" viewBox="0 0 64 64">
