@@ -25,6 +25,7 @@ export interface NodeVM {
   headerLabel: string;
   headerDate: string;
   isToday: boolean;
+  isFuture: boolean;
   activity: DayActivity;
   fs: number;
   readiness: number;
@@ -45,9 +46,21 @@ export interface NodeVM {
   reasons: ReasonRow[];
 }
 
+/**
+ * % TFI change over the trailing 28 days (vs 27 days back) — the same window
+ * the glance's getAthleteState feeds to /api/fitness-summary as ctlDeltaPct.
+ */
+export function ctlDeltaPctFromDays(days: Array<{ tfi: number }>, todayIndex: number): number {
+  const today = days[todayIndex]?.tfi;
+  const base = days[Math.max(0, todayIndex - 27)]?.tfi;
+  if (!Number.isFinite(today) || !Number.isFinite(base) || base <= 0) return 0;
+  return ((today - base) / base) * 100;
+}
+
 export function buildNodeVM(days: DayNode[], i: number, todayIndex: number): NodeVM {
   const d = days[i];
   const isToday = i === todayIndex;
+  const isFuture = i > todayIndex;
 
   const ringColor = d.readiness >= 70 ? C.teal : d.readiness >= 45 ? C.gold : C.coral;
   const arrowChar = d.fs > 3 ? '▲' : d.fs < -3 ? '▼' : '—';
@@ -71,6 +84,7 @@ export function buildNodeVM(days: DayNode[], i: number, todayIndex: number): Nod
     stateText = 'DEEP FATIGUE';
     stateColor = C.coral;
   }
+  if (isFuture) stateText = `PROJECTED · ${stateText}`;
 
   const ctl7 = days[Math.max(0, i - 7)].tfi;
   const atlY = days[Math.max(0, i - 1)].afi;
@@ -97,10 +111,12 @@ export function buildNodeVM(days: DayNode[], i: number, todayIndex: number): Nod
     { k: '7-day ramp', v: `${ctlDelta} TFI`, c: rampColor },
   ];
 
+  const headerPrefix = isToday ? 'TODAY · ' : isFuture ? 'PLANNED · ' : '';
   return {
-    headerLabel: isToday ? `01 · TODAY · ${d.dateLabel}` : `01 · ${d.dateLabel}`,
-    headerDate: isToday ? `TODAY · ${d.dateLabel}` : d.dateLabel,
+    headerLabel: `01 · ${headerPrefix}${d.dateLabel}`,
+    headerDate: `${headerPrefix}${d.dateLabel}`,
     isToday,
+    isFuture,
     activity: d.activity,
     fs: d.fs,
     readiness: d.readiness,

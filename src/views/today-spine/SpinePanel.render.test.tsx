@@ -1,10 +1,12 @@
-import { describe, it, expect } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { describe, it, expect, vi } from 'vitest';
+import { fireEvent, render, screen } from '@testing-library/react';
 import { MantineProvider } from '@mantine/core';
+import { MemoryRouter } from 'react-router-dom';
 import { SpinePanel } from './SpinePanel';
 import { buildNodeVM } from './nodeView';
 import { assembleSpine, type AssembleInput } from './getTodaySpine';
 import type { ServerLoadRow } from '../today/athleteMetrics';
+import type { SpineData } from './types';
 
 const NOW = new Date(2026, 5, 30, 9, 0, 0);
 
@@ -24,7 +26,7 @@ function serverLoad(): ServerLoadRow[] {
   }
   return rows;
 }
-function input(): AssembleInput {
+function input(overrides: Partial<AssembleInput> = {}): AssembleInput {
   return {
     now: NOW,
     serverLoad: serverLoad(),
@@ -36,35 +38,69 @@ function input(): AssembleInput {
     persona: { id: 'pragmatist', name: 'The Pragmatist' },
     recentRides: [],
     weekRollup: { distanceKm: 182, distanceMi: 113, elevationM: 2140, elevationFt: 7021, rideCount: 4 },
+    ...overrides,
   };
 }
 
-describe('SpinePanel render', () => {
-  it('renders the chart, legend and node without crashing', () => {
-    const data = assembleSpine(input());
-    const vm = buildNodeVM(data.days, data.todayIndex, data.todayIndex);
-    render(
-      <MantineProvider>
+function renderPanel(data: SpineData, onSelect: (i: number) => void = () => {}, selectedIndex = data.todayIndex) {
+  const vm = buildNodeVM(data.days, selectedIndex, data.todayIndex);
+  return render(
+    <MantineProvider>
+      <MemoryRouter>
         <SpinePanel
           data={data}
-          selectedIndex={data.todayIndex}
-          onSelect={() => {}}
+          selectedIndex={selectedIndex}
+          onSelect={onSelect}
           vm={vm}
-          dispTSB={data.days[data.todayIndex].fs}
-          dispReady={data.days[data.todayIndex].readiness}
+          dispTSB={data.days[selectedIndex].fs}
+          dispReady={data.days[selectedIndex].readiness}
           flipped={false}
           ringHover={false}
           onToggleFlip={() => {}}
           onSnapToday={() => {}}
           onRingEnter={() => {}}
           onRingLeave={() => {}}
+          onRingToggle={() => {}}
         />
-      </MantineProvider>,
-    );
+      </MemoryRouter>
+    </MantineProvider>,
+  );
+}
+
+describe('SpinePanel render', () => {
+  it('renders the chart, legend and node without crashing', () => {
+    const data = assembleSpine(input());
+    renderPanel(data);
     expect(screen.getByText('TRAINING ARC')).toBeTruthy();
-    // The node's today workout chip.
     expect(screen.getByText('Hygiene Loop')).toBeTruthy();
-    // The FORM/TSB readout label.
     expect(screen.getByText('FORM · TSB')).toBeTruthy();
+  });
+
+  it('moves the selection with arrow keys and snaps with T', () => {
+    const data = assembleSpine(input());
+    const onSelect = vi.fn();
+    renderPanel(data, onSelect, 10);
+    const slider = screen.getByRole('slider');
+    fireEvent.keyDown(slider, { key: 'ArrowLeft' });
+    expect(onSelect).toHaveBeenLastCalledWith(9);
+    fireEvent.keyDown(slider, { key: 'ArrowRight' });
+    expect(onSelect).toHaveBeenLastCalledWith(11);
+    fireEvent.keyDown(slider, { key: 't' });
+    expect(onSelect).toHaveBeenLastCalledWith(data.todayIndex);
+    fireEvent.keyDown(slider, { key: 'End' });
+    expect(onSelect).toHaveBeenLastCalledWith(data.days.length - 1);
+  });
+
+  it('renders a future selection as a planned day', () => {
+    const data = assembleSpine(input());
+    renderPanel(data, () => {}, data.todayIndex + 5);
+    expect(screen.getByText(/01 · PLANNED ·/)).toBeTruthy();
+    expect(screen.getByText('◂ TODAY')).toBeTruthy();
+  });
+
+  it('shows the SET A GOAL affordance when no event is set', () => {
+    const data = assembleSpine(input({ event: null }));
+    renderPanel(data);
+    expect(screen.getByText('SET A GOAL →')).toBeTruthy();
   });
 });
