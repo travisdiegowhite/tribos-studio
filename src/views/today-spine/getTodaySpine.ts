@@ -398,6 +398,15 @@ export async function getTodaySpine(userId: string): Promise<SpineData> {
   sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
   const todayKey = todayLocalDateString();
 
+  // Fail loudly, not with a fake all-zero page: an expired session makes every
+  // RLS-guarded query return empty, which would otherwise render as CTL 0 etc.
+  const {
+    data: { session },
+  } = await supabase.auth.getSession();
+  if (!session) {
+    throw new Error('Session expired — sign in again to load your training arc.');
+  }
+
   const [personaRes, profileRes, activitiesRes, serverLoadRes, plannedRes, raceRes, recentRes, mapRes] =
     await Promise.all([
       supabase.from('user_coach_settings').select('coaching_persona').eq('user_id', userId).maybeSingle(),
@@ -415,9 +424,12 @@ export async function getTodaySpine(userId: string): Promise<SpineData> {
         .gte('start_date', ninetyDaysAgo.toISOString())
         .order('start_date', { ascending: true })
         .limit(500),
+      // Canonical-only: migration 071 dropped the legacy ctl/atl/tsb columns
+      // from this table — selecting them 400s the whole query. Matches the
+      // proven reader in src/views/today/useTodayData.ts.
       supabase
         .from('training_load_daily')
-        .select('date, tfi, afi, form_score, ctl, atl, tsb')
+        .select('date, tfi, afi, form_score')
         .eq('user_id', userId)
         .gte('date', ninetyKey)
         .order('date', { ascending: true }),
@@ -455,6 +467,28 @@ export async function getTodaySpine(userId: string): Promise<SpineData> {
         .limit(50),
     ]);
 
+  // Name any failed query in the console instead of silently rendering zeros.
+  const results: Array<[string, { error: { message?: string } | null }]> = [
+    ['user_coach_settings', personaRes],
+    ['user_profiles', profileRes],
+    ['activities', activitiesRes],
+    ['training_load_daily', serverLoadRes],
+    ['planned_workouts', plannedRes],
+    ['race_goals', raceRes],
+    ['activities (7-day)', recentRes],
+    ['activities (map)', mapRes],
+  ];
+  for (const [table, res] of results) {
+    if (res.error) console.warn(`[today-spine] ${table} query failed:`, res.error.message ?? res.error);
+  }
+  // The fitness history is load-bearing — if both of its sources errored there
+  // is nothing meaningful to draw; surface the failure instead of a zero page.
+  if (activitiesRes.error && serverLoadRes.error) {
+    throw new Error(
+      `Couldn't load training history (${activitiesRes.error.message ?? 'activities query failed'}).`,
+    );
+  }
+
   // Persona.
   const personaId =
     personaRes.data?.coaching_persona && personaRes.data.coaching_persona !== 'pending'
@@ -464,12 +498,11 @@ export async function getTodaySpine(userId: string): Promise<SpineData> {
 
   const ftp = (profileRes.data?.ftp as number | null) || 200;
 
-  // Canonical-first mapping of the daily load rows.
   const serverLoad: ServerLoadRow[] = (serverLoadRes.data ?? []).map((r) => ({
     date: r.date as string,
-    tfi: (r.tfi ?? r.ctl ?? null) as number | null,
-    afi: (r.afi ?? r.atl ?? null) as number | null,
-    form_score: (r.form_score ?? r.tsb ?? null) as number | null,
+    tfi: (r.tfi ?? null) as number | null,
+    afi: (r.afi ?? null) as number | null,
+    form_score: (r.form_score ?? null) as number | null,
   }));
 
   const activities = (activitiesRes.data ?? []) as unknown as Array<
