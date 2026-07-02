@@ -152,6 +152,18 @@ export default function TodaySpine() {
   );
 
   const content = () => {
+    // Error first: a failed load leaves `data` null, and the skeleton branch
+    // would otherwise swallow it into an infinite shimmer.
+    if (error) {
+      return (
+        <Box style={{ border: `1px solid ${C.border}`, background: C.card, padding: 24 }}>
+          <Text style={{ fontFamily: FONT.mono, fontSize: 12, letterSpacing: '1px', color: C.coral }}>
+            COULDN’T LOAD YOUR TRAINING ARC. {error.toUpperCase()}
+          </Text>
+        </Box>
+      );
+    }
+
     if (loading || !data || !vm) {
       return (
         <Stack gap={16}>
@@ -162,16 +174,6 @@ export default function TodaySpine() {
             <Skeleton height={260} radius={0} />
           </Box>
         </Stack>
-      );
-    }
-
-    if (error) {
-      return (
-        <Box style={{ border: `1px solid ${C.border}`, background: C.card, padding: 24 }}>
-          <Text style={{ fontFamily: FONT.mono, fontSize: 12, letterSpacing: '1px', color: C.coral }}>
-            COULDN’T LOAD YOUR TRAINING ARC. {error.toUpperCase()}
-          </Text>
-        </Box>
       );
     }
 
