@@ -297,7 +297,7 @@ The Route Builder 2.0 / routing-first Today rollout originally used a two-layer
 gate (env kill-switch `VITE_ROUTE_BUILDER_V2_ENABLED` + per-user cohort column
 `user_profiles.route_builder_v2_enabled`, added by migration 090, defaulted TRUE
 by migration 100). **The gate is now gone entirely.** RB2 is the one and only
-route builder and the routing-first `TodayGlance` is the one and only Today:
+route builder:
 
 - **`/ride/new` and `/ride/:routeId` render `RouteBuilder2`** (RB2). The legacy
   v1 `RouteBuilder` is retained only as a hidden fallback at **`/ride/new/classic`**.
@@ -305,8 +305,11 @@ route builder and the routing-first `TodayGlance` is the one and only Today:
 - `useRouteBuilderV2Access` and `RouteBuilderV2Guard` were **deleted**; the
   `VITE_ROUTE_BUILDER_V2_ENABLED` env flag was **removed** (no longer read). There
   is no per-user or env gate anymore.
-- `src/views/today-glance/TodayEntry.tsx` always renders `TodayGlance`. The old
-  `src/views/today/TodayView.tsx` is orphaned (kept on disk, not mounted).
+- **`/today` renders the Training-Arc `TodaySpine`** (`src/views/today-spine/`,
+  flipped 2026-07). The routing-first glance (`TodayEntry` → `TodayGlance`) is
+  kept as a fallback at `/today/glance`; `/today/spine` remains a working alias
+  for the Spine. The old `src/views/today/TodayView.tsx` is orphaned (kept on
+  disk, not mounted).
 - The admin per-user toggle is gone (UI + service + `api/admin.js` action).
 
 The `route_builder_v2_enabled` column is kept in the DB (and in

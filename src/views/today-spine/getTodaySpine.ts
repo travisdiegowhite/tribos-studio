@@ -274,7 +274,16 @@ export function assembleSpine(input: AssembleInput): SpineData {
   let daysWithLoad = 0;
   for (const day of sortedDays) {
     const server = serverByDate.get(day);
-    if (server && Number.isFinite(Number(server.tfi)) && Number.isFinite(Number(server.afi))) {
+    // Trust a server row only when tfi/afi are actually present — Number(null)
+    // is 0 (finite), so a null-valued row would silently zero fitness instead
+    // of falling through to the client EWA.
+    if (
+      server &&
+      server.tfi != null &&
+      server.afi != null &&
+      Number.isFinite(Number(server.tfi)) &&
+      Number.isFinite(Number(server.afi))
+    ) {
       tfi = Number(server.tfi);
       afi = Number(server.afi);
     } else {
@@ -307,7 +316,7 @@ export function assembleSpine(input: AssembleInput): SpineData {
     const dAfi = Math.round(afiByDate[date] ?? 0);
     const isToday = i === PAST_SPAN;
     const fs =
-      isToday && todayServer && Number.isFinite(Number(todayServer.form_score))
+      isToday && todayServer?.form_score != null && Number.isFinite(Number(todayServer.form_score))
         ? Math.round(Number(todayServer.form_score))
         : dTfi - dAfi;
     const rss = Math.round(dailyRSS[date] ?? 0);
@@ -403,9 +412,13 @@ export function assembleSpine(input: AssembleInput): SpineData {
     const climbing = best.tfi >= todayNode.tfi + 2 && best.index - PAST_SPAN >= 7;
     if (climbing) peakDaysOut = best.index - PAST_SPAN;
   }
+  const hasHistory = daysWithLoad >= 7;
+
   let summaryLine: string | null = null;
   const fw = formWord(todayNode.fs);
-  if (event && peakDaysOut) {
+  if (!hasHistory) {
+    summaryLine = null; // no data — don't claim a form state
+  } else if (event && peakDaysOut) {
     const gap = event.daysToRace - peakDaysOut;
     const timing = Math.abs(gap) <= 7 ? 'right on' : gap > 0 ? 'ahead of' : 'past';
     summaryLine = `You're ${fw}. Peak in ${daysStr(peakDaysOut)}, ${timing} ${event.name}.`;
@@ -420,7 +433,9 @@ export function assembleSpine(input: AssembleInput): SpineData {
   // ── Coach seed (recommendation block) ───────────────────────────────────
   const isRestToday = todaysWorkout != null && /rest|recover/i.test(todaysWorkout.type);
   let recBody: string;
-  if (!todaysWorkout) {
+  if (!todaysWorkout && !hasHistory) {
+    recBody = "No session prescribed. Log a few rides and I'll start calling the day here.";
+  } else if (!todaysWorkout) {
     recBody = `No session prescribed today. You're ${fw} — an easy spin or full rest both work.`;
   } else if (isRestToday) {
     recBody = `Rest day. You're ${fw} — stay off the bike and let the work settle in.`;
@@ -446,7 +461,7 @@ export function assembleSpine(input: AssembleInput): SpineData {
     recentRides,
     coach: rec,
     summaryLine,
-    hasHistory: daysWithLoad >= 7,
+    hasHistory,
   };
 }
 
@@ -537,6 +552,7 @@ export async function getTodaySpine(userId: string): Promise<SpineData> {
     ]);
 
   let batch = await withLoadWatchdog(runQueries(), LOAD_WATCHDOG_MS);
+  let retried = false;
 
   // All user-scoped reads empty with no errors + no profile row → the queries
   // almost certainly raced the auth client and went out anonymous. Re-probe the
@@ -545,11 +561,25 @@ export async function getTodaySpine(userId: string): Promise<SpineData> {
     const reprobe = await raceTimeout(supabase.auth.getSession(), SESSION_PROBE_MS);
     if (reprobe !== 'timeout' && reprobe.data.session?.access_token) {
       console.warn('[today-spine] all user-scoped reads came back empty — retrying once (auth token race)');
+      retried = true;
       batch = await withLoadWatchdog(runQueries(), LOAD_WATCHDOG_MS);
     }
   }
 
   const [personaRes, profileRes, activitiesRes, serverLoadRes, plannedRes, raceRes, recentRes, mapRes] = batch;
+
+  // One structured line per load so a console screenshot tells us exactly what
+  // each read returned — row counts, not inferences.
+  const n = (r: { data: unknown; error: unknown }) =>
+    r.error ? 'ERR' : Array.isArray(r.data) ? r.data.length : r.data == null ? 0 : 1;
+  const loadRowsWithTfi = Array.isArray(serverLoadRes.data)
+    ? serverLoadRes.data.filter((r) => r.tfi != null).length
+    : 0;
+  console.info(
+    `[today-spine] loaded: activities=${n(activitiesRes)} load=${n(serverLoadRes)} (tfi≠null=${loadRowsWithTfi}) ` +
+      `planned=${n(plannedRes)} races=${n(raceRes)} recent7d=${n(recentRes)} map=${n(mapRes)} ` +
+      `profile=${n(profileRes)} ftp=${profileRes.data?.ftp ?? 'null'} retried=${retried}`,
+  );
 
   // Name any failed query in the console instead of silently rendering zeros.
   const results: Array<[string, { error: { message?: string } | null }]> = [

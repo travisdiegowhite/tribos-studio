@@ -285,3 +285,39 @@ describe('loader guards', () => {
     expect(looksLikeAnonEmpty([empty, empty, empty], failed)).toBe(false);
   });
 });
+
+describe('null-valued server load rows', () => {
+  it('falls back to the client EWA when server rows carry null tfi/afi', () => {
+    // 90 days of server rows that exist but have no values — must not zero
+    // fitness (Number(null) === 0 is finite); the ride-derived EWA should win.
+    const nullRows: ServerLoadRow[] = [];
+    for (let i = 0; i <= 42; i++) {
+      nullRows.push({ date: fmt(addDays(NOW, i - 42)), tfi: null, afi: null, form_score: null });
+    }
+    const rides = [];
+    for (let i = 1; i <= 40; i++) {
+      rides.push({ start_date: `${fmt(addDays(NOW, -i))}T14:00:00Z`, rss: 80, moving_time: 5400 });
+    }
+    const data = assembleSpine(baseInput({ serverLoad: nullRows, activities: rides }));
+    const today = data.days[data.todayIndex];
+    expect(today.tfi).toBeGreaterThan(10); // EWA over 40 × 80-RSS days
+    expect(today.afi).toBeGreaterThan(10);
+  });
+
+  it('ignores a null form_score on today and derives fs from tfi − afi', () => {
+    const rows = serverLoad();
+    rows[rows.length - 1] = { ...rows[rows.length - 1], form_score: null };
+    const data = assembleSpine(baseInput({ serverLoad: rows }));
+    const today = data.days[data.todayIndex];
+    expect(today.fs).toBe(today.tfi - today.afi);
+  });
+});
+
+describe('first-run (no history)', () => {
+  it('suppresses the summary line and form-claiming coach copy when history is thin', () => {
+    const data = assembleSpine(baseInput({ serverLoad: [], activities: [] }));
+    expect(data.hasHistory).toBe(false);
+    expect(data.summaryLine).toBeNull();
+    expect(data.coach.recBody).not.toMatch(/grey zone|fresh|fatigued|loading/);
+  });
+});
