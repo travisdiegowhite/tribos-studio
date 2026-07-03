@@ -94,6 +94,15 @@ export default async function handler(req, res) {
       case 'set_route_visibility':
         return await setRouteVisibility(req, res, userId, routeId, visibility);
 
+      case 'save_draft':
+        return await saveDraft(req, res, userId, routeData);
+
+      case 'get_draft':
+        return await getDraft(req, res, userId);
+
+      case 'delete_draft':
+        return await deleteDraft(req, res, userId);
+
       default:
         return res.status(400).json({ error: 'Invalid action' });
     }
@@ -219,6 +228,7 @@ async function listRoutes(req, res, userId) {
         start_longitude
       `)
       .eq('user_id', userId)
+      .eq('is_draft', false)
       .order('updated_at', { ascending: false });
 
     if (error) throw error;
@@ -326,6 +336,122 @@ async function setRouteVisibility(req, res, userId, routeId, visibility) {
 
   } catch (error) {
     console.error('Set route visibility error:', error);
+    return res.status(500).json({ error: error.message });
+  }
+}
+
+/**
+ * Autosave the user's single in-progress draft (migration 103). Update-then-
+ * insert rather than upsert: the one-draft-per-user constraint is a partial
+ * unique index, which PostgREST's on_conflict can't target.
+ */
+async function saveDraft(req, res, userId, routeData) {
+  if (!routeData || !routeData.geometry) {
+    return res.status(400).json({ error: 'routeData with geometry required' });
+  }
+
+  try {
+    const coordinates = routeData.geometry?.coordinates || [];
+    const startCoord = coordinates[0];
+    const endCoord = coordinates[coordinates.length - 1];
+
+    const draftRecord = {
+      user_id: userId,
+      name: routeData.name || 'Unsaved draft',
+      description: routeData.description || null,
+      distance_km: routeData.distance_km || null,
+      elevation_gain_m: routeData.elevation_gain_m || null,
+      estimated_duration_minutes: routeData.estimated_duration_minutes || null,
+      geometry: routeData.geometry,
+      waypoints: routeData.waypoints || null,
+      start_latitude: startCoord ? startCoord[1] : null,
+      start_longitude: startCoord ? startCoord[0] : null,
+      end_latitude: endCoord ? endCoord[1] : null,
+      end_longitude: endCoord ? endCoord[0] : null,
+      route_type: routeData.route_type || 'loop',
+      training_goal: routeData.training_goal || null,
+      surface_type: routeData.surface_type || null,
+      generated_by: routeData.generated_by || 'rb2',
+      is_draft: true,
+      is_private: true,
+      visibility: 'private',
+      updated_at: new Date().toISOString()
+    };
+
+    const { data: updated, error: updateError } = await supabase
+      .from('routes')
+      .update(draftRecord)
+      .eq('user_id', userId)
+      .eq('is_draft', true)
+      .select('id, updated_at');
+
+    if (updateError) throw updateError;
+
+    if (updated && updated.length > 0) {
+      return res.status(200).json({ success: true, draft: updated[0] });
+    }
+
+    const { data: inserted, error: insertError } = await supabase
+      .from('routes')
+      .insert(draftRecord)
+      .select('id, updated_at')
+      .single();
+
+    if (insertError) throw insertError;
+
+    return res.status(200).json({ success: true, draft: inserted });
+
+  } catch (error) {
+    console.error('Save draft error:', error);
+    return res.status(500).json({ error: error.message });
+  }
+}
+
+/**
+ * Fetch the user's draft, if any. Returns { draft: null } rather than 404 so
+ * the client can treat "no draft" as a normal outcome.
+ */
+async function getDraft(req, res, userId) {
+  try {
+    const { data: draft, error } = await supabase
+      .from('routes')
+      .select(`
+        id, name, description,
+        distance_km, elevation_gain_m, estimated_duration_minutes,
+        geometry, waypoints, route_type, training_goal, surface_type,
+        updated_at
+      `)
+      .eq('user_id', userId)
+      .eq('is_draft', true)
+      .maybeSingle();
+
+    if (error) throw error;
+
+    return res.status(200).json({ success: true, draft: draft ?? null });
+
+  } catch (error) {
+    console.error('Get draft error:', error);
+    return res.status(500).json({ error: error.message });
+  }
+}
+
+/**
+ * Delete the user's draft (after a manual save supersedes it, or on clear).
+ */
+async function deleteDraft(req, res, userId) {
+  try {
+    const { error } = await supabase
+      .from('routes')
+      .delete()
+      .eq('user_id', userId)
+      .eq('is_draft', true);
+
+    if (error) throw error;
+
+    return res.status(200).json({ success: true });
+
+  } catch (error) {
+    console.error('Delete draft error:', error);
     return res.status(500).json({ error: error.message });
   }
 }

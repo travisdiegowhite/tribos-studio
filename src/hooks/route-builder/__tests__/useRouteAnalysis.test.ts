@@ -55,9 +55,9 @@ describe('useRouteAnalysis', () => {
       { distance: 12, elevation: 150 },
     ]);
     const { result, rerender } = renderHook(() => useRouteAnalysis());
-    // Wait for the effect-driven async fetch
+    // Wait out the fetch debounce (rapid-edit coalescing), then the async fetch.
     await act(async () => {
-      await new Promise((r) => setTimeout(r, 10));
+      await new Promise((r) => setTimeout(r, 450));
     });
     rerender();
     expect(result.current.elevationProfile).not.toBeNull();
