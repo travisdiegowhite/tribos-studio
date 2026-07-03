@@ -6,7 +6,7 @@ vi.mock('../geocoding', () => ({
 
 import { geocodeWaypoint } from '../geocoding';
 import {
-  useHillsForTarget,
+  hillsBiasForTarget,
   getTargetProximityScore,
   geocodeKeyRoads,
 } from '../aiRouteGenerator';
@@ -19,19 +19,19 @@ beforeEach(() => {
   mockGeocode.mockReset();
 });
 
-describe('useHillsForTarget', () => {
+describe('hillsBiasForTarget', () => {
   it('returns null without a usable target', () => {
-    expect(useHillsForTarget(null, 40)).toBeNull();
-    expect(useHillsForTarget(600, 0)).toBeNull();
-    expect(useHillsForTarget(0, 40)).toBeNull();
+    expect(hillsBiasForTarget(null, 40)).toBeNull();
+    expect(hillsBiasForTarget(600, 0)).toBeNull();
+    expect(hillsBiasForTarget(0, 40)).toBeNull();
   });
 
   it('maps gain-per-km bands to increasing use_hills', () => {
-    expect(useHillsForTarget(100, 40)).toBe(0.15); // 2.5 m/km — flat
-    expect(useHillsForTarget(300, 40)).toBe(0.35); // 7.5 m/km — rolling
-    expect(useHillsForTarget(600, 40)).toBe(0.6); // 15 m/km — hilly
-    expect(useHillsForTarget(1000, 40)).toBe(0.8); // 25 m/km
-    expect(useHillsForTarget(1400, 40)).toBe(0.95); // 35 m/km — mountains
+    expect(hillsBiasForTarget(100, 40)).toBe(0.15); // 2.5 m/km — flat
+    expect(hillsBiasForTarget(300, 40)).toBe(0.35); // 7.5 m/km — rolling
+    expect(hillsBiasForTarget(600, 40)).toBe(0.6); // 15 m/km — hilly
+    expect(hillsBiasForTarget(1000, 40)).toBe(0.8); // 25 m/km
+    expect(hillsBiasForTarget(1400, 40)).toBe(0.95); // 35 m/km — mountains
   });
 });
 

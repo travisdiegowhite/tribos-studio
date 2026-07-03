@@ -44,7 +44,7 @@ afterEach(() => {
 });
 
 describe('getStadiaCuesForGeometry', () => {
-  it('map-matches the line and returns resolved cues', async () => {
+  it('reconstructs the line via /route and returns resolved cues', async () => {
     fetchMock.mockResolvedValue({
       ok: true,
       json: async () => ({
@@ -82,12 +82,16 @@ describe('getStadiaCuesForGeometry', () => {
     expect(cues[1].distance_km).toBeCloseTo(0.9, 2);
     // Coordinate resolved from the matched shape at the maneuver index.
     expect(cues[1].coordinate[0]).toBeCloseTo(LINE[10][0], 4);
-    // Request went to Stadia's map-matching endpoint with a shape payload.
+    // Request reconstructs via the plain route endpoint (map_match is
+    // plan-gated on Stadia): endpoints are breaks, intermediates are
+    // pass-through constraints, ≤20 locations total.
     const [url, init] = fetchMock.mock.calls[0];
-    expect(String(url)).toContain('map_match/v1');
+    expect(String(url)).toContain('route/v1');
     const body = JSON.parse((init as { body: string }).body);
-    expect(body.shape.length).toBeGreaterThanOrEqual(20);
-    expect(body.shape_match).toBe('map_snap');
+    expect(body.locations.length).toBeLessThanOrEqual(20);
+    expect(body.locations[0].type).toBe('break');
+    expect(body.locations[1].type).toBe('through');
+    expect(body.locations[body.locations.length - 1].type).toBe('break');
   });
 
   it('returns null on trace failure or empty response', async () => {

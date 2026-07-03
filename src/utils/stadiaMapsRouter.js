@@ -824,17 +824,21 @@ function decodePolyline(encoded) {
   return coordinates;
 }
 
-// Stadia's hosted name for Valhalla's trace_route action. NOT /trace_route/v1
-// — their gateway 401s unknown paths before 404ing them, which makes the
-// wrong path look auth-valid from probes.
-const STADIA_MAP_MATCH_API_URL = 'https://api.stadiamaps.com/map_match/v1';
-
 /**
- * Derive turn cues for ANY finished route line by map-matching it through
- * Stadia's map_match (Valhalla trace_route). Cues from the direct /route
- * response only exist when Stadia built the route — this backfills routes
- * from providers that return no turn data (BRouter gravel, GraphHopper,
- * GPX imports, loaded routes). Returns a RouteCue[] or null; never throws.
+ * Derive turn cues for ANY finished route line. Cues from the direct
+ * /route response only exist when Stadia built the route — this backfills
+ * routes from providers that return no turn data (BRouter gravel,
+ * GraphHopper, GPX imports, loaded routes). Returns RouteCue[] or null;
+ * never throws.
+ *
+ * Implementation: Valhalla ROUTE RECONSTRUCTION, not map-matching —
+ * Stadia gates /map_match/v1 behind higher plans (403 "Please upgrade
+ * your account"), but /route/v1 is what all routing already uses. The
+ * geometry is resampled into intermediate `through`-type locations
+ * (no leg breaks, no arrive/depart noise, no u-turns) so Valhalla
+ * re-follows the same line and returns its maneuvers. Between vias the
+ * reconstruction can deviate slightly from the source line, so cue
+ * positions are approximate — good enough for a cue sheet.
  *
  * @param {Array<[lng, lat]>} coordinates - the route geometry (elevation
  *   third elements tolerated)
@@ -844,37 +848,39 @@ export async function getStadiaCuesForGeometry(coordinates) {
   if (!apiKey || !Array.isArray(coordinates) || coordinates.length < 10) return null;
 
   try {
-    // Downsample: map-matching doesn't need every vertex, and the payload
-    // for a long route would otherwise be hundreds of KB.
-    const MAX_SHAPE_POINTS = 800;
+    // Valhalla's route action caps locations (20 by default), so sample
+    // evenly along the line: exact endpoints as 'break', the rest as
+    // 'through' pass-through constraints.
+    const MAX_LOCATIONS = 20;
     const n = coordinates.length;
-    const step = Math.max(1, Math.ceil(n / MAX_SHAPE_POINTS));
-    const shape = [];
-    for (let i = 0; i < n; i += step) {
-      shape.push({ lat: coordinates[i][1], lon: coordinates[i][0] });
-    }
-    const last = coordinates[n - 1];
-    const shapeLast = shape[shape.length - 1];
-    if (shapeLast.lat !== last[1] || shapeLast.lon !== last[0]) {
-      shape.push({ lat: last[1], lon: last[0] });
+    const k = Math.min(MAX_LOCATIONS, n);
+    const locations = [];
+    for (let i = 0; i < k; i++) {
+      const idx = Math.round((i * (n - 1)) / (k - 1));
+      const [lng, lat] = coordinates[idx];
+      locations.push({
+        lat,
+        lon: lng,
+        type: i === 0 || i === k - 1 ? 'break' : 'through',
+      });
     }
 
-    const response = await fetch(`${STADIA_MAP_MATCH_API_URL}?api_key=${apiKey}`, {
+    const response = await fetch(`${STADIA_MAPS_API_URL}?api_key=${apiKey}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        shape,
+        locations,
         costing: 'bicycle',
-        shape_match: 'map_snap',
         directions_type: 'maneuvers',
-        units: 'kilometers'
+        units: 'kilometers',
+        id: 'tribos-cue-backfill'
       }),
       signal: AbortSignal.timeout(12000)
     });
 
     if (!response.ok) {
       const errorText = await response.text().catch(() => '');
-      console.warn(`⛔ Cue backfill: Stadia map_match ${response.status} — ${errorText.slice(0, 200)}`);
+      console.warn(`⛔ Cue backfill: Stadia route reconstruction ${response.status} — ${errorText.slice(0, 200)}`);
       return null;
     }
 
@@ -918,7 +924,7 @@ export async function getStadiaCuesForGeometry(coordinates) {
 
     return cues.length > 0 ? cues : null;
   } catch (error) {
-    console.warn('⛔ Cue backfill: map_match request failed:', error?.message);
+    console.warn('⛔ Cue backfill: route reconstruction failed:', error?.message);
     return null;
   }
 }

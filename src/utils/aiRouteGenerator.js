@@ -69,7 +69,7 @@ export function getTargetProximityScore(actual, target, weight) {
  * Map an elevation-gain target to a Valhalla use_hills bias (0–1) via the
  * implied gain-per-km. Exported for tests.
  */
-export function useHillsForTarget(elevationGainTargetM, targetDistanceKm) {
+export function hillsBiasForTarget(elevationGainTargetM, targetDistanceKm) {
   if (!elevationGainTargetM || !targetDistanceKm || targetDistanceKm <= 0) return null;
   const gainPerKm = elevationGainTargetM / targetDistanceKm;
   if (gainPerKm < 5) return 0.15;   // pancake request — actively avoid climbs
@@ -1218,7 +1218,7 @@ async function convertClaudeToFullRoute(claudeRoute, startLocation, targetDistan
       }
     }
 
-    const useHills = useHillsForTarget(elevationGainTargetM, targetDistanceKm);
+    const useHills = hillsBiasForTarget(elevationGainTargetM, targetDistanceKm);
     const routerOptions = {
       profile: routingProfile,
       preferences: preferences,
