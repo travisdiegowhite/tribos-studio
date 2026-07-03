@@ -28,6 +28,12 @@ export const useRouteManipulation = ({
   const [historyLength, setHistoryLength] = useState(0);
   const [historyIndex, setHistoryIndex] = useState(-1);
 
+  // Monotonic sequence for async route builds. Rapid successive edits (e.g.
+  // two quick waypoint drags) launch overlapping snap requests; without this
+  // guard the results apply in completion order and a slow early response
+  // can overwrite a newer route.
+  const routeBuildSeqRef = useRef(0);
+
   // === Push to History ===
   const pushToHistory = useCallback((waypointState) => {
     // Truncate any future history if we're not at the end
@@ -245,6 +251,9 @@ export const useRouteManipulation = ({
       return null;
     }
 
+    const seq = ++routeBuildSeqRef.current;
+    const isStale = () => seq !== routeBuildSeqRef.current;
+
     try {
       const mapboxToken = import.meta.env.VITE_MAPBOX_TOKEN;
       if (!mapboxToken) {
@@ -291,7 +300,7 @@ export const useRouteManipulation = ({
         const url = `https://api.mapbox.com/directions/v5/mapbox/${profile}/${coordinates}?` +
           `geometries=geojson&overview=full&steps=false&exclude=ferry&access_token=${mapboxToken}`;
 
-        const response = await fetch(url);
+        const response = await fetch(url, { signal: AbortSignal.timeout(12000) });
         if (!response.ok) {
           throw new Error(`Directions API error: ${response.status}`);
         }
@@ -307,6 +316,10 @@ export const useRouteManipulation = ({
         routeDistance_m = route.distance || 0;
         routeDuration_s = route.duration || 0;
       }
+
+      // A newer snap started while this one was awaiting the router — drop
+      // this result rather than overwrite the newer route.
+      if (isStale()) return null;
 
       // Ensure the route ends exactly at our final waypoint
       const finalWaypoint = waypointsToSnap[waypointsToSnap.length - 1].position;
@@ -345,7 +358,7 @@ export const useRouteManipulation = ({
 
       // Fetch elevation data — calculateElevationStats returns gain/loss in meters
       const elevation = await getElevationData(snappedCoordinates);
-      if (elevation) {
+      if (elevation && !isStale()) {
         setElevationProfile(elevation);
         const elevStats = calculateElevationStats(elevation);
         setRouteStats(prev => ({
@@ -400,6 +413,9 @@ export const useRouteManipulation = ({
       return null;
     }
 
+    const seq = ++routeBuildSeqRef.current;
+    const isStale = () => seq !== routeBuildSeqRef.current;
+
     try {
       const coordinates = waypointsToUse.map(wp => wp.position);
 
@@ -431,7 +447,7 @@ export const useRouteManipulation = ({
       setRouteStats(stats);
 
       const elevation = await getElevationData(coordinates);
-      if (elevation) {
+      if (elevation && !isStale()) {
         setElevationProfile(elevation);
         const elevStats = calculateElevationStats(elevation);
         setRouteStats(prev => ({

@@ -11,6 +11,7 @@ import { useRouteBuilderStore } from '../../stores/routeBuilderStore';
 import * as routesService from '../../utils/routesService';
 import { exportAndDownloadRoute } from '../../utils/routeExport';
 import { getElevationData } from '../../utils/elevation';
+import { waypointCoordsForGeometry } from './routeSnapshot';
 import { parseGpxFile } from '../../utils/gpxParser.js';
 import { garminService } from '../../utils/garminService';
 import { trackRb2 } from '../../features/route-builder-v2/telemetry/trackRb2';
@@ -366,7 +367,17 @@ export function useRoutePersistence(): UseRoutePersistenceReturn {
       setIsLoading(true);
       setLastError(null);
       try {
-        const text = await file.text();
+        // Blob.text() is missing on older Safari (and jsdom) — fall back to
+        // FileReader.
+        const text =
+          typeof file.text === 'function'
+            ? await file.text()
+            : await new Promise<string>((resolve, reject) => {
+                const reader = new FileReader();
+                reader.onload = () => resolve(String(reader.result));
+                reader.onerror = () => reject(reader.error ?? new Error('File read failed'));
+                reader.readAsText(file);
+              });
         const parsed = await parseGpx(text, file.name);
         const points = parsed.trackPoints ?? [];
         if (points.length < 2) {
@@ -374,11 +385,24 @@ export function useRoutePersistence(): UseRoutePersistenceReturn {
           trackRb2('route_import_failed', { reason: 'too_few_points' });
           return null;
         }
-        // GPX track points are {latitude, longitude}; convert at this seam to
-        // canonical [lng, lat] (T1.2 coordinate contract).
+        // GPX track points are {latitude, longitude, elevation?}; convert at
+        // this seam to canonical [lng, lat] (T1.2 coordinate contract),
+        // keeping per-point elevation as a GeoJSON third element when the
+        // file carries it — it flows through to the profile and re-export.
         const coordinates: Coordinate[] = points.map(
           (p) => [p.longitude, p.latitude] as Coordinate,
         );
+        const hasElevation = points.some((p) => typeof p.elevation === 'number');
+        const geometryCoordinates = hasElevation
+          ? points.map(
+              (p) =>
+                [
+                  p.longitude,
+                  p.latitude,
+                  typeof p.elevation === 'number' ? p.elevation : 0,
+                ] as [number, number, number],
+            )
+          : coordinates;
         const summary = parsed.summary ?? {};
         const stats = {
           distance_km: summary.totalDistance_km ?? 0,
@@ -389,16 +413,21 @@ export function useRoutePersistence(): UseRoutePersistenceReturn {
           parsed.metadata?.name?.trim() ||
           file.name.replace(/\.gpx$/i, '').trim() ||
           'Imported Route';
-        const start = coordinates[0];
-        const end = coordinates[coordinates.length - 1];
+        // Seed control points along the whole track (same resampling as
+        // generated routes) so an edit re-routes one leg, not the entire
+        // import between its two endpoints.
+        const controlPoints = waypointCoordsForGeometry(geometryCoordinates);
         setRouteFromStore({
-          geometry: { type: 'LineString', coordinates },
+          geometry: { type: 'LineString', coordinates: geometryCoordinates },
           name,
           stats,
-          waypoints: [
-            { id: 'wp-0', position: start, type: 'start', name: '' },
-            { id: 'wp-1', position: end, type: 'end', name: '' },
-          ],
+          waypoints: controlPoints.map((position, i) => ({
+            id: `wp-${i}`,
+            position,
+            type:
+              i === 0 ? 'start' : i === controlPoints.length - 1 ? 'end' : 'waypoint',
+            name: '',
+          })),
           source: 'imported',
         });
         // Imported routes aren't persisted yet — clear any prior saved id so
