@@ -49,7 +49,11 @@ export async function getBRouterDirections(coordinates, options = {}) {
 
     console.log(`🚴 BRouter: Requesting ${profile} route with ${coordinates.length} waypoints`);
 
-    const response = await fetch(url);
+    // brouter.de is a free public instance with no SLA — without a timeout a
+    // hung request stalls the whole routing fallback chain.
+    const response = await fetch(url, {
+      signal: AbortSignal.timeout(12000)
+    });
 
     if (!response.ok) {
       const errorText = await response.text();

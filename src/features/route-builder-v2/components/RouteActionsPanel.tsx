@@ -95,6 +95,8 @@ export function RouteActionsPanel({
   const [loadingList, setLoadingList] = useState(false);
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
   const [garminConnected, setGarminConnected] = useState(false);
+  const [shareConfirmOpen, setShareConfirmOpen] = useState(false);
+  const [sharing, setSharing] = useState(false);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   // Check Garmin connection once on mount so the "Send to Garmin" item only
@@ -240,26 +242,47 @@ export function RouteActionsPanel({
     });
   }, [persistence]);
 
-  const handleShare = useCallback(async () => {
+  const handleShare = useCallback(() => {
     trackRb2('share_clicked', {});
-    const result = await persistence.shareRoute();
-    if (result.ok) {
+    if (!persistence.savedRouteId) {
+      // Not saved yet — prompt a save so the route has a shareable URL.
       notifications.show({
-        title: 'Link copied',
-        message: 'Share link copied to clipboard.',
-        color: 'green',
-        icon: <Check size={16} />,
+        title: 'Save first',
+        message: 'Save your route to get a shareable link.',
+        color: 'yellow',
       });
+      handleOpenSave();
       return;
     }
-    // Not saved yet — prompt a save so the route has a shareable URL.
-    notifications.show({
-      title: 'Save first',
-      message: 'Save your route to get a shareable link.',
-      color: 'yellow',
-    });
-    handleOpenSave();
+    setShareConfirmOpen(true);
   }, [persistence, handleOpenSave]);
+
+  const handleShareConfirm = useCallback(async () => {
+    setSharing(true);
+    try {
+      const result = await persistence.shareRoute();
+      if (result.ok) {
+        setShareConfirmOpen(false);
+        notifications.show({
+          title: 'Link copied',
+          message: 'Anyone signed in to tribos can open this link.',
+          color: 'green',
+          icon: <Check size={16} />,
+        });
+        return;
+      }
+      notifications.show({
+        title: 'Share failed',
+        message:
+          result.reason === 'error'
+            ? result.message
+            : 'Save your route to get a shareable link.',
+        color: 'red',
+      });
+    } finally {
+      setSharing(false);
+    }
+  }, [persistence]);
 
   return (
     <>
@@ -514,6 +537,48 @@ export function RouteActionsPanel({
             ))}
           </Stack>
         )}
+      </Modal>
+
+      <Modal
+        opened={shareConfirmOpen}
+        onClose={() => setShareConfirmOpen(false)}
+        title="Share Route"
+        radius={0}
+        data-testid="rb2-share-confirm-modal"
+      >
+        <Stack>
+          <Text style={{ fontFamily: RB2_FONT.body, fontSize: 14, color: RB2.textSecondary }}>
+            Sharing makes this route viewable by anyone with the link who is signed in to
+            tribos. You can keep editing it — only you can change or delete it.
+          </Text>
+          <Group justify="flex-end" gap={6}>
+            <Button
+              variant="outline"
+              onClick={() => setShareConfirmOpen(false)}
+              styles={buttonStyles}
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={handleShareConfirm}
+              disabled={sharing}
+              data-testid="rb2-share-confirm"
+              styles={{
+                root: {
+                  borderRadius: 0,
+                  backgroundColor: RB2.teal,
+                  fontFamily: RB2_FONT.heading,
+                  letterSpacing: '0.08em',
+                  textTransform: 'uppercase',
+                  fontSize: 12,
+                  height: 32,
+                },
+              }}
+            >
+              {sharing ? <Loader size="xs" color="white" /> : 'Share & Copy Link'}
+            </Button>
+          </Group>
+        </Stack>
       </Modal>
     </>
   );

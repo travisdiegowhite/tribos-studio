@@ -180,30 +180,51 @@ describe('RouteActionsPanel', () => {
     await waitFor(() => expect(persistence.exportRoute).toHaveBeenCalledWith('tcx'));
   });
 
-  it('copies a share link when the route is saved', async () => {
+  it('copies a share link after confirming, when the route is saved', async () => {
     notifyShow.mockClear();
     const { persistence } = renderPanel({
       persistence: makePersistence({
+        savedRouteId: 'r-1',
         shareRoute: vi.fn().mockResolvedValue({ ok: true, url: 'http://x/routes/r-1' }),
       }),
     });
     fireEvent.click(screen.getByTestId('rb2-share-route-button'));
+    // Sharing makes the route public, so a confirm modal gates it.
+    const confirm = await screen.findByTestId('rb2-share-confirm');
+    fireEvent.click(confirm);
     await waitFor(() => expect(persistence.shareRoute).toHaveBeenCalled());
     await waitFor(() =>
       expect(notifyShow).toHaveBeenCalledWith(expect.objectContaining({ title: 'Link copied' })),
     );
   });
 
-  it('prompts a save when sharing an unsaved route', async () => {
+  it('shows an error and keeps the confirm open when sharing fails', async () => {
+    notifyShow.mockClear();
     const { persistence } = renderPanel({
       persistence: makePersistence({
-        shareRoute: vi.fn().mockResolvedValue({ ok: false, reason: 'not_saved' }),
+        savedRouteId: 'r-1',
+        shareRoute: vi
+          .fn()
+          .mockResolvedValue({ ok: false, reason: 'error', message: 'Could not update route.' }),
       }),
     });
     fireEvent.click(screen.getByTestId('rb2-share-route-button'));
+    fireEvent.click(await screen.findByTestId('rb2-share-confirm'));
     await waitFor(() => expect(persistence.shareRoute).toHaveBeenCalled());
-    // Save modal opens so the user can name + save before sharing.
+    await waitFor(() =>
+      expect(notifyShow).toHaveBeenCalledWith(expect.objectContaining({ title: 'Share failed' })),
+    );
+  });
+
+  it('prompts a save when sharing an unsaved route', async () => {
+    const { persistence } = renderPanel({
+      persistence: makePersistence({ savedRouteId: null }),
+    });
+    fireEvent.click(screen.getByTestId('rb2-share-route-button'));
+    // Save modal opens so the user can name + save before sharing; the
+    // visibility change never fires for an unsaved route.
     expect(await screen.findByTestId('rb2-save-modal')).toBeInTheDocument();
+    expect(persistence.shareRoute).not.toHaveBeenCalled();
   });
 
   it('disables Share when there is no route', () => {

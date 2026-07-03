@@ -22,6 +22,13 @@ export interface BikeInfraLayerProps {
   /** Map bounds in {north, south, east, west}. When null, layer renders nothing. */
   bbox: { north: number; south: number; east: number; west: number } | null;
   visible: boolean;
+  /**
+   * Called with `true` when the layer has nothing to show because its fetch
+   * failed (the user toggled it on and got silence), and `false` once a
+   * fetch succeeds. Pan-time refetch failures with data already on screen
+   * don't fire it.
+   */
+  onLoadFailure?: (failed: boolean) => void;
 }
 
 const DEBOUNCE_MS = 500;
@@ -30,10 +37,13 @@ function hashBbox(b: { north: number; south: number; east: number; west: number 
   return `${b.north.toFixed(3)},${b.south.toFixed(3)},${b.east.toFixed(3)},${b.west.toFixed(3)}`;
 }
 
-export function BikeInfraLayer({ bbox, visible }: BikeInfraLayerProps) {
+export function BikeInfraLayer({ bbox, visible, onLoadFailure }: BikeInfraLayerProps) {
   const [data, setData] = useState<unknown>(null);
   const lastKeyRef = useRef<string>('');
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const hasDataRef = useRef(false);
+  const onLoadFailureRef = useRef(onLoadFailure);
+  onLoadFailureRef.current = onLoadFailure;
 
   useEffect(() => {
     if (!visible || !bbox) {
@@ -49,9 +59,12 @@ export function BikeInfraLayer({ bbox, visible }: BikeInfraLayerProps) {
         try {
           const result = await fetchBikeInfrastructure(bbox);
           setData(result);
+          hasDataRef.current = result != null;
+          onLoadFailureRef.current?.(false);
         } catch (e) {
           if (!(e instanceof Error && e.name === 'AbortError')) {
             console.warn('[RB2] bike infrastructure fetch failed', e);
+            if (!hasDataRef.current) onLoadFailureRef.current?.(true);
           }
         }
       })();

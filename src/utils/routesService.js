@@ -126,6 +126,40 @@ export async function getRoute(routeId) {
 }
 
 /**
+ * Set a route's visibility ('private' | 'public'). Owner only.
+ * @param {string} routeId - Route UUID
+ * @param {'private'|'public'} visibility
+ * @returns {Promise<Object>} - { id, visibility, is_private }
+ */
+export async function setRouteVisibility(routeId, visibility) {
+  const userId = await getCurrentUserId();
+  if (!userId) {
+    throw new Error('User must be authenticated');
+  }
+
+  const headers = await getAuthHeaders();
+  const response = await fetch(`${getApiBaseUrl()}/api/routes`, {
+    method: 'POST',
+    headers,
+    credentials: 'include',
+    body: JSON.stringify({
+      action: 'set_route_visibility',
+      userId,
+      routeId,
+      visibility
+    })
+  });
+
+  if (!response.ok) {
+    const errorData = await response.json();
+    throw new Error(errorData.error || 'Failed to update route visibility');
+  }
+
+  const data = await response.json();
+  return data.route;
+}
+
+/**
  * Delete a route
  * @param {string} routeId - Route UUID
  * @returns {Promise<boolean>} - Success
@@ -160,5 +194,6 @@ export default {
   saveRoute,
   listRoutes,
   getRoute,
+  setRouteVisibility,
   deleteRoute
 };

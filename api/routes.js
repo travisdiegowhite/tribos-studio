@@ -66,7 +66,7 @@ export default async function handler(req, res) {
   }
 
   try {
-    const { action, userId, routeId, routeData } = req.body;
+    const { action, userId, routeId, routeData, visibility } = req.body;
 
     if (!userId) {
       return res.status(400).json({ error: 'userId required' });
@@ -90,6 +90,9 @@ export default async function handler(req, res) {
 
       case 'delete_route':
         return await deleteRoute(req, res, userId, routeId);
+
+      case 'set_route_visibility':
+        return await setRouteVisibility(req, res, userId, routeId, visibility);
 
       default:
         return res.status(400).json({ error: 'Invalid action' });
@@ -233,7 +236,10 @@ async function listRoutes(req, res, userId) {
 }
 
 /**
- * Get a single route with full details
+ * Get a single route with full details.
+ * Owners can always read their routes; other authenticated users can read
+ * a route only when it has been shared (visibility 'public' / not private).
+ * Non-shared routes return 404 rather than 403 so route ids can't be probed.
  */
 async function getRoute(req, res, userId, routeId) {
   if (!routeId) {
@@ -244,7 +250,7 @@ async function getRoute(req, res, userId, routeId) {
     const { data: route, error } = await supabase
       .from('routes')
       .select(`
-        id, name, description,
+        id, user_id, name, description,
         distance_km, elevation_gain_m, elevation_loss_m, estimated_duration_minutes,
         geometry, waypoints,
         start_latitude, start_longitude, end_latitude, end_longitude,
@@ -253,7 +259,57 @@ async function getRoute(req, res, userId, routeId) {
         created_at, updated_at
       `)
       .eq('id', routeId)
+      .single();
+
+    if (error) {
+      if (error.code === 'PGRST116') {
+        return res.status(404).json({ error: 'Route not found' });
+      }
+      throw error;
+    }
+
+    const isOwner = route.user_id === userId;
+    const isShared = route.visibility === 'public' || route.is_private === false;
+    if (!isOwner && !isShared) {
+      return res.status(404).json({ error: 'Route not found' });
+    }
+
+    const { user_id: _ownerId, ...routePayload } = route;
+
+    return res.status(200).json({
+      success: true,
+      route: { ...routePayload, is_owner: isOwner }
+    });
+
+  } catch (error) {
+    console.error('Get route error:', error);
+    return res.status(500).json({ error: error.message });
+  }
+}
+
+/**
+ * Set a route's visibility ('private' | 'public'). Owner only.
+ * Dual-writes the legacy is_private flag so both readers stay consistent.
+ */
+async function setRouteVisibility(req, res, userId, routeId, visibility) {
+  if (!routeId) {
+    return res.status(400).json({ error: 'routeId required' });
+  }
+  if (visibility !== 'private' && visibility !== 'public') {
+    return res.status(400).json({ error: "visibility must be 'private' or 'public'" });
+  }
+
+  try {
+    const { data: route, error } = await supabase
+      .from('routes')
+      .update({
+        visibility,
+        is_private: visibility !== 'public',
+        updated_at: new Date().toISOString()
+      })
+      .eq('id', routeId)
       .eq('user_id', userId)
+      .select('id, visibility, is_private')
       .single();
 
     if (error) {
@@ -269,7 +325,7 @@ async function getRoute(req, res, userId, routeId) {
     });
 
   } catch (error) {
-    console.error('Get route error:', error);
+    console.error('Set route visibility error:', error);
     return res.status(500).json({ error: error.message });
   }
 }

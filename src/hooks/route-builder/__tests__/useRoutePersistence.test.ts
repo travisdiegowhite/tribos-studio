@@ -8,6 +8,7 @@ vi.mock('../../../utils/routesService', () => ({
   getRoute: vi.fn(),
   listRoutes: vi.fn().mockResolvedValue([]),
   deleteRoute: vi.fn().mockResolvedValue({ success: true }),
+  setRouteVisibility: vi.fn().mockResolvedValue({ visibility: 'public' }),
 }));
 
 vi.mock('../../../utils/routeExport', () => ({

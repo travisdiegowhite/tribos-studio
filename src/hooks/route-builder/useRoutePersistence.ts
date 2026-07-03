@@ -10,6 +10,7 @@ import { useCallback, useState } from 'react';
 import { useRouteBuilderStore } from '../../stores/routeBuilderStore';
 import * as routesService from '../../utils/routesService';
 import { exportAndDownloadRoute } from '../../utils/routeExport';
+import { getElevationData } from '../../utils/elevation';
 import { parseGpxFile } from '../../utils/gpxParser.js';
 import { garminService } from '../../utils/garminService';
 import { trackRb2 } from '../../features/route-builder-v2/telemetry/trackRb2';
@@ -47,14 +48,46 @@ interface SavedRouteRow {
   elevation_gain_m?: number | null;
   estimated_duration_minutes?: number | null;
   waypoints?: unknown[] | null;
+  is_owner?: boolean;
 }
 
 const saveRoute = routesService.saveRoute as (data: unknown) => Promise<SavedRouteRow>;
 const getRoute = routesService.getRoute as (id: string) => Promise<SavedRouteRow | null>;
 const listRoutesSvc = routesService.listRoutes as () => Promise<SavedRouteRow[]>;
 const deleteRouteSvc = routesService.deleteRoute as (id: string) => Promise<unknown>;
+const setRouteVisibilitySvc = routesService.setRouteVisibility as (
+  id: string,
+  visibility: 'private' | 'public',
+) => Promise<unknown>;
 
 export type ExportFormat = 'gpx' | 'tcx' | 'fit';
+
+type ExportCoordinates = [number, number][] | [number, number, number][];
+
+/**
+ * Exported files and device pushes need per-point elevation, but the
+ * store's `routeGeometry` holds 2-tuple [lng, lat] coordinates — the
+ * elevation profile lives in parallel arrays owned by the analysis
+ * layer and never reaches this hook. Resolve it here via
+ * `getElevationData` (module-level cache + in-flight dedup, so a route
+ * whose profile is already displayed resolves without a new fetch) and
+ * zip to [lng, lat, ele]. On failure, fall back to the flat
+ * coordinates rather than blocking the export.
+ */
+export async function withElevations(coords: ExportCoordinates): Promise<ExportCoordinates> {
+  if (coords.length === 0 || coords[0].length === 3) return coords;
+  try {
+    const profile = (await getElevationData(coords as [number, number][])) as Array<{
+      elevation: number;
+    }> | null;
+    if (!profile || !Array.isArray(profile) || profile.length !== coords.length) return coords;
+    return coords.map(
+      (c, i) => [c[0], c[1], profile[i].elevation] as [number, number, number],
+    );
+  } catch {
+    return coords;
+  }
+}
 
 /**
  * Outcome of a direct device push. `courses_unavailable` is the
@@ -71,11 +104,14 @@ export type DevicePushResult =
 
 /**
  * Outcome of a share-link copy. `not_saved` means the route has no id yet —
- * the caller should prompt the user to save first.
+ * the caller should prompt the user to save first. `error` means the route
+ * couldn't be made shareable (visibility update failed), so no link was
+ * copied — a link the recipient can't open is worse than no link.
  */
 export type ShareResult =
   | { ok: true; url: string }
-  | { ok: false; reason: 'not_saved' };
+  | { ok: false; reason: 'not_saved' }
+  | { ok: false; reason: 'error'; message: string };
 
 export interface SavedRoute {
   id: string;
@@ -99,7 +135,7 @@ export interface UseRoutePersistenceReturn {
   listSavedRoutes: () => Promise<SavedRouteSummary[]>;
   /** Delete a saved route by id. Clears `savedRouteId` if it was the open one. */
   deleteRoute: (id: string) => Promise<boolean>;
-  exportRoute: (format: ExportFormat) => void;
+  exportRoute: (format: ExportFormat) => Promise<void>;
   /**
    * Parse a .gpx file and load it as the current route. Returns the track
    * coordinates on success (so the caller can frame the camera) or null on
@@ -235,8 +271,11 @@ export function useRoutePersistence(): UseRoutePersistenceReturn {
           waypoints: route.waypoints ?? [],
           source: 'loaded',
         });
-        setSavedRouteId(route.id);
-        trackRb2('route_loaded', { route_id: route.id });
+        // A shared route someone else owns loads as an unsaved copy: keeping
+        // its id would make Save attempt an update the API rejects.
+        const isOwner = route.is_owner !== false;
+        setSavedRouteId(isOwner ? route.id : null);
+        trackRb2('route_loaded', { route_id: route.id, is_owner: isOwner });
         return true;
       } catch (e) {
         const message = e instanceof Error ? e.message : String(e);
@@ -250,17 +289,18 @@ export function useRoutePersistence(): UseRoutePersistenceReturn {
   );
 
   const exportRoute = useCallback(
-    (format: ExportFormat) => {
+    async (format: ExportFormat) => {
       if (!routeGeometry || !Array.isArray((routeGeometry as { coordinates?: unknown[] }).coordinates)) {
         setLastError('No route to export');
         return;
       }
-      const coords = (routeGeometry as { coordinates: [number, number][] | [number, number, number][] }).coordinates;
+      const coords = (routeGeometry as { coordinates: ExportCoordinates }).coordinates;
       try {
+        const coordinates = await withElevations(coords);
         exportAndDownloadRoute(
           {
             name: routeName ?? 'Untitled Route',
-            coordinates: coords,
+            coordinates,
             distanceKm: routeStats?.distance_km ?? undefined,
             elevationGainM: routeStats?.elevation_gain_m ?? undefined,
             waypoints: Array.isArray(waypoints)
@@ -400,7 +440,7 @@ export function useRoutePersistence(): UseRoutePersistenceReturn {
     setLastError(null);
     const routeData = {
       name: routeName ?? 'Untitled Route',
-      coordinates: coords,
+      coordinates: await withElevations(coords),
       distanceKm: routeStats?.distance_km ?? undefined,
       elevationGainM: routeStats?.elevation_gain_m ?? undefined,
       elevationLossM: routeStats?.elevation_loss_m ?? undefined,
@@ -462,6 +502,15 @@ export function useRoutePersistence(): UseRoutePersistenceReturn {
   const shareRoute = useCallback(async (): Promise<ShareResult> => {
     if (!savedRouteId) {
       return { ok: false, reason: 'not_saved' };
+    }
+    // Route reads are owner-scoped by default; the link is only useful to a
+    // recipient once the route is marked shareable.
+    try {
+      await setRouteVisibilitySvc(savedRouteId, 'public');
+    } catch (e) {
+      const message = e instanceof Error ? e.message : String(e);
+      trackRb2('route_share_failed', { error_message: message.slice(0, 200) });
+      return { ok: false, reason: 'error', message };
     }
     const url = `${window.location.origin}/routes/${savedRouteId}`;
     try {

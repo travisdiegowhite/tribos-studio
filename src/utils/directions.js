@@ -54,7 +54,7 @@ export async function mapMatchRoute(waypoints, accessToken, options = {}) {
       `access_token=${accessToken}`;
 
     try {
-      const response = await fetch(url);
+      const response = await fetch(url, { signal: AbortSignal.timeout(12000) });
       if (!response.ok) {
         console.warn(`Map Matching API error with ${radius}m radius: ${response.status} ${response.statusText}`);
         continue; // Try next radius
@@ -494,7 +494,7 @@ export async function getCyclingDirections(waypoints, accessToken, options = {})
   console.log('🔧 Routing profile:', routingProfile);
 
   try {
-    const response = await fetch(url);
+    const response = await fetch(url, { signal: AbortSignal.timeout(12000) });
     if (!response.ok) {
       const errorText = await response.text();
       console.error(`Directions API error: ${response.status} ${response.statusText}`);
@@ -544,7 +544,7 @@ async function attemptQuietRouting(coordinates, accessToken, strategyOptions) {
     `access_token=${accessToken}`;
 
   try {
-    const response = await fetch(url);
+    const response = await fetch(url, { signal: AbortSignal.timeout(12000) });
     if (!response.ok) {
       return { success: false, error: `HTTP ${response.status}` };
     }
