@@ -8,6 +8,7 @@
 
 import { fetchBikeInfrastructure, INFRASTRUCTURE_TYPES } from './bikeInfrastructureService';
 import { canonicalToValhalla } from './coordConverters';
+import { valhallaTypeToDirection } from './routeCues';
 import { assertCoordinate } from '../types/geo';
 import { valhallaTripUsesFerry, FERRY_REJECTED_REASON } from './ferryGuard';
 
@@ -359,6 +360,9 @@ export async function getStadiaMapsRoute(waypoints, options = {}) {
     let coordinates = [];
     let totalDistance = 0;
     let totalDuration = 0;
+    // Global index of each leg's shape index 0, for resolving maneuver
+    // begin_shape_index (per-leg) into the concatenated coordinates array.
+    const legStartGlobal = [];
 
     trip.legs.forEach((leg, index) => {
       // Decode polyline for this leg
@@ -366,8 +370,11 @@ export async function getStadiaMapsRoute(waypoints, options = {}) {
 
       // Concatenate coordinates (skip first point of subsequent legs to avoid duplication)
       if (index === 0) {
+        legStartGlobal.push(0);
         coordinates = legCoordinates;
       } else {
+        // Subsequent legs share their first point with the previous leg's last.
+        legStartGlobal.push(coordinates.length - 1);
         coordinates = coordinates.concat(legCoordinates.slice(1));
       }
 
@@ -375,6 +382,29 @@ export async function getStadiaMapsRoute(waypoints, options = {}) {
       // Valhalla emits leg.summary.length in KM; convert at boundary.
       totalDistance += leg.summary.length * 1000;
       totalDuration += leg.summary.time;
+    });
+
+    // Turn-by-turn cues resolved onto the concatenated line, with cumulative
+    // distance (maneuver.length is the distance covered BY the maneuver's
+    // segment, so the running sum before each maneuver is its position).
+    const cues = [];
+    let cueCumulativeKm = 0;
+    trip.legs.forEach((leg, index) => {
+      (leg.maneuvers || []).forEach((m) => {
+        const globalIdx = Math.min(
+          Math.max(legStartGlobal[index] + (m.begin_shape_index || 0), 0),
+          coordinates.length - 1,
+        );
+        cues.push({
+          type: m.type ?? 0,
+          direction: valhallaTypeToDirection(m.type ?? 0),
+          instruction: m.instruction || '',
+          streetNames: m.street_names || [],
+          distance_km: Math.round(cueCumulativeKm * 100) / 100,
+          coordinate: coordinates[globalIdx],
+        });
+        cueCumulativeKm += m.length || 0;
+      });
     });
 
     const distance_m = totalDistance;
@@ -399,6 +429,7 @@ export async function getStadiaMapsRoute(waypoints, options = {}) {
       confidence: 1.0,
       source: 'stadia_maps',
       profile,
+      cues,
       maneuvers,
       trafficScore,
       quietnessScore,

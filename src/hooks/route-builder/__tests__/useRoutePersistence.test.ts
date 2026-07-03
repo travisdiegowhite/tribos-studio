@@ -193,7 +193,7 @@ describe('useRoutePersistence', () => {
     expect(res).toEqual({ ok: false, reason: 'not_saved' });
   });
 
-  it('shareRoute copies a /routes/:id link once the route is saved', async () => {
+  it('shareRoute makes the route public and copies the public /r/:id link', async () => {
     seedRoute();
     vi.mocked(routesService.saveRoute).mockResolvedValue({ id: 'route-abc' } as any);
     const writeText = vi.fn().mockResolvedValue(undefined);
@@ -207,7 +207,11 @@ describe('useRoutePersistence', () => {
       res = await result.current.shareRoute();
     });
     expect(res.ok).toBe(true);
-    expect(res.url).toMatch(/\/routes\/route-abc$/);
-    expect(writeText).toHaveBeenCalledWith(expect.stringMatching(/\/routes\/route-abc$/));
+    expect(res.url).toMatch(/\/r\/route-abc$/);
+    expect(writeText).toHaveBeenCalledWith(expect.stringMatching(/\/r\/route-abc$/));
+    expect(vi.mocked(routesService.setRouteVisibility)).toHaveBeenCalledWith(
+      'route-abc',
+      'public',
+    );
   });
 });

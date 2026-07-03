@@ -9,6 +9,56 @@
 import { getStadiaMapsRoute, isStadiaMapsAvailable } from './stadiaMapsRouter';
 import { getBRouterDirections, selectBRouterProfile, BROUTER_PROFILES } from './brouter';
 import { trackRouteBuilder, truncateErrorMessage } from './routeBuilderTelemetry';
+import { fnv1a32, stableJson } from './stableHash';
+
+// Response cache + in-flight dedup. Identical requests are common (a re-snap
+// after a no-op toggle, AI candidates sharing segments, quick undo/redo) and
+// each one otherwise burns provider quota (Stadia free tier is 10k/month).
+// Roads don't change within minutes, so a short TTL is safe.
+const ROUTE_CACHE_TTL_MS = 5 * 60 * 1000;
+const ROUTE_CACHE_MAX = 30;
+const routeCache = new Map(); // key → { at, route }
+const inFlight = new Map(); // key → Promise
+
+function routeCacheKey(waypoints, { profile, trainingGoal, preferences, userSpeed }) {
+  const quantized = waypoints.map(([lng, lat]) => [
+    Math.round(lng * 1e5) / 1e5,
+    Math.round(lat * 1e5) / 1e5,
+  ]);
+  return fnv1a32(
+    stableJson({ quantized, profile, trainingGoal, preferences: preferences ?? null, userSpeed: userSpeed ?? null }),
+  );
+}
+
+function routeCacheGet(key) {
+  const entry = routeCache.get(key);
+  if (!entry) return null;
+  if (Date.now() - entry.at > ROUTE_CACHE_TTL_MS) {
+    routeCache.delete(key);
+    return null;
+  }
+  // Refresh LRU position.
+  routeCache.delete(key);
+  routeCache.set(key, entry);
+  return entry.route;
+}
+
+function routeCacheSet(key, route) {
+  if (routeCache.has(key)) routeCache.delete(key);
+  else if (routeCache.size >= ROUTE_CACHE_MAX) {
+    const oldest = routeCache.keys().next().value;
+    if (oldest !== undefined) routeCache.delete(oldest);
+  }
+  routeCache.set(key, { at: Date.now(), route });
+}
+
+/** Callers may append to coordinates — hand out a fresh array each time. */
+function cloneRoute(route) {
+  return {
+    ...route,
+    coordinates: Array.isArray(route.coordinates) ? route.coordinates.slice() : route.coordinates,
+  };
+}
 
 /**
  * Get the best cycling route using multiple routing services
@@ -23,6 +73,34 @@ import { trackRouteBuilder, truncateErrorMessage } from './routeBuilderTelemetry
  * @returns {Promise<Object>} Route with coordinates, distance_m, duration_s, elevation
  */
 export async function getSmartCyclingRoute(waypoints, options = {}) {
+  const key = routeCacheKey(waypoints, options);
+  const cached = routeCacheGet(key);
+  if (cached) {
+    console.log('♻️ Smart cycling router: cache hit');
+    return cloneRoute(cached);
+  }
+  const pending = inFlight.get(key);
+  if (pending) return pending.then(cloneRoute);
+
+  const promise = computeSmartCyclingRoute(waypoints, options)
+    .then((route) => {
+      if (route && Array.isArray(route.coordinates) && route.coordinates.length > 0) {
+        routeCacheSet(key, route);
+      }
+      return route;
+    })
+    .finally(() => inFlight.delete(key));
+  inFlight.set(key, promise);
+  return promise.then((route) => (route ? cloneRoute(route) : route));
+}
+
+/** Clear the routing cache (tests). */
+export function clearSmartRouteCache() {
+  routeCache.clear();
+  inFlight.clear();
+}
+
+async function computeSmartCyclingRoute(waypoints, options = {}) {
   const {
     profile = 'road',
     preferences = null,

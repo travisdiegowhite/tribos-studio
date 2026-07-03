@@ -101,16 +101,20 @@ export function RouteActionsPanel({
   const [loadingList, setLoadingList] = useState(false);
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
   const [garminConnected, setGarminConnected] = useState(false);
+  const [wahooConnected, setWahooConnected] = useState(false);
   const [shareConfirmOpen, setShareConfirmOpen] = useState(false);
   const [sharing, setSharing] = useState(false);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
-  // Check Garmin connection once on mount so the "Send to Garmin" item only
-  // appears for connected users (mirrors v1's RouteExportMenu).
+  // Check device connections once on mount so the "Send to …" items only
+  // appear for connected users (mirrors v1's RouteExportMenu).
   useEffect(() => {
     let cancelled = false;
     persistence.checkGarminConnection().then((connected) => {
       if (!cancelled) setGarminConnected(connected);
+    });
+    persistence.checkWahooConnection().then((connected) => {
+      if (!cancelled) setWahooConnected(connected);
     });
     return () => {
       cancelled = true;
@@ -254,6 +258,38 @@ export function RouteActionsPanel({
     });
   }, [persistence]);
 
+  const handleSendToWahoo = useCallback(async () => {
+    trackRb2('send_to_wahoo_clicked', {});
+    const result = await persistence.pushToWahoo();
+    if (result.ok) {
+      notifications.show({
+        title: 'Sent to Wahoo!',
+        message: result.message,
+        color: 'green',
+        icon: <Check size={16} />,
+        autoClose: 5000,
+      });
+      return;
+    }
+    if (result.reason === 'reconnect') {
+      notifications.show({
+        title: 'Wahoo Connection Issue',
+        message: result.message,
+        color: 'yellow',
+        autoClose: 10000,
+      });
+      return;
+    }
+    // Fail-soft: hand the user the same FIT file as a download.
+    notifications.show({
+      title: 'Direct send failed',
+      message: 'Downloading the FIT file instead — import it in the Wahoo app.',
+      color: 'yellow',
+      autoClose: 8000,
+    });
+    void persistence.exportRoute('fit');
+  }, [persistence]);
+
   const handleShare = useCallback(() => {
     trackRb2('share_clicked', {});
     if (!persistence.savedRouteId) {
@@ -277,7 +313,7 @@ export function RouteActionsPanel({
         setShareConfirmOpen(false);
         notifications.show({
           title: 'Link copied',
-          message: 'Anyone signed in to tribos can open this link.',
+          message: 'Anyone with the link can view this route.',
           color: 'green',
           icon: <Check size={16} />,
         });
@@ -357,21 +393,39 @@ export function RouteActionsPanel({
             </Menu.Target>
             <Menu.Dropdown style={{ borderRadius: 0 }}>
               {garminConnected && (
+                <Menu.Item
+                  data-testid="rb2-send-to-garmin"
+                  leftSection={
+                    persistence.isPushingToDevice ? (
+                      <Loader size={14} />
+                    ) : (
+                      <CloudArrowUp size={14} />
+                    )
+                  }
+                  onClick={handleSendToGarmin}
+                  disabled={persistence.isPushingToDevice}
+                >
+                  {persistence.isPushingToDevice ? 'Sending…' : 'Send to Garmin'}
+                </Menu.Item>
+              )}
+              {wahooConnected && (
+                <Menu.Item
+                  data-testid="rb2-send-to-wahoo"
+                  leftSection={
+                    persistence.isPushingToDevice ? (
+                      <Loader size={14} />
+                    ) : (
+                      <CloudArrowUp size={14} />
+                    )
+                  }
+                  onClick={handleSendToWahoo}
+                  disabled={persistence.isPushingToDevice}
+                >
+                  {persistence.isPushingToDevice ? 'Sending…' : 'Send to Wahoo'}
+                </Menu.Item>
+              )}
+              {(garminConnected || wahooConnected) && (
                 <>
-                  <Menu.Item
-                    data-testid="rb2-send-to-garmin"
-                    leftSection={
-                      persistence.isPushingToDevice ? (
-                        <Loader size={14} />
-                      ) : (
-                        <CloudArrowUp size={14} />
-                      )
-                    }
-                    onClick={handleSendToGarmin}
-                    disabled={persistence.isPushingToDevice}
-                  >
-                    {persistence.isPushingToDevice ? 'Sending…' : 'Send to Garmin'}
-                  </Menu.Item>
                   <Divider my={4} />
                   <Menu.Label>Download Files</Menu.Label>
                 </>
@@ -560,8 +614,8 @@ export function RouteActionsPanel({
       >
         <Stack>
           <Text style={{ fontFamily: RB2_FONT.body, fontSize: 14, color: RB2.textSecondary }}>
-            Sharing makes this route viewable by anyone with the link who is signed in to
-            tribos. You can keep editing it — only you can change or delete it.
+            Sharing makes this route viewable by anyone with the link — no account needed.
+            You can keep editing it; only you can change or delete it.
           </Text>
           <Group justify="flex-end" gap={6}>
             <Button

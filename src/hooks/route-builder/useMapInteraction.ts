@@ -119,6 +119,7 @@ export function useMapInteraction(): UseMapInteractionReturn {
   const setWaypoints = useRouteBuilderStore((s) => s.setWaypoints);
   const setRouteGeometry = useRouteBuilderStore((s) => s.setRouteGeometry);
   const setRouteStats = useRouteBuilderStore((s) => s.setRouteStats);
+  const setRouteCues = useRouteBuilderStore((s) => s.setRouteCues);
   const routingProfile = useRouteBuilderStore((s) => s.routeProfile) ?? 'road';
   // When false, manual edits draw straight lines between waypoints instead of
   // routing along roads. Reactive so snapAndReport re-binds on toggle.
@@ -213,6 +214,7 @@ export function useMapInteraction(): UseMapInteractionReturn {
     setElevationProfile,
     routingProfile,
     useSmartRouting: true,
+    setRouteCues,
   });
 
   /**
@@ -230,6 +232,7 @@ export function useMapInteraction(): UseMapInteractionReturn {
         // No route to snap — wipe geometry/stats to match an empty waypoint list.
         setRouteGeometry(null);
         setRouteStats({ distance_km: 0, elevation_gain_m: 0, duration_s: 0 });
+        setRouteCues(null);
         trackRb2('manual_action_applied', {
           action,
           duration_ms: Date.now() - startedAt,
@@ -250,7 +253,7 @@ export function useMapInteraction(): UseMapInteractionReturn {
       });
       return { ok: true };
     },
-    [manip, snapEnabled, setRouteGeometry, setRouteStats],
+    [manip, snapEnabled, setRouteGeometry, setRouteStats, setRouteCues],
   );
 
   // Recompute geometry for the current waypoints with the current snap/profile

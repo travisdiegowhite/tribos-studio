@@ -537,21 +537,41 @@ function mapWahooWorkoutType(wahooType) {
   return null;
 }
 
+/**
+ * Push a route to Wahoo Cloud as a base64 FIT course.
+ * https://cloud-api.wahooligan.com POST /v1/routes — the FIT file is encoded
+ * client-side (fitCourseEncoder) and arrives as a data URI in
+ * routeData.fitBase64 ("data:application/vnd.fit;base64,…").
+ */
 async function pushRoute(req, res, userId, routeData) {
   if (!userId || !routeData) {
     return res.status(400).json({ error: 'UserId and routeData required' });
+  }
+  if (!routeData.fitBase64 || !String(routeData.fitBase64).startsWith('data:application/vnd.fit;base64,')) {
+    return res.status(400).json({ error: 'routeData.fitBase64 (FIT data URI) required' });
   }
 
   try {
     const accessToken = await getValidAccessToken(userId);
 
-    // Format route for Wahoo API
+    const safeName = String(routeData.name || 'Tribos Route').slice(0, 120);
+    const filename = safeName.replace(/[^a-zA-Z0-9-_]+/g, '_').slice(0, 60) || 'route';
+
     const wahooRoute = {
       route: {
-        name: routeData.name,
+        name: safeName,
         description: routeData.description || '',
-        // Wahoo expects route data in specific format
-        // This would need the actual geometry converted to their format
+        file: routeData.fitBase64,
+        filename: `${filename}.fit`,
+        external_id: String(routeData.external_id || `tribos-${userId}-${Date.now()}`),
+        provider_updated_at: new Date().toISOString(),
+        // Wahoo workout family 0 = Biking.
+        workout_type_family_id: 0,
+        start_lat: routeData.start_lat ?? null,
+        start_lng: routeData.start_lng ?? null,
+        distance: routeData.distance_m ?? 0,
+        ascent: routeData.ascent_m ?? 0,
+        descent: routeData.descent_m ?? 0
       }
     };
 
@@ -566,16 +586,25 @@ async function pushRoute(req, res, userId, routeData) {
 
     if (!response.ok) {
       const errorText = await response.text();
-      console.error('Wahoo route push error:', errorText);
-      throw new Error('Failed to push route to Wahoo');
+      console.error('Wahoo route push error:', response.status, errorText);
+      if (response.status === 401 || response.status === 403) {
+        return res.status(response.status).json({
+          error: 'Wahoo authorization failed',
+          requiresReconnect: true
+        });
+      }
+      return res.status(502).json({
+        error: `Wahoo rejected the route (${response.status})`,
+        details: errorText.slice(0, 300)
+      });
     }
 
     const result = await response.json();
 
     return res.status(200).json({
       success: true,
-      routeId: result.route?.id,
-      message: 'Route pushed to Wahoo successfully'
+      routeId: result.route?.id ?? result.id ?? null,
+      message: 'Route sent to Wahoo. Sync your ELEMNT to download it.'
     });
 
   } catch (error) {

@@ -160,6 +160,32 @@ export async function setRouteVisibility(routeId, visibility) {
 }
 
 /**
+ * Fetch a shared route without authentication (public share links).
+ * Returns null on 404 (not shared / doesn't exist).
+ * @param {string} routeId - Route UUID
+ * @returns {Promise<Object|null>}
+ */
+export async function getPublicRoute(routeId) {
+  const response = await fetch(`${getApiBaseUrl()}/api/routes`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      action: 'get_public_route',
+      routeId
+    })
+  });
+
+  if (response.status === 404) return null;
+  if (!response.ok) {
+    const errorData = await response.json();
+    throw new Error(errorData.error || 'Failed to load route');
+  }
+
+  const data = await response.json();
+  return data.route;
+}
+
+/**
  * Autosave the user's single in-progress draft route.
  * @param {Object} routeData - Same shape as saveRoute's routeData
  * @returns {Promise<Object>} - { id, updated_at }
@@ -285,6 +311,7 @@ export default {
   saveRoute,
   listRoutes,
   getRoute,
+  getPublicRoute,
   setRouteVisibility,
   saveDraft,
   getDraft,
