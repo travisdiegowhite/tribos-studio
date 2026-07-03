@@ -52,8 +52,9 @@ export function CuesPanel({ cues, isImperial = false }: CuesPanelProps) {
         data-testid="rb2-cues-empty"
         style={{ fontFamily: RB2_FONT.body, fontSize: 13, color: RB2.textTertiary }}
       >
-        No turn cues for this route yet. Cues appear when the route is snapped
-        along roads (road/commute profiles).
+        No turn cues for this route. Cues come from the road router
+        (road/commute profiles) — gravel and freehand routes don&apos;t include
+        turn data yet.
       </Text>
     );
   }

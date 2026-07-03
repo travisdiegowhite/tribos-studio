@@ -1287,6 +1287,10 @@ async function convertClaudeToFullRoute(claudeRoute, startLocation, targetDistan
         coordinates: route.coordinates,
         confidence: route.confidence * 0.9, // Slightly lower since it's AI-generated
         elevationProfile,
+        // Turn cues when the router supplied them (Stadia/Valhalla path) —
+        // dropped here previously, which left generated routes cue-less
+        // until their first manual re-snap.
+        cues: Array.isArray(route.cues) && route.cues.length > 0 ? route.cues : null,
         source: usedNamedRoads ? 'claude_roads' : 'claude_mapbox'
       };
 

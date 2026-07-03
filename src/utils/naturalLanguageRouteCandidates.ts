@@ -197,6 +197,7 @@ interface GeneratedRouteResult {
   source?: string;
   directionLabel?: string;
   familiarityScore?: { familiarityPercent?: number } | null;
+  cues?: unknown[] | null;
 }
 
 function scoreCandidate(
@@ -250,6 +251,7 @@ function candidateFromRoute(
     distance_km,
     elevation_gain_m: route.elevationGain ?? 0,
     duration_s: route.duration_s ?? route.duration ?? 0,
+    cues: route.cues ?? null,
   });
   if (!snapshot) return null;
   const labelBearing = variantBearing ?? requestedBearing;

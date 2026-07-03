@@ -29,6 +29,7 @@ interface Rb1RouteResult {
   elevationLoss?: number; // m
   coordinates?: Array<[number, number]>;
   description?: string;
+  cues?: unknown[] | null;
 }
 
 function mapShape(shape: RouteShape | undefined): 'loop' | 'out_and_back' | 'point_to_point' {
@@ -69,6 +70,7 @@ function toRouteSnapshot(
     elevation_gain_m: route.elevationGain ?? 0,
     elevation_loss_m: route.elevationLoss ?? 0,
     duration_s: durationMinutes * 60,
+    cues: route.cues ?? null,
   });
 }
 
@@ -90,6 +92,7 @@ export function useAIGeneration(): UseAIGenerationReturn {
   const setRouteGeometry = useRouteBuilderStore((s) => s.setRouteGeometry);
   const setRouteStats = useRouteBuilderStore((s) => s.setRouteStats);
   const setWaypoints = useRouteBuilderStore((s) => s.setWaypoints);
+  const setRouteCues = useRouteBuilderStore((s) => s.setRouteCues);
   const setBuilderMode = useRouteBuilderStore((s) => s.setBuilderMode);
 
   const suggestions = (Array.isArray(aiSuggestions) ? aiSuggestions : []) as RouteSnapshot[];
@@ -193,10 +196,11 @@ export function useAIGeneration(): UseAIGenerationReturn {
           name: '',
         })),
       );
+      setRouteCues(chosen.cues ?? null);
       setBuilderMode('editing');
       return chosen;
     },
-    [suggestions, setRouteGeometry, setRouteStats, setWaypoints, setBuilderMode],
+    [suggestions, setRouteGeometry, setRouteStats, setWaypoints, setRouteCues, setBuilderMode],
   );
 
   const clearSuggestions = useCallback(() => {
