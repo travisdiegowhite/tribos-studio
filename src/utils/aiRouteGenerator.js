@@ -26,6 +26,8 @@ import { filterRoutesByInfrastructure, enhanceRouteWithInfrastructure, generateI
 import { getSmartCyclingRoute, getRoutingStrategyDescription } from './smartCyclingRouter';
 import { analyzeSegmentSuitability } from './stadiaMapsRouter';
 import { generateSmartRouteName, generateAlternativeNames } from './routeNaming';
+import { geocodeWaypoint } from './geocoding';
+import { haversineKm } from './distanceUnits';
 
 // Normalize startLocation to [lng, lat] array format
 // Handles both array [lng, lat] and object {lat, lng} formats
@@ -50,6 +52,71 @@ function normalizeStartLocation(location) {
   return null;
 }
 
+/**
+ * Score how close an actual value lands to an explicit rider target.
+ * Returns 0 when no target was set. Exported for tests.
+ */
+export function getTargetProximityScore(actual, target, weight) {
+  if (!target || target <= 0 || !actual || actual <= 0) return 0;
+  const ratio = actual / target;
+  if (ratio >= 0.85 && ratio <= 1.15) return weight;        // on target
+  if (ratio >= 0.7 && ratio <= 1.35) return weight * 0.4;   // close
+  if (ratio >= 0.5 && ratio <= 1.7) return 0;               // meh
+  return -weight;                                            // way off
+}
+
+/**
+ * Map an elevation-gain target to a Valhalla use_hills bias (0–1) via the
+ * implied gain-per-km. Exported for tests.
+ */
+export function useHillsForTarget(elevationGainTargetM, targetDistanceKm) {
+  if (!elevationGainTargetM || !targetDistanceKm || targetDistanceKm <= 0) return null;
+  const gainPerKm = elevationGainTargetM / targetDistanceKm;
+  if (gainPerKm < 5) return 0.15;   // pancake request — actively avoid climbs
+  if (gainPerKm < 10) return 0.35;  // gently rolling
+  if (gainPerKm < 18) return 0.6;   // rolling/hilly
+  if (gainPerKm < 28) return 0.8;   // hilly
+  return 0.95;                      // mountain day
+}
+
+/**
+ * Geocode Claude's named roads/landmarks into routing via-points near the
+ * start. Names that don't geocode, land implausibly far away, or crowd an
+ * already-picked via are dropped; an empty result means the caller keeps
+ * the geometric waypoint method. Exported for tests.
+ */
+export async function geocodeKeyRoads(keyRoads, startLocation, targetDistanceKm) {
+  if (!Array.isArray(keyRoads) || keyRoads.length === 0) return [];
+  // A via can't be farther out than roughly the halfway point of the ride.
+  const maxRadiusKm = Math.max(3, targetDistanceKm * 0.6);
+  const MIN_SPACING_KM = 1;
+  const vias = [];
+  for (const rawName of keyRoads.slice(0, 5)) {
+    if (vias.length >= 3) break;
+    const name = typeof rawName === 'string' ? rawName.trim() : '';
+    if (!name) continue;
+    try {
+      const hit = await geocodeWaypoint(name, startLocation);
+      const coord = hit?.coordinates;
+      if (!Array.isArray(coord) || coord.length < 2) continue;
+      const distKm = haversineKm(startLocation[1], startLocation[0], coord[1], coord[0]);
+      if (distKm < 0.3 || distKm > maxRadiusKm) {
+        console.log(`🗺️ keyRoad "${name}" rejected: ${distKm.toFixed(1)}km from start (max ${maxRadiusKm.toFixed(1)})`);
+        continue;
+      }
+      const crowded = vias.some(
+        (v) => haversineKm(v[1], v[0], coord[1], coord[0]) < MIN_SPACING_KM,
+      );
+      if (crowded) continue;
+      console.log(`🗺️ keyRoad "${name}" → via at [${coord[0].toFixed(4)}, ${coord[1].toFixed(4)}] (${distKm.toFixed(1)}km out)`);
+      vias.push([coord[0], coord[1]]);
+    } catch (e) {
+      console.warn(`Geocoding keyRoad "${name}" failed:`, e?.message);
+    }
+  }
+  return vias;
+}
+
 // Main AI route generation function
 export async function generateAIRoutes(params, onProgress = null) {
   const {
@@ -63,6 +130,11 @@ export async function generateAIRoutes(params, onProgress = null) {
     speedProfile,
     speedModifier = 1.0,
     suppressPrescription,
+    // Explicit rider targets (P3). When set, they override the time-derived
+    // distance and bias routing costing + candidate scoring toward the
+    // requested climbing.
+    targetDistanceKm: explicitTargetDistanceKm = null,
+    elevationGainTargetM = null,
   } = params;
 
   // T1.4 — wall-clock anchor for `generation_context_built.duration_ms`.
@@ -114,9 +186,13 @@ export async function generateAIRoutes(params, onProgress = null) {
     }
   }
 
-  // Calculate target distance, enhanced with Strava performance data
+  // Calculate target distance, enhanced with Strava performance data.
+  // An explicit rider-entered distance always wins over the time estimate.
   const baseTargetDistance = calculateTargetDistance(timeAvailable, trainingGoal, null, speedProfile, speedModifier);
-  let targetDistanceKm = calculateTargetDistance(timeAvailable, trainingGoal, ridingPatterns?.performanceMetrics, speedProfile, speedModifier);
+  let targetDistanceKm =
+    explicitTargetDistanceKm && explicitTargetDistanceKm > 0
+      ? explicitTargetDistanceKm
+      : calculateTargetDistance(timeAvailable, trainingGoal, ridingPatterns?.performanceMetrics, speedProfile, speedModifier);
 
   console.log(`📏 Distance calculation: ${timeAvailable}min × ${(targetDistanceKm / (timeAvailable / 60)).toFixed(1)}km/h = ${targetDistanceKm.toFixed(1)}km (${(targetDistanceKm * 0.621371).toFixed(1)} miles)`);
   console.log(`🔍 DEBUG INPUT - Speed Profile:`, speedProfile);
@@ -196,6 +272,7 @@ export async function generateAIRoutes(params, onProgress = null) {
       userId,
       trainingContext,
       suppressPrescription,
+      elevationGainTargetM,
     });
 
     trackRouteBuilder('generation_claude_responded', {
@@ -242,7 +319,7 @@ export async function generateAIRoutes(params, onProgress = null) {
             routeType,
             pastRidePatterns: ridingPatterns
           };
-          return convertClaudeToFullRoute(routeWithContext, startLocation, targetDistanceKm, userPreferences, userSpeed);
+          return convertClaudeToFullRoute(routeWithContext, startLocation, targetDistanceKm, userPreferences, userSpeed, { elevationGainTargetM });
         })
       );
       for (const result of conversionResults) {
@@ -411,7 +488,9 @@ export async function generateAIRoutes(params, onProgress = null) {
     weatherData,
     timeAvailable,
     ridingPatterns,
-    userPreferences
+    userPreferences,
+    targetDistanceKm,
+    elevationGainTargetM
   });
 
   onProgress?.({ step: 'optimizing', message: 'Optimizing final routes' });
@@ -1076,7 +1155,8 @@ function calculateDestinationPoint(start, distanceKm, bearingDegrees) {
 }
 
 // Convert Claude route suggestion to full route with coordinates
-async function convertClaudeToFullRoute(claudeRoute, startLocation, targetDistanceKm, preferences = null, userSpeed = null) {
+async function convertClaudeToFullRoute(claudeRoute, startLocation, targetDistanceKm, preferences = null, userSpeed = null, targets = {}) {
+  const { elevationGainTargetM = null } = targets;
   const mapboxToken = import.meta.env.VITE_MAPBOX_TOKEN;
   if (!mapboxToken) {
     console.warn('Mapbox token not available for Claude route conversion');
@@ -1106,14 +1186,6 @@ async function convertClaudeToFullRoute(claudeRoute, startLocation, targetDistan
 
     console.log(`📏 Claude route distance: ${routeDistance}km, target: ${targetDistanceKm}km, using: ${effectiveDistance}km`);
 
-    const waypoints = await generateWaypointsFromDirections(
-      claudeRoute.keyDirections,
-      startLocation,
-      effectiveDistance,
-      claudeRoute.routeType || 'loop',
-      claudeRoute.pastRidePatterns
-    );
-
     // Determine routing profile based on surface preferences
     let routingProfile = 'bike'; // Default
 
@@ -1131,15 +1203,71 @@ async function convertClaudeToFullRoute(claudeRoute, startLocation, targetDistan
       console.log(`🌾 High gravel tolerance (${(preferences.surfacePreferences.gravelTolerance * 100).toFixed(0)}%) for Claude route, using gravel routing profile`);
     }
 
-    // Use smart cycling router for Claude-generated routes
-    console.log(`🧠 Converting Claude route "${claudeRoute.name}" with smart routing, profile: ${routingProfile}`);
-    const route = await getSmartCyclingRoute(waypoints, {
+    const useHills = useHillsForTarget(elevationGainTargetM, targetDistanceKm);
+    const routerOptions = {
       profile: routingProfile,
       preferences: preferences,
       trainingGoal: claudeRoute.trainingGoal,
       mapboxToken: mapboxToken,
-      userSpeed: userSpeed
-    });
+      userSpeed: userSpeed,
+      useHills,
+    };
+
+    console.log(`🧠 Converting Claude route "${claudeRoute.name}" with smart routing, profile: ${routingProfile}`);
+
+    // Attempt 0 — Claude's actual road picks. When the model named roads we
+    // can geocode near the start, route through them instead of synthesizing
+    // geometry. A via route may miss the distance target by more (roads are
+    // where they are), so it gets a looser tolerance before we abandon it.
+    const routeType = claudeRoute.routeType || 'loop';
+    let route = null;
+    let usedNamedRoads = false;
+    if (routeType === 'loop' && Array.isArray(claudeRoute.keyRoads) && claudeRoute.keyRoads.length > 0) {
+      const vias = await geocodeKeyRoads(claudeRoute.keyRoads, startLocation, effectiveDistance);
+      if (vias.length >= 1) {
+        const viaWaypoints = [startLocation, ...vias, startLocation];
+        const viaRoute = await getSmartCyclingRoute(viaWaypoints, routerOptions);
+        const viaKm = viaRoute ? (viaRoute.distance_m ?? viaRoute.distance ?? 0) / 1000 : 0;
+        const viaError = viaKm > 0 ? Math.abs(viaKm - targetDistanceKm) / targetDistanceKm : Infinity;
+        if (viaRoute?.coordinates?.length > 10 && viaError <= 0.35) {
+          console.log(`🛣️ Using Claude's named roads (${vias.length} vias): ${viaKm.toFixed(1)}km vs target ${targetDistanceKm.toFixed(1)}km`);
+          route = viaRoute;
+          usedNamedRoads = true;
+        } else {
+          console.log(`🛣️ Named-road route rejected (${viaKm.toFixed(1)}km, error ${(viaError * 100).toFixed(0)}%) — falling back to geometric waypoints`);
+        }
+      }
+    }
+
+    // Geometric build with closed-loop distance correction: snap, measure,
+    // scale the synthetic radius by target/actual, retry. Keeps the best
+    // attempt; the pre-P3 behavior was a single uncorrected attempt.
+    if (!route) {
+      const MAX_ATTEMPTS = 3;
+      const TOLERANCE = 0.15;
+      let scale = 1.0;
+      let best = null;
+      for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
+        const waypoints = await generateWaypointsFromDirections(
+          claudeRoute.keyDirections,
+          startLocation,
+          effectiveDistance * scale,
+          routeType,
+          claudeRoute.pastRidePatterns
+        );
+        const candidate = await getSmartCyclingRoute(waypoints, routerOptions);
+        const actualKm = candidate ? (candidate.distance_m ?? candidate.distance ?? 0) / 1000 : 0;
+        if (!candidate?.coordinates || candidate.coordinates.length <= 10 || actualKm <= 0) break;
+        const error = Math.abs(actualKm - targetDistanceKm) / targetDistanceKm;
+        console.log(`📐 Distance attempt ${attempt + 1}: ${actualKm.toFixed(1)}km vs target ${targetDistanceKm.toFixed(1)}km (error ${(error * 100).toFixed(0)}%, scale ${scale.toFixed(2)})`);
+        if (!best || error < best.error) best = { candidate, error };
+        if (error <= TOLERANCE) break;
+        // Routed distance responds roughly linearly to the synthetic radius;
+        // clamp the correction so one weird snap can't run the scale away.
+        scale *= Math.min(1.8, Math.max(0.55, targetDistanceKm / actualKm));
+      }
+      route = best?.candidate ?? null;
+    }
 
     if (route) {
       console.log(`✅ Claude route enhanced via: ${route.source} - ${getRoutingStrategyDescription(route)}`);
@@ -1159,7 +1287,7 @@ async function convertClaudeToFullRoute(claudeRoute, startLocation, targetDistan
         coordinates: route.coordinates,
         confidence: route.confidence * 0.9, // Slightly lower since it's AI-generated
         elevationProfile,
-        source: 'claude_mapbox'
+        source: usedNamedRoads ? 'claude_roads' : 'claude_mapbox'
       };
 
       // Pass through maneuver data if available (from Valhalla/Stadia Maps)
@@ -2245,13 +2373,26 @@ function analyzeRouteIntervalSuitability(maneuverData, routeDistanceKm) {
 
 // Score and rank routes
 async function scoreRoutes(routes, criteria) {
-  const { trainingGoal, weatherData, timeAvailable, ridingPatterns, userPreferences } = criteria;
-  
+  const {
+    trainingGoal,
+    weatherData,
+    timeAvailable,
+    ridingPatterns,
+    userPreferences,
+    targetDistanceKm = null,
+    elevationGainTargetM = null,
+  } = criteria;
+
   const scoredRoutes = routes.map(route => {
     let score = 0.5; // Base score
-    
+
     // Training goal alignment
     score += getTrainingGoalScore(route, trainingGoal);
+
+    // Explicit rider targets: proximity to requested distance and climbing
+    // outranks most soft preferences — the rider asked for these numbers.
+    score += getTargetProximityScore(route.distance, targetDistanceKm, 0.3);
+    score += getTargetProximityScore(route.elevationGain, elevationGainTargetM, 0.25);
     
     // Weather optimization
     if (weatherData) {

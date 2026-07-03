@@ -115,6 +115,16 @@ export function useAIGeneration(): UseAIGenerationReturn {
         userId,
         speedProfile: null,
         speedModifier: 1.0,
+        // Explicit rider targets — previously collected by the form but
+        // dropped here, which made "40 km / 600 m" advisory at best.
+        targetDistanceKm:
+          typeof input.distance_km === 'number' && input.distance_km > 0
+            ? input.distance_km
+            : undefined,
+        elevationGainTargetM:
+          typeof input.elevation_gain_m === 'number' && input.elevation_gain_m > 0
+            ? input.elevation_gain_m
+            : undefined,
       };
 
       try {

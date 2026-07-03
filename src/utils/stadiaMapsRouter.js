@@ -184,7 +184,10 @@ export async function getStadiaMapsRoute(waypoints, options = {}) {
     profile = 'road',
     preferences = null,
     trainingGoal = 'endurance',
-    userSpeed = null
+    userSpeed = null,
+    // Explicit Valhalla use_hills override (0–1). Set when the rider gave an
+    // elevation-gain target; wins over profile/goal-derived values.
+    useHills = null
   } = options;
 
   const apiKey = import.meta.env.VITE_STADIA_API_KEY;
@@ -287,6 +290,13 @@ export async function getStadiaMapsRoute(waypoints, options = {}) {
     if (preferences.avoidHills) {
       costing_options.bicycle.use_hills = 0.1;
     }
+  }
+
+  // Explicit elevation-target override wins over profile/goal/legacy values —
+  // the rider asked for a specific amount of climbing.
+  if (typeof useHills === 'number' && useHills >= 0 && useHills <= 1) {
+    costing_options.bicycle.use_hills = useHills;
+    console.log(`⛰️ use_hills override from elevation target: ${useHills}`);
   }
 
   // Convert waypoints to Stadia Maps format via the canonical boundary
