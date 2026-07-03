@@ -264,6 +264,9 @@ export default function RouteBuilder2() {
     intervals: hasWorkout,
   }));
   const [errorDismissed, setErrorDismissed] = useState<string | null>(null);
+  // Failures from fire-and-forget overlay work (clip reroute, layer fetches)
+  // that would otherwise be console-only; feeds the same ErrorState toast.
+  const [overlayError, setOverlayError] = useState<string | null>(null);
   // Per-segment surface categories reported up by SurfaceLayer so the
   // summary bar reuses them without a second Overpass fetch.
   const [surfaceSegments, setSurfaceSegments] = useState<string[] | null>(null);
@@ -442,11 +445,16 @@ export default function RouteBuilder2() {
         // new geometry via useRouteAnalysis's geometry-keyed effect.
         const distance_km = parseFloat(polylineLengthKm(newCoords as Coordinate[]).toFixed(1));
         setRouteStatsInStore((prev: Record<string, unknown>) => ({ ...prev, distance_km }));
+        setOverlayError((prev) => (prev === 'clip_failed' ? null : prev));
         trackRb2('clip_applied', { points_removed: pendingClip.stats.pointsRemoved });
+      } else {
+        setOverlayError('clip_failed');
       }
     } catch (e) {
-      // Fail-soft: keep the original route on a reroute error.
+      // Keep the original route on a reroute error, but tell the user —
+      // otherwise "confirm clip" appears to do nothing.
       console.warn('[clip] reroute failed, keeping original route', e);
+      setOverlayError('clip_failed');
     } finally {
       setClipBusy(false);
       setPendingClip(null); // stay in clip mode for further clips
@@ -866,10 +874,22 @@ export default function RouteBuilder2() {
   const hasRoute = !!routeGeometry?.coordinates && routeGeometry.coordinates.length > 0;
   const isLoading = generation.isGenerating || editing.isApplying || map.isApplying;
   const errorRaw =
-    generation.lastError || editing.lastError || map.lastError || persistence.lastError || null;
+    generation.lastError ||
+    editing.lastError ||
+    map.lastError ||
+    persistence.lastError ||
+    overlayError ||
+    analysis.lastError ||
+    weather.error ||
+    null;
   const error =
     errorRaw && errorRaw !== errorDismissed ? friendlyRouteError(errorRaw) : null;
   const dismissError = () => setErrorDismissed(errorRaw);
+  // Reset dismissal once the error clears so the next failure — even an
+  // identical one — shows again instead of being silently swallowed.
+  useEffect(() => {
+    if (!errorRaw) setErrorDismissed(null);
+  }, [errorRaw]);
 
   // Reasonable narrowed geometry typing for layer props
   const geometryForLayers = useMemo(() => {
@@ -982,8 +1002,28 @@ export default function RouteBuilder2() {
           onAddWaypoint={(coord) => void map.handleAddWaypointAtClick(coord)}
         />
       )}
-      {visibility.bikeInfra && <BikeInfraLayer bbox={viewportBbox} visible />}
-      {visibility.familiar && <FamiliarSegmentsLayer bbox={viewportBbox} visible />}
+      {visibility.bikeInfra && (
+        <BikeInfraLayer
+          bbox={viewportBbox}
+          visible
+          onLoadFailure={(failed) =>
+            setOverlayError((prev) =>
+              failed ? 'bike_infra_failed' : prev === 'bike_infra_failed' ? null : prev,
+            )
+          }
+        />
+      )}
+      {visibility.familiar && (
+        <FamiliarSegmentsLayer
+          bbox={viewportBbox}
+          visible
+          onLoadFailure={(failed) =>
+            setOverlayError((prev) =>
+              failed ? 'familiar_segments_failed' : prev === 'familiar_segments_failed' ? null : prev,
+            )
+          }
+        />
+      )}
       {visibility.wind && weather.weather && geometryForLayers && (
         <WindArrowsLayer
           coordinates={geometryForLayers.coordinates}
@@ -1636,9 +1676,14 @@ export default function RouteBuilder2() {
 
 /**
  * Map a raw `lastError` reason (from the hooks) to human-readable copy for the
- * on-map ErrorState. Unknown values pass through (already a sentence) so we
- * never hide a useful message.
+ * on-map ErrorState. Unknown values pass through when they read like copy the
+ * hooks wrote for the user; messages that look like technical noise (network
+ * stack text, HTTP codes, exception names) get generic copy instead — the raw
+ * message still lands in the console for debugging.
  */
+const TECHNICAL_ERROR_RE =
+  /(TypeError|ReferenceError|SyntaxError|NetworkError|Failed to fetch|Load failed|status(?: code)? \d{3}|HTTP \d{3}|\b[45]\d{2}\b|api[_ ]?key|access[_ ]?token|\bundefined\b|\bnull\b|timed? ?out|abort(?:ed|Error)|ECONN|JSON)/i;
+
 function friendlyRouteError(raw: string): string {
   const KNOWN: Record<string, string> = {
     routing_failed:
@@ -1652,8 +1697,18 @@ function friendlyRouteError(raw: string): string {
     'No route to export': 'Draw or generate a route before exporting.',
     context_missing: 'Sign in to use the coach.',
     not_authenticated: 'Sign in to use the coach.',
+    clip_failed: "Couldn't reroute around that section — the route is unchanged. Try a smaller clip.",
+    bike_infra_failed: "Couldn't load bike infrastructure right now — try toggling the layer again.",
+    familiar_segments_failed:
+      "Couldn't load your familiar roads right now — try toggling the layer again.",
   };
-  return KNOWN[raw] ?? raw;
+  const known = KNOWN[raw];
+  if (known) return known;
+  if (raw.length > 160 || TECHNICAL_ERROR_RE.test(raw)) {
+    console.warn('[rb2] unmapped error shown generically:', raw);
+    return 'Something went wrong — please try again.';
+  }
+  return raw;
 }
 
 /**

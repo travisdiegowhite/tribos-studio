@@ -17,6 +17,13 @@ export interface FamiliarSegmentsLayerProps {
   bbox: { north: number; south: number; east: number; west: number } | null;
   visible: boolean;
   minRideCount?: number;
+  /**
+   * Called with `true` when the layer has nothing to show because its fetch
+   * failed (the user toggled it on and got silence), and `false` once a
+   * fetch succeeds. Pan-time refetch failures with data already on screen
+   * don't fire it.
+   */
+  onLoadFailure?: (failed: boolean) => void;
 }
 
 const DEBOUNCE_MS = 500;
@@ -29,10 +36,14 @@ export function FamiliarSegmentsLayer({
   bbox,
   visible,
   minRideCount = 1,
+  onLoadFailure,
 }: FamiliarSegmentsLayerProps) {
   const [data, setData] = useState<GeoJSON.FeatureCollection | null>(null);
   const lastKeyRef = useRef<string>('');
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const hasDataRef = useRef(false);
+  const onLoadFailureRef = useRef(onLoadFailure);
+  onLoadFailureRef.current = onLoadFailure;
 
   useEffect(() => {
     if (!visible || !bbox) {
@@ -54,8 +65,11 @@ export function FamiliarSegmentsLayer({
           }
           const fc = await getFamiliarSegmentsGeoJSON(bbox, token, minRideCount);
           setData(fc as GeoJSON.FeatureCollection | null);
+          hasDataRef.current = fc != null;
+          onLoadFailureRef.current?.(false);
         } catch (e) {
           console.warn('[RB2] familiar segments fetch failed', e);
+          if (!hasDataRef.current) onLoadFailureRef.current?.(true);
         }
       })();
     }, DEBOUNCE_MS);
