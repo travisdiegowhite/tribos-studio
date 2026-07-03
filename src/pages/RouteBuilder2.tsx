@@ -906,15 +906,21 @@ export default function RouteBuilder2() {
   useEffect(() => {
     const coords = (routeGeometry as { coordinates?: [number, number][] } | null)?.coordinates;
     if (routeCues || !coords || coords.length < 10) return;
-    // Freehand lines are deliberately off-road; matching them to roads
-    // would invent turns the rider isn't taking.
-    if (!snapToRoads) return;
+    // Freehand lines are deliberately off-road; matching them to roads would
+    // invent turns the rider isn't taking. Keyed on how THIS route was built
+    // (stats.routingSource), not the edit-mode snap toggle — the toggle is
+    // persisted and says nothing about a generated/loaded route.
+    if ((routeStats as { routingSource?: string } | null)?.routingSource === 'freehand') return;
     if (cueBackfillAttemptedRef.current === routeGeometry) return;
     const timer = setTimeout(() => {
       cueBackfillAttemptedRef.current = routeGeometry;
+      console.log('🧭 Cue backfill: map-matching route for turn cues…');
       void import('../utils/stadiaMapsRouter').then(({ getStadiaCuesForGeometry }) =>
         (getStadiaCuesForGeometry(coords) as Promise<unknown[] | null>).then((cues) => {
-          if (!cues) return;
+          if (!cues) {
+            trackRb2('cues_backfill_failed', { point_count: coords.length });
+            return;
+          }
           // Only apply if the geometry hasn't moved on while we fetched.
           if (useRouteBuilderStore.getState().routeGeometry === routeGeometry) {
             useRouteBuilderStore.getState().setRouteCues(cues);
@@ -924,7 +930,7 @@ export default function RouteBuilder2() {
       );
     }, 1500);
     return () => clearTimeout(timer);
-  }, [routeGeometry, routeCues]);
+  }, [routeGeometry, routeCues, routeStats]);
 
   const handleVisibilityToggle = (key: keyof LayerVisibilityState, next: boolean) => {
     setVisibility((prev) => ({ ...prev, [key]: next }));
