@@ -82,9 +82,9 @@ describe('getStadiaCuesForGeometry', () => {
     expect(cues[1].distance_km).toBeCloseTo(0.9, 2);
     // Coordinate resolved from the matched shape at the maneuver index.
     expect(cues[1].coordinate[0]).toBeCloseTo(LINE[10][0], 4);
-    // Request went to the trace endpoint with a shape payload.
+    // Request went to Stadia's map-matching endpoint with a shape payload.
     const [url, init] = fetchMock.mock.calls[0];
-    expect(String(url)).toContain('trace_route');
+    expect(String(url)).toContain('map_match/v1');
     const body = JSON.parse((init as { body: string }).body);
     expect(body.shape.length).toBeGreaterThanOrEqual(20);
     expect(body.shape_match).toBe('map_snap');

@@ -824,14 +824,17 @@ function decodePolyline(encoded) {
   return coordinates;
 }
 
-const STADIA_TRACE_API_URL = 'https://api.stadiamaps.com/trace_route/v1';
+// Stadia's hosted name for Valhalla's trace_route action. NOT /trace_route/v1
+// — their gateway 401s unknown paths before 404ing them, which makes the
+// wrong path look auth-valid from probes.
+const STADIA_MAP_MATCH_API_URL = 'https://api.stadiamaps.com/map_match/v1';
 
 /**
  * Derive turn cues for ANY finished route line by map-matching it through
- * Valhalla's trace_route. Cues from the direct /route response only exist
- * when Stadia built the route — this backfills routes from providers that
- * return no turn data (BRouter gravel, GraphHopper, GPX imports, loaded
- * routes). Returns a RouteCue[] or null; never throws.
+ * Stadia's map_match (Valhalla trace_route). Cues from the direct /route
+ * response only exist when Stadia built the route — this backfills routes
+ * from providers that return no turn data (BRouter gravel, GraphHopper,
+ * GPX imports, loaded routes). Returns a RouteCue[] or null; never throws.
  *
  * @param {Array<[lng, lat]>} coordinates - the route geometry (elevation
  *   third elements tolerated)
@@ -856,7 +859,7 @@ export async function getStadiaCuesForGeometry(coordinates) {
       shape.push({ lat: last[1], lon: last[0] });
     }
 
-    const response = await fetch(`${STADIA_TRACE_API_URL}?api_key=${apiKey}`, {
+    const response = await fetch(`${STADIA_MAP_MATCH_API_URL}?api_key=${apiKey}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -870,7 +873,8 @@ export async function getStadiaCuesForGeometry(coordinates) {
     });
 
     if (!response.ok) {
-      console.warn(`Stadia trace_route failed: ${response.status}`);
+      const errorText = await response.text().catch(() => '');
+      console.warn(`⛔ Cue backfill: Stadia map_match ${response.status} — ${errorText.slice(0, 200)}`);
       return null;
     }
 
@@ -914,7 +918,7 @@ export async function getStadiaCuesForGeometry(coordinates) {
 
     return cues.length > 0 ? cues : null;
   } catch (error) {
-    console.warn('Stadia trace_route cue backfill failed:', error?.message);
+    console.warn('⛔ Cue backfill: map_match request failed:', error?.message);
     return null;
   }
 }
