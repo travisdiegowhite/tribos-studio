@@ -20,6 +20,9 @@ export const useRouteManipulation = ({
   setElevationProfile,
   routingProfile = 'road',
   useSmartRouting = true,
+  // Optional: receives the provider's turn-by-turn cues (RouteCue[]) after a
+  // snap, or null when the provider has none / the route is freehand.
+  setRouteCues = () => {},
 }) => {
   // History for undo/redo
   // Refs hold the actual data (no re-render on change), state drives UI reactivity
@@ -268,6 +271,7 @@ export const useRouteManipulation = ({
       let routeDistance_m = 0;
       let routeDuration_s = 0;
       let routingSource = 'mapbox';
+      let routeCues = null;
 
       // Use smart cycling routing when enabled
       const cyclingProfiles = ['road', 'gravel', 'mountain', 'commuting'];
@@ -285,6 +289,9 @@ export const useRouteManipulation = ({
           routeDistance_m = smartRoute.distance_m ?? smartRoute.distance ?? 0;
           routeDuration_s = smartRoute.duration_s ?? smartRoute.duration ?? 0;
           routingSource = smartRoute.source || 'smart';
+          routeCues = Array.isArray(smartRoute.cues) && smartRoute.cues.length > 0
+            ? smartRoute.cues
+            : null;
 
           console.log(`✅ Smart route generated via: ${routingSource}`);
         } else {
@@ -336,6 +343,7 @@ export const useRouteManipulation = ({
         coordinates: snappedCoordinates,
       };
       setRouteGeometry(geometry);
+      setRouteCues(routeCues);
 
       // Set route stats — converted at the boundary to the canonical
       // unit contract: KM, meters elevation, seconds duration.
@@ -394,7 +402,7 @@ export const useRouteManipulation = ({
       }
       return null;
     }
-  }, [waypoints, routingProfile, useSmartRouting, setRouteGeometry, setRouteStats, setElevationProfile]);
+  }, [waypoints, routingProfile, useSmartRouting, setRouteGeometry, setRouteStats, setElevationProfile, setRouteCues]);
 
   // === Build Freehand Route (straight lines between waypoints) ===
   // The freehand counterpart to snapToRoads: no routing engine, just direct
@@ -428,6 +436,7 @@ export const useRouteManipulation = ({
 
       const geometry = { type: 'LineString', coordinates };
       setRouteGeometry(geometry);
+      setRouteCues(null);
 
       const distance_km = M_TO_KM(routeDistance_m);
       assertKm(distance_km, 'buildFreehandRoute.distance_km');
@@ -479,7 +488,7 @@ export const useRouteManipulation = ({
       }
       return null;
     }
-  }, [waypoints, setRouteGeometry, setRouteStats, setElevationProfile]);
+  }, [waypoints, setRouteGeometry, setRouteStats, setElevationProfile, setRouteCues]);
 
   // === Fetch Elevation (standalone) ===
   const fetchElevation = useCallback(async (coordinates) => {

@@ -36,6 +36,7 @@ const MyRoutes = lazy(() => import('./pages/MyRoutes.jsx'));
 const Progress = lazy(() => import('./pages/Progress.jsx'));
 const MetricsCalculatorPage = lazy(() => import('./pages/MetricsCalculatorPage.tsx'));
 const RouteBuilder2 = lazy(() => import('./pages/RouteBuilder2.tsx'));
+const SharedRoute = lazy(() => import('./pages/SharedRoute.tsx'));
 const RouteBuilder2HarnessDev = lazy(() => import('./pages/RouteBuilder2HarnessDev.tsx'));
 
 // Dev harness gate: only mount when running in dev. The route doesn't exist in
@@ -135,6 +136,9 @@ function AppRoutes() {
 
       {/* OAuth Callbacks */}
       <Route path="/auth/callback" element={<AuthCallback />} />
+      {/* Public share links — no auth guard; the API only serves routes
+          explicitly marked public by their owner. */}
+      <Route path="/r/:routeId" element={<SharedRoute />} />
       <Route path="/oauth/strava/callback" element={<StravaCallback />} />
       <Route path="/oauth/garmin/callback" element={<GarminCallback />} />
       <Route path="/oauth/google/callback" element={<GoogleCalendarCallback />} />

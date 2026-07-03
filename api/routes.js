@@ -4,6 +4,8 @@
 import { getSupabaseAdmin } from './utils/supabaseAdmin.js';
 import { setupCors } from './utils/cors.js';
 import { completeActivationStep } from './utils/activation.js';
+import { rateLimitMiddleware } from './utils/rateLimit.js';
+import { encodeThumbPolyline } from './utils/polylineEncode.js';
 
 // Initialize Supabase (server-side with service role)
 const supabase = getSupabaseAdmin();
@@ -67,6 +69,14 @@ export default async function handler(req, res) {
 
   try {
     const { action, userId, routeId, routeData, visibility } = req.body;
+
+    // Unauthenticated read of an explicitly shared route (public share
+    // links). IP rate-limited since there's no user to scope by.
+    if (action === 'get_public_route') {
+      const limited = await rateLimitMiddleware(req, res, 'public-route', 60, 1);
+      if (limited) return;
+      return await getPublicRoute(req, res, routeId);
+    }
 
     if (!userId) {
       return res.status(400).json({ error: 'userId required' });
@@ -158,6 +168,7 @@ async function saveRoute(req, res, userId, routeData) {
       is_private: routeData.is_private !== false,
       visibility: routeData.visibility || 'private',
       tags: routeData.tags || null,
+      thumb_polyline: encodeThumbPolyline(coordinates),
       updated_at: new Date().toISOString()
     };
 
@@ -222,6 +233,7 @@ async function listRoutes(req, res, userId) {
         surface_type,
         generated_by,
         is_private,
+        thumb_polyline,
         created_at,
         updated_at,
         start_latitude,
@@ -293,6 +305,50 @@ async function getRoute(req, res, userId, routeId) {
 
   } catch (error) {
     console.error('Get route error:', error);
+    return res.status(500).json({ error: error.message });
+  }
+}
+
+/**
+ * Unauthenticated read of a shared route. Only routes explicitly marked
+ * public are returned; anything else is a 404 so route ids can't be probed.
+ * The owner's user_id is never included in the payload.
+ */
+async function getPublicRoute(req, res, routeId) {
+  if (!routeId) {
+    return res.status(400).json({ error: 'routeId required' });
+  }
+
+  try {
+    const { data: route, error } = await supabase
+      .from('routes')
+      .select(`
+        id, name, description,
+        distance_km, elevation_gain_m, elevation_loss_m, estimated_duration_minutes,
+        geometry,
+        start_latitude, start_longitude, end_latitude, end_longitude,
+        route_type, difficulty_rating, training_goal, surface_type,
+        is_private, visibility, created_at, updated_at
+      `)
+      .eq('id', routeId)
+      .single();
+
+    if (error) {
+      if (error.code === 'PGRST116') {
+        return res.status(404).json({ error: 'Route not found' });
+      }
+      throw error;
+    }
+
+    const isShared = route.visibility === 'public' || route.is_private === false;
+    if (!isShared) {
+      return res.status(404).json({ error: 'Route not found' });
+    }
+
+    return res.status(200).json({ success: true, route });
+
+  } catch (error) {
+    console.error('Get public route error:', error);
     return res.status(500).json({ error: error.message });
   }
 }

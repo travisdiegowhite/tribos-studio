@@ -45,4 +45,41 @@ describe('generateTCX', () => {
     expect(tcx).toContain('<AltitudeMeters>1655.2</AltitudeMeters>');
     expect(tcx).toContain('<AltitudeMeters>1690.1</AltitudeMeters>');
   });
+
+  it('emits turn CoursePoints from provider cues', () => {
+    const tcx = generateTCX({
+      ...baseRoute(COORDS_2D),
+      cues: [
+        {
+          type: 1,
+          direction: 'depart',
+          instruction: 'Head north on Main St.',
+          streetNames: ['Main St'],
+          distance_km: 0,
+          coordinate: [-105.2705, 40.015],
+        },
+        {
+          type: 15,
+          direction: 'left',
+          instruction: 'Turn left onto Oak Ave.',
+          streetNames: ['Oak Ave'],
+          distance_km: 1.2,
+          coordinate: [-105.28, 40.02],
+        },
+        {
+          type: 10,
+          direction: 'right',
+          instruction: 'Turn right onto Pine Rd.',
+          streetNames: ['Pine Rd'],
+          distance_km: 2.4,
+          coordinate: [-105.29, 40.025],
+        },
+      ],
+    });
+    expect(tcx).toContain('<PointType>Left</PointType>');
+    expect(tcx).toContain('<PointType>Right</PointType>');
+    expect(tcx).toContain('Turn left onto Oak Ave.');
+    // Depart/continue noise is filtered from the cue sheet.
+    expect(tcx).not.toContain('Head north on Main St.');
+  });
 });

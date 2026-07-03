@@ -9,7 +9,9 @@
 import { useCallback, useState } from 'react';
 import { useRouteBuilderStore } from '../../stores/routeBuilderStore';
 import * as routesService from '../../utils/routesService';
-import { exportAndDownloadRoute } from '../../utils/routeExport';
+import { exportAndDownloadRoute, generateFIT } from '../../utils/routeExport';
+import type { RouteData } from '../../utils/routeExport';
+import { wahooService } from '../../utils/wahooService';
 import { getElevationData } from '../../utils/elevation';
 import { waypointCoordsForGeometry } from './routeSnapshot';
 import { parseGpxFile } from '../../utils/gpxParser.js';
@@ -75,6 +77,16 @@ type ExportCoordinates = [number, number][] | [number, number, number][];
  * zip to [lng, lat, ele]. On failure, fall back to the flat
  * coordinates rather than blocking the export.
  */
+/** Encode FIT bytes as the data URI shape Wahoo's route API expects. */
+function fitToDataUri(bytes: Uint8Array): string {
+  let binary = '';
+  const CHUNK = 0x8000;
+  for (let i = 0; i < bytes.length; i += CHUNK) {
+    binary += String.fromCharCode(...bytes.subarray(i, i + CHUNK));
+  }
+  return `data:application/vnd.fit;base64,${btoa(binary)}`;
+}
+
 export async function withElevations(coords: ExportCoordinates): Promise<ExportCoordinates> {
   if (coords.length === 0 || coords[0].length === 3) return coords;
   try {
@@ -153,6 +165,13 @@ export interface UseRoutePersistenceReturn {
    * Courses-API-unavailable → TCX fallback.
    */
   pushToGarmin: () => Promise<DevicePushResult>;
+  /** Whether the user's Wahoo account is connected. */
+  checkWahooConnection: () => Promise<boolean>;
+  /**
+   * Push the current route to Wahoo Cloud as a FIT course (encoded
+   * client-side). Same structured result contract as pushToGarmin.
+   */
+  pushToWahoo: () => Promise<DevicePushResult>;
   /**
    * Copy a public share link (`/routes/:id`) to the clipboard. Requires the
    * route to be saved; returns `not_saved` otherwise so the caller can
@@ -169,6 +188,7 @@ export function useRoutePersistence(): UseRoutePersistenceReturn {
   const [isPushingToDevice, setIsPushingToDevice] = useState(false);
 
   const routeGeometry = useRouteBuilderStore((s) => s.routeGeometry);
+  const routeCues = useRouteBuilderStore((s) => s.routeCues);
   const routeName = useRouteBuilderStore((s) => s.routeName);
   const routeDescription = useRouteBuilderStore((s) => s.routeDescription);
   const routeStats = useRouteBuilderStore((s) => s.routeStats);
@@ -302,6 +322,7 @@ export function useRoutePersistence(): UseRoutePersistenceReturn {
           {
             name: routeName ?? 'Untitled Route',
             coordinates,
+            cues: (routeCues as RouteData['cues']) ?? null,
             distanceKm: routeStats?.distance_km ?? undefined,
             elevationGainM: routeStats?.elevation_gain_m ?? undefined,
             waypoints: Array.isArray(waypoints)
@@ -327,7 +348,7 @@ export function useRoutePersistence(): UseRoutePersistenceReturn {
         trackRb2('route_export_failed', { format, error_message: message.slice(0, 200) });
       }
     },
-    [routeGeometry, routeName, routeStats, waypoints, savedRouteId],
+    [routeGeometry, routeCues, routeName, routeStats, waypoints, savedRouteId],
   );
 
   const listSavedRoutes = useCallback(async (): Promise<SavedRouteSummary[]> => {
@@ -528,6 +549,92 @@ export function useRoutePersistence(): UseRoutePersistenceReturn {
     }
   }, [routeGeometry, routeName, routeStats, routeType, routeProfile]);
 
+  const checkWahooConnection = useCallback(async (): Promise<boolean> => {
+    try {
+      const status = (await (wahooService as {
+        getConnectionStatus: () => Promise<{ connected?: boolean }>;
+      }).getConnectionStatus()) ?? {};
+      return status.connected === true;
+    } catch {
+      return false;
+    }
+  }, []);
+
+  const pushToWahoo = useCallback(async (): Promise<DevicePushResult> => {
+    const coords = (routeGeometry as { coordinates?: ExportCoordinates } | null)?.coordinates;
+    if (!Array.isArray(coords) || coords.length < 2) {
+      setLastError('No route to send');
+      return { ok: false, reason: 'no_route', message: 'No route to send' };
+    }
+
+    setIsPushingToDevice(true);
+    setLastError(null);
+    try {
+      const coordinates = await withElevations(coords);
+      const fitBytes = generateFIT({
+        name: routeName ?? 'Untitled Route',
+        coordinates,
+        cues: (routeCues as RouteData['cues']) ?? null,
+        distanceKm: routeStats?.distance_km ?? undefined,
+        elevationGainM: routeStats?.elevation_gain_m ?? undefined,
+        elevationLossM: routeStats?.elevation_loss_m ?? undefined,
+      });
+      const [startLng, startLat] = coordinates[0];
+      const result = (await (wahooService as {
+        pushRoute: (data: unknown) => Promise<{
+          success?: boolean;
+          message?: string;
+          error?: string;
+          requiresReconnect?: boolean;
+        }>;
+      }).pushRoute({
+        name: routeName ?? 'Untitled Route',
+        description: routeDescription || '',
+        fitBase64: fitToDataUri(fitBytes),
+        external_id: savedRouteId ?? undefined,
+        start_lat: startLat,
+        start_lng: startLng,
+        distance_m: Math.round((routeStats?.distance_km ?? 0) * 1000),
+        ascent_m: Math.round(routeStats?.elevation_gain_m ?? 0),
+        descent_m: Math.round(routeStats?.elevation_loss_m ?? 0),
+      })) ?? {};
+
+      if (result.success) {
+        trackRb2('route_pushed_to_device', {
+          provider: 'wahoo',
+          distance_km: routeStats?.distance_km ?? null,
+        });
+        return {
+          ok: true,
+          message: result.message || 'Route sent to Wahoo. Sync your ELEMNT to download it.',
+        };
+      }
+
+      const reason: 'reconnect' | 'error' = result.requiresReconnect ? 'reconnect' : 'error';
+      trackRb2('route_push_failed', { provider: 'wahoo', reason });
+      return {
+        ok: false,
+        reason,
+        message:
+          reason === 'reconnect'
+            ? 'Please reconnect your Wahoo account in Settings.'
+            : result.error || 'Failed to send route to Wahoo',
+      };
+    } catch (e) {
+      const message = e instanceof Error ? e.message : String(e);
+      const reconnect = /reconnect|authorization/i.test(message);
+      setLastError(message);
+      trackRb2('route_push_failed', { provider: 'wahoo', reason: 'error' });
+      return {
+        ok: false,
+        reason: reconnect ? 'reconnect' : 'error',
+        message: reconnect ? 'Please reconnect your Wahoo account in Settings.' : message,
+      };
+    } finally {
+      setIsPushingToDevice(false);
+    }
+  }, [routeGeometry, routeCues, routeName, routeDescription, routeStats, savedRouteId]);
+
   const shareRoute = useCallback(async (): Promise<ShareResult> => {
     if (!savedRouteId) {
       return { ok: false, reason: 'not_saved' };
@@ -541,7 +648,8 @@ export function useRoutePersistence(): UseRoutePersistenceReturn {
       trackRb2('route_share_failed', { error_message: message.slice(0, 200) });
       return { ok: false, reason: 'error', message };
     }
-    const url = `${window.location.origin}/routes/${savedRouteId}`;
+    // The /r/ page is public (no sign-in wall), so the link works for anyone.
+    const url = `${window.location.origin}/r/${savedRouteId}`;
     try {
       await navigator.clipboard.writeText(url);
     } catch {
@@ -576,6 +684,8 @@ export function useRoutePersistence(): UseRoutePersistenceReturn {
     isPushingToDevice,
     checkGarminConnection,
     pushToGarmin,
+    checkWahooConnection,
+    pushToWahoo,
     shareRoute,
   };
 }

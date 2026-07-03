@@ -17,9 +17,17 @@
  * Coordinates use FIT semicircle convention: degrees × (2^31 / 180)
  */
 
-// @ts-expect-error — @garmin/fitsdk has no type declarations
 import { Encoder } from '@garmin/fitsdk';
 import type { RouteData } from './routeExport';
+import { cueShortLabel, cueToFitPointType, isTurnCue } from './routeCues';
+
+// @garmin/fitsdk ships partial declarations whose Encodable<Mesg> generic
+// rejects the documented message-field objects; type the surface we use.
+interface FitEncoder {
+  writeMesg(mesg: Record<string, unknown>): void;
+  close(): Uint8Array;
+}
+const FitEncoderCtor = Encoder as unknown as new () => FitEncoder;
 
 // ============================================================================
 // FIT CONSTANTS
@@ -79,7 +87,7 @@ function mapCoursePointType(type?: string): string {
  * Returns a Uint8Array ready for download.
  */
 export function encodeFitCourse(route: RouteData): Uint8Array {
-  const encoder = new Encoder();
+  const encoder = new FitEncoderCtor();
   const coords = route.coordinates;
 
   // Build cumulative distances and synthetic timestamps
@@ -170,21 +178,41 @@ export function encodeFitCourse(route: RouteData): Uint8Array {
     timestamp: timestampAtIndex(coords.length - 1),
   });
 
-  // 7. course_point messages (waypoints)
-  if (route.waypoints && route.waypoints.length > 0) {
-    for (const wp of route.waypoints) {
-      // Find nearest coordinate to determine timestamp
-      let nearestIdx = 0;
-      let nearestDist = Infinity;
-      for (let i = 0; i < coords.length; i++) {
-        const [lng, lat] = coords[i];
-        const d = haversineDistance(wp.lat, wp.lng, lat, lng);
-        if (d < nearestDist) {
-          nearestDist = d;
-          nearestIdx = i;
-        }
+  function nearestCoordIndex(lat: number, lng: number): number {
+    let nearestIdx = 0;
+    let nearestDist = Infinity;
+    for (let i = 0; i < coords.length; i++) {
+      const [cLng, cLat] = coords[i];
+      const d = haversineDistance(lat, lng, cLat, cLng);
+      if (d < nearestDist) {
+        nearestDist = d;
+        nearestIdx = i;
       }
+    }
+    return nearestIdx;
+  }
 
+  // 7. course_point messages — prefer provider turn cues (real turn prompts
+  // on the device); fall back to bare waypoints otherwise.
+  const turnCues = (route.cues ?? []).filter((c) => isTurnCue(c) || c.direction === 'arrive');
+  if (turnCues.length > 0) {
+    for (const cue of turnCues) {
+      const [lng, lat] = cue.coordinate;
+      const idx = nearestCoordIndex(lat, lng);
+      const street = cue.streetNames?.[0];
+      const name = street ? `${cueShortLabel(cue)} ${street}` : cueShortLabel(cue);
+      encoder.writeMesg({
+        mesgNum: MESG_NUM_COURSE_POINT,
+        timestamp: timestampAtIndex(idx),
+        positionLat: degreesToSemicircles(lat),
+        positionLong: degreesToSemicircles(lng),
+        name: name.substring(0, 16),
+        type: cueToFitPointType(cue),
+      });
+    }
+  } else if (route.waypoints && route.waypoints.length > 0) {
+    for (const wp of route.waypoints) {
+      const nearestIdx = nearestCoordIndex(wp.lat, wp.lng);
       encoder.writeMesg({
         mesgNum: MESG_NUM_COURSE_POINT,
         timestamp: timestampAtIndex(nearestIdx),
