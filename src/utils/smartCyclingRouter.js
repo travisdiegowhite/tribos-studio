@@ -8,6 +8,11 @@
 
 import { getStadiaMapsRoute, isStadiaMapsAvailable } from './stadiaMapsRouter';
 import { getBRouterDirections, selectBRouterProfile, BROUTER_PROFILES } from './brouter';
+import {
+  getGraphHopperCyclingDirections,
+  isGraphHopperAvailable,
+  GRAPHHOPPER_PROFILES,
+} from './graphHopper';
 import { trackRouteBuilder, truncateErrorMessage } from './routeBuilderTelemetry';
 import { fnv1a32, stableJson } from './stableHash';
 
@@ -20,13 +25,20 @@ const ROUTE_CACHE_MAX = 30;
 const routeCache = new Map(); // key → { at, route }
 const inFlight = new Map(); // key → Promise
 
-function routeCacheKey(waypoints, { profile, trainingGoal, preferences, userSpeed }) {
+function routeCacheKey(waypoints, { profile, trainingGoal, preferences, userSpeed, useHills }) {
   const quantized = waypoints.map(([lng, lat]) => [
     Math.round(lng * 1e5) / 1e5,
     Math.round(lat * 1e5) / 1e5,
   ]);
   return fnv1a32(
-    stableJson({ quantized, profile, trainingGoal, preferences: preferences ?? null, userSpeed: userSpeed ?? null }),
+    stableJson({
+      quantized,
+      profile,
+      trainingGoal,
+      preferences: preferences ?? null,
+      userSpeed: userSpeed ?? null,
+      useHills: useHills ?? null,
+    }),
   );
 }
 
@@ -106,7 +118,9 @@ async function computeSmartCyclingRoute(waypoints, options = {}) {
     preferences = null,
     trainingGoal = 'endurance',
     mapboxToken = null,
-    userSpeed = null
+    userSpeed = null,
+    // Explicit Valhalla use_hills override (0–1) from an elevation target.
+    useHills = null
   } = options;
 
   console.log('🧠 Smart cycling router: Finding optimal route...');
@@ -120,9 +134,35 @@ async function computeSmartCyclingRoute(waypoints, options = {}) {
   // For ROAD/COMMUTING routes: Stadia Maps is PRIMARY (excellent for paved cycling infrastructure)
   if (isGravelOrMTB) {
     // === GRAVEL/MTB ROUTING STRATEGY ===
+    // GraphHopper's gravel custom_model is the strongest unpaved-surface
+    // costing we have, but it needs an API key (VITE_GRAPHHOPPER_API_KEY)
+    // and flexible mode requires a paid GH plan — so it leads the chain
+    // only when configured, and the free BRouter path is unchanged
+    // otherwise.
+
+    // Strategy 0: GraphHopper when configured
+    if (isGraphHopperAvailable()) {
+      console.log('🌾 Gravel/MTB: trying GraphHopper first (custom gravel model)');
+      const ghResult = await tryGraphHopperRouting(waypoints, { preferences });
+      if (ghResult && ghResult.coordinates && ghResult.coordinates.length > 10) {
+        console.log(`✅ GraphHopper provided ${profile} route`);
+        return {
+          ...ghResult,
+          source: 'graphhopper_gravel',
+          confidence: 1.0
+        };
+      }
+      console.warn('⚠️ GraphHopper routing failed, falling back to BRouter');
+      trackRouteBuilder('provider_fallback_chain_advanced', {
+        from_provider: 'graphhopper',
+        to_provider: 'brouter',
+        failure_reason: 'graphhopper_no_route',
+      });
+    }
+
     // BRouter has dedicated gravel and MTB profiles that actively prioritize unpaved surfaces
 
-    // Strategy 1: Try BRouter FIRST for gravel/MTB (it's the specialist)
+    // Strategy 1: Try BRouter for gravel/MTB (the free specialist)
     console.log('🌾 Gravel/MTB route requested - using BRouter as PRIMARY (dedicated unpaved profiles)');
     const brouterProfile = profile === 'mountain' ? BROUTER_PROFILES.MTB : BROUTER_PROFILES.GRAVEL;
     const brouterResult = await tryBRouterRouting(waypoints, {
@@ -154,7 +194,8 @@ async function computeSmartCyclingRoute(waypoints, options = {}) {
         profile,
         preferences,
         trainingGoal,
-        userSpeed
+        userSpeed,
+        useHills
       });
 
       if (stadiaResult && stadiaResult.coordinates && stadiaResult.coordinates.length > 10) {
@@ -178,7 +219,8 @@ async function computeSmartCyclingRoute(waypoints, options = {}) {
         profile,
         preferences,
         trainingGoal,
-        userSpeed
+        userSpeed,
+        useHills
       });
 
       if (stadiaResult && stadiaResult.coordinates && stadiaResult.coordinates.length > 10) {
@@ -255,7 +297,7 @@ async function computeSmartCyclingRoute(waypoints, options = {}) {
  * Try Stadia Maps routing (hosted Valhalla - PRIMARY for all cycling)
  */
 async function tryStadiaMapsRouting(waypoints, options) {
-  const { profile, preferences, trainingGoal, userSpeed } = options;
+  const { profile, preferences, trainingGoal, userSpeed, useHills = null } = options;
   const startMs = Date.now();
   trackRouteBuilder('generation_routing_called', {
     provider: 'stadia',
@@ -270,7 +312,8 @@ async function tryStadiaMapsRouting(waypoints, options) {
       profile: profile,
       preferences: preferences,
       trainingGoal: trainingGoal,
-      userSpeed: userSpeed
+      userSpeed: userSpeed,
+      useHills: useHills
     });
 
     if (result && result.coordinates && result.coordinates.length > 0) {
@@ -311,6 +354,62 @@ async function tryStadiaMapsRouting(waypoints, options) {
     console.warn('Stadia Maps routing failed:', error);
     trackRouteBuilder('generation_routing_failed', {
       provider: 'stadia',
+      duration_ms: Date.now() - startMs,
+      failure_reason: truncateErrorMessage(error?.message ?? String(error)),
+    });
+    return null;
+  }
+}
+
+/**
+ * Try GraphHopper routing (keyed; the gravel custom_model aggressively
+ * prefers unpaved surfaces). Both gravel and mountain map to the gravel
+ * custom model — GH's dedicated mtb profile needs a paid plan.
+ */
+async function tryGraphHopperRouting(waypoints, options) {
+  const { preferences } = options;
+  const startMs = Date.now();
+  trackRouteBuilder('generation_routing_called', {
+    provider: 'graphhopper',
+    profile: 'gravel',
+    waypoint_count: waypoints?.length ?? 0,
+  });
+
+  try {
+    const result = await getGraphHopperCyclingDirections(waypoints, {
+      profile: GRAPHHOPPER_PROFILES.GRAVEL,
+      preferences,
+    });
+
+    if (result && result.coordinates && result.coordinates.length > 0) {
+      trackRouteBuilder('generation_routing_succeeded', {
+        provider: 'graphhopper',
+        duration_ms: Date.now() - startMs,
+      });
+      return {
+        coordinates: result.coordinates,
+        distance_m: result.distance_m,
+        duration_s: result.duration_s,
+        distance: result.distance_m,
+        duration: result.duration_s,
+        elevationGain: result.elevation?.ascent || 0,
+        elevationLoss: result.elevation?.descent || 0,
+        confidence: result.confidence || 0.9,
+        profile: 'gravel',
+        source: 'graphhopper'
+      };
+    }
+
+    trackRouteBuilder('generation_routing_failed', {
+      provider: 'graphhopper',
+      duration_ms: Date.now() - startMs,
+      failure_reason: 'empty_or_no_coordinates',
+    });
+    return null;
+  } catch (error) {
+    console.warn('GraphHopper routing failed:', error);
+    trackRouteBuilder('generation_routing_failed', {
+      provider: 'graphhopper',
       duration_ms: Date.now() - startMs,
       failure_reason: truncateErrorMessage(error?.message ?? String(error)),
     });

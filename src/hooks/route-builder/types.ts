@@ -41,6 +41,8 @@ export interface RouteSnapshot {
   waypoints: Array<{ coordinate: Coordinate }>;
   stats: RouteStats;
   elevations_m?: number[];
+  /** Provider turn cues (RouteCue[]) when the router supplied them. */
+  cues?: unknown[] | null;
 }
 
 /**

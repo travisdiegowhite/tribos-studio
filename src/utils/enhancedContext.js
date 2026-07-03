@@ -1023,6 +1023,7 @@ FORMAT YOUR RESPONSE AS JSON:
         }
       ],
       "keyDirections": ["turn by turn directions with landmarks"],
+      "keyRoads": ["2-4 real, well-known road or landmark names the route follows, in ride order — only ones you are confident exist near the start; empty array if unsure"],
       "trainingFocus": "how this route serves the training goal",
       "weatherOptimization": "how route works with current conditions",
       "safetyRating": "1-5 scale with explanation",

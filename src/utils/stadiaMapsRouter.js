@@ -184,7 +184,10 @@ export async function getStadiaMapsRoute(waypoints, options = {}) {
     profile = 'road',
     preferences = null,
     trainingGoal = 'endurance',
-    userSpeed = null
+    userSpeed = null,
+    // Explicit Valhalla use_hills override (0–1). Set when the rider gave an
+    // elevation-gain target; wins over profile/goal-derived values.
+    useHills = null
   } = options;
 
   const apiKey = import.meta.env.VITE_STADIA_API_KEY;
@@ -287,6 +290,13 @@ export async function getStadiaMapsRoute(waypoints, options = {}) {
     if (preferences.avoidHills) {
       costing_options.bicycle.use_hills = 0.1;
     }
+  }
+
+  // Explicit elevation-target override wins over profile/goal/legacy values —
+  // the rider asked for a specific amount of climbing.
+  if (typeof useHills === 'number' && useHills >= 0 && useHills <= 1) {
+    costing_options.bicycle.use_hills = useHills;
+    console.log(`⛰️ use_hills override from elevation target: ${useHills}`);
   }
 
   // Convert waypoints to Stadia Maps format via the canonical boundary
@@ -812,6 +822,101 @@ function decodePolyline(encoded) {
   }
 
   return coordinates;
+}
+
+const STADIA_TRACE_API_URL = 'https://api.stadiamaps.com/trace_route/v1';
+
+/**
+ * Derive turn cues for ANY finished route line by map-matching it through
+ * Valhalla's trace_route. Cues from the direct /route response only exist
+ * when Stadia built the route — this backfills routes from providers that
+ * return no turn data (BRouter gravel, GraphHopper, GPX imports, loaded
+ * routes). Returns a RouteCue[] or null; never throws.
+ *
+ * @param {Array<[lng, lat]>} coordinates - the route geometry (elevation
+ *   third elements tolerated)
+ */
+export async function getStadiaCuesForGeometry(coordinates) {
+  const apiKey = import.meta.env.VITE_STADIA_API_KEY;
+  if (!apiKey || !Array.isArray(coordinates) || coordinates.length < 10) return null;
+
+  try {
+    // Downsample: map-matching doesn't need every vertex, and the payload
+    // for a long route would otherwise be hundreds of KB.
+    const MAX_SHAPE_POINTS = 800;
+    const n = coordinates.length;
+    const step = Math.max(1, Math.ceil(n / MAX_SHAPE_POINTS));
+    const shape = [];
+    for (let i = 0; i < n; i += step) {
+      shape.push({ lat: coordinates[i][1], lon: coordinates[i][0] });
+    }
+    const last = coordinates[n - 1];
+    const shapeLast = shape[shape.length - 1];
+    if (shapeLast.lat !== last[1] || shapeLast.lon !== last[0]) {
+      shape.push({ lat: last[1], lon: last[0] });
+    }
+
+    const response = await fetch(`${STADIA_TRACE_API_URL}?api_key=${apiKey}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        shape,
+        costing: 'bicycle',
+        shape_match: 'map_snap',
+        directions_type: 'maneuvers',
+        units: 'kilometers'
+      }),
+      signal: AbortSignal.timeout(12000)
+    });
+
+    if (!response.ok) {
+      console.warn(`Stadia trace_route failed: ${response.status}`);
+      return null;
+    }
+
+    const data = await response.json();
+    const legs = data?.trip?.legs;
+    if (!Array.isArray(legs) || legs.length === 0) return null;
+
+    // Same leg-concatenation + cue resolution as getStadiaMapsRoute.
+    let matched = [];
+    const legStartGlobal = [];
+    legs.forEach((leg, index) => {
+      const legCoordinates = decodePolyline(leg.shape);
+      if (index === 0) {
+        legStartGlobal.push(0);
+        matched = legCoordinates;
+      } else {
+        legStartGlobal.push(matched.length - 1);
+        matched = matched.concat(legCoordinates.slice(1));
+      }
+    });
+
+    const cues = [];
+    let cumulativeKm = 0;
+    legs.forEach((leg, index) => {
+      (leg.maneuvers || []).forEach((m) => {
+        const globalIdx = Math.min(
+          Math.max(legStartGlobal[index] + (m.begin_shape_index || 0), 0),
+          matched.length - 1,
+        );
+        cues.push({
+          type: m.type ?? 0,
+          direction: valhallaTypeToDirection(m.type ?? 0),
+          instruction: m.instruction || '',
+          streetNames: m.street_names || [],
+          distance_km: Math.round(cumulativeKm * 100) / 100,
+          coordinate: matched[globalIdx],
+        });
+        cumulativeKm += m.length || 0;
+      });
+    });
+
+    return cues.length > 0 ? cues : null;
+  } catch (error) {
+    console.warn('Stadia trace_route cue backfill failed:', error?.message);
+    return null;
+  }
 }
 
 /**
