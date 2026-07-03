@@ -291,6 +291,7 @@ function buildRoutePrompt(params) {
     suppressPrescription,
     coachPersona,
     familiarRoads,
+    elevationGainTargetM,
   } = params;
 
   // Normalize startLocation to array format [lng, lat]
@@ -316,7 +317,7 @@ function buildRoutePrompt(params) {
 LOCATION & DISTANCE:
 - Start coordinates: ${latitude}, ${longitude}
 - Target distance: ${targetDistanceKm.toFixed(1)}km
-- Time available: ${timeAvailable} minutes
+${elevationGainTargetM ? `- Target elevation gain: ${Math.round(elevationGainTargetM)}m — routes should come close to this climbing figure\n` : ''}- Time available: ${timeAvailable} minutes
 - Route type: ${routeType}
 
 TRAINING GOAL: ${trainingGoal}
@@ -427,6 +428,7 @@ Please provide 3-4 route suggestions in the following JSON format:
       "estimatedElevation": elevation_gain_in_meters,
       "difficulty": "easy|moderate|hard",
       "keyDirections": ["turn by turn directions as array of strings"],
+      "keyRoads": ["2-4 real, well-known road or landmark names the route follows, in ride order"],
       "trainingFocus": "what makes this route good for the specified training goal",
       "weatherConsiderations": "how this route works with current weather",
       "estimatedTime": time_in_minutes
@@ -447,7 +449,8 @@ IMPORTANT:
 - Consider safety (bike lanes, traffic levels)
 - Safety language (bike infrastructure warnings, traffic cautions, dangerous-turn callouts) MUST appear in every route regardless of coach voice. The voice never softens, omits, or trivializes safety content.
 - Familiarity bias never overrides the prescription. If the prescription requires terrain that exists only in low-familiarity territory, route through it. Familiarity is a tiebreaker among prescription-compatible options, not a filter.
-- Do not invent road names. The rider's familiar-roads data does not include street names; refer to roads by direction, distance from start, or terrain type only.
+- Do not invent road names in keyDirections. The rider's familiar-roads data does not include street names; refer to roads by direction, distance from start, or terrain type only.
+- "keyRoads" is the one exception: list ONLY real roads, paths, or landmarks near the start location that you are confident exist (e.g. a well-known scenic road, a named rail-trail). If you are not confident of any, return an empty keyRoads array — never guess.
 - Match difficulty to training goal
 - Explain route benefits clearly
 - Account for weather impact on route choice
@@ -672,6 +675,7 @@ function parseClaudeResponse(responseText) {
       confidence: 0.85,
       source: 'claude',
       keyDirections: route.keyDirections || [],
+      keyRoads: Array.isArray(route.keyRoads) ? route.keyRoads.filter((r) => typeof r === 'string') : [],
       weatherConsiderations: route.weatherConsiderations || '',
       estimatedTime: calculateRealisticTime(route.estimatedDistance || 25, route.difficulty || 'moderate'),
       elevationProfile: [],

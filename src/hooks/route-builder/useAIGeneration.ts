@@ -29,6 +29,7 @@ interface Rb1RouteResult {
   elevationLoss?: number; // m
   coordinates?: Array<[number, number]>;
   description?: string;
+  cues?: unknown[] | null;
 }
 
 function mapShape(shape: RouteShape | undefined): 'loop' | 'out_and_back' | 'point_to_point' {
@@ -69,6 +70,7 @@ function toRouteSnapshot(
     elevation_gain_m: route.elevationGain ?? 0,
     elevation_loss_m: route.elevationLoss ?? 0,
     duration_s: durationMinutes * 60,
+    cues: route.cues ?? null,
   });
 }
 
@@ -90,6 +92,7 @@ export function useAIGeneration(): UseAIGenerationReturn {
   const setRouteGeometry = useRouteBuilderStore((s) => s.setRouteGeometry);
   const setRouteStats = useRouteBuilderStore((s) => s.setRouteStats);
   const setWaypoints = useRouteBuilderStore((s) => s.setWaypoints);
+  const setRouteCues = useRouteBuilderStore((s) => s.setRouteCues);
   const setBuilderMode = useRouteBuilderStore((s) => s.setBuilderMode);
 
   const suggestions = (Array.isArray(aiSuggestions) ? aiSuggestions : []) as RouteSnapshot[];
@@ -115,6 +118,19 @@ export function useAIGeneration(): UseAIGenerationReturn {
         userId,
         speedProfile: null,
         speedModifier: 1.0,
+        // Explicit rider targets — previously collected by the form but
+        // dropped here, which made "40 km / 600 m" advisory at best.
+        targetDistanceKm:
+          typeof input.distance_km === 'number' && input.distance_km > 0
+            ? input.distance_km
+            : undefined,
+        elevationGainTargetM:
+          typeof input.elevation_gain_m === 'number' && input.elevation_gain_m > 0
+            ? input.elevation_gain_m
+            : undefined,
+        // The form's surface selection — also previously dropped, which left
+        // the routing profile to be inferred from saved preferences.
+        routeProfile: input.route_profile,
       };
 
       try {
@@ -142,6 +158,13 @@ export function useAIGeneration(): UseAIGenerationReturn {
           toKeep.map((s) => enrichRouteElevation(s)),
         );
         setAiSuggestions(enriched);
+        // Keep the store profile in sync with what generation actually used —
+        // the summary chip reads it, and manual edit re-snaps route with it.
+        if (input.route_profile) {
+          useRouteBuilderStore.getState().setRouteProfile(
+            input.route_profile === 'mtb' ? 'mountain' : input.route_profile,
+          );
+        }
         trackRb2('generation_completed', {
           count,
           duration_ms: Date.now() - startedAt,
@@ -183,10 +206,11 @@ export function useAIGeneration(): UseAIGenerationReturn {
           name: '',
         })),
       );
+      setRouteCues(chosen.cues ?? null);
       setBuilderMode('editing');
       return chosen;
     },
-    [suggestions, setRouteGeometry, setRouteStats, setWaypoints, setBuilderMode],
+    [suggestions, setRouteGeometry, setRouteStats, setWaypoints, setRouteCues, setBuilderMode],
   );
 
   const clearSuggestions = useCallback(() => {

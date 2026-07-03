@@ -12,10 +12,17 @@ export const GRAPHHOPPER_PROFILES = {
   FOOT: 'foot'                     // Walking/hiking
 };
 
-// Get GraphHopper API key
+// Get GraphHopper API key (Vite env; the old REACT_APP_ name was a CRA
+// leftover that is always undefined under Vite — one of the two reasons this
+// module was dead code).
 const getGraphHopperApiKey = () => {
-  return process.env.REACT_APP_GRAPHHOPPER_API_KEY;
+  return import.meta.env.VITE_GRAPHHOPPER_API_KEY;
 };
+
+/** Whether GraphHopper routing can be attempted (key configured). */
+export function isGraphHopperAvailable() {
+  return !!getGraphHopperApiKey();
+}
 
 // Get cycling directions using GraphHopper with advanced preferences
 export async function getGraphHopperCyclingDirections(coordinates, options = {}) {
@@ -35,28 +42,28 @@ export async function getGraphHopperCyclingDirections(coordinates, options = {})
     preferences = null
   } = options;
 
-  // Format coordinates: lat,lon|lat,lon|...
-  const points = coordinates.map(coord => `${coord[1]},${coord[0]}`).join('|');
-  
-  const params = new URLSearchParams({
-    key: apiKey,
-    vehicle: profile,
-    points_encoded: 'false',
+  // custom_model requires a POST JSON body (the old GET-param encoding was
+  // silently ignored/rejected by the API — the other reason this module was
+  // dead code). GraphHopper accepts [lng, lat] point pairs, matching our
+  // canonical coordinate contract.
+  const body = {
+    profile,
+    points: coordinates.map(coord => [coord[0], coord[1]]),
+    points_encoded: false,
     calc_points: calcPoints,
-    instructions: instructions,
-    elevation: elevation,
-    optimize: 'false'
-  });
+    instructions,
+    elevation,
+  };
 
   // DEFAULT: Always apply some traffic avoidance for cycling
   // This makes GraphHopper routes safer than Mapbox by default
   let customModelApplied = false;
+  let customModel = null;
 
   // GRAVEL PROFILE: Extremely high preference for unpaved roads and dirt paths
   if (profile === GRAPHHOPPER_PROFILES.GRAVEL) {
     customModelApplied = true;
-    params.append('ch.disable', 'true'); // Disable contraction hierarchies for flexibility
-    params.append('custom_model', JSON.stringify({
+    customModel = ({
       "priority": [
         // MASSIVELY boost ALL unpaved surfaces (explicit tags)
         { "if": "surface == GRAVEL", "multiply_by": "20.0" },
@@ -100,7 +107,7 @@ export async function getGraphHopperCyclingDirections(coordinates, options = {})
         { "if": "road_class == UNCLASSIFIED", "multiply_by": "8.0" }
       ],
       "distance_influence": 250 // Allow up to 250% longer routes to find gravel paths (very flexible)
-    }));
+    });
     console.log('🌾 GraphHopper: Applying AGGRESSIVE GRAVEL profile - blocking paved roads, prioritizing tracks/paths/unclassified roads');
   }
 
@@ -112,8 +119,7 @@ export async function getGraphHopperCyclingDirections(coordinates, options = {})
     if (preferences.routingPreferences?.trafficTolerance === 'low') {
       customModelApplied = true;
       // Use GraphHopper's "safest" route preference with VERY strict avoidance
-      params.append('ch.disable', 'true'); // Disable contraction hierarchies for more flexibility
-      params.append('custom_model', JSON.stringify({
+      customModel = ({
         "priority": [
           // BLOCK dangerous roads completely
           { "if": "road_class == MOTORWAY", "multiply_by": "0" },
@@ -129,11 +135,10 @@ export async function getGraphHopperCyclingDirections(coordinates, options = {})
           { "if": "surface == PAVED", "multiply_by": "1.3" }
         ],
         "distance_influence": 70 // Allow up to 70% longer routes for safety
-      }));
+      });
       console.log('🚫 GraphHopper: Applying STRICT traffic avoidance - blocking motorways, trunks, and heavily penalizing primary roads');
     } else if (preferences.routingPreferences?.trafficTolerance === 'medium') {
-      params.append('ch.disable', 'true');
-      params.append('custom_model', JSON.stringify({
+      customModel = ({
         "priority": [
           { "if": "road_class == MOTORWAY", "multiply_by": "0" }, // Still block motorways
           { "if": "road_class == TRUNK", "multiply_by": "0.05" }, // Heavily penalize trunks
@@ -144,7 +149,7 @@ export async function getGraphHopperCyclingDirections(coordinates, options = {})
           { "if": "road_class == RESIDENTIAL", "multiply_by": "1.5" }
         ],
         "distance_influence": 40 // Allow up to 40% longer for moderate safety
-      }));
+      });
       console.log('⚖️ GraphHopper: Applying moderate traffic avoidance');
       customModelApplied = true;
     }
@@ -156,11 +161,9 @@ export async function getGraphHopperCyclingDirections(coordinates, options = {})
       if (!customModelApplied) {
         customModelApplied = true;
         // No traffic model set yet, create one focused on bike infrastructure
-        params.append('ch.disable', 'true');
-
         const infraBoost = preferences.safetyPreferences.bikeInfrastructure === 'required' ? '3.0' : '2.0';
 
-        params.append('custom_model', JSON.stringify({
+        customModel = ({
           "priority": [
             // Block unsafe roads when infrastructure is required
             { "if": "road_class == MOTORWAY", "multiply_by": "0" },
@@ -175,7 +178,7 @@ export async function getGraphHopperCyclingDirections(coordinates, options = {})
             { "if": "road_class == RESIDENTIAL", "multiply_by": "1.8" }
           ],
           "distance_influence": preferences.safetyPreferences.bikeInfrastructure === 'required' ? 80 : 50
-        }));
+        });
         console.log(`🛣️ GraphHopper: Requiring bike infrastructure (${infraBoost}x boost)`);
       }
     }
@@ -188,16 +191,24 @@ export async function getGraphHopperCyclingDirections(coordinates, options = {})
     console.log('🚴 GraphHopper: Using standard bike profile (free tier - naturally avoids motorways)');
   }
 
-  const url = `${GRAPHHOPPER_BASE_URL}/route?${params}&point=${points.replace(/\|/g, '&point=')}`;
+  if (customModel) {
+    body['custom_model'] = customModel;
+    body['ch.disable'] = true; // flexible mode required for custom models
+  }
+
+  const url = `${GRAPHHOPPER_BASE_URL}/route?key=${apiKey}`;
 
   try {
     console.log(`Requesting GraphHopper cycling route with profile: ${profile}`);
-    
+
     const response = await fetch(url, {
-      method: 'GET',
+      method: 'POST',
       headers: {
-        'Accept': 'application/json'
-      }
+        'Accept': 'application/json',
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(body),
+      signal: AbortSignal.timeout(12000)
     });
 
     if (!response.ok) {

@@ -36,6 +36,8 @@ export interface GeneratedRouteStatsInput {
   elevation_gain_m: number;
   elevation_loss_m?: number;
   duration_s: number;
+  /** Provider turn cues, passed through to the snapshot when present. */
+  cues?: unknown[] | null;
 }
 
 /**
@@ -57,5 +59,6 @@ export function snapshotFromGeneratedRoute(input: GeneratedRouteStatsInput): Rou
       elevation_loss_m: finiteOrZero(input.elevation_loss_m),
       duration_s: finiteOrZero(input.duration_s),
     },
+    cues: Array.isArray(input.cues) && input.cues.length > 0 ? input.cues : null,
   };
 }

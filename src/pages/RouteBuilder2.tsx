@@ -898,6 +898,34 @@ export default function RouteBuilder2() {
     return () => window.removeEventListener('keydown', onKeyDown);
   }, [history]);
 
+  // Cue backfill: providers other than Stadia (BRouter gravel, GraphHopper,
+  // GPX imports, loaded routes) return no turn data, so when a settled route
+  // has no cues, map-match its geometry through Valhalla's trace endpoint.
+  // One attempt per geometry — failures stay silent (cues are an extra).
+  const cueBackfillAttemptedRef = useRef<unknown>(null);
+  useEffect(() => {
+    const coords = (routeGeometry as { coordinates?: [number, number][] } | null)?.coordinates;
+    if (routeCues || !coords || coords.length < 10) return;
+    // Freehand lines are deliberately off-road; matching them to roads
+    // would invent turns the rider isn't taking.
+    if (!snapToRoads) return;
+    if (cueBackfillAttemptedRef.current === routeGeometry) return;
+    const timer = setTimeout(() => {
+      cueBackfillAttemptedRef.current = routeGeometry;
+      void import('../utils/stadiaMapsRouter').then(({ getStadiaCuesForGeometry }) =>
+        (getStadiaCuesForGeometry(coords) as Promise<unknown[] | null>).then((cues) => {
+          if (!cues) return;
+          // Only apply if the geometry hasn't moved on while we fetched.
+          if (useRouteBuilderStore.getState().routeGeometry === routeGeometry) {
+            useRouteBuilderStore.getState().setRouteCues(cues);
+            trackRb2('cues_backfilled', { cue_count: cues.length });
+          }
+        }),
+      );
+    }, 1500);
+    return () => clearTimeout(timer);
+  }, [routeGeometry, routeCues]);
+
   const handleVisibilityToggle = (key: keyof LayerVisibilityState, next: boolean) => {
     setVisibility((prev) => ({ ...prev, [key]: next }));
     // The wind overlay needs weather data — fetch it lazily on first enable,
