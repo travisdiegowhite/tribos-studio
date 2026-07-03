@@ -26,6 +26,11 @@ const initialState = {
   routeStats: { distance_km: 0, elevation_gain_m: 0, duration_s: 0 },
   waypoints: [],
 
+  // Turn-by-turn cues from the routing provider (RouteCue[] from
+  // src/utils/routeCues.ts). Only the Stadia/Valhalla path produces them;
+  // null when the active geometry came from another provider or freehand.
+  routeCues: null,
+
   // Map viewport
   viewport: {
     latitude: 37.7749,
@@ -95,6 +100,11 @@ export const useRouteBuilderStore = create(
 
       setWaypoints: (waypoints) => set({
         waypoints,
+        lastSaved: Date.now()
+      }),
+
+      setRouteCues: (cues) => set({
+        routeCues: Array.isArray(cues) && cues.length > 0 ? cues : null,
         lastSaved: Date.now()
       }),
 
@@ -182,6 +192,7 @@ export const useRouteBuilderStore = create(
         routeDescription: routeData.description || '',
         routeStats: routeData.stats || { distance_km: 0, elevation_gain_m: 0, duration_s: 0 },
         waypoints: routeData.waypoints || [],
+        routeCues: Array.isArray(routeData.cues) && routeData.cues.length > 0 ? routeData.cues : null,
         routingSource: routeData.source || null,
         builderMode: 'editing',
         lastSaved: Date.now()
@@ -194,6 +205,7 @@ export const useRouteBuilderStore = create(
         routeDescription: '',
         routeStats: { distance_km: 0, elevation_gain_m: 0, duration_s: 0 },
         waypoints: [],
+        routeCues: null,
         aiSuggestions: [],
         routingSource: null,
         explicitDistanceKm: null,
@@ -268,6 +280,7 @@ export const useRouteBuilderStore = create(
         routeDescription: state.routeDescription,
         routeStats: state.routeStats,
         waypoints: state.waypoints,
+        routeCues: state.routeCues,
         viewport: state.viewport,
         trainingGoal: state.trainingGoal,
         timeAvailable: state.timeAvailable,

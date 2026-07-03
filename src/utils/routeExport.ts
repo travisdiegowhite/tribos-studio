@@ -12,6 +12,7 @@
  */
 
 import { encodeFitCourse } from './fitCourseEncoder';
+import { cueShortLabel, cueToTcxPointType, isTurnCue, type RouteCue } from './routeCues';
 
 // ============================================================
 // TYPES
@@ -36,6 +37,8 @@ export interface RouteData {
   description?: string;
   coordinates: [number, number][] | [number, number, number][]; // [lng, lat] or [lng, lat, ele]
   waypoints?: RouteWaypoint[];
+  /** Turn-by-turn cues from the routing provider; exported as TCX CoursePoint / FIT course_point. */
+  cues?: RouteCue[] | null;
   distanceKm?: number;
   elevationGainM?: number;
   elevationLossM?: number;
@@ -291,8 +294,28 @@ export function generateTCX(route: RouteData, options: RouteExportOptions = { fo
 
   lines.push('      </Track>');
 
-  // Course points (waypoints for cue sheet / turn-by-turn)
-  if (route.waypoints && route.waypoints.length > 0) {
+  // Course points: prefer real turn-by-turn cues from the routing provider
+  // (turn prompts on the device); fall back to bare waypoints otherwise.
+  const turnCues = (route.cues ?? []).filter((c) => isTurnCue(c) || c.direction === 'arrive');
+  if (turnCues.length > 0) {
+    for (const cue of turnCues) {
+      const [lng, lat] = cue.coordinate;
+      const street = cue.streetNames?.[0];
+      const name = street ? `${cueShortLabel(cue)} ${street}` : cueShortLabel(cue);
+      lines.push('      <CoursePoint>');
+      lines.push(`        <Name>${escapeXml(name.substring(0, 10))}</Name>`);
+      lines.push(`        <Time>${now}</Time>`);
+      lines.push('        <Position>');
+      lines.push(`          <LatitudeDegrees>${formatCoordinate(lat)}</LatitudeDegrees>`);
+      lines.push(`          <LongitudeDegrees>${formatCoordinate(lng)}</LongitudeDegrees>`);
+      lines.push('        </Position>');
+      lines.push(`        <PointType>${cueToTcxPointType(cue)}</PointType>`);
+      if (cue.instruction) {
+        lines.push(`        <Notes>${escapeXml(cue.instruction.substring(0, 250))}</Notes>`);
+      }
+      lines.push('      </CoursePoint>');
+    }
+  } else if (route.waypoints && route.waypoints.length > 0) {
     for (const wp of route.waypoints) {
       lines.push('      <CoursePoint>');
       lines.push(`        <Name>${escapeXml((wp.name || 'Waypoint').substring(0, 10))}</Name>`);

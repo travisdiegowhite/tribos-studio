@@ -22,14 +22,24 @@ import { notifications } from '@mantine/notifications';
 import { tokens } from '../theme';
 import AppShell from '../components/AppShell.jsx';
 import { useAuth } from '../contexts/AuthContext.jsx';
-import { listRoutes, deleteRoute, getRoute } from '../utils/routesService';
+import { listRoutes, deleteRoute, getRoute, saveRoute } from '../utils/routesService';
 import { formatDistance, formatElevation } from '../utils/units';
 import { supabase } from '../lib/supabase';
 import { exportAndDownloadRoute } from '../utils/routeExport';
 import { garminService } from '../utils/garminService';
 import { trackFeature, EventType } from '../utils/activityTracking';
 import PageHeader from '../components/PageHeader.jsx';
-import { Brain, CloudArrowUp, DotsThreeVertical, DownloadSimple, MagnifyingGlass, MapTrifold, Path, PencilSimple, Plus, Trash, Watch, X } from '@phosphor-icons/react';
+import { Brain, CloudArrowUp, Copy, DotsThreeVertical, DownloadSimple, MagnifyingGlass, MapTrifold, Path, PencilSimple, Plus, Trash, Watch, X } from '@phosphor-icons/react';
+
+// Static map thumbnails for route cards (thumb_polyline, migration 104).
+const MAPBOX_STATIC_TOKEN = import.meta.env.VITE_MAPBOX_TOKEN;
+function routeThumbUrl(thumbPolyline) {
+  const path = `path-2.5+2A8C82-0.95(${encodeURIComponent(thumbPolyline)})`;
+  return (
+    `https://api.mapbox.com/styles/v1/mapbox/outdoors-v12/static/${path}/auto/400x160` +
+    `?padding=24&access_token=${MAPBOX_STATIC_TOKEN}&logo=false&attribution=false`
+  );
+}
 import BuilderPromptBar from '../components/ride/BuilderPromptBar.jsx';
 import MatchedRouteCard from '../components/ride/MatchedRouteCard.jsx';
 
@@ -42,6 +52,8 @@ function MyRoutes() {
   const [deletingId, setDeletingId] = useState(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [filterType, setFilterType] = useState('all'); // 'all', 'ai', 'manual'
+  const [sortBy, setSortBy] = useState('updated'); // 'updated' | 'distance' | 'elevation' | 'name'
+  const [duplicatingId, setDuplicatingId] = useState(null);
   const [garminConnected, setGarminConnected] = useState(false);
   const [sendingToGarmin, setSendingToGarmin] = useState(null); // Track which route is being sent
   const [unitsPreference, setUnitsPreference] = useState('imperial');
@@ -71,6 +83,17 @@ function MyRoutes() {
       (filterType === 'manual' && route.generated_by !== 'ai');
 
     return matchesSearch && matchesType;
+  }).sort((a, b) => {
+    switch (sortBy) {
+      case 'distance':
+        return (b.distance_km ?? 0) - (a.distance_km ?? 0);
+      case 'elevation':
+        return (b.elevation_gain_m ?? 0) - (a.elevation_gain_m ?? 0);
+      case 'name':
+        return (a.name ?? '').localeCompare(b.name ?? '');
+      default: // 'updated' — server order, kept stable
+        return 0;
+    }
   });
 
   // Load user's units preference
@@ -282,6 +305,47 @@ function MyRoutes() {
       });
     } finally {
       setDeletingId(null);
+    }
+  };
+
+  // Duplicate a route: fetch full geometry, save as a new row.
+  const handleDuplicate = async (routeId) => {
+    setDuplicatingId(routeId);
+    try {
+      const route = await getRoute(routeId);
+      if (!route?.geometry?.coordinates) {
+        throw new Error('Route has no geometry');
+      }
+      const copy = await saveRoute({
+        name: `${route.name || 'Route'} (copy)`,
+        description: route.description || null,
+        geometry: route.geometry,
+        distance_km: route.distance_km,
+        elevation_gain_m: route.elevation_gain_m,
+        elevation_loss_m: route.elevation_loss_m,
+        estimated_duration_minutes: route.estimated_duration_minutes,
+        route_type: route.route_type,
+        difficulty_rating: route.difficulty_rating,
+        training_goal: route.training_goal,
+        surface_type: route.surface_type,
+        generated_by: route.generated_by,
+        waypoints: route.waypoints,
+      });
+      setRoutes((prev) => [copy, ...prev]);
+      notifications.show({
+        title: 'Route Duplicated',
+        message: `"${copy.name}" created`,
+        color: 'green'
+      });
+    } catch (error) {
+      console.error('Error duplicating route:', error);
+      notifications.show({
+        title: 'Duplicate Failed',
+        message: error.message || 'Failed to duplicate route',
+        color: 'red'
+      });
+    } finally {
+      setDuplicatingId(null);
     }
   };
 
@@ -707,6 +771,20 @@ function MyRoutes() {
                       root: { backgroundColor: 'var(--color-bg-secondary)' }
                     }}
                   />
+                  <SegmentedControl
+                    value={sortBy}
+                    onChange={setSortBy}
+                    size="sm"
+                    data={[
+                      { label: 'Recent', value: 'updated' },
+                      { label: 'Longest', value: 'distance' },
+                      { label: 'Climbing', value: 'elevation' },
+                      { label: 'A–Z', value: 'name' }
+                    ]}
+                    styles={{
+                      root: { backgroundColor: 'var(--color-bg-secondary)' }
+                    }}
+                  />
                 </Group>
               )}
 
@@ -819,6 +897,22 @@ function MyRoutes() {
                   className="tribos-route-card"
                 >
                   <Stack gap="sm">
+                    {/* Static map thumbnail (thumb_polyline from migration 104;
+                        older rows show no image until their next save) */}
+                    {route.thumb_polyline && MAPBOX_STATIC_TOKEN && (
+                      <img
+                        src={routeThumbUrl(route.thumb_polyline)}
+                        alt=""
+                        loading="lazy"
+                        style={{
+                          width: '100%',
+                          height: 120,
+                          objectFit: 'cover',
+                          borderRadius: 0,
+                          border: '1px solid var(--color-border, #D8D5CC)',
+                        }}
+                      />
+                    )}
                     {/* Header with menu */}
                     <Group justify="space-between" align="flex-start">
                       <Box style={{ flex: 1 }}>
@@ -859,6 +953,16 @@ function MyRoutes() {
                             }}
                           >
                             Edit
+                          </Menu.Item>
+                          <Menu.Item
+                            leftSection={duplicatingId === route.id ? <Loader size={14} /> : <Copy size={14} />}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleDuplicate(route.id);
+                            }}
+                            disabled={duplicatingId === route.id}
+                          >
+                            {duplicatingId === route.id ? 'Duplicating...' : 'Duplicate'}
                           </Menu.Item>
                           <Menu.Divider />
                           {garminConnected && (

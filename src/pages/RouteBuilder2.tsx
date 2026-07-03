@@ -72,7 +72,9 @@ import {
   type ChatMessage,
   type FormPanelControl,
 } from '../features/route-builder-v2/chat';
-import { Stack as StackIcon, MapPin, FolderOpen, MagnifyingGlass, CloudSun, ForkKnife, Gauge, Barbell, PencilSimpleLine, ChartLineUp, FloppyDisk, ChatCircleDots, Compass, SlidersHorizontal } from '@phosphor-icons/react';
+import { Stack as StackIcon, MapPin, FolderOpen, MagnifyingGlass, CloudSun, ForkKnife, Gauge, Barbell, PencilSimpleLine, ChartLineUp, FloppyDisk, ChatCircleDots, Compass, SlidersHorizontal, Signpost } from '@phosphor-icons/react';
+import { CuesPanel } from '../features/route-builder-v2/components/CuesPanel';
+import type { RouteCue as RouteCueType } from '../utils/routeCues';
 import { supabase } from '../lib/supabase';
 import { SurfaceLayer } from '../features/route-builder-v2/layers/SurfaceLayer';
 import { GradientLayer } from '../features/route-builder-v2/layers/GradientLayer';
@@ -214,6 +216,7 @@ export default function RouteBuilder2() {
 
   // Route state from the store
   const routeGeometry = useRouteBuilderStore((s) => s.routeGeometry);
+  const routeCues = useRouteBuilderStore((s) => s.routeCues);
   const routeStats = useRouteBuilderStore((s) => s.routeStats);
   const routeName = useRouteBuilderStore((s) => s.routeName);
   const routeDescription = useRouteBuilderStore((s) => s.routeDescription);
@@ -1273,6 +1276,13 @@ export default function RouteBuilder2() {
         panel: <WeatherPanel weather={weather} isImperial={isImperial} />,
       },
       {
+        id: 'cues',
+        label: 'Cues',
+        icon: <Signpost size={20} weight="duotone" />,
+        disabled: !hasRoute,
+        panel: <CuesPanel cues={routeCues as RouteCueType[] | null} isImperial={isImperial} />,
+      },
+      {
         id: 'fuel',
         label: 'Fuel',
         icon: <ForkKnife size={20} weight="duotone" />,
@@ -1597,6 +1607,11 @@ export default function RouteBuilder2() {
               isImperial={isImperial}
               cues={visibleCues}
             />
+          )}
+          {hasRoute && !!routeCues?.length && (
+            <Box style={cardStyle}>
+              <CuesPanel cues={routeCues as RouteCueType[] | null} isImperial={isImperial} />
+            </Box>
           )}
           <RouteActionsPanel
             persistence={persistence}

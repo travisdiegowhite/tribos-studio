@@ -32,6 +32,8 @@ function makePersistence(
     isPushingToDevice: false,
     checkGarminConnection: vi.fn().mockResolvedValue(false),
     pushToGarmin: vi.fn().mockResolvedValue({ ok: true, message: 'Sent.' }),
+    checkWahooConnection: vi.fn().mockResolvedValue(false),
+    pushToWahoo: vi.fn().mockResolvedValue({ ok: true, message: 'Sent.' }),
     shareRoute: vi.fn().mockResolvedValue({ ok: true, url: 'http://x/routes/r-1' }),
     ...overrides,
   };

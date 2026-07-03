@@ -31,6 +31,7 @@ vi.mock('../../../utils/routesService', () => ({
 vi.mock('../../../utils/routeExport', () => ({ exportAndDownloadRoute: vi.fn() }));
 vi.mock('../../../utils/gpxParser.js', () => ({ parseGpxFile: vi.fn() }));
 vi.mock('../../../utils/garminService', () => ({ garminService: {} }));
+vi.mock('../../../utils/wahooService', () => ({ wahooService: {} }));
 vi.mock('../../../lib/supabase', () => ({
   supabase: {
     auth: {
