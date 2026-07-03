@@ -46,6 +46,8 @@ export interface UseRouteAnalysisReturn {
   refreshAnalysis: () => void;
 }
 
+const ELEVATION_DEBOUNCE_MS = 400;
+
 const EMPTY_POIS: Record<POILayer, POIResult | null> = {
   coffee: null,
   water: null,
@@ -75,6 +77,12 @@ export function useRouteAnalysis(): UseRouteAnalysisReturn {
    * the elevation profile as `[{ distance, elevation }]` where
    * `distance` is in km (legacy alias). We normalize to
    * `{ distance_km, elevation_m }` here.
+   *
+   * Debounced: the upstream elevation API is throttled to ~1 req/s, so
+   * firing per geometry change during rapid editing (drag, drag, click)
+   * queues fetches for geometries the user has already moved past. Only
+   * the settled geometry is fetched; the stale profile stays on screen
+   * until the fresh one lands.
    */
   useEffect(() => {
     let cancelled = false;
@@ -82,30 +90,33 @@ export function useRouteAnalysis(): UseRouteAnalysisReturn {
       setElevationProfile(null);
       return;
     }
-    (async () => {
-      try {
-        const data = await getElevationData(coordinates);
-        if (cancelled) return;
-        if (!data || !Array.isArray(data)) {
+    const timer = setTimeout(() => {
+      void (async () => {
+        try {
+          const data = await getElevationData(coordinates);
+          if (cancelled) return;
+          if (!data || !Array.isArray(data)) {
+            setElevationProfile(null);
+            return;
+          }
+          const profile: ElevationPoint[] = data.map(
+            (p: { distance?: number; distance_km?: number; elevation: number }) => ({
+              distance_km: p.distance_km ?? p.distance ?? 0,
+              elevation_m: p.elevation,
+            }),
+          );
+          setElevationProfile(profile);
+        } catch (e) {
+          if (cancelled) return;
           setElevationProfile(null);
-          return;
+          const message = e instanceof Error ? e.message : String(e);
+          setLastError(message);
         }
-        const profile: ElevationPoint[] = data.map(
-          (p: { distance?: number; distance_km?: number; elevation: number }) => ({
-            distance_km: p.distance_km ?? p.distance ?? 0,
-            elevation_m: p.elevation,
-          }),
-        );
-        setElevationProfile(profile);
-      } catch (e) {
-        if (cancelled) return;
-        setElevationProfile(null);
-        const message = e instanceof Error ? e.message : String(e);
-        setLastError(message);
-      }
-    })();
+      })();
+    }, ELEVATION_DEBOUNCE_MS);
     return () => {
       cancelled = true;
+      clearTimeout(timer);
     };
   }, [coordinates, analysisRevision]);
 

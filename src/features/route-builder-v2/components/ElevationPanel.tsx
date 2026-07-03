@@ -14,7 +14,7 @@
  * rewrite.
  */
 
-import { useCallback, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Box, Text } from '@mantine/core';
 import { RB2, RB2_FONT } from './brand';
 import { convertDistance } from '../../../utils/units.jsx';
@@ -155,22 +155,48 @@ export function ElevationPanel({
     return { line, area };
   }, [profile, scales]);
 
+  // Pointer moves arrive faster than frames render; coalesce to one
+  // update per animation frame so scrubbing stays smooth on long profiles.
+  const rafRef = useRef<number | null>(null);
+  const pendingClientXRef = useRef<number>(0);
+
+  useEffect(
+    () => () => {
+      if (rafRef.current != null) cancelAnimationFrame(rafRef.current);
+    },
+    [],
+  );
+
   const handlePointerMove = useCallback(
     (evt: React.PointerEvent<SVGSVGElement>) => {
       if (!profile || !scales || !svgRef.current) return;
-      const rect = svgRef.current.getBoundingClientRect();
-      if (rect.width === 0) return;
-      const ratio = Math.min(1, Math.max(0, (evt.clientX - rect.left) / rect.width));
-      const km = ratio * scales.totalKm;
-      setHoverIdx(nearestIndexForKm(profile, km));
-      // Report the continuous km (not the snapped index) so the map dot
-      // tracks the cursor smoothly even on a sparsely sampled profile.
-      onHoverKm?.(km);
+      pendingClientXRef.current = evt.clientX;
+      if (rafRef.current != null) return;
+      rafRef.current = requestAnimationFrame(() => {
+        rafRef.current = null;
+        const svg = svgRef.current;
+        if (!svg) return;
+        const rect = svg.getBoundingClientRect();
+        if (rect.width === 0) return;
+        const ratio = Math.min(
+          1,
+          Math.max(0, (pendingClientXRef.current - rect.left) / rect.width),
+        );
+        const km = ratio * scales.totalKm;
+        setHoverIdx(nearestIndexForKm(profile, km));
+        // Report the continuous km (not the snapped index) so the map dot
+        // tracks the cursor smoothly even on a sparsely sampled profile.
+        onHoverKm?.(km);
+      });
     },
     [profile, scales, onHoverKm],
   );
 
   const handlePointerLeave = useCallback(() => {
+    if (rafRef.current != null) {
+      cancelAnimationFrame(rafRef.current);
+      rafRef.current = null;
+    }
     setHoverIdx(null);
     onHoverKm?.(null);
   }, [onHoverKm]);

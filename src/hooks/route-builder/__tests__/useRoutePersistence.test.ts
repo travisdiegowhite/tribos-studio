@@ -9,6 +9,9 @@ vi.mock('../../../utils/routesService', () => ({
   listRoutes: vi.fn().mockResolvedValue([]),
   deleteRoute: vi.fn().mockResolvedValue({ success: true }),
   setRouteVisibility: vi.fn().mockResolvedValue({ visibility: 'public' }),
+  saveDraft: vi.fn().mockResolvedValue({ id: 'draft-1' }),
+  getDraft: vi.fn().mockResolvedValue(null),
+  deleteDraft: vi.fn().mockResolvedValue(true),
 }));
 
 vi.mock('../../../utils/routeExport', () => ({
@@ -145,6 +148,40 @@ describe('useRoutePersistence', () => {
   it('exportRoute is a no-op launcher that does not throw', () => {
     const { result } = renderHook(() => useRoutePersistence());
     expect(() => result.current.exportRoute('gpx')).not.toThrow();
+  });
+
+  it('importGpx keeps elevation and seeds resampled control points', async () => {
+    // 11 spread-out points climbing 0→100m over ~11km of longitude change.
+    const trkpts = Array.from({ length: 11 }, (_, i) => {
+      const lon = (-105 + i * 0.01).toFixed(5);
+      return `<trkpt lat="40.00000" lon="${lon}"><ele>${i * 10}</ele></trkpt>`;
+    }).join('');
+    const gpx =
+      '<?xml version="1.0" encoding="UTF-8"?>' +
+      '<gpx version="1.1" creator="test" xmlns="http://www.topografix.com/GPX/1/1">' +
+      `<trk><name>Test Import</name><trkseg>${trkpts}</trkseg></trk></gpx>`;
+    const file = new File([gpx], 'test-import.gpx', { type: 'application/gpx+xml' });
+
+    const { result } = renderHook(() => useRoutePersistence());
+    let coords: unknown = null;
+    await act(async () => {
+      coords = await result.current.importGpx(file);
+    });
+    expect(Array.isArray(coords)).toBe(true);
+
+    const s = useRouteBuilderStore.getState();
+    const geomCoords = (s.routeGeometry as { coordinates: number[][] }).coordinates;
+    // Elevation carried through as a GeoJSON third element.
+    expect(geomCoords[0]).toHaveLength(3);
+    expect(geomCoords[10][2]).toBe(100);
+    // Control points resampled along the track, not just start/end.
+    expect(s.waypoints.length).toBeGreaterThan(2);
+    const first = s.waypoints[0] as { type: string; position: number[] };
+    const last = s.waypoints[s.waypoints.length - 1] as { type: string; position: number[] };
+    expect(first.type).toBe('start');
+    expect(last.type).toBe('end');
+    // Waypoint positions honour the 2-tuple [lng, lat] contract.
+    expect(first.position).toHaveLength(2);
   });
 
   it('shareRoute returns not_saved when the route has no id yet', async () => {

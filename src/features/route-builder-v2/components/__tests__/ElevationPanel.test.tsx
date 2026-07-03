@@ -1,4 +1,4 @@
-import { render, screen, fireEvent } from '@testing-library/react';
+import { render, screen, fireEvent, act } from '@testing-library/react';
 import { MantineProvider } from '@mantine/core';
 import { describe, it, expect, vi } from 'vitest';
 import { ElevationPanel } from '../ElevationPanel';
@@ -43,7 +43,7 @@ describe('ElevationPanel', () => {
     expect(panel).toHaveTextContent('10km');
   });
 
-  it('shows a distance/elevation readout on hover', () => {
+  it('shows a distance/elevation readout on hover', async () => {
     renderPanel(CLIMB);
     const svg = screen.getByRole('img');
     // Stub the bounding rect so clientX maps deterministically into the chart.
@@ -58,13 +58,15 @@ describe('ElevationPanel', () => {
       y: 0,
       toJSON: () => {},
     } as DOMRect);
-    // Hover at the far right (~10km / 100m).
+    // Hover at the far right (~10km / 100m). Hover updates are coalesced to
+    // one per animation frame, so flush a frame before asserting.
     fireEvent.pointerMove(svg, { clientX: 100 });
+    await act(() => new Promise<void>((r) => requestAnimationFrame(() => r())));
     const panel = screen.getByTestId('rb2-elevation-panel');
     expect(panel).toHaveTextContent('10km · 100m');
   });
 
-  it('reports the hovered km via onHoverKm and clears it on leave', () => {
+  it('reports the hovered km via onHoverKm and clears it on leave', async () => {
     const onHoverKm = vi.fn();
     render(
       <MantineProvider>
@@ -84,8 +86,10 @@ describe('ElevationPanel', () => {
       toJSON: () => {},
     } as DOMRect);
 
-    // Hover at the midpoint → ~5km (continuous, not snapped to a profile point).
+    // Hover at the midpoint → ~5km (continuous, not snapped to a profile
+    // point). Updates are rAF-coalesced, so flush a frame first.
     fireEvent.pointerMove(svg, { clientX: 50 });
+    await act(() => new Promise<void>((r) => requestAnimationFrame(() => r())));
     expect(onHoverKm).toHaveBeenLastCalledWith(5);
 
     fireEvent.pointerLeave(svg);

@@ -8,6 +8,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Box, Text } from '@mantine/core';
+import { notifications } from '@mantine/notifications';
 import { useLocalStorage, useMediaQuery } from '@mantine/hooks';
 import { BASEMAP_STYLES } from '../components/RouteBuilder';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
@@ -20,6 +21,7 @@ import {
   useRouteAnalysis,
   useRouteHistory,
   useRouteWeather,
+  useDraftAutosave,
   useUserLocation,
 } from '../hooks/route-builder';
 import { useRouteBuilderStore } from '../stores/routeBuilderStore';
@@ -90,7 +92,8 @@ import RaceDayGuide from '../components/fueling/RaceDayGuide';
 import { decodePolyline } from '../utils/activityRouteAnalyzer';
 import type { WorkoutDefinition } from '../types/training';
 import { trackRb2 } from '../features/route-builder-v2/telemetry/trackRb2';
-import { coordinateAtDistanceKm } from '../utils/elevation';
+import { ElevationHoverMarker } from '../features/route-builder-v2/components/ElevationHoverMarker';
+import { setElevationHoverKm } from '../features/route-builder-v2/state/elevationHoverStore';
 import { getAnyWorkoutById } from '../data/workoutLookup';
 import {
   generatePlannedRouteCandidates,
@@ -232,6 +235,28 @@ export default function RouteBuilder2() {
   const clearRouteInStore = useRouteBuilderStore((s) => s.clearRoute);
   const setRouteInStore = useRouteBuilderStore((s) => s.setRoute);
 
+  // Geometry identity at the last save/load — the store replaces the object
+  // on every edit, so reference inequality means unsaved changes.
+  const savedGeometryRef = useRef<unknown>(null);
+  const hasUnsavedChanges =
+    !!(routeGeometry as { coordinates?: unknown[] } | null)?.coordinates?.length &&
+    routeGeometry !== savedGeometryRef.current;
+
+  // Server-side crash safety: debounced draft autosave while dirty.
+  const draftAutosave = useDraftAutosave(hasUnsavedChanges);
+
+  // Warn before leaving with unsaved changes. The localStorage mirror covers
+  // same-browser reloads, but a saved route is the only cross-device copy.
+  useEffect(() => {
+    if (!hasUnsavedChanges) return;
+    const handler = (e: BeforeUnloadEvent) => {
+      e.preventDefault();
+      e.returnValue = '';
+    };
+    window.addEventListener('beforeunload', handler);
+    return () => window.removeEventListener('beforeunload', handler);
+  }, [hasUnsavedChanges]);
+
   // Map viewport center as a last-resort start_coord fallback for the form.
   const viewportCenter = useMemo<Coordinate | null>(() => {
     if (!viewport) return null;
@@ -270,8 +295,8 @@ export default function RouteBuilder2() {
   // Per-segment surface categories reported up by SurfaceLayer so the
   // summary bar reuses them without a second Overpass fetch.
   const [surfaceSegments, setSurfaceSegments] = useState<string[] | null>(null);
-  // Distance (km) hovered on the elevation chart → resolved to a map coord.
-  const [hoverKm, setHoverKm] = useState<number | null>(null);
+  // Elevation-chart hover lives in its own store (see elevationHoverStore) so
+  // per-mousemove scrubbing re-renders only the map dot, not this page.
   // Clip-tangent mode: toggle on → click a spur → confirm card → reroute.
   const [clipMode, setClipMode] = useState(false);
   const [pendingClip, setPendingClip] = useState<ClipSelection | null>(null);
@@ -281,6 +306,9 @@ export default function RouteBuilder2() {
   const [elevationCollapsed, setElevationCollapsed] = useState(false);
   // Desktop left-rail open flyout (layers | waypoints | save), null = closed.
   const [railOpenId, setRailOpenId] = useState<string | null>(null);
+  // Incremented to tell RouteActionsPanel to open its Save modal (used by the
+  // quick-save affordance on the stats card for not-yet-named routes).
+  const [openSaveSignal, setOpenSaveSignal] = useState(0);
   // Mobile bottom-sheet active tab (null = collapsed, map fully visible).
   const [mobileTab, setMobileTab] = useState<string | null>(null);
   // Route discovery (lazy-loaded saved routes ranked by today's target).
@@ -558,6 +586,10 @@ export default function RouteBuilder2() {
     generation.clearSuggestions();
     lastAppliedRef.current = null;
     chatCandidatesRef.current = [];
+    savedGeometryRef.current = null;
+    // Clearing is deliberate — drop the autosaved draft too so it doesn't
+    // resurrect the route on the next visit.
+    draftAutosave.discardDraft();
     trackRb2('route_cleared', {});
   };
 
@@ -728,23 +760,50 @@ export default function RouteBuilder2() {
     if (!routeIdFromUrl) return;
     if (loadedRouteIdRef.current === routeIdFromUrl) return;
     loadedRouteIdRef.current = routeIdFromUrl;
-    void persistence.loadRoute(routeIdFromUrl);
+    void persistence.loadRoute(routeIdFromUrl).then((ok) => {
+      if (ok) savedGeometryRef.current = useRouteBuilderStore.getState().routeGeometry;
+    });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [routeIdFromUrl]);
 
+  // Cross-device crash safety: when the builder opens empty (no /ride/:id and
+  // nothing restored from localStorage), pull the autosaved server draft.
+  useEffect(() => {
+    if (routeIdFromUrl) return;
+    void draftAutosave.restoreIfEmpty().then((restored) => {
+      if (!restored) return;
+      const coords = (useRouteBuilderStore.getState().routeGeometry as {
+        coordinates?: Coordinate[];
+      } | null)?.coordinates;
+      if (coords?.length) map.fitBounds(coords);
+      notifications.show({
+        title: 'Draft restored',
+        message: 'Picked up your unsaved route where you left off.',
+        color: 'teal',
+        autoClose: 5000,
+      });
+    });
+    // Run once on mount.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   const handleSaved = useCallback(
     (id: string) => {
+      savedGeometryRef.current = useRouteBuilderStore.getState().routeGeometry;
+      // The manual save supersedes any autosaved draft.
+      draftAutosave.discardDraft();
       // A new/updated route should appear in Discover next time it opens.
       discoverLoadedRef.current = false;
       if (routeIdFromUrl !== id) {
         navigate(`/ride/${id}`, { replace: true });
       }
     },
-    [navigate, routeIdFromUrl],
+    [navigate, routeIdFromUrl, draftAutosave],
   );
 
   const handleLoaded = useCallback(
     (id: string) => {
+      savedGeometryRef.current = useRouteBuilderStore.getState().routeGeometry;
       if (routeIdFromUrl !== id) {
         navigate(`/ride/${id}`, { replace: true });
       }
@@ -919,20 +978,6 @@ export default function RouteBuilder2() {
   // Cues actually painted (respects the layer toggle).
   const visibleCues = visibility.intervals ? workoutCues : null;
 
-  // Resolve the hovered elevation-chart distance to a map coordinate. Mapped
-  // by distance (via cumulative-distance walk) rather than index, so it holds
-  // even when the elevation profile and geometry have different point counts.
-  const highlightCoord = useMemo<Coordinate | null>(() => {
-    if (hoverKm == null || !geometryForLayers || geometryForLayers.coordinates.length < 2) {
-      return null;
-    }
-    const c = coordinateAtDistanceKm(
-      geometryForLayers.coordinates as [number, number][],
-      hoverKm,
-    );
-    return c ? (c as Coordinate) : null;
-  }, [hoverKm, geometryForLayers]);
-
   const waypointsForMap = useMemo(() => {
     if (!Array.isArray(waypoints)) return [];
     return waypoints
@@ -972,7 +1017,6 @@ export default function RouteBuilder2() {
         !visibility.surface && !visibility.gradient && !(visibility.intervals && workoutCues)
       }
       waypoints={waypointsForMap}
-      highlightCoord={highlightCoord}
       cursor="crosshair"
       mapStyle={basemapStyle}
       basemapId={basemapId}
@@ -986,6 +1030,7 @@ export default function RouteBuilder2() {
       onClipClick={handleClipClick}
       clipHighlight={pendingClip?.highlightGeoJSON ?? null}
     >
+      <ElevationHoverMarker geometry={geometryForLayers} />
       {visibility.surface && (
         <SurfaceLayer geometry={geometryForLayers} onSegments={setSurfaceSegments} />
       )}
@@ -1085,6 +1130,19 @@ export default function RouteBuilder2() {
     />
   ) : null;
 
+  // Save from the stats card: an already-saved route updates in place; an
+  // unnamed one opens the Save modal (via the Routes flyout/tab) to get a name.
+  const handleQuickSave = useCallback(async () => {
+    if (persistence.savedRouteId) {
+      const saved = await persistence.save();
+      if (saved) handleSaved(saved.id);
+      return;
+    }
+    if (isMobile) setMobileTab('routes');
+    else setRailOpenId('routes');
+    setOpenSaveSignal((s) => s + 1);
+  }, [persistence, isMobile, handleSaved]);
+
   const statsNode =
     hasRoute && routeStats ? (
       <StatsOverlay
@@ -1097,6 +1155,10 @@ export default function RouteBuilder2() {
         onClear={handleClearRoute}
         isImperial={isImperial}
         surfaceSegments={surfaceSegments}
+        onSave={() => void handleQuickSave()}
+        saveState={
+          persistence.isSaving ? 'saving' : hasUnsavedChanges ? 'unsaved' : 'saved'
+        }
       />
     ) : null;
 
@@ -1259,6 +1321,7 @@ export default function RouteBuilder2() {
             onSaved={handleSaved}
             onLoaded={handleLoaded}
             onImported={(coords) => map.fitBounds(coords)}
+            openSaveSignal={openSaveSignal}
             isMobile
           />
         ),
@@ -1360,7 +1423,7 @@ export default function RouteBuilder2() {
                       profile={analysis.elevationProfile}
                       collapsed={elevationCollapsed}
                       onCollapsedChange={setElevationCollapsed}
-                      onHoverKm={setHoverKm}
+                      onHoverKm={setElevationHoverKm}
                       isImperial={isImperial}
                       cues={visibleCues}
                     />
@@ -1530,7 +1593,7 @@ export default function RouteBuilder2() {
             <ElevationPanel
               profile={analysis.elevationProfile}
               isMobile
-              onHoverKm={setHoverKm}
+              onHoverKm={setElevationHoverKm}
               isImperial={isImperial}
               cues={visibleCues}
             />
@@ -1543,6 +1606,7 @@ export default function RouteBuilder2() {
             onSaved={handleSaved}
             onLoaded={handleLoaded}
             onImported={(coords) => map.fitBounds(coords)}
+            openSaveSignal={openSaveSignal}
             isMobile
           />
         </>

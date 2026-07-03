@@ -27,6 +27,8 @@ export type {
   RouteWeather,
   RouteWindAnalysis,
 } from './useRouteWeather';
+export { useDraftAutosave } from './useDraftAutosave';
+export type { UseDraftAutosaveReturn } from './useDraftAutosave';
 export { useUserLocation } from './useUserLocation';
 export type {
   UseUserLocationReturn,

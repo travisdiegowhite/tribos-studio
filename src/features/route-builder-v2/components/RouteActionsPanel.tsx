@@ -57,6 +57,11 @@ export interface RouteActionsPanelProps {
   onLoaded?: (id: string) => void;
   /** Called after a GPX import succeeds, with the track coords (to frame the map). */
   onImported?: (coords: Coordinate[]) => void;
+  /**
+   * Increment to open the Save modal from outside (the stats-card quick-save
+   * for a route that doesn't have a name yet).
+   */
+  openSaveSignal?: number;
   isMobile?: boolean;
 }
 
@@ -83,6 +88,7 @@ export function RouteActionsPanel({
   onSaved,
   onLoaded,
   onImported,
+  openSaveSignal = 0,
   isMobile = false,
 }: RouteActionsPanelProps) {
   const [saveOpen, setSaveOpen] = useState(false);
@@ -148,6 +154,12 @@ export function RouteActionsPanel({
     setSaveOpen(true);
     trackRb2('save_modal_opened', {});
   }, [defaultName, defaultDescription]);
+
+  // External quick-save trigger (stats card) — 0 is the initial no-op value.
+  useEffect(() => {
+    if (openSaveSignal > 0) handleOpenSave();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [openSaveSignal]);
 
   const handleConfirmSave = useCallback(async () => {
     const trimmed = name.trim();

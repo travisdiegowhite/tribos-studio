@@ -227,7 +227,37 @@ export const useRouteBuilderStore = create(
     }),
     {
       name: STORAGE_KEY,
-      storage: createJSONStorage(() => localStorage),
+      // localStorage writes can throw (QuotaExceededError on a very long
+      // snapped route, storage disabled in some private modes). An uncaught
+      // throw inside zustand's persist breaks the setter that triggered it,
+      // so degrade to in-memory-only instead.
+      storage: createJSONStorage(() => ({
+        getItem: (name) => {
+          try {
+            return localStorage.getItem(name);
+          } catch (e) {
+            console.warn('[route-builder] localStorage read failed:', e);
+            return null;
+          }
+        },
+        setItem: (name, value) => {
+          try {
+            localStorage.setItem(name, value);
+          } catch (e) {
+            console.warn(
+              '[route-builder] localStorage write failed — route state will not survive a reload. Save the route to keep it.',
+              e,
+            );
+          }
+        },
+        removeItem: (name) => {
+          try {
+            localStorage.removeItem(name);
+          } catch (e) {
+            console.warn('[route-builder] localStorage remove failed:', e);
+          }
+        },
+      })),
 
       // Only persist these specific fields (not transient UI state)
       // Note: aiSuggestions are intentionally excluded — they contain large

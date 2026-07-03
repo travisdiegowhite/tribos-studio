@@ -6,7 +6,7 @@
  */
 
 import { Box, Text, UnstyledButton } from '@mantine/core';
-import { X } from '@phosphor-icons/react';
+import { Check, FloppyDisk, X } from '@phosphor-icons/react';
 import { RB2, RB2_FONT } from './brand';
 import { convertDistance } from '../../../utils/units.jsx';
 import {
@@ -28,6 +28,9 @@ export interface StatsOverlayProps {
   isImperial?: boolean;
   /** Per-segment surface categories (from SurfaceLayer); shows a surface line when present. */
   surfaceSegments?: string[] | null;
+  /** Quick-save action; renders a Save affordance next to Clear when set. */
+  onSave?: () => void;
+  saveState?: 'saved' | 'unsaved' | 'saving';
 }
 
 const SURFACE_ORDER = ['paved', 'gravel', 'unpaved', 'mixed'] as const;
@@ -75,6 +78,8 @@ export function StatsOverlay({
   onClear,
   isImperial = false,
   surfaceSegments,
+  onSave,
+  saveState = 'unsaved',
 }: StatsOverlayProps) {
   if (!stats || stats.distance_km <= 0) return null;
 
@@ -117,26 +122,63 @@ export function StatsOverlay({
         ) : (
           <span />
         )}
-        {onClear && (
-          <UnstyledButton
-            data-testid="rb2-stats-clear"
-            onClick={onClear}
-            aria-label="Clear route"
-            style={{
-              padding: 2,
-              display: 'flex',
-              alignItems: 'center',
-              gap: 4,
-              color: RB2.textTertiary,
-              fontFamily: RB2_FONT.mono,
-              fontSize: 10,
-              letterSpacing: '0.12em',
-              textTransform: 'uppercase',
-            }}
-          >
-            Clear <X size={12} />
-          </UnstyledButton>
-        )}
+        <Box style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+          {onSave && (
+            <UnstyledButton
+              data-testid="rb2-stats-save"
+              onClick={saveState === 'saving' ? undefined : onSave}
+              aria-label={saveState === 'saved' ? 'Route saved' : 'Save route'}
+              disabled={saveState === 'saving'}
+              style={{
+                padding: 2,
+                display: 'flex',
+                alignItems: 'center',
+                gap: 4,
+                color: saveState === 'unsaved' ? RB2.teal : RB2.textTertiary,
+                fontFamily: RB2_FONT.mono,
+                fontSize: 10,
+                letterSpacing: '0.12em',
+                textTransform: 'uppercase',
+                cursor: saveState === 'saving' ? 'default' : 'pointer',
+              }}
+            >
+              {saveState === 'saving' ? (
+                'Saving…'
+              ) : saveState === 'saved' ? (
+                <>
+                  Saved <Check size={12} />
+                </>
+              ) : (
+                <>
+                  <span aria-hidden style={{ fontSize: 8, lineHeight: 1 }}>
+                    ●
+                  </span>{' '}
+                  Save <FloppyDisk size={12} />
+                </>
+              )}
+            </UnstyledButton>
+          )}
+          {onClear && (
+            <UnstyledButton
+              data-testid="rb2-stats-clear"
+              onClick={onClear}
+              aria-label="Clear route"
+              style={{
+                padding: 2,
+                display: 'flex',
+                alignItems: 'center',
+                gap: 4,
+                color: RB2.textTertiary,
+                fontFamily: RB2_FONT.mono,
+                fontSize: 10,
+                letterSpacing: '0.12em',
+                textTransform: 'uppercase',
+              }}
+            >
+              Clear <X size={12} />
+            </UnstyledButton>
+          )}
+        </Box>
       </Box>
       <Box style={{ display: 'flex', gap: 18 }}>
         <StatCell label="Distance" value={formatDistanceCompact(stats.distance_km, isImperial)} />

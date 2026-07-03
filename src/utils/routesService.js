@@ -160,6 +160,97 @@ export async function setRouteVisibility(routeId, visibility) {
 }
 
 /**
+ * Autosave the user's single in-progress draft route.
+ * @param {Object} routeData - Same shape as saveRoute's routeData
+ * @returns {Promise<Object>} - { id, updated_at }
+ */
+export async function saveDraft(routeData) {
+  const userId = await getCurrentUserId();
+  if (!userId) {
+    throw new Error('User must be authenticated');
+  }
+
+  const headers = await getAuthHeaders();
+  const response = await fetch(`${getApiBaseUrl()}/api/routes`, {
+    method: 'POST',
+    headers,
+    credentials: 'include',
+    body: JSON.stringify({
+      action: 'save_draft',
+      userId,
+      routeData
+    })
+  });
+
+  if (!response.ok) {
+    const errorData = await response.json();
+    throw new Error(errorData.error || 'Failed to save draft');
+  }
+
+  const data = await response.json();
+  return data.draft;
+}
+
+/**
+ * Fetch the user's draft route, if any.
+ * @returns {Promise<Object|null>}
+ */
+export async function getDraft() {
+  const userId = await getCurrentUserId();
+  if (!userId) {
+    throw new Error('User must be authenticated');
+  }
+
+  const headers = await getAuthHeaders();
+  const response = await fetch(`${getApiBaseUrl()}/api/routes`, {
+    method: 'POST',
+    headers,
+    credentials: 'include',
+    body: JSON.stringify({
+      action: 'get_draft',
+      userId
+    })
+  });
+
+  if (!response.ok) {
+    const errorData = await response.json();
+    throw new Error(errorData.error || 'Failed to get draft');
+  }
+
+  const data = await response.json();
+  return data.draft ?? null;
+}
+
+/**
+ * Delete the user's draft route.
+ * @returns {Promise<boolean>}
+ */
+export async function deleteDraft() {
+  const userId = await getCurrentUserId();
+  if (!userId) {
+    throw new Error('User must be authenticated');
+  }
+
+  const headers = await getAuthHeaders();
+  const response = await fetch(`${getApiBaseUrl()}/api/routes`, {
+    method: 'POST',
+    headers,
+    credentials: 'include',
+    body: JSON.stringify({
+      action: 'delete_draft',
+      userId
+    })
+  });
+
+  if (!response.ok) {
+    const errorData = await response.json();
+    throw new Error(errorData.error || 'Failed to delete draft');
+  }
+
+  return true;
+}
+
+/**
  * Delete a route
  * @param {string} routeId - Route UUID
  * @returns {Promise<boolean>} - Success
@@ -195,5 +286,8 @@ export default {
   listRoutes,
   getRoute,
   setRouteVisibility,
+  saveDraft,
+  getDraft,
+  deleteDraft,
   deleteRoute
 };
