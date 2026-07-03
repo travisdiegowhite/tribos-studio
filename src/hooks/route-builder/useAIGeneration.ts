@@ -128,6 +128,9 @@ export function useAIGeneration(): UseAIGenerationReturn {
           typeof input.elevation_gain_m === 'number' && input.elevation_gain_m > 0
             ? input.elevation_gain_m
             : undefined,
+        // The form's surface selection — also previously dropped, which left
+        // the routing profile to be inferred from saved preferences.
+        routeProfile: input.route_profile,
       };
 
       try {
@@ -155,6 +158,13 @@ export function useAIGeneration(): UseAIGenerationReturn {
           toKeep.map((s) => enrichRouteElevation(s)),
         );
         setAiSuggestions(enriched);
+        // Keep the store profile in sync with what generation actually used —
+        // the summary chip reads it, and manual edit re-snaps route with it.
+        if (input.route_profile) {
+          useRouteBuilderStore.getState().setRouteProfile(
+            input.route_profile === 'mtb' ? 'mountain' : input.route_profile,
+          );
+        }
         trackRb2('generation_completed', {
           count,
           duration_ms: Date.now() - startedAt,

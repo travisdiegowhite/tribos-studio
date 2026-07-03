@@ -135,6 +135,9 @@ export async function generateAIRoutes(params, onProgress = null) {
     // requested climbing.
     targetDistanceKm: explicitTargetDistanceKm = null,
     elevationGainTargetM = null,
+    // Explicit surface selection from the form ('road' | 'gravel' | 'mtb' |
+    // 'commute'); wins over the preference-inferred profile.
+    routeProfile = null,
   } = params;
 
   // T1.4 — wall-clock anchor for `generation_context_built.duration_ms`.
@@ -319,7 +322,7 @@ export async function generateAIRoutes(params, onProgress = null) {
             routeType,
             pastRidePatterns: ridingPatterns
           };
-          return convertClaudeToFullRoute(routeWithContext, startLocation, targetDistanceKm, userPreferences, userSpeed, { elevationGainTargetM });
+          return convertClaudeToFullRoute(routeWithContext, startLocation, targetDistanceKm, userPreferences, userSpeed, { elevationGainTargetM, routeProfile });
         })
       );
       for (const result of conversionResults) {
@@ -1156,7 +1159,7 @@ function calculateDestinationPoint(start, distanceKm, bearingDegrees) {
 
 // Convert Claude route suggestion to full route with coordinates
 async function convertClaudeToFullRoute(claudeRoute, startLocation, targetDistanceKm, preferences = null, userSpeed = null, targets = {}) {
-  const { elevationGainTargetM = null } = targets;
+  const { elevationGainTargetM = null, routeProfile: explicitProfile = null } = targets;
   const mapboxToken = import.meta.env.VITE_MAPBOX_TOKEN;
   if (!mapboxToken) {
     console.warn('Mapbox token not available for Claude route conversion');
@@ -1186,21 +1189,33 @@ async function convertClaudeToFullRoute(claudeRoute, startLocation, targetDistan
 
     console.log(`📏 Claude route distance: ${routeDistance}km, target: ${targetDistanceKm}km, using: ${effectiveDistance}km`);
 
-    // Determine routing profile based on surface preferences
+    // Routing profile: an explicit form selection always wins; the
+    // preference-based inference below is the legacy fallback for callers
+    // that don't pass one (it silently routed riders onto the gravel
+    // engine when their saved gravelTolerance was > 0.5).
     let routingProfile = 'bike'; // Default
 
-    if (preferences?.surfacePreferences?.primarySurfaces) {
-      const surfaces = preferences.surfacePreferences.primarySurfaces;
-      if (surfaces.includes('gravel') || surfaces.includes('dirt_road') || surfaces.includes('single_track')) {
-        routingProfile = 'gravel';
-        console.log('🌾 Detected gravel preference from primarySurfaces for Claude route, using gravel routing profile');
+    if (explicitProfile) {
+      routingProfile =
+        explicitProfile === 'road' ? 'bike'
+          : explicitProfile === 'mtb' || explicitProfile === 'mountain' ? 'mountain'
+            : explicitProfile === 'commute' ? 'commuting'
+              : explicitProfile; // 'gravel'
+      console.log(`🚴 Using explicit routing profile from the form: ${explicitProfile} → ${routingProfile}`);
+    } else {
+      if (preferences?.surfacePreferences?.primarySurfaces) {
+        const surfaces = preferences.surfacePreferences.primarySurfaces;
+        if (surfaces.includes('gravel') || surfaces.includes('dirt_road') || surfaces.includes('single_track')) {
+          routingProfile = 'gravel';
+          console.log('🌾 Detected gravel preference from primarySurfaces for Claude route, using gravel routing profile');
+        }
       }
-    }
 
-    // Also check gravel tolerance - if >50%, they want gravel routes
-    if (routingProfile === 'bike' && preferences?.surfacePreferences?.gravelTolerance > 0.5) {
-      routingProfile = 'gravel';
-      console.log(`🌾 High gravel tolerance (${(preferences.surfacePreferences.gravelTolerance * 100).toFixed(0)}%) for Claude route, using gravel routing profile`);
+      // Also check gravel tolerance - if >50%, they want gravel routes
+      if (routingProfile === 'bike' && preferences?.surfacePreferences?.gravelTolerance > 0.5) {
+        routingProfile = 'gravel';
+        console.log(`🌾 High gravel tolerance (${(preferences.surfacePreferences.gravelTolerance * 100).toFixed(0)}%) for Claude route, using gravel routing profile`);
+      }
     }
 
     const useHills = useHillsForTarget(elevationGainTargetM, targetDistanceKm);
