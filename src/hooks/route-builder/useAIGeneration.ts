@@ -179,6 +179,7 @@ export function useAIGeneration(): UseAIGenerationReturn {
           provider_used: 'rb1-generator',
           successes: enriched.length,
           failures: 0,
+          is_guest: !userId,
         });
       } catch (e) {
         const message = e instanceof Error ? e.message : String(e);
