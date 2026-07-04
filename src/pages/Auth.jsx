@@ -22,6 +22,7 @@ import {
 import { Link } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext.jsx';
 import { supabase } from '../lib/supabase';
+import { peekReturnTo, clearReturnTo } from '../utils/returnTo';
 import { tokens } from '../theme';
 import { detectWebview, getWebviewInstructions } from '../utils/webviewDetection';
 
@@ -114,11 +115,18 @@ function Auth() {
 
         setMessage('Check your email for the confirmation link!');
       } else {
+        // Peek (don't consume) before signing in: PublicRoute's redirect can
+        // race this navigate once the session exists, and both must agree on
+        // the target. Clear only after a successful sign-in.
+        const returnTo = peekReturnTo();
         const { error } = await signIn(email, password);
         if (error) throw error;
         // Mark beta signup as activated on successful login
         await markBetaSignupActivated(email);
-        navigate('/today');
+        clearReturnTo();
+        // Guests arriving from the route builder go back to their
+        // in-progress route instead of /today.
+        navigate(returnTo || '/today');
       }
     } catch (err) {
       console.error('Auth error:', err);

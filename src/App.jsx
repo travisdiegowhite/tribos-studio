@@ -1,5 +1,6 @@
 import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
-import { lazy, Suspense } from 'react';
+import { lazy, Suspense, useEffect } from 'react';
+import { peekReturnTo, clearReturnTo } from './utils/returnTo';
 import { MantineProvider, ColorSchemeScript, Center, Loader } from '@mantine/core';
 import { DatesProvider } from '@mantine/dates';
 import { Notifications } from '@mantine/notifications';
@@ -111,6 +112,15 @@ function RedirectToRideNew() {
 function PublicRoute({ children }) {
   const { isAuthenticated, loading } = useAuth();
 
+  // Guests who signed up from the route builder stash a return path. The
+  // post-auth navigate usually consumes it, but this redirect can win the
+  // race — honor the stash here too (peek in render, clear in an effect;
+  // StrictMode double-renders would lose a value consumed during render).
+  const returnTo = peekReturnTo();
+  useEffect(() => {
+    if (!loading && isAuthenticated && returnTo) clearReturnTo();
+  }, [loading, isAuthenticated, returnTo]);
+
   if (loading) {
     return (
       <div className="loading-screen">
@@ -120,7 +130,7 @@ function PublicRoute({ children }) {
   }
 
   if (isAuthenticated) {
-    return <Navigate to="/today" replace />;
+    return <Navigate to={returnTo || '/today'} replace />;
   }
 
   return children;

@@ -74,6 +74,7 @@ import {
 } from '../features/route-builder-v2/chat';
 import { Stack as StackIcon, MapPin, FolderOpen, MagnifyingGlass, CloudSun, ForkKnife, Gauge, Barbell, PencilSimpleLine, ChartLineUp, FloppyDisk, ChatCircleDots, Compass, SlidersHorizontal, Signpost } from '@phosphor-icons/react';
 import { CuesPanel } from '../features/route-builder-v2/components/CuesPanel';
+import { GuestSaveModal } from '../features/route-builder-v2/components/GuestSaveModal';
 import type { RouteCue as RouteCueType } from '../utils/routeCues';
 import { supabase } from '../lib/supabase';
 import { SurfaceLayer } from '../features/route-builder-v2/layers/SurfaceLayer';
@@ -1213,6 +1214,16 @@ export default function RouteBuilder2() {
     </>
   );
 
+  // Guest daily generation cap — the signup prompt is the surface, not the
+  // error banner. clearSuggestions resets the flag on dismiss.
+  const guestCapModal = (
+    <GuestSaveModal
+      opened={generation.guestCapHit}
+      onClose={generation.clearSuggestions}
+      trigger="gen_cap"
+    />
+  );
+
   // ---- Desktop: rail + map(+elevation) + chat regions ----
   if (!isMobile) {
     const railItems: RailItem[] = [
@@ -1374,6 +1385,7 @@ export default function RouteBuilder2() {
 
     return (
       <AppShell fullWidth>
+        {guestCapModal}
         <Box
           data-testid="rb2-page"
           style={{
@@ -1687,6 +1699,7 @@ export default function RouteBuilder2() {
 
   return (
     <AppShell fullWidth>
+      {guestCapModal}
       <Box
         data-testid="rb2-page"
         style={{
