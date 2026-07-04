@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import {
   Box,
+  Button,
   Group,
   Text,
   UnstyledButton,
@@ -203,23 +204,44 @@ function AppShell({ children, fullWidth = false, hideNav = false }) {
                 </Group>
               )}
 
-              {/* Right: Notification bell + Avatar dropdown */}
-              <Group gap="sm">
-                <NotificationBell
-                  gearAlerts={gearAlerts}
-                  onDismissAlert={dismissGearAlert}
-                  navigate={navigate}
-                />
-                <AvatarDropdown
-                  initials={userInitials}
-                  colorScheme={colorScheme}
-                  toggleColorScheme={toggleColorScheme}
-                  onSignOut={handleSignOut}
-                  navigate={navigate}
-                  showChecklist={guideIsDismissed && !guideIsComplete}
-                  onUndismissGuide={undismissGuide}
-                />
-              </Group>
+              {/* Right: Notification bell + Avatar dropdown — or, for
+                  guests (open route builder, no session), auth CTAs. */}
+              {user ? (
+                <Group gap="sm">
+                  <NotificationBell
+                    gearAlerts={gearAlerts}
+                    onDismissAlert={dismissGearAlert}
+                    navigate={navigate}
+                  />
+                  <AvatarDropdown
+                    initials={userInitials}
+                    colorScheme={colorScheme}
+                    toggleColorScheme={toggleColorScheme}
+                    onSignOut={handleSignOut}
+                    navigate={navigate}
+                    showChecklist={guideIsDismissed && !guideIsComplete}
+                    onUndismissGuide={undismissGuide}
+                  />
+                </Group>
+              ) : (
+                <Group gap="sm">
+                  {!isMobile && (
+                    <Button
+                      component={Link}
+                      to="/auth"
+                      size="xs"
+                      variant="subtle"
+                      color="gray"
+                      style={{ color: '#9A9990' }}
+                    >
+                      Log in
+                    </Button>
+                  )}
+                  <Button component={Link} to="/auth" size="xs" color="teal">
+                    Create Free Account
+                  </Button>
+                </Group>
+              )}
             </Box>
           </Box>
 

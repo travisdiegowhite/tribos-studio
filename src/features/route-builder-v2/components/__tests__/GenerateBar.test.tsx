@@ -18,6 +18,7 @@ function makeGen(overrides: Partial<UseAIGenerationReturn> = {}): UseAIGeneratio
   return {
     isGenerating: false,
     lastError: null,
+    guestCapHit: false,
     suggestions: [],
     generate: vi.fn().mockResolvedValue(undefined),
     selectSuggestion: vi.fn(),

@@ -82,6 +82,24 @@ function ProtectedRoute({ children }) {
   return children;
 }
 
+// Open Route wrapper — waits for the auth check, then renders regardless of
+// session state. Used for the route builder, which guests can try without an
+// account (persistence stays gated: saving prompts signup, and the API
+// rejects tokenless writes).
+function OpenRoute({ children }) {
+  const { loading } = useAuth();
+
+  if (loading) {
+    return (
+      <div className="loading-screen">
+        <div className="loading-spinner" />
+      </div>
+    );
+  }
+
+  return children;
+}
+
 // Redirect that preserves the query string (a static <Navigate to="/ride/new">
 // would drop ?from_activity=…, ?distance=…, etc. that the builder reads).
 function RedirectToRideNew() {
@@ -193,13 +211,14 @@ function AppRoutes() {
           </ProtectedRoute>
         }
       />
-      {/* New route — RB2 is the canonical builder. */}
+      {/* New route — RB2 is the canonical builder. Open to guests (no
+          account needed to build/generate; saving prompts signup). */}
       <Route
         path="/ride/new"
         element={
-          <ProtectedRoute>
+          <OpenRoute>
             <RouteBuilder2 />
-          </ProtectedRoute>
+          </OpenRoute>
         }
       />
       {/* Hidden v1 fallback (kept reachable by direct URL). */}
@@ -211,13 +230,14 @@ function AppRoutes() {
           </ProtectedRoute>
         }
       />
-      {/* Edit an existing route — RB2 loads it by id. */}
+      {/* Edit an existing route — RB2 loads it by id. Open: guests get a
+          load error from the API rather than an auth redirect. */}
       <Route
         path="/ride/:routeId"
         element={
-          <ProtectedRoute>
+          <OpenRoute>
             <RouteBuilder2 />
-          </ProtectedRoute>
+          </OpenRoute>
         }
       />
 
@@ -225,17 +245,17 @@ function AppRoutes() {
       <Route
         path="/route-builder-2"
         element={
-          <ProtectedRoute>
+          <OpenRoute>
             <RouteBuilder2 />
-          </ProtectedRoute>
+          </OpenRoute>
         }
       />
       <Route
         path="/route-builder-2/:routeId"
         element={
-          <ProtectedRoute>
+          <OpenRoute>
             <RouteBuilder2 />
-          </ProtectedRoute>
+          </OpenRoute>
         }
       />
 
@@ -324,9 +344,9 @@ function AppRoutes() {
       <Route
         path="/routes/:routeId"
         element={
-          <ProtectedRoute>
+          <OpenRoute>
             <RouteBuilder2 />
-          </ProtectedRoute>
+          </OpenRoute>
         }
       />
       <Route path="/routes/manual" element={<RedirectToRideNew />} />

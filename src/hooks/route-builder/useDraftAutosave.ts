@@ -17,6 +17,7 @@
  *    it or the user clears the route.
  */
 import { useCallback, useEffect, useRef } from 'react';
+import { useAuth } from '../../contexts/AuthContext';
 import { useRouteBuilderStore } from '../../stores/routeBuilderStore';
 import * as routesService from '../../utils/routesService';
 import { trackRb2 } from '../../features/route-builder-v2/telemetry/trackRb2';
@@ -50,6 +51,9 @@ export interface UseDraftAutosaveReturn {
 }
 
 export function useDraftAutosave(hasUnsavedChanges: boolean): UseDraftAutosaveReturn {
+  // Guests have no draft row to write to — their work lives in the
+  // localStorage-persisted store only. Skip all server draft traffic.
+  const { isAuthenticated } = useAuth();
   const routeGeometry = useRouteBuilderStore((s) => s.routeGeometry);
   const setRouteFromStore = useRouteBuilderStore((s) => s.setRoute);
 
@@ -57,6 +61,7 @@ export function useDraftAutosave(hasUnsavedChanges: boolean): UseDraftAutosaveRe
 
   useEffect(() => {
     if (timerRef.current) clearTimeout(timerRef.current);
+    if (!isAuthenticated) return;
     const coords = (routeGeometry as { coordinates?: unknown[] } | null)?.coordinates;
     if (!hasUnsavedChanges || !Array.isArray(coords) || coords.length < 2) return;
 
@@ -86,9 +91,10 @@ export function useDraftAutosave(hasUnsavedChanges: boolean): UseDraftAutosaveRe
     return () => {
       if (timerRef.current) clearTimeout(timerRef.current);
     };
-  }, [routeGeometry, hasUnsavedChanges]);
+  }, [routeGeometry, hasUnsavedChanges, isAuthenticated]);
 
   const restoreIfEmpty = useCallback(async (): Promise<boolean> => {
+    if (!isAuthenticated) return false;
     const s = useRouteBuilderStore.getState();
     const coords = (s.routeGeometry as { coordinates?: unknown[] } | null)?.coordinates;
     if (Array.isArray(coords) && coords.length > 0) return false;
@@ -116,11 +122,12 @@ export function useDraftAutosave(hasUnsavedChanges: boolean): UseDraftAutosaveRe
       console.warn('[draft-autosave] restore failed:', e);
       return false;
     }
-  }, [setRouteFromStore]);
+  }, [setRouteFromStore, isAuthenticated]);
 
   const discardDraft = useCallback(() => {
+    if (!isAuthenticated) return;
     deleteDraftSvc().catch((e) => console.warn('[draft-autosave] discard failed:', e));
-  }, []);
+  }, [isAuthenticated]);
 
   return { restoreIfEmpty, discardDraft };
 }

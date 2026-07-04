@@ -77,6 +77,12 @@ function toRouteSnapshot(
 export interface UseAIGenerationReturn {
   isGenerating: boolean;
   lastError: string | null;
+  /**
+   * True when the last generation was rejected by the server-side guest
+   * daily cap (tokenless request over its allowance). The UI surfaces the
+   * signup prompt for this instead of a plain error message.
+   */
+  guestCapHit: boolean;
   suggestions: RouteSnapshot[];
   generate: (input: GenerationFormInput, count?: 1 | 3) => Promise<void>;
   selectSuggestion: (index: number) => RouteSnapshot | null;
@@ -86,6 +92,7 @@ export interface UseAIGenerationReturn {
 export function useAIGeneration(): UseAIGenerationReturn {
   const [isGenerating, setIsGenerating] = useState(false);
   const [lastError, setLastError] = useState<string | null>(null);
+  const [guestCapHit, setGuestCapHit] = useState(false);
 
   const aiSuggestions = useRouteBuilderStore((s) => s.aiSuggestions);
   const setAiSuggestions = useRouteBuilderStore((s) => s.setAiSuggestions);
@@ -105,6 +112,7 @@ export function useAIGeneration(): UseAIGenerationReturn {
       }
       setIsGenerating(true);
       setLastError(null);
+      setGuestCapHit(false);
       const startedAt = Date.now();
       trackRb2('generation_started', { count });
 
@@ -174,6 +182,16 @@ export function useAIGeneration(): UseAIGenerationReturn {
         });
       } catch (e) {
         const message = e instanceof Error ? e.message : String(e);
+        if ((e as { reason?: string })?.reason === 'guest_generation_cap') {
+          // Server-side guest cap — the signup modal is the surface, not
+          // the error banner.
+          setGuestCapHit(true);
+          trackRb2('guest_generation_cap_hit', {
+            count,
+            duration_ms: Date.now() - startedAt,
+          });
+          return;
+        }
         setLastError(message);
         trackRb2('generation_failed', {
           count,
@@ -216,11 +234,13 @@ export function useAIGeneration(): UseAIGenerationReturn {
   const clearSuggestions = useCallback(() => {
     setAiSuggestions([]);
     setLastError(null);
+    setGuestCapHit(false);
   }, [setAiSuggestions]);
 
   return {
     isGenerating,
     lastError,
+    guestCapHit,
     suggestions,
     generate,
     selectSuggestion,

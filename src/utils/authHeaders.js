@@ -4,6 +4,7 @@
 // traffic with its own rate limits.
 import { supabase } from '../lib/supabase';
 
+/** @returns {Promise<Record<string, string>>} */
 export async function getAuthHeaders() {
   try {
     const { data } = await supabase.auth.getSession() ?? {};
