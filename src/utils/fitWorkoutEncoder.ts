@@ -16,8 +16,13 @@
  *   Absolute watts: raw values, no offset
  */
 
-// @ts-expect-error — @garmin/fitsdk has no type declarations
-import { Encoder, Profile } from '@garmin/fitsdk';
+import { Encoder } from '@garmin/fitsdk';
+import type {
+  Encodable,
+  FileIdMesg,
+  WorkoutMesg,
+  WorkoutStepMesg,
+} from '@garmin/fitsdk';
 import type {
   CyclingWorkoutStructure,
   CyclingIntervalStep,
@@ -170,7 +175,9 @@ export function encodePowerTarget(
 /**
  * Map step type to FIT intensity enum value.
  */
-function mapIntensity(type: CyclingIntervalStep['type']): string {
+function mapIntensity(
+  type: CyclingIntervalStep['type']
+): 'warmup' | 'cooldown' | 'rest' | 'active' {
   switch (type) {
     case 'warmup':
       return 'warmup';
@@ -204,23 +211,25 @@ export function encodeFitWorkout(
   const totalSteps = entries.length;
 
   // 1. file_id message
-  encoder.writeMesg({
+  const fileIdMesg: Encodable<FileIdMesg> = {
     mesgNum: MESG_NUM_FILE_ID,
     type: 'workout',
     manufacturer: 1, // Garmin
     product: 0,
     serialNumber: 0,
     timeCreated: new Date(),
-  });
+  };
+  encoder.writeMesg(fileIdMesg);
 
   // 2. workout message
-  encoder.writeMesg({
+  const workoutMesg: Encodable<WorkoutMesg> = {
     mesgNum: MESG_NUM_WORKOUT,
     wktName: options.workoutName.substring(0, 48), // FIT string limit
     sport: 'cycling',
     subSport: 'generic',
     numValidSteps: totalSteps,
-  });
+  };
+  encoder.writeMesg(workoutMesg);
 
   // 3. workout_step messages
   for (let i = 0; i < entries.length; i++) {
@@ -228,7 +237,7 @@ export function encodeFitWorkout(
 
     if (entry.kind === 'repeat') {
       // Repeat step: points back to the first step of the block
-      encoder.writeMesg({
+      const repeatMesg: Encodable<WorkoutStepMesg> = {
         mesgNum: MESG_NUM_WORKOUT_STEP,
         messageIndex: i,
         durationType: 'repeatUntilStepsCmplt',
@@ -236,12 +245,13 @@ export function encodeFitWorkout(
         targetType: 'open',
         targetValue: entry.iterations,
         intensity: 'active',
-      });
+      };
+      encoder.writeMesg(repeatMesg);
     } else {
       const { step } = entry;
       const powerTarget = encodePowerTarget(step.power);
 
-      const mesg: Record<string, unknown> = {
+      const mesg: Encodable<WorkoutStepMesg> = {
         mesgNum: MESG_NUM_WORKOUT_STEP,
         messageIndex: i,
         wktStepName: step.name?.substring(0, 32) || undefined,

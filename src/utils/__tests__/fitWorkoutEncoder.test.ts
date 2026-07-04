@@ -1,6 +1,5 @@
 import { describe, it, expect } from 'vitest';
 import { encodeFitWorkout, encodePowerTarget } from '../fitWorkoutEncoder';
-// @ts-expect-error — @garmin/fitsdk has no type declarations
 import { Decoder, Stream } from '@garmin/fitsdk';
 import type {
   CyclingWorkoutStructure,
@@ -110,7 +109,7 @@ describe('encodeFitWorkout', () => {
 
     const fileId = messages.fileIdMesgs?.[0];
     expect(fileId).toBeDefined();
-    expect(fileId.type).toBe('workout');
+    expect(fileId!.type).toBe('workout');
   });
 
   it('encodes workout message with correct name and step count', () => {
@@ -120,9 +119,9 @@ describe('encodeFitWorkout', () => {
 
     const workoutMsg = messages.workoutMesgs?.[0];
     expect(workoutMsg).toBeDefined();
-    expect(workoutMsg.wktName).toBe('Sweet Spot Base');
-    expect(workoutMsg.numValidSteps).toBe(3);
-    expect(workoutMsg.sport).toBe('cycling');
+    expect(workoutMsg!.wktName).toBe('Sweet Spot Base');
+    expect(workoutMsg!.numValidSteps).toBe(3);
+    expect(workoutMsg!.sport).toBe('cycling');
   });
 
   it('encodes 3 workout steps for simple workout', () => {
@@ -139,7 +138,7 @@ describe('encodeFitWorkout', () => {
     const data = encodeFitWorkout(workout, { workoutName: 'Test' });
     const { messages } = decodeFit(data);
 
-    const steps = messages.workoutStepMesgs;
+    const steps = messages.workoutStepMesgs!;
     expect(steps[0].durationValue).toBe(600000); // 600s × 1000
     expect(steps[1].durationValue).toBe(1800000); // 1800s × 1000
     expect(steps[2].durationValue).toBe(300000); // 300s × 1000
@@ -150,7 +149,7 @@ describe('encodeFitWorkout', () => {
     const data = encodeFitWorkout(workout, { workoutName: 'Test' });
     const { messages } = decodeFit(data);
 
-    const mainStep = messages.workoutStepMesgs[1]; // Main Set at 90% FTP
+    const mainStep = messages.workoutStepMesgs![1]; // Main Set at 90% FTP
     expect(mainStep.targetType).toBe('power');
     expect(mainStep.targetValue).toBe(0); // Use custom range
     expect(mainStep.customTargetValueLow).toBe(1087); // 90-3+1000
@@ -162,7 +161,7 @@ describe('encodeFitWorkout', () => {
     const data = encodeFitWorkout(workout, { workoutName: 'Test' });
     const { messages } = decodeFit(data);
 
-    const steps = messages.workoutStepMesgs;
+    const steps = messages.workoutStepMesgs!;
     expect(steps[0].intensity).toBe('warmup');
     expect(steps[1].intensity).toBe('active');
     expect(steps[2].intensity).toBe('cooldown');
@@ -210,7 +209,7 @@ describe('encodeFitWorkout', () => {
     const { messages, errors } = decodeFit(data);
     expect(errors).toHaveLength(0);
 
-    const steps = messages.workoutStepMesgs;
+    const steps = messages.workoutStepMesgs!;
     // 1 warmup + 2 inner steps + 1 repeat + 1 cooldown = 5 total
     expect(steps).toHaveLength(5);
 
@@ -252,7 +251,7 @@ describe('encodeFitWorkout', () => {
     const data = encodeFitWorkout(workout, { workoutName: 'Cadence Test' });
     const { messages } = decodeFit(data);
 
-    const step = messages.workoutStepMesgs[0];
+    const step = messages.workoutStepMesgs![0];
     expect(step.secondaryTargetType).toBe('cadence');
     expect(step.secondaryCustomTargetValueLow).toBe(100);
     expect(step.secondaryCustomTargetValueHigh).toBe(110);
@@ -275,7 +274,7 @@ describe('encodeFitWorkout', () => {
     const { messages } = decodeFit(data);
 
     // Power target of 0% FTP still encodes as power target
-    const step = messages.workoutStepMesgs[0];
+    const step = messages.workoutStepMesgs![0];
     expect(step.targetType).toBe('power');
   });
 
@@ -285,7 +284,7 @@ describe('encodeFitWorkout', () => {
     const data = encodeFitWorkout(workout, { workoutName: longName });
     const { messages } = decodeFit(data);
 
-    const workoutMsg = messages.workoutMesgs[0];
-    expect(workoutMsg.wktName.length).toBeLessThanOrEqual(48);
+    const workoutMsg = messages.workoutMesgs![0];
+    expect(workoutMsg.wktName!.length).toBeLessThanOrEqual(48);
   });
 });
