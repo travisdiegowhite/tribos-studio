@@ -4,6 +4,7 @@
 import { EnhancedContextCollector } from './enhancedContext';
 import { getVoiceProfile } from './coachVoices';
 import { renderFamiliarRoads } from './promptBuilders';
+import { getAuthHeaders } from './authHeaders';
 
 // Hard cap on the time we'll wait for Claude before declaring failure.
 // Anything longer than this and the user is staring at a spinner — fall
@@ -168,6 +169,9 @@ export async function generateClaudeRoutesOrThrow(params) {
 // status into a ClaudeRouteServiceError with a typed reason, and returns
 // the parsed-JSON `data` envelope on success.
 async function postClaudeRoutes({ prompt, maxTokens, temperature }) {
+  // Resolve the session headers before arming the timeout — the local
+  // auth lookup must not eat into (or race) the 15s Claude budget.
+  const headers = await getAuthHeaders();
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), CLAUDE_TIMEOUT_MS);
 
@@ -175,7 +179,7 @@ async function postClaudeRoutes({ prompt, maxTokens, temperature }) {
   try {
     response = await fetch(`${getApiBaseUrl()}/api/claude-routes`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers,
       body: JSON.stringify({ prompt, maxTokens, temperature }),
       signal: controller.signal,
     });
@@ -200,6 +204,14 @@ async function postClaudeRoutes({ prompt, maxTokens, temperature }) {
       body = await response.json();
     } catch {
       // ignore — non-JSON error bodies are still errors
+    }
+    if (response.status === 429 && body?.error === 'guest_generation_cap') {
+      // Guest daily allowance exhausted — callers surface the signup
+      // prompt instead of falling back to heuristic generation.
+      throw new ClaudeRouteServiceError(
+        body?.message || 'Guest generation limit reached',
+        'guest_generation_cap'
+      );
     }
     throw new ClaudeRouteServiceError(
       body?.error || `Claude API request failed: ${response.status}`,
@@ -775,9 +787,7 @@ Analyze their patterns and provide recommendations in JSON format:
     // Call secure backend API
     const response = await fetch(`${getApiBaseUrl()}/api/claude-routes`, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
+      headers: await getAuthHeaders(),
       body: JSON.stringify({
         prompt,
         maxTokens: 600,

@@ -343,6 +343,16 @@ export async function generateAIRoutes(params, onProgress = null) {
       error instanceof ClaudeRouteServiceError
         ? error.reason || 'claude_error'
         : 'claude_error';
+    if (reason === 'guest_generation_cap') {
+      // Guest daily allowance exhausted — surface to the caller (signup
+      // prompt) instead of masking the cap with a heuristic fallback route.
+      trackRouteBuilder('generation_claude_failed', {
+        duration_ms: Date.now() - claudeStartMs,
+        failure_kind: 'guest_generation_cap',
+        error_message: truncateErrorMessage(error?.message ?? String(error)),
+      });
+      throw error;
+    }
     if (error instanceof ClaudeRouteServiceError) {
       console.warn(`⚠️ Claude unavailable (${error.reason}): ${error.message} — falling back to heuristic`);
     } else {

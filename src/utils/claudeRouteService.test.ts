@@ -92,9 +92,12 @@ describe('generateClaudeRoutesOrThrow', () => {
 
     vi.useFakeTimers();
     const promise = generateClaudeRoutesOrThrow(baseParams as never);
-    // Push past the 15s timeout — fires the abort handler.
-    vi.advanceTimersByTime(CLAUDE_TIMEOUT_MS + 100);
-    await expect(promise).rejects.toMatchObject({ reason: 'claude_timeout' });
+    // Attach the rejection handler before advancing, then push past the
+    // 15s timeout — the async variant flushes microtasks so the pre-fetch
+    // auth-header await resolves and the timeout actually gets armed.
+    const expectation = expect(promise).rejects.toMatchObject({ reason: 'claude_timeout' });
+    await vi.advanceTimersByTimeAsync(CLAUDE_TIMEOUT_MS + 100);
+    await expectation;
     vi.useRealTimers();
   });
 });

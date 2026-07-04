@@ -29,6 +29,7 @@ import {
   parseRoutePlanningResponse,
 } from './naturalLanguagePrompt';
 import { buildGravelLoopCandidates, type GravelLoopRoute } from './gravelRouteBuilder';
+import { getAuthHeaders } from './authHeaders';
 import { reverseGeocodeRegion } from './geocoding.js';
 import { measureGravelPct } from './surfaceMeasurement';
 import { scoreRoutePreference } from './routeScoring';
@@ -456,7 +457,7 @@ export async function generatePlannedRouteCandidates(
     const apiUrl = import.meta.env.PROD ? '/api/claude-routes' : 'http://localhost:3000/api/claude-routes';
     const response = await fetch(apiUrl, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: await getAuthHeaders(),
       body: JSON.stringify({ prompt, maxTokens: 1500, temperature: 0.4 }),
     });
     if (response.ok) {

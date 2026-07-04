@@ -1,5 +1,6 @@
 // Routes Service - API client for route management
 import { supabase } from '../lib/supabase';
+import { getAuthHeaders } from './authHeaders';
 
 // Get the API base URL based on environment
 const getApiBaseUrl = () => {
@@ -15,20 +16,6 @@ const getApiBaseUrl = () => {
 async function getCurrentUserId() {
   const { data: { user } } = await supabase.auth.getUser();
   return user?.id || null;
-}
-
-/**
- * Get authorization headers with Supabase session token
- */
-async function getAuthHeaders() {
-  const { data: { session } } = await supabase.auth.getSession();
-  if (!session?.access_token) {
-    return { 'Content-Type': 'application/json' };
-  }
-  return {
-    'Content-Type': 'application/json',
-    'Authorization': `Bearer ${session.access_token}`
-  };
 }
 
 /**

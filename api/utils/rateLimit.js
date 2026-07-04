@@ -86,6 +86,31 @@ async function supabaseRateLimit(supabase, key, limit, windowMinutes) {
 }
 
 /**
+ * Extract the client IP from proxy headers (Vercel sets x-forwarded-for)
+ */
+export function getClientIp(req) {
+  return req.headers['x-forwarded-for']?.split(',')[0].trim() ||
+         req.headers['x-real-ip'] ||
+         req.socket?.remoteAddress ||
+         '0.0.0.0';
+}
+
+/**
+ * Raw rate limit check — no response writing. For endpoints that need to
+ * send their own limit-exceeded body (e.g. a structured error the client
+ * branches on) instead of the generic 429 from the middlewares below.
+ *
+ * @returns {Promise<{allowed: boolean, remaining: number, resetAt: Date}>}
+ */
+export async function checkRateLimit(key, limit, windowMinutes) {
+  const supabase = getSupabaseClient();
+  if (supabase) {
+    return supabaseRateLimit(supabase, key, limit, windowMinutes);
+  }
+  return inMemoryRateLimit(key, limit, windowMinutes);
+}
+
+/**
  * Rate limit middleware
  * Returns 429 response if rate limit exceeded, otherwise returns null
  *
@@ -103,13 +128,7 @@ export async function rateLimitMiddleware(
   limit,
   windowMinutes
 ) {
-  // Get client identifier (IP address)
-  const ip = req.headers['x-forwarded-for']?.split(',')[0].trim() ||
-             req.headers['x-real-ip'] ||
-             req.socket?.remoteAddress ||
-             '0.0.0.0';
-
-  const key = `${endpoint}:${ip}`;
+  const key = `${endpoint}:${getClientIp(req)}`;
 
   // Try Supabase-based rate limiting first
   const supabase = getSupabaseClient();
