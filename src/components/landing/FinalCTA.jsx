@@ -13,7 +13,7 @@ export default function FinalCTA() {
   const { ref, isVisible } = useScrollReveal({ threshold: 0.3 });
 
   return (
-    <Box py={{ base: 60, md: 100 }} px={{ base: 'md', md: 'xl' }}>
+    <Box pt={{ base: 40, md: 64 }} pb={{ base: 56, md: 80 }} px={{ base: 'md', md: 'xl' }}>
       <Container size="sm">
         <div ref={ref} className={`landing-step ${isVisible ? 'visible' : ''}`}>
           <Stack gap="xl" align="center" ta="center">
