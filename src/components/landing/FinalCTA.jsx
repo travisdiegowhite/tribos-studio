@@ -3,17 +3,27 @@ import { Container, Title, Text, Button, Stack, Group, Box } from '@mantine/core
 import { useScrollReveal } from './useScrollReveal';
 import { CaretRight, Check } from '@phosphor-icons/react';
 
+// Check colors follow the retro-stripe bands (teal / orange / gold).
 const TRUST_ITEMS = [
-  'No credit card',
-  'No account needed to build routes',
-  'Syncs with Strava, Garmin & Wahoo',
+  { text: 'No credit card', color: '#2A8C82' },
+  { text: 'No account needed to build routes', color: '#D4600A' },
+  { text: 'Syncs with Strava, Garmin & Wahoo', color: '#C49A0A' },
 ];
 
 export default function FinalCTA() {
   const { ref, isVisible } = useScrollReveal({ threshold: 0.3 });
 
   return (
-    <Box pt={{ base: 40, md: 64 }} pb={{ base: 56, md: 80 }} px={{ base: 'md', md: 'xl' }}>
+    <Box
+      mt={{ base: 24, md: 40 }}
+      pt={{ base: 48, md: 64 }}
+      pb={{ base: 56, md: 80 }}
+      px={{ base: 'md', md: 'xl' }}
+      style={{
+        background: 'var(--color-bg-secondary)',
+        borderTop: '1px solid var(--color-border)',
+      }}
+    >
       <Container size="sm">
         <div ref={ref} className={`landing-step ${isVisible ? 'visible' : ''}`}>
           <Stack gap="xl" align="center" ta="center">
@@ -65,11 +75,11 @@ export default function FinalCTA() {
             </Group>
 
             <Group className="step-content" gap="lg" justify="center" wrap="wrap">
-              {TRUST_ITEMS.map((item) => (
-                <Group key={item} gap={4}>
-                  <Check size={14} color="var(--color-gold)" />
+              {TRUST_ITEMS.map(({ text, color }) => (
+                <Group key={text} gap={4}>
+                  <Check size={14} color={color} />
                   <Text size="xs" style={{ color: 'var(--color-text-muted)', fontFamily: "'DM Mono', monospace" }}>
-                    {item}
+                    {text}
                   </Text>
                 </Group>
               ))}

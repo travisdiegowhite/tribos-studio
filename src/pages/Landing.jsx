@@ -29,7 +29,8 @@ function Landing() {
       />
 
       {/* Fixed navigation */}
-      <Box className="landing-nav" py="sm" px={{ base: 'md', md: 'xl' }}>
+      <Box className="landing-nav">
+        <Box py="sm" px={{ base: 'md', md: 'xl' }}>
         <Group justify="space-between" align="center" wrap="nowrap">
           <Group gap="sm" wrap="nowrap">
             <Path size={22} color="var(--color-teal)" />
@@ -67,6 +68,15 @@ function Landing() {
             </Button>
           </Group>
         </Group>
+        </Box>
+        {/* Retro stripe — brand signature (same bands as the app shell) */}
+        <Box style={{ display: 'flex', height: 3 }}>
+          <Box style={{ flex: 3, backgroundColor: '#2A8C82' }} />
+          <Box style={{ flex: 2, backgroundColor: '#C49A0A' }} />
+          <Box style={{ flex: 1, backgroundColor: '#F4F4F2' }} />
+          <Box style={{ flex: 2, backgroundColor: '#D4600A' }} />
+          <Box style={{ flex: 2, backgroundColor: '#C43C2A' }} />
+        </Box>
       </Box>
 
       {/* Page content */}

@@ -141,7 +141,7 @@ export default function HeroSection() {
                 fontSize: 11,
                 letterSpacing: '0.1em',
                 textTransform: 'uppercase',
-                color: 'var(--color-text-muted)',
+                color: 'var(--color-gold)',
               }}
             >
               Free to try — no account needed
