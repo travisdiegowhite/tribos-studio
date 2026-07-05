@@ -2,11 +2,11 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import {
   Container, Title, Text, Button, Stack, Group, Box,
-  SimpleGrid, Paper,
+  SimpleGrid, Paper, UnstyledButton,
 } from '@mantine/core';
 import Map, { Source, Layer } from 'react-map-gl';
 import { fullRoute, routeBounds } from './routeData';
-import { CaretRight, Robot, Sparkle } from '@phosphor-icons/react';
+import { CaretDown, CaretRight, Robot, Sparkle } from '@phosphor-icons/react';
 
 const MAPBOX_TOKEN = import.meta.env.VITE_MAPBOX_TOKEN;
 
@@ -64,9 +64,9 @@ export default function HeroSection() {
   return (
     <Box
       className="landing-hero"
-      py={{ base: 60, md: 100 }}
+      pt={{ base: 88, md: 110 }}
+      pb={{ base: 24, md: 32 }}
       px={{ base: 'md', md: 'xl' }}
-      style={{ minHeight: '80vh', display: 'flex', alignItems: 'center' }}
     >
       <Container size="lg" style={{ width: '100%' }}>
         <SimpleGrid cols={{ base: 1, md: 2 }} spacing="xl" verticalSpacing="xl" style={{ alignItems: 'center' }}>
@@ -281,6 +281,35 @@ export default function HeroSection() {
             </Paper>
           </Box>
         </SimpleGrid>
+
+        {/* Scroll cue — tells first-time visitors there's more below. */}
+        <UnstyledButton
+          className="scroll-prompt"
+          aria-label="Scroll to features"
+          onClick={() => {
+            document.getElementById('features')?.scrollIntoView({ behavior: 'smooth' });
+          }}
+          style={{
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            gap: 4,
+            margin: '28px auto 0',
+          }}
+        >
+          <Text
+            style={{
+              fontFamily: "'DM Mono', monospace",
+              fontSize: 10,
+              letterSpacing: '0.14em',
+              textTransform: 'uppercase',
+              color: 'var(--color-text-muted)',
+            }}
+          >
+            What you get
+          </Text>
+          <CaretDown size={18} color="var(--color-text-muted)" />
+        </UnstyledButton>
       </Container>
     </Box>
   );

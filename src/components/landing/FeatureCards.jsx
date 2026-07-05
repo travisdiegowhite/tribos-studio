@@ -27,7 +27,7 @@ export default function FeatureCards() {
   const { ref, isVisible } = useScrollReveal({ threshold: 0.2 });
 
   return (
-    <Box py={{ base: 40, md: 80 }} px={{ base: 'md', md: 'xl' }}>
+    <Box id="features" py={{ base: 32, md: 48 }} px={{ base: 'md', md: 'xl' }}>
       <Container size="lg">
         <div ref={ref} className={`landing-step ${isVisible ? 'visible' : ''}`}>
           <SimpleGrid className="step-content" cols={{ base: 1, md: 3 }} spacing="lg">

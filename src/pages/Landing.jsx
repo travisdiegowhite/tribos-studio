@@ -30,8 +30,8 @@ function Landing() {
 
       {/* Fixed navigation */}
       <Box className="landing-nav" py="sm" px={{ base: 'md', md: 'xl' }}>
-        <Group justify="space-between" align="center">
-          <Group gap="sm">
+        <Group justify="space-between" align="center" wrap="nowrap">
+          <Group gap="sm" wrap="nowrap">
             <Path size={22} color="var(--color-teal)" />
             <Text
               fw={700}
@@ -45,13 +45,14 @@ function Landing() {
               tribos.studio
             </Text>
           </Group>
-          <Group gap="sm">
+          <Group gap="sm" wrap="nowrap">
             <Button
               component={Link}
               to="/auth"
               size="sm"
               variant="subtle"
               color="teal"
+              visibleFrom="sm"
             >
               Log in
             </Button>

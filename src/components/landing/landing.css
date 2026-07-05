@@ -41,6 +41,17 @@
   transform: translateY(0);
 }
 
+/* ===== Scroll cue ===== */
+
+.scroll-prompt {
+  animation: scrollBounce 2s ease-in-out infinite;
+}
+
+@keyframes scrollBounce {
+  0%, 100% { transform: translateY(0); opacity: 0.6; }
+  50% { transform: translateY(6px); opacity: 1; }
+}
+
 /* ===== Fixed Nav ===== */
 
 .landing-nav {
@@ -59,7 +70,8 @@
   .landing-step,
   .landing-step .step-title,
   .landing-step .step-desc,
-  .landing-step .step-content {
+  .landing-step .step-content,
+  .scroll-prompt {
     opacity: 1 !important;
     transform: none !important;
     transition: none !important;
