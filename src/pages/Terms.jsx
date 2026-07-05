@@ -27,7 +27,7 @@ function Terms() {
             <Path size={24} color={'var(--color-teal)'} />
             <Text
               component={Link}
-              to="/"
+              to="/welcome"
               fw={700}
               size="lg"
               style={{
@@ -41,7 +41,7 @@ function Terms() {
           </Group>
           <Button
             component={Link}
-            to="/"
+            to="/welcome"
             variant="subtle"
             color="gray"
             leftSection={<ArrowLeft size={16} />}

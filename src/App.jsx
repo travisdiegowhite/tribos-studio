@@ -108,6 +108,34 @@ function RedirectToRideNew() {
   return <Navigate to={`/ride/new${location.search}`} replace />;
 }
 
+// Root route — the product is the front door: signed-out visitors go
+// straight into the route builder (open to guests); signed-in users go to
+// /today. The marketing landing page lives at /welcome.
+function RootRoute() {
+  const { isAuthenticated, loading } = useAuth();
+
+  // Same post-auth returnTo handling as PublicRoute (peek in render, clear
+  // in an effect — StrictMode double-renders would lose a consumed value).
+  const returnTo = peekReturnTo();
+  useEffect(() => {
+    if (!loading && isAuthenticated && returnTo) clearReturnTo();
+  }, [loading, isAuthenticated, returnTo]);
+
+  if (loading) {
+    return (
+      <div className="loading-screen">
+        <div className="loading-spinner" />
+      </div>
+    );
+  }
+
+  if (isAuthenticated) {
+    return <Navigate to={returnTo || '/today'} replace />;
+  }
+
+  return <RedirectToRideNew />;
+}
+
 // Public Route wrapper (redirects to today if already logged in)
 function PublicRoute({ children }) {
   const { isAuthenticated, loading } = useAuth();
@@ -148,8 +176,11 @@ function AppRoutes() {
   return (
     <Suspense fallback={<PageLoader />}>
     <Routes>
-      {/* Public routes */}
-      <Route path="/" element={<PublicRoute><Landing /></PublicRoute>} />
+      {/* Public routes. Root sends guests straight into the route builder;
+          the marketing landing page moved to /welcome (unguarded — viewable
+          signed in or out). */}
+      <Route path="/" element={<RootRoute />} />
+      <Route path="/welcome" element={<Landing />} />
       <Route path="/privacy" element={<PrivacyPolicy />} />
       <Route path="/terms" element={<Terms />} />
       <Route path="/learn/metrics" element={<MetricsCalculatorPage />} />
