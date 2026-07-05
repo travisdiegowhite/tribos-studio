@@ -1,28 +1,19 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import {
-  Container, Title, Text, Button, Stack, Group, Box, Badge,
-  SimpleGrid, Paper, ThemeIcon,
+  Container, Title, Text, Button, Stack, Group, Box,
+  SimpleGrid, Paper,
 } from '@mantine/core';
 import Map, { Source, Layer } from 'react-map-gl';
 import { fullRoute, routeBounds } from './routeData';
-import { CaretDown, CaretRight, Robot, Sparkle } from '@phosphor-icons/react';
+import { CaretRight, Robot, Sparkle } from '@phosphor-icons/react';
 
 const MAPBOX_TOKEN = import.meta.env.VITE_MAPBOX_TOKEN;
 
 export default function HeroSection() {
-  const [hasScrolled, setHasScrolled] = useState(false);
   const [animatedCoords, setAnimatedCoords] = useState([]);
   const [mapLoaded, setMapLoaded] = useState(false);
   const animFrameRef = useRef(null);
-
-  useEffect(() => {
-    const handleScroll = () => {
-      if (window.scrollY > 100) setHasScrolled(true);
-    };
-    window.addEventListener('scroll', handleScroll, { passive: true });
-    return () => window.removeEventListener('scroll', handleScroll);
-  }, []);
 
   // Animate route drawing after map loads
   const animateRoute = useCallback(() => {
@@ -75,39 +66,37 @@ export default function HeroSection() {
       className="landing-hero"
       py={{ base: 60, md: 100 }}
       px={{ base: 'md', md: 'xl' }}
-      style={{ minHeight: '90vh', display: 'flex', alignItems: 'center', position: 'relative' }}
+      style={{ minHeight: '80vh', display: 'flex', alignItems: 'center' }}
     >
-      {/* Subtle radial glow */}
-      <Box
-        style={{
-          position: 'absolute',
-          inset: 0,
-          background: 'radial-gradient(ellipse at 30% 40%, rgba(58, 90, 140, 0.06) 0%, transparent 60%)',
-          pointerEvents: 'none',
-        }}
-      />
-
-      <Container size="lg" style={{ position: 'relative', zIndex: 1, width: '100%' }}>
+      <Container size="lg" style={{ width: '100%' }}>
         <SimpleGrid cols={{ base: 1, md: 2 }} spacing="xl" verticalSpacing="xl" style={{ alignItems: 'center' }}>
 
           {/* Left column: text + CTA */}
           <Stack gap="xl" ta={{ base: 'center', md: 'left' }} align={{ base: 'center', md: 'flex-start' }}>
-            <Badge color="teal" variant="light" size="lg">
-              Now in Private Beta
-            </Badge>
+            <Text
+              style={{
+                fontFamily: "'DM Mono', monospace",
+                fontSize: 11,
+                letterSpacing: '0.14em',
+                textTransform: 'uppercase',
+                color: 'var(--color-text-muted)',
+              }}
+            >
+              Tribos — Cycling Intelligence
+            </Text>
 
             <Title
               order={1}
               style={{
-                fontSize: 'clamp(1.8rem, 4vw, 3rem)',
+                fontSize: 'clamp(2rem, 4.5vw, 3.2rem)',
                 color: 'var(--color-text-primary)',
-                lineHeight: 1.15,
+                lineHeight: 1.1,
                 maxWidth: 520,
               }}
             >
-              You have the plan. You have the gear.{' '}
+              A route builder{' '}
               <span style={{ color: 'var(--color-teal)' }}>
-                But who tells you what to ride today?
+                with a coach behind it.
               </span>
             </Title>
 
@@ -119,50 +108,44 @@ export default function HeroSection() {
                 lineHeight: 1.6,
               }}
             >
-              Watch what happens when your cycling data meets a coach that actually understands training.
+              tribos builds cycling routes from real roads and real gravel — and,
+              once you connect your rides, tells you in plain language what to
+              ride today. The builder is free to try, no account needed.
             </Text>
 
             <Group gap="md" justify={{ base: 'center', md: 'flex-start' }}>
               <Button
                 component={Link}
-                to="/auth"
+                to="/ride/new"
                 size="lg"
                 color="teal"
                 rightSection={<CaretRight size={18} />}
               >
-                Create Free Account
+                Open the Route Builder
               </Button>
               <Button
                 component={Link}
-                to="/ride/new"
+                to="/auth"
+                state={{ fromBetaSignup: true }}
                 size="lg"
                 variant="outline"
                 color="teal"
               >
-                Try the route builder — no account needed
+                Create Free Account
               </Button>
             </Group>
 
-            <Box
-              component="a"
-              href="#connect"
-              onClick={(e) => {
-                e.preventDefault();
-                document.getElementById('connect')?.scrollIntoView({ behavior: 'smooth' });
+            <Text
+              style={{
+                fontFamily: "'DM Mono', monospace",
+                fontSize: 11,
+                letterSpacing: '0.1em',
+                textTransform: 'uppercase',
+                color: 'var(--color-text-muted)',
               }}
-              style={{ textDecoration: 'none', cursor: 'pointer' }}
             >
-              <Text
-                size="sm"
-                style={{
-                  color: 'var(--color-text-muted)',
-                  fontFamily: "'DM Mono', monospace",
-                  letterSpacing: '1px',
-                }}
-              >
-                See how it works
-              </Text>
-            </Box>
+              Free to try — no account needed
+            </Text>
           </Stack>
 
           {/* Right column: Map + Coach overlay */}
@@ -240,17 +223,13 @@ export default function HeroSection() {
                 left: 12,
                 right: 12,
                 maxWidth: 340,
-                backdropFilter: 'blur(16px)',
-                WebkitBackdropFilter: 'blur(16px)',
-                background: 'color-mix(in srgb, var(--color-bg-secondary) 88%, transparent)',
+                background: 'var(--tribos-card)',
                 border: '1px solid var(--color-border)',
               }}
             >
               {/* Chat header */}
               <Group gap="sm" mb="xs">
-                <ThemeIcon color="teal" variant="light" size="xs">
-                  <Sparkle size={10} />
-                </ThemeIcon>
+                <Sparkle size={12} color="var(--color-teal)" />
                 <Text fw={600} size="xs" style={{ color: 'var(--color-text-primary)' }}>
                   Coach
                 </Text>
@@ -282,10 +261,8 @@ export default function HeroSection() {
               </Box>
 
               {/* Coach response */}
-              <Group gap={6} align="flex-start">
-                <ThemeIcon color="teal" variant="light" size="xs" mt={2}>
-                  <Robot size={10} />
-                </ThemeIcon>
+              <Group gap={6} align="flex-start" wrap="nowrap">
+                <Robot size={12} color="var(--color-teal)" style={{ marginTop: 4, flexShrink: 0 }} />
                 <Paper
                   px="xs"
                   py={6}
@@ -296,7 +273,8 @@ export default function HeroSection() {
                   }}
                 >
                   <Text size="xs" style={{ color: 'var(--color-text-primary)', lineHeight: 1.4 }}>
-                    Your CTL is 62 and you rested yesterday — you're fresh. I'd suggest the Hygiene Loop at ~195W. Endurance pace, keep it easy.
+                    You're fresh — form is trending up. I'd suggest the Hygiene
+                    Loop at endurance pace. Keep it easy.
                   </Text>
                 </Paper>
               </Group>
@@ -304,23 +282,6 @@ export default function HeroSection() {
           </Box>
         </SimpleGrid>
       </Container>
-
-      {/* Scroll prompt */}
-      <Box
-        className={`scroll-prompt ${hasScrolled ? 'hidden' : ''}`}
-        style={{
-          position: 'absolute',
-          bottom: 24,
-          left: '50%',
-          textAlign: 'center',
-          cursor: 'pointer',
-        }}
-        onClick={() => {
-          document.getElementById('connect')?.scrollIntoView({ behavior: 'smooth' });
-        }}
-      >
-        <CaretDown size={24} color="var(--color-text-muted)" />
-      </Box>
     </Box>
   );
 }
