@@ -1,70 +1,26 @@
-import { useRef, useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { Box, Group, Text, Button, Anchor, Center, Container, Stack } from '@mantine/core';
 import SEO, { getOrganizationSchema, getWebSiteSchema } from '../components/SEO';
 
-// Landing sections
+// Landing sections — a short "about" page. The product itself is the front
+// door (/ lands guests in the route builder); this page lives at /welcome
+// for anyone who wants the pitch.
 import HeroSection from '../components/landing/HeroSection';
-import ConnectStep from '../components/landing/ConnectStep';
-import ImportStep from '../components/landing/ImportStep';
-import AnalyzeStep from '../components/landing/AnalyzeStep';
-import CoachStep from '../components/landing/CoachStep';
-import RouteStep from '../components/landing/RouteStep';
+import FeatureCards from '../components/landing/FeatureCards';
 import FinalCTA from '../components/landing/FinalCTA';
-import ProgressIndicator from '../components/landing/ProgressIndicator';
 
 // Styles
 import '../components/landing/landing.css';
 import { Path } from '@phosphor-icons/react';
 
-const SECTION_COUNT = 7;
-
 function Landing() {
-  const sectionRefs = useRef([]);
-  const [activeIndex, setActiveIndex] = useState(0);
-
-  const setSectionRef = (index) => (el) => {
-    sectionRefs.current[index] = el;
-  };
-
-  // Track which section is active via IntersectionObserver
-  useEffect(() => {
-    const observers = [];
-    const visibilityMap = new Map();
-
-    sectionRefs.current.forEach((el, index) => {
-      if (!el) return;
-      const observer = new IntersectionObserver(
-        ([entry]) => {
-          visibilityMap.set(index, entry.intersectionRatio);
-          let maxRatio = 0;
-          let maxIndex = 0;
-          visibilityMap.forEach((ratio, idx) => {
-            if (ratio > maxRatio) {
-              maxRatio = ratio;
-              maxIndex = idx;
-            }
-          });
-          if (maxRatio > 0) {
-            setActiveIndex(maxIndex);
-          }
-        },
-        { threshold: [0, 0.1, 0.25, 0.5, 0.75, 1] }
-      );
-      observer.observe(el);
-      observers.push(observer);
-    });
-
-    return () => observers.forEach(o => o.disconnect());
-  }, []);
-
   return (
     <>
       <SEO
         title="tribos.studio - Cycling Route Builder, Coach & Training Platform"
-        description="Build smarter cycling routes, get personalized coaching from your ride history, and follow structured training plans. Syncs with Strava, Garmin, and Wahoo."
+        description="tribos is an AI route builder and cycling coach. Build routes free with no account; create a free account to sync Strava, Garmin, or Wahoo and get coaching from your real ride history."
         keywords="cycling route builder, cycling route planner, cycling coach, cycling training platform, bike route builder, cycling training plans, strava route builder, garmin route sync, cycling analytics, cycling power analysis"
-        url="https://tribos.studio"
+        url="https://tribos.studio/welcome"
         image="https://tribos.studio/og-image.svg"
         structuredData={{
           '@context': 'https://schema.org',
@@ -112,50 +68,16 @@ function Landing() {
         </Group>
       </Box>
 
-      {/* Progress indicator (desktop only) */}
-      <ProgressIndicator activeIndex={activeIndex} sectionRefs={sectionRefs} />
-
       {/* Page content */}
       <Box
         style={{
-          background: `linear-gradient(180deg, var(--color-bg) 0%, var(--color-bg-secondary) 50%, var(--color-bg) 100%)`,
+          background: 'var(--color-bg)',
           minHeight: '100vh',
         }}
       >
-        {/* Section 0: Hero */}
-        <div ref={setSectionRef(0)}>
-          <HeroSection />
-        </div>
-
-        {/* Section 1: Connect */}
-        <div id="connect" ref={setSectionRef(1)}>
-          <ConnectStep />
-        </div>
-
-        {/* Section 2: Import */}
-        <div ref={setSectionRef(2)}>
-          <ImportStep />
-        </div>
-
-        {/* Section 3: Analyze */}
-        <div ref={setSectionRef(3)}>
-          <AnalyzeStep />
-        </div>
-
-        {/* Section 4: Coach */}
-        <div ref={setSectionRef(4)}>
-          <CoachStep />
-        </div>
-
-        {/* Section 5: Route */}
-        <div ref={setSectionRef(5)}>
-          <RouteStep />
-        </div>
-
-        {/* Section 6: CTA */}
-        <div ref={setSectionRef(6)}>
-          <FinalCTA />
-        </div>
+        <HeroSection />
+        <FeatureCards />
+        <FinalCTA />
 
         {/* Footer */}
         <Box

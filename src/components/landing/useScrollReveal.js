@@ -1,4 +1,4 @@
-import { useRef, useState, useEffect, useCallback } from 'react';
+import { useRef, useState, useEffect } from 'react';
 
 /**
  * Custom hook for scroll-triggered reveal animations.
@@ -42,52 +42,6 @@ export function useScrollReveal({ threshold = 0.3, rootMargin = '0px', once = tr
   }, [threshold, rootMargin, once]);
 
   return { ref, isVisible, hasBeenVisible };
-}
-
-/**
- * Hook to track which section is currently active (for progress indicator).
- * Returns the index of the section currently most in view.
- */
-export function useActiveSection(sectionCount) {
-  const [activeIndex, setActiveIndex] = useState(0);
-  const sectionRefs = useRef([]);
-
-  const setSectionRef = useCallback((index) => (el) => {
-    sectionRefs.current[index] = el;
-  }, []);
-
-  useEffect(() => {
-    const observers = [];
-    const visibilityMap = new Map();
-
-    sectionRefs.current.forEach((el, index) => {
-      if (!el) return;
-      const observer = new IntersectionObserver(
-        ([entry]) => {
-          visibilityMap.set(index, entry.intersectionRatio);
-          // Find the section with the highest visibility
-          let maxRatio = 0;
-          let maxIndex = 0;
-          visibilityMap.forEach((ratio, idx) => {
-            if (ratio > maxRatio) {
-              maxRatio = ratio;
-              maxIndex = idx;
-            }
-          });
-          if (maxRatio > 0) {
-            setActiveIndex(maxIndex);
-          }
-        },
-        { threshold: [0, 0.25, 0.5, 0.75, 1] }
-      );
-      observer.observe(el);
-      observers.push(observer);
-    });
-
-    return () => observers.forEach(o => o.disconnect());
-  }, [sectionCount]);
-
-  return { activeIndex, setSectionRef, sectionRefs };
 }
 
 /**

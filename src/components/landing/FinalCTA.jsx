@@ -3,26 +3,18 @@ import { Container, Title, Text, Button, Stack, Group, Box } from '@mantine/core
 import { useScrollReveal } from './useScrollReveal';
 import { CaretRight, Check } from '@phosphor-icons/react';
 
+const TRUST_ITEMS = [
+  'No credit card',
+  'No account needed to build routes',
+  'Syncs with Strava, Garmin & Wahoo',
+];
+
 export default function FinalCTA() {
   const { ref, isVisible } = useScrollReveal({ threshold: 0.3 });
 
   return (
-    <Box
-      py={{ base: 80, md: 120 }}
-      px={{ base: 'md', md: 'xl' }}
-      style={{ position: 'relative' }}
-    >
-      {/* Terracotta radial glow */}
-      <Box
-        style={{
-          position: 'absolute',
-          inset: 0,
-          background: 'radial-gradient(ellipse at 50% 50%, rgba(158, 90, 60, 0.06) 0%, transparent 60%)',
-          pointerEvents: 'none',
-        }}
-      />
-
-      <Container size="sm" style={{ position: 'relative', zIndex: 1 }}>
+    <Box py={{ base: 60, md: 100 }} px={{ base: 'md', md: 'xl' }}>
+      <Container size="sm">
         <div ref={ref} className={`landing-step ${isVisible ? 'visible' : ''}`}>
           <Stack gap="xl" align="center" ta="center">
             <Title
@@ -34,7 +26,7 @@ export default function FinalCTA() {
                 lineHeight: 1.15,
               }}
             >
-              That's five minutes after signing up.
+              Free to try. Free account for the rest.
             </Title>
 
             <Text
@@ -46,50 +38,42 @@ export default function FinalCTA() {
                 lineHeight: 1.6,
               }}
             >
-              Connect your accounts, and your coach already knows what you should ride tomorrow.
+              The route builder works right now, without an account. A free
+              account adds ride sync, the coach, and training plans.
             </Text>
 
-            <Button
-              className="step-content"
-              component={Link}
-              to="/auth"
-              size="xl"
-              color="teal"
-              rightSection={<CaretRight size={20} />}
-            >
-              Create Free Account
-            </Button>
-
-            <Group className="step-content" gap="lg" justify="center" wrap="wrap">
-              <Group gap={4}>
-                <Check size={14} color="var(--color-gold)" />
-                <Text size="xs" style={{ color: 'var(--color-text-muted)', fontFamily: "'DM Mono', monospace" }}>
-                  Free during beta
-                </Text>
-              </Group>
-              <Group gap={4}>
-                <Check size={14} color="var(--color-gold)" />
-                <Text size="xs" style={{ color: 'var(--color-text-muted)', fontFamily: "'DM Mono', monospace" }}>
-                  No credit card
-                </Text>
-              </Group>
-              <Group gap={4}>
-                <Check size={14} color="var(--color-gold)" />
-                <Text size="xs" style={{ color: 'var(--color-text-muted)', fontFamily: "'DM Mono', monospace" }}>
-                  Syncs with Strava & Garmin
-                </Text>
-              </Group>
+            <Group className="step-content" gap="md" justify="center">
+              <Button
+                component={Link}
+                to="/ride/new"
+                size="lg"
+                color="teal"
+                rightSection={<CaretRight size={18} />}
+              >
+                Open the Route Builder
+              </Button>
+              <Button
+                component={Link}
+                to="/auth"
+                state={{ fromBetaSignup: true }}
+                size="lg"
+                variant="outline"
+                color="teal"
+              >
+                Create Free Account
+              </Button>
             </Group>
 
-            <Text
-              size="sm"
-              style={{
-                color: 'var(--color-text-muted)',
-                fontFamily: "'DM Mono', monospace",
-              }}
-            >
-              Join 65+ cyclists already in the private beta
-            </Text>
+            <Group className="step-content" gap="lg" justify="center" wrap="wrap">
+              {TRUST_ITEMS.map((item) => (
+                <Group key={item} gap={4}>
+                  <Check size={14} color="var(--color-gold)" />
+                  <Text size="xs" style={{ color: 'var(--color-text-muted)', fontFamily: "'DM Mono', monospace" }}>
+                    {item}
+                  </Text>
+                </Group>
+              ))}
+            </Group>
           </Stack>
         </div>
       </Container>
