@@ -1210,7 +1210,7 @@ export default function RouteBuilder2() {
     <>
       {isLoading && <LoadingState message={loadingMessage} />}
       {error && <ErrorState message={error} onDismiss={dismissError} />}
-      {!hasRoute && !isLoading && <EmptyState />}
+      {!hasRoute && !isLoading && <EmptyState isGuest={!user} />}
     </>
   );
 
