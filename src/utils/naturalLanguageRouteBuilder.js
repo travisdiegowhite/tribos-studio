@@ -26,6 +26,7 @@
  */
 
 import { buildNaturalLanguagePrompt, parseNaturalLanguageResponse } from './naturalLanguagePrompt';
+import { getAuthHeaders } from './authHeaders';
 import { geocodeWaypoint } from './geocoding';
 import { generateIterativeRoute } from './iterativeRouteBuilder';
 import { getSmartCyclingRoute } from './smartCyclingRouter';
@@ -127,7 +128,7 @@ export async function parseRouteRequest(userRequest, context = {}) {
   const apiUrl = import.meta.env.PROD ? '/api/claude-routes' : 'http://localhost:3000/api/claude-routes';
   const response = await fetch(apiUrl, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: await getAuthHeaders(),
     body: JSON.stringify({ prompt, maxTokens: 1000, temperature: 0.3 }),
   });
   if (!response.ok) {

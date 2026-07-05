@@ -132,6 +132,15 @@ export default function HeroSection() {
               >
                 Create Free Account
               </Button>
+              <Button
+                component={Link}
+                to="/ride/new"
+                size="lg"
+                variant="outline"
+                color="teal"
+              >
+                Try the route builder — no account needed
+              </Button>
             </Group>
 
             <Box

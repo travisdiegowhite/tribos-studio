@@ -1,5 +1,6 @@
 import { createContext, useContext, useEffect, useState, type ReactNode } from 'react';
 import type { AuthError, AuthResponse, OAuthResponse, User } from '@supabase/supabase-js';
+import posthog from 'posthog-js';
 import { supabase } from '../lib/supabase';
 
 interface AuthContextValue {
@@ -35,9 +36,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState<boolean>(true);
 
   useEffect(() => {
+    // Tie PostHog's anonymous distinct_id to the account — merges guest
+    // route-builder activity into the identified user on signup/sign-in.
+    // Fire-and-forget: telemetry must never break auth.
+    const identifyUser = (sessionUser: User | null) => {
+      try {
+        if (sessionUser) posthog.identify(sessionUser.id);
+      } catch {
+        // never throw from telemetry
+      }
+    };
+
     // Get initial session - simple like the OLD implementation
     supabase.auth.getSession().then(({ data: { session } }) => {
       setUser(session?.user ?? null);
+      identifyUser(session?.user ?? null);
       setLoading(false);
     });
 
@@ -45,6 +58,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       (_event, session) => {
         setUser(session?.user ?? null);
+        identifyUser(session?.user ?? null);
       }
     );
 

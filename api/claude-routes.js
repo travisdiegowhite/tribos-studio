@@ -2,14 +2,48 @@
 // This moves Claude AI calls server-side to protect API keys
 
 import Anthropic from '@anthropic-ai/sdk';
+import { setupCors } from './utils/cors.js';
+import { getSupabaseAdmin } from './utils/supabaseAdmin.js';
+import {
+  rateLimitByUser,
+  checkRateLimit,
+  getClientIp,
+  RATE_LIMITS,
+} from './utils/rateLimit.js';
+
+// Guests (tokenless requests) get a small daily generation allowance per IP;
+// the structured 429 below is the client's signal to prompt account creation.
+const GUEST_GENERATION_LIMIT = 3;
+const GUEST_WINDOW_MINUTES = 24 * 60;
+
+/**
+ * Resolve the caller from the Authorization header, if any.
+ * Tokenless or invalid-token requests are treated as guests (null) —
+ * this endpoint intentionally supports unauthenticated trial traffic.
+ */
+async function getUserFromAuthHeader(req) {
+  const authHeader = req.headers.authorization;
+  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    return null;
+  }
+
+  try {
+    const token = authHeader.substring(7);
+    const { data: { user }, error } = await getSupabaseAdmin().auth.getUser(token);
+    if (error || !user) {
+      return null;
+    }
+    return user;
+  } catch (err) {
+    // Auth backend hiccup — degrade to guest treatment rather than failing.
+    console.warn('claude-routes: token validation unavailable:', err?.message);
+    return null;
+  }
+}
 
 export default async function handler(req, res) {
-  // Handle CORS preflight
-  if (req.method === 'OPTIONS') {
-    res.setHeader('Access-Control-Allow-Origin', '*');
-    res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
-    res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
-    return res.status(200).end();
+  if (setupCors(req, res)) {
+    return; // Was an OPTIONS request, already handled
   }
 
   // Only allow POST requests
@@ -18,6 +52,38 @@ export default async function handler(req, res) {
   }
 
   try {
+    const user = await getUserFromAuthHeader(req);
+
+    if (user) {
+      const limited = await rateLimitByUser(
+        req,
+        res,
+        RATE_LIMITS.CLAUDE_ROUTES.name,
+        user.id,
+        RATE_LIMITS.CLAUDE_ROUTES.limit,
+        RATE_LIMITS.CLAUDE_ROUTES.windowMinutes
+      );
+      if (limited) return;
+    } else {
+      const guestLimit = await checkRateLimit(
+        `claude-routes-guest:${getClientIp(req)}`,
+        GUEST_GENERATION_LIMIT,
+        GUEST_WINDOW_MINUTES
+      );
+      if (!guestLimit.allowed) {
+        const retryAfter = Math.max(
+          1,
+          Math.ceil((guestLimit.resetAt.getTime() - Date.now()) / 1000)
+        );
+        res.setHeader('Retry-After', retryAfter.toString());
+        return res.status(429).json({
+          success: false,
+          error: 'guest_generation_cap',
+          message: 'Create a free account to keep generating routes.',
+          resetAt: guestLimit.resetAt.toISOString(),
+        });
+      }
+    }
     // Validate API key exists
     const apiKey = process.env.ANTHROPIC_API_KEY;
     if (!apiKey) {

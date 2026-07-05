@@ -2,6 +2,7 @@ import { useEffect } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Box, Text, Stack } from '@mantine/core';
 import { supabase } from '../../lib/supabase';
+import { consumeReturnTo } from '../../utils/returnTo';
 import { tokens } from '../../theme';
 
 function AuthCallback() {
@@ -32,8 +33,10 @@ function AuthCallback() {
         }
 
         if (data?.session) {
-          // Successfully authenticated
-          navigate('/today');
+          // Successfully authenticated. Guests who signed up from the route
+          // builder stashed a return path — land them back there (their
+          // in-progress route rehydrates from the persisted store).
+          navigate(consumeReturnTo() || '/today');
         } else {
           // No session yet, might need to wait for auth state change
           // Listen for the auth state to update
@@ -41,7 +44,7 @@ function AuthCallback() {
             (event, session) => {
               if (session) {
                 subscription.unsubscribe();
-                navigate('/today');
+                navigate(consumeReturnTo() || '/today');
               }
             }
           );

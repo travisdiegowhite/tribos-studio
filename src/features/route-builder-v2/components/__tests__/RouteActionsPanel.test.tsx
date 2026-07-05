@@ -1,12 +1,21 @@
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { MantineProvider } from '@mantine/core';
-import { describe, it, expect, vi } from 'vitest';
+import { MemoryRouter } from 'react-router-dom';
+import { describe, it, expect, vi, afterEach } from 'vitest';
 import { RouteActionsPanel } from '../RouteActionsPanel';
 import type { UseRoutePersistenceReturn } from '../../../../hooks/route-builder';
 
 const notifyShow = vi.fn();
 vi.mock('@mantine/notifications', () => ({
   notifications: { show: (...args: unknown[]) => notifyShow(...args) },
+}));
+
+// Signed-in by default; the guest-gate tests override this.
+const mockUseAuth = vi.fn<() => { user: { id: string } | null }>(() => ({
+  user: { id: 'user-1' },
+}));
+vi.mock('../../../../contexts/AuthContext', () => ({
+  useAuth: () => mockUseAuth(),
 }));
 
 function makePersistence(
@@ -45,7 +54,9 @@ function renderPanel(props: Partial<React.ComponentProps<typeof RouteActionsPane
     persistence,
     ...render(
       <MantineProvider>
-        <RouteActionsPanel persistence={persistence} {...props} />
+        <MemoryRouter>
+          <RouteActionsPanel persistence={persistence} {...props} />
+        </MemoryRouter>
       </MantineProvider>,
     ),
   };
@@ -232,5 +243,28 @@ describe('RouteActionsPanel', () => {
   it('disables Share when there is no route', () => {
     renderPanel({ hasRoute: false });
     expect(screen.getByTestId('rb2-share-route-button')).toBeDisabled();
+  });
+
+  describe('guest gate', () => {
+    afterEach(() => {
+      mockUseAuth.mockImplementation(() => ({ user: { id: 'user-1' } }));
+    });
+
+    it('opens the guest signup modal instead of the save modal when there is no user', async () => {
+      mockUseAuth.mockImplementation(() => ({ user: null }));
+      const { persistence } = renderPanel();
+      fireEvent.click(screen.getByTestId('rb2-save-route-button'));
+      // Modal roots exist in the DOM even when closed — assert on content.
+      expect(await screen.findByTestId('rb2-guest-modal-signup')).toBeInTheDocument();
+      expect(screen.queryByTestId('rb2-save-name-input')).not.toBeInTheDocument();
+      expect(persistence.save).not.toHaveBeenCalled();
+    });
+
+    it('opens the normal save modal for signed-in users', async () => {
+      renderPanel();
+      fireEvent.click(screen.getByTestId('rb2-save-route-button'));
+      expect(await screen.findByTestId('rb2-save-name-input')).toBeInTheDocument();
+      expect(screen.queryByTestId('rb2-guest-modal-signup')).not.toBeInTheDocument();
+    });
   });
 });

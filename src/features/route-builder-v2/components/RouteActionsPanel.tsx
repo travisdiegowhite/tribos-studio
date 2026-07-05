@@ -37,6 +37,8 @@ import {
 } from '@phosphor-icons/react';
 import { RB2, RB2_FONT } from './brand';
 import { trackRb2 } from '../telemetry/trackRb2';
+import { useAuth } from '../../../contexts/AuthContext';
+import { GuestSaveModal } from './GuestSaveModal';
 import type { Coordinate } from '../../../types/geo';
 import type {
   UseRoutePersistenceReturn,
@@ -91,7 +93,9 @@ export function RouteActionsPanel({
   openSaveSignal = 0,
   isMobile = false,
 }: RouteActionsPanelProps) {
+  const { user } = useAuth() as { user: { id: string } | null };
   const [saveOpen, setSaveOpen] = useState(false);
+  const [guestModalOpen, setGuestModalOpen] = useState(false);
   const [loadOpen, setLoadOpen] = useState(false);
   const [name, setName] = useState(defaultName ?? '');
   const [description, setDescription] = useState(defaultDescription ?? '');
@@ -153,11 +157,18 @@ export function RouteActionsPanel({
   }, [defaultName]);
 
   const handleOpenSave = useCallback(() => {
+    trackRb2('save_clicked', { is_guest: !user });
+    if (!user) {
+      // Guests can't save — the signup prompt IS the conversion moment.
+      // The in-progress route stays mounted (and persisted) behind it.
+      setGuestModalOpen(true);
+      return;
+    }
     setName(defaultName ?? '');
     setDescription(defaultDescription ?? '');
     setSaveOpen(true);
     trackRb2('save_modal_opened', {});
-  }, [defaultName, defaultDescription]);
+  }, [defaultName, defaultDescription, user]);
 
   // External quick-save trigger (stats card) — 0 is the initial no-op value.
   useEffect(() => {
@@ -487,6 +498,12 @@ export function RouteActionsPanel({
           </Text>
         )}
       </Box>
+
+      <GuestSaveModal
+        opened={guestModalOpen}
+        onClose={() => setGuestModalOpen(false)}
+        trigger="save"
+      />
 
       <Modal
         opened={saveOpen}
