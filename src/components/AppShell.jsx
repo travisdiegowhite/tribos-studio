@@ -226,16 +226,28 @@ function AppShell({ children, fullWidth = false, hideNav = false }) {
               ) : (
                 <Group gap="sm">
                   {!isMobile && (
-                    <Button
-                      component={Link}
-                      to="/auth"
-                      size="xs"
-                      variant="subtle"
-                      color="gray"
-                      style={{ color: '#9A9990' }}
-                    >
-                      Log in
-                    </Button>
+                    <>
+                      <Button
+                        component={Link}
+                        to="/welcome"
+                        size="xs"
+                        variant="subtle"
+                        color="gray"
+                        style={{ color: '#9A9990' }}
+                      >
+                        About
+                      </Button>
+                      <Button
+                        component={Link}
+                        to="/auth"
+                        size="xs"
+                        variant="subtle"
+                        color="gray"
+                        style={{ color: '#9A9990' }}
+                      >
+                        Log in
+                      </Button>
+                    </>
                   )}
                   <Button component={Link} to="/auth" size="xs" color="teal">
                     Create Free Account
