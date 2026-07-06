@@ -3,3 +3,4 @@ export { default as WeeklyCheckInWidget } from './WeeklyCheckInWidget';
 export { default as DiscussionList } from './DiscussionList';
 export { default as DiscussionThread } from './DiscussionThread';
 export { default as CafeSettingsModal } from './CafeSettingsModal';
+export { default as CafeCorner } from './CafeCorner';
