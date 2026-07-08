@@ -55,6 +55,8 @@ export interface GenerateFormSeed {
   durationMinutes?: number;
   distanceKm?: number | '';
   elevationGainM?: number | '';
+  /** Free-text start preference (address/place) — geocoded on submit. */
+  startLocation?: string;
 }
 
 export interface UseGenerateFormArgs {
@@ -66,6 +68,7 @@ export interface UseGenerateFormArgs {
   initialDurationMinutes?: number;
   initialDistanceKm?: number | '';
   initialElevationGainM?: number | '';
+  initialStartLocation?: string;
   /**
    * The active route's routing profile (store `routeProfile`). When set, the
    * read-only summary chip reflects it — so a chat-generated gravel route
@@ -104,13 +107,14 @@ export function useGenerateForm({
   initialDurationMinutes,
   initialDistanceKm,
   initialElevationGainM,
+  initialStartLocation,
   activeRouteProfile = null,
 }: UseGenerateFormArgs) {
   const [goal, setGoal] = useState<Goal>(initialGoal ?? 'endurance');
   const [duration, setDuration] = useState<number>(initialDurationMinutes ?? 60);
   const [surface, setSurface] = useState<Surface>('road');
   const [shape, setShape] = useState<Shape>('loop');
-  const [startLocation, setStartLocation] = useState<string>('');
+  const [startLocation, setStartLocation] = useState<string>(initialStartLocation ?? '');
   const [distanceKm, setDistanceKm] = useState<number | ''>(initialDistanceKm ?? '');
   const [elevationGainM, setElevationGainM] = useState<number | ''>(initialElevationGainM ?? '');
   const [localError, setLocalError] = useState<string | null>(null);

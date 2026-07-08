@@ -58,6 +58,8 @@ import {
   RouteActionsPanel,
   DiscoverPanel,
   RaceDetailsCard,
+  WorkoutArrivalCard,
+  type PastRideOption,
   RB2,
   RB2_FONT,
   type LayerVisibilityState,
@@ -114,6 +116,7 @@ import type { GenerateOutcome, RouteOptionSummary } from '../features/route-buil
 import { generateCuesFromWorkoutStructure } from '../utils/intervalCues.js';
 import {
   categoryToGoal,
+  workoutTypeToGoal,
   type WorkoutCue,
 } from '../features/route-builder-v2/overlay/intervalOverlay';
 import type { GenerateFormSeed } from '../features/route-builder-v2/components/useGenerateForm';
@@ -192,16 +195,48 @@ export default function RouteBuilder2() {
     [pickedWorkoutId],
   );
   const hasWorkout = !!attachedWorkout;
-  const workoutName = attachedWorkout?.name ?? null;
   const upcomingPlanned = useUpcomingPlannedWorkouts(user?.id ?? null);
+
+  // Calendar arrival (`?from=calendar`): the planned workout may not resolve
+  // in the library (custom/coach-created rows have no library `workout_id`),
+  // so the URL's own goal/name/duration params are the fallback context —
+  // previously they were ignored and the builder opened dead. These are
+  // captured once; the arrival card + form seed consume them.
+  const [arrival] = useState(() => ({
+    fromCalendar: searchParams.get('from') === 'calendar',
+    goal: searchParams.get('goal'),
+    workoutName: searchParams.get('workoutName'),
+  }));
+  const workoutName = attachedWorkout?.name ?? arrival.workoutName ?? null;
+  // Start-location preference typed into the arrival card; seeds the generate
+  // form. The nonce remounts GenerateBar/FormPanel so a new seed applies.
+  const [arrivalStartLocation, setArrivalStartLocation] = useState('');
+  const [seedNonce, setSeedNonce] = useState(0);
+  const [arrivalDismissed, setArrivalDismissed] = useState(false);
+  // "Build something new" remounts the seeded form (nonce) — this keeps the
+  // fresh mobile FormPanel instance expanded instead of resetting collapsed.
+  const [arrivalChoseNew, setArrivalChoseNew] = useState(false);
+  const showArrivalCard = arrival.fromCalendar && !routeIdFromUrl && !arrivalDismissed;
+
   const formSeed = useMemo<GenerateFormSeed | undefined>(() => {
-    if (!attachedWorkout) return undefined;
-    return {
-      goal: categoryToGoal(attachedWorkout.category),
-      durationMinutes: seedOverride.durationMinutes ?? attachedWorkout.duration,
-      distanceKm: seedOverride.distanceKm ?? '',
-    };
-  }, [attachedWorkout, seedOverride]);
+    if (attachedWorkout) {
+      return {
+        goal: categoryToGoal(attachedWorkout.category),
+        durationMinutes: seedOverride.durationMinutes ?? attachedWorkout.duration,
+        distanceKm: seedOverride.distanceKm ?? '',
+        startLocation: arrivalStartLocation || undefined,
+      };
+    }
+    if (arrival.fromCalendar) {
+      return {
+        goal: workoutTypeToGoal(arrival.goal),
+        durationMinutes: seedOverride.durationMinutes,
+        distanceKm: seedOverride.distanceKm ?? '',
+        startLocation: arrivalStartLocation || undefined,
+      };
+    }
+    return undefined;
+  }, [attachedWorkout, seedOverride, arrival, arrivalStartLocation]);
 
   const generation = useAIGeneration();
   const editing = useRouteEditing();
@@ -537,24 +572,22 @@ export default function RouteBuilder2() {
     ]);
   }, [routeGeometry, waypoints, setWaypointsInStore]);
 
-  // Build a route FROM a past activity (`?from_activity=<id>`) — decode the
-  // activity's polyline into the editable route, then frame it (v1 parity).
-  const fromActivityHandledRef = useRef(false);
-  useEffect(() => {
-    const fromActivityId = searchParams.get('from_activity');
-    if (!fromActivityId || !user?.id || fromActivityHandledRef.current) return;
-    fromActivityHandledRef.current = true;
-    void (async () => {
+  // Build a route FROM a past activity — decode the activity's polyline into
+  // the editable route, then frame it (v1 parity). Shared by the
+  // `?from_activity=<id>` deep link and the arrival card's past-ride picker.
+  const loadRouteFromActivity = useCallback(
+    async (activityId: string): Promise<boolean> => {
+      if (!user?.id) return false;
       try {
         const { data: activity, error } = await supabase
           .from('activities')
           .select('id, name, map_summary_polyline, distance, total_elevation_gain')
-          .eq('id', fromActivityId)
+          .eq('id', activityId)
           .eq('user_id', user.id)
           .single();
-        if (error || !activity?.map_summary_polyline) return;
+        if (error || !activity?.map_summary_polyline) return false;
         const points = decodePolyline(activity.map_summary_polyline);
-        if (points.length < 2) return;
+        if (points.length < 2) return false;
         const coords = points.map((p) => [p.lng, p.lat] as Coordinate);
         setRouteInStore({
           geometry: { type: 'LineString', coordinates: coords },
@@ -569,19 +602,31 @@ export default function RouteBuilder2() {
         });
         map.fitBounds(coords);
         trackRb2('route_from_activity', {});
+        return true;
       } catch (e) {
         console.error('[rb2] from_activity load failed', e);
-      } finally {
-        setSearchParams(
-          (prev) => {
-            const p = new URLSearchParams(prev);
-            p.delete('from_activity');
-            return p;
-          },
-          { replace: true },
-        );
+        return false;
       }
-    })();
+    },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [user?.id, setRouteInStore],
+  );
+
+  const fromActivityHandledRef = useRef(false);
+  useEffect(() => {
+    const fromActivityId = searchParams.get('from_activity');
+    if (!fromActivityId || !user?.id || fromActivityHandledRef.current) return;
+    fromActivityHandledRef.current = true;
+    void loadRouteFromActivity(fromActivityId).finally(() => {
+      setSearchParams(
+        (prev) => {
+          const p = new URLSearchParams(prev);
+          p.delete('from_activity');
+          return p;
+        },
+        { replace: true },
+      );
+    });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchParams, user?.id]);
 
@@ -859,6 +904,96 @@ export default function RouteBuilder2() {
       isImperial={isImperial}
     />
   );
+
+  // --- Calendar-arrival card: how do you want to ride today's workout? ---
+  const [pastRides, setPastRides] = useState<PastRideOption[]>([]);
+  const [pastRidesLoading, setPastRidesLoading] = useState(false);
+  const pastRidesLoadedRef = useRef(false);
+
+  const loadPastRides = useCallback(async () => {
+    if (!user?.id || pastRidesLoadedRef.current) return;
+    pastRidesLoadedRef.current = true;
+    setPastRidesLoading(true);
+    const { data, error } = await supabase
+      .from('activities')
+      .select('id, name, start_date, distance')
+      .eq('user_id', user.id)
+      .not('map_summary_polyline', 'is', null)
+      .order('start_date', { ascending: false })
+      .limit(12);
+    if (error) console.error('[rb2] past rides load failed', error);
+    setPastRides(
+      (data ?? []).map((a) => ({
+        id: a.id as string,
+        name: (a.name as string | null) ?? null,
+        startDate: (a.start_date as string | null) ?? null,
+        // activities.distance is meters (legacy unsuffixed column).
+        distanceKm: a.distance ? (a.distance as number) / 1000 : null,
+      })),
+    );
+    setPastRidesLoading(false);
+  }, [user?.id]);
+
+  const handleArrivalNew = useCallback((startLocation: string) => {
+    setArrivalStartLocation(startLocation);
+    setSeedNonce((n) => n + 1);
+    setArrivalDismissed(true);
+    setArrivalChoseNew(true);
+    formControl.current.expand();
+    trackRb2('workout_arrival_choice', {
+      choice: 'new',
+      has_start_preference: !!startLocation,
+    });
+  }, []);
+
+  const handleArrivalSaved = useCallback(() => {
+    setArrivalDismissed(true);
+    if (isMobileRef.current) setMobileTab('discover');
+    else setRailOpenId('discover');
+    trackRb2('workout_arrival_choice', { choice: 'saved' });
+  }, []);
+
+  const handleArrivalPastPick = useCallback(
+    (activityId: string) => {
+      void loadRouteFromActivity(activityId).then((ok) => {
+        if (ok) setArrivalDismissed(true);
+      });
+      trackRb2('workout_arrival_choice', { choice: 'past_ride' });
+    },
+    [loadRouteFromActivity],
+  );
+
+  const handleArrivalDismiss = useCallback(() => {
+    setArrivalDismissed(true);
+    trackRb2('workout_arrival_choice', { choice: 'dismissed' });
+  }, []);
+
+  // Target line under the card title, e.g. "75 min · ~25 mi".
+  const arrivalDetailLabel = useMemo(() => {
+    const parts: string[] = [];
+    const minutes = seedOverride.durationMinutes ?? attachedWorkout?.duration;
+    if (minutes) parts.push(`${minutes} min`);
+    const km = typeof seedOverride.distanceKm === 'number' ? seedOverride.distanceKm : null;
+    if (km) {
+      parts.push(isImperial ? `~${Math.round(km * 0.621371)} mi` : `~${Math.round(km)} km`);
+    }
+    return parts.length ? parts.join(' · ') : null;
+  }, [seedOverride, attachedWorkout, isImperial]);
+
+  const arrivalCardNode = showArrivalCard ? (
+    <WorkoutArrivalCard
+      workoutLabel={workoutName}
+      detailLabel={arrivalDetailLabel}
+      onChooseNew={handleArrivalNew}
+      onChooseSaved={handleArrivalSaved}
+      onLoadPastRides={() => void loadPastRides()}
+      pastRides={pastRides}
+      pastRidesLoading={pastRidesLoading}
+      onPickPastRide={handleArrivalPastPick}
+      onDismiss={handleArrivalDismiss}
+      isImperial={isImperial}
+    />
+  ) : null;
 
   // Page mount telemetry
   useEffect(() => {
@@ -1210,7 +1345,8 @@ export default function RouteBuilder2() {
     <>
       {isLoading && <LoadingState message={loadingMessage} />}
       {error && <ErrorState message={error} onDismiss={dismissError} />}
-      {!hasRoute && !isLoading && <EmptyState isGuest={!user} />}
+      {arrivalCardNode}
+      {!hasRoute && !isLoading && !arrivalCardNode && <EmptyState isGuest={!user} />}
     </>
   );
 
@@ -1500,7 +1636,7 @@ export default function RouteBuilder2() {
                 isImperial={isImperial}
                 header={
                   <GenerateBar
-                    key={`gen-${pickedWorkoutId ?? 'none'}`}
+                    key={`gen-${pickedWorkoutId ?? 'none'}-${seedNonce}`}
                     generation={generation}
                     defaultStart={userLocation.coord}
                     locationStatus={userLocation.status}
@@ -1547,7 +1683,7 @@ export default function RouteBuilder2() {
             <LocationSearch onFlyTo={map.flyTo} proximity={viewportCenter} />
           </Box>
           <FormPanel
-            key={`form-${pickedWorkoutId ?? 'none'}`}
+            key={`form-${pickedWorkoutId ?? 'none'}-${seedNonce}`}
             ref={formPanelRef}
             generation={generation}
             defaultStart={userLocation.coord}
@@ -1556,7 +1692,7 @@ export default function RouteBuilder2() {
             isMobile
             isImperial={isImperial}
             formSeed={formSeed}
-            defaultExpanded={hasWorkout}
+            defaultExpanded={hasWorkout || arrivalChoseNew}
             activeRouteProfile={hasRouteForChat ? routeProfile : null}
           />
           <Box style={cardStyle}>
@@ -1793,6 +1929,7 @@ export default function RouteBuilder2() {
           onActiveChange={setMobileTab}
         />
 
+        {arrivalCardNode}
         {isLoading && <LoadingState message={loadingMessage} />}
         {error && <ErrorState message={error} onDismiss={dismissError} />}
       </Box>

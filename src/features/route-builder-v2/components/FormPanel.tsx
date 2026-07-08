@@ -99,6 +99,7 @@ export const FormPanel = forwardRef<FormPanelHandle, FormPanelProps>(function Fo
     initialDurationMinutes: formSeed?.durationMinutes,
     initialDistanceKm: formSeed?.distanceKm,
     initialElevationGainM: formSeed?.elevationGainM,
+    initialStartLocation: formSeed?.startLocation,
     activeRouteProfile,
   });
 
