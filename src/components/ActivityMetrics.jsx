@@ -81,6 +81,8 @@ export function calculateTSSFromPower(durationSeconds, normalizedPower, ftp) {
 /**
  * Get IF zone description
  */
+// Canonical 7-zone cuts — lockstep with TRAINING_ZONES and the DB trigger
+// calculate_power_zones (0.55/0.75/0.90/1.05/1.20/1.50 of FTP).
 export function getIFZone(intensityFactor) {
   if (!intensityFactor) return null;
 
@@ -94,8 +96,10 @@ export function getIFZone(intensityFactor) {
     return { zone: 4, name: 'Threshold', color: 'orange' };
   } else if (intensityFactor < 1.20) {
     return { zone: 5, name: 'VO2max', color: 'red' };
-  } else {
+  } else if (intensityFactor < 1.50) {
     return { zone: 6, name: 'Anaerobic', color: 'pink' };
+  } else {
+    return { zone: 7, name: 'Neuromuscular', color: 'grape' };
   }
 }
 

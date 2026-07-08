@@ -22,7 +22,14 @@ import type {
   DayAvailability,
 } from '../types/training';
 
-// Training Zones based on % of FTP
+// Training Zones based on % of FTP.
+// Canonical 7-zone model — boundaries in lockstep with the DB trigger
+// calculate_power_zones (database/migrations/002_add_ftp_power_zones.sql:
+// 55/75/90/105/120/150), which writes user_profiles.power_zones and feeds
+// the API coach context. Do not fork new boundary sets.
+// Zone 3.5 (Sweet Spot) is a workout-PRESCRIPTION target, not a display
+// zone: workout library segments reference it, but getPowerZone() never
+// classifies a ride into it.
 export const TRAINING_ZONES: TrainingZonesMap = {
   1: {
     name: 'Recovery',
@@ -55,16 +62,30 @@ export const TRAINING_ZONES: TrainingZonesMap = {
   4: {
     name: 'Threshold',
     color: '#3A5A8C',
-    ftp: { min: 95, max: 105 },
+    ftp: { min: 91, max: 105 },
     description: 'Lactate threshold, hard sustained effort',
     icon: '🔥'
   },
   5: {
     name: 'VO2 Max',
     color: '#3A5A8C',
-    ftp: { min: 106, max: 150 },
+    ftp: { min: 106, max: 120 },
     description: 'Maximum aerobic capacity, very hard efforts',
     icon: '🚀'
+  },
+  6: {
+    name: 'Anaerobic',
+    color: '#6B7F94',
+    ftp: { min: 121, max: 150 },
+    description: 'Anaerobic capacity, short very hard efforts',
+    icon: '⚡'
+  },
+  7: {
+    name: 'Neuromuscular',
+    color: '#8B6B5A',
+    ftp: { min: 151, max: 999 },
+    description: 'Sprint power, maximal short efforts',
+    icon: '🏁'
   }
 };
 
@@ -573,12 +594,15 @@ export function getPowerZone(power: number, ftp: number): TrainingZone | null {
   const percentage = (power / ftp) * 100;
 
   for (const [zoneNum, zone] of Object.entries(TRAINING_ZONES)) {
+    // Zone 3.5 (Sweet Spot) is a prescription target, not a display
+    // classification — its range overlaps Z3/Z4 and must never win here.
+    if (zoneNum === '3.5') continue;
     if (percentage >= zone.ftp.min && percentage <= zone.ftp.max) {
       return parseFloat(zoneNum) as TrainingZone;
     }
   }
 
-  return percentage > 150 ? 6 as TrainingZone : 1;
+  return percentage > 150 ? 7 as TrainingZone : 1;
 }
 
 /**

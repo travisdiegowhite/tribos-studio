@@ -65,13 +65,16 @@ function computeHRZones(heartRateStream, maxHR) {
 function computePowerZones(powerStream, ftp) {
   if (!powerStream || !ftp || ftp <= 0) return null;
 
+  // Canonical 7-zone boundaries — lockstep with TRAINING_ZONES and the DB
+  // trigger calculate_power_zones (55/75/90/105/120/150 %FTP).
   const zoneDefs = [
     { zone: 1, name: 'Recovery', min: 0, max: 55, color: tokens.colors.zone1 },
     { zone: 2, name: 'Endurance', min: 55, max: 75, color: tokens.colors.zone2 },
     { zone: 3, name: 'Tempo', min: 75, max: 90, color: tokens.colors.zone3 },
     { zone: 4, name: 'Threshold', min: 90, max: 105, color: tokens.colors.zone4 },
-    { zone: 5, name: 'VO2max', min: 105, max: 150, color: tokens.colors.zone5 },
-    { zone: 6, name: 'Anaerobic', min: 150, max: 9999, color: tokens.colors.zone6 },
+    { zone: 5, name: 'VO2max', min: 105, max: 120, color: tokens.colors.zone5 },
+    { zone: 6, name: 'Anaerobic', min: 120, max: 150, color: tokens.colors.zone6 },
+    { zone: 7, name: 'Neuromuscular', min: 150, max: 9999, color: tokens.colors.zone7 },
   ];
 
   const zones = zoneDefs.map((z) => ({
