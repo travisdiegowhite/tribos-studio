@@ -26,18 +26,27 @@ const TrainingLoadChart = ({ data }) => {
   const chartData = useMemo(() => {
     if (!data || data.length === 0) return [];
 
-    // Walk through ALL days with iterative EWA to compute CTL/ATL per day
-    // Formula: CTL_today = CTL_yesterday + (TSS_today - CTL_yesterday) / 42
-    //          ATL_today = ATL_yesterday + (TSS_today - ATL_yesterday) / 7
+    // Prefer per-point ctl/atl/tsb when the caller provides them (Training-
+    // Dashboard passes the server-preferred series from buildDailyLoadSeries,
+    // so the chart plots the same numbers as the page header). Fall back to
+    // the iterative client EWA for plain {date, tss} inputs:
+    //   CTL_today = CTL_yesterday + (TSS_today - CTL_yesterday) / 42
+    //   ATL_today = ATL_yesterday + (TSS_today - ATL_yesterday) / 7
     let ctl = 0;
     let atl = 0;
     const allDays = data.map(d => {
       const prevCtl = ctl;
       const prevAtl = atl;
-      ctl = ctl + (d.tss - ctl) / 42;
-      atl = atl + (d.tss - atl) / 7;
+      if (d.ctl != null && d.atl != null) {
+        ctl = d.ctl;
+        atl = d.atl;
+      } else {
+        ctl = ctl + (d.tss - ctl) / 42;
+        atl = atl + (d.tss - atl) / 7;
+      }
       // TSB uses yesterday's CTL/ATL (freshness going into today)
-      return { ...d, ctl: Math.round(ctl), atl: Math.round(atl), tsb: Math.round(prevCtl - prevAtl) };
+      const tsb = d.tsb != null ? Math.round(d.tsb) : Math.round(prevCtl - prevAtl);
+      return { ...d, ctl: Math.round(ctl), atl: Math.round(atl), tsb };
     });
 
     // Filter to selected time range for display

@@ -28,9 +28,12 @@ const RampRateAlert = ({ dailyTSSData, currentCTL, showDetails = true }) => {
       return null;
     }
 
-    // Calculate CTL at a given day index using iterative EWA
+    // CTL at a given day index. Points from TrainingDashboard carry a
+    // server-preferred per-day ctl (buildDailyLoadSeries); fall back to a
+    // client iterative EWA for plain {date, tss} inputs.
     const calculateCTLAtDay = (data, endIndex) => {
       if (endIndex < 0) return 0;
+      if (data[endIndex]?.ctl != null) return Math.round(data[endIndex].ctl);
       let ctl = 0;
       for (let i = 0; i <= endIndex; i++) {
         ctl = ctl + (data[i].tss - ctl) / 42;

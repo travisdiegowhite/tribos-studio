@@ -53,34 +53,45 @@ export function fmtDate(d: Date): string {
   ).padStart(2, '0')}`;
 }
 
+export interface DailyLoadPoint {
+  date: string; // ISO date (YYYY-MM-DD)
+  /** Client-estimated daily RSS (activity-derived, capped 500/activity). */
+  rss: number;
+  /** Unrounded running TFI (server value when the day has a row). */
+  tfi: number;
+  /** Unrounded running AFI (server value when the day has a row). */
+  afi: number;
+  /**
+   * Form Score for the day per spec §3.6 — yesterday's TFI − AFI (readiness
+   * going INTO the day), preferring the server row's stored form_score.
+   * Rounded, since form_score is stored rounded.
+   */
+  fs: number;
+}
+
 /**
- * Compute athlete state metrics, preferring server-stored TFI/AFI/form_score
- * from `training_load_daily` (terrain + MTB multipliers, per-athlete tau) and
- * falling through to a client-side EWA over activity-derived RSS for any dates
- * the server hasn't written. See docs/tfi-duality-decision.md.
+ * The shared server-preferred day walk. One implementation so every surface
+ * (Today, Glance, Dashboard, /train) derives fitness/fatigue/form from the
+ * same math: per day, prefer the server-stored TFI/AFI from
+ * `training_load_daily` (terrain + MTB multipliers, per-athlete tau); fall
+ * through to a client EWA (tau 42/7) over activity-derived RSS for dates the
+ * server hasn't written. See docs/tfi-duality-decision.md.
  */
-export function buildAthleteMetrics(
+export function buildDailyLoadSeries(
   activities: AthleteActivityRow[],
   ftp: number,
   serverHistory: ServerLoadRow[],
-): AthleteMetrics {
-  if (activities.length === 0 && serverHistory.length === 0) {
-    return {
-      formScore: null,
-      tfiCurrent: null,
-      afiCurrent: null,
-      tfiHistory: [],
-      afiLast28: [],
-    };
-  }
+  windowDays = 90,
+): DailyLoadPoint[] {
+  if (activities.length === 0 && serverHistory.length === 0) return [];
 
   const today = new Date();
   today.setHours(0, 0, 0, 0);
-  const ninetyDaysAgo = new Date(today);
-  ninetyDaysAgo.setDate(today.getDate() - 90);
+  const windowStart = new Date(today);
+  windowStart.setDate(today.getDate() - windowDays);
 
   const dailyRSS: Record<string, number> = {};
-  for (let d = new Date(ninetyDaysAgo); d <= today; d.setDate(d.getDate() + 1)) {
+  for (let d = new Date(windowStart); d <= today; d.setDate(d.getDate() + 1)) {
     dailyRSS[fmtDate(d)] = 0;
   }
   for (const a of activities) {
@@ -90,11 +101,6 @@ export function buildAthleteMetrics(
     }
   }
 
-  const sortedDays = Object.keys(dailyRSS).sort();
-  const windowStart28 = new Date(today);
-  windowStart28.setDate(today.getDate() - 27);
-  const windowKey28 = fmtDate(windowStart28);
-
   // Index server rows by date.
   const serverByDate = new Map<string, ServerLoadRow>();
   for (const row of serverHistory) serverByDate.set(row.date, row);
@@ -102,16 +108,13 @@ export function buildAthleteMetrics(
   // Walk forward. For each day, prefer the server's TFI/AFI when present;
   // otherwise advance the running EWA with the day's RSS. The EWA state
   // carries across server-vs-client days so we can resume cleanly.
-  const tfiHistory: SparklinePoint[] = [];
-  const afiLast28: number[] = [];
+  const series: DailyLoadPoint[] = [];
   let tfi = 0;
   let afi = 0;
-  let tfiYesterday = 0;
-  let afiYesterday = 0;
 
-  for (const day of sortedDays) {
-    tfiYesterday = tfi;
-    afiYesterday = afi;
+  for (const day of Object.keys(dailyRSS).sort()) {
+    const tfiYesterday = tfi;
+    const afiYesterday = afi;
     const server = serverByDate.get(day);
     // Trust a server row only when tfi/afi are actually present — Number(null)
     // is 0 (finite), so a null-valued row would silently zero fitness instead
@@ -130,28 +133,45 @@ export function buildAthleteMetrics(
       tfi = tfi + (rss - tfi) / 42;
       afi = afi + (rss - afi) / 7;
     }
-    if (day >= windowKey28) {
-      tfiHistory.push({ date: day, tfi: Math.round(tfi) });
-      afiLast28.push(afi);
-    }
+    const fs =
+      server?.form_score != null && Number.isFinite(Number(server.form_score))
+        ? Math.round(Number(server.form_score))
+        : Math.round(tfiYesterday - afiYesterday);
+    series.push({ date: day, rss: dailyRSS[day], tfi, afi, fs });
   }
 
-  // Form Score = TFI_yesterday − AFI_yesterday (freshness going into today).
-  // Prefer the server's stored form_score for today when present so we match
-  // the spec §3.6 calculation exactly (uses yesterday's stored values).
-  const todayKey = fmtDate(today);
-  const todayServer = serverByDate.get(todayKey);
-  const formScore =
-    todayServer?.form_score != null && Number.isFinite(Number(todayServer.form_score))
-      ? Math.round(Number(todayServer.form_score))
-      : Math.round(tfiYesterday - afiYesterday);
+  return series;
+}
+
+/**
+ * Compute athlete state metrics from the shared server-preferred day walk
+ * (buildDailyLoadSeries above).
+ */
+export function buildAthleteMetrics(
+  activities: AthleteActivityRow[],
+  ftp: number,
+  serverHistory: ServerLoadRow[],
+): AthleteMetrics {
+  const series = buildDailyLoadSeries(activities, ftp, serverHistory);
+  if (series.length === 0) {
+    return {
+      formScore: null,
+      tfiCurrent: null,
+      afiCurrent: null,
+      tfiHistory: [],
+      afiLast28: [],
+    };
+  }
+
+  const last28 = series.slice(-28);
+  const last = series[series.length - 1];
 
   return {
-    formScore,
-    tfiCurrent: Math.round(tfi),
-    afiCurrent: Math.round(afi),
-    tfiHistory,
-    afiLast28,
+    formScore: last.fs,
+    tfiCurrent: Math.round(last.tfi),
+    afiCurrent: Math.round(last.afi),
+    tfiHistory: last28.map((p) => ({ date: p.date, tfi: Math.round(p.tfi) })),
+    afiLast28: last28.map((p) => p.afi),
   };
 }
 

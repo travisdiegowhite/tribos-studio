@@ -585,7 +585,19 @@ function HistoricalInsights({ userId, activities, ftp }) {
         .order('snapshot_week', { ascending: false });
 
       if (fetchError) throw fetchError;
-      setServerSnapshots(data || []);
+      // Canonical-first column reads per the freeze policy (rows dual-write
+      // tfi/afi/form_score alongside ctl/atl/tsb with identical values; the
+      // charts keep reading the legacy JS keys).
+      setServerSnapshots(
+        (data || []).map((s) => ({
+          ...s,
+          ctl: s.tfi ?? s.ctl,
+          atl: s.afi ?? s.atl,
+          tsb: s.form_score ?? s.tsb,
+          weekly_tss: s.weekly_rss ?? s.weekly_tss,
+          avg_normalized_power: s.avg_effective_power ?? s.avg_normalized_power,
+        }))
+      );
 
     } catch (err) {
       console.error('Error loading server snapshots:', err);

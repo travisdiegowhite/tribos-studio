@@ -67,8 +67,9 @@ import HistoricalInsights from '../components/HistoricalInsights.jsx';
 import { WORKOUT_LIBRARY, getWorkoutsByCategory, getWorkoutById } from '../data/workoutLibrary';
 import { getWorkoutRecommendation } from '../services/workoutRecommendation';
 import { getAllPlans } from '../data/trainingPlanTemplates';
-import { calculateCTL, calculateATL, calculateTSB, interpretTSB, findOptimalSupplementDays } from '../utils/trainingPlans';
+import { interpretTSB, findOptimalSupplementDays } from '../utils/trainingPlans';
 import { estimateActivityTSS } from '../utils/computeFitnessSnapshots';
+import { buildDailyLoadSeries } from '../views/today/athleteMetrics';
 import { FtpMissingBadge } from '../components/ui';
 import { translateTSB } from '../lib/fitness/translate';
 import { exportWorkout, downloadWorkout } from '../utils/workoutExport';
@@ -129,6 +130,7 @@ function TrainingDashboard() {
     interpretation: null,
   });
   const [dailyTSSData, setDailyTSSData] = useState([]);
+  const [serverLoadHistory, setServerLoadHistory] = useState([]);
   const [healthCheckInOpen, setHealthCheckInOpen] = useState(false);
   const [fitUploadOpen, setFitUploadOpen] = useState(false);
   const [gpxUploadOpen, setGpxUploadOpen] = useState(false);
@@ -164,49 +166,36 @@ function TrainingDashboard() {
     [activities]
   );
 
-  // Recalculate training metrics when visible activities change
+  // Recalculate training metrics when visible activities change.
+  // Uses the shared server-preferred day walk (buildDailyLoadSeries) so /train
+  // shows the same fitness/fatigue/form as the Today views and Dashboard:
+  // per-day training_load_daily rows win, client EWA fills the gaps.
   useEffect(() => {
-    if (visibleActivities.length === 0) {
+    const series = buildDailyLoadSeries(visibleActivities, ftp, serverLoadHistory);
+    if (series.length === 0) {
       setDailyTSSData([]);
       setTrainingMetrics({ ctl: 0, atl: 0, tsb: 0, interpretation: null });
       return;
     }
 
-    const dailyTSS = {};
-    const today = new Date();
+    // Enriched points: tss for RampRateAlert / the load area chart, plus the
+    // server-preferred ctl/atl/tsb per day for the fitness lines.
+    setDailyTSSData(
+      series.map((p) => ({
+        date: p.date,
+        tss: p.rss,
+        ctl: Math.round(p.tfi),
+        atl: Math.round(p.afi),
+        tsb: p.fs,
+      }))
+    );
 
-    for (let i = 0; i < 90; i++) {
-      const date = new Date(today);
-      date.setDate(date.getDate() - i);
-      const dateStr = formatLocalDate(date);
-      dailyTSS[dateStr] = { date: dateStr, tss: 0 };
-    }
-
-    visibleActivities.forEach((activity) => {
-      const dateStr = activity.start_date?.split('T')[0];
-      if (dateStr && dailyTSS[dateStr]) {
-        // Use unified 5-tier TSS estimation (matches Dashboard)
-        const activityTSS = Math.min(estimateActivityTSS(activity, ftp), 500);
-        dailyTSS[dateStr].tss += activityTSS;
-      }
-    });
-
-    const sortedDailyTSS = Object.values(dailyTSS)
-      .sort((a, b) => new Date(a.date) - new Date(b.date));
-
-    setDailyTSSData(sortedDailyTSS);
-
-    const tssValues = sortedDailyTSS.map(d => d.tss);
-    const ctl = calculateCTL(tssValues);
-    const atl = calculateATL(tssValues);
-
-    // TSB uses yesterday's CTL/ATL (freshness going into today)
-    const tssYesterday = tssValues.length >= 2 ? tssValues.slice(0, -1) : tssValues;
-    const tsb = calculateTSB(calculateCTL(tssYesterday), calculateATL(tssYesterday));
-    const interpretation = interpretTSB(tsb);
-
-    setTrainingMetrics({ ctl, atl, tsb, interpretation });
-  }, [visibleActivities, ftp]);
+    const last = series[series.length - 1];
+    const ctl = Math.round(last.tfi);
+    const atl = Math.round(last.afi);
+    const tsb = last.fs;
+    setTrainingMetrics({ ctl, atl, tsb, interpretation: interpretTSB(tsb) });
+  }, [visibleActivities, ftp, serverLoadHistory]);
 
   // Load data
   useEffect(() => {
@@ -226,6 +215,20 @@ function TrainingDashboard() {
         if (userProfileData?.ftp) setFtp(userProfileData.ftp);
         if (userProfileData?.power_zones) setPowerZones(userProfileData.power_zones);
         if (userProfileData?.weight_kg) setUserWeight(userProfileData.weight_kg);
+
+        // Server-stored daily load (terrain/MTB multipliers, per-athlete tau).
+        // Same 90-day query as the Today views; buildDailyLoadSeries prefers
+        // these rows per-day and client-computes the gaps.
+        const ninety = new Date();
+        ninety.setDate(ninety.getDate() - 90);
+        const ninetyKey = formatLocalDate(ninety);
+        const { data: serverLoadRows } = await supabase
+          .from('training_load_daily')
+          .select('date, tfi, afi, form_score')
+          .eq('user_id', user.id)
+          .gte('date', ninetyKey)
+          .order('date', { ascending: true });
+        setServerLoadHistory(serverLoadRows || []);
 
         // Get all activities using pagination (Supabase caps at 1000 per request)
         let allActivities = [];
@@ -1546,16 +1549,14 @@ const TrendsTab = React.memo(function TrendsTab({ dailyTSSData, trainingMetrics,
     return (activities || []).filter(a => new Date(a.start_date) >= cutoff).length;
   }, [activities]);
 
-  // Real 4-week fitness change: CTL over the full daily-TSS window vs the
-  // window truncated 28 days ago (same iterative EWA as RampRateAlert).
+  // Real 4-week fitness change, read off the server-preferred per-day series
+  // (points carry ctl from buildDailyLoadSeries).
   const fitnessDelta4w = useMemo(() => {
     if (!dailyTSSData || dailyTSSData.length < 29) return null;
-    const ewa = (rows) => {
-      let ctl = 0;
-      for (const d of rows) ctl = ctl + (d.tss - ctl) / 42;
-      return ctl;
-    };
-    return Math.round(ewa(dailyTSSData) - ewa(dailyTSSData.slice(0, dailyTSSData.length - 28)));
+    const now = dailyTSSData[dailyTSSData.length - 1];
+    const fourWeeksAgo = dailyTSSData[dailyTSSData.length - 29];
+    if (now?.ctl == null || fourWeeksAgo?.ctl == null) return null;
+    return Math.round(now.ctl - fourWeeksAgo.ctl);
   }, [dailyTSSData]);
 
   return (
