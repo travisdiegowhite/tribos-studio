@@ -287,16 +287,22 @@ crude `avgPower × 1.15` (`rideAnalysis.estimateFTP`).
 
 ## 7. Recommended fixes, prioritized
 
-**P0 — small, unambiguous, freeze-compliant (could be one PR):**
-1. B1: real delta or delete the fake "+N%" tile.
-2. B4 + B5: `target_rss ?? target_tss` in IntelligenceCard and WeekSummaryGrid
-   (and add the fallback in AICoach.jsx:587).
-3. B3: add `?? normalized_power` at `fitnessSnapshots.js:335`.
-4. B2: Spine FS fallback → yesterday's TFI/AFI (or better: have
-   `getTodaySpine` call `buildAthleteMetrics` instead of its inline copy).
-5. B7: delete `RampRateBadge`, `FormWidget.jsx`, `FitnessBars.jsx` (dead).
-6. B6: replace TrainingDashboard's inline avg-watts tiering with
-   `estimateActivityTSS` in weeklyStats + context builders.
+**P0 — small, unambiguous, freeze-compliant — ✅ FIXED (2026-07-08, this branch):**
+1. B1 ✅: the fake tile now shows a real 4-week CTL delta (same iterative EWA
+   as RampRateAlert), labeled "Fitness change (4 weeks)".
+2. B4 + B5 ✅: IntelligenceCard and WeekSummaryGrid read
+   `target_rss ?? target_tss`; AICoach's two `planned_workouts` insert sites
+   now dual-write `target_rss` alongside `target_tss` (freeze rule 2).
+3. B3 ✅: Tier 3 reads `effective_power ?? normalized_power`; regression
+   tests added in `fitnessSnapshots.test.js`. (The optional backfill of
+   `activities.effective_power` remains open — item 11.)
+4. B2 ✅: Spine FS now uses the prior day's TFI/AFI for every day (past loop
+   and future projection), preferring a server row's stored `form_score` for
+   its own date; regression tests added in `getTodaySpine.test.ts`.
+5. B7 ✅: `RampRateBadge`, `FormWidget.jsx`, `FitnessBars.jsx` deleted.
+6. B6 ✅: TrainingDashboard's weeklyStats and both coach-context builders use
+   the shared `estimateActivityTSS`; `calculateTSS`/`estimateTSS` imports
+   removed.
 
 **P1 — needs a product/owner decision first:**
 7. **One Form-band authority.** Decide the canonical FS bands (spec §5 vs

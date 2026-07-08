@@ -448,7 +448,9 @@ function AICoach({ trainingContext, onAddWorkout, activePlan }) {
           name: workout.name,
           duration_minutes: workout.duration || 60,
           target_duration: workout.duration || 60,
+          // Dual-write canonical + legacy per the freeze policy (CLAUDE.md).
           target_tss: workout.targetTSS || 0,
+          target_rss: workout.targetTSS || 0,
           notes: recommendation.reason ? `Coach recommendation: ${recommendation.reason}` : '',
           completed: false
         })
@@ -584,7 +586,9 @@ function AICoach({ trainingContext, onAddWorkout, activePlan }) {
           name: w.name,
           duration_minutes: w.duration_minutes,
           target_duration: w.duration_minutes,
+          // Dual-write canonical + legacy per the freeze policy (CLAUDE.md).
           target_tss: w.target_tss,
+          target_rss: w.target_tss,
           notes: `Coach: ${planPreview.methodology} training - ${w.phase} phase`,
           completed: false
         }));

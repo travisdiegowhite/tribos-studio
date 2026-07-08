@@ -341,3 +341,28 @@ describe('future-day weekly volume', () => {
     expect(dayEight.volHours).toBeCloseTo(0, 5);
   });
 });
+
+describe('form score timing (spec §3.6 — readiness going INTO the day)', () => {
+  it("client-computed today uses yesterday's TFI/AFI: a hard ride today does not tank today's form", () => {
+    const data = assembleSpine(
+      baseInput({
+        serverLoad: [],
+        activities: [{ start_date: `${fmt(NOW)}T08:00:00`, rss: 200, moving_time: 7200 }],
+      }),
+    );
+    const today = data.days[42];
+    expect(today.rss).toBe(200);
+    // Going into today the EWA state was 0/0 → FS 0. The old same-day
+    // computation returned round(200/42) − round(200/7) ≈ −24.
+    expect(today.fs).toBe(0);
+    // ...and the ride's fatigue shows up in TOMORROW's form instead.
+    expect(data.days[43].fs).toBe(Math.round(200 / 42 - 200 / 7));
+  });
+
+  it("a server row's stored form_score is preferred for its own day", () => {
+    const data = assembleSpine(baseInput());
+    // Fixture rows carry form_score 4 on every day.
+    expect(data.days[42].fs).toBe(4);
+    expect(data.days[20].fs).toBe(4);
+  });
+});
