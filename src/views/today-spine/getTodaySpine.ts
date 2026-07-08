@@ -306,19 +306,25 @@ export function assembleSpine(input: AssembleInput): SpineData {
   };
 
   const todayKey = fmtDate(today);
-  const todayServer = serverByDate.get(todayKey);
 
   // ── Past 43 days ────────────────────────────────────────────────────────
   const days: DayNode[] = [];
   for (let i = 0; i <= PAST_SPAN; i++) {
     const date = fmtDate(addDays(today, i - PAST_SPAN));
+    const prevDate = fmtDate(addDays(today, i - PAST_SPAN - 1));
     const dTfi = Math.round(tfiByDate[date] ?? 0);
     const dAfi = Math.round(afiByDate[date] ?? 0);
     const isToday = i === PAST_SPAN;
+    // Spec §3.6: Form Score = yesterday's TFI − yesterday's AFI (readiness
+    // going INTO the day, not after it) — matches buildAthleteMetrics, which
+    // drives Today-Glance. Prefer the server's stored form_score for the day;
+    // fall back to the prior day's EWA state (the 90-day walk always extends
+    // past PAST_SPAN, so prevDate is inside the window for every rendered day).
+    const dayServer = serverByDate.get(date);
     const fs =
-      isToday && todayServer?.form_score != null && Number.isFinite(Number(todayServer.form_score))
-        ? Math.round(Number(todayServer.form_score))
-        : dTfi - dAfi;
+      dayServer?.form_score != null && Number.isFinite(Number(dayServer.form_score))
+        ? Math.round(Number(dayServer.form_score))
+        : Math.round((tfiByDate[prevDate] ?? 0) - (afiByDate[prevDate] ?? 0));
     const rss = Math.round(dailyRSS[date] ?? 0);
     days.push({
       index: i,
@@ -369,10 +375,14 @@ export function assembleSpine(input: AssembleInput): SpineData {
     const p = plannedByDate.get(date);
     const rss = p ? plannedRowRSS(p) : hasPlan ? 0 : maintenanceRSS;
     const isPlannedSession = !!p && rss > 0;
+    // Same §3.6 convention as the past loop: FS for day k is the state going
+    // INTO the day (yesterday's TFI − AFI), captured before stepping.
+    const prevTfi = state.tfi;
+    const prevAfi = state.afi;
     state = stepDay(state, rss);
     const dTfi = Math.round(state.tfi);
     const dAfi = Math.round(state.afi);
-    const fs = dTfi - dAfi;
+    const fs = Math.round(prevTfi - prevAfi);
     const durationMin = p ? Number(p.duration_minutes ?? p.target_duration ?? 0) : 0;
     // Extend the per-day seconds map with the planned duration so a future
     // day's WK VOLUME is a real trailing-7-day blend of actuals + plan (the

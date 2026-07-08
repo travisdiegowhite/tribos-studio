@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import {
   computeTFIComposition,
   buildTFICompositionForUser,
+  estimateTSSWithSource,
 } from './fitnessSnapshots.js';
 
 // ─── Helpers ───────────────────────────────────────────────────────────────
@@ -276,5 +277,54 @@ describe('buildTFICompositionForUser', () => {
       42
     );
     expect(result).toBeNull();
+  });
+});
+
+// ─── estimateTSSWithSource — tier fallbacks ────────────────────────────────
+
+describe('estimateTSSWithSource tier fallbacks', () => {
+  const flatRide = {
+    moving_time: 3600,
+    distance: 30000,
+    total_elevation_gain: 0,
+    type: 'Ride',
+  };
+
+  it('Tier 1: prefers stored canonical rss (device tier)', () => {
+    const r = estimateTSSWithSource({ ...flatRide, rss: 87 }, 250);
+    expect(r.source).toBe('device');
+    expect(r.tss).toBe(87);
+  });
+
+  it('Tier 1: falls back to legacy tss when rss is null', () => {
+    const r = estimateTSSWithSource({ ...flatRide, rss: null, tss: 91 }, 250);
+    expect(r.source).toBe('device');
+    expect(r.tss).toBe(91);
+  });
+
+  it('Tier 3: uses canonical effective_power (1h at FTP → 100)', () => {
+    const r = estimateTSSWithSource({ ...flatRide, effective_power: 250 }, 250);
+    expect(r.source).toBe('power');
+    expect(r.confidence).toBe(0.95);
+    expect(r.tss).toBe(100);
+  });
+
+  it('Tier 3: falls back to legacy normalized_power (pre-B9 rows without effective_power)', () => {
+    // Regression: migration 072 added effective_power without a backfill, so
+    // pre-B9 rows only carry normalized_power. Reading only the canonical
+    // column dropped these rides to the kJ tier (terrain-multiplied, 0.75).
+    const r = estimateTSSWithSource(
+      { ...flatRide, effective_power: null, normalized_power: 250, kilojoules: 800 },
+      250
+    );
+    expect(r.source).toBe('power');
+    expect(r.confidence).toBe(0.95);
+    expect(r.tss).toBe(100);
+  });
+
+  it('Tier 4: without any power column, kJ tier still applies', () => {
+    const r = estimateTSSWithSource({ ...flatRide, kilojoules: 900 }, 250);
+    expect(r.source).toBe('kilojoules');
+    expect(r.confidence).toBe(0.75);
   });
 });

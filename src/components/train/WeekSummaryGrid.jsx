@@ -43,7 +43,12 @@ function WeekSummaryGrid({ weeklyStats, actualWeeklyStats, plannedWorkouts, form
     return d >= thisMonday && d <= thisSunday;
   });
 
-  const plannedTSS = weekPlanned.reduce((sum, w) => sum + (w.tss || 0), 0);
+  // Canonical target_rss first, legacy target_tss fallback (planned_workouts
+  // has no `tss` column — reading it made plannedTSS silently always 0).
+  const plannedTSS = weekPlanned.reduce(
+    (sum, w) => sum + (Number(w.target_rss ?? w.target_tss) || 0),
+    0
+  );
   const plannedCount = weekPlanned.length;
   const completedCount = actualWeeklyStats?.activityCount || 0;
   const compliance = plannedCount > 0
@@ -57,7 +62,7 @@ function WeekSummaryGrid({ weeklyStats, actualWeeklyStats, plannedWorkouts, form
   const cells = [
     {
       label: 'TSS',
-      value: plannedTSS > 0 ? `${Math.round(weeklyTSS)}/${plannedTSS}` : String(Math.round(weeklyTSS)),
+      value: plannedTSS > 0 ? `${Math.round(weeklyTSS)}/${Math.round(plannedTSS)}` : String(Math.round(weeklyTSS)),
       color: 'var(--color-teal)',
     },
     {

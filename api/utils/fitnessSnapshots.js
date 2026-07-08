@@ -331,10 +331,15 @@ export function estimateTSSWithSource(activity, ftp) {
   }
 
   // Tier 3: effective power + FTP → standard RSS formula.
+  // Canonical-first with legacy fallback per CLAUDE.md freeze policy —
+  // migration 072 added effective_power without backfilling normalized_power,
+  // so pre-B9 rows carry only the legacy column; reading only canonical
+  // dropped those rides to Tier 4/5 (terrain-multiplied, lower confidence).
   // EP already reflects grade-induced load; no terrain scaling (D4).
-  if (activity.effective_power && activity.effective_power > 0 && ftp && ftp > 0 && activity.moving_time) {
+  const tier3Power = activity.effective_power ?? activity.normalized_power;
+  if (tier3Power && tier3Power > 0 && ftp && ftp > 0 && activity.moving_time) {
     const hours = activity.moving_time / 3600;
-    const intensityFactor = activity.effective_power / ftp;
+    const intensityFactor = tier3Power / ftp;
     const base = hours * intensityFactor * intensityFactor * 100;
     return {
       tss: Math.round(applyActivityTypeMultiplier(base, activity)),

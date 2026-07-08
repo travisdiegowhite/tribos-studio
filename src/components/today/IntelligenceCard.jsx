@@ -156,7 +156,7 @@ function IntelligenceCard({ workout, plan, routeMatch, loading, formatDist }) {
                 {workout.duration_minutes} min
               </Text>
             )}
-            {workout.tss && (
+            {(workout.target_rss ?? workout.target_tss) > 0 && (
               <Text
                 style={{
                   fontFamily: "'DM Mono', monospace",
@@ -164,7 +164,7 @@ function IntelligenceCard({ workout, plan, routeMatch, loading, formatDist }) {
                   color: 'var(--color-text-muted)',
                 }}
               >
-                TSS {workout.tss}
+                RSS {workout.target_rss ?? workout.target_tss}
               </Text>
             )}
           </Group>

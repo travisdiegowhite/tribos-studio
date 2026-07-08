@@ -53,7 +53,7 @@ import { SupplementWorkoutModal, SegmentLibraryPanel, TrainingPlanExportMenu, Ra
 import RaceGoalsPanel from '../components/RaceGoalsPanel.jsx';
 import PowerDurationCurve from '../components/PowerDurationCurve.jsx';
 import ZoneDistributionChart from '../components/ZoneDistributionChart.jsx';
-import RampRateAlert, { RampRateBadge } from '../components/RampRateAlert.jsx';
+import RampRateAlert from '../components/RampRateAlert.jsx';
 import { ActivityMetricsBadges } from '../components/ActivityMetrics.jsx';
 import RideAnalysisModal from '../components/RideAnalysisModal.jsx';
 import { WorkoutModal } from '../components/planner/WorkoutModal';
@@ -67,7 +67,7 @@ import HistoricalInsights from '../components/HistoricalInsights.jsx';
 import { WORKOUT_LIBRARY, getWorkoutsByCategory, getWorkoutById } from '../data/workoutLibrary';
 import { getWorkoutRecommendation } from '../services/workoutRecommendation';
 import { getAllPlans } from '../data/trainingPlanTemplates';
-import { calculateCTL, calculateATL, calculateTSB, interpretTSB, estimateTSS, calculateTSS, findOptimalSupplementDays } from '../utils/trainingPlans';
+import { calculateCTL, calculateATL, calculateTSB, interpretTSB, findOptimalSupplementDays } from '../utils/trainingPlans';
 import { estimateActivityTSS } from '../utils/computeFitnessSnapshots';
 import { FtpMissingBadge } from '../components/ui';
 import { translateTSB } from '../lib/fitness/translate';
@@ -585,23 +585,10 @@ function TrainingDashboard() {
 
     const stats = filtered.reduce(
       (acc, a) => {
-        // Prefer stored TSS, fall back to recomputation, cap at 500
-        let activityTSS;
-        // Prefer canonical activity.rss (spec §2) with legacy fallback.
-        const storedRss = a.rss ?? a.tss;
-        if (storedRss != null && storedRss > 0) {
-          activityTSS = storedRss;
-        } else if (a.average_watts && ftp) {
-          activityTSS = calculateTSS(a.moving_time, a.average_watts, ftp);
-        } else {
-          activityTSS = estimateTSS(
-            (a.moving_time || 0) / 60,
-            (a.distance || 0) / 1000,
-            a.total_elevation_gain || 0,
-            'endurance'
-          );
-        }
-        activityTSS = Math.min(activityTSS || 0, 500);
+        // Unified 5-tier RSS estimation (same path as the CTL/ATL metrics) —
+        // the old inline tiering fed average_watts into the NP-based formula,
+        // underestimating variable rides vs the chart on this same page.
+        const activityTSS = Math.min(estimateActivityTSS(a, ftp) || 0, 500);
 
         const sport = getSportTypeForActivity(a);
         const sportBucket = sport === 'running' ? acc.running : sport === 'cycling' ? acc.cycling : acc.other;
@@ -1559,6 +1546,18 @@ const TrendsTab = React.memo(function TrendsTab({ dailyTSSData, trainingMetrics,
     return (activities || []).filter(a => new Date(a.start_date) >= cutoff).length;
   }, [activities]);
 
+  // Real 4-week fitness change: CTL over the full daily-TSS window vs the
+  // window truncated 28 days ago (same iterative EWA as RampRateAlert).
+  const fitnessDelta4w = useMemo(() => {
+    if (!dailyTSSData || dailyTSSData.length < 29) return null;
+    const ewa = (rows) => {
+      let ctl = 0;
+      for (const d of rows) ctl = ctl + (d.tss - ctl) / 42;
+      return ctl;
+    };
+    return Math.round(ewa(dailyTSSData) - ewa(dailyTSSData.slice(0, dailyTSSData.length - 28)));
+  }, [dailyTSSData]);
+
   return (
     <Stack gap="lg">
       {/* Ramp Rate Alert */}
@@ -1629,9 +1628,15 @@ const TrendsTab = React.memo(function TrendsTab({ dailyTSSData, trainingMetrics,
       <Card withBorder p="md">
         <SimpleGrid cols={{ base: 1, sm: 3 }} spacing="md">
           <Paper p="md" ta="center" style={{ background: 'var(--tribos-input)', border: '1px solid var(--tribos-border-subtle)', boxShadow: 'var(--tribos-shadow-inset)' }}>
-            <TrendUp size={24} color="#3D8B50" style={{ marginBottom: 8 }} />
-            <Text size="xl" fw={700} c="teal">+{Math.round(trainingMetrics.ctl * 0.12)}%</Text>
-            <Text size="sm" c="dimmed">Fitness vs 90 days ago</Text>
+            {fitnessDelta4w != null && fitnessDelta4w < 0 ? (
+              <TrendDown size={24} color="#C2410C" style={{ marginBottom: 8 }} />
+            ) : (
+              <TrendUp size={24} color="#3D8B50" style={{ marginBottom: 8 }} />
+            )}
+            <Text size="xl" fw={700} c={fitnessDelta4w != null && fitnessDelta4w < 0 ? 'orange' : 'teal'}>
+              {fitnessDelta4w == null ? '--' : `${fitnessDelta4w >= 0 ? '+' : ''}${fitnessDelta4w}`}
+            </Text>
+            <Text size="sm" c="dimmed">Fitness change (4 weeks)</Text>
           </Paper>
           <Paper p="md" ta="center" style={{ background: 'var(--tribos-input)', border: '1px solid var(--tribos-border-subtle)', boxShadow: 'var(--tribos-shadow-inset)' }}>
             <Path size={24} color="#3D8B50" style={{ marginBottom: 8 }} />
@@ -2174,17 +2179,8 @@ function buildTrainingContext(trainingMetrics, weeklyStats, actualWeeklyStats, f
       const dur = a.moving_time ? formatTime(a.moving_time) : '';
       const power = (sport === 'cycling' && a.average_watts) ? `${Math.round(a.average_watts)}W avg` : '';
 
-      // Use stored RSS (spec §2 canonical with legacy fallback), or recompute with cap.
-      let tss = 0;
-      const storedRss = a.rss ?? a.tss;
-      if (storedRss != null && storedRss > 0) {
-        tss = storedRss;
-      } else if (a.average_watts && ftp) {
-        tss = calculateTSS(a.moving_time, a.average_watts, ftp) || 0;
-      } else {
-        tss = estimateTSS((a.moving_time || 0) / 60, (a.distance || 0) / 1000, a.total_elevation_gain || 0, 'endurance');
-      }
-      tss = Math.min(tss, 500);
+      // Unified 5-tier RSS estimation (stored rss ?? tss first), capped at 500.
+      const tss = Math.min(estimateActivityTSS(a, ftp) || 0, 500);
 
       const parts = [a.name || typeLabel, `(${typeLabel})`];
       if (dist) parts.push(dist);
@@ -2467,16 +2463,8 @@ function buildTrainingContext(trainingMetrics, weeklyStats, actualWeeklyStats, f
           const dayActivities = activityByDate[w.scheduled_date];
           if (dayActivities && dayActivities.length > 0) {
             const bestMatch = dayActivities[0];
-            let actualTSS = 0;
-            const bestMatchRss = bestMatch.rss ?? bestMatch.tss;
-            if (bestMatchRss != null && bestMatchRss > 0) {
-              actualTSS = bestMatchRss;
-            } else if (bestMatch.average_watts && ftp) {
-              actualTSS = calculateTSS(bestMatch.moving_time, bestMatch.average_watts, ftp) || 0;
-            } else {
-              actualTSS = estimateTSS((bestMatch.moving_time || 0) / 60, (bestMatch.distance || 0) / 1000, bestMatch.total_elevation_gain || 0, 'endurance');
-            }
-            actualTSS = Math.min(actualTSS, 500);
+            // Unified 5-tier RSS estimation (stored rss ?? tss first), capped at 500.
+            const actualTSS = Math.min(estimateActivityTSS(bestMatch, ftp) || 0, 500);
             actualStr = ` -> actual ${Math.round(actualTSS)} RSS`;
             if (targetRss && targetRss > 0) {
               actualStr += ` (${Math.round(actualTSS / targetRss * 100)}%)`;
