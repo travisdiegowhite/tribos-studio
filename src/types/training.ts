@@ -761,7 +761,8 @@ export interface PlanProgress {
 // TSB / TRAINING LOAD TYPES
 // ============================================================
 
-export type TSBStatus = 'fresh' | 'rested' | 'neutral' | 'fatigued' | 'very_fatigued';
+// Spec §5 form bands — keep in lockstep with src/utils/formBands.js.
+export type TSBStatus = 'transition' | 'fresh' | 'grey_zone' | 'optimal' | 'overreached';
 
 export interface TSBInterpretation {
   status: TSBStatus;

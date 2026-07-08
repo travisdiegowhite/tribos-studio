@@ -502,41 +502,43 @@ export const calculateATL = calculateAFI;
 export const calculateTSB = calculateFS;
 
 /**
- * Interpret Form Score for user feedback
+ * Interpret Form Score for user feedback.
+ * Bands are the spec §5 zones — keep cuts in lockstep with
+ * src/utils/formBands.js (the single form-band authority).
  */
 export function interpretFS(formScore: number): TSBInterpretation {
   const tsb = formScore;
-  if (tsb > 25) {
+  if (tsb > 20) {
+    return {
+      status: 'transition',
+      color: '#D4820A',
+      message: 'Very fresh - form this high means fitness is slipping',
+      recommendation: 'Add training load unless you are tapering for an event'
+    };
+  } else if (tsb >= 10) {
     return {
       status: 'fresh',
       color: '#3D8B50',
-      message: 'Very fresh - ready for hard training or racing',
+      message: 'Fresh - race ready',
       recommendation: 'Good time for a hard workout or event'
     };
-  } else if (tsb > 5) {
+  } else if (tsb >= -5) {
     return {
-      status: 'rested',
-      color: '#3D8B50',
-      message: 'Well rested - performing at peak',
-      recommendation: 'Maintain current training load'
-    };
-  } else if (tsb > -10) {
-    return {
-      status: 'neutral',
+      status: 'grey_zone',
       color: '#D4820A',
-      message: 'Balanced - normal training state',
+      message: 'Grey zone - neither fresh nor productively loaded',
       recommendation: 'Continue with planned training'
     };
-  } else if (tsb > -30) {
+  } else if (tsb >= -30) {
     return {
-      status: 'fatigued',
-      color: '#3A5A8C',
-      message: 'Building fatigue - normal during hard training',
-      recommendation: 'Consider a recovery day soon'
+      status: 'optimal',
+      color: '#3D8B50',
+      message: 'Optimal training load - building fitness',
+      recommendation: 'Keep going; schedule recovery before form drops below -30'
     };
   } else {
     return {
-      status: 'very_fatigued',
+      status: 'overreached',
       color: '#3A5A8C',
       message: 'High fatigue - risk of overtraining',
       recommendation: 'Take a recovery week immediately'

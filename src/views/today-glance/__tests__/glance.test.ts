@@ -129,13 +129,13 @@ describe('recent rides (hero fallback helpers)', () => {
 });
 
 describe('formVerdict', () => {
-  it('maps Form Score to a plain-language verdict', () => {
+  it('maps Form Score to a plain-language verdict (spec §5 bands)', () => {
     expect(formVerdict(null)).toBe('building baseline');
-    expect(formVerdict(20)).toBe('fresh — add load');
-    expect(formVerdict(8)).toBe('primed — cleared for quality');
-    expect(formVerdict(0)).toBe('cleared for quality');
-    expect(formVerdict(-15)).toBe('steady aerobic only');
-    expect(formVerdict(-30)).toBe('keep it easy — recover');
+    expect(formVerdict(25)).toBe('too fresh — add load');
+    expect(formVerdict(15)).toBe('fresh — cleared for quality');
+    expect(formVerdict(0)).toBe('grey zone — cleared for quality');
+    expect(formVerdict(-15)).toBe('productive load — steady aerobic');
+    expect(formVerdict(-31)).toBe('overreached — recover');
   });
 });
 

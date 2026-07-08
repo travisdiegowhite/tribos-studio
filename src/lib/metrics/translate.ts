@@ -8,10 +8,12 @@ import type { MetricTranslation } from '../fitness/types';
 
 // ─── EFI Translation ─────────────────────────────────────────────────────────
 
+// Cuts in lockstep with efiZones in src/utils/todayVocabulary.ts — the same
+// EFI must not read "Dialed in" on one page and "On track" on another.
 export function translateEFI(score: number): MetricTranslation {
-  if (score >= 80) return { label: 'Dialed in', color: 'teal' };
+  if (score >= 85) return { label: 'Dialed in', color: 'teal' };
   if (score >= 60) return { label: 'Solid execution', color: 'gold' };
-  if (score >= 40) return { label: 'Drifting from plan', color: 'orange' };
+  if (score >= 35) return { label: 'Drifting from plan', color: 'orange' };
   return { label: 'Plan mismatch', color: 'coral' };
 }
 
@@ -26,10 +28,11 @@ export function translateTWL(overagePercent: number): MetricTranslation {
 
 // ─── TCAS Translation ────────────────────────────────────────────────────────
 
+// Cuts in lockstep with tcasZones in src/utils/todayVocabulary.ts.
 export function translateTCAS(score: number): MetricTranslation {
-  if (score >= 80) return { label: 'Peak efficiency', color: 'teal' };
+  if (score >= 85) return { label: 'Peak efficiency', color: 'teal' };
   if (score >= 60) return { label: 'Good adaptation', color: 'gold' };
-  if (score >= 40) return { label: 'Room to improve', color: 'orange' };
+  if (score >= 30) return { label: 'Room to improve', color: 'orange' };
   return { label: 'Review training', color: 'coral' };
 }
 

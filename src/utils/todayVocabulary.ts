@@ -18,6 +18,8 @@
  *   gray     #B4B2A9  neutral / stale / low / inactive
  */
 
+import { formBandForScore } from './formBands';
+
 export const todayColors = {
   teal: '#2A8C82',
   gold: '#C49A0A',
@@ -51,15 +53,27 @@ function pickZone(value: number | null | undefined, zones: ZoneStop[]): ZoneStop
 
 // ────────────────────────────────────────────────────────────────────────────
 // FORM SCORE (legacy: TSB)
-// Zones (left to right) mirror what the bar renders.
+// Bands are the spec §5 zones — single authority in src/utils/formBands.js
+// (transition >+20 / fresh +10..+20 / grey −5..+10 / optimal −30..−5 /
+// overreached <−30). Zones (left to right) mirror what the bar renders; the
+// verdict itself comes from formBandForScore so boundary handling is
+// identical on every surface.
 // ────────────────────────────────────────────────────────────────────────────
 
+const formBandColors: Record<string, ZoneColor> = {
+  transition: todayColors.orange,
+  fresh: todayColors.gold,
+  grey: todayColors.gray,
+  optimal: todayColors.teal,
+  overreached: todayColors.coral,
+};
+
 export const formZones: ZoneStop[] = [
-  { min: -Infinity, max: -20, word: 'Drained',    color: todayColors.coral },
-  { min: -20,       max: -10, word: 'Loaded',     color: todayColors.orange },
-  { min: -10,       max: 5,   word: 'Sweet spot', color: todayColors.teal },
-  { min: 5,         max: 15,  word: 'Sharp',      color: todayColors.gold },
-  { min: 15,        max: Infinity, word: 'Stale', color: todayColors.gray },
+  { min: -Infinity, max: -30, word: 'Overreached',  color: todayColors.coral },
+  { min: -30,       max: -5,  word: 'Optimal load', color: todayColors.teal },
+  { min: -5,        max: 10,  word: 'Grey zone',    color: todayColors.gray },
+  { min: 10,        max: 21,  word: 'Fresh',        color: todayColors.gold },
+  { min: 21,        max: Infinity, word: 'Too fresh', color: todayColors.orange },
 ];
 
 export interface FormVerdict {
@@ -68,9 +82,9 @@ export interface FormVerdict {
 }
 
 export function freshnessFromFormScore(score: number | null): FormVerdict {
-  const zone = pickZone(score, formZones);
-  if (!zone) return { word: 'Building baseline', color: todayColors.gray };
-  return { word: zone.word, color: zone.color };
+  const band = formBandForScore(score);
+  if (!band) return { word: 'Building baseline', color: todayColors.gray };
+  return { word: band.word, color: formBandColors[band.key] ?? todayColors.gray };
 }
 
 // ────────────────────────────────────────────────────────────────────────────
