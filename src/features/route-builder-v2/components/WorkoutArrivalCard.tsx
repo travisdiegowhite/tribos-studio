@@ -18,18 +18,29 @@ import { Box, Group, Loader, Text, TextInput, UnstyledButton } from '@mantine/co
 import {
   ArrowCounterClockwise,
   ArrowLeft,
+  CaretUp,
   FolderOpen,
   Sparkle,
   X,
 } from '@phosphor-icons/react';
 import { RB2, RB2_FONT } from './brand';
+import type { RouteFit } from '../discover/rankRoutes';
 
 export interface PastRideOption {
   id: string;
   name: string | null;
   startDate: string | null;
   distanceKm: number | null;
+  movingTimeMinutes?: number | null;
+  /** Closeness to the workout target (see rankPastRidesByFit); null = untargeted. */
+  fit?: RouteFit;
 }
+
+const FIT_COPY: Record<Exclude<RouteFit, null>, { label: string; color: string }> = {
+  great: { label: 'Great fit', color: RB2.teal },
+  good: { label: 'Good fit', color: RB2.teal },
+  far: { label: 'Off target', color: RB2.textTertiary },
+};
 
 export interface WorkoutArrivalCardProps {
   /** Workout name from the calendar (or a goal label fallback). */
@@ -61,6 +72,13 @@ function formatRideDate(iso: string | null): string {
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return '';
   return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+}
+
+function formatMovingTime(minutes: number | null | undefined): string {
+  if (!minutes || minutes <= 0) return '';
+  const h = Math.floor(minutes / 60);
+  const m = Math.round(minutes % 60);
+  return h > 0 ? `${h}h${m > 0 ? ` ${m}m` : ''}` : `${m}m`;
 }
 
 const optionButtonStyle: React.CSSProperties = {
@@ -302,45 +320,137 @@ export function WorkoutArrivalCard({
               something new instead.
             </Text>
           ) : (
-            <Box style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-              {pastRides.map((ride) => (
-                <UnstyledButton
-                  key={ride.id}
-                  data-testid={`rb2-workout-arrival-ride-${ride.id}`}
-                  onClick={() => onPickPastRide(ride.id)}
-                  style={{
-                    padding: '8px 10px',
-                    border: `1px solid ${RB2.border}`,
-                    backgroundColor: RB2.bgSecondary,
-                  }}
-                >
-                  <Text
-                    style={{
-                      fontFamily: RB2_FONT.body,
-                      fontSize: 13,
-                      fontWeight: 600,
-                      color: RB2.textPrimary,
-                      whiteSpace: 'nowrap',
-                      overflow: 'hidden',
-                      textOverflow: 'ellipsis',
-                    }}
-                  >
-                    {ride.name || 'Untitled ride'}
-                  </Text>
-                  <Text
-                    style={{ fontFamily: RB2_FONT.mono, fontSize: 11, color: RB2.textTertiary }}
-                  >
-                    {[formatRideDate(ride.startDate), formatDistance(ride.distanceKm, isImperial)]
-                      .filter(Boolean)
-                      .join(' · ')}
-                  </Text>
-                </UnstyledButton>
-              ))}
-            </Box>
+            <>
+              <Text
+                style={{
+                  fontFamily: RB2_FONT.mono,
+                  fontSize: 10,
+                  letterSpacing: '0.12em',
+                  textTransform: 'uppercase',
+                  color: RB2.textTertiary,
+                  marginBottom: 6,
+                }}
+              >
+                Closest matches to this workout
+              </Text>
+              <Box style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                {pastRides.map((ride) => {
+                  const fit = ride.fit ? FIT_COPY[ride.fit] : null;
+                  return (
+                    <UnstyledButton
+                      key={ride.id}
+                      data-testid={`rb2-workout-arrival-ride-${ride.id}`}
+                      onClick={() => onPickPastRide(ride.id)}
+                      style={{
+                        padding: '8px 10px',
+                        border: `1px solid ${RB2.border}`,
+                        backgroundColor: RB2.bgSecondary,
+                      }}
+                    >
+                      <Group justify="space-between" wrap="nowrap" style={{ width: '100%' }}>
+                        <Text
+                          style={{
+                            fontFamily: RB2_FONT.body,
+                            fontSize: 13,
+                            fontWeight: 600,
+                            color: RB2.textPrimary,
+                            whiteSpace: 'nowrap',
+                            overflow: 'hidden',
+                            textOverflow: 'ellipsis',
+                          }}
+                        >
+                          {ride.name || 'Untitled ride'}
+                        </Text>
+                        {fit && (
+                          <Text
+                            data-testid={`rb2-workout-arrival-ride-fit-${ride.id}`}
+                            style={{
+                              fontFamily: RB2_FONT.mono,
+                              fontSize: 9,
+                              letterSpacing: '0.06em',
+                              textTransform: 'uppercase',
+                              color: fit.color,
+                              flexShrink: 0,
+                            }}
+                          >
+                            {fit.label}
+                          </Text>
+                        )}
+                      </Group>
+                      <Text
+                        style={{ fontFamily: RB2_FONT.mono, fontSize: 11, color: RB2.textTertiary }}
+                      >
+                        {[
+                          formatRideDate(ride.startDate),
+                          formatDistance(ride.distanceKm, isImperial),
+                          formatMovingTime(ride.movingTimeMinutes),
+                        ]
+                          .filter(Boolean)
+                          .join(' · ')}
+                      </Text>
+                    </UnstyledButton>
+                  );
+                })}
+              </Box>
+            </>
           )}
         </>
       )}
     </Box>
+  );
+}
+
+/**
+ * Minimized state of the arrival flow: a small pill that stays on the map
+ * after the rider picks an option, so they can change their mind ("actually,
+ * build me something new") without going back to the calendar. Disappears for
+ * good when a route is saved or the card is dismissed.
+ */
+export function WorkoutArrivalPill({
+  workoutLabel,
+  onOpen,
+  isMobile = false,
+}: {
+  workoutLabel: string | null;
+  onOpen: () => void;
+  isMobile?: boolean;
+}) {
+  return (
+    <UnstyledButton
+      data-testid="rb2-workout-arrival-pill"
+      onClick={onOpen}
+      aria-label="Reopen workout ride options"
+      style={{
+        position: 'absolute',
+        // Clear the mobile bottom-sheet tab bar; sit above the desktop map edge.
+        bottom: isMobile ? 84 : 16,
+        left: 12,
+        zIndex: 26,
+        display: 'flex',
+        alignItems: 'center',
+        gap: 6,
+        padding: '6px 10px',
+        backgroundColor: RB2.cardBg,
+        border: `1px solid ${RB2.border}`,
+        boxShadow: RB2.shadowCard,
+        maxWidth: 280,
+      }}
+    >
+      <CaretUp size={12} color={RB2.teal} weight="bold" />
+      <Text
+        style={{
+          fontFamily: RB2_FONT.mono,
+          fontSize: 11,
+          letterSpacing: '0.04em',
+          color: RB2.textSecondary,
+          whiteSpace: 'nowrap',
+          overflow: 'hidden',
+          textOverflow: 'ellipsis',
+        }}
+      >
+        {workoutLabel ? `Today: ${workoutLabel}` : "Today's workout"}
+      </Text>
+    </UnstyledButton>
   );
 }
 

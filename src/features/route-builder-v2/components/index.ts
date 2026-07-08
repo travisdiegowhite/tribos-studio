@@ -13,7 +13,7 @@ export { ElevationPanel } from './ElevationPanel';
 export { GradientLegend } from './GradientLegend';
 export { WorkoutOverlayLegend } from './WorkoutOverlayLegend';
 export { WorkoutPickerPanel } from './WorkoutPickerPanel';
-export { WorkoutArrivalCard, type PastRideOption } from './WorkoutArrivalCard';
+export { WorkoutArrivalCard, WorkoutArrivalPill, type PastRideOption } from './WorkoutArrivalCard';
 export { SurfaceSummaryBar } from './SurfaceSummaryBar';
 export { LayerToggles, type LayerVisibilityState } from './LayerToggles';
 export { WaypointListPanel } from './WaypointListPanel';

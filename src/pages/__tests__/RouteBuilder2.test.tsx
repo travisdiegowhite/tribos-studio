@@ -136,6 +136,10 @@ describe('RouteBuilder2 (P1.3)', () => {
     const CALENDAR_PATH =
       '/route-builder-2?from=calendar&goal=endurance&duration=90&scheduledDate=2026-07-08&workoutName=Endurance%20Ride';
 
+    beforeEach(() => {
+      sessionStorage.clear();
+    });
+
     it('shows the interactive arrival card, even without a library workoutId', () => {
       renderPage(CALENDAR_PATH);
       expect(screen.getByTestId('rb2-workout-arrival')).toBeInTheDocument();
@@ -174,11 +178,44 @@ describe('RouteBuilder2 (P1.3)', () => {
       expect(screen.getByTestId('rb2-discover-panel')).toBeInTheDocument();
     });
 
-    it('dismissing the card reveals the normal empty state', () => {
+    it('a choice minimizes the card to a pill that can reopen it', () => {
       renderPage(CALENDAR_PATH);
+      fireEvent.click(screen.getByTestId('rb2-workout-arrival-saved'));
+      // Not gone — minimized to a pill so the rider can change their mind.
+      const pill = screen.getByTestId('rb2-workout-arrival-pill');
+      expect(pill).toHaveTextContent('Endurance Ride');
+      fireEvent.click(pill);
+      expect(screen.getByTestId('rb2-workout-arrival')).toBeInTheDocument();
+      expect(screen.queryByTestId('rb2-workout-arrival-pill')).toBeNull();
+      // …and a different choice works the second time around.
+      fireEvent.click(screen.getByTestId('rb2-workout-arrival-new'));
+      expect(screen.getByTestId('rb2-generate-bar-toggle')).toHaveAttribute(
+        'aria-expanded',
+        'true',
+      );
+    });
+
+    it('persists the arrival session so it survives a remount', () => {
+      const { unmount } = renderPage(CALENDAR_PATH);
+      fireEvent.click(screen.getByTestId('rb2-workout-arrival-saved'));
+      unmount();
+      // Fresh mount with no calendar params — e.g. after navigating to
+      // /ride/:id when a saved route was picked.
+      renderPage('/route-builder-2');
+      expect(screen.getByTestId('rb2-workout-arrival-pill')).toHaveTextContent(
+        'Endurance Ride',
+      );
+    });
+
+    it('dismissing the card ends the flow — no pill, storage cleared', () => {
+      const { unmount } = renderPage(CALENDAR_PATH);
       fireEvent.click(screen.getByTestId('rb2-workout-arrival-dismiss'));
       expect(screen.queryByTestId('rb2-workout-arrival')).toBeNull();
+      expect(screen.queryByTestId('rb2-workout-arrival-pill')).toBeNull();
       expect(screen.getByTestId('rb2-empty-state')).toBeInTheDocument();
+      unmount();
+      renderPage('/route-builder-2');
+      expect(screen.queryByTestId('rb2-workout-arrival-pill')).toBeNull();
     });
   });
 });

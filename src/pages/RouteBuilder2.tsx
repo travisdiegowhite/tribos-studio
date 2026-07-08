@@ -59,6 +59,7 @@ import {
   DiscoverPanel,
   RaceDetailsCard,
   WorkoutArrivalCard,
+  WorkoutArrivalPill,
   type PastRideOption,
   RB2,
   RB2_FONT,
@@ -89,6 +90,13 @@ import { IntervalsLayer } from '../features/route-builder-v2/layers/IntervalsLay
 import { WorkoutOverlayLegend, WorkoutPickerPanel } from '../features/route-builder-v2/components';
 import { useUpcomingPlannedWorkouts } from '../hooks/useUpcomingPlannedWorkouts';
 import { targetDistanceKm } from '../features/route-builder-v2/discover/rankRoutes';
+import {
+  initArrivalSession,
+  saveArrivalSession,
+  clearArrivalSession,
+  type ArrivalStatus,
+} from '../features/route-builder-v2/arrival/arrivalSession';
+import { rankPastRidesByFit } from '../features/route-builder-v2/arrival/rankPastRides';
 import { calculatePersonalizedETA } from '../utils/personalizedETA';
 import { stravaService } from '../utils/stravaService';
 import RoadPreferencesCard from '../components/settings/RoadPreferencesCard.jsx';
@@ -131,6 +139,10 @@ const DEFAULT_VISIBILITY: LayerVisibilityState = {
   familiar: false,
   intervals: false,
 };
+
+// Obvious non-ride activity types to keep out of the "repeat a past ride"
+// list (a cycling workout is never ridden as a run).
+const NON_RIDE_TYPES = ['Run', 'TrailRun', 'VirtualRun', 'Walk', 'Hike', 'Swim'];
 
 const STATIC_OPENING: ChatMessage = {
   id: 'opening',
@@ -176,8 +188,19 @@ export default function RouteBuilder2() {
   // Resolved from the library → seeds the generate form and paints the
   // intervals on the route. View-only — nothing is persisted.
   const [searchParams, setSearchParams] = useSearchParams();
+
+  // Calendar arrival: `?from=calendar` captures the workout context (goal /
+  // name / duration / distance — the planned workout may not resolve in the
+  // library, so the URL params are the fallback), persisted to sessionStorage
+  // because picking a saved route remounts this page at /ride/:id. The flow
+  // ends when a route is saved or the card is explicitly dismissed; until
+  // then a choice only minimizes the card to a reopenable pill.
+  const [arrivalInit] = useState(() => initArrivalSession(searchParams));
+  const arrivalCtx = arrivalInit.context;
+  const [arrivalStatus, setArrivalStatus] = useState<ArrivalStatus>(arrivalInit.status);
+
   const [pickedWorkoutId, setPickedWorkoutId] = useState<string | null>(
-    searchParams.get('workoutId'),
+    () => searchParams.get('workoutId') ?? arrivalCtx?.workoutId ?? null,
   );
   const [seedOverride, setSeedOverride] = useState<{
     durationMinutes?: number;
@@ -186,8 +209,10 @@ export default function RouteBuilder2() {
     const d = Number(searchParams.get('duration'));
     const dist = Number(searchParams.get('distance'));
     return {
-      durationMinutes: Number.isFinite(d) && d > 0 ? d : undefined,
-      distanceKm: Number.isFinite(dist) && dist > 0 ? dist : undefined,
+      durationMinutes:
+        Number.isFinite(d) && d > 0 ? d : arrivalCtx?.durationMinutes ?? undefined,
+      distanceKm:
+        Number.isFinite(dist) && dist > 0 ? dist : arrivalCtx?.distanceKm ?? undefined,
     };
   });
   const attachedWorkout = useMemo(
@@ -197,26 +222,17 @@ export default function RouteBuilder2() {
   const hasWorkout = !!attachedWorkout;
   const upcomingPlanned = useUpcomingPlannedWorkouts(user?.id ?? null);
 
-  // Calendar arrival (`?from=calendar`): the planned workout may not resolve
-  // in the library (custom/coach-created rows have no library `workout_id`),
-  // so the URL's own goal/name/duration params are the fallback context —
-  // previously they were ignored and the builder opened dead. These are
-  // captured once; the arrival card + form seed consume them.
-  const [arrival] = useState(() => ({
-    fromCalendar: searchParams.get('from') === 'calendar',
-    goal: searchParams.get('goal'),
-    workoutName: searchParams.get('workoutName'),
-  }));
-  const workoutName = attachedWorkout?.name ?? arrival.workoutName ?? null;
+  const workoutName = attachedWorkout?.name ?? arrivalCtx?.workoutName ?? null;
   // Start-location preference typed into the arrival card; seeds the generate
   // form. The nonce remounts GenerateBar/FormPanel so a new seed applies.
-  const [arrivalStartLocation, setArrivalStartLocation] = useState('');
+  const [arrivalStartLocation, setArrivalStartLocation] = useState(arrivalInit.startLocation);
   const [seedNonce, setSeedNonce] = useState(0);
-  const [arrivalDismissed, setArrivalDismissed] = useState(false);
   // "Build something new" remounts the seeded form (nonce) — this keeps the
   // fresh mobile FormPanel instance expanded instead of resetting collapsed.
-  const [arrivalChoseNew, setArrivalChoseNew] = useState(false);
-  const showArrivalCard = arrival.fromCalendar && !routeIdFromUrl && !arrivalDismissed;
+  // Also set on mount when the choice was made on /ride/:id and carried
+  // across the hop back to /ride/new (arrivalInit.pendingNew).
+  const [arrivalChoseNew, setArrivalChoseNew] = useState(arrivalInit.pendingNew);
+  const showArrivalCard = arrivalStatus === 'open' && !!arrivalCtx;
 
   const formSeed = useMemo<GenerateFormSeed | undefined>(() => {
     if (attachedWorkout) {
@@ -227,16 +243,16 @@ export default function RouteBuilder2() {
         startLocation: arrivalStartLocation || undefined,
       };
     }
-    if (arrival.fromCalendar) {
+    if (arrivalCtx) {
       return {
-        goal: workoutTypeToGoal(arrival.goal),
+        goal: workoutTypeToGoal(arrivalCtx.goal),
         durationMinutes: seedOverride.durationMinutes,
         distanceKm: seedOverride.distanceKm ?? '',
         startLocation: arrivalStartLocation || undefined,
       };
     }
     return undefined;
-  }, [attachedWorkout, seedOverride, arrival, arrivalStartLocation]);
+  }, [attachedWorkout, seedOverride, arrivalCtx, arrivalStartLocation]);
 
   const generation = useAIGeneration();
   const editing = useRouteEditing();
@@ -365,8 +381,9 @@ export default function RouteBuilder2() {
     BASEMAP_STYLES.find((s: { id: string }) => s.id === basemapId)?.style ??
     BASEMAP_STYLES[0].style;
   // Desktop cold-start: the GenerateBar (chips folded into the chat dock).
-  // Auto-expand when seeded from a workout so the prefilled goal/duration show.
-  const [generateExpanded, setGenerateExpanded] = useState(hasWorkout);
+  // Auto-expand when seeded from a workout so the prefilled goal/duration
+  // show, or when "build something new" was chosen just before a remount.
+  const [generateExpanded, setGenerateExpanded] = useState(hasWorkout || arrivalInit.pendingNew);
 
   // Persona-voiced chat opener — fetched once per session. Falls back to
   // the static line on any error.
@@ -843,6 +860,9 @@ export default function RouteBuilder2() {
       draftAutosave.discardDraft();
       // A new/updated route should appear in Discover next time it opens.
       discoverLoadedRef.current = false;
+      // A saved route completes the calendar-arrival flow — retire the pill.
+      setArrivalStatus('done');
+      clearArrivalSession();
       if (routeIdFromUrl !== id) {
         navigate(`/ride/${id}`, { replace: true });
       }
@@ -862,10 +882,18 @@ export default function RouteBuilder2() {
 
   // --- Route discovery: the rider's saved routes ranked by today's target ---
   const nextPlanned = upcomingPlanned.workouts[0] ?? null;
-  const discoverTargetKm = targetDistanceKm(nextPlanned);
-  const discoverTargetLabel = nextPlanned
-    ? `${nextPlanned.name}${discoverTargetKm ? ` · ~${discoverTargetKm} km` : ''}`
+  // The workout the rider arrived with wins over the generic "next planned"
+  // lookup (which drops planned rows that don't resolve in the library).
+  const arrivalTargetKm = arrivalCtx
+    ? arrivalCtx.distanceKm ??
+      targetDistanceKm({ targetDurationMinutes: arrivalCtx.durationMinutes })
     : null;
+  const discoverTargetKm = arrivalTargetKm ?? targetDistanceKm(nextPlanned);
+  const discoverTargetLabel = arrivalCtx
+    ? `${arrivalCtx.workoutName ?? 'Planned ride'}${arrivalTargetKm ? ` · ~${arrivalTargetKm} km` : ''}`
+    : nextPlanned
+      ? `${nextPlanned.name}${discoverTargetKm ? ` · ~${discoverTargetKm} km` : ''}`
+      : null;
 
   const loadDiscover = useCallback(async () => {
     setDiscoverLoading(true);
@@ -906,6 +934,24 @@ export default function RouteBuilder2() {
   );
 
   // --- Calendar-arrival card: how do you want to ride today's workout? ---
+  // A choice minimizes the card to a pill (the rider may change their mind);
+  // only saving a route or the explicit X ends the flow and clears storage.
+  const minimizeArrival = useCallback(() => {
+    setArrivalStatus('minimized');
+    if (arrivalCtx) saveArrivalSession(arrivalCtx, 'minimized', { startLocation: arrivalStartLocation });
+  }, [arrivalCtx, arrivalStartLocation]);
+
+  const reopenArrival = useCallback(() => {
+    setArrivalStatus('open');
+    if (arrivalCtx) saveArrivalSession(arrivalCtx, 'open', { startLocation: arrivalStartLocation });
+    trackRb2('workout_arrival_reopened', {});
+  }, [arrivalCtx, arrivalStartLocation]);
+
+  const endArrival = useCallback(() => {
+    setArrivalStatus('done');
+    clearArrivalSession();
+  }, []);
+
   const [pastRides, setPastRides] = useState<PastRideOption[]>([]);
   const [pastRidesLoading, setPastRidesLoading] = useState(false);
   const pastRidesLoadedRef = useRef(false);
@@ -916,57 +962,78 @@ export default function RouteBuilder2() {
     setPastRidesLoading(true);
     const { data, error } = await supabase
       .from('activities')
-      .select('id, name, start_date, distance')
+      .select('id, name, start_date, distance, moving_time, type')
       .eq('user_id', user.id)
       .not('map_summary_polyline', 'is', null)
       .order('start_date', { ascending: false })
-      .limit(12);
+      .limit(50);
     if (error) console.error('[rb2] past rides load failed', error);
-    setPastRides(
-      (data ?? []).map((a) => ({
+    const rides = (data ?? [])
+      .filter((a) => !NON_RIDE_TYPES.includes((a.type as string | null) ?? ''))
+      .map((a) => ({
         id: a.id as string,
         name: (a.name as string | null) ?? null,
         startDate: (a.start_date as string | null) ?? null,
-        // activities.distance is meters (legacy unsuffixed column).
+        // activities.distance is meters, moving_time is seconds (legacy
+        // unsuffixed Strava-shaped columns).
         distanceKm: a.distance ? (a.distance as number) / 1000 : null,
-      })),
+        movingTimeMinutes: a.moving_time ? (a.moving_time as number) / 60 : null,
+      }));
+    // Narrow to rides similar in time/distance to the workout target.
+    setPastRides(
+      rankPastRidesByFit(rides, {
+        durationMinutes: seedOverride.durationMinutes ?? attachedWorkout?.duration ?? null,
+        distanceKm: typeof seedOverride.distanceKm === 'number' ? seedOverride.distanceKm : null,
+      }),
     );
     setPastRidesLoading(false);
-  }, [user?.id]);
+  }, [user?.id, seedOverride, attachedWorkout]);
 
-  const handleArrivalNew = useCallback((startLocation: string) => {
-    setArrivalStartLocation(startLocation);
-    setSeedNonce((n) => n + 1);
-    setArrivalDismissed(true);
-    setArrivalChoseNew(true);
-    formControl.current.expand();
-    trackRb2('workout_arrival_choice', {
-      choice: 'new',
-      has_start_preference: !!startLocation,
-    });
-  }, []);
+  const handleArrivalNew = useCallback(
+    (startLocation: string) => {
+      trackRb2('workout_arrival_choice', {
+        choice: 'new',
+        has_start_preference: !!startLocation,
+      });
+      if (routeIdFromUrl && arrivalCtx) {
+        // Editing a saved route — generating here and quick-saving would
+        // overwrite it. Hop back to /ride/new; the session carries the
+        // choice across the remount (pendingNew expands the seeded form).
+        saveArrivalSession(arrivalCtx, 'minimized', { startLocation, pendingNew: true });
+        navigate('/ride/new');
+        return;
+      }
+      setArrivalStartLocation(startLocation);
+      setSeedNonce((n) => n + 1);
+      setArrivalChoseNew(true);
+      setArrivalStatus('minimized');
+      if (arrivalCtx) saveArrivalSession(arrivalCtx, 'minimized', { startLocation });
+      formControl.current.expand();
+    },
+    [routeIdFromUrl, arrivalCtx, navigate],
+  );
 
   const handleArrivalSaved = useCallback(() => {
-    setArrivalDismissed(true);
+    minimizeArrival();
     if (isMobileRef.current) setMobileTab('discover');
     else setRailOpenId('discover');
     trackRb2('workout_arrival_choice', { choice: 'saved' });
-  }, []);
+  }, [minimizeArrival]);
 
   const handleArrivalPastPick = useCallback(
     (activityId: string) => {
       void loadRouteFromActivity(activityId).then((ok) => {
-        if (ok) setArrivalDismissed(true);
+        if (ok) minimizeArrival();
       });
       trackRb2('workout_arrival_choice', { choice: 'past_ride' });
     },
-    [loadRouteFromActivity],
+    [loadRouteFromActivity, minimizeArrival],
   );
 
   const handleArrivalDismiss = useCallback(() => {
-    setArrivalDismissed(true);
+    endArrival();
     trackRb2('workout_arrival_choice', { choice: 'dismissed' });
-  }, []);
+  }, [endArrival]);
 
   // Target line under the card title, e.g. "75 min · ~25 mi".
   const arrivalDetailLabel = useMemo(() => {
@@ -994,6 +1061,16 @@ export default function RouteBuilder2() {
       isImperial={isImperial}
     />
   ) : null;
+
+  // Minimized arrival: a reopenable pill so a choice isn't a one-way door.
+  const arrivalPillNode =
+    !showArrivalCard && arrivalStatus === 'minimized' && arrivalCtx ? (
+      <WorkoutArrivalPill
+        workoutLabel={workoutName}
+        onOpen={reopenArrival}
+        isMobile={!!isMobile}
+      />
+    ) : null;
 
   // Page mount telemetry
   useEffect(() => {
@@ -1346,6 +1423,7 @@ export default function RouteBuilder2() {
       {isLoading && <LoadingState message={loadingMessage} />}
       {error && <ErrorState message={error} onDismiss={dismissError} />}
       {arrivalCardNode}
+      {arrivalPillNode}
       {!hasRoute && !isLoading && !arrivalCardNode && <EmptyState isGuest={!user} />}
     </>
   );
@@ -1930,6 +2008,7 @@ export default function RouteBuilder2() {
         />
 
         {arrivalCardNode}
+        {arrivalPillNode}
         {isLoading && <LoadingState message={loadingMessage} />}
         {error && <ErrorState message={error} onDismiss={dismissError} />}
       </Box>
