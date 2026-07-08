@@ -304,19 +304,34 @@ crude `avgPower × 1.15` (`rideAnalysis.estimateFTP`).
    the shared `estimateActivityTSS`; `calculateTSS`/`estimateTSS` imports
    removed.
 
-**P1 — needs a product/owner decision first:**
-7. **One Form-band authority.** Decide the canonical FS bands (spec §5 vs
-   `todayVocabulary` vs `translate.ts`), put them in one module, delete the
-   rest. Same for EFI/TCAS words.
-8. **Finish the duality memo's option (a)** for `/train` +
-   HistoricalInsights (server-preferred with client fallback). Blocked on the
-   memo's prerequisite CSV pull from `/internal/metrics-audit`.
-9. **Relabel the Spine and /train** per spec §5 (Fitness/TFI, Fatigue/AFI,
-   Form/FS, Ride Stress/RSS) — and scrub CTL/ATL/TSB from coach prompt contexts.
-10. **Zone unification** — pick one power-zone and one HR-zone model; needs the
-    DB-trigger check first.
-11. Optionally: backfill `activities.effective_power` from `normalized_power`
-    (data-only UPDATE; complements fix 3).
+**P1 — decisions made 2026-07-08 (Travis) and ✅ IMPLEMENTED on this branch:**
+7. ✅ **Form bands → spec §5** (+20/+10/−5/−30). Single authority
+   `src/utils/formBands.js` (FORM_BANDS/formBandForScore); todayVocabulary,
+   `translate.translateTSB`, Spine formWord/stateText, glance formVerdict,
+   and `interpretFS` all converged. EFI/TCAS verdict cuts unified on the
+   todayVocabulary values (85/60/35, 85/60/30). The recommendation engine's
+   `getFormStatus` label→token map realigned (its semantics preserved);
+   scheduler classifiers (tsb-projection) intentionally untouched.
+8. ✅ **Duality → reader consistency** (population deliberately NOT added —
+   `training_load_daily` had 0 prod rows, so no UX jump). `/train` now uses
+   the shared `buildDailyLoadSeries` walk (extracted from
+   `buildAthleteMetrics`) with a `training_load_daily` fetch matching the
+   Today views; TrainingLoadChart/RampRateAlert prefer per-point values;
+   HistoricalInsights reads `tfi ?? ctl` etc. at the fetch seam.
+9. ✅ **Relabel + coach scrub.** Spine (FORM·FS, TFI·FITNESS, AFI·FATIGUE,
+   DAILY RSS), /train (chart legends, FitnessMetricsBar, RampRateAlert,
+   WeekSummaryGrid), per-ride ActivityMetrics (EP/RI/RSS), planner chips.
+   Model-facing leaks scrubbed: fitnessHistoryTool summaries,
+   TrainingDashboard buildTrainingContext, Spine CoachPanel context,
+   workoutLibrary tool descriptions.
+10. ✅ **Zones → DB 7-zone model** (55/75/90/105/120/150 %FTP).
+    TRAINING_ZONES aligned + Z6/Z7 added; Sweet Spot 3.5 kept as a
+    prescription-only target; RideZonesChart bins and getIFZone extended;
+    rideAnalysis HR cuts aligned to the persisted 60/70/80/90 model; dead
+    `src/services/ftp.js` deleted.
+11. ✅ **Backfill script** `scripts/backfill-effective-power.js` (dry-run
+    flag, idempotent). NOT executed against production — run it manually
+    when ready.
 
 **Explicitly out of scope (freeze):** column renames, migrations 074–080,
 internal JS identifier renames in `trainingPlans.ts` / `tsb-projection.ts`.
