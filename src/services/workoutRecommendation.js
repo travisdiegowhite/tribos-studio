@@ -215,16 +215,17 @@ export function analyzeTrainingNeeds({
 }
 
 // ─── Form Status ─────────────────────────────────────────────────────────────
-// Delegates to canonical translate.ts thresholds, maps to legacy tokens
+// Delegates to canonical translate.ts thresholds (spec §5 bands — see
+// src/utils/formBands.js), maps labels to legacy engine tokens.
 
 import { translateTSB } from '../lib/fitness/translate';
 
 const FORM_STATUS_MAP = {
-  'Tapered — ready to go': 'fresh',
-  'Primed to perform': 'ready',
-  'Training sweet spot': 'optimal',
-  'Digging in': 'tired',
-  'In the hole': 'fatigued',
+  'Transition — too fresh': 'fresh',
+  'Fresh — race ready': 'ready',
+  'Grey zone': 'optimal',
+  'Optimal training load': 'tired',
+  'Overreached — high risk': 'fatigued',
 };
 
 export function getFormStatus(tsb) {
