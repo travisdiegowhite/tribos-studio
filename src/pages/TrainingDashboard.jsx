@@ -1290,7 +1290,7 @@ function TodaysFocusCard({ trainingMetrics, formStatus, weeklyStats, actualWeekl
             <Badge size="lg" color={formStatus.color} variant="filled" leftSection={<FormIcon size={14} />}>
               {formStatus.label}
             </Badge>
-            <Text size="sm" c="dimmed">TSB: {trainingMetrics.tsb > 0 ? '+' : ''}{Math.round(trainingMetrics.tsb)}</Text>
+            <Text size="sm" c="dimmed">FS: {trainingMetrics.tsb > 0 ? '+' : ''}{Math.round(trainingMetrics.tsb)}</Text>
           </Group>
 
           <Text size="lg" fw={600} mb="xs" style={{ color: 'var(--color-text-primary)' }}>
@@ -1577,15 +1577,15 @@ const TrendsTab = React.memo(function TrendsTab({ dailyTSSData, trainingMetrics,
           <Group gap="md">
             <Group gap={4}>
               <Box w={12} h={3} bg="blue" style={{ borderRadius: 2 }} />
-              <Text size="xs" c="dimmed">Fitness (CTL)</Text>
+              <Text size="xs" c="dimmed">Fitness (TFI)</Text>
             </Group>
             <Group gap={4}>
               <Box w={12} h={3} bg="orange" style={{ borderRadius: 2 }} />
-              <Text size="xs" c="dimmed">Fatigue (ATL)</Text>
+              <Text size="xs" c="dimmed">Fatigue (AFI)</Text>
             </Group>
             <Group gap={4}>
               <Box w={12} h={3} bg="teal" style={{ borderRadius: 2 }} />
-              <Text size="xs" c="dimmed">Form (TSB)</Text>
+              <Text size="xs" c="dimmed">Form (FS)</Text>
             </Group>
           </Group>
         </Group>
@@ -1948,7 +1948,7 @@ function WeeklySportSummary({ weeklyStats }) {
         label: [
           `${weeklyStats.cycling.count}`,
           formatDist(weeklyStats.cycling.distance),
-          `${Math.round(weeklyStats.cycling.tss)} TSS`,
+          `${Math.round(weeklyStats.cycling.tss)} RSS`,
           weeklyStats.cycling.avgPower > 0 ? `${weeklyStats.cycling.avgPower}W` : null,
         ].filter(Boolean).join(' · '),
       });
@@ -1959,7 +1959,7 @@ function WeeklySportSummary({ weeklyStats }) {
         label: [
           `${weeklyStats.running.count}`,
           formatDist(weeklyStats.running.distance),
-          `${Math.round(weeklyStats.running.tss)} TSS`,
+          `${Math.round(weeklyStats.running.tss)} RSS`,
           weeklyStats.running.avgPaceMinKm > 0 ? formatPace(weeklyStats.running.avgPaceMinKm) : null,
         ].filter(Boolean).join(' · '),
       });
@@ -1970,7 +1970,7 @@ function WeeklySportSummary({ weeklyStats }) {
         label: [
           `${weeklyStats.other.count} other`,
           weeklyStats.other.distance > 0 ? formatDist(weeklyStats.other.distance) : null,
-          `${Math.round(weeklyStats.other.tss)} TSS`,
+          `${Math.round(weeklyStats.other.tss)} RSS`,
         ].filter(Boolean).join(' · '),
       });
     }
@@ -1994,7 +1994,7 @@ function WeeklySportSummary({ weeklyStats }) {
     const label = [
       `${weeklyStats.running.count} runs`,
       formatDist(weeklyStats.running.distance),
-      `${Math.round(weeklyStats.running.tss)} TSS`,
+      `${Math.round(weeklyStats.running.tss)} RSS`,
       weeklyStats.running.avgPaceMinKm > 0 ? formatPace(weeklyStats.running.avgPaceMinKm) : null,
     ].filter(Boolean).join(' · ');
 
@@ -2012,7 +2012,7 @@ function WeeklySportSummary({ weeklyStats }) {
     const label = [
       `${weeklyStats.other.count} sessions`,
       weeklyStats.other.distance > 0 ? formatDist(weeklyStats.other.distance) : null,
-      `${Math.round(weeklyStats.other.tss)} TSS`,
+      `${Math.round(weeklyStats.other.tss)} RSS`,
     ].filter(Boolean).join(' · ');
 
     return (
@@ -2030,10 +2030,10 @@ function WeeklySportSummary({ weeklyStats }) {
     ? [
         `${weeklyStats.cycling.count} rides`,
         formatDist(weeklyStats.cycling.distance),
-        `${Math.round(weeklyStats.cycling.tss)} TSS`,
+        `${Math.round(weeklyStats.cycling.tss)} RSS`,
         weeklyStats.cycling.avgPower > 0 ? `${weeklyStats.cycling.avgPower}W` : null,
       ].filter(Boolean).join(' · ')
-    : `${Math.round(weeklyStats.totalTSS)} TSS (${weeklyStats.activityCount})`;
+    : `${Math.round(weeklyStats.totalTSS)} RSS (${weeklyStats.activityCount})`;
 
   return (
     <Tooltip label={`${weeklyStats.activityCount} activities this week`} position="bottom">
@@ -2082,7 +2082,7 @@ function FitnessMetricsBar({ trainingMetrics, formStatus, weeklyStats, previousM
         {/* TSB - Tier 2 supporting context */}
         <Tooltip label={`Training Stress Balance: ${formStatus.label}`} position="bottom">
           <Text size="sm" c="dimmed" style={{ cursor: 'default' }}>
-            TSB: <Text span fw={600} c="dimmed">{tsb > 0 ? '+' : ''}{Math.round(tsb)}</Text>
+            FS: <Text span fw={600} c="dimmed">{tsb > 0 ? '+' : ''}{Math.round(tsb)}</Text>
           </Text>
         </Tooltip>
 
@@ -2097,7 +2097,7 @@ function FitnessMetricsBar({ trainingMetrics, formStatus, weeklyStats, previousM
         <Group gap="md">
           <Tooltip label="Fitness (42-day load)" position="bottom">
             <Group gap={4} style={{ cursor: 'default' }}>
-              <Text size="xs" c="dimmed">CTL: {Math.round(trainingMetrics.ctl)}</Text>
+              <Text size="xs" c="dimmed">TFI: {Math.round(trainingMetrics.ctl)}</Text>
               {CtlTrendIcon && (
                 <CtlTrendIcon
                   size={12}
@@ -2108,7 +2108,7 @@ function FitnessMetricsBar({ trainingMetrics, formStatus, weeklyStats, previousM
           </Tooltip>
           <Tooltip label="Fatigue (7-day load)" position="bottom">
             <Group gap={4} style={{ cursor: 'default' }}>
-              <Text size="xs" c="dimmed">ATL: {Math.round(trainingMetrics.atl)}</Text>
+              <Text size="xs" c="dimmed">AFI: {Math.round(trainingMetrics.atl)}</Text>
               {AtlTrendIcon && (
                 <AtlTrendIcon
                   size={12}
@@ -2164,7 +2164,7 @@ function buildTrainingContext(trainingMetrics, weeklyStats, actualWeeklyStats, f
         context.push(`  Running: ${formatDist(weeklyStats.running.distance / 1000)}, ${Math.round(weeklyStats.running.tss)} TSS${paceStr}`);
       }
       if (weeklyStats.other?.count > 0) {
-        context.push(`  Other (cross-training): ${weeklyStats.other.count} sessions, ${Math.round(weeklyStats.other.tss)} TSS`);
+        context.push(`  Other (cross-training): ${weeklyStats.other.count} sessions, ${Math.round(weeklyStats.other.tss)} RSS`);
       }
     }
   }

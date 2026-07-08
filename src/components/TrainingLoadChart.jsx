@@ -17,7 +17,7 @@ import { tokens } from '../theme';
 
 /**
  * Training Load Chart Component
- * Displays CTL, ATL, TSB, and daily TSS over time
+ * Displays TFI (fitness), AFI (fatigue), FS (form), and daily RSS over time
  */
 const TrainingLoadChart = ({ data }) => {
   const [timeRange, setTimeRange] = useState('30'); // 7, 30, or 90 days
@@ -112,19 +112,19 @@ const TrainingLoadChart = ({ data }) => {
       {/* Legend with plain-language sublabels */}
       <Group gap="md" mb="md">
         <Box>
-          <Badge color="gold" variant="light" size="sm">CTL (Fitness)</Badge>
+          <Badge color="gold" variant="light" size="sm">Fitness (TFI)</Badge>
           <Text style={{ fontFamily: "'DM Mono', monospace", fontSize: 10, color: '#7A7970', marginTop: 2 }}>
             Aerobic base — built over ~6 weeks
           </Text>
         </Box>
         <Box>
-          <Badge color="coral" variant="light" size="sm">ATL (Fatigue)</Badge>
+          <Badge color="coral" variant="light" size="sm">Fatigue (AFI)</Badge>
           <Text style={{ fontFamily: "'DM Mono', monospace", fontSize: 10, color: '#7A7970', marginTop: 2 }}>
             Recent fatigue — last 7–10 days
           </Text>
         </Box>
         <Box>
-          <Badge color="teal" variant="light" size="sm">TSB (Form)</Badge>
+          <Badge color="teal" variant="light" size="sm">Form (FS)</Badge>
           <Text style={{ fontFamily: "'DM Mono', monospace", fontSize: 10, color: '#7A7970', marginTop: 2 }}>
             Freshness — how ready you are today
           </Text>
@@ -148,13 +148,13 @@ const TrainingLoadChart = ({ data }) => {
             stroke="#2A8C82"
             fill="#2A8C82"
             fillOpacity={0.3}
-            name="Daily TSS"
+            name="Daily RSS"
           />
         </AreaChart>
       </ResponsiveContainer>
 
       <Text size="xs" style={{ color: 'var(--color-text-muted)' }} mb="lg" mt="xs">
-        Daily Training Stress Score
+        Daily Ride Stress (RSS)
       </Text>
 
       {/* CTL/ATL/TSB Line Chart */}
@@ -180,7 +180,7 @@ const TrainingLoadChart = ({ data }) => {
             stroke="#C49A0A"
             strokeWidth={2}
             dot={false}
-            name="CTL (Fitness)"
+            name="Fitness (TFI)"
           />
 
           {/* ATL - Acute Training Load (Fatigue) */}
@@ -190,7 +190,7 @@ const TrainingLoadChart = ({ data }) => {
             stroke="#C43C2A"
             strokeWidth={2}
             dot={false}
-            name="ATL (Fatigue)"
+            name="Fatigue (AFI)"
           />
 
           {/* TSB - Training Stress Balance (Form) */}
@@ -200,13 +200,13 @@ const TrainingLoadChart = ({ data }) => {
             stroke="#2A8C82"
             strokeWidth={2}
             dot={false}
-            name="TSB (Form)"
+            name="Form (FS)"
           />
         </LineChart>
       </ResponsiveContainer>
 
       <Text style={{ fontFamily: "'DM Mono', monospace", fontSize: 10, color: '#7A7970', marginTop: 6 }}>
-        TSS = Today&apos;s training load | FTP = Your current threshold power
+        RSS = Daily ride stress | FTP = Your current threshold power
       </Text>
     </Card>
   );

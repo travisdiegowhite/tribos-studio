@@ -15,12 +15,12 @@ import { Check, Info, TrendDown, TrendUp, Warning } from '@phosphor-icons/react'
 
 /**
  * Ramp Rate Alert Component
- * Monitors weekly CTL (fitness) changes and alerts on concerning ramp rates
+ * Monitors weekly TFI (fitness) changes and alerts on concerning ramp rates
  *
- * Optimal ramp rate: 3-7 TSS/week
- * Aggressive ramp rate: 7-10 TSS/week (risk of overtraining)
- * Dangerous ramp rate: >10 TSS/week (high injury/illness risk)
- * Detraining: < -5 TSS/week (losing fitness)
+ * Optimal ramp rate: 3-7 RSS/week
+ * Aggressive ramp rate: 7-10 RSS/week (risk of overtraining)
+ * Dangerous ramp rate: >10 RSS/week (high injury/illness risk)
+ * Detraining: < -5 RSS/week (losing fitness)
  */
 const RampRateAlert = ({ dailyTSSData, currentCTL, showDetails = true }) => {
   const rampRateData = useMemo(() => {
@@ -67,37 +67,37 @@ const RampRateAlert = ({ dailyTSSData, currentCTL, showDetails = true }) => {
       status = 'danger';
       color = 'red';
       icon = Warning;
-      message = `Ramp rate of +${weeklyRampRate} TSS/week is dangerously high`;
+      message = `Ramp rate of +${weeklyRampRate} RSS/week is dangerously high`;
       recommendation = 'Significantly reduce training load immediately. High risk of overtraining, injury, or illness.';
     } else if (weeklyRampRate > 7) {
       status = 'warning';
       color = 'orange';
       icon = Warning;
-      message = `Ramp rate of +${weeklyRampRate} TSS/week is aggressive`;
+      message = `Ramp rate of +${weeklyRampRate} RSS/week is aggressive`;
       recommendation = 'Consider backing off slightly. Monitor fatigue levels closely.';
     } else if (weeklyRampRate >= 3 && weeklyRampRate <= 7) {
       status = 'optimal';
       color = 'green';
       icon = Check;
-      message = `Ramp rate of +${weeklyRampRate} TSS/week is optimal`;
+      message = `Ramp rate of +${weeklyRampRate} RSS/week is optimal`;
       recommendation = 'Great job! This is the ideal rate for sustainable fitness gains.';
     } else if (weeklyRampRate >= 0 && weeklyRampRate < 3) {
       status = 'maintenance';
       color = 'blue';
       icon = Info;
-      message = `Ramp rate of +${weeklyRampRate} TSS/week - maintaining fitness`;
+      message = `Ramp rate of +${weeklyRampRate} RSS/week - maintaining fitness`;
       recommendation = 'You\'re maintaining fitness. Increase load slightly if looking to improve.';
     } else if (weeklyRampRate >= -5) {
       status = 'recovery';
       color = 'teal';
       icon = TrendDown;
-      message = `Ramp rate of ${weeklyRampRate} TSS/week - planned recovery`;
+      message = `Ramp rate of ${weeklyRampRate} RSS/week - planned recovery`;
       recommendation = 'This could be a recovery week or taper. Normal if intentional.';
     } else {
       status = 'detraining';
       color = 'yellow';
       icon = TrendDown;
-      message = `Ramp rate of ${weeklyRampRate} TSS/week - losing fitness`;
+      message = `Ramp rate of ${weeklyRampRate} RSS/week - losing fitness`;
       recommendation = 'Significant fitness loss occurring. Resume training if unintentional.';
     }
 
@@ -142,7 +142,7 @@ const RampRateAlert = ({ dailyTSSData, currentCTL, showDetails = true }) => {
         <Group gap="xs">
           <Text fw={600}>Training Ramp Rate</Text>
           <Badge color={rampRateData.color} variant="filled" size="sm">
-            {rampRateData.weeklyRampRate > 0 ? '+' : ''}{rampRateData.weeklyRampRate} TSS/week
+            {rampRateData.weeklyRampRate > 0 ? '+' : ''}{rampRateData.weeklyRampRate} RSS/week
           </Badge>
         </Group>
       }
@@ -190,7 +190,7 @@ const RampRateAlert = ({ dailyTSSData, currentCTL, showDetails = true }) => {
 
             {/* Metrics */}
             <Group gap="lg">
-              <Tooltip label="Average weekly CTL change over last 4 weeks">
+              <Tooltip label="Average weekly fitness (TFI) change over last 4 weeks">
                 <Paper p="xs" style={{ backgroundColor: 'var(--color-bg-secondary)', flex: 1 }}>
                   <Text size="xs" c="dimmed">4-Week Avg</Text>
                   <Text size="sm" fw={600}>
@@ -213,9 +213,9 @@ const RampRateAlert = ({ dailyTSSData, currentCTL, showDetails = true }) => {
                   </Group>
                 </Paper>
               </Tooltip>
-              <Tooltip label="Current Chronic Training Load (fitness)">
+              <Tooltip label="Current Training Fitness Index (fitness)">
                 <Paper p="xs" style={{ backgroundColor: 'var(--color-bg-secondary)', flex: 1 }}>
-                  <Text size="xs" c="dimmed">Current CTL</Text>
+                  <Text size="xs" c="dimmed">Current TFI</Text>
                   <Text size="sm" fw={600}>{rampRateData.ctlNow}</Text>
                 </Paper>
               </Tooltip>

@@ -194,7 +194,7 @@ export function AdaptationInsightsPanel({
                 Week Progress
               </Text>
               <Badge color={progressColor} variant="light" size="sm">
-                {weekSummary.tssAchievementPct}% TSS
+                {weekSummary.tssAchievementPct}% RSS
               </Badge>
             </Group>
 
@@ -235,7 +235,7 @@ export function AdaptationInsightsPanel({
                   {weekSummary.tssActual}
                 </Text>
                 <Text size="xs" c="dimmed">
-                  Actual TSS
+                  Actual RSS
                 </Text>
               </Box>
             </Group>

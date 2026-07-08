@@ -195,7 +195,7 @@ export function FitnessNode({
                     textShadow: HALO_SOFT,
                   }}
                 >
-                  FORM · TSB
+                  FORM · FS
                 </div>
                 <div style={{ display: 'flex', alignItems: 'baseline', gap: 6 }}>
                   <span
@@ -289,8 +289,8 @@ export function FitnessNode({
                 borderTop: `1px dashed ${C.border}`,
               }}
             >
-              <NodeStat label="CTL · FITNESS" value={vm.ctl} />
-              <NodeStat label="ATL · FATIGUE" value={vm.atl} divider />
+              <NodeStat label="TFI · FITNESS" value={vm.ctl} />
+              <NodeStat label="AFI · FATIGUE" value={vm.atl} divider />
               <NodeStat label="WK VOLUME" value={vm.volLabel} divider />
             </div>
 
@@ -304,7 +304,7 @@ export function FitnessNode({
                 textAlign: 'center',
               }}
             >
-              CLICK FOR CTL / ATL DETAIL
+              CLICK FOR TFI / AFI DETAIL
             </div>
 
             {ringHover && !compact && (
@@ -379,7 +379,7 @@ export function FitnessNode({
               TREND · {vm.headerDate}
             </div>
             <TrendRow
-              label="CTL · 42-DAY FITNESS"
+              label="TFI · 42-DAY FITNESS"
               value={vm.ctl}
               delta={vm.ctlDelta}
               deltaColor={vm.ctlDeltaColor}
@@ -387,7 +387,7 @@ export function FitnessNode({
               stroke={CHART.pastLine}
             />
             <TrendRow
-              label="ATL · 7-DAY FATIGUE"
+              label="AFI · 7-DAY FATIGUE"
               value={vm.atl}
               delta={vm.atlDelta}
               deltaColor={vm.atlDeltaColor}

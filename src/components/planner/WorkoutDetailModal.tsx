@@ -370,7 +370,7 @@ export function WorkoutDetailModal({ workout, opened, onClose }: WorkoutDetailMo
               </Group>
               <Group gap={4}>
                 <Fire size={16} color="var(--mantine-color-orange-5)" />
-                <Text size="sm" fw={500}>{workout.targetTSS} TSS</Text>
+                <Text size="sm" fw={500}>{workout.targetTSS} RSS</Text>
               </Group>
             </Group>
           </Group>

@@ -220,7 +220,7 @@ export default function TrainingProgress({
               <Text fw={500}>{nextWorkout.workout?.name || 'Scheduled Workout'}</Text>
               {nextWorkout.workout && (
                 <Text size="sm" c="dimmed">
-                  {nextWorkout.workout.duration} min &bull; {nextWorkout.workout.targetTSS} TSS
+                  {nextWorkout.workout.duration} min &bull; {nextWorkout.workout.targetTSS} RSS
                 </Text>
               )}
             </div>
@@ -277,7 +277,7 @@ export default function TrainingProgress({
 
       {/* Weekly TSS Chart */}
       <Paper p="lg" radius="md" withBorder>
-        <Title order={5} mb="md">Weekly Training Load (TSS)</Title>
+        <Title order={5} mb="md">Weekly Training Load (RSS)</Title>
         <Box h={250}>
           <ResponsiveContainer width="100%" height="100%">
             <BarChart data={weeklyTSSData} margin={{ top: 10, right: 10, left: -10, bottom: 0 }}>
@@ -291,8 +291,8 @@ export default function TrainingProgress({
                   return (
                     <Paper p="xs" shadow="sm" withBorder>
                       <Text size="sm" fw={500}>{label}</Text>
-                      <Text size="xs" c="blue">Planned: {data.planned} TSS</Text>
-                      <Text size="xs" c="green">Actual: {data.actual} TSS</Text>
+                      <Text size="xs" c="blue">Planned: {data.planned} RSS</Text>
+                      <Text size="xs" c="green">Actual: {data.actual} RSS</Text>
                       <Text size="xs" c="dimmed">Compliance: {data.compliance}%</Text>
                     </Paper>
                   );
@@ -342,11 +342,11 @@ export default function TrainingProgress({
           <Title order={5} mb="md">This Week&apos;s Stats</Title>
           <SimpleGrid cols={{ base: 2, sm: 4 }} spacing="md">
             <div>
-              <Text size="xs" c="dimmed" tt="uppercase" fw={700}>Planned TSS</Text>
+              <Text size="xs" c="dimmed" tt="uppercase" fw={700}>Planned RSS</Text>
               <Text size="lg" fw={600}>{progress.weeklyStats[currentWeek - 1].plannedTSS}</Text>
             </div>
             <div>
-              <Text size="xs" c="dimmed" tt="uppercase" fw={700}>Actual TSS</Text>
+              <Text size="xs" c="dimmed" tt="uppercase" fw={700}>Actual RSS</Text>
               <Text size="lg" fw={600}>{progress.weeklyStats[currentWeek - 1].actualTSS}</Text>
             </div>
             <div>
