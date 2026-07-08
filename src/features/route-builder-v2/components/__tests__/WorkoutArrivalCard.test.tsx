@@ -4,7 +4,14 @@ import { describe, it, expect, vi } from 'vitest';
 import { WorkoutArrivalCard, type PastRideOption } from '../WorkoutArrivalCard';
 
 const RIDES: PastRideOption[] = [
-  { id: 'a1', name: 'Morning Loop', startDate: '2026-07-01T09:00:00Z', distanceKm: 42.3 },
+  {
+    id: 'a1',
+    name: 'Morning Loop',
+    startDate: '2026-07-01T09:00:00Z',
+    distanceKm: 42.3,
+    movingTimeMinutes: 95,
+    fit: 'great',
+  },
   { id: 'a2', name: null, startDate: null, distanceKm: null },
 ];
 
@@ -70,6 +77,15 @@ describe('WorkoutArrivalCard', () => {
     expect(screen.getByTestId('rb2-workout-arrival-ride-a2')).toHaveTextContent('Untitled ride');
     fireEvent.click(screen.getByTestId('rb2-workout-arrival-ride-a1'));
     expect(props.onPickPastRide).toHaveBeenCalledWith('a1');
+  });
+
+  it('shows a fit badge and moving time on ranked rides', () => {
+    renderCard();
+    fireEvent.click(screen.getByTestId('rb2-workout-arrival-past'));
+    expect(screen.getByTestId('rb2-workout-arrival-ride-fit-a1')).toHaveTextContent('Great fit');
+    expect(screen.getByTestId('rb2-workout-arrival-ride-a1')).toHaveTextContent('1h 35m');
+    // Unranked ride renders without a badge.
+    expect(screen.queryByTestId('rb2-workout-arrival-ride-fit-a2')).toBeNull();
   });
 
   it('shows an empty message when there are no past rides, and can go back', () => {
