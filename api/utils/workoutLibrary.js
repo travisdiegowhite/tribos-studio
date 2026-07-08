@@ -207,11 +207,11 @@ IMPORTANT: Always use this tool when discussing historical fitness. Do not guess
         ],
         description: `Type of historical analysis:
 - recent_trend: Analyze last 4-8 weeks of fitness direction
-- peak_fitness: Find when athlete was at highest CTL
+- peak_fitness: Find when athlete was at highest fitness (TFI)
 - compare_periods: Compare current period to 'last_year' or 'peak'
 - year_over_year: Compare same time period across multiple years
 - seasonal_pattern: Identify monthly fitness patterns
-- training_response: Analyze how CTL responds to load changes`
+- training_response: Analyze how fitness (TFI) responds to load changes`
       },
       weeks_back: {
         type: "integer",
@@ -288,7 +288,7 @@ export const TRAINING_DATA_TOOL = {
 - Filtered queries ("How many rides over 50 miles in the last 6 months?")
 - Activity lookups ("What was my longest ride this year?")
 
-This tool queries individual activities, NOT fitness metrics. For CTL/ATL/TSB trends, use query_fitness_history instead.
+This tool queries individual activities, NOT fitness metrics. For fitness (TFI) / fatigue (AFI) / Form Score trends, use query_fitness_history instead.
 
 IMPORTANT: For geographic queries, provide the place name (e.g., "Golden Gate Bridge, San Francisco") and the server will geocode it automatically via Mapbox.`,
   input_schema: {

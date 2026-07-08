@@ -2139,7 +2139,7 @@ function buildTrainingContext(trainingMetrics, weeklyStats, actualWeeklyStats, f
   if (ftp) context.push(`FTP: ${ftp}W`);
 
   if (trainingMetrics.ctl > 0 || trainingMetrics.atl > 0) {
-    context.push(`Training Load - CTL: ${Math.round(trainingMetrics.ctl)}, ATL: ${Math.round(trainingMetrics.atl)}, TSB: ${Math.round(trainingMetrics.tsb)}`);
+    context.push(`Training Load - Fitness (TFI): ${Math.round(trainingMetrics.ctl)}, Fatigue (AFI): ${Math.round(trainingMetrics.atl)}, Form Score (FS): ${Math.round(trainingMetrics.tsb)}`);
     if (trainingMetrics.interpretation) {
       context.push(`Form Status: ${trainingMetrics.interpretation.status} - ${trainingMetrics.interpretation.message}`);
     }
@@ -2156,12 +2156,12 @@ function buildTrainingContext(trainingMetrics, weeklyStats, actualWeeklyStats, f
     const sportCount = [weeklyStats.cycling?.count > 0, weeklyStats.running?.count > 0, weeklyStats.other?.count > 0].filter(Boolean).length;
     if (sportCount > 1) {
       if (weeklyStats.cycling?.count > 0) {
-        context.push(`  Cycling: ${formatDist(weeklyStats.cycling.distance / 1000)}, ${Math.round(weeklyStats.cycling.tss)} TSS${weeklyStats.cycling.avgPower > 0 ? `, ${weeklyStats.cycling.avgPower}W avg` : ''}`);
+        context.push(`  Cycling: ${formatDist(weeklyStats.cycling.distance / 1000)}, ${Math.round(weeklyStats.cycling.tss)} RSS${weeklyStats.cycling.avgPower > 0 ? `, ${weeklyStats.cycling.avgPower}W avg` : ''}`);
       }
       if (weeklyStats.running?.count > 0) {
         const runPace = weeklyStats.running.avgPaceMinKm;
         const paceStr = runPace > 0 ? `, ${Math.floor(runPace)}:${Math.round((runPace % 1) * 60).toString().padStart(2, '0')}/km avg pace` : '';
-        context.push(`  Running: ${formatDist(weeklyStats.running.distance / 1000)}, ${Math.round(weeklyStats.running.tss)} TSS${paceStr}`);
+        context.push(`  Running: ${formatDist(weeklyStats.running.distance / 1000)}, ${Math.round(weeklyStats.running.tss)} RSS${paceStr}`);
       }
       if (weeklyStats.other?.count > 0) {
         context.push(`  Other (cross-training): ${weeklyStats.other.count} sessions, ${Math.round(weeklyStats.other.tss)} RSS`);
@@ -2187,7 +2187,7 @@ function buildTrainingContext(trainingMetrics, weeklyStats, actualWeeklyStats, f
       if (dist) parts.push(dist);
       if (dur) parts.push(dur);
       if (power) parts.push(power);
-      parts.push(`${Math.round(tss)} TSS`);
+      parts.push(`${Math.round(tss)} RSS`);
 
       context.push(`${i + 1}. ${date}: ${parts.join(', ')}`);
     });
@@ -2251,7 +2251,7 @@ function buildTrainingContext(trainingMetrics, weeklyStats, actualWeeklyStats, f
 
       context.push(`\n--- Race Preparation Guidance ---`);
       if (daysUntil <= 7) {
-        context.push(`RACE WEEK: Focus on rest, openers, and mental preparation. Keep TSS very low.`);
+        context.push(`RACE WEEK: Focus on rest, openers, and mental preparation. Keep ride stress (RSS) very low.`);
       } else if (daysUntil <= 14) {
         context.push(`TAPER PERIOD: Reduce volume by 40-60%, maintain some intensity. Focus on feeling fresh.`);
       } else if (daysUntil <= 28) {
@@ -2285,7 +2285,7 @@ function buildTrainingContext(trainingMetrics, weeklyStats, actualWeeklyStats, f
       totalCrossTrainingTSS += activity.tss || 0;
     });
 
-    context.push(`Total cross-training TSS (last 14 days): ${Math.round(totalCrossTrainingTSS)}`);
+    context.push(`Total cross-training RSS (last 14 days): ${Math.round(totalCrossTrainingTSS)}`);
     context.push(`Activities breakdown:`);
 
     Object.entries(byCategory).forEach(([category, activities]) => {
@@ -2297,7 +2297,7 @@ function buildTrainingContext(trainingMetrics, weeklyStats, actualWeeklyStats, f
     // List recent activities
     context.push(`\nRecent activities:`);
     crossTrainingActivities.slice(0, 5).forEach(activity => {
-      context.push(`- ${activity.date}: ${activity.type} (${activity.durationMinutes}min, intensity ${activity.intensity}/10, ~${activity.tss || 0} TSS)`);
+      context.push(`- ${activity.date}: ${activity.type} (${activity.durationMinutes}min, intensity ${activity.intensity}/10, ~${activity.tss || 0} RSS)`);
     });
 
     // Add coaching guidance for cross-training
@@ -2350,8 +2350,8 @@ function buildTrainingContext(trainingMetrics, weeklyStats, actualWeeklyStats, f
     // Add plan adjustment capability info
     context.push(`\nYou can suggest plan adjustments based on the athlete's current form, compliance, and feedback. Consider:`);
     context.push(`- If compliance is low, suggest reducing volume or intensity`);
-    context.push(`- If TSB is very negative (fatigued), recommend recovery`);
-    context.push(`- If TSB is very positive (fresh), suggest adding intensity`);
+    context.push(`- If Form Score is very negative (fatigued), recommend recovery`);
+    context.push(`- If Form Score is very positive (fresh), suggest adding intensity`);
     context.push(`- Consider the current training phase when making recommendations`);
     if (raceGoals && raceGoals.length > 0) {
       context.push(`- PRIORITIZE upcoming race goals when planning workouts and recovery`);
@@ -2498,7 +2498,7 @@ function buildTrainingContext(trainingMetrics, weeklyStats, actualWeeklyStats, f
         const weeklyCompliance = pastDueThisWeek.length > 0
           ? Math.round((pastDueCompleted / pastDueThisWeek.length) * 100) : 100;
 
-        context.push(`  Summary: ${completed} completed, ${remaining} upcoming, ~${totalTSS} total planned TSS`);
+        context.push(`  Summary: ${completed} completed, ${remaining} upcoming, ~${totalTSS} total planned RSS`);
         context.push(`  Weekly Compliance: ${weeklyCompliance}% (${pastDueCompleted} of ${pastDueThisWeek.length} past-due workouts completed)`);
         context.push(`  NOTE: Only workouts with dates BEFORE today count as missed. UPCOMING workouts are not yet due — do not treat them as failures.`);
       }
