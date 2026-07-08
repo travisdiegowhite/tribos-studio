@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react';
+import { fireEvent, render, screen } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { MantineProvider } from '@mantine/core';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
@@ -130,5 +130,55 @@ describe('RouteBuilder2 (P1.3)', () => {
   it('does not surface the workout legend without a workoutId', () => {
     renderPage();
     expect(screen.queryByTestId('rb2-workout-legend')).toBeNull();
+  });
+
+  describe('calendar arrival (?from=calendar)', () => {
+    const CALENDAR_PATH =
+      '/route-builder-2?from=calendar&goal=endurance&duration=90&scheduledDate=2026-07-08&workoutName=Endurance%20Ride';
+
+    it('shows the interactive arrival card, even without a library workoutId', () => {
+      renderPage(CALENDAR_PATH);
+      expect(screen.getByTestId('rb2-workout-arrival')).toBeInTheDocument();
+      expect(screen.getByTestId('rb2-workout-arrival-title')).toHaveTextContent(
+        'Endurance Ride',
+      );
+      expect(screen.getByTestId('rb2-workout-arrival-new')).toBeInTheDocument();
+      expect(screen.getByTestId('rb2-workout-arrival-saved')).toBeInTheDocument();
+      expect(screen.getByTestId('rb2-workout-arrival-past')).toBeInTheDocument();
+      // The card supersedes the generic empty state.
+      expect(screen.queryByTestId('rb2-empty-state')).toBeNull();
+    });
+
+    it('does not show the arrival card on a plain visit', () => {
+      renderPage();
+      expect(screen.queryByTestId('rb2-workout-arrival')).toBeNull();
+    });
+
+    it('"build something new" opens the generate form seeded from the URL', () => {
+      renderPage(CALENDAR_PATH);
+      fireEvent.click(screen.getByTestId('rb2-workout-arrival-new'));
+      expect(screen.queryByTestId('rb2-workout-arrival')).toBeNull();
+      expect(screen.getByTestId('rb2-generate-bar-toggle')).toHaveAttribute(
+        'aria-expanded',
+        'true',
+      );
+      // duration=90 from the URL seeds the form (previously ignored without
+      // a resolvable workoutId).
+      expect(screen.getByDisplayValue('90')).toBeInTheDocument();
+    });
+
+    it('"use a saved route" opens the Discover panel', () => {
+      renderPage(CALENDAR_PATH);
+      fireEvent.click(screen.getByTestId('rb2-workout-arrival-saved'));
+      expect(screen.queryByTestId('rb2-workout-arrival')).toBeNull();
+      expect(screen.getByTestId('rb2-discover-panel')).toBeInTheDocument();
+    });
+
+    it('dismissing the card reveals the normal empty state', () => {
+      renderPage(CALENDAR_PATH);
+      fireEvent.click(screen.getByTestId('rb2-workout-arrival-dismiss'));
+      expect(screen.queryByTestId('rb2-workout-arrival')).toBeNull();
+      expect(screen.getByTestId('rb2-empty-state')).toBeInTheDocument();
+    });
   });
 });

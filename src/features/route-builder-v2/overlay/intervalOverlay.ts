@@ -92,6 +92,28 @@ export function categoryToGoal(category: string | null | undefined): Goal {
   }
 }
 
+const GOAL_VALUES: ReadonlySet<string> = new Set([
+  'endurance',
+  'tempo',
+  'threshold',
+  'recovery',
+  'long_ride',
+  'commute',
+]);
+
+/**
+ * Map a `planned_workouts.workout_type` string onto a Goal. Workout types are
+ * a superset of the form's Goal values ('intervals', 'long_ride', 'vo2max',
+ * 'sweet_spot', …), so pass exact matches through and fall back to the
+ * category mapping for the rest.
+ */
+export function workoutTypeToGoal(workoutType: string | null | undefined): Goal {
+  const t = (workoutType ?? '').toLowerCase();
+  if (GOAL_VALUES.has(t)) return t as Goal;
+  if (t === 'intervals') return 'threshold';
+  return categoryToGoal(t);
+}
+
 /**
  * Slice the route polyline into contiguous colored segments, one run per cue,
  * for the map's intervals line layer. Assigns each vertex to the cue whose

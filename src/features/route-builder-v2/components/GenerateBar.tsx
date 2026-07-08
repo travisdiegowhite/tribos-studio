@@ -96,6 +96,7 @@ export function GenerateBar({
     initialDurationMinutes: formSeed?.durationMinutes,
     initialDistanceKm: formSeed?.distanceKm,
     initialElevationGainM: formSeed?.elevationGainM,
+    initialStartLocation: formSeed?.startLocation,
     activeRouteProfile,
   });
 
