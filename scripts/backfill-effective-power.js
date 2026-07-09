@@ -25,17 +25,32 @@
  *
  * Environment:
  *   SUPABASE_URL, SUPABASE_SERVICE_KEY
+ *   Provide them as exported variables, via `node --env-file=.env` (Node
+ *   ≥20.6), or via a repo-root .env file if the optional `dotenv` package
+ *   happens to be installed (it is NOT a package.json dependency).
  */
 
 import { createClient } from '@supabase/supabase-js';
-import dotenv from 'dotenv';
 
-dotenv.config();
+// Optional: honor a .env file when dotenv is available, but don't require it.
+try {
+  (await import('dotenv')).config();
+} catch {
+  // dotenv not installed — env vars must be provided directly.
+}
 
-const supabase = createClient(
-  process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL,
-  process.env.SUPABASE_SERVICE_KEY,
-);
+const SUPABASE_URL = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL;
+const SUPABASE_SERVICE_KEY = process.env.SUPABASE_SERVICE_KEY;
+if (!SUPABASE_URL || !SUPABASE_SERVICE_KEY) {
+  console.error(
+    'Missing required environment: set SUPABASE_URL (or VITE_SUPABASE_URL) and SUPABASE_SERVICE_KEY.\n' +
+      'Export them, use `node --env-file=.env scripts/backfill-effective-power.js`, ' +
+      'or install dotenv and keep them in a repo-root .env file.',
+  );
+  process.exit(1);
+}
+
+const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY);
 
 const PAGE_SIZE = 1000;
 const UPDATE_CONCURRENCY = 25;
