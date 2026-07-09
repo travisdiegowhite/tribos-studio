@@ -73,7 +73,7 @@ describe('SpinePanel render', () => {
     renderPanel(data);
     expect(screen.getByText('TRAINING ARC')).toBeTruthy();
     expect(screen.getByText('Hygiene Loop')).toBeTruthy();
-    expect(screen.getByText('FORM · TSB')).toBeTruthy();
+    expect(screen.getByText('FORM · FS')).toBeTruthy();
   });
 
   it('moves the selection with arrow keys and snaps with T', () => {

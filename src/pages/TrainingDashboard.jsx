@@ -67,8 +67,9 @@ import HistoricalInsights from '../components/HistoricalInsights.jsx';
 import { WORKOUT_LIBRARY, getWorkoutsByCategory, getWorkoutById } from '../data/workoutLibrary';
 import { getWorkoutRecommendation } from '../services/workoutRecommendation';
 import { getAllPlans } from '../data/trainingPlanTemplates';
-import { calculateCTL, calculateATL, calculateTSB, interpretTSB, findOptimalSupplementDays } from '../utils/trainingPlans';
+import { interpretTSB, findOptimalSupplementDays } from '../utils/trainingPlans';
 import { estimateActivityTSS } from '../utils/computeFitnessSnapshots';
+import { buildDailyLoadSeries } from '../views/today/athleteMetrics';
 import { FtpMissingBadge } from '../components/ui';
 import { translateTSB } from '../lib/fitness/translate';
 import { exportWorkout, downloadWorkout } from '../utils/workoutExport';
@@ -129,6 +130,7 @@ function TrainingDashboard() {
     interpretation: null,
   });
   const [dailyTSSData, setDailyTSSData] = useState([]);
+  const [serverLoadHistory, setServerLoadHistory] = useState([]);
   const [healthCheckInOpen, setHealthCheckInOpen] = useState(false);
   const [fitUploadOpen, setFitUploadOpen] = useState(false);
   const [gpxUploadOpen, setGpxUploadOpen] = useState(false);
@@ -164,49 +166,36 @@ function TrainingDashboard() {
     [activities]
   );
 
-  // Recalculate training metrics when visible activities change
+  // Recalculate training metrics when visible activities change.
+  // Uses the shared server-preferred day walk (buildDailyLoadSeries) so /train
+  // shows the same fitness/fatigue/form as the Today views and Dashboard:
+  // per-day training_load_daily rows win, client EWA fills the gaps.
   useEffect(() => {
-    if (visibleActivities.length === 0) {
+    const series = buildDailyLoadSeries(visibleActivities, ftp, serverLoadHistory);
+    if (series.length === 0) {
       setDailyTSSData([]);
       setTrainingMetrics({ ctl: 0, atl: 0, tsb: 0, interpretation: null });
       return;
     }
 
-    const dailyTSS = {};
-    const today = new Date();
+    // Enriched points: tss for RampRateAlert / the load area chart, plus the
+    // server-preferred ctl/atl/tsb per day for the fitness lines.
+    setDailyTSSData(
+      series.map((p) => ({
+        date: p.date,
+        tss: p.rss,
+        ctl: Math.round(p.tfi),
+        atl: Math.round(p.afi),
+        tsb: p.fs,
+      }))
+    );
 
-    for (let i = 0; i < 90; i++) {
-      const date = new Date(today);
-      date.setDate(date.getDate() - i);
-      const dateStr = formatLocalDate(date);
-      dailyTSS[dateStr] = { date: dateStr, tss: 0 };
-    }
-
-    visibleActivities.forEach((activity) => {
-      const dateStr = activity.start_date?.split('T')[0];
-      if (dateStr && dailyTSS[dateStr]) {
-        // Use unified 5-tier TSS estimation (matches Dashboard)
-        const activityTSS = Math.min(estimateActivityTSS(activity, ftp), 500);
-        dailyTSS[dateStr].tss += activityTSS;
-      }
-    });
-
-    const sortedDailyTSS = Object.values(dailyTSS)
-      .sort((a, b) => new Date(a.date) - new Date(b.date));
-
-    setDailyTSSData(sortedDailyTSS);
-
-    const tssValues = sortedDailyTSS.map(d => d.tss);
-    const ctl = calculateCTL(tssValues);
-    const atl = calculateATL(tssValues);
-
-    // TSB uses yesterday's CTL/ATL (freshness going into today)
-    const tssYesterday = tssValues.length >= 2 ? tssValues.slice(0, -1) : tssValues;
-    const tsb = calculateTSB(calculateCTL(tssYesterday), calculateATL(tssYesterday));
-    const interpretation = interpretTSB(tsb);
-
-    setTrainingMetrics({ ctl, atl, tsb, interpretation });
-  }, [visibleActivities, ftp]);
+    const last = series[series.length - 1];
+    const ctl = Math.round(last.tfi);
+    const atl = Math.round(last.afi);
+    const tsb = last.fs;
+    setTrainingMetrics({ ctl, atl, tsb, interpretation: interpretTSB(tsb) });
+  }, [visibleActivities, ftp, serverLoadHistory]);
 
   // Load data
   useEffect(() => {
@@ -226,6 +215,20 @@ function TrainingDashboard() {
         if (userProfileData?.ftp) setFtp(userProfileData.ftp);
         if (userProfileData?.power_zones) setPowerZones(userProfileData.power_zones);
         if (userProfileData?.weight_kg) setUserWeight(userProfileData.weight_kg);
+
+        // Server-stored daily load (terrain/MTB multipliers, per-athlete tau).
+        // Same 90-day query as the Today views; buildDailyLoadSeries prefers
+        // these rows per-day and client-computes the gaps.
+        const ninety = new Date();
+        ninety.setDate(ninety.getDate() - 90);
+        const ninetyKey = formatLocalDate(ninety);
+        const { data: serverLoadRows } = await supabase
+          .from('training_load_daily')
+          .select('date, tfi, afi, form_score')
+          .eq('user_id', user.id)
+          .gte('date', ninetyKey)
+          .order('date', { ascending: true });
+        setServerLoadHistory(serverLoadRows || []);
 
         // Get all activities using pagination (Supabase caps at 1000 per request)
         let allActivities = [];
@@ -1287,7 +1290,7 @@ function TodaysFocusCard({ trainingMetrics, formStatus, weeklyStats, actualWeekl
             <Badge size="lg" color={formStatus.color} variant="filled" leftSection={<FormIcon size={14} />}>
               {formStatus.label}
             </Badge>
-            <Text size="sm" c="dimmed">TSB: {trainingMetrics.tsb > 0 ? '+' : ''}{Math.round(trainingMetrics.tsb)}</Text>
+            <Text size="sm" c="dimmed">FS: {trainingMetrics.tsb > 0 ? '+' : ''}{Math.round(trainingMetrics.tsb)}</Text>
           </Group>
 
           <Text size="lg" fw={600} mb="xs" style={{ color: 'var(--color-text-primary)' }}>
@@ -1546,16 +1549,14 @@ const TrendsTab = React.memo(function TrendsTab({ dailyTSSData, trainingMetrics,
     return (activities || []).filter(a => new Date(a.start_date) >= cutoff).length;
   }, [activities]);
 
-  // Real 4-week fitness change: CTL over the full daily-TSS window vs the
-  // window truncated 28 days ago (same iterative EWA as RampRateAlert).
+  // Real 4-week fitness change, read off the server-preferred per-day series
+  // (points carry ctl from buildDailyLoadSeries).
   const fitnessDelta4w = useMemo(() => {
     if (!dailyTSSData || dailyTSSData.length < 29) return null;
-    const ewa = (rows) => {
-      let ctl = 0;
-      for (const d of rows) ctl = ctl + (d.tss - ctl) / 42;
-      return ctl;
-    };
-    return Math.round(ewa(dailyTSSData) - ewa(dailyTSSData.slice(0, dailyTSSData.length - 28)));
+    const now = dailyTSSData[dailyTSSData.length - 1];
+    const fourWeeksAgo = dailyTSSData[dailyTSSData.length - 29];
+    if (now?.ctl == null || fourWeeksAgo?.ctl == null) return null;
+    return Math.round(now.ctl - fourWeeksAgo.ctl);
   }, [dailyTSSData]);
 
   return (
@@ -1576,15 +1577,15 @@ const TrendsTab = React.memo(function TrendsTab({ dailyTSSData, trainingMetrics,
           <Group gap="md">
             <Group gap={4}>
               <Box w={12} h={3} bg="blue" style={{ borderRadius: 2 }} />
-              <Text size="xs" c="dimmed">Fitness (CTL)</Text>
+              <Text size="xs" c="dimmed">Fitness (TFI)</Text>
             </Group>
             <Group gap={4}>
               <Box w={12} h={3} bg="orange" style={{ borderRadius: 2 }} />
-              <Text size="xs" c="dimmed">Fatigue (ATL)</Text>
+              <Text size="xs" c="dimmed">Fatigue (AFI)</Text>
             </Group>
             <Group gap={4}>
               <Box w={12} h={3} bg="teal" style={{ borderRadius: 2 }} />
-              <Text size="xs" c="dimmed">Form (TSB)</Text>
+              <Text size="xs" c="dimmed">Form (FS)</Text>
             </Group>
           </Group>
         </Group>
@@ -1947,7 +1948,7 @@ function WeeklySportSummary({ weeklyStats }) {
         label: [
           `${weeklyStats.cycling.count}`,
           formatDist(weeklyStats.cycling.distance),
-          `${Math.round(weeklyStats.cycling.tss)} TSS`,
+          `${Math.round(weeklyStats.cycling.tss)} RSS`,
           weeklyStats.cycling.avgPower > 0 ? `${weeklyStats.cycling.avgPower}W` : null,
         ].filter(Boolean).join(' · '),
       });
@@ -1958,7 +1959,7 @@ function WeeklySportSummary({ weeklyStats }) {
         label: [
           `${weeklyStats.running.count}`,
           formatDist(weeklyStats.running.distance),
-          `${Math.round(weeklyStats.running.tss)} TSS`,
+          `${Math.round(weeklyStats.running.tss)} RSS`,
           weeklyStats.running.avgPaceMinKm > 0 ? formatPace(weeklyStats.running.avgPaceMinKm) : null,
         ].filter(Boolean).join(' · '),
       });
@@ -1969,7 +1970,7 @@ function WeeklySportSummary({ weeklyStats }) {
         label: [
           `${weeklyStats.other.count} other`,
           weeklyStats.other.distance > 0 ? formatDist(weeklyStats.other.distance) : null,
-          `${Math.round(weeklyStats.other.tss)} TSS`,
+          `${Math.round(weeklyStats.other.tss)} RSS`,
         ].filter(Boolean).join(' · '),
       });
     }
@@ -1993,7 +1994,7 @@ function WeeklySportSummary({ weeklyStats }) {
     const label = [
       `${weeklyStats.running.count} runs`,
       formatDist(weeklyStats.running.distance),
-      `${Math.round(weeklyStats.running.tss)} TSS`,
+      `${Math.round(weeklyStats.running.tss)} RSS`,
       weeklyStats.running.avgPaceMinKm > 0 ? formatPace(weeklyStats.running.avgPaceMinKm) : null,
     ].filter(Boolean).join(' · ');
 
@@ -2011,7 +2012,7 @@ function WeeklySportSummary({ weeklyStats }) {
     const label = [
       `${weeklyStats.other.count} sessions`,
       weeklyStats.other.distance > 0 ? formatDist(weeklyStats.other.distance) : null,
-      `${Math.round(weeklyStats.other.tss)} TSS`,
+      `${Math.round(weeklyStats.other.tss)} RSS`,
     ].filter(Boolean).join(' · ');
 
     return (
@@ -2029,10 +2030,10 @@ function WeeklySportSummary({ weeklyStats }) {
     ? [
         `${weeklyStats.cycling.count} rides`,
         formatDist(weeklyStats.cycling.distance),
-        `${Math.round(weeklyStats.cycling.tss)} TSS`,
+        `${Math.round(weeklyStats.cycling.tss)} RSS`,
         weeklyStats.cycling.avgPower > 0 ? `${weeklyStats.cycling.avgPower}W` : null,
       ].filter(Boolean).join(' · ')
-    : `${Math.round(weeklyStats.totalTSS)} TSS (${weeklyStats.activityCount})`;
+    : `${Math.round(weeklyStats.totalTSS)} RSS (${weeklyStats.activityCount})`;
 
   return (
     <Tooltip label={`${weeklyStats.activityCount} activities this week`} position="bottom">
@@ -2081,7 +2082,7 @@ function FitnessMetricsBar({ trainingMetrics, formStatus, weeklyStats, previousM
         {/* TSB - Tier 2 supporting context */}
         <Tooltip label={`Training Stress Balance: ${formStatus.label}`} position="bottom">
           <Text size="sm" c="dimmed" style={{ cursor: 'default' }}>
-            TSB: <Text span fw={600} c="dimmed">{tsb > 0 ? '+' : ''}{Math.round(tsb)}</Text>
+            FS: <Text span fw={600} c="dimmed">{tsb > 0 ? '+' : ''}{Math.round(tsb)}</Text>
           </Text>
         </Tooltip>
 
@@ -2096,7 +2097,7 @@ function FitnessMetricsBar({ trainingMetrics, formStatus, weeklyStats, previousM
         <Group gap="md">
           <Tooltip label="Fitness (42-day load)" position="bottom">
             <Group gap={4} style={{ cursor: 'default' }}>
-              <Text size="xs" c="dimmed">CTL: {Math.round(trainingMetrics.ctl)}</Text>
+              <Text size="xs" c="dimmed">TFI: {Math.round(trainingMetrics.ctl)}</Text>
               {CtlTrendIcon && (
                 <CtlTrendIcon
                   size={12}
@@ -2107,7 +2108,7 @@ function FitnessMetricsBar({ trainingMetrics, formStatus, weeklyStats, previousM
           </Tooltip>
           <Tooltip label="Fatigue (7-day load)" position="bottom">
             <Group gap={4} style={{ cursor: 'default' }}>
-              <Text size="xs" c="dimmed">ATL: {Math.round(trainingMetrics.atl)}</Text>
+              <Text size="xs" c="dimmed">AFI: {Math.round(trainingMetrics.atl)}</Text>
               {AtlTrendIcon && (
                 <AtlTrendIcon
                   size={12}
@@ -2138,7 +2139,7 @@ function buildTrainingContext(trainingMetrics, weeklyStats, actualWeeklyStats, f
   if (ftp) context.push(`FTP: ${ftp}W`);
 
   if (trainingMetrics.ctl > 0 || trainingMetrics.atl > 0) {
-    context.push(`Training Load - CTL: ${Math.round(trainingMetrics.ctl)}, ATL: ${Math.round(trainingMetrics.atl)}, TSB: ${Math.round(trainingMetrics.tsb)}`);
+    context.push(`Training Load - Fitness (TFI): ${Math.round(trainingMetrics.ctl)}, Fatigue (AFI): ${Math.round(trainingMetrics.atl)}, Form Score (FS): ${Math.round(trainingMetrics.tsb)}`);
     if (trainingMetrics.interpretation) {
       context.push(`Form Status: ${trainingMetrics.interpretation.status} - ${trainingMetrics.interpretation.message}`);
     }
@@ -2155,15 +2156,15 @@ function buildTrainingContext(trainingMetrics, weeklyStats, actualWeeklyStats, f
     const sportCount = [weeklyStats.cycling?.count > 0, weeklyStats.running?.count > 0, weeklyStats.other?.count > 0].filter(Boolean).length;
     if (sportCount > 1) {
       if (weeklyStats.cycling?.count > 0) {
-        context.push(`  Cycling: ${formatDist(weeklyStats.cycling.distance / 1000)}, ${Math.round(weeklyStats.cycling.tss)} TSS${weeklyStats.cycling.avgPower > 0 ? `, ${weeklyStats.cycling.avgPower}W avg` : ''}`);
+        context.push(`  Cycling: ${formatDist(weeklyStats.cycling.distance / 1000)}, ${Math.round(weeklyStats.cycling.tss)} RSS${weeklyStats.cycling.avgPower > 0 ? `, ${weeklyStats.cycling.avgPower}W avg` : ''}`);
       }
       if (weeklyStats.running?.count > 0) {
         const runPace = weeklyStats.running.avgPaceMinKm;
         const paceStr = runPace > 0 ? `, ${Math.floor(runPace)}:${Math.round((runPace % 1) * 60).toString().padStart(2, '0')}/km avg pace` : '';
-        context.push(`  Running: ${formatDist(weeklyStats.running.distance / 1000)}, ${Math.round(weeklyStats.running.tss)} TSS${paceStr}`);
+        context.push(`  Running: ${formatDist(weeklyStats.running.distance / 1000)}, ${Math.round(weeklyStats.running.tss)} RSS${paceStr}`);
       }
       if (weeklyStats.other?.count > 0) {
-        context.push(`  Other (cross-training): ${weeklyStats.other.count} sessions, ${Math.round(weeklyStats.other.tss)} TSS`);
+        context.push(`  Other (cross-training): ${weeklyStats.other.count} sessions, ${Math.round(weeklyStats.other.tss)} RSS`);
       }
     }
   }
@@ -2186,7 +2187,7 @@ function buildTrainingContext(trainingMetrics, weeklyStats, actualWeeklyStats, f
       if (dist) parts.push(dist);
       if (dur) parts.push(dur);
       if (power) parts.push(power);
-      parts.push(`${Math.round(tss)} TSS`);
+      parts.push(`${Math.round(tss)} RSS`);
 
       context.push(`${i + 1}. ${date}: ${parts.join(', ')}`);
     });
@@ -2250,7 +2251,7 @@ function buildTrainingContext(trainingMetrics, weeklyStats, actualWeeklyStats, f
 
       context.push(`\n--- Race Preparation Guidance ---`);
       if (daysUntil <= 7) {
-        context.push(`RACE WEEK: Focus on rest, openers, and mental preparation. Keep TSS very low.`);
+        context.push(`RACE WEEK: Focus on rest, openers, and mental preparation. Keep ride stress (RSS) very low.`);
       } else if (daysUntil <= 14) {
         context.push(`TAPER PERIOD: Reduce volume by 40-60%, maintain some intensity. Focus on feeling fresh.`);
       } else if (daysUntil <= 28) {
@@ -2284,7 +2285,7 @@ function buildTrainingContext(trainingMetrics, weeklyStats, actualWeeklyStats, f
       totalCrossTrainingTSS += activity.tss || 0;
     });
 
-    context.push(`Total cross-training TSS (last 14 days): ${Math.round(totalCrossTrainingTSS)}`);
+    context.push(`Total cross-training RSS (last 14 days): ${Math.round(totalCrossTrainingTSS)}`);
     context.push(`Activities breakdown:`);
 
     Object.entries(byCategory).forEach(([category, activities]) => {
@@ -2296,7 +2297,7 @@ function buildTrainingContext(trainingMetrics, weeklyStats, actualWeeklyStats, f
     // List recent activities
     context.push(`\nRecent activities:`);
     crossTrainingActivities.slice(0, 5).forEach(activity => {
-      context.push(`- ${activity.date}: ${activity.type} (${activity.durationMinutes}min, intensity ${activity.intensity}/10, ~${activity.tss || 0} TSS)`);
+      context.push(`- ${activity.date}: ${activity.type} (${activity.durationMinutes}min, intensity ${activity.intensity}/10, ~${activity.tss || 0} RSS)`);
     });
 
     // Add coaching guidance for cross-training
@@ -2349,8 +2350,8 @@ function buildTrainingContext(trainingMetrics, weeklyStats, actualWeeklyStats, f
     // Add plan adjustment capability info
     context.push(`\nYou can suggest plan adjustments based on the athlete's current form, compliance, and feedback. Consider:`);
     context.push(`- If compliance is low, suggest reducing volume or intensity`);
-    context.push(`- If TSB is very negative (fatigued), recommend recovery`);
-    context.push(`- If TSB is very positive (fresh), suggest adding intensity`);
+    context.push(`- If Form Score is very negative (fatigued), recommend recovery`);
+    context.push(`- If Form Score is very positive (fresh), suggest adding intensity`);
     context.push(`- Consider the current training phase when making recommendations`);
     if (raceGoals && raceGoals.length > 0) {
       context.push(`- PRIORITIZE upcoming race goals when planning workouts and recovery`);
@@ -2497,7 +2498,7 @@ function buildTrainingContext(trainingMetrics, weeklyStats, actualWeeklyStats, f
         const weeklyCompliance = pastDueThisWeek.length > 0
           ? Math.round((pastDueCompleted / pastDueThisWeek.length) * 100) : 100;
 
-        context.push(`  Summary: ${completed} completed, ${remaining} upcoming, ~${totalTSS} total planned TSS`);
+        context.push(`  Summary: ${completed} completed, ${remaining} upcoming, ~${totalTSS} total planned RSS`);
         context.push(`  Weekly Compliance: ${weeklyCompliance}% (${pastDueCompleted} of ${pastDueThisWeek.length} past-due workouts completed)`);
         context.push(`  NOTE: Only workouts with dates BEFORE today count as missed. UPCOMING workouts are not yet due — do not treat them as failures.`);
       }

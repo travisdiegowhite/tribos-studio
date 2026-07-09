@@ -17,7 +17,7 @@ import { tokens } from '../theme';
 
 /**
  * Training Load Chart Component
- * Displays CTL, ATL, TSB, and daily TSS over time
+ * Displays TFI (fitness), AFI (fatigue), FS (form), and daily RSS over time
  */
 const TrainingLoadChart = ({ data }) => {
   const [timeRange, setTimeRange] = useState('30'); // 7, 30, or 90 days
@@ -26,18 +26,27 @@ const TrainingLoadChart = ({ data }) => {
   const chartData = useMemo(() => {
     if (!data || data.length === 0) return [];
 
-    // Walk through ALL days with iterative EWA to compute CTL/ATL per day
-    // Formula: CTL_today = CTL_yesterday + (TSS_today - CTL_yesterday) / 42
-    //          ATL_today = ATL_yesterday + (TSS_today - ATL_yesterday) / 7
+    // Prefer per-point ctl/atl/tsb when the caller provides them (Training-
+    // Dashboard passes the server-preferred series from buildDailyLoadSeries,
+    // so the chart plots the same numbers as the page header). Fall back to
+    // the iterative client EWA for plain {date, tss} inputs:
+    //   CTL_today = CTL_yesterday + (TSS_today - CTL_yesterday) / 42
+    //   ATL_today = ATL_yesterday + (TSS_today - ATL_yesterday) / 7
     let ctl = 0;
     let atl = 0;
     const allDays = data.map(d => {
       const prevCtl = ctl;
       const prevAtl = atl;
-      ctl = ctl + (d.tss - ctl) / 42;
-      atl = atl + (d.tss - atl) / 7;
+      if (d.ctl != null && d.atl != null) {
+        ctl = d.ctl;
+        atl = d.atl;
+      } else {
+        ctl = ctl + (d.tss - ctl) / 42;
+        atl = atl + (d.tss - atl) / 7;
+      }
       // TSB uses yesterday's CTL/ATL (freshness going into today)
-      return { ...d, ctl: Math.round(ctl), atl: Math.round(atl), tsb: Math.round(prevCtl - prevAtl) };
+      const tsb = d.tsb != null ? Math.round(d.tsb) : Math.round(prevCtl - prevAtl);
+      return { ...d, ctl: Math.round(ctl), atl: Math.round(atl), tsb };
     });
 
     // Filter to selected time range for display
@@ -103,19 +112,19 @@ const TrainingLoadChart = ({ data }) => {
       {/* Legend with plain-language sublabels */}
       <Group gap="md" mb="md">
         <Box>
-          <Badge color="gold" variant="light" size="sm">CTL (Fitness)</Badge>
+          <Badge color="gold" variant="light" size="sm">Fitness (TFI)</Badge>
           <Text style={{ fontFamily: "'DM Mono', monospace", fontSize: 10, color: '#7A7970', marginTop: 2 }}>
             Aerobic base — built over ~6 weeks
           </Text>
         </Box>
         <Box>
-          <Badge color="coral" variant="light" size="sm">ATL (Fatigue)</Badge>
+          <Badge color="coral" variant="light" size="sm">Fatigue (AFI)</Badge>
           <Text style={{ fontFamily: "'DM Mono', monospace", fontSize: 10, color: '#7A7970', marginTop: 2 }}>
             Recent fatigue — last 7–10 days
           </Text>
         </Box>
         <Box>
-          <Badge color="teal" variant="light" size="sm">TSB (Form)</Badge>
+          <Badge color="teal" variant="light" size="sm">Form (FS)</Badge>
           <Text style={{ fontFamily: "'DM Mono', monospace", fontSize: 10, color: '#7A7970', marginTop: 2 }}>
             Freshness — how ready you are today
           </Text>
@@ -139,13 +148,13 @@ const TrainingLoadChart = ({ data }) => {
             stroke="#2A8C82"
             fill="#2A8C82"
             fillOpacity={0.3}
-            name="Daily TSS"
+            name="Daily RSS"
           />
         </AreaChart>
       </ResponsiveContainer>
 
       <Text size="xs" style={{ color: 'var(--color-text-muted)' }} mb="lg" mt="xs">
-        Daily Training Stress Score
+        Daily Ride Stress (RSS)
       </Text>
 
       {/* CTL/ATL/TSB Line Chart */}
@@ -171,7 +180,7 @@ const TrainingLoadChart = ({ data }) => {
             stroke="#C49A0A"
             strokeWidth={2}
             dot={false}
-            name="CTL (Fitness)"
+            name="Fitness (TFI)"
           />
 
           {/* ATL - Acute Training Load (Fatigue) */}
@@ -181,7 +190,7 @@ const TrainingLoadChart = ({ data }) => {
             stroke="#C43C2A"
             strokeWidth={2}
             dot={false}
-            name="ATL (Fatigue)"
+            name="Fatigue (AFI)"
           />
 
           {/* TSB - Training Stress Balance (Form) */}
@@ -191,13 +200,13 @@ const TrainingLoadChart = ({ data }) => {
             stroke="#2A8C82"
             strokeWidth={2}
             dot={false}
-            name="TSB (Form)"
+            name="Form (FS)"
           />
         </LineChart>
       </ResponsiveContainer>
 
       <Text style={{ fontFamily: "'DM Mono', monospace", fontSize: 10, color: '#7A7970', marginTop: 6 }}>
-        TSS = Today&apos;s training load | FTP = Your current threshold power
+        RSS = Daily ride stress | FTP = Your current threshold power
       </Text>
     </Card>
   );

@@ -61,7 +61,7 @@ function WeekSummaryGrid({ weeklyStats, actualWeeklyStats, plannedWorkouts, form
 
   const cells = [
     {
-      label: 'TSS',
+      label: 'RSS',
       value: plannedTSS > 0 ? `${Math.round(weeklyTSS)}/${Math.round(plannedTSS)}` : String(Math.round(weeklyTSS)),
       color: 'var(--color-teal)',
     },

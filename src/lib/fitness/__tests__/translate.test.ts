@@ -64,31 +64,33 @@ describe('translateATL', () => {
   });
 });
 
+// Spec §5 form bands — single authority in src/utils/formBands.js.
 describe('translateTSB', () => {
-  it('returns "In the hole" for TSB <= -20', () => {
-    expect(translateTSB(-20)).toEqual({ label: 'In the hole', color: 'coral' });
-    expect(translateTSB(-30)).toEqual({ label: 'In the hole', color: 'coral' });
+  it('returns "Overreached — high risk" for TSB < -30', () => {
+    expect(translateTSB(-31)).toEqual({ label: 'Overreached — high risk', color: 'coral' });
+    expect(translateTSB(-50)).toEqual({ label: 'Overreached — high risk', color: 'coral' });
   });
 
-  it('returns "Digging in" for TSB -19 to -10', () => {
-    expect(translateTSB(-19)).toEqual({ label: 'Digging in', color: 'orange' });
-    expect(translateTSB(-10)).toEqual({ label: 'Digging in', color: 'orange' });
+  it('returns "Optimal training load" for TSB -30 to -6', () => {
+    expect(translateTSB(-30)).toEqual({ label: 'Optimal training load', color: 'teal' });
+    expect(translateTSB(-20)).toEqual({ label: 'Optimal training load', color: 'teal' });
+    expect(translateTSB(-6)).toEqual({ label: 'Optimal training load', color: 'teal' });
   });
 
-  it('returns "Training sweet spot" for TSB -9 to +2', () => {
-    expect(translateTSB(-9)).toEqual({ label: 'Training sweet spot', color: 'teal' });
-    expect(translateTSB(0)).toEqual({ label: 'Training sweet spot', color: 'teal' });
-    expect(translateTSB(2)).toEqual({ label: 'Training sweet spot', color: 'teal' });
+  it('returns "Grey zone" for TSB -5 to +9', () => {
+    expect(translateTSB(-5)).toEqual({ label: 'Grey zone', color: 'muted' });
+    expect(translateTSB(0)).toEqual({ label: 'Grey zone', color: 'muted' });
+    expect(translateTSB(9)).toEqual({ label: 'Grey zone', color: 'muted' });
   });
 
-  it('returns "Primed to perform" for TSB +3 to +15', () => {
-    expect(translateTSB(3)).toEqual({ label: 'Primed to perform', color: 'gold' });
-    expect(translateTSB(15)).toEqual({ label: 'Primed to perform', color: 'gold' });
+  it('returns "Fresh — race ready" for TSB +10 to +20', () => {
+    expect(translateTSB(10)).toEqual({ label: 'Fresh — race ready', color: 'gold' });
+    expect(translateTSB(20)).toEqual({ label: 'Fresh — race ready', color: 'gold' });
   });
 
-  it('returns "Tapered" for TSB > 15', () => {
-    expect(translateTSB(16)).toEqual({ label: 'Tapered — ready to go', color: 'gold' });
-    expect(translateTSB(30)).toEqual({ label: 'Tapered — ready to go', color: 'gold' });
+  it('returns "Transition — too fresh" for TSB > +20', () => {
+    expect(translateTSB(21)).toEqual({ label: 'Transition — too fresh', color: 'orange' });
+    expect(translateTSB(35)).toEqual({ label: 'Transition — too fresh', color: 'orange' });
   });
 });
 

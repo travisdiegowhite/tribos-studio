@@ -36,7 +36,7 @@ const QUICK_CHIPS: Array<{ label: string; query: string }> = [
 function buildContext(data: SpineData): string {
   const t = data.days[data.todayIndex];
   const parts = [
-    `Canonical metrics on screen — Form Score (TSB): ${t.fs}, TFI (CTL): ${t.tfi}, AFI (ATL): ${t.afi}, readiness ${t.readiness}.`,
+    `Canonical metrics on screen — Form Score (FS): ${t.fs}, Fitness (TFI): ${t.tfi}, Fatigue (AFI): ${t.afi}, readiness ${t.readiness}.`,
     `Today: ${t.activity.tag} · ${t.activity.name} · ${t.activity.meta}.`,
   ];
   if (data.event) parts.push(`Goal: ${data.event.name} in ${data.event.daysToRace} days.`);

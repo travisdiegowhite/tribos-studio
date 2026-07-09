@@ -142,12 +142,13 @@ export function plannedRowRSS(p: PlannedRow): number {
   const minutes = Number(p.duration_minutes ?? p.target_duration ?? 0) || 60;
   return Math.round(perHour.mid * (minutes / 60));
 }
+// Spec §5 form bands — keep cuts in lockstep with src/utils/formBands.js.
 function formWord(fs: number): string {
-  if (fs > 10) return 'fresh and building';
-  if (fs >= 5) return 'fresh';
+  if (fs > 20) return 'too fresh — losing fitness';
+  if (fs >= 10) return 'fresh';
   if (fs >= -5) return 'in the grey zone';
-  if (fs >= -20) return 'loading';
-  return 'deeply fatigued';
+  if (fs >= -30) return 'carrying productive load';
+  return 'overreached';
 }
 
 const ENDURANCE_NAMES = ['Foothills loop', 'Valley endurance', 'Reservoir loop', 'Canyon spin'];

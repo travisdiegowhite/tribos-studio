@@ -81,6 +81,8 @@ export function calculateTSSFromPower(durationSeconds, normalizedPower, ftp) {
 /**
  * Get IF zone description
  */
+// Canonical 7-zone cuts — lockstep with TRAINING_ZONES and the DB trigger
+// calculate_power_zones (0.55/0.75/0.90/1.05/1.20/1.50 of FTP).
 export function getIFZone(intensityFactor) {
   if (!intensityFactor) return null;
 
@@ -94,14 +96,16 @@ export function getIFZone(intensityFactor) {
     return { zone: 4, name: 'Threshold', color: 'orange' };
   } else if (intensityFactor < 1.20) {
     return { zone: 5, name: 'VO2max', color: 'red' };
-  } else {
+  } else if (intensityFactor < 1.50) {
     return { zone: 6, name: 'Anaerobic', color: 'pink' };
+  } else {
+    return { zone: 7, name: 'Neuromuscular', color: 'grape' };
   }
 }
 
 /**
  * Compact Activity Metrics Badge Row
- * Shows NP, IF, VI, TSS in a compact format
+ * Shows EP, RI, VI, RSS in a compact format
  */
 export function ActivityMetricsBadges({ activity, ftp }) {
   const metrics = useMemo(() => {
@@ -154,22 +158,22 @@ export function ActivityMetricsBadges({ activity, ftp }) {
 
       {/* Normalized Power */}
       {metrics.np && (
-        <Tooltip label="Normalized Power - accounts for variability in effort">
+        <Tooltip label="Effective Power (EP) - accounts for variability in effort">
           <Badge color="gray" variant="light" size="sm">
-            {metrics.np}W NP
+            {metrics.np}W EP
           </Badge>
         </Tooltip>
       )}
 
       {/* Intensity Factor - only highlight if threshold+ effort */}
       {metrics.intensityFactor && ftp && (
-        <Tooltip label={`Intensity Factor (${metrics.ifZone?.name}) - NP as % of FTP`}>
+        <Tooltip label={`Ride Intensity (${metrics.ifZone?.name}) - EP as % of FTP`}>
           <Badge
             color={metrics.intensityFactor >= 1.0 ? 'orange' : 'gray'}
             variant="light"
             size="sm"
           >
-            IF {metrics.intensityFactor.toFixed(2)}
+            RI {metrics.intensityFactor.toFixed(2)}
           </Badge>
         </Tooltip>
       )}
@@ -193,14 +197,14 @@ export function ActivityMetricsBadges({ activity, ftp }) {
 
       {/* TSS - only highlight if high training load */}
       {metrics.tss && (
-        <Tooltip label="Training Stress Score - overall training load">
+        <Tooltip label="Ride Stress Score (RSS) - overall training load">
           <Badge
             color={metrics.tss >= 150 ? 'orange' : 'gray'}
             variant="light"
             size="sm"
             leftSection={<Fire size={12} />}
           >
-            {metrics.tss} TSS
+            {metrics.tss} RSS
           </Badge>
         </Tooltip>
       )}
@@ -298,7 +302,7 @@ export function ActivityMetricsPanel({ activity, ftp, weight }) {
         {metrics.np && (
           <MetricCard
             icon={<Heartbeat size={16} color={tokens.colors.zone4} />}
-            label="Normalized"
+            label="Eff. Power"
             value={`${metrics.np}W`}
             subValue={metrics.npWkg ? `${metrics.npWkg} W/kg` : null}
           />
@@ -316,7 +320,7 @@ export function ActivityMetricsPanel({ activity, ftp, weight }) {
         {metrics.intensityFactor && (
           <MetricCard
             icon={<Gauge size={16} color={tokens.colors.zone3} />}
-            label="Intensity Factor"
+            label="Intensity (RI)"
             value={metrics.intensityFactor.toFixed(2)}
             subValue={metrics.ifZone?.name}
             color={metrics.ifZone?.color}
@@ -335,9 +339,9 @@ export function ActivityMetricsPanel({ activity, ftp, weight }) {
         {metrics.tss && (
           <MetricCard
             icon={<Fire size={16} color={tokens.colors.zone5} />}
-            label="TSS"
+            label="RSS"
             value={metrics.tss.toString()}
-            subValue="Training Stress"
+            subValue="Ride Stress"
           />
         )}
 
@@ -357,14 +361,14 @@ export function ActivityMetricsPanel({ activity, ftp, weight }) {
             icon={<Gauge size={16} color={tokens.colors.zone2} />}
             label="Efficiency"
             value={metrics.ef.toFixed(2)}
-            subValue="NP/HR ratio"
+            subValue="EP/HR ratio"
           />
         )}
       </SimpleGrid>
 
       {/* Info text */}
       <Text size="xs" c="dimmed" mt="sm">
-        NP and VI are estimated from average/max power. Actual values require power stream data.
+        EP and VI are estimated from average/max power. Actual values require power stream data.
       </Text>
     </Paper>
   );

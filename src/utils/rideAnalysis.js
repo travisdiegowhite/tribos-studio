@@ -1140,18 +1140,19 @@ function calculateVariance(values) {
   return squaredDiffs.reduce((sum, diff) => sum + diff, 0) / (values.length - 1);
 }
 
-// Analyze heart rate zones
+// Analyze heart rate zones.
+// Boundaries in lockstep with the canonical persisted model
+// (api/utils/advancedRideAnalytics.js analyzeHRZones: 60/70/80/90 %maxHR).
 function analyzeHeartRateZones(heartRates) {
   const maxHR = Math.max(...heartRates);
   const avgHR = heartRates.reduce((sum, hr) => sum + hr, 0) / heartRates.length;
-  
-  // Estimate zones based on common percentages
+
   return {
-    zone1: Math.round(maxHR * 0.5), // Active recovery
-    zone2: Math.round(maxHR * 0.65), // Aerobic base
-    zone3: Math.round(maxHR * 0.75), // Aerobic
-    zone4: Math.round(maxHR * 0.85), // Threshold
-    zone5: Math.round(maxHR * 0.95), // Neuromuscular
+    zone1: Math.round(maxHR * 0.6), // Recovery (below 60%)
+    zone2: Math.round(maxHR * 0.7), // Endurance
+    zone3: Math.round(maxHR * 0.8), // Tempo
+    zone4: Math.round(maxHR * 0.9), // Threshold
+    zone5: Math.round(maxHR), // VO2max+
     averageHR: Math.round(avgHR),
     maxObserved: Math.round(maxHR)
   };

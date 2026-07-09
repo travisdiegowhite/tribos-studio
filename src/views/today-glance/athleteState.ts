@@ -28,14 +28,15 @@ function clamp01(v: number): number {
   return Math.min(1, Math.max(0, v));
 }
 
-/** Plain-language readiness verdict for the FORM line, by Form Score. */
+/** Plain-language readiness verdict for the FORM line, by Form Score.
+ * Spec §5 bands — keep cuts in lockstep with src/utils/formBands.js. */
 export function formVerdict(fs: number | null): string {
   if (fs == null) return 'building baseline';
-  if (fs >= 15) return 'fresh — add load';
-  if (fs >= 5) return 'primed — cleared for quality';
-  if (fs >= -10) return 'cleared for quality';
-  if (fs >= -20) return 'steady aerobic only';
-  return 'keep it easy — recover';
+  if (fs > 20) return 'too fresh — add load';
+  if (fs >= 10) return 'fresh — cleared for quality';
+  if (fs >= -5) return 'grey zone — cleared for quality';
+  if (fs >= -30) return 'productive load — steady aerobic';
+  return 'overreached — recover';
 }
 
 export const EMPTY_ATHLETE_STATE: TodayAthleteState = {

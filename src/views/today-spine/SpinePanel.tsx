@@ -163,9 +163,9 @@ export function SpinePanel({
           style={{ fontFamily: FONT.mono, fontSize: 10, letterSpacing: '1px', color: C.text3 }}
           visibleFrom="sm"
         >
-          <LegendKey swatch={<span style={{ width: 16, height: 2, background: CHART.pastLine }} />} label="FITNESS · CTL" />
+          <LegendKey swatch={<span style={{ width: 16, height: 2, background: CHART.pastLine }} />} label="FITNESS · TFI" />
           <LegendKey swatch={<span style={{ width: 16, height: 0, borderTop: `2px dashed ${C.text3}` }} />} label="PROJECTED" />
-          <LegendKey swatch={<span style={{ width: 10, height: 10, background: CHART.tssBar }} />} label="DAILY TSS" />
+          <LegendKey swatch={<span style={{ width: 10, height: 10, background: CHART.tssBar }} />} label="DAILY RSS" />
         </Group>
       </Group>
 
@@ -339,7 +339,7 @@ export function SpinePanel({
 
         <Text style={{ fontFamily: FONT.body, fontSize: 10.5, color: CHART.axisMuted, marginTop: 12, textAlign: 'center' }}>
           {showNode
-            ? 'Drag the node to scrub past days or ahead into the plan · click it for the CTL/ATL trend · click the ring for readiness'
+            ? 'Drag the node to scrub past days or ahead into the plan · click it for the TFI/AFI trend · click the ring for readiness'
             : `Tap a day to inspect it — the last 6 weeks and the ${futureWeeks}-week projection ahead.`}
         </Text>
       </Box>

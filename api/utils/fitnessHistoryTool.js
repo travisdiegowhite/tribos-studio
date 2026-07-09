@@ -207,8 +207,8 @@ function analyzeRecentTrend(snapshots, metrics) {
     },
     advanced_analytics: Object.keys(advanced).length > 0 ? advanced : undefined,
     weeks_analyzed: snapshots.length,
-    summary: `Fitness is ${direction}. CTL ${ctlChange >= 0 ? '+' : ''}${ctlChange}% over last 4 weeks. ` +
-             `Currently at CTL ${currentWeek.ctl}, TSB ${currentWeek.tsb} (${currentWeek.tsb > 5 ? 'fresh' : currentWeek.tsb > -10 ? 'balanced' : 'fatigued'}).`
+    summary: `Fitness is ${direction}. Fitness (TFI) ${ctlChange >= 0 ? '+' : ''}${ctlChange}% over last 4 weeks. ` +
+             `Currently at TFI ${currentWeek.ctl}, Form Score ${currentWeek.tsb} (${currentWeek.tsb > 5 ? 'fresh' : currentWeek.tsb > -10 ? 'balanced' : 'fatigued'}).`
   };
 }
 
@@ -256,8 +256,8 @@ async function findPeakFitness(recentSnapshots, supabase, userId) {
       ctl: s.ctl,
       hours: s.weekly_hours
     })),
-    summary: `Peak fitness (CTL ${peak.ctl}) was ${weeksAgo > 0 ? weeksAgo + ' weeks ago' : 'this week'} during the week of ${peak.snapshot_week}. ` +
-             `Current fitness is ${percentOfPeak}% of peak (CTL ${current.ctl}).`
+    summary: `Peak fitness (TFI ${peak.ctl}) was ${weeksAgo > 0 ? weeksAgo + ' weeks ago' : 'this week'} during the week of ${peak.snapshot_week}. ` +
+             `Current fitness is ${percentOfPeak}% of peak (TFI ${current.ctl}).`
   };
 }
 
@@ -359,7 +359,7 @@ async function comparePeriods(recentSnapshots, compare_to, metrics, supabase, us
 
   // Build enhanced summary
   let summary = `Compared to ${comparisonLabel}:\n`;
-  summary += `• Training Load (CTL): ${ctlDiff >= 0 ? '+' : ''}${ctlDiff} (${Math.round(currentAvg.ctl)} vs ${Math.round(comparisonAvg.ctl)})\n`;
+  summary += `• Fitness (TFI): ${ctlDiff >= 0 ? '+' : ''}${ctlDiff} (${Math.round(currentAvg.ctl)} vs ${Math.round(comparisonAvg.ctl)})\n`;
   summary += `• Weekly volume: ${hoursDiff >= 0 ? '+' : ''}${hoursDiff} hours (${round2(currentAvg.weekly_hours)} vs ${round2(comparisonAvg.weekly_hours)} hrs/week)\n`;
 
   if (currentPower && comparisonPower) {
@@ -556,7 +556,7 @@ function generateFitnessVerdict(current, previous) {
     const ctlDiff = current.ctl - previous.ctl;
     if (ctlDiff < -10) {
       dominated.worse++;
-      insights.push(`Training load (CTL) is ${Math.abs(ctlDiff)} points lower`);
+      insights.push(`Fitness (TFI) is ${Math.abs(ctlDiff)} points lower`);
     } else if (ctlDiff > 10) {
       dominated.better++;
     }
@@ -752,7 +752,7 @@ async function yearOverYearComparison(recentSnapshots, supabase, userId) {
     const ctlDiff = current.ctl - yc.snapshot.ctl;
 
     summary = `Year-over-year analysis (vs ${yc.year}):\n`;
-    summary += `• Training Load (CTL): ${current.ctl} vs ${yc.snapshot.ctl} (${ctlDiff >= 0 ? '+' : ''}${ctlDiff})\n`;
+    summary += `• Fitness (TFI): ${current.ctl} vs ${yc.snapshot.ctl} (${ctlDiff >= 0 ? '+' : ''}${ctlDiff})\n`;
 
     if (currentPower && yc.power) {
       summary += `• Best 20-60min power: ${currentPower.best_power_short || 'N/A'}W vs ${yc.power.best_power_short || 'N/A'}W`;
@@ -861,8 +861,8 @@ async function analyzeSeasonalPattern(supabase, userId) {
       avg_hours: lowMonth.avg_hours
     },
     total_weeks_analyzed: allSnapshots.length,
-    summary: `Seasonal pattern: Peak fitness typically in ${peakMonth.month} (avg CTL ${peakMonth.avg_ctl}), ` +
-             `lowest in ${lowMonth.month} (avg CTL ${lowMonth.avg_ctl}). Based on ${allSnapshots.length} weeks of data.`
+    summary: `Seasonal pattern: Peak fitness typically in ${peakMonth.month} (avg TFI ${peakMonth.avg_ctl}), ` +
+             `lowest in ${lowMonth.month} (avg TFI ${lowMonth.avg_ctl}). Based on ${allSnapshots.length} weeks of data.`
   };
 }
 
@@ -913,7 +913,7 @@ function analyzeTrainingResponse(snapshots) {
     avg_ctl_response_to_load_increase: avgResponseToIncrease,
     recent_responses: responses.slice(0, 5),
     summary: increases.length > 0
-      ? `Training response: When load increases by ~20%, CTL typically responds with +${avgResponseToIncrease}% over 4 weeks. ` +
+      ? `Training response: When load increases by ~20%, fitness (TFI) typically responds with +${avgResponseToIncrease}% over 4 weeks. ` +
         `Found ${responses.length} significant load changes in the history.`
       : 'Not enough significant load changes to analyze training response patterns.'
   };

@@ -856,7 +856,7 @@ function AICoach({ trainingContext, onAddWorkout, activePlan }) {
                                   <Group gap={4}>
                                     <Fire size={14} style={{ color: 'var(--color-text-muted)' }} />
                                     <Text size="xs" style={{ color: 'var(--color-text-secondary)' }}>
-                                      {workout.targetTSS} TSS
+                                      {workout.targetTSS} RSS
                                     </Text>
                                   </Group>
                                   <Badge size="xs" variant="light" color="gray">
@@ -939,7 +939,7 @@ function AICoach({ trainingContext, onAddWorkout, activePlan }) {
                           <Text size="lg" fw={700} style={{ color: 'var(--color-text-primary)' }}>
                             {msg.trainingPlanPreview.summary.avg_weekly_tss}
                           </Text>
-                          <Text size="xs" c="dimmed">TSS/week</Text>
+                          <Text size="xs" c="dimmed">RSS/week</Text>
                         </Paper>
                       </SimpleGrid>
 

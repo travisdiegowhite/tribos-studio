@@ -186,7 +186,7 @@ export function AdaptationFeedbackModal({
                 {adaptation.planned.workoutType || 'Workout'}
               </Text>
               <Text size="xs" c="dimmed">
-                {adaptation.planned.duration}min • {adaptation.planned.tss} TSS
+                {adaptation.planned.duration}min • {adaptation.planned.tss} RSS
               </Text>
             </Stack>
           </Paper>
@@ -199,7 +199,7 @@ export function AdaptationFeedbackModal({
                 {adaptation.actual.workoutType || 'Activity'}
               </Text>
               <Text size="xs" c="dimmed">
-                {adaptation.actual.duration}min • {adaptation.actual.tss} TSS
+                {adaptation.actual.duration}min • {adaptation.actual.tss} RSS
               </Text>
             </Stack>
           </Paper>

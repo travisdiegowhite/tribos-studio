@@ -241,17 +241,16 @@ describe('detectZoneGaps', () => {
 // ─── getFormStatus ────────────────────────────────────────────────────────────
 
 describe('getFormStatus', () => {
-  it('returns fresh for TSB >= 15', () => expect(getFormStatus(20)).toBe('fresh'));
-  // Canonical thresholds from translate.ts: 15, 2, -10, -20
-  it('returns fresh for TSB > 15', () => expect(getFormStatus(16)).toBe('fresh'));
-  it('returns ready for TSB 3-15', () => expect(getFormStatus(10)).toBe('ready'));
-  it('returns optimal for TSB -9 to 2', () => expect(getFormStatus(0)).toBe('optimal'));
-  it('returns tired for TSB -19 to -10', () => expect(getFormStatus(-15)).toBe('tired'));
-  it('returns fatigued for TSB <= -20', () => expect(getFormStatus(-25)).toBe('fatigued'));
-  it('handles boundary at 15', () => expect(getFormStatus(15)).toBe('ready'));
-  it('handles boundary at 2', () => expect(getFormStatus(2)).toBe('optimal'));
-  it('handles boundary at -10', () => expect(getFormStatus(-10)).toBe('tired'));
-  it('handles boundary at -20', () => expect(getFormStatus(-20)).toBe('fatigued'));
+  // Canonical spec §5 thresholds from translate.ts / formBands.js: 20, 10, -5, -30
+  it('returns fresh for TSB > 20', () => expect(getFormStatus(25)).toBe('fresh'));
+  it('returns ready for TSB 10-20', () => expect(getFormStatus(15)).toBe('ready'));
+  it('returns optimal for TSB -5 to 9', () => expect(getFormStatus(0)).toBe('optimal'));
+  it('returns tired for TSB -30 to -6', () => expect(getFormStatus(-15)).toBe('tired'));
+  it('returns fatigued for TSB < -30', () => expect(getFormStatus(-35)).toBe('fatigued'));
+  it('handles boundary at 20', () => expect(getFormStatus(20)).toBe('ready'));
+  it('handles boundary at 10', () => expect(getFormStatus(10)).toBe('ready'));
+  it('handles boundary at -5', () => expect(getFormStatus(-5)).toBe('optimal'));
+  it('handles boundary at -30', () => expect(getFormStatus(-30)).toBe('tired'));
 });
 
 // ─── analyzeTrainingNeeds ─────────────────────────────────────────────────────
@@ -497,7 +496,8 @@ describe('getWorkoutRecommendation', () => {
     expect(result.analysis.needs).toBeDefined();
     expect(result.analysis.raceProximity).toBeDefined();
     expect(result.analysis.gaps).toBeDefined();
-    expect(result.analysis.formStatus).toBe('ready');
+    // TSB 5 sits in the spec §5 grey zone (−5..+10) → engine token 'optimal'.
+    expect(result.analysis.formStatus).toBe('optimal');
   });
 
   it('returns planned workout when one is scheduled for today', () => {
