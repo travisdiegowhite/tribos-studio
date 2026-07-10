@@ -2,7 +2,26 @@
 
 **Filed:** 2026-05-11
 **Author:** claude/fix-tfi-computation-duality-BrvzR
-**Status:** Decision pending — implementation deferred to a separate PR.
+**Status:** ✅ RESOLVED — option (a) implemented 2026-07 on
+`claude/training-stats-audit-4o0heh` (PR #892), in two parts:
+
+1. **Reader consistency** (P1 of the July audit): every surface — Today,
+   Glance, Spine, Dashboard, and /train — derives fitness/fatigue/form from
+   the shared server-preferred day walk (`buildDailyLoadSeries` in
+   `src/views/today/athleteMetrics.ts`), client-filling days the server
+   hasn't written.
+2. **Population**: `api/training-load-daily.js?action=rollforward` (nightly
+   cron 02:30 UTC, after the 02:00 adaptive-tau recompute) recomputes the
+   trailing 180 days per active user via
+   `api/utils/trainingLoadRecompute.js` — spec-faithful math (6-tier RSS
+   with terrain/MTB multipliers, per-athlete tau, fs_confidence), written
+   through YESTERDAY in the user's timezone so readers always client-fill a
+   live "today". The first cron run doubles as the historical backfill.
+   §5.1's UX-jump quantification is available per-user via
+   `POST /api/training-load-daily {action:'preview'}` (server vs
+   client-style numbers side by side) before/after enabling.
+
+The original analysis below is kept for the record.
 **Supersedes:** the per-surface fixes implied by `docs/metric-audit.md` §6
 "Next Steps" (Apr 26 / May 3 race protocol).
 
