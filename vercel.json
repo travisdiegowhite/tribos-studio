@@ -41,6 +41,10 @@
       "schedule": "0 2 * * *"
     },
     {
+      "path": "/api/training-load-daily?action=rollforward",
+      "schedule": "30 2 * * *"
+    },
+    {
       "path": "/api/workout-preview-cron",
       "schedule": "0 * * * *"
     },
@@ -77,6 +81,9 @@
       "maxDuration": 60
     },
     "api/fitness-snapshots.js": {
+      "maxDuration": 60
+    },
+    "api/training-load-daily.js": {
       "maxDuration": 60
     },
     "api/workout-preview-cron.js": {
