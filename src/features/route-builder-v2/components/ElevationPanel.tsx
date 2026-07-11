@@ -3,8 +3,13 @@
  *
  * Purpose-built SVG area chart fed by `useRouteAnalysis.elevationProfile`
  * (`{ distance_km, elevation_m }[]`). Styled with RB2 brand tokens.
- * Internal hover surfaces a vertical scrubber + distance/elevation
- * readout. Hidden when there's no usable profile.
+ *
+ * The area under the terrain line is painted as grade bands — contiguous
+ * runs of climbing steepness on the Tribos earth ramp (pale sage flat →
+ * deep clay 10%+, see `elevationGrade.ts`), with altitude gridlines/ticks,
+ * distance-axis ticks, and a grade legend. Internal hover surfaces a
+ * vertical scrubber + distance/elevation/grade readout. Hidden when
+ * there's no usable profile.
  *
  * Designed as the foundation for two follow-ups:
  *  - 1.5 map ↔ chart hover sync (an external `highlightKm` prop will
@@ -19,6 +24,7 @@ import { Box, Text } from '@mantine/core';
 import { RB2, RB2_FONT } from './brand';
 import { convertDistance } from '../../../utils/units.jsx';
 import { cueColor, type WorkoutCue } from '../overlay/intervalOverlay';
+import { GRADE_BINS, computeGradeSegmentation, niceTicks } from './elevationGrade';
 import type { ElevationPoint } from '../../../hooks/route-builder';
 
 export interface ElevationPanelProps {
@@ -45,13 +51,16 @@ const VIEW_H = 200;
 const PAD_TOP = 14;
 const PAD_BOTTOM = 14;
 
+// Display-unit factors for axis tick generation (labels are formatted with
+// the same tick value, so a tick is always internally consistent).
+const FT_PER_M = 3.28084;
+const MI_PER_KM = 0.621371;
+
 interface Scales {
   minElev: number;
   maxElev: number;
   totalKm: number;
   gainM: number;
-  /** Steepest segment grade along the route, in % (absolute). */
-  maxGradePct: number;
   /** distance_km → svg x */
   toX: (km: number) => number;
   /** elevation_m → svg y */
@@ -62,7 +71,6 @@ function buildScales(profile: ElevationPoint[]): Scales {
   let minElev = Infinity;
   let maxElev = -Infinity;
   let gainM = 0;
-  let maxGradePct = 0;
   for (let i = 0; i < profile.length; i++) {
     const e = profile[i].elevation_m;
     if (e < minElev) minElev = e;
@@ -70,11 +78,6 @@ function buildScales(profile: ElevationPoint[]): Scales {
     if (i > 0) {
       const delta = e - profile[i - 1].elevation_m;
       if (delta > 0) gainM += delta;
-      const runM = (profile[i].distance_km - profile[i - 1].distance_km) * 1000;
-      if (runM > 20) {
-        const grade = Math.abs(delta / runM) * 100;
-        if (grade > maxGradePct) maxGradePct = grade;
-      }
     }
   }
   const totalKm = profile[profile.length - 1].distance_km || 1;
@@ -85,7 +88,7 @@ function buildScales(profile: ElevationPoint[]): Scales {
   const toX = (km: number) => (km / totalKm) * VIEW_W;
   const toY = (m: number) =>
     PAD_TOP + (1 - (m - lo) / (hi - lo)) * (VIEW_H - PAD_TOP - PAD_BOTTOM);
-  return { minElev, maxElev, totalKm, gainM, maxGradePct, toX, toY };
+  return { minElev, maxElev, totalKm, gainM, toX, toY };
 }
 
 /** Nearest profile index for a distance-along-route in km (binary search). */
@@ -124,6 +127,17 @@ function elevLabel(m: number, isImperial: boolean): string {
   return `${Math.round(value)}${isImperial ? 'ft' : 'm'}`;
 }
 
+// Bare tick number ("15" / "22.5") — the axis-end label carries the unit.
+function tickNum(value: number): string {
+  return Number.isInteger(value) ? value.toString() : value.toFixed(1);
+}
+
+const AXIS_LABEL_STYLE = {
+  fontFamily: RB2_FONT.mono,
+  fontSize: 9,
+  color: RB2.textTertiary,
+} as const;
+
 export function ElevationPanel({
   profile,
   isMobile = false,
@@ -140,7 +154,12 @@ export function ElevationPanel({
     [profile],
   );
 
-  const paths = useMemo(() => {
+  const segmentation = useMemo(
+    () => (profile && profile.length >= 2 ? computeGradeSegmentation(profile) : null),
+    [profile],
+  );
+
+  const linePath = useMemo(() => {
     if (!profile || !scales) return null;
     const { toX, toY } = scales;
     let line = '';
@@ -149,11 +168,49 @@ export function ElevationPanel({
       const y = toY(profile[i].elevation_m);
       line += `${i === 0 ? 'M' : 'L'}${x.toFixed(2)},${y.toFixed(2)}`;
     }
-    const first = toX(profile[0].distance_km);
-    const last = toX(profile[profile.length - 1].distance_km);
-    const area = `${line}L${last.toFixed(2)},${VIEW_H}L${first.toFixed(2)},${VIEW_H}Z`;
-    return { line, area };
+    return line;
   }, [profile, scales]);
+
+  // One closed polygon per grade run: along the terrain line, then down to
+  // the baseline. Adjacent runs share their boundary point, so the bands
+  // butt cleanly with no seams.
+  const gradeBands = useMemo(() => {
+    if (!profile || !scales || !segmentation) return null;
+    const { toX, toY } = scales;
+    return segmentation.runs.map((run) => {
+      let d = '';
+      for (let i = run.startIdx; i <= run.endIdx; i++) {
+        const x = toX(profile[i].distance_km);
+        const y = toY(profile[i].elevation_m);
+        d += `${i === run.startIdx ? 'M' : 'L'}${x.toFixed(2)},${y.toFixed(2)}`;
+      }
+      const x1 = toX(profile[run.endIdx].distance_km);
+      const x0 = toX(profile[run.startIdx].distance_km);
+      d += `L${x1.toFixed(2)},${VIEW_H}L${x0.toFixed(2)},${VIEW_H}Z`;
+      return { d, color: GRADE_BINS[run.bin].color };
+    });
+  }, [profile, scales, segmentation]);
+
+  // Altitude gridlines/labels at clean values in the display unit.
+  const yTicks = useMemo(() => {
+    if (!scales) return [];
+    const f = isImperial ? FT_PER_M : 1;
+    return niceTicks(scales.minElev * f, scales.maxElev * f, 3).map((t) => ({
+      label: tickNum(t),
+      y: scales.toY(t / f),
+    }));
+  }, [scales, isImperial]);
+
+  // Distance-axis ticks at clean values in the display unit. Ends are
+  // labeled separately ("0" and the total), so drop ticks that would
+  // collide with them.
+  const xTicks = useMemo(() => {
+    if (!scales) return [];
+    const f = isImperial ? MI_PER_KM : 1;
+    return niceTicks(0, scales.totalKm * f, 4)
+      .map((t) => ({ label: tickNum(t), pct: (t / f / scales.totalKm) * 100 }))
+      .filter((t) => t.pct > 8 && t.pct < 90);
+  }, [scales, isImperial]);
 
   // Pointer moves arrive faster than frames render; coalesce to one
   // update per animation frame so scrubbing stays smooth on long profiles.
@@ -201,11 +258,13 @@ export function ElevationPanel({
     onHoverKm?.(null);
   }, [onHoverKm]);
 
-  if (!profile || profile.length < 2 || !scales || !paths) return null;
+  if (!profile || profile.length < 2 || !scales || !linePath || !gradeBands) return null;
 
   const hoverPoint = hoverIdx != null ? profile[hoverIdx] : null;
   const hoverX = hoverPoint ? scales.toX(hoverPoint.distance_km) : 0;
   const hoverY = hoverPoint ? scales.toY(hoverPoint.elevation_m) : 0;
+  const hoverGradePct = hoverIdx != null && segmentation ? segmentation.gradesPct[hoverIdx] : null;
+  const maxGradePct = segmentation ? segmentation.maxPct : 0;
 
   return (
     <Box
@@ -247,77 +306,175 @@ export function ElevationPanel({
           }}
         >
           {hoverPoint
-            ? `${distLabel(hoverPoint.distance_km, isImperial)} · ${elevLabel(hoverPoint.elevation_m, isImperial)}`
-            : `↑ ${elevLabel(scales.gainM, isImperial)}${scales.maxGradePct >= 1 ? ` · max ${Math.round(scales.maxGradePct)}%` : ''}`}
+            ? `${distLabel(hoverPoint.distance_km, isImperial)} · ${elevLabel(hoverPoint.elevation_m, isImperial)}${hoverGradePct != null ? ` · ${hoverGradePct.toFixed(1)}%` : ''}`
+            : `↑ ${elevLabel(scales.gainM, isImperial)}${maxGradePct >= 1 ? ` · max ${Math.round(maxGradePct)}%` : ''}`}
         </Text>
       </Box>
 
-      <svg
-        ref={svgRef}
-        viewBox={`0 0 ${VIEW_W} ${VIEW_H}`}
-        preserveAspectRatio="none"
-        width="100%"
-        height={isMobile ? 64 : 80}
-        onPointerMove={handlePointerMove}
-        onPointerLeave={handlePointerLeave}
-        style={{ display: 'block', touchAction: 'none', cursor: 'crosshair' }}
-        role="img"
-        aria-label={`Elevation profile, ${Math.round(isImperial ? convertDistance.mToFt(scales.gainM) : scales.gainM)} ${isImperial ? 'feet' : 'meters'} of climbing over ${isImperial ? convertDistance.kmToMiles(scales.totalKm).toFixed(1) : formatKm(scales.totalKm)} ${isImperial ? 'miles' : 'kilometers'}`}
-      >
-        {cues && cues.length > 0 && (
-          <g data-testid="rb2-elevation-interval-bands">
-            {cues.map((cue, i) => {
-              const x1 = scales.toX(Math.max(0, Math.min(cue.startDistance, scales.totalKm)));
-              const x2 = scales.toX(Math.max(0, Math.min(cue.endDistance, scales.totalKm)));
-              const w = x2 - x1;
-              if (w <= 0) return null;
-              return (
-                <rect
-                  key={i}
-                  x={x1}
-                  y={0}
-                  width={w}
-                  height={VIEW_H}
-                  fill={cueColor(cue.zone)}
-                  fillOpacity={0.18}
-                  stroke="none"
-                />
-              );
-            })}
+      <Box style={{ position: 'relative' }}>
+        <svg
+          ref={svgRef}
+          viewBox={`0 0 ${VIEW_W} ${VIEW_H}`}
+          preserveAspectRatio="none"
+          width="100%"
+          height={isMobile ? 64 : 80}
+          onPointerMove={handlePointerMove}
+          onPointerLeave={handlePointerLeave}
+          style={{ display: 'block', touchAction: 'none', cursor: 'crosshair' }}
+          role="img"
+          aria-label={`Elevation profile, ${Math.round(isImperial ? convertDistance.mToFt(scales.gainM) : scales.gainM)} ${isImperial ? 'feet' : 'meters'} of climbing over ${isImperial ? convertDistance.kmToMiles(scales.totalKm).toFixed(1) : formatKm(scales.totalKm)} ${isImperial ? 'miles' : 'kilometers'}`}
+        >
+          <g data-testid="rb2-elevation-grade-bands">
+            {gradeBands.map((band, i) => (
+              <path key={i} d={band.d} fill={band.color} stroke="none" />
+            ))}
           </g>
-        )}
-        <path d={paths.area} fill={RB2.teal} fillOpacity={0.12} stroke="none" />
-        <path
-          d={paths.line}
-          fill="none"
-          stroke={RB2.teal}
-          strokeWidth={2}
-          vectorEffect="non-scaling-stroke"
-          strokeLinejoin="round"
-          strokeLinecap="round"
-        />
-        {hoverPoint && (
+          {/* Hairline altitude gridlines, over the bands so they read on any fill. */}
           <g>
-            <line
-              x1={hoverX}
-              y1={0}
-              x2={hoverX}
-              y2={VIEW_H}
-              stroke={RB2.textTertiary}
-              strokeWidth={1}
-              vectorEffect="non-scaling-stroke"
-            />
-            <circle cx={hoverX} cy={hoverY} r={4} fill={RB2.orange} stroke={RB2.cardBg} strokeWidth={1.5} />
+            {yTicks.map((t, i) => (
+              <line
+                key={i}
+                x1={0}
+                y1={t.y}
+                x2={VIEW_W}
+                y2={t.y}
+                stroke="rgba(20, 20, 16, 0.10)"
+                strokeWidth={1}
+                vectorEffect="non-scaling-stroke"
+              />
+            ))}
           </g>
-        )}
-      </svg>
+          {cues && cues.length > 0 && (
+            <g data-testid="rb2-elevation-interval-bands">
+              {cues.map((cue, i) => {
+                const x1 = scales.toX(Math.max(0, Math.min(cue.startDistance, scales.totalKm)));
+                const x2 = scales.toX(Math.max(0, Math.min(cue.endDistance, scales.totalKm)));
+                const w = x2 - x1;
+                if (w <= 0) return null;
+                return (
+                  <rect
+                    key={i}
+                    x={x1}
+                    y={0}
+                    width={w}
+                    height={VIEW_H}
+                    fill={cueColor(cue.zone)}
+                    fillOpacity={0.18}
+                    stroke="none"
+                  />
+                );
+              })}
+            </g>
+          )}
+          <path
+            d={linePath}
+            fill="none"
+            stroke={RB2.textSecondary}
+            strokeWidth={2}
+            vectorEffect="non-scaling-stroke"
+            strokeLinejoin="round"
+            strokeLinecap="round"
+          />
+          {hoverPoint && (
+            <g>
+              <line
+                x1={hoverX}
+                y1={0}
+                x2={hoverX}
+                y2={VIEW_H}
+                stroke={RB2.textSecondary}
+                strokeWidth={1}
+                vectorEffect="non-scaling-stroke"
+              />
+              <circle cx={hoverX} cy={hoverY} r={4} fill={RB2.teal} stroke={RB2.cardBg} strokeWidth={1.5} />
+            </g>
+          )}
+        </svg>
 
-      <Box style={{ display: 'flex', justifyContent: 'space-between', marginTop: 2 }}>
-        <Text style={{ fontFamily: RB2_FONT.mono, fontSize: 9, color: RB2.textTertiary }}>0</Text>
-        <Text style={{ fontFamily: RB2_FONT.mono, fontSize: 9, color: RB2.textTertiary }}>
+        {/* Altitude tick labels — HTML overlay (SVG text would stretch with
+            preserveAspectRatio="none"). Sit just above their gridline. */}
+        {yTicks.map((t, i) => (
+          <Text
+            key={i}
+            component="span"
+            style={{
+              ...AXIS_LABEL_STYLE,
+              fontSize: 8,
+              position: 'absolute',
+              left: 3,
+              top: `${(t.y / VIEW_H) * 100}%`,
+              transform: 'translateY(-100%)',
+              lineHeight: 1.2,
+              padding: '0 3px',
+              backgroundColor: 'rgba(255, 255, 255, 0.55)',
+              pointerEvents: 'none',
+            }}
+          >
+            {i === yTicks.length - 1 ? `${t.label}${isImperial ? 'ft' : 'm'}` : t.label}
+          </Text>
+        ))}
+      </Box>
+
+      {/* Distance axis. */}
+      <Box style={{ position: 'relative', height: 12, marginTop: 2 }}>
+        <Text component="span" style={{ ...AXIS_LABEL_STYLE, position: 'absolute', left: 0 }}>
+          0
+        </Text>
+        {xTicks.map((t, i) => (
+          <Text
+            key={i}
+            component="span"
+            style={{
+              ...AXIS_LABEL_STYLE,
+              position: 'absolute',
+              left: `${t.pct}%`,
+              transform: 'translateX(-50%)',
+            }}
+          >
+            {t.label}
+          </Text>
+        ))}
+        <Text component="span" style={{ ...AXIS_LABEL_STYLE, position: 'absolute', right: 0 }}>
           {distLabel(scales.totalKm, isImperial)}
         </Text>
       </Box>
+
+      {/* Grade scale legend (desktop only — the hover readout carries grade
+          on mobile). */}
+      {!isMobile && (
+        <Box
+          data-testid="rb2-elevation-grade-legend"
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'flex-end',
+            gap: 8,
+            marginTop: 3,
+          }}
+        >
+          <Text
+            component="span"
+            style={{ ...AXIS_LABEL_STYLE, letterSpacing: '0.08em', textTransform: 'uppercase' }}
+          >
+            Grade %
+          </Text>
+          {GRADE_BINS.map((bin) => (
+            <Box key={bin.label} style={{ display: 'flex', alignItems: 'center', gap: 3 }}>
+              <Box
+                style={{
+                  width: 8,
+                  height: 8,
+                  backgroundColor: bin.color,
+                  border: '1px solid rgba(20, 20, 16, 0.12)',
+                }}
+              />
+              <Text component="span" style={AXIS_LABEL_STYLE}>
+                {bin.label}
+              </Text>
+            </Box>
+          ))}
+        </Box>
+      )}
     </Box>
   );
 }
