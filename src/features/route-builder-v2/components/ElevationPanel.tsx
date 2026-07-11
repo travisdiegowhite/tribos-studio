@@ -408,7 +408,7 @@ export function ElevationPanel({
                 strokeWidth={1}
                 vectorEffect="non-scaling-stroke"
               />
-              <circle cx={hoverX} cy={hoverY} r={4} fill={RB2.teal} stroke={RB2.cardBg} strokeWidth={1.5} />
+              <circle cx={hoverX} cy={hoverY} r={4} fill={RB2.cardBg} stroke={RB2.textSecondary} strokeWidth={2} />
             </g>
           )}
         </svg>
