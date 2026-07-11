@@ -24,7 +24,13 @@ import { Box, Text } from '@mantine/core';
 import { RB2, RB2_FONT } from './brand';
 import { convertDistance } from '../../../utils/units.jsx';
 import { cueColor, type WorkoutCue } from '../overlay/intervalOverlay';
-import { GRADE_BINS, computeGradeSegmentation, niceTicks } from './elevationGrade';
+import {
+  GRADE_RAMP,
+  GRADE_RAMP_MAX_PCT,
+  computeGradeSegmentation,
+  gradeToColor,
+  niceTicks,
+} from './elevationGrade';
 import type { ElevationPoint } from '../../../hooks/route-builder';
 
 export interface ElevationPanelProps {
@@ -187,19 +193,35 @@ export function ElevationPanel({
       const x1 = toX(profile[run.endIdx].distance_km);
       const x0 = toX(profile[run.startIdx].distance_km);
       d += `L${x1.toFixed(2)},${VIEW_H}L${x0.toFixed(2)},${VIEW_H}Z`;
-      return { d, color: GRADE_BINS[run.bin].color };
+      return { d, color: gradeToColor(run.gradePct) };
     });
   }, [profile, scales, segmentation]);
 
-  // Altitude gridlines/labels at clean values in the display unit.
+  const chartHeightPx = isMobile ? 72 : 112;
+
+  // Altitude gridlines/labels at clean values in the display unit. Every
+  // tick draws a gridline, but labels thin out when the rendered gap gets
+  // too tight to read (flat routes produce closely spaced clean values).
   const yTicks = useMemo(() => {
     if (!scales) return [];
     const f = isImperial ? FT_PER_M : 1;
-    return niceTicks(scales.minElev * f, scales.maxElev * f, 3).map((t) => ({
+    const ticks = niceTicks(scales.minElev * f, scales.maxElev * f, 3).map((t) => ({
       label: tickNum(t),
       y: scales.toY(t / f),
+      showLabel: true,
     }));
-  }, [scales, isImperial]);
+    if (ticks.length >= 2) {
+      const gapPx = (Math.abs(ticks[0].y - ticks[1].y) / VIEW_H) * chartHeightPx;
+      if (gapPx < 16) {
+        // Keep every other label, counting down from the top (last) tick so
+        // the unit-bearing label always survives.
+        for (let i = 0; i < ticks.length; i++) {
+          ticks[i].showLabel = (ticks.length - 1 - i) % 2 === 0;
+        }
+      }
+    }
+    return ticks;
+  }, [scales, isImperial, chartHeightPx]);
 
   // Distance-axis ticks at clean values in the display unit. Ends are
   // labeled separately ("0" and the total), so drop ticks that would
@@ -317,7 +339,7 @@ export function ElevationPanel({
           viewBox={`0 0 ${VIEW_W} ${VIEW_H}`}
           preserveAspectRatio="none"
           width="100%"
-          height={isMobile ? 64 : 80}
+          height={chartHeightPx}
           onPointerMove={handlePointerMove}
           onPointerLeave={handlePointerLeave}
           style={{ display: 'block', touchAction: 'none', cursor: 'crosshair' }}
@@ -393,26 +415,28 @@ export function ElevationPanel({
 
         {/* Altitude tick labels — HTML overlay (SVG text would stretch with
             preserveAspectRatio="none"). Sit just above their gridline. */}
-        {yTicks.map((t, i) => (
-          <Text
-            key={i}
-            component="span"
-            style={{
-              ...AXIS_LABEL_STYLE,
-              fontSize: 8,
-              position: 'absolute',
-              left: 3,
-              top: `${(t.y / VIEW_H) * 100}%`,
-              transform: 'translateY(-100%)',
-              lineHeight: 1.2,
-              padding: '0 3px',
-              backgroundColor: 'rgba(255, 255, 255, 0.55)',
-              pointerEvents: 'none',
-            }}
-          >
-            {i === yTicks.length - 1 ? `${t.label}${isImperial ? 'ft' : 'm'}` : t.label}
-          </Text>
-        ))}
+        {yTicks.map((t, i) =>
+          t.showLabel ? (
+            <Text
+              key={i}
+              component="span"
+              style={{
+                ...AXIS_LABEL_STYLE,
+                fontSize: 8,
+                position: 'absolute',
+                left: 3,
+                top: `${(t.y / VIEW_H) * 100}%`,
+                transform: 'translateY(-100%)',
+                lineHeight: 1.2,
+                padding: '0 3px',
+                backgroundColor: 'rgba(255, 255, 255, 0.55)',
+                pointerEvents: 'none',
+              }}
+            >
+              {i === yTicks.length - 1 ? `${t.label}${isImperial ? 'ft' : 'm'}` : t.label}
+            </Text>
+          ) : null,
+        )}
       </Box>
 
       {/* Distance axis. */}
@@ -458,21 +482,22 @@ export function ElevationPanel({
           >
             Grade %
           </Text>
-          {GRADE_BINS.map((bin) => (
-            <Box key={bin.label} style={{ display: 'flex', alignItems: 'center', gap: 3 }}>
-              <Box
-                style={{
-                  width: 8,
-                  height: 8,
-                  backgroundColor: bin.color,
-                  border: '1px solid rgba(20, 20, 16, 0.12)',
-                }}
-              />
-              <Text component="span" style={AXIS_LABEL_STYLE}>
-                {bin.label}
-              </Text>
-            </Box>
-          ))}
+          <Text component="span" style={AXIS_LABEL_STYLE}>
+            0
+          </Text>
+          <Box
+            style={{
+              width: 110,
+              height: 7,
+              border: '1px solid rgba(20, 20, 16, 0.12)',
+              background: `linear-gradient(to right, ${GRADE_RAMP.map(
+                (s) => `${s.color} ${(s.pct / GRADE_RAMP_MAX_PCT) * 100}%`,
+              ).join(', ')})`,
+            }}
+          />
+          <Text component="span" style={AXIS_LABEL_STYLE}>
+            {GRADE_RAMP_MAX_PCT}+
+          </Text>
         </Box>
       )}
     </Box>
