@@ -1,7 +1,9 @@
 import { describe, it, expect } from 'vitest';
 import {
-  GRADE_BINS,
-  gradeBinIndex,
+  GRADE_RAMP,
+  GRADE_RAMP_MAX_PCT,
+  gradeToColor,
+  quantizeGradePct,
   computeGradeSegmentation,
   niceTicks,
 } from '../elevationGrade';
@@ -23,20 +25,40 @@ function threeSectionProfile(): ElevationPoint[] {
   return points;
 }
 
-describe('gradeBinIndex', () => {
-  it('maps descents and flats to the base bin', () => {
-    expect(gradeBinIndex(-12)).toBe(0);
-    expect(gradeBinIndex(0)).toBe(0);
-    expect(gradeBinIndex(1.9)).toBe(0);
+describe('gradeToColor', () => {
+  it('gives descents and flats the base color', () => {
+    expect(gradeToColor(-12)).toBe(GRADE_RAMP[0].color);
+    expect(gradeToColor(0)).toBe(GRADE_RAMP[0].color);
+    expect(gradeToColor(0.5)).toBe(GRADE_RAMP[0].color);
   });
 
-  it('maps climbing grades to their bins at the documented boundaries', () => {
-    expect(gradeBinIndex(2)).toBe(1);
-    expect(gradeBinIndex(3.9)).toBe(1);
-    expect(gradeBinIndex(4)).toBe(2);
-    expect(gradeBinIndex(7)).toBe(3);
-    expect(gradeBinIndex(10)).toBe(4);
-    expect(gradeBinIndex(25)).toBe(4);
+  it('returns the anchor color exactly at each ramp stop', () => {
+    for (const stop of GRADE_RAMP) {
+      expect(gradeToColor(stop.pct)).toBe(stop.color);
+    }
+  });
+
+  it('clamps to the steepest color above the ramp top', () => {
+    expect(gradeToColor(GRADE_RAMP_MAX_PCT + 10)).toBe(GRADE_RAMP[GRADE_RAMP.length - 1].color);
+  });
+
+  it('blends between stops so gentle rollers still pick up tint', () => {
+    const flat = gradeToColor(0);
+    const gentle = gradeToColor(2);
+    const anchored = gradeToColor(3);
+    expect(gentle).not.toBe(flat);
+    expect(gentle).not.toBe(anchored);
+    expect(gentle).toMatch(/^#[0-9A-F]{6}$/);
+  });
+});
+
+describe('quantizeGradePct', () => {
+  it('snaps to 0.5% steps and clamps to the ramp', () => {
+    expect(quantizeGradePct(-4)).toBe(0);
+    expect(quantizeGradePct(0.2)).toBe(0);
+    expect(quantizeGradePct(2.3)).toBe(2.5);
+    expect(quantizeGradePct(7.74)).toBe(7.5);
+    expect(quantizeGradePct(25)).toBe(GRADE_RAMP_MAX_PCT);
   });
 });
 
@@ -46,7 +68,7 @@ describe('computeGradeSegmentation', () => {
     expect(computeGradeSegmentation([{ distance_km: 0, elevation_m: 0 }])).toBeNull();
   });
 
-  it('produces a single base-bin run for a gentle climb', () => {
+  it('produces a single flat run for a gentle constant climb', () => {
     const profile: ElevationPoint[] = [];
     for (let i = 0; i <= 10; i++) {
       profile.push({ distance_km: i, elevation_m: i * 10 }); // 1%
@@ -54,7 +76,7 @@ describe('computeGradeSegmentation', () => {
     const seg = computeGradeSegmentation(profile);
     expect(seg).not.toBeNull();
     expect(seg!.runs).toHaveLength(1);
-    expect(seg!.runs[0]).toEqual({ startIdx: 0, endIdx: 10, bin: 0 });
+    expect(seg!.runs[0]).toEqual({ startIdx: 0, endIdx: 10, gradePct: 1 });
     expect(seg!.maxPct).toBeCloseTo(1, 1);
   });
 
@@ -62,15 +84,14 @@ describe('computeGradeSegmentation', () => {
     const profile = threeSectionProfile();
     const seg = computeGradeSegmentation(profile)!;
 
-    const bins = seg.runs.map((r) => r.bin);
-    // Flat → moderate (4–7) → very steep (10+); smoothing may add short
-    // transition runs at the section boundaries, but the sequence must be
-    // monotone through these three bins.
-    expect(bins[0]).toBe(0);
-    expect(bins[bins.length - 1]).toBe(4);
-    expect(bins).toContain(2);
-    for (let i = 1; i < bins.length; i++) {
-      expect(bins[i]).toBeGreaterThan(bins[i - 1]);
+    const grades = seg.runs.map((r) => r.gradePct);
+    // Flat → 5% → 12%; smoothing may add short transition runs at the
+    // section boundaries, but the sequence must be monotone increasing.
+    expect(grades[0]).toBe(0);
+    expect(grades[grades.length - 1]).toBe(12);
+    expect(grades).toContain(5);
+    for (let i = 1; i < grades.length; i++) {
+      expect(grades[i]).toBeGreaterThan(grades[i - 1]);
     }
 
     // Runs share boundary points and cover the whole profile.
@@ -82,11 +103,6 @@ describe('computeGradeSegmentation', () => {
 
     expect(seg.maxPct).toBeCloseTo(12, 0);
     expect(seg.gradesPct).toHaveLength(profile.length);
-  });
-
-  it('has one color per bin on the earth ramp', () => {
-    expect(GRADE_BINS).toHaveLength(5);
-    expect(new Set(GRADE_BINS.map((b) => b.color)).size).toBe(5);
   });
 });
 

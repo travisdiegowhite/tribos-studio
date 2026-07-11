@@ -1,44 +1,78 @@
 /**
  * elevationGrade — grade (steepness) segmentation for the RB2 elevation chart.
  *
- * Converts an elevation profile into contiguous runs of grade "bins" so the
- * chart can paint the area under the terrain line as colored bands, the way
- * riders expect from RideWithGPS/Strava climb profiles — but on the Tribos
- * earth ramp (pale sage → ochre → terracotta → deep clay) instead of
- * green/yellow/red.
+ * Converts an elevation profile into contiguous runs of (quantized) grade
+ * so the chart can paint the area under the terrain line as fine color
+ * stripes, the way riders expect from RideWithGPS/Strava climb profiles —
+ * but on the Tribos earth ramp (pale sage → ochre → terracotta → deep clay)
+ * instead of green/yellow/red.
  *
  * The ramp is a semantic-heat sequential scale: hue drifts warm with
- * steepness while lightness steps monotonically darker (validated ΔL ≥ 0.06
- * per step), so the ordering survives red-green color-vision deficiency.
- * Descents and flats share the base bin — the fill encodes *climbing*
- * effort; the terrain line itself already shows descent shape.
+ * steepness while lightness falls monotonically (anchor stops validated),
+ * so the ordering survives red-green color-vision deficiency. Descents and
+ * flats share the base color — the fill encodes *climbing* effort; the
+ * terrain line itself already shows descent shape.
  */
 
 import type { ElevationPoint } from '../../../hooks/route-builder';
 
-export interface GradeBin {
-  /** Inclusive lower bound of the bin, in % grade. */
-  minPct: number;
-  /** Legend label. */
-  label: string;
-  /** Band fill (solid; pre-tinted for the white card surface). */
+export interface GradeRampStop {
+  /** Grade in % at which this stop's color applies exactly. */
+  pct: number;
   color: string;
 }
 
-/** Ordered flat → steepest. Bin 0 also absorbs descents. */
-export const GRADE_BINS: readonly GradeBin[] = [
-  { minPct: -Infinity, label: '0–2', color: '#E3E8DA' },
-  { minPct: 2, label: '2–4', color: '#E0C07E' },
-  { minPct: 4, label: '4–7', color: '#DA9C5C' },
-  { minPct: 7, label: '7–10', color: '#C97441' },
-  { minPct: 10, label: '10+', color: '#A84A2B' },
+/**
+ * Continuous ramp anchors, flat → steepest. Grades between stops blend
+ * linearly, so even a rolling 2–4% route picks up visible warm tinting
+ * instead of collapsing into one flat band. Descents share the flat color —
+ * the fill encodes climbing effort.
+ */
+export const GRADE_RAMP: readonly GradeRampStop[] = [
+  { pct: 0.5, color: '#E3E8DA' },
+  { pct: 3, color: '#E0C07E' },
+  { pct: 5.5, color: '#DA9C5C' },
+  { pct: 8.5, color: '#C97441' },
+  { pct: 12, color: '#A84A2B' },
 ] as const;
 
-export function gradeBinIndex(gradePct: number): number {
-  for (let i = GRADE_BINS.length - 1; i >= 1; i--) {
-    if (gradePct >= GRADE_BINS[i].minPct) return i;
+/** Top of the ramp — grades at/above this all take the steepest color. */
+export const GRADE_RAMP_MAX_PCT = GRADE_RAMP[GRADE_RAMP.length - 1].pct;
+
+function lerpChannel(a: number, b: number, t: number): number {
+  return Math.round(a + (b - a) * t);
+}
+
+function lerpHex(a: string, b: string, t: number): string {
+  const ai = parseInt(a.slice(1), 16);
+  const bi = parseInt(b.slice(1), 16);
+  const r = lerpChannel((ai >> 16) & 0xff, (bi >> 16) & 0xff, t);
+  const g = lerpChannel((ai >> 8) & 0xff, (bi >> 8) & 0xff, t);
+  const bl = lerpChannel(ai & 0xff, bi & 0xff, t);
+  return `#${((r << 16) | (g << 8) | bl).toString(16).padStart(6, '0').toUpperCase()}`;
+}
+
+/** Band fill for a grade, interpolated along the earth ramp. */
+export function gradeToColor(gradePct: number): string {
+  if (gradePct <= GRADE_RAMP[0].pct) return GRADE_RAMP[0].color;
+  for (let i = 1; i < GRADE_RAMP.length; i++) {
+    const prev = GRADE_RAMP[i - 1];
+    const cur = GRADE_RAMP[i];
+    if (gradePct <= cur.pct) {
+      return lerpHex(prev.color, cur.color, (gradePct - prev.pct) / (cur.pct - prev.pct));
+    }
   }
-  return 0;
+  return GRADE_RAMP[GRADE_RAMP.length - 1].color;
+}
+
+/**
+ * Snap a grade to 0.5% steps (clamped to the ramp) so adjacent segments
+ * with near-identical grade merge into one band, giving the fine-striped
+ * look without one SVG path per sample.
+ */
+export function quantizeGradePct(gradePct: number): number {
+  const clamped = Math.max(0, Math.min(gradePct, GRADE_RAMP_MAX_PCT));
+  return Math.round(clamped * 2) / 2;
 }
 
 export interface GradeRun {
@@ -46,7 +80,8 @@ export interface GradeRun {
   startIdx: number;
   /** Last profile index of the run (inclusive; shared with the next run). */
   endIdx: number;
-  bin: number;
+  /** Quantized grade of the run, in % (0 … GRADE_RAMP_MAX_PCT). */
+  gradePct: number;
 }
 
 export interface GradeSegmentation {
@@ -98,16 +133,16 @@ export function computeGradeSegmentation(profile: ElevationPoint[]): GradeSegmen
 
   const runs: GradeRun[] = [];
   let runStart = 0;
-  let runBin = gradeBinIndex(gradesPct[1]);
+  let runGrade = quantizeGradePct(gradesPct[1]);
   for (let i = 2; i < n; i++) {
-    const bin = gradeBinIndex(gradesPct[i]);
-    if (bin !== runBin) {
-      runs.push({ startIdx: runStart, endIdx: i - 1, bin: runBin });
+    const grade = quantizeGradePct(gradesPct[i]);
+    if (grade !== runGrade) {
+      runs.push({ startIdx: runStart, endIdx: i - 1, gradePct: runGrade });
       runStart = i - 1;
-      runBin = bin;
+      runGrade = grade;
     }
   }
-  runs.push({ startIdx: runStart, endIdx: n - 1, bin: runBin });
+  runs.push({ startIdx: runStart, endIdx: n - 1, gradePct: runGrade });
 
   return { gradesPct, runs, maxPct };
 }
