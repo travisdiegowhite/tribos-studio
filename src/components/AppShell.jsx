@@ -32,8 +32,9 @@ import { formatDistance } from '../utils/units';
 import { ListChecks } from '@phosphor-icons/react';
 
 // Four-tab primary navigation: TODAY · RIDE · TRAIN · PROGRESS.
-// The route builder lives under RIDE (the ride hub launches it and the RIDE
-// tab stays active while you're in the builder); there is no separate tab.
+// RIDE opens the route builder directly (/ride redirects to /ride/new; the
+// tab stays active anywhere under /ride). The old route-library hub is kept
+// as a fallback at /ride/library.
 const navItems = [
   { path: '/today', label: 'TODAY' },
   { path: '/ride', label: 'RIDE' },
