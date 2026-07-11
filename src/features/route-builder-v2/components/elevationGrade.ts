@@ -4,8 +4,9 @@
  * Converts an elevation profile into contiguous runs of (quantized) grade
  * so the chart can paint the area under the terrain line as fine color
  * stripes, the way riders expect from RideWithGPS/Strava climb profiles —
- * but on the Tribos earth-heat ramp (moss green → ochre gold → orange →
- * terracotta → coral red) instead of stock traffic-light colors.
+ * but on the Tribos cool→warm ramp (brand teal → ochre gold → orange →
+ * terracotta → coral red) instead of stock traffic-light colors: flats
+ * and descents wear the calm brand primary, climbs heat up.
  *
  * The ramp is a semantic-heat sequential scale: hue drifts warm with
  * steepness while lightness falls monotonically (anchor stops validated),
@@ -29,11 +30,11 @@ export interface GradeRampStop {
  * the fill encodes climbing effort.
  */
 export const GRADE_RAMP: readonly GradeRampStop[] = [
-  { pct: 0.5, color: '#CFDDB4' },
-  { pct: 3, color: '#DDBE6E' },
-  { pct: 5.5, color: '#DE9A4E' },
-  { pct: 8.5, color: '#CC6C33' },
-  { pct: 12, color: '#AF3D24' },
+  { pct: 0.5, color: '#A0D6D0' },
+  { pct: 3, color: '#D2A730' },
+  { pct: 5.5, color: '#DE7F2C' },
+  { pct: 8.5, color: '#C9561E' },
+  { pct: 12, color: '#B03122' },
 ] as const;
 
 /** Top of the ramp — grades at/above this all take the steepest color. */
