@@ -243,9 +243,12 @@ function AppRoutes() {
         }
       />
 
-      {/* RIDE — route library (renders existing MyRoutes) */}
+      {/* RIDE — straight into the builder (no intermediary hub page). The
+          old route-library hub (MyRoutes) survives at /ride/library; the
+          builder's own discover rail covers picking a saved/matched route. */}
+      <Route path="/ride" element={<RedirectToRideNew />} />
       <Route
-        path="/ride"
+        path="/ride/library"
         element={
           <ProtectedRoute>
             <MyRoutes />
@@ -378,8 +381,10 @@ function AppRoutes() {
       {/* ===== LEGACY REDIRECTS (preserve old bookmarks & internal links) ===== */}
 
       <Route path="/dashboard" element={<Navigate to="/today" replace />} />
-      <Route path="/routes" element={<Navigate to="/ride" replace />} />
-      <Route path="/routes/list" element={<Navigate to="/ride" replace />} />
+      {/* Old library bookmarks keep their meaning — they land on the list,
+          not the builder. */}
+      <Route path="/routes" element={<Navigate to="/ride/library" replace />} />
+      <Route path="/routes/list" element={<Navigate to="/ride/library" replace />} />
       <Route path="/routes/new" element={<RedirectToRideNew />} />
       {/* /routes/:routeId — serve RB2 directly (it loads the route by id). */}
       <Route
