@@ -30,6 +30,7 @@ export { ChatBody } from './ChatBody';
 export { MobileControlSheet, type MobileSheetTab } from './MobileControlSheet';
 export { EmptyState } from './EmptyState';
 export { LoadingState } from './LoadingState';
+export { RouteBuildingOverlay } from './RouteBuildingOverlay';
 export { ErrorState } from './ErrorState';
 export { RouteActionsPanel } from './RouteActionsPanel';
 export { DiscoverPanel } from './DiscoverPanel';
