@@ -54,6 +54,7 @@ import {
   MobileControlSheet,
   EmptyState,
   LoadingState,
+  RouteBuildingOverlay,
   ErrorState,
   RouteActionsPanel,
   DiscoverPanel,
@@ -1412,15 +1413,19 @@ export default function RouteBuilder2() {
       />
     ) : null;
 
-  const loadingMessage = generation.isGenerating
-    ? 'Generating route…'
-    : editing.isApplying
-      ? 'Applying edit…'
-      : 'Updating route…';
+  const loadingMessage = editing.isApplying ? 'Applying edit…' : 'Updating route…';
+
+  // Full generation gets the animated building overlay; quick operations
+  // (chat edits, waypoint re-routes) keep the compact banner.
+  const loadingNode = !isLoading ? null : generation.isGenerating ? (
+    <RouteBuildingOverlay />
+  ) : (
+    <LoadingState message={loadingMessage} />
+  );
 
   const mapStates = (
     <>
-      {isLoading && <LoadingState message={loadingMessage} />}
+      {loadingNode}
       {error && <ErrorState message={error} onDismiss={dismissError} />}
       {arrivalCardNode}
       {arrivalPillNode}
@@ -2009,7 +2014,7 @@ export default function RouteBuilder2() {
 
         {arrivalCardNode}
         {arrivalPillNode}
-        {isLoading && <LoadingState message={loadingMessage} />}
+        {loadingNode}
         {error && <ErrorState message={error} onDismiss={dismissError} />}
       </Box>
     </AppShell>
