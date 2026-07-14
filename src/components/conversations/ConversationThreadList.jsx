@@ -80,10 +80,6 @@ function ConversationThreadList({
       const { data, error } = await query;
 
       if (error) {
-        if (error.code === '42P01' || error.message?.includes('does not exist')) {
-          console.log('conversation_threads table not yet available');
-          return;
-        }
         throw error;
       }
 
