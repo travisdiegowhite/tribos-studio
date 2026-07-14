@@ -10,6 +10,8 @@
  */
 
 import Anthropic from '@anthropic-ai/sdk';
+import { requireAuth } from './utils/auth.js';
+import { rateLimitByUser } from './utils/rateLimit.js';
 
 const anthropic = new Anthropic();
 
@@ -352,6 +354,14 @@ export default async function handler(req, res) {
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method not allowed' });
   }
+
+  // SECURITY: authenticated users only — this endpoint spends Claude tokens
+  // (2048 max_tokens per call) and must not be an open proxy.
+  const user = await requireAuth(req, res);
+  if (!user) return;
+
+  const rateLimited = await rateLimitByUser(req, res, 'REVIEW_WEEK', user.id, 10, 60);
+  if (rateLimited !== null) return;
 
   try {
     const {

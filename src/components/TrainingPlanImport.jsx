@@ -26,6 +26,7 @@ import {
 import { DateInput } from '@mantine/dates';
 import { notifications } from '@mantine/notifications';
 import { useAuth } from '../contexts/AuthContext.jsx';
+import { supabase } from '../lib/supabase';
 import { Bicycle, Calendar, Check, Clock, Image, Pencil, PencilSimple, Plus, Sparkle, Trash, UploadSimple, WarningCircle, X } from '@phosphor-icons/react';
 
 // Get the API base URL based on environment
@@ -34,6 +35,15 @@ const getApiBaseUrl = () => {
     return '';
   }
   return 'http://localhost:3000';
+};
+
+// /api/parse-training-plan requires an authenticated Bearer token
+const getAuthHeaders = async () => {
+  const { data: { session } } = await supabase.auth.getSession();
+  return {
+    'Content-Type': 'application/json',
+    ...(session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {}),
+  };
 };
 
 const WORKOUT_TYPES = [
@@ -156,9 +166,7 @@ function TrainingPlanImport({ opened, onClose, onImportComplete }) {
       // Send to API for parsing
       const response = await fetch(`${getApiBaseUrl()}/api/parse-training-plan`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: await getAuthHeaders(),
         credentials: 'include',
         body: JSON.stringify({
           action: 'parse_screenshot',
@@ -210,9 +218,7 @@ function TrainingPlanImport({ opened, onClose, onImportComplete }) {
     try {
       const response = await fetch(`${getApiBaseUrl()}/api/parse-training-plan`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: await getAuthHeaders(),
         credentials: 'include',
         body: JSON.stringify({
           action: 'save_plan',
@@ -299,9 +305,7 @@ function TrainingPlanImport({ opened, onClose, onImportComplete }) {
     try {
       const response = await fetch(`${getApiBaseUrl()}/api/parse-training-plan`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: await getAuthHeaders(),
         credentials: 'include',
         body: JSON.stringify({
           action: 'save_manual_workouts_batch',

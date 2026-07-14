@@ -522,11 +522,6 @@ function TrainingDashboard() {
           .limit(10);
 
         if (error) {
-          // Table might not exist yet - fail silently
-          if (error.code === '42P01' || error.message?.includes('does not exist')) {
-            console.log('race_goals table not yet available');
-            return;
-          }
           throw error;
         }
 
@@ -570,8 +565,8 @@ function TrainingDashboard() {
           console.log(`Loaded ${recentActivities.length} cross-training activities for AI context`);
         }
       } catch (error) {
-        // Cross-training table might not exist yet
-        console.log('Cross-training context not available:', error.message);
+        // Degrade gracefully (coach context is optional) but log the real error
+        console.error('Error loading cross-training context:', error);
       }
     };
 

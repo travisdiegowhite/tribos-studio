@@ -64,10 +64,6 @@ const RaceGoalsPanel = ({ isImperial = false, onRaceGoalChange, compact = false 
         .limit(5);
 
       if (error) {
-        if (error.code === '42P01' || error.message?.includes('does not exist')) {
-          console.log('race_goals table not yet available');
-          return;
-        }
         throw error;
       }
 

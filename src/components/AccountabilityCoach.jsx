@@ -141,11 +141,6 @@ function AccountabilityCoach({ onOpenMemories, onOpenSchedule }) {
         .limit(5);
 
       if (error) {
-        // Table might not exist yet - fail silently
-        if (error.code === '42P01' || error.message?.includes('does not exist')) {
-          console.log('race_goals table not yet available');
-          return;
-        }
         throw error;
       }
 
@@ -153,8 +148,7 @@ function AccountabilityCoach({ onOpenMemories, onOpenSchedule }) {
         setRaceGoals(data);
       }
     } catch (err) {
-      // Race goals not available yet
-      console.log('Could not load race goals:', err);
+      console.error('Error loading race goals:', err);
     }
   };
 

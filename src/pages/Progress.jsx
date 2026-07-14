@@ -11,6 +11,7 @@ import { computeWeeklySnapshots } from '../utils/computeFitnessSnapshots';
 import { translateCTL, translateTSB } from '../lib/fitness/translate';
 import { ctlTooltip, tsbTooltip } from '../lib/fitness/tooltips';
 import { useSegmentLibrary } from '../hooks/useSegmentLibrary';
+import EmptyState from '../components/EmptyState.jsx';
 import ZoneDistributionRow from '../components/progress/ZoneDistributionRow.jsx';
 import TrendInsightRow from '../components/progress/TrendInsightRow.jsx';
 import YearToDateStats from '../components/progress/YearToDateStats.jsx';
@@ -56,6 +57,8 @@ function Progress() {
   const { user } = useAuth();
   const isMobile = useMediaQuery('(max-width: 768px)');
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(null);
+  const [reloadKey, setReloadKey] = useState(0);
   const [activities, setActivities] = useState([]);
   const [ftp, setFtp] = useState(null);
   const [unitsPreference, setUnitsPreference] = useState('imperial');
@@ -71,6 +74,7 @@ function Progress() {
   useEffect(() => {
     const loadData = async () => {
       if (!user) return;
+      setLoadError(null);
       try {
         // Load user profile for FTP and units
         const { data: profile } = await supabase
@@ -101,8 +105,8 @@ function Progress() {
             .range(page * pageSize, (page + 1) * pageSize - 1);
 
           if (activityError) {
-            console.error('Error loading activities:', activityError);
-            break;
+            // Surface the failure instead of silently rendering partial (wrong) stats
+            throw activityError;
           }
 
           if (activityData && activityData.length > 0) {
@@ -117,12 +121,18 @@ function Progress() {
         setActivities(allActivities);
       } catch (err) {
         console.error('Error loading progress data:', err);
+        setLoadError(err.message || 'Failed to load your training data');
       } finally {
         setLoading(false);
       }
     };
     loadData();
-  }, [user]);
+  }, [user, reloadKey]);
+
+  const retryLoad = () => {
+    setLoading(true);
+    setReloadKey((k) => k + 1);
+  };
 
   // Fetch segments on mount
   useEffect(() => {
@@ -297,6 +307,53 @@ function Progress() {
             <Skeleton height={32} width={200} />
             <Skeleton height={200} />
             <Skeleton height={150} />
+          </Stack>
+        </Container>
+      </AppShell>
+    );
+  }
+
+  if (loadError) {
+    return (
+      <AppShell>
+        <Container size="xl" py="lg">
+          <Stack gap={14}>
+            <PageHeader title="Progress" />
+            <Box
+              style={{
+                border: '1px solid var(--color-border)',
+                backgroundColor: 'var(--color-card)',
+                padding: 24,
+              }}
+            >
+              <Text
+                style={{
+                  fontFamily: "'DM Mono', monospace",
+                  fontSize: 12,
+                  letterSpacing: '1px',
+                  color: 'var(--color-text-primary)',
+                }}
+              >
+                COULDN&apos;T LOAD YOUR PROGRESS DATA. {String(loadError).toUpperCase()}
+              </Text>
+              <Button mt={14} color="dark" size="xs" onClick={retryLoad}>
+                RETRY
+              </Button>
+            </Box>
+          </Stack>
+        </Container>
+      </AppShell>
+    );
+  }
+
+  // First-run: no activities yet → an honest empty state instead of a page of zeros
+  if (activities.length === 0) {
+    return (
+      <AppShell>
+        <Container size="xl" py="lg">
+          <Stack gap={14}>
+            <PageHeader title="Progress" />
+            <EmptyState type="noTrainingData" />
           </Stack>
         </Container>
       </AppShell>

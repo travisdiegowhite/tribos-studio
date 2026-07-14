@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useCallback } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import {
   Container,
   SimpleGrid,
@@ -8,8 +8,6 @@ import {
 import { useMediaQuery } from '@mantine/hooks';
 import { useAuth } from '../contexts/AuthContext.jsx';
 import AppShell from '../components/AppShell.jsx';
-import OnboardingModal from '../components/OnboardingModal.jsx';
-import WhatsNewModal, { hasSeenLatestUpdates } from '../components/WhatsNewModal.jsx';
 import PageHeader from '../components/PageHeader.jsx';
 import { supabase } from '../lib/supabase';
 import { formatDistance, formatElevation } from '../utils/units';
@@ -34,8 +32,6 @@ function Dashboard() {
   const isMobile = useMediaQuery('(max-width: 768px)');
   const [activities, setActivities] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [showOnboarding, setShowOnboarding] = useState(false);
-  const [showWhatsNew, setShowWhatsNew] = useState(false);
   const [userProfile, setUserProfile] = useState(null);
   const [activePlans, setActivePlans] = useState([]);
   const [todayWorkout, setTodayWorkout] = useState(null);
@@ -49,12 +45,12 @@ function Dashboard() {
   // stale (we walk the EWA forward over the missing tail).
   const [serverLoadHistory, setServerLoadHistory] = useState([]);
 
-  // Check if onboarding is needed and load user profile
+  // Load user profile (onboarding + What's New overlays live in AppShell via
+  // LifecycleOverlays now — rendering them here too would double-mount them)
   useEffect(() => {
-    const checkOnboardingAndLoadProfile = async () => {
+    const loadProfile = async () => {
       if (!user) return;
 
-      // Always check database first for onboarding status (persists across browsers)
       try {
         const { data } = await supabase
           .from('user_profiles')
@@ -64,35 +60,13 @@ function Dashboard() {
 
         if (data) {
           setUserProfile(data);
-
-          // If onboarding is completed in database, update localStorage and skip onboarding
-          if (data.onboarding_completed) {
-            localStorage.setItem(`tribos_welcome_seen_${user.id}`, 'true');
-            // Check for What's New updates
-            if (!hasSeenLatestUpdates(user.id)) {
-              setShowWhatsNew(true);
-            }
-            return;
-          }
         }
       } catch {
-        // Profile doesn't exist yet - user needs onboarding
-      }
-
-      // Only show onboarding if not completed in database
-      const hasSeenWelcome = localStorage.getItem(`tribos_welcome_seen_${user.id}`);
-      if (!hasSeenWelcome) {
-        localStorage.setItem(`tribos_welcome_seen_${user.id}`, 'true');
-        setShowOnboarding(true);
-      } else {
-        // Check for What's New updates if onboarding already seen locally
-        if (!hasSeenLatestUpdates(user.id)) {
-          setShowWhatsNew(true);
-        }
+        // Profile doesn't exist yet
       }
     };
 
-    checkOnboardingAndLoadProfile();
+    loadProfile();
   }, [user]);
 
   const displayName = userProfile?.display_name || user?.email?.split('@')[0] || 'Rider';
@@ -419,20 +393,8 @@ function Dashboard() {
     return parts.join('. ');
   }, [trainingMetrics, weekStats, todayWorkout, formatDist, formatElev]);
 
-  const handleCloseOnboarding = useCallback(() => setShowOnboarding(false), []);
-  const handleCloseWhatsNew = useCallback(() => setShowWhatsNew(false), []);
-
   return (
     <AppShell>
-      <OnboardingModal
-        opened={showOnboarding}
-        onClose={handleCloseOnboarding}
-      />
-      <WhatsNewModal
-        opened={showWhatsNew}
-        onClose={handleCloseWhatsNew}
-        userId={user?.id}
-      />
       <Container size="xl" py="lg" px={20}>
         <Stack gap={14}>
           {/* Header */}

@@ -3,6 +3,8 @@
 
 import Anthropic from '@anthropic-ai/sdk';
 import { setupCors } from './utils/cors.js';
+import { requireAuth } from './utils/auth.js';
+import { rateLimitByUser } from './utils/rateLimit.js';
 
 // Fueling calculation logic (mirrored from frontend utils)
 // Keeping it server-side for AI integration
@@ -229,6 +231,14 @@ export default async function handler(req, res) {
   if (req.method !== 'GET' && req.method !== 'POST') {
     return res.status(405).json({ error: 'Method not allowed' });
   }
+
+  // SECURITY: authenticated users only — the AI-summary path spends Claude
+  // tokens, so this endpoint must not be an open proxy.
+  const user = await requireAuth(req, res);
+  if (!user) return;
+
+  const rateLimited = await rateLimitByUser(req, res, 'FUEL_PLAN', user.id, 30, 5);
+  if (rateLimited !== null) return;
 
   try {
     let input;

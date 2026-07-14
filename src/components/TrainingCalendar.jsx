@@ -306,11 +306,6 @@ const TrainingCalendar = ({ activePlan, rides = [], formatDistance: formatDistan
         .order('race_date', { ascending: true });
 
       if (error) {
-        // Table might not exist yet - fail silently
-        if (error.code === '42P01' || error.message?.includes('does not exist')) {
-          console.log('race_goals table not yet available');
-          return;
-        }
         throw error;
       }
 
@@ -340,8 +335,8 @@ const TrainingCalendar = ({ activePlan, rides = [], formatDistance: formatDistan
 
     // Fetch activities using the hook
     fetchActivities(startDateStr, endDateStr).catch(err => {
-      // Table might not exist yet - fail silently
-      console.log('Cross-training activities not available:', err.message);
+      // Degrade gracefully (calendar still renders) but log the real error
+      console.error('Error loading cross-training activities:', err);
     });
   }, [user?.id, anchorDate, fetchActivities]);
 

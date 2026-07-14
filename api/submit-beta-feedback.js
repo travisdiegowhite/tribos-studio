@@ -1,6 +1,17 @@
-const { Resend } = require('resend');
+import { Resend } from 'resend';
+import { setupCors } from './utils/cors.js';
+import { requireAuth } from './utils/auth.js';
+import { rateLimitByUser } from './utils/rateLimit.js';
 
-const resend = new Resend(process.env.RESEND_API_KEY);
+// Lazy init — constructing Resend with an undefined key at module load would
+// 500 every request in this file (same fix as api/email.js / api/admin.js)
+let resend = null;
+function getResend() {
+  if (!resend) {
+    resend = new Resend(process.env.RESEND_API_KEY);
+  }
+  return resend;
+}
 
 /**
  * Escape HTML special characters to prevent XSS
@@ -31,20 +42,11 @@ function sanitizeUrl(url) {
 /**
  * API endpoint to send beta feedback notification emails
  * POST /api/submit-beta-feedback
- * Body: { feedbackType, message, pageUrl, userEmail, userId }
+ * Body: { feedbackType, message, pageUrl }
+ * Sender identity comes from the verified Bearer token, not the body.
  */
-module.exports = async (req, res) => {
-  // Enable CORS
-  res.setHeader('Access-Control-Allow-Credentials', true);
-  res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'GET,OPTIONS,PATCH,DELETE,POST,PUT');
-  res.setHeader(
-    'Access-Control-Allow-Headers',
-    'X-CSRF-Token, X-Requested-With, Accept, Accept-Version, Content-Length, Content-MD5, Content-Type, Date, X-Api-Version'
-  );
-
-  if (req.method === 'OPTIONS') {
-    res.status(200).end();
+export default async function handler(req, res) {
+  if (setupCors(req, res)) {
     return;
   }
 
@@ -52,8 +54,18 @@ module.exports = async (req, res) => {
     return res.status(405).json({ error: 'Method not allowed' });
   }
 
+  // SECURITY: authenticated users only — otherwise anyone can submit
+  // feedback impersonating any user's email
+  const user = await requireAuth(req, res);
+  if (!user) return;
+
+  const rateLimited = await rateLimitByUser(req, res, 'BETA_FEEDBACK', user.id, 10, 5);
+  if (rateLimited !== null) return;
+
   try {
-    const { feedbackType, message, pageUrl, userEmail, userId } = req.body;
+    const { feedbackType, message, pageUrl } = req.body;
+    const userEmail = user.email;
+    const userId = user.id;
 
     if (!feedbackType || !message) {
       return res.status(400).json({ error: 'Feedback type and message are required' });
@@ -76,7 +88,7 @@ module.exports = async (req, res) => {
     const typeLabel = typeLabels[feedbackType] || 'Feedback';
 
     // Send notification email to admin
-    const { data, error } = await resend.emails.send({
+    const { data, error } = await getResend().emails.send({
       from: 'Tribos Beta Feedback <feedback@tribos.studio>',
       to: ['travis@tribos.studio'],
       replyTo: userEmail || undefined,

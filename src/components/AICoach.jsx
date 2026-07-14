@@ -130,12 +130,7 @@ function AICoach({ trainingContext, onAddWorkout, activePlan }) {
         .limit(100);
 
       if (error) {
-        // Table may not exist yet - fail silently
-        if (error.code === '42P01' || error.message?.includes('does not exist')) {
-          console.log('coach_conversations table not yet available');
-        } else {
-          console.error('Error loading conversation history:', error);
-        }
+        console.error('Error loading conversation history:', error);
         return;
       }
 

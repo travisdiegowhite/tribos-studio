@@ -11,13 +11,15 @@ import {
   Group,
   ThemeIcon,
 } from '@mantine/core';
+import { useMediaQuery } from '@mantine/hooks';
 import { useAuth } from '../contexts/AuthContext.jsx';
 import { supabase } from '../lib/supabase';
-import { tokens } from '../theme';
 import { ChatCircle, Check, PaperPlaneRight, WarningCircle, X } from '@phosphor-icons/react';
 
 /**
- * BetaFeedbackWidget - Feedback button for the app header
+ * BetaFeedbackWidget - Floating feedback button, fixed to the bottom-right
+ * corner (the onboarding "Ready" screen and welcome emails point users here).
+ * Mounted app-wide via LifecycleOverlays in AppShell.
  */
 function BetaFeedbackWidget() {
   const [opened, setOpened] = useState(false);
@@ -27,6 +29,7 @@ function BetaFeedbackWidget() {
   const [success, setSuccess] = useState(false);
   const [error, setError] = useState(null);
   const { user } = useAuth();
+  const isMobile = useMediaQuery('(max-width: 768px)');
 
   const feedbackTypes = [
     { value: 'bug', label: 'Bug Report' },
@@ -69,18 +72,20 @@ function BetaFeedbackWidget() {
 
       if (dbError) throw dbError;
 
-      // Send email notification to admin
+      // Send email notification to admin (sender identity comes from the token)
       try {
         const apiBase = import.meta.env.VITE_API_URL || '';
+        const { data: { session } } = await supabase.auth.getSession();
         await fetch(`${apiBase}/api/submit-beta-feedback`, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: {
+            'Content-Type': 'application/json',
+            ...(session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {}),
+          },
           body: JSON.stringify({
             feedbackType,
             message: message.trim(),
             pageUrl,
-            userEmail: user.email,
-            userId: user.id,
           }),
         });
       } catch (emailError) {
@@ -119,13 +124,28 @@ function BetaFeedbackWidget() {
 
   return (
     <>
-      {/* Feedback Button */}
+      {/* Floating feedback button — bottom right; sits above the mobile bottom nav */}
       <Button
-        variant="light"
-        color="blue"
-        size="sm"
-        leftSection={<ChatCircle size={16} />}
+        size="xs"
+        leftSection={<ChatCircle size={16} weight="bold" />}
         onClick={() => setOpened(true)}
+        aria-label="Send beta feedback"
+        style={{
+          position: 'fixed',
+          right: 16,
+          bottom: isMobile ? 76 : 20,
+          zIndex: 90,
+          backgroundColor: 'var(--color-teal, #2A8C82)',
+          color: '#FFFFFF',
+          border: 'none',
+          borderRadius: 0,
+          fontFamily: "'DM Mono', monospace",
+          fontSize: 11,
+          fontWeight: 500,
+          letterSpacing: '1.5px',
+          textTransform: 'uppercase',
+          boxShadow: '0 2px 8px rgba(0, 0, 0, 0.25)',
+        }}
       >
         Feedback
       </Button>
