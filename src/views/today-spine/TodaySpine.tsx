@@ -12,6 +12,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Box, Skeleton, Stack, Text } from '@mantine/core';
 import { useMediaQuery } from '@mantine/hooks';
 import AppShell from '../../components/AppShell.jsx';
+import GetStartedGuide from '../../components/activation/GetStartedGuide.jsx';
 import { useAuth } from '../../contexts/AuthContext.jsx';
 import { useUserPreferences } from '../../contexts/UserPreferencesContext.jsx';
 import { useTodaySpine } from './useTodaySpine';
@@ -203,6 +204,7 @@ export default function TodaySpine() {
       return (
         <Stack gap={20}>
           <PageHeader data={data} />
+          <GetStartedGuide />
           <SpineEmptyState />
           <CoachPanel data={data} />
         </Stack>
@@ -245,6 +247,7 @@ export default function TodaySpine() {
       return (
         <Stack gap={16}>
           <PageHeader data={data} />
+          <GetStartedGuide />
           <FitnessNode
             vm={vm}
             dispTSB={dispTSB}
@@ -263,6 +266,7 @@ export default function TodaySpine() {
     return (
       <Stack gap={20}>
         <PageHeader data={data} />
+        <GetStartedGuide />
         {spine}
         {bottomRow}
       </Stack>

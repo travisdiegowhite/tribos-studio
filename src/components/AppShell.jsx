@@ -26,6 +26,7 @@ import {
 } from '@phosphor-icons/react';
 import { useAuth } from '../contexts/AuthContext.jsx';
 import { supabase } from '../lib/supabase';
+import LifecycleOverlays from './LifecycleOverlays.jsx';
 import { useGear } from '../hooks/useGear.ts';
 import { useActivation } from '../hooks/useActivation.ts';
 import { formatDistance } from '../utils/units';
@@ -279,6 +280,11 @@ function AppShell({ children, fullWidth = false, hideNav = false }) {
 
       {/* Main content */}
       <Box component="main">{children}</Box>
+
+      {/* App-wide lifecycle surfaces: onboarding, What's New, feedback button.
+          The floating feedback button is suppressed on immersive full-width
+          surfaces (route builder) where it would overlap map controls. */}
+      {user && <LifecycleOverlays showFeedbackButton={!fullWidth && !hideNav} />}
 
       {/* Mobile Bottom Tab Bar — 4 tabs */}
       {isMobile && !hideNav && (
