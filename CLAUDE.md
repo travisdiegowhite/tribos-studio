@@ -316,6 +316,44 @@ The `route_builder_v2_enabled` column is kept in the DB (and in
 `src/types/database.ts`, since it still exists) under the "wait and watch" policy
 — **do not add new readers/writers and do not drop it without explicit approval.**
 
+### Garmin sync — dual stack, FROZEN (2026-07-14)
+
+Garmin sync works in production and the decision is to **not touch it**. The
+ping/pull rebuild (`garmin2-*`) was built but the cutover was never executed;
+it is now **frozen, not in progress**. `docs/garmin-rebuild-cutover.md` is a
+preserved runbook for a future *deliberate* cutover — do not resume it
+opportunistically, in whole or in part.
+
+Current state (verified 2026-07-14):
+
+- **The legacy stack is the one and only production path**: the frontend
+  (`src/utils/garminService.js`) calls only legacy endpoints
+  (`api/garmin-auth.js`, `garmin-activities.js`, `garmin-webhook-status.js`,
+  `garmin-resync-activity.js`, …), and `vercel.json` registers only the legacy
+  crons (`garmin-token-maintenance`, `garmin-webhook-process`,
+  `garmin-health-monitor`).
+- **The `garmin2-*` endpoints and `api/utils/garmin2/` are dormant**: built and
+  tested, but nothing calls them. The `garmin2-pull` cron is **not registered**
+  in `vercel.json` (the cutover runbook's claim that it was is stale).
+- **The stacks are interleaved, not independent**: the production Cloudflare
+  worker tags ping-type events for the new pipeline, and the legacy processor
+  (`api/garmin-webhook-process.js`) deliberately **skips** ping-typed rows to
+  avoid racing `garmin2-pull`. Nothing drains those rows today. Sync works only
+  because the Garmin portal is still on PUSH.
+
+Rules:
+
+- Do NOT delete the legacy `garmin-*.js` files or their cron entries (the
+  runbook's "Phase 7 cleanup" is frozen).
+- Do NOT register `garmin2` crons or repoint the frontend at `garmin2-*`.
+- Do NOT flip the Garmin developer portal from PUSH to PING — with
+  `garmin2-pull` unregistered, that silently stops all Garmin sync (ping rows
+  queue in `garmin_webhook_events` and nothing claims them). If sync ever
+  stops and events show ping types, check the portal delivery mode first.
+- Keep the dormant `garmin2` files and tests on disk — they cost nothing and
+  preserve the option of a future cutover, which would be a scoped project
+  with a soak plan, not a cleanup task.
+
 ## Auth Flow — Critical Path (DO NOT BREAK)
 
 The signup and login flow is the most critical path in the app. Any breakage blocks all new users. Follow these rules strictly:
