@@ -72,18 +72,20 @@ function BetaFeedbackWidget() {
 
       if (dbError) throw dbError;
 
-      // Send email notification to admin
+      // Send email notification to admin (sender identity comes from the token)
       try {
         const apiBase = import.meta.env.VITE_API_URL || '';
+        const { data: { session } } = await supabase.auth.getSession();
         await fetch(`${apiBase}/api/submit-beta-feedback`, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: {
+            'Content-Type': 'application/json',
+            ...(session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {}),
+          },
           body: JSON.stringify({
             feedbackType,
             message: message.trim(),
             pageUrl,
-            userEmail: user.email,
-            userId: user.id,
           }),
         });
       } catch (emailError) {

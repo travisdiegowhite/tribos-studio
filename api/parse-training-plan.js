@@ -3,8 +3,9 @@
 
 import Anthropic from '@anthropic-ai/sdk';
 import { getSupabaseAdmin } from './utils/supabaseAdmin.js';
-import { rateLimitMiddleware } from './utils/rateLimit.js';
+import { rateLimitByUser } from './utils/rateLimit.js';
 import { setupCors } from './utils/cors.js';
+import { requireAuth } from './utils/auth.js';
 
 // Initialize Supabase (server-side)
 const supabase = getSupabaseAdmin();
@@ -64,11 +65,17 @@ export default async function handler(req, res) {
     return res.status(405).json({ error: 'Method not allowed' });
   }
 
+  // SECURITY: authenticated users only — parse_screenshot spends Claude
+  // Vision tokens and save_* actions write plans for the given user.
+  const user = await requireAuth(req, res);
+  if (!user) return;
+
   // Rate limiting (5 requests per 5 minutes - vision is expensive)
-  const rateLimitResult = await rateLimitMiddleware(
+  const rateLimitResult = await rateLimitByUser(
     req,
     res,
     'parse_training_plan',
+    user.id,
     5,
     5
   );
@@ -78,7 +85,9 @@ export default async function handler(req, res) {
   }
 
   try {
-    const { action, ...params } = req.body;
+    const { action, ...bodyParams } = req.body;
+    // Use the verified identity from the token, never the body-supplied userId
+    const params = { ...bodyParams, userId: user.id };
 
     switch (action) {
       case 'parse_screenshot':

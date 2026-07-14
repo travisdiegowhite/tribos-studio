@@ -56,14 +56,15 @@ export function setCorsHeaders(req, res, options = {}) {
   const origin = req.headers.origin;
   const allowedOrigins = getAllowedOrigins();
 
-  if (origin && allowedOrigins.includes(origin)) {
+  const originAllowed = origin && allowedOrigins.includes(origin);
+  if (originAllowed) {
     res.setHeader('Access-Control-Allow-Origin', origin);
-  } else if (!origin && req.method !== 'OPTIONS') {
-    // Allow requests without origin (server-to-server, webhooks, etc.)
-    res.setHeader('Access-Control-Allow-Origin', '*');
   }
+  // No-origin requests (server-to-server, webhooks, curl) are not browser CORS
+  // requests and need no Access-Control headers. Never emit the wildcard —
+  // `*` combined with Allow-Credentials is an invalid, unsafe pairing.
 
-  if (allowCredentials) {
+  if (allowCredentials && originAllowed) {
     res.setHeader('Access-Control-Allow-Credentials', 'true');
   }
 
