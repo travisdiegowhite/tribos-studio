@@ -43,6 +43,7 @@ import GarminConsentModal from '../components/settings/GarminConsentModal.jsx';
 import { stravaService } from '../utils/stravaService';
 import { garminService } from '../utils/garminService';
 import { wahooService } from '../utils/wahooService';
+import { corosService } from '../utils/corosService';
 import { TIMEZONE_OPTIONS, getBrowserTimezone, getTimezoneOffset } from '../utils/timezoneUtils';
 import { formatSpeed } from '../utils/units';
 import PageHeader from '../components/PageHeader.jsx';
@@ -100,6 +101,8 @@ function Settings() {
   const [garminBackfillingHistory, setGarminBackfillingHistory] = useState(false);
   const [garminBackfillStatus, setGarminBackfillStatus] = useState(null);
   const [wahooStatus, setWahooStatus] = useState({ connected: false, loading: true });
+  const [corosStatus, setCorosStatus] = useState({ connected: false, loading: true });
+  const [corosSyncing, setCorosSyncing] = useState(false);
   const [googleCalendarStatus, setGoogleCalendarStatus] = useState({ connected: false, loading: true, email: null });
   // Consolidated modal state — only one modal open at a time
   const [openModal, setOpenModal] = useState(null);
@@ -281,6 +284,23 @@ function Settings() {
     }
   }, [user]);
 
+  // Load COROS connection status
+  useEffect(() => {
+    const loadCorosStatus = async () => {
+      try {
+        const status = await corosService.getConnectionStatus();
+        setCorosStatus({ ...status, loading: false });
+      } catch (error) {
+        console.error('Error loading COROS status:', error);
+        setCorosStatus({ connected: false, loading: false });
+      }
+    };
+
+    if (user) {
+      loadCorosStatus();
+    }
+  }, [user]);
+
   // Load Google Calendar connection status
   useEffect(() => {
     const loadGoogleCalendarStatus = async () => {
@@ -313,6 +333,20 @@ function Settings() {
       });
       searchParams.delete('connected');
       searchParams.delete('tab');
+      setSearchParams(searchParams, { replace: true });
+    }
+  }, [searchParams, setSearchParams]);
+
+  // Handle COROS callback success (CorosCallback redirects here)
+  useEffect(() => {
+    if (searchParams.get('connected') === 'coros') {
+      setCorosStatus({ connected: true, loading: false });
+      notifications.show({
+        title: 'COROS Connected',
+        message: 'Your COROS account is now linked. New activities will sync automatically.',
+        color: 'terracotta',
+      });
+      searchParams.delete('connected');
       setSearchParams(searchParams, { replace: true });
     }
   }, [searchParams, setSearchParams]);
@@ -1350,6 +1384,68 @@ function Settings() {
     }
   };
 
+  const connectCoros = () => {
+    try {
+      if (!corosService.isConfigured()) {
+        notifications.show({
+          title: 'Not Configured',
+          message: 'COROS integration is not yet configured. Contact support.',
+          color: 'gold',
+        });
+        return;
+      }
+      const authUrl = corosService.getAuthorizationUrl();
+      window.location.href = authUrl;
+    } catch (error) {
+      console.error('Error connecting to COROS:', error);
+      notifications.show({
+        title: 'Error',
+        message: error.message || 'Failed to connect to COROS',
+        color: 'red',
+      });
+    }
+  };
+
+  const disconnectCoros = async () => {
+    try {
+      await corosService.disconnect();
+      setCorosStatus({ connected: false, loading: false });
+      notifications.show({
+        title: 'Disconnected',
+        message: 'COROS has been disconnected',
+        color: 'sage',
+      });
+    } catch (error) {
+      console.error('Error disconnecting COROS:', error);
+      notifications.show({
+        title: 'Error',
+        message: 'Failed to disconnect COROS',
+        color: 'red',
+      });
+    }
+  };
+
+  const syncCorosActivities = async () => {
+    setCorosSyncing(true);
+    try {
+      const result = await corosService.syncActivities();
+      notifications.show({
+        title: 'Sync Complete',
+        message: `Imported ${result.imported ?? 0} new activities from COROS`,
+        color: 'sage',
+      });
+    } catch (error) {
+      console.error('Error syncing COROS activities:', error);
+      notifications.show({
+        title: 'Sync Failed',
+        message: error.message || 'Failed to sync COROS activities',
+        color: 'red',
+      });
+    } finally {
+      setCorosSyncing(false);
+    }
+  };
+
   const connectGoogleCalendar = () => {
     try {
       if (!googleCalendarService.isConfigured()) {
@@ -2223,6 +2319,21 @@ function Settings() {
 
               <Divider />
 
+              <ServiceConnection
+                name="COROS"
+                icon="🟠"
+                connected={corosStatus.connected}
+                username={corosStatus.username}
+                loading={corosStatus.loading}
+                onConnect={connectCoros}
+                onDisconnect={disconnectCoros}
+                onSync={syncCorosActivities}
+                syncing={corosSyncing}
+                unitsPreference={unitsPreference}
+              />
+
+              <Divider />
+
               {/* Google Calendar */}
               <Stack gap="xs">
                 <Group justify="space-between">
@@ -2238,14 +2349,36 @@ function Settings() {
                     </Box>
                   </Group>
                   <Group>
-                    <Badge color="gold" variant="light">
-                      Coming Soon
-                    </Badge>
+                    {googleCalendarStatus.connected ? (
+                      <>
+                        <Badge color="sage" variant="light">
+                          Connected
+                        </Badge>
+                        <Button
+                          size="xs"
+                          variant="subtle"
+                          color="red"
+                          onClick={disconnectGoogleCalendar}
+                        >
+                          Disconnect
+                        </Button>
+                      </>
+                    ) : (
+                      <Button
+                        size="xs"
+                        color="teal"
+                        variant="light"
+                        loading={googleCalendarStatus.loading}
+                        onClick={connectGoogleCalendar}
+                      >
+                        Connect
+                      </Button>
+                    )}
                   </Group>
                 </Group>
                 <Box style={{ marginLeft: '2.5rem' }}>
                   <Text size="xs" style={{ color: 'var(--color-text-muted)' }}>
-                    Google Calendar integration is coming soon. Connect your calendar to automatically detect busy days for schedule-aware training plans.
+                    Connect your calendar to automatically detect busy days for schedule-aware training plans.
                   </Text>
                 </Box>
               </Stack>
