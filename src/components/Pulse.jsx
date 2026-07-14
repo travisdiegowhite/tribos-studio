@@ -460,9 +460,13 @@ Remember: You're their accountability partner, not a cheerleader. Help them show
   // Generate thread title
   const generateThreadTitle = async (userMessage, assistantMessage) => {
     try {
+      const { data: { session } } = await supabase.auth.getSession();
       const response = await fetch(`${getApiBaseUrl()}/api/generate-thread-title`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          ...(session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {}),
+        },
         credentials: 'include',
         body: JSON.stringify({
           messages: [
@@ -518,18 +522,19 @@ Remember: You're their accountability partner, not a cheerleader. Help them show
         content: m.content
       }));
 
+      const { data: { session } } = await supabase.auth.getSession();
       const response = await fetch(`${getApiBaseUrl()}/api/accountability-coach`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          ...(session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {}),
         },
         credentials: 'include',
         body: JSON.stringify({
           message: userMessage,
           conversationHistory: recentMessages,
           systemPrompt,
-          context,
-          userId: user.id
+          context
         })
       });
 

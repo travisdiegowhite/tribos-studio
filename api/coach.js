@@ -3,7 +3,8 @@
 
 import Anthropic from '@anthropic-ai/sdk';
 import { getSupabaseAdmin } from './utils/supabaseAdmin.js';
-import { rateLimitMiddleware } from './utils/rateLimit.js';
+import { rateLimitByUser } from './utils/rateLimit.js';
+import { enforceAiQuota } from './utils/aiQuota.js';
 import { WORKOUT_LIBRARY_FOR_AI, ALL_COACH_TOOLS } from './utils/workoutLibrary.js';
 import { handleFitnessHistoryQuery } from './utils/fitnessHistoryTool.js';
 import { handleTrainingDataQuery } from './utils/trainingDataTool.js';
@@ -1164,16 +1165,24 @@ export default async function handler(req, res) {
     // Use the verified user ID from the token, not the untrusted request body
     const verifiedUserId = authUser.id;
 
-    // Rate limiting (10 requests per 5 minutes per IP)
-    const rateLimitResult = await rateLimitMiddleware(
+    // Rate limiting (10 requests per 5 minutes per user — auth ran above,
+    // so key on the verified identity, not the IP)
+    const rateLimitResult = await rateLimitByUser(
       req,
       res,
       'AI_COACH',
+      verifiedUserId,
       10,
       5
     );
 
     if (rateLimitResult !== null) {
+      return;
+    }
+
+    // Daily AI quota (per-user cap + global ceiling)
+    const quotaExceeded = await enforceAiQuota(req, res, verifiedUserId);
+    if (quotaExceeded !== null) {
       return;
     }
 

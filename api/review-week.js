@@ -12,6 +12,7 @@
 import Anthropic from '@anthropic-ai/sdk';
 import { requireAuth } from './utils/auth.js';
 import { rateLimitByUser } from './utils/rateLimit.js';
+import { enforceAiQuota } from './utils/aiQuota.js';
 
 const anthropic = new Anthropic();
 
@@ -362,6 +363,10 @@ export default async function handler(req, res) {
 
   const rateLimited = await rateLimitByUser(req, res, 'REVIEW_WEEK', user.id, 10, 60);
   if (rateLimited !== null) return;
+
+  // Daily AI quota (per-user cap + global ceiling)
+  const quotaExceeded = await enforceAiQuota(req, res, user.id);
+  if (quotaExceeded !== null) return;
 
   try {
     const {

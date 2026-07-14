@@ -12,7 +12,14 @@ vi.mock('@anthropic-ai/sdk', () => ({
 }));
 
 vi.mock('./utils/cors.js', () => ({ setupCors: vi.fn().mockReturnValue(false) }));
-vi.mock('./utils/rateLimit.js', () => ({ rateLimitMiddleware: vi.fn().mockResolvedValue(null) }));
+vi.mock('./utils/rateLimit.js', () => ({
+  rateLimitMiddleware: vi.fn().mockResolvedValue(null),
+  rateLimitByUser: vi.fn().mockResolvedValue(null),
+}));
+vi.mock('./utils/aiQuota.js', () => ({
+  enforceAiQuota: vi.fn().mockResolvedValue(null),
+  enforceGlobalAiQuota: vi.fn().mockResolvedValue(null),
+}));
 vi.mock('./utils/calendarHelper.js', () => ({ fetchCalendarContext: vi.fn().mockResolvedValue(null) }));
 vi.mock('./utils/contextHelpers.js', () => ({
   formatHealth: () => 'No health data available.',

@@ -397,19 +397,20 @@ Remember: You're their accountability partner, not a cheerleader. Help them show
         content: m.content
       }));
 
-      // Call the coach API
+      // Call the coach API (identity comes from the Bearer token)
+      const { data: { session } } = await supabase.auth.getSession();
       const response = await fetch(`${getApiBaseUrl()}/api/accountability-coach`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          ...(session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {}),
         },
         credentials: 'include',
         body: JSON.stringify({
           message: userMessage,
           conversationHistory: recentMessages,
           systemPrompt,
-          context,
-          userId: user.id
+          context
         })
       });
 

@@ -10,6 +10,7 @@ import {
   getClientIp,
   RATE_LIMITS,
 } from './utils/rateLimit.js';
+import { enforceAiQuota, enforceGlobalAiQuota } from './utils/aiQuota.js';
 
 // Guests (tokenless requests) get a small daily generation allowance per IP;
 // the structured 429 below is the client's signal to prompt account creation.
@@ -84,6 +85,13 @@ export default async function handler(req, res) {
         });
       }
     }
+
+    // Daily AI quota — per-user cap for authed users; guests (already capped
+    // per-IP above) still count against the global ceiling
+    const quotaExceeded = user
+      ? await enforceAiQuota(req, res, user.id)
+      : await enforceGlobalAiQuota(req, res);
+    if (quotaExceeded !== null) return;
     // Validate API key exists
     const apiKey = process.env.ANTHROPIC_API_KEY;
     if (!apiKey) {

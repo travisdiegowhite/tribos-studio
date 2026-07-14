@@ -9,6 +9,9 @@
 import Anthropic from '@anthropic-ai/sdk';
 import { getSupabaseAdmin } from './utils/supabaseAdmin.js';
 import { setupCors } from './utils/cors.js';
+import { requireAuth } from './utils/auth.js';
+import { rateLimitByUser } from './utils/rateLimit.js';
+import { enforceAiQuota } from './utils/aiQuota.js';
 
 const supabase = getSupabaseAdmin();
 
@@ -38,25 +41,6 @@ Return ONLY valid JSON. No preamble.
 
 const VALID_PERSONAS = ['hammer', 'scientist', 'encourager', 'pragmatist', 'competitor'];
 
-// Simple in-memory rate limiter (per-user, resets on cold start)
-const rateLimits = new Map();
-
-function checkRateLimit(userId) {
-  const now = Date.now();
-  const windowMs = 10 * 60 * 1000; // 10 minutes
-  const maxRequests = 5;
-
-  const entry = rateLimits.get(userId);
-  if (!entry || now - entry.windowStart > windowMs) {
-    rateLimits.set(userId, { windowStart: now, count: 1 });
-    return true;
-  }
-
-  if (entry.count >= maxRequests) return false;
-  entry.count++;
-  return true;
-}
-
 export default async function handler(req, res) {
   if (setupCors(req, res)) return;
 
@@ -70,20 +54,29 @@ export default async function handler(req, res) {
       return res.status(500).json({ error: 'Service not configured' });
     }
 
-    const { answers, userId } = req.body;
+    // SECURITY: authenticated users only — use the verified token identity,
+    // never a body-supplied userId
+    const authUser = await requireAuth(req, res);
+    if (!authUser) return;
+    const userId = authUser.id;
 
-    if (!answers || !userId) {
-      return res.status(400).json({ error: 'Missing answers or userId' });
+    const { answers } = req.body;
+
+    if (!answers) {
+      return res.status(400).json({ error: 'Missing answers' });
     }
 
     if (!answers.q1 || !answers.q2 || !answers.q3 || !answers.q4 || !answers.q5) {
       return res.status(400).json({ error: 'All 5 intake answers are required' });
     }
 
-    // Rate limit check
-    if (!checkRateLimit(userId)) {
-      return res.status(429).json({ error: 'Too many classification requests. Try again later.' });
-    }
+    // Rate limit check (5 per 10 minutes per user, distributed)
+    const rateLimitResult = await rateLimitByUser(req, res, 'CLASSIFY_PERSONA', userId, 5, 10);
+    if (rateLimitResult !== null) return;
+
+    // Daily AI quota (per-user cap + global ceiling)
+    const quotaResult = await enforceAiQuota(req, res, userId);
+    if (quotaResult !== null) return;
 
     const claude = new Anthropic({ apiKey });
 

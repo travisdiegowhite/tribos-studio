@@ -6,6 +6,7 @@ import { getSupabaseAdmin } from './utils/supabaseAdmin.js';
 import { rateLimitByUser } from './utils/rateLimit.js';
 import { setupCors } from './utils/cors.js';
 import { requireAuth } from './utils/auth.js';
+import { enforceAiQuota } from './utils/aiQuota.js';
 
 // Initialize Supabase (server-side)
 const supabase = getSupabaseAdmin();
@@ -81,6 +82,12 @@ export default async function handler(req, res) {
   );
 
   if (rateLimitResult !== null) {
+    return;
+  }
+
+  // Daily AI quota (per-user cap + global ceiling)
+  const quotaExceeded = await enforceAiQuota(req, res, user.id);
+  if (quotaExceeded !== null) {
     return;
   }
 

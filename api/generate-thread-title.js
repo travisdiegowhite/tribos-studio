@@ -2,8 +2,10 @@
 // Uses AI to generate concise, descriptive titles for conversation threads
 
 import Anthropic from '@anthropic-ai/sdk';
-import { rateLimitMiddleware } from './utils/rateLimit.js';
+import { rateLimitByUser } from './utils/rateLimit.js';
 import { setupCors } from './utils/cors.js';
+import { requireAuth } from './utils/auth.js';
+import { enforceAiQuota } from './utils/aiQuota.js';
 
 // System prompt for title generation
 const TITLE_GENERATION_PROMPT = `You are a helpful assistant that generates concise conversation thread titles.
@@ -47,15 +49,22 @@ export default async function handler(req, res) {
     return res.status(405).json({ error: 'Method not allowed' });
   }
 
-  // Apply rate limiting (reuse coach rate limit config)
-  const rateLimitResult = await rateLimitMiddleware(req, res, {
-    key: 'thread-title',
-    limit: 30,
-    windowMs: 5 * 60 * 1000 // 30 requests per 5 minutes
-  });
+  // SECURITY: authenticated users only
+  const authUser = await requireAuth(req, res);
+  if (!authUser) return;
 
-  if (rateLimitResult) {
-    return; // Rate limit response already sent
+  // Rate limiting (20 per 5 minutes per user). The previous call passed an
+  // options object to rateLimitMiddleware's positional signature, so the
+  // limit was silently undefined — this endpoint was effectively unthrottled.
+  const rateLimitResult = await rateLimitByUser(req, res, 'THREAD_TITLE', authUser.id, 20, 5);
+  if (rateLimitResult !== null) {
+    return;
+  }
+
+  // Daily AI quota (per-user cap + global ceiling)
+  const quotaResult = await enforceAiQuota(req, res, authUser.id);
+  if (quotaResult !== null) {
+    return;
   }
 
   try {

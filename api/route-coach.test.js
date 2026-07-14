@@ -19,6 +19,11 @@ vi.mock('./utils/rateLimit.js', () => ({
   rateLimitByUser: vi.fn().mockResolvedValue(null),
 }));
 
+vi.mock('./utils/aiQuota.js', () => ({
+  enforceAiQuota: vi.fn().mockResolvedValue(null),
+  enforceGlobalAiQuota: vi.fn().mockResolvedValue(null),
+}));
+
 // A chainable Supabase stub: every query resolves empty, so the context
 // fetchers all fall back to null/empty and the prompt has no extra blocks.
 function emptyChain() {

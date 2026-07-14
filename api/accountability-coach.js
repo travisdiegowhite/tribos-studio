@@ -3,8 +3,10 @@
 
 import Anthropic from '@anthropic-ai/sdk';
 import { getSupabaseAdmin } from './utils/supabaseAdmin.js';
-import { rateLimitMiddleware } from './utils/rateLimit.js';
+import { rateLimitByUser } from './utils/rateLimit.js';
 import { setupCors } from './utils/cors.js';
+import { requireAuth } from './utils/auth.js';
+import { enforceAiQuota } from './utils/aiQuota.js';
 
 // Initialize Supabase (server-side)
 const supabase = getSupabaseAdmin();
@@ -65,6 +67,12 @@ export default async function handler(req, res) {
       });
     }
 
+    // SECURITY: authenticated users only — the verified token identity is
+    // used for coach memory writes, never a body-supplied userId
+    const authUser = await requireAuth(req, res);
+    if (!authUser) return;
+    const userId = authUser.id;
+
     const claude = new Anthropic({ apiKey });
 
     const {
@@ -72,7 +80,6 @@ export default async function handler(req, res) {
       conversationHistory = [],
       systemPrompt,
       context = {},
-      userId,
       maxTokens = 512 // Keep responses short for accountability
     } = req.body;
 
@@ -90,16 +97,23 @@ export default async function handler(req, res) {
       });
     }
 
-    // Rate limiting (20 requests per 5 minutes)
-    const rateLimitResult = await rateLimitMiddleware(
+    // Rate limiting (20 requests per 5 minutes per user)
+    const rateLimitResult = await rateLimitByUser(
       req,
       res,
       'ACCOUNTABILITY_COACH',
+      userId,
       20,
       5
     );
 
     if (rateLimitResult !== null) {
+      return;
+    }
+
+    // Daily AI quota (per-user cap + global ceiling)
+    const quotaResult = await enforceAiQuota(req, res, userId);
+    if (quotaResult !== null) {
       return;
     }
 

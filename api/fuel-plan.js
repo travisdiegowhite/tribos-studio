@@ -5,6 +5,7 @@ import Anthropic from '@anthropic-ai/sdk';
 import { setupCors } from './utils/cors.js';
 import { requireAuth } from './utils/auth.js';
 import { rateLimitByUser } from './utils/rateLimit.js';
+import { enforceAiQuota } from './utils/aiQuota.js';
 
 // Fueling calculation logic (mirrored from frontend utils)
 // Keeping it server-side for AI integration
@@ -239,6 +240,10 @@ export default async function handler(req, res) {
 
   const rateLimited = await rateLimitByUser(req, res, 'FUEL_PLAN', user.id, 30, 5);
   if (rateLimited !== null) return;
+
+  // Daily AI quota (per-user cap + global ceiling)
+  const quotaExceeded = await enforceAiQuota(req, res, user.id);
+  if (quotaExceeded !== null) return;
 
   try {
     let input;
