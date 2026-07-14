@@ -2349,36 +2349,14 @@ function Settings() {
                     </Box>
                   </Group>
                   <Group>
-                    {googleCalendarStatus.connected ? (
-                      <>
-                        <Badge color="sage" variant="light">
-                          Connected
-                        </Badge>
-                        <Button
-                          size="xs"
-                          variant="subtle"
-                          color="red"
-                          onClick={disconnectGoogleCalendar}
-                        >
-                          Disconnect
-                        </Button>
-                      </>
-                    ) : (
-                      <Button
-                        size="xs"
-                        color="teal"
-                        variant="light"
-                        loading={googleCalendarStatus.loading}
-                        onClick={connectGoogleCalendar}
-                      >
-                        Connect
-                      </Button>
-                    )}
+                    <Badge color="gold" variant="light">
+                      Coming Soon
+                    </Badge>
                   </Group>
                 </Group>
                 <Box style={{ marginLeft: '2.5rem' }}>
                   <Text size="xs" style={{ color: 'var(--color-text-muted)' }}>
-                    Connect your calendar to automatically detect busy days for schedule-aware training plans.
+                    Google Calendar integration is coming soon. Connect your calendar to automatically detect busy days for schedule-aware training plans.
                   </Text>
                 </Box>
               </Stack>
