@@ -13,7 +13,7 @@
       "items": [
         {
           "name": "Plan Your Training",
-          "description": "Your interactive training calendar. Drag and drop workouts onto your schedule, build out your training weeks, and see your planned Training Stress Score (TSS) alongside completed activities. Think of it as your whiteboard for mapping out what's ahead.",
+          "description": "Your interactive training calendar. Drag and drop workouts onto your schedule, build out your training weeks, and see your planned Ride Stress Score (RSS) alongside completed activities. Think of it as your whiteboard for mapping out what's ahead.",
           "highlight": "Build your schedule visually"
         },
         {
@@ -50,6 +50,94 @@
     }
   ],
   "updates": [
+    {
+      "id": "today-training-arc",
+      "date": "2026-07",
+      "type": "new",
+      "title": "A new Today page: your Training Arc",
+      "description": "Today now opens on the Spine — a scrubbable arc of where your training has been and where it's headed. Slide across past and planned days to watch your fitness, fatigue, and form evolve, and get a persona-voiced Today's Call telling you what today is for.",
+      "details": [
+        "Scrub the arc to see fitness, fatigue, and Form Score for any day — past or planned",
+        "Today's Call: your coach's one-line verdict on today, in their own voice",
+        "Recent rides map and coach conversation side by side",
+        "Honest first-run state — no dashboard of zeros before your first sync"
+      ]
+    },
+    {
+      "id": "route-builder-2-canonical",
+      "date": "2026-07",
+      "type": "new",
+      "title": "Route Builder 2 is now the builder",
+      "description": "The new builder is the one and only route builder, and it got a major capability wave: turn-by-turn cue sheets, push-to-Wahoo, public share links, draft autosave, and gravel-aware AI loops built from the real OSM gravel network.",
+      "details": [
+        "Turn-by-turn cues on exports — your head unit gets real turn prompts, not just a breadcrumb",
+        "Push routes directly to Wahoo, share them with a public link",
+        "Draft autosave so a long build survives a crashed tab",
+        "Gravel and mixed-surface loops that follow the actual gravel network, with tangent clipping for cleaner out-and-backs",
+        "Open to guests — build a route before you even sign up"
+      ]
+    },
+    {
+      "id": "coros-sync",
+      "date": "2026-07",
+      "type": "new",
+      "title": "COROS device sync",
+      "description": "COROS joins Garmin, Wahoo, and Strava as a first-class sync provider. Connect your COROS account in Settings and new activities import automatically.",
+      "details": [
+        "Connect / disconnect from Settings → Connected Services",
+        "Automatic import of new activities via webhook",
+        "Manual sync button for pulling recent history on demand"
+      ]
+    },
+    {
+      "id": "metrics-spec-alignment",
+      "date": "2026-07",
+      "type": "improvement",
+      "title": "Clearer, more consistent training metrics",
+      "description": "A full accuracy pass on the numbers. Training metrics now use Tribos' own names — Ride Stress Score (RSS), Training Fitness Index (TFI), Form Score — and every surface shows the same value for the same day, computed from one canonical model.",
+      "details": [
+        "Power and heart-rate zones unified on one 7-zone model everywhere",
+        "Form verdict bands aligned across the dashboard, Today, and the coach",
+        "Elevation charts redesigned with continuous grade coloring",
+        "Fixed cross-surface inconsistencies where two views could disagree on the same ride"
+      ]
+    },
+    {
+      "id": "living-arc-coach-plans",
+      "date": "2026-06",
+      "type": "new",
+      "title": "The Living Arc: coach plans that adapt",
+      "description": "Your coach can now build a real, race-aware training plan — block-periodized toward your goal event — and keep it alive. Upcoming quality sessions refill based on your actual fitness, and the plan respects your blocked days and preferences.",
+      "details": [
+        "Race-aware plans that auto-activate toward your goal date",
+        "Fitness-gated refill: upcoming sessions adjust to how training is actually going",
+        "The coach explains the why behind each week, in its own voice",
+        "One-click clear of upcoming planned sessions from the calendar"
+      ]
+    },
+    {
+      "id": "cafe-forum",
+      "date": "2026-07",
+      "type": "improvement",
+      "title": "The Cafe is now a community forum",
+      "description": "The Cafe grew from small-group check-ins into a community-wide forum. Start threads, ask training questions, and talk shop with the whole Tribos community — your small-group check-ins are still there under My Cafe.",
+      "details": [
+        "Community-wide discussion threads, open to everyone",
+        "Reactions and replies on posts",
+        "Small-group check-ins live on under the My Cafe tab"
+      ]
+    },
+    {
+      "id": "beta-feedback-button",
+      "date": "2026-07",
+      "type": "improvement",
+      "title": "A direct line to the builder",
+      "description": "The beta feedback button now floats bottom-right on every page. Bugs, ideas, questions — every message goes straight to Travis, with the page you sent it from attached.",
+      "details": [
+        "One click from anywhere in the app",
+        "Travis reads every single message"
+      ]
+    },
     {
       "id": "tfi-canonical-display",
       "date": "2026-05",
@@ -198,12 +286,12 @@
   ],
   "comingSoon": [
     {
-      "title": "Google Calendar sync",
-      "description": "Import your busy times so training plans work around your life"
-    },
-    {
       "title": "Enhanced analytics",
       "description": "Deeper insights into your training trends"
+    },
+    {
+      "title": "More export & sharing options",
+      "description": "Get your routes and workouts onto more devices and platforms"
     }
   ]
 }
