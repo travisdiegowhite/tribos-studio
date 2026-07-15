@@ -25,12 +25,15 @@ const TARGET_POINTS = 400;
 // Colors are CSS vars (dark-mode overrides in global.css); chipColor is the
 // matching Mantine palette name from theme.js.
 const METRIC_CONFIG = {
+  // Power is teal (not the theme's "effort" orange): orange sits too close
+  // to the coral heart-rate line — the default pairing — for comfortable
+  // separation (ΔE 8.7 vs 26 for teal/coral, worse under deuteranopia).
   power: {
     label: 'Power',
     unit: 'W',
     dataKey: 'power',
-    color: 'var(--color-orange)',
-    chipColor: 'orange',
+    color: 'var(--color-teal)',
+    chipColor: 'teal',
     yAxisId: 'power',
     decimals: 0,
   },
@@ -47,8 +50,8 @@ const METRIC_CONFIG = {
     label: 'Speed',
     unit: 'km/h',
     dataKey: 'speed_kmh',
-    color: 'var(--color-teal)',
-    chipColor: 'teal',
+    color: 'var(--color-orange)',
+    chipColor: 'orange',
     yAxisId: 'speed',
     decimals: 1,
   },
@@ -372,9 +375,9 @@ const RideStreamsChart = ({ activity }) => {
                 yAxisId={dragRefAxisId}
                 x1={Math.min(drag.start, drag.end)}
                 x2={Math.max(drag.start, drag.end)}
-                fill="var(--color-teal)"
+                fill="var(--color-text-muted)"
                 fillOpacity={0.12}
-                stroke="var(--color-teal)"
+                stroke="var(--color-text-muted)"
                 strokeOpacity={0.3}
               />
             )}
