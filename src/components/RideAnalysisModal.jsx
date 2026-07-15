@@ -685,7 +685,7 @@ const RideAnalysisModal = ({
                     <Text size="xs" c="dimmed">Avg HR</Text>
                     <Text fw={600}>{Math.round(metrics.avgHR)} bpm</Text>
                   </Box>
-                  <Heart size={20} style={{ color: '#ff6b6b' }} />
+                  <Heart size={20} style={{ color: 'var(--color-coral)' }} />
                 </Group>
               </Paper>
 

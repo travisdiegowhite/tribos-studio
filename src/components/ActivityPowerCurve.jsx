@@ -1,12 +1,9 @@
 import { useMemo } from 'react';
 import {
   Text,
-  Group,
-  Badge,
   Box,
   Paper,
   SimpleGrid,
-  Tooltip,
 } from '@mantine/core';
 import {
   BarChart,
@@ -19,8 +16,7 @@ import {
   ReferenceLine,
   Cell,
 } from 'recharts';
-import { tokens } from '../theme';
-import { Lightning, TrendUp } from '@phosphor-icons/react';
+import { useThemeTokens } from '../hooks/useThemeTokens';
 
 /**
  * Standard durations for the power curve display
@@ -43,7 +39,7 @@ const DURATION_CONFIG = [
 /**
  * Color gradient from sprint (hot) to endurance (cool)
  */
-function getBarColor(seconds) {
+function getBarColor(seconds, tokens) {
   if (seconds <= 10) return tokens.colors.zone7;   // pink - sprint
   if (seconds <= 30) return tokens.colors.zone5;    // red - anaerobic
   if (seconds <= 60) return tokens.colors.zone4;    // orange - VO2max
@@ -58,6 +54,8 @@ function getBarColor(seconds) {
  * Uses actual power_curve_summary data from FIT file parsing
  */
 const ActivityPowerCurve = ({ powerCurveSummary, ftp, weight }) => {
+  const { tokens } = useThemeTokens();
+
   const chartData = useMemo(() => {
     if (!powerCurveSummary || typeof powerCurveSummary !== 'object') return [];
 
@@ -70,9 +68,9 @@ const ActivityPowerCurve = ({ powerCurveSummary, ftp, weight }) => {
         watts: Math.round(powerCurveSummary[d.key]),
         wkg: weight ? (powerCurveSummary[d.key] / weight).toFixed(2) : null,
         ftpPercent: ftp ? Math.round((powerCurveSummary[d.key] / ftp) * 100) : null,
-        color: getBarColor(d.seconds),
+        color: getBarColor(d.seconds, tokens),
       }));
-  }, [powerCurveSummary, ftp, weight]);
+  }, [powerCurveSummary, ftp, weight, tokens]);
 
   // Key best efforts for the summary cards
   const bestEfforts = useMemo(() => {
@@ -136,7 +134,7 @@ const ActivityPowerCurve = ({ powerCurveSummary, ftp, weight }) => {
               style={{ backgroundColor: 'var(--color-bg-secondary)' }}
             >
               <Text size="xs" c="dimmed">{effort.label}</Text>
-              <Text size="sm" fw={700} c="yellow.4">
+              <Text size="sm" fw={700} ff="monospace" style={{ color: 'var(--color-gold)' }}>
                 {effort.watts}W
               </Text>
               {effort.wkg && (
@@ -166,15 +164,15 @@ const ActivityPowerCurve = ({ powerCurveSummary, ftp, weight }) => {
           <YAxis
             tick={{ fontSize: 12, fill: 'var(--color-text-muted)' }}
             axisLine={{ stroke: 'var(--color-bg-secondary)' }}
-            width={45}
+            width={50}
             label={{
-              value: 'W',
+              value: 'Watts',
               angle: -90,
               position: 'insideLeft',
-              style: { textAnchor: 'middle', fill: 'var(--color-text-muted)', fontSize: 12 },
+              style: { textAnchor: 'middle', fill: 'var(--color-text-muted)', fontSize: 11 },
             }}
           />
-          <RechartsTooltip content={<CustomTooltip />} />
+          <RechartsTooltip content={<CustomTooltip />} cursor={{ fill: 'var(--color-teal-subtle)' }} />
 
           {/* FTP Reference Line */}
           {ftp && (
@@ -182,16 +180,17 @@ const ActivityPowerCurve = ({ powerCurveSummary, ftp, weight }) => {
               y={ftp}
               stroke={tokens.colors.zone4}
               strokeDasharray="5 5"
+              ifOverflow="extendDomain"
               label={{
                 value: `FTP ${ftp}W`,
-                position: 'right',
+                position: 'insideTopRight',
                 fill: tokens.colors.zone4,
                 fontSize: 11,
               }}
             />
           )}
 
-          <Bar dataKey="watts" radius={[3, 3, 0, 0]} maxBarSize={40}>
+          <Bar dataKey="watts" radius={0} maxBarSize={40}>
             {chartData.map((entry, index) => (
               <Cell key={index} fill={entry.color} fillOpacity={0.85} />
             ))}

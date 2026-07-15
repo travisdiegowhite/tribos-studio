@@ -11,7 +11,6 @@ import {
   ReferenceLine,
   Cell,
 } from 'recharts';
-import { tokens } from '../theme';
 
 const QUARTER_LABELS = ['Q1 (0-25%)', 'Q2 (25-50%)', 'Q3 (50-75%)', 'Q4 (75-100%)'];
 
@@ -34,15 +33,27 @@ function getStrategyInfo(strategy) {
 }
 
 /**
- * Get bar color based on quarter power relative to average
+ * Bar color relative to the ride average — semantic, theme-aware:
+ * above average = teal (strong), near = gold (steady), below = coral
+ * (light coral for a slight fade, full coral for a heavy fade).
  */
-function getBarColor(watts, avgWatts) {
-  if (!avgWatts) return tokens.colors.zone3;
+function getBarStyle(watts, avgWatts) {
+  if (!avgWatts) return { fill: 'var(--color-gold)', fillOpacity: 0.85 };
   const pct = watts / avgWatts;
-  if (pct >= 1.05) return tokens.colors.zone1; // Above average — strong
-  if (pct >= 0.97) return tokens.colors.zone2; // Near average — steady
-  if (pct >= 0.90) return tokens.colors.zone3; // Slightly below — fading
-  return tokens.colors.zone4; // Well below — significant fade
+  if (pct >= 1.05) return { fill: 'var(--color-teal)', fillOpacity: 0.85 };
+  if (pct >= 0.97) return { fill: 'var(--color-gold)', fillOpacity: 0.85 };
+  if (pct >= 0.90) return { fill: 'var(--color-coral)', fillOpacity: 0.5 };
+  return { fill: 'var(--color-coral)', fillOpacity: 0.85 };
+}
+
+/**
+ * Describe a quarter's effort relative to the ride average
+ */
+function describeVsAverage(pctOfAvg) {
+  if (pctOfAvg >= 105) return 'above average — strong';
+  if (pctOfAvg >= 97) return 'near average — steady';
+  if (pctOfAvg >= 90) return 'below average — fading';
+  return 'well below average — heavy fade';
 }
 
 /**
@@ -53,10 +64,18 @@ const PacingTooltip = ({ active, payload }) => {
   const data = payload[0]?.payload;
   if (!data) return null;
 
+  const pctOfAvg = data.avgWatts ? Math.round((data.watts / data.avgWatts) * 100) : null;
+
   return (
     <Paper p="xs" withBorder style={{ backgroundColor: 'var(--color-bg-secondary)' }}>
       <Text size="xs" fw={600}>{data.label}</Text>
-      <Text size="xs">{Math.round(data.watts)} W</Text>
+      <Text size="xs" ff="monospace">{Math.round(data.watts)} W</Text>
+      {pctOfAvg != null && (
+        <>
+          <Text size="xs" ff="monospace" c="dimmed">{pctOfAvg}% of ride avg</Text>
+          <Text size="xs" c="dimmed">{describeVsAverage(pctOfAvg)}</Text>
+        </>
+      )}
     </Paper>
   );
 };
@@ -112,7 +131,7 @@ const RidePacingChart = ({ activity, ftp }) => {
         {powerFade != null && (
           <Paper p="xs" style={{ backgroundColor: 'var(--color-bg-secondary)' }}>
             <Text size="xs" style={{ color: 'var(--color-text-muted)' }}>Power Fade</Text>
-            <Text size="sm" fw={600} style={{ color: powerFade > 10 ? tokens.colors.zone4 : 'inherit' }}>
+            <Text size="sm" fw={600} style={{ color: powerFade > 10 ? 'var(--color-coral)' : 'inherit' }}>
               {powerFade > 0 ? `-${Math.round(powerFade)}%` : `+${Math.abs(Math.round(powerFade))}%`}
             </Text>
           </Paper>
@@ -128,31 +147,55 @@ const RidePacingChart = ({ activity, ftp }) => {
           />
           <YAxis
             tick={{ fontSize: 11, fill: 'var(--color-text-muted)' }}
-            width={45}
+            width={50}
             domain={['dataMin - 20', 'auto']}
+            label={{
+              value: 'Watts',
+              angle: -90,
+              position: 'insideLeft',
+              style: { textAnchor: 'middle', fill: 'var(--color-text-muted)', fontSize: 11 },
+            }}
           />
-          <RechartsTooltip content={<PacingTooltip />} />
+          <RechartsTooltip content={<PacingTooltip />} cursor={{ fill: 'var(--color-teal-subtle)' }} />
 
-          {ftp && (
+          {avgWatts > 0 && (
             <ReferenceLine
-              y={ftp}
-              stroke={tokens.colors.zone4}
+              y={avgWatts}
+              stroke="var(--color-text-muted)"
               strokeDasharray="4 4"
               label={{
-                value: `FTP ${ftp}W`,
-                position: 'right',
-                style: { fontSize: 10, fill: tokens.colors.zone4 },
+                value: `avg ${Math.round(avgWatts)}W`,
+                position: 'insideBottomRight',
+                style: { fontSize: 10, fill: 'var(--color-text-muted)' },
               }}
             />
           )}
 
-          <Bar dataKey="watts" radius={[2, 2, 0, 0]} isAnimationActive={false}>
+          {ftp && (
+            <ReferenceLine
+              y={ftp}
+              stroke="var(--color-orange)"
+              strokeDasharray="4 4"
+              ifOverflow="extendDomain"
+              label={{
+                value: `FTP ${ftp}W`,
+                position: 'insideTopRight',
+                style: { fontSize: 10, fill: 'var(--color-orange)' },
+              }}
+            />
+          )}
+
+          <Bar dataKey="watts" radius={0} isAnimationActive={false}>
             {chartData.map((entry, index) => (
-              <Cell key={index} fill={getBarColor(entry.watts, avgWatts)} />
+              <Cell key={index} {...getBarStyle(entry.watts, avgWatts)} />
             ))}
           </Bar>
         </BarChart>
       </ResponsiveContainer>
+
+      <Text size="xs" c="dimmed">
+        Bar color compares each quarter to the ride average — teal above, gold near, coral fading
+      </Text>
     </Stack>
   );
 };
