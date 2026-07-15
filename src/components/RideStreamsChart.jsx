@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { Card, Text, Group, Chip, Stack, Box } from '@mantine/core';
+import { Paper, Text, Group, Chip, Stack, Box, Button } from '@mantine/core';
 import {
   ComposedChart,
   Line,
@@ -8,188 +8,185 @@ import {
   YAxis,
   CartesianGrid,
   Tooltip as RechartsTooltip,
+  ReferenceArea,
   ResponsiveContainer,
 } from 'recharts';
+import {
+  buildStreamRows,
+  downsampleRows,
+  smoothRows,
+  smoothingWindowForCount,
+  niceTicks,
+  formatElapsed,
+} from '../utils/streamChartData';
 
-// FIT protocol sentinel filtering
-const MAX_VALID_POWER = 2500;
-const MAX_VALID_HR = 250;
-const MAX_VALID_SPEED_MPS = 40; // ~144 km/h
-const MAX_VALID_CADENCE = 200;
-const TARGET_POINTS = 500;
+const TARGET_POINTS = 400;
 
+// Colors are CSS vars (dark-mode overrides in global.css); chipColor is the
+// matching Mantine palette name from theme.js.
 const METRIC_CONFIG = {
   power: {
     label: 'Power',
     unit: 'W',
-    color: '#D4600A',
-    yAxisId: 'left',
+    dataKey: 'power',
+    color: 'var(--color-orange)',
+    chipColor: 'orange',
+    yAxisId: 'power',
+    decimals: 0,
   },
   heartRate: {
     label: 'Heart Rate',
     unit: 'bpm',
-    color: '#C43C2A',
-    yAxisId: 'right',
+    dataKey: 'heartRate',
+    color: 'var(--color-coral)',
+    chipColor: 'coral',
+    yAxisId: 'hr',
+    decimals: 0,
   },
   speed: {
     label: 'Speed',
     unit: 'km/h',
-    color: '#7A7970',
-    yAxisId: 'left',
+    dataKey: 'speed_kmh',
+    color: 'var(--color-teal)',
+    chipColor: 'teal',
+    yAxisId: 'speed',
+    decimals: 1,
   },
   cadence: {
     label: 'Cadence',
     unit: 'rpm',
-    color: '#C49A0A',
-    yAxisId: 'left',
-  },
-  elevation: {
-    label: 'Elevation',
-    unit: 'm',
-    color: '#2A8C82',
-    yAxisId: 'right',
+    dataKey: 'cadence',
+    color: 'var(--color-gold)',
+    chipColor: 'gold',
+    yAxisId: 'cadence',
+    decimals: 0,
   },
 };
 
-/**
- * Calculate cumulative distance from coordinate pairs
- * Uses Haversine formula for accuracy
- */
-function cumulativeDistance(coords) {
-  if (!coords || coords.length === 0) return [];
+const ELEVATION_CONFIG = {
+  label: 'Elevation',
+  unit: 'm',
+  dataKey: 'elevation_m',
+  color: 'var(--color-text-muted)',
+  yAxisId: 'elev',
+  decimals: 0,
+};
 
-  const distances = [0];
-  for (let i = 1; i < coords.length; i++) {
-    const [lng1, lat1] = coords[i - 1];
-    const [lng2, lat2] = coords[i];
-    const R = 6371; // Earth radius in km
-    const dLat = ((lat2 - lat1) * Math.PI) / 180;
-    const dLng = ((lng2 - lng1) * Math.PI) / 180;
-    const a =
-      Math.sin(dLat / 2) ** 2 +
-      Math.cos((lat1 * Math.PI) / 180) *
-        Math.cos((lat2 * Math.PI) / 180) *
-        Math.sin(dLng / 2) ** 2;
-    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-    distances.push(distances[i - 1] + R * c);
+// Metrics eligible for the visible left axis, in priority order
+const LEFT_AXIS_PRIORITY = ['power', 'speed', 'cadence'];
+
+const X_AXIS_LABEL = {
+  distance_km: 'Distance (km)',
+  time_s: 'Time',
+  index: 'Sample',
+};
+
+function formatXValue(value, xMode) {
+  if (xMode === 'time_s') return formatElapsed(value);
+  if (xMode === 'distance_km') {
+    return Number.isInteger(value) ? `${value}` : value.toFixed(1);
   }
-  return distances;
+  return `${Math.round(value)}`;
 }
 
-/**
- * Downsample an array to target length using LTTB-like approach
- */
-function downsample(data, targetLen) {
-  if (data.length <= targetLen) return data;
-  const step = (data.length - 1) / (targetLen - 1);
-  const result = [];
-  for (let i = 0; i < targetLen; i++) {
-    result.push(data[Math.round(i * step)]);
-  }
-  return result;
+function formatTooltipHeader(value, xMode) {
+  if (xMode === 'time_s') return formatElapsed(value);
+  if (xMode === 'distance_km') return `${value.toFixed(1)} km`;
+  return `Sample ${Math.round(value)}`;
 }
 
-/**
- * Custom tooltip for the streams chart
- */
-const StreamsTooltip = ({ active, payload, label, activeMetrics }) => {
+const StreamsTooltip = ({ active, payload, label, activeMetrics, xMode, hasElevation }) => {
   if (!active || !payload || payload.length === 0) return null;
+  const row = payload[0]?.payload;
+  if (!row) return null;
+
+  const entries = activeMetrics.map((metric) => ({ key: metric, config: METRIC_CONFIG[metric] }));
+  if (hasElevation) entries.push({ key: 'elevation', config: ELEVATION_CONFIG });
 
   return (
-    <Card withBorder p="xs" style={{ backgroundColor: 'var(--color-bg-secondary)', minWidth: 140 }}>
+    <Paper withBorder p="xs" style={{ backgroundColor: 'var(--color-bg-secondary)', minWidth: 150 }}>
       <Text size="xs" fw={600} mb={4}>
-        {typeof label === 'number' ? `${label.toFixed(1)} km` : label}
+        {typeof label === 'number' ? formatTooltipHeader(label, xMode) : label}
       </Text>
-      {payload.map((entry) => {
-        const config = METRIC_CONFIG[entry.dataKey];
-        if (!config || !activeMetrics.includes(entry.dataKey)) return null;
+      {entries.map(({ key, config }) => {
+        const value = row[config.dataKey];
         return (
-          <Group key={entry.dataKey} justify="space-between" gap="xs">
-            <Text size="xs" style={{ color: config.color }}>
-              {config.label}
-            </Text>
-            <Text size="xs" fw={500}>
-              {entry.dataKey === 'speed'
-                ? `${(entry.value).toFixed(1)} ${config.unit}`
-                : `${Math.round(entry.value)} ${config.unit}`}
+          <Group key={key} justify="space-between" gap="md" wrap="nowrap">
+            <Group gap={6} wrap="nowrap">
+              <Box w={8} h={8} style={{ backgroundColor: config.color, flexShrink: 0 }} />
+              <Text size="xs" c="var(--color-text-muted)">
+                {config.label}
+              </Text>
+            </Group>
+            <Text size="xs" fw={500} ff="monospace">
+              {value == null ? '—' : `${value.toFixed(config.decimals)} ${config.unit}`}
             </Text>
           </Group>
         );
       })}
-    </Card>
+    </Paper>
   );
 };
 
 /**
- * RideStreamsChart — time-series visualization of ride metrics
- * Displays power, HR, speed, cadence, and elevation over distance
+ * RideStreamsChart — ride profile over distance (or time for indoor rides).
+ *
+ * Power/HR are smoothed with a rolling average and all series are
+ * downsampled with peak-preserving LTTB. Elevation always renders as a
+ * muted background area. Drag horizontally to zoom; double-click to reset.
  */
 const RideStreamsChart = ({ activity }) => {
   const streams = activity?.activity_streams;
+  const durationSeconds =
+    activity?.moving_time || activity?.duration_seconds || activity?.elapsed_time || 0;
 
-  // Determine which metrics have data
-  const availableMetrics = useMemo(() => {
-    if (!streams) return [];
-    const available = [];
-    if (streams.power?.some((v) => v > 0 && v < MAX_VALID_POWER)) available.push('power');
-    if (streams.heartRate?.some((v) => v > 0 && v < MAX_VALID_HR)) available.push('heartRate');
-    if (streams.speed?.some((v) => v > 0 && v < MAX_VALID_SPEED_MPS)) available.push('speed');
-    if (streams.cadence?.some((v) => v > 0 && v < MAX_VALID_CADENCE)) available.push('cadence');
-    if (streams.elevation?.some((v) => v != null)) available.push('elevation');
-    return available;
-  }, [streams]);
-
-  // Default: show power + HR + elevation (the most useful combo)
   const [activeMetrics, setActiveMetrics] = useState(null);
-  const resolvedActive = activeMetrics ?? availableMetrics.filter((m) =>
-    ['power', 'heartRate', 'elevation'].includes(m)
+  const [zoom, setZoom] = useState(null); // { x1, x2 } committed range
+  const [drag, setDrag] = useState(null); // { start, end } while dragging
+
+  // Full-resolution rows + x-axis mode
+  const { rows: baseRows, xMode } = useMemo(
+    () => buildStreamRows(streams, { durationSeconds }),
+    [streams, durationSeconds]
   );
 
-  // Process stream data into chart-ready format
-  const chartData = useMemo(() => {
-    if (!streams || availableMetrics.length === 0) return [];
+  const availableMetrics = useMemo(
+    () =>
+      Object.keys(METRIC_CONFIG).filter((metric) =>
+        baseRows.some((row) => row[METRIC_CONFIG[metric].dataKey] != null)
+      ),
+    [baseRows]
+  );
+  const hasElevation = useMemo(
+    () => baseRows.some((row) => row.elevation_m != null),
+    [baseRows]
+  );
 
-    const len = streams.coords?.length || streams.power?.length || streams.heartRate?.length || 0;
-    if (len === 0) return [];
+  const resolvedActive =
+    activeMetrics ?? availableMetrics.filter((m) => ['power', 'heartRate'].includes(m));
 
-    // Calculate distance axis from coords
-    const distances = streams.coords ? cumulativeDistance(streams.coords) : null;
+  // Zoom re-slices the FULL-resolution rows, so smoothing and LTTB re-run
+  // on the visible span — zooming in reveals detail automatically.
+  const visibleRows = useMemo(() => {
+    if (!zoom) return baseRows;
+    return baseRows.filter((row) => row.x >= zoom.x1 && row.x <= zoom.x2);
+  }, [baseRows, zoom]);
 
-    // Build raw data points
-    const raw = [];
-    for (let i = 0; i < len; i++) {
-      const point = {};
+  const chartRows = useMemo(() => {
+    if (visibleRows.length === 0) return [];
+    const window = smoothingWindowForCount(visibleRows.length, TARGET_POINTS);
+    const smoothed = smoothRows(visibleRows, ['power', 'heartRate'], window);
+    return downsampleRows(smoothed, TARGET_POINTS);
+  }, [visibleRows]);
 
-      // X-axis: distance if available, otherwise index
-      point.distance = distances ? Math.round(distances[i] * 100) / 100 : i;
+  const xTicks = useMemo(() => {
+    if (chartRows.length === 0) return [];
+    return niceTicks(chartRows[0].x, chartRows[chartRows.length - 1].x, 8);
+  }, [chartRows]);
 
-      if (streams.power?.[i] != null) {
-        const p = streams.power[i];
-        point.power = p > 0 && p < MAX_VALID_POWER ? p : null;
-      }
-      if (streams.heartRate?.[i] != null) {
-        const hr = streams.heartRate[i];
-        point.heartRate = hr > 0 && hr < MAX_VALID_HR ? hr : null;
-      }
-      if (streams.speed?.[i] != null) {
-        const s = streams.speed[i];
-        point.speed = s >= 0 && s < MAX_VALID_SPEED_MPS ? Math.round(s * 3.6 * 10) / 10 : null; // m/s → km/h
-      }
-      if (streams.cadence?.[i] != null) {
-        const c = streams.cadence[i];
-        point.cadence = c >= 0 && c < MAX_VALID_CADENCE ? c : null;
-      }
-      if (streams.elevation?.[i] != null) {
-        point.elevation = streams.elevation[i];
-      }
+  const fullSpan = baseRows.length > 0 ? baseRows[baseRows.length - 1].x - baseRows[0].x : 0;
 
-      raw.push(point);
-    }
-
-    return downsample(raw, TARGET_POINTS);
-  }, [streams, availableMetrics]);
-
-  if (availableMetrics.length === 0) return null;
+  if (availableMetrics.length === 0 && !hasElevation) return null;
 
   const handleToggle = (metric) => {
     const current = resolvedActive;
@@ -201,143 +198,193 @@ const RideStreamsChart = ({ activity }) => {
     }
   };
 
-  // Determine if we need dual Y-axes
-  const hasLeftAxis = resolvedActive.some((m) => METRIC_CONFIG[m].yAxisId === 'left');
-  const hasRightAxis = resolvedActive.some((m) => METRIC_CONFIG[m].yAxisId === 'right');
+  const handleMouseDown = (e) => {
+    if (e?.activeLabel != null) setDrag({ start: e.activeLabel, end: e.activeLabel });
+  };
+  const handleMouseMove = (e) => {
+    if (drag && e?.activeLabel != null) setDrag((d) => ({ ...d, end: e.activeLabel }));
+  };
+  const handleMouseUp = () => {
+    if (!drag) return;
+    const x1 = Math.min(drag.start, drag.end);
+    const x2 = Math.max(drag.start, drag.end);
+    // Ignore clicks and accidental micro-drags (< 1% of the full ride)
+    if (fullSpan > 0 && x2 - x1 > fullSpan * 0.01) setZoom({ x1, x2 });
+    setDrag(null);
+  };
+
+  // Visible axes: left is bound to the highest-priority active metric,
+  // right to heart rate. Every metric keeps its own (hidden) scale so
+  // units never collide.
+  const leftMetric = LEFT_AXIS_PRIORITY.find((m) => resolvedActive.includes(m)) ?? null;
+  const rightMetric = resolvedActive.includes('heartRate') ? 'heartRate' : null;
+  const dragRefAxisId = leftMetric
+    ? METRIC_CONFIG[leftMetric].yAxisId
+    : rightMetric
+      ? METRIC_CONFIG[rightMetric].yAxisId
+      : ELEVATION_CONFIG.yAxisId;
+
+  const zoomSpanText = zoom
+    ? `${formatXValue(zoom.x1, xMode)} – ${formatXValue(zoom.x2, xMode)}${xMode === 'distance_km' ? ' km' : ''}`
+    : null;
 
   return (
     <Stack gap="xs">
-      <Group gap="xs" wrap="wrap">
-        {availableMetrics.map((metric) => (
-          <Chip
-            key={metric}
-            checked={resolvedActive.includes(metric)}
-            onChange={() => handleToggle(metric)}
-            size="xs"
-            variant="outline"
-            color={METRIC_CONFIG[metric].color}
-            styles={{
-              label: {
-                cursor: 'pointer',
-              },
-            }}
-          >
-            {METRIC_CONFIG[metric].label}
-          </Chip>
-        ))}
+      <Group gap="xs" justify="space-between" wrap="wrap">
+        <Group gap="xs" wrap="wrap">
+          {availableMetrics.map((metric) => (
+            <Chip
+              key={metric}
+              checked={resolvedActive.includes(metric)}
+              onChange={() => handleToggle(metric)}
+              size="xs"
+              variant="outline"
+              color={METRIC_CONFIG[metric].chipColor}
+              styles={{ label: { cursor: 'pointer' } }}
+            >
+              {METRIC_CONFIG[metric].label}
+            </Chip>
+          ))}
+        </Group>
+        {zoom && (
+          <Group gap="xs" wrap="nowrap">
+            <Text size="xs" c="dimmed" ff="monospace">
+              {zoomSpanText}
+            </Text>
+            <Button size="compact-xs" variant="light" onClick={() => setZoom(null)}>
+              Reset zoom
+            </Button>
+          </Group>
+        )}
       </Group>
 
-      <Box>
+      <Box style={{ userSelect: 'none' }} onDoubleClick={() => setZoom(null)}>
         <ResponsiveContainer width="100%" height={280}>
-          <ComposedChart data={chartData} margin={{ top: 5, right: 10, left: 0, bottom: 5 }}>
+          <ComposedChart
+            data={chartRows}
+            margin={{ top: 5, right: 10, left: 0, bottom: 5 }}
+            onMouseDown={handleMouseDown}
+            onMouseMove={handleMouseMove}
+            onMouseUp={handleMouseUp}
+            onMouseLeave={() => setDrag(null)}
+          >
             <CartesianGrid strokeDasharray="3 3" stroke="var(--color-bg-secondary)" />
 
             <XAxis
-              dataKey="distance"
+              dataKey="x"
+              type="number"
+              domain={['dataMin', 'dataMax']}
+              ticks={xTicks}
               tick={{ fontSize: 11, fill: 'var(--color-text-muted)' }}
-              tickFormatter={(v) => `${v.toFixed(0)}`}
+              tickFormatter={(v) => formatXValue(v, xMode)}
               label={{
-                value: 'km',
+                value: X_AXIS_LABEL[xMode],
                 position: 'insideBottomRight',
                 offset: -5,
                 style: { fontSize: 10, fill: 'var(--color-text-muted)' },
               }}
             />
 
-            {hasLeftAxis && (
+            {/* One axis per metric so scales never collide; only the
+                left-priority metric and heart rate render visibly. */}
+            {resolvedActive.map((metric) => {
+              const config = METRIC_CONFIG[metric];
+              const isLeft = metric === leftMetric;
+              const isRight = metric === rightMetric;
+              return (
+                <YAxis
+                  key={config.yAxisId}
+                  yAxisId={config.yAxisId}
+                  orientation={isRight ? 'right' : 'left'}
+                  hide={!isLeft && !isRight}
+                  domain={metric === 'heartRate' ? ['auto', 'auto'] : [0, 'auto']}
+                  tick={{ fontSize: 11, fill: config.color }}
+                  width={48}
+                  label={{
+                    value: `${config.label} (${config.unit})`,
+                    angle: -90,
+                    position: isRight ? 'insideRight' : 'insideLeft',
+                    style: { fontSize: 10, fill: config.color, textAnchor: 'middle' },
+                  }}
+                />
+              );
+            })}
+
+            {/* Hidden elevation axis pinned to the bottom third of the plot */}
+            {hasElevation && (
               <YAxis
-                yAxisId="left"
-                tick={{ fontSize: 11, fill: 'var(--color-text-muted)' }}
-                width={45}
-              />
-            )}
-            {hasRightAxis && (
-              <YAxis
-                yAxisId="right"
-                orientation="right"
-                tick={{ fontSize: 11, fill: 'var(--color-text-muted)' }}
-                width={45}
+                yAxisId={ELEVATION_CONFIG.yAxisId}
+                hide
+                domain={([dataMin, dataMax]) => [dataMin, dataMin + (dataMax - dataMin) * 3]}
               />
             )}
 
             <RechartsTooltip
-              content={<StreamsTooltip activeMetrics={resolvedActive} />}
+              cursor={{ stroke: 'var(--color-text-muted)', strokeDasharray: '3 3' }}
+              isAnimationActive={false}
+              content={
+                <StreamsTooltip
+                  activeMetrics={resolvedActive}
+                  xMode={xMode}
+                  hasElevation={hasElevation}
+                />
+              }
             />
 
-            {/* Elevation as filled area (behind lines) */}
-            {resolvedActive.includes('elevation') && (
+            {/* Elevation always renders as a muted background */}
+            {hasElevation && (
               <Area
-                yAxisId={METRIC_CONFIG.elevation.yAxisId}
+                yAxisId={ELEVATION_CONFIG.yAxisId}
                 type="monotone"
-                dataKey="elevation"
-                fill={METRIC_CONFIG.elevation.color}
-                fillOpacity={0.15}
-                stroke={METRIC_CONFIG.elevation.color}
+                dataKey="elevation_m"
+                stroke={ELEVATION_CONFIG.color}
+                strokeOpacity={0.4}
                 strokeWidth={1}
+                fill={ELEVATION_CONFIG.color}
+                fillOpacity={0.1}
                 dot={false}
+                activeDot={false}
                 isAnimationActive={false}
                 connectNulls
               />
             )}
 
-            {/* Power line */}
-            {resolvedActive.includes('power') && (
-              <Line
-                yAxisId={METRIC_CONFIG.power.yAxisId}
-                type="monotone"
-                dataKey="power"
-                stroke={METRIC_CONFIG.power.color}
-                strokeWidth={1.5}
-                dot={false}
-                isAnimationActive={false}
-                connectNulls
-              />
-            )}
+            {resolvedActive.map((metric) => {
+              const config = METRIC_CONFIG[metric];
+              return (
+                <Line
+                  key={metric}
+                  yAxisId={config.yAxisId}
+                  type="monotone"
+                  dataKey={config.dataKey}
+                  stroke={config.color}
+                  strokeWidth={1.5}
+                  dot={false}
+                  activeDot={{ r: 3, strokeWidth: 0, fill: config.color }}
+                  isAnimationActive={false}
+                  connectNulls
+                />
+              );
+            })}
 
-            {/* Heart Rate line */}
-            {resolvedActive.includes('heartRate') && (
-              <Line
-                yAxisId={METRIC_CONFIG.heartRate.yAxisId}
-                type="monotone"
-                dataKey="heartRate"
-                stroke={METRIC_CONFIG.heartRate.color}
-                strokeWidth={1.5}
-                dot={false}
-                isAnimationActive={false}
-                connectNulls
-              />
-            )}
-
-            {/* Speed line */}
-            {resolvedActive.includes('speed') && (
-              <Line
-                yAxisId={METRIC_CONFIG.speed.yAxisId}
-                type="monotone"
-                dataKey="speed"
-                stroke={METRIC_CONFIG.speed.color}
-                strokeWidth={1.5}
-                dot={false}
-                isAnimationActive={false}
-                connectNulls
-              />
-            )}
-
-            {/* Cadence line */}
-            {resolvedActive.includes('cadence') && (
-              <Line
-                yAxisId={METRIC_CONFIG.cadence.yAxisId}
-                type="monotone"
-                dataKey="cadence"
-                stroke={METRIC_CONFIG.cadence.color}
-                strokeWidth={1.5}
-                dot={false}
-                isAnimationActive={false}
-                connectNulls
+            {drag && Math.abs(drag.end - drag.start) > 0 && (
+              <ReferenceArea
+                yAxisId={dragRefAxisId}
+                x1={Math.min(drag.start, drag.end)}
+                x2={Math.max(drag.start, drag.end)}
+                fill="var(--color-teal)"
+                fillOpacity={0.12}
+                stroke="var(--color-teal)"
+                strokeOpacity={0.3}
               />
             )}
           </ComposedChart>
         </ResponsiveContainer>
       </Box>
+
+      <Text size="xs" c="dimmed" ta="right">
+        drag to zoom · double-click to reset
+      </Text>
     </Stack>
   );
 };
