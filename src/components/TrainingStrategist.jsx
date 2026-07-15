@@ -394,9 +394,13 @@ function TrainingStrategist({ trainingContext, onAddWorkout, activePlan, onThrea
   // Generate AI title for thread
   const generateThreadTitle = async (userMessage, assistantMessage) => {
     try {
+      const { data: { session } } = await supabase.auth.getSession();
       const response = await fetch(`${getApiBaseUrl()}/api/generate-thread-title`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          ...(session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {}),
+        },
         credentials: 'include',
         body: JSON.stringify({
           messages: [

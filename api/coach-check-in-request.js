@@ -11,6 +11,7 @@
 import Anthropic from '@anthropic-ai/sdk';
 import { getSupabaseAdmin } from './utils/supabaseAdmin.js';
 import { setupCors } from './utils/cors.js';
+import { enforceAiQuota } from './utils/aiQuota.js';
 import { assembleCheckInContext } from './utils/checkInContext.js';
 import { PERSONA_DATA } from './utils/personaData.js';
 import { buildTemporalAnchor, fetchTemporalAnchorData } from './utils/temporalAnchor.js';
@@ -168,6 +169,10 @@ export default async function handler(req, res) {
   }
 
   const userId = user.id;
+
+  // Daily AI quota (per-user cap + global ceiling)
+  const quotaExceeded = await enforceAiQuota(req, res, userId);
+  if (quotaExceeded !== null) return;
 
   try {
     const apiKey = process.env.ANTHROPIC_API_KEY;

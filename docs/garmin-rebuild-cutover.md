@@ -1,5 +1,14 @@
 # Garmin Ping/Pull Rebuild — Cutover Runbook (sole-user fast path)
 
+> **STATUS: FROZEN — CUTOVER NOT EXECUTED (decision 2026-07-14).**
+> The legacy stack remains the production path and Garmin sync works; the
+> decision is to leave it alone. This runbook is preserved for a future
+> *deliberate* cutover only — do not execute it opportunistically, in whole
+> or in part. Note one stale claim below: `garmin2-pull` is **not** registered
+> in `vercel.json` on main, so flipping the portal to PING today would
+> silently stop sync. See the "Garmin sync — dual stack, FROZEN" section in
+> `CLAUDE.md` for the verified current state and the rules.
+
 > **Updated 2026-05-30 for the sole-user case.** Earlier draft assumed a
 > second Garmin consumer key + per-user flag rollout; we're taking the
 > straight cutover instead because Travis is effectively the only active

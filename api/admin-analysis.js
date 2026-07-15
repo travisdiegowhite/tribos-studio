@@ -5,6 +5,7 @@ import Anthropic from '@anthropic-ai/sdk';
 import { getSupabaseAdmin } from './utils/supabaseAdmin.js';
 import { setupCors } from './utils/cors.js';
 import { rateLimitMiddleware } from './utils/rateLimit.js';
+import { enforceAiQuota } from './utils/aiQuota.js';
 
 const supabase = getSupabaseAdmin();
 
@@ -66,6 +67,10 @@ export default async function handler(req, res) {
   if (!user) {
     return res.status(403).json({ error: authError });
   }
+
+  // Daily AI quota (per-user cap + global ceiling)
+  const quotaExceeded = await enforceAiQuota(req, res, user.id);
+  if (quotaExceeded !== null) return;
 
   const { analyticsData, analysisType = 'overview' } = req.body;
 

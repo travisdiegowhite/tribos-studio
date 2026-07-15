@@ -18,6 +18,7 @@
 import Anthropic from '@anthropic-ai/sdk';
 import { getSupabaseAdmin } from './utils/supabaseAdmin.js';
 import { rateLimitByUser } from './utils/rateLimit.js';
+import { enforceAiQuota } from './utils/aiQuota.js';
 import { setupCors } from './utils/cors.js';
 import { ROUTE_EDIT_TOOLS, normalizeRouteEdit } from './utils/routeEditTools.js';
 import {
@@ -93,7 +94,11 @@ export default async function handler(req, res) {
 
     // ── Rate limit (per user, separate bucket from /api/coach) ──────────────
     const limited = await rateLimitByUser(req, res, 'ROUTE_COACH', userId, 20, 5);
-    if (limited !== null) return;
+    if (limited) return;
+
+    // Daily AI quota (per-user cap + global ceiling)
+    const quotaExceeded = await enforceAiQuota(req, res, userId);
+    if (quotaExceeded !== null) return;
 
     // ── Context assembly (persona + Units 1–3) ──────────────────────────────
     const { persona, prescription, fitnessState, familiarRoads, weather } =

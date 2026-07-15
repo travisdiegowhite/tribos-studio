@@ -5,6 +5,7 @@
 import Anthropic from '@anthropic-ai/sdk';
 import { getSupabaseAdmin } from './utils/supabaseAdmin.js';
 import { setupCors } from './utils/cors.js';
+import { enforceAiQuota } from './utils/aiQuota.js';
 import { assembleFitnessContext, buildCacheKey } from './utils/assembleFitnessContext.js';
 
 const supabase = getSupabaseAdmin();
@@ -93,6 +94,11 @@ export default async function handler(req, res) {
     }
 
     const userId = authUser.id;
+
+    // Daily AI quota (per-user cap + global ceiling)
+    const quotaExceeded = await enforceAiQuota(req, res, userId);
+    if (quotaExceeded !== null) return;
+
     const { surface = 'today', clientMetrics, rideId, forceRefresh, timezone: browserTimezone } = req.body || {};
 
     if (!clientMetrics || typeof clientMetrics.tfi !== 'number') {
