@@ -46,7 +46,7 @@ describe('AI daily quota', () => {
 
   describe('getAiQuotaLimits', () => {
     it('uses defaults when env vars are unset', () => {
-      expect(getAiQuotaLimits()).toEqual({ userDaily: 100, globalDaily: 2000 });
+      expect(getAiQuotaLimits()).toEqual({ userDaily: 1000, globalDaily: 20000 });
     });
 
     it('reads overrides from env', () => {
@@ -58,7 +58,7 @@ describe('AI daily quota', () => {
     it('falls back to defaults on invalid env values', () => {
       process.env.AI_DAILY_USER_LIMIT = 'not-a-number';
       process.env.AI_DAILY_GLOBAL_LIMIT = '-3';
-      expect(getAiQuotaLimits()).toEqual({ userDaily: 100, globalDaily: 2000 });
+      expect(getAiQuotaLimits()).toEqual({ userDaily: 1000, globalDaily: 20000 });
     });
   });
 

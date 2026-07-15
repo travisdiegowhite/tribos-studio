@@ -15,8 +15,8 @@
 
 import { checkRateLimit } from './rateLimit.js';
 
-const DEFAULT_USER_DAILY_LIMIT = 100;
-const DEFAULT_GLOBAL_DAILY_LIMIT = 2000;
+const DEFAULT_USER_DAILY_LIMIT = 1000;
+const DEFAULT_GLOBAL_DAILY_LIMIT = 20000;
 const DAY_MINUTES = 24 * 60;
 
 function parseLimit(envValue, fallback) {
