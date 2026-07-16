@@ -78,18 +78,6 @@
       ]
     },
     {
-      "id": "coros-sync",
-      "date": "2026-07",
-      "type": "new",
-      "title": "COROS device sync",
-      "description": "COROS joins Garmin, Wahoo, and Strava as a first-class sync provider. Connect your COROS account in Settings and new activities import automatically.",
-      "details": [
-        "Connect / disconnect from Settings → Connected Services",
-        "Automatic import of new activities via webhook",
-        "Manual sync button for pulling recent history on demand"
-      ]
-    },
-    {
       "id": "metrics-spec-alignment",
       "date": "2026-07",
       "type": "improvement",
