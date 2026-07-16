@@ -672,7 +672,7 @@ function HistoricalInsights({ userId, activities, ftp }) {
           </ThemeIcon>
           <Title order={3}>No Historical Data Yet</Title>
           <Text c="dimmed" ta="center" maw={400}>
-            Sync activities from Strava, Garmin, or COROS to see your fitness history.
+            Sync activities from Strava, Garmin, or Wahoo to see your fitness history.
             Data will appear here as soon as activities are imported.
           </Text>
         </Stack>
