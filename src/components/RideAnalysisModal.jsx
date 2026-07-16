@@ -28,6 +28,7 @@ import { ViewOnStravaLink, PoweredByStrava, StravaLogo } from './StravaBranding'
 import { PoweredByGarmin } from './GarminBranding';
 import { FuelCard } from './fueling';
 import ActivityPowerCurve from './ActivityPowerCurve';
+import SegmentEffortCompare from './SegmentEffortCompare';
 import ColoredRouteMap from './ColoredRouteMap';
 import RideStreamsChart from './RideStreamsChart';
 import RideZonesChart from './RideZonesChart';
@@ -673,6 +674,11 @@ const RideAnalysisModal = ({
             <RidePacingChart activity={ride} ftp={ftp} />
           </>
         )}
+
+        {/* Familiar Segments — this ride's efforts vs your history on the
+            same segments (holistic: effort, speed, efficiency, pacing).
+            Renders nothing when no segments match. */}
+        <SegmentEffortCompare ride={ride} enabled={opened} formatSpeed={formatSpeed} />
 
         {/* Heart Rate Section */}
         {hasHRData && (

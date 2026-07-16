@@ -142,6 +142,60 @@ export async function analyzeActivitySegments(activityId, userId) {
 }
 
 /**
+ * Analyze one freshly imported activity for training segments, picking the
+ * right path for its data tier: full streams when present (Garmin/Wahoo/FIT),
+ * polyline fallback otherwise (Strava). Intended for the webhook post-import
+ * side-effect chains — never throws, and skips work that has already run so
+ * re-delivered webhooks stay cheap.
+ *
+ * @param {string} activityId - Activity UUID
+ * @param {string} userId - User UUID
+ * @returns {Object} Analysis results ({ success, skipped?, ... })
+ */
+export async function analyzeSegmentsForNewActivity(activityId, userId) {
+  const supabase = getSupabase();
+
+  try {
+    const { data: activity, error } = await supabase
+      .from('activities')
+      .select('id, training_segments_analyzed_at, polyline_segments_analyzed_at, map_summary_polyline, distance, moving_time, start_date, max_heartrate, activity_streams')
+      .eq('id', activityId)
+      .eq('user_id', userId)
+      .single();
+
+    if (error || !activity) {
+      return { success: false, error: error?.message || 'Activity not found', segments: 0 };
+    }
+
+    if (activity.activity_streams?.coords?.length) {
+      if (activity.training_segments_analyzed_at) {
+        return { success: true, skipped: true, reason: 'already_analyzed' };
+      }
+      return await analyzeActivitySegments(activityId, userId);
+    }
+
+    if (activity.map_summary_polyline) {
+      if (activity.polyline_segments_analyzed_at) {
+        return { success: true, skipped: true, reason: 'already_analyzed' };
+      }
+      const result = await analyzeActivityFromPolyline(activity, userId, supabase);
+      // Mark regardless of outcome, mirroring analyzePolylineActivities —
+      // failures shouldn't be retried on every webhook re-delivery.
+      await supabase
+        .from('activities')
+        .update({ polyline_segments_analyzed_at: new Date().toISOString() })
+        .eq('id', activityId);
+      return result;
+    }
+
+    return { success: false, error: 'No stream or polyline data', segments: 0 };
+  } catch (err) {
+    console.error(`[SegmentPipeline] analyzeSegmentsForNewActivity failed for ${activityId}:`, err.message);
+    return { success: false, error: err.message, segments: 0 };
+  }
+}
+
+/**
  * Analyze all unprocessed activities for a user.
  * @param {string} userId - User UUID
  * @param {number} limit - Max activities to process
