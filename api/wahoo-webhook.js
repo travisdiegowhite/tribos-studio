@@ -379,6 +379,16 @@ async function processWahooWorkout(integration, workout, webhookData, webhookSum
     console.error('⚠️ Gear assignment failed (non-critical):', gearError.message);
   }
 
+  // Match this ride against the training-segment library so the
+  // "Familiar Segments" effort comparison is ready when the ride is opened
+  try {
+    const { analyzeSegmentsForNewActivity } = await import('./utils/segmentAnalysisPipeline.js');
+    await analyzeSegmentsForNewActivity(activity.id, integration.user_id);
+    console.log('📊 Training-segment analysis completed for activity');
+  } catch (segmentError) {
+    console.error('⚠️ Segment analysis failed (non-critical):', segmentError.message);
+  }
+
   // Track activation progress and enqueue insight
   try {
     await completeActivationStep(supabase, integration.user_id, 'first_sync');
