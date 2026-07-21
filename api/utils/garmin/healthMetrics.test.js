@@ -71,6 +71,14 @@ describe('evaluateBreaches', () => {
     expect(evaluateBreaches(allUnavailable)).toEqual([]);
   });
 
+  it('does not breach on a delivery rate inside the observed noise band', () => {
+    const breaches = evaluateBreaches({
+      ...healthy,
+      delivery: { available: true, activitiesSeen: 100, rate: 0.125 },
+    });
+    expect(breaches).toEqual([]);
+  });
+
   it('respects minimum sample sizes for rate-based SLIs', () => {
     const breaches = evaluateBreaches({
       ...healthy,
@@ -162,6 +170,24 @@ describe('getSloFullWithin24h', () => {
     const result = await getSloFullWithin24h(sb);
     expect(result.activities).toBe(1);
     expect(result.good).toBe(1);
+  });
+
+  it('excludes disconnected-user outcomes from the denominator', async () => {
+    const sb = fakeSupabase({
+      garmin_webhook_events: [
+        { activity_id: 'a1', processed: true, process_error: 'Integration disconnected (refresh_token_invalid); user must reconnect Garmin', activity_imported_id: null },
+        { activity_id: 'a2', processed: true, process_error: 'No integration found for Garmin user ID: abc123. User needs to reconnect Garmin.', activity_imported_id: null },
+        { activity_id: 'a3', processed: true, process_error: 'skipped: no integration for abc123', activity_imported_id: null },
+        { activity_id: 'a4', processed: true, process_error: null, activity_imported_id: 'act-4' },
+      ],
+      activities: [{ id: 'act-4', data_completeness: 'full' }],
+    });
+
+    const result = await getSloFullWithin24h(sb);
+    expect(result.excludedDisconnected).toBe(3);
+    expect(result.bad).toBe(0);
+    expect(result.activities).toBe(1);
+    expect(result.rate).toBe(1);
   });
 
   it('counts cross-provider duplicate resolutions as good', async () => {

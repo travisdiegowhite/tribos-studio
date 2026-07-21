@@ -27,7 +27,10 @@ export const THRESHOLDS = {
   DEAD_LETTERED_24H: 0,          // breach when >
   UNMATCHED_24H: 0,              // breach when >
   QUEUE_LAG_SECONDS: 1800,       // breach when >
-  FILE_DELIVERY_RATE: 0.15,      // breach when < (7d window)
+  // Measured weekly rates May–Jul 2026 range 0.11–0.32 (median ~0.16); 0.15
+  // sat inside that noise band and flapped hourly. 0.10 pages only on a real
+  // collapse below the observed floor.
+  FILE_DELIVERY_RATE: 0.10,      // breach when < (7d window)
   FILE_DELIVERY_MIN_SAMPLE: 10,
   SLO_FULL_24H: 0.999,           // breach when <
   SLO_MIN_SAMPLE: 10,
@@ -35,8 +38,10 @@ export const THRESHOLDS = {
 
 /**
  * % of distinct activities seen in the window that received at least one
- * ACTIVITY_FILE_DATA event (i.e. a FIT callbackURL). Empirically ~25-30%
- * organically; a sustained drop means Garmin-side delivery degraded.
+ * ACTIVITY_FILE_DATA event (i.e. a FIT callbackURL). Empirically ~11-32%
+ * week to week (Jul 2026); a sustained drop means Garmin-side delivery
+ * degraded. Token state doesn't affect webhook delivery, so disconnected
+ * users' activities are legitimately part of this sample.
  */
 export async function getFileDeliveryRate(supabase, since) {
   const { data, error } = await supabase
@@ -268,6 +273,18 @@ export async function getSloFullWithin24h(supabase) {
     errors.some((e) => e.startsWith('Filtered') || e.startsWith('Health activity') || e.startsWith('No ') && e.includes('data in payload'));
   const isDuplicateResolution = (errors) =>
     errors.some((e) => e.includes('took over') || e.includes('Duplicate') || e.includes('duplicate'));
+  // Disconnected-user outcomes: the processor correctly skips these, and they
+  // already page through their own SLIs (unmatched_webhooks_24h,
+  // invalid_token_last_24h). Counting them as SLO failures let 2-3 dead
+  // integrations that still upload to Garmin hold the SLO under target
+  // indefinitely, drowning out real pipeline regressions.
+  const isDisconnected = (errors) =>
+    errors.some(
+      (e) =>
+        e.startsWith('Integration disconnected') ||
+        e.startsWith('No integration found') ||
+        e.startsWith('skipped: no integration')
+    );
 
   // Look up completeness for all imported activities in one query.
   const importedIds = [...new Set([...byActivity.values()].map((a) => a.importedId).filter(Boolean))];
@@ -284,6 +301,7 @@ export async function getSloFullWithin24h(supabase) {
   let good = 0;
   let bad = 0;
   let excluded = 0;
+  let excludedDisconnected = 0;
   for (const agg of byActivity.values()) {
     if (agg.importedId) {
       const completeness = completenessById.get(agg.importedId);
@@ -294,6 +312,8 @@ export async function getSloFullWithin24h(supabase) {
       excluded++;
     } else if (isDuplicateResolution(agg.errors)) {
       good++;
+    } else if (isDisconnected(agg.errors)) {
+      excludedDisconnected++;
     } else {
       // No import, not filtered: unprocessed, dead-lettered, or failed.
       bad++;
@@ -309,6 +329,7 @@ export async function getSloFullWithin24h(supabase) {
     good,
     bad,
     excludedFiltered: excluded,
+    excludedDisconnected,
     rate: denominator > 0 ? +(good / denominator).toFixed(4) : null,
   };
 }
