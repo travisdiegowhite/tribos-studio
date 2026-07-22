@@ -29,6 +29,11 @@ vi.mock('./utils/temporalAnchor.js', () => ({
   buildTemporalAnchor: () => 'ANCHOR',
   fetchTemporalAnchorData: vi.fn().mockResolvedValue({ plannedWorkouts: [], raceGoals: [] }),
 }));
+const buildEnrichmentBlock = vi.fn();
+vi.mock('./utils/coachContextEnrichment.js', () => ({
+  fetchCoachEnrichmentData: vi.fn().mockResolvedValue(null),
+  buildCoachEnrichmentBlock: (...args) => buildEnrichmentBlock(...args),
+}));
 vi.mock('./utils/personaData.js', () => ({
   PERSONA_DATA: { hammer: { name: 'The Hammer', voice: 'Direct, brief, no filler.' } },
 }));
@@ -117,6 +122,8 @@ beforeEach(() => {
   messagesCreate.mockReset();
   getUser.mockReset();
   fromOverride = null;
+  buildEnrichmentBlock.mockReset();
+  buildEnrichmentBlock.mockReturnValue(null);
   process.env.ANTHROPIC_API_KEY = 'sk-test';
   getUser.mockResolvedValue({ data: { user: { id: 'user-1' } }, error: null });
 });
@@ -370,6 +377,20 @@ describe('coach handler — forced tool pass', () => {
     // The hallucinated wrapper is discarded; the deterministic intro is used instead.
     expect(res.body.message).not.toContain('You have 13 weeks to suffer.');
     expect(res.body.message).toContain('the thinking behind it');
+  });
+
+  it('injects the server training snapshot block into the system prompt', async () => {
+    buildEnrichmentBlock.mockReturnValue(
+      '=== SERVER TRAINING SNAPSHOT (DB-VERIFIED) ===\nFTP: 285W'
+    );
+    messagesCreate.mockResolvedValueOnce(textResponse('Your fitness is trending up nicely.'));
+
+    const res = makeRes();
+    await handler(makeReq({ message: 'how is my fitness trending?' }), res);
+
+    expect(res.statusCode).toBe(200);
+    expect(messagesCreate.mock.calls[0][0].system).toContain('SERVER TRAINING SNAPSHOT (DB-VERIFIED)');
+    expect(messagesCreate.mock.calls[0][0].system).toContain('FTP: 285W');
   });
 
   it('never returns a blank bubble when only a workout card is produced', async () => {

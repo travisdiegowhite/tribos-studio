@@ -308,7 +308,9 @@ export async function fetchTemporalAnchorData(userId, supabase, timezone) {
       .order('scheduled_date', { ascending: true }),
     supabase
       .from('race_goals')
-      .select('id, name, race_date, race_type, priority')
+      // Detail columns feed the coach's SERVER TRAINING SNAPSHOT block
+      // (coachContextEnrichment.js); buildTemporalAnchor ignores them.
+      .select('id, name, race_date, race_type, priority, distance_km, elevation_gain_m, goal_time_minutes, goal_power_watts')
       .eq('user_id', userId)
       .eq('status', 'upcoming')
       .gte('race_date', todayStr)
