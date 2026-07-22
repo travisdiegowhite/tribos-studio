@@ -16,6 +16,7 @@ import { fetchCalendarContext } from './utils/calendarHelper.js';
 import { PERSONA_DATA } from './utils/personaData.js';
 import { formatHealth, fetchProprietaryMetrics } from './utils/contextHelpers.js';
 import { buildTemporalAnchor, fetchTemporalAnchorData } from './utils/temporalAnchor.js';
+import { fetchCoachEnrichmentData, buildCoachEnrichmentBlock } from './utils/coachContextEnrichment.js';
 
 // Initialize Supabase for auth validation
 const supabase = getSupabaseAdmin();
@@ -1229,10 +1230,10 @@ export default async function handler(req, res) {
         .is('resolved_at', null)
         .order('deviation_date', { ascending: false })
         .limit(5),
-      // Fetch user timezone
+      // Fetch user timezone + FTP/weight for the server training snapshot
       supabase
         .from('user_profiles')
-        .select('timezone, recovery_mode')
+        .select('timezone, recovery_mode, ftp, weight_kg')
         .eq('id', verifiedUserId)
         .maybeSingle(),
       // Fetch all active training plans for multi-plan context
@@ -1263,9 +1264,13 @@ export default async function handler(req, res) {
         .select('prefer_weekend_long_rides, prefer_weekend_long_runs, max_workouts_per_week')
         .eq('user_id', verifiedUserId)
         .maybeSingle(),
+      // Server training snapshot (recent activities, latest fitness row, this
+      // week's planned workouts) — grounds surfaces that send a thin
+      // trainingContext string. Self-catches to null, non-blocking.
+      fetchCoachEnrichmentData(supabase, verifiedUserId),
     ];
 
-    const [coachSettingsResult, coachMemoryResult, recentCheckInsResult, calendarContextResult, checkInResult, deviationsResult, userProfileResult, allActivePlansResult, healthMetricsResult, dayAvailabilityResult, trainingPrefsResult] = await Promise.all(parallelFetches);
+    const [coachSettingsResult, coachMemoryResult, recentCheckInsResult, calendarContextResult, checkInResult, deviationsResult, userProfileResult, allActivePlansResult, healthMetricsResult, dayAvailabilityResult, trainingPrefsResult, enrichmentData] = await Promise.all(parallelFetches);
 
     const coachSettings = coachSettingsResult.data;
     const activeCheckIn = checkInResult?.data || null;
@@ -1398,6 +1403,19 @@ WORKOUT STATUS GUIDE: Planned workouts are labeled [DONE], [MISSED], [TODAY], [U
 - Many athletes have specific training day patterns (e.g., heavy Thu-Sun). Mid-week low volume is normal — check the full week schedule before judging.
 
 ${trainingContext}`;
+    }
+
+    // Server-fetched training snapshot — always injected so thin surfaces
+    // (Today spine, glance, command bar) are as grounded as the dashboard.
+    // The block's precedence note keeps the client's on-screen TFI/AFI/FS
+    // authoritative for current fitness.
+    const enrichmentBlock = buildCoachEnrichmentBlock(enrichmentData, {
+      profile: userProfileResult?.data || null,
+      raceGoals: anchorData.raceGoals,
+      timezone: resolvedTimezone,
+    });
+    if (enrichmentBlock) {
+      systemPrompt += `\n\n${enrichmentBlock}`;
     }
 
     // Inject health metrics if available
