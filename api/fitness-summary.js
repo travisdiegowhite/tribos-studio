@@ -6,7 +6,12 @@ import Anthropic from '@anthropic-ai/sdk';
 import { getSupabaseAdmin } from './utils/supabaseAdmin.js';
 import { setupCors } from './utils/cors.js';
 import { enforceAiQuota } from './utils/aiQuota.js';
-import { assembleFitnessContext, buildCacheKey } from './utils/assembleFitnessContext.js';
+import { assembleFitnessContext, buildCacheKey, formatDateInTz } from './utils/assembleFitnessContext.js';
+
+// Cached summaries are served for at most this long even when the cache key
+// still matches. The key itself also carries the athlete-local date, so a new
+// day always regenerates regardless of this TTL.
+const SUMMARY_CACHE_TTL_MS = 4 * 60 * 60 * 1000;
 
 const supabase = getSupabaseAdmin();
 
@@ -137,18 +142,18 @@ export default async function handler(req, res) {
 
     // 1. Assemble context (timezone-aware so day/week windows match the user's UI)
     const context = await assembleFitnessContext(userId, supabase, contextMetrics, { rideId }, resolvedTimezone);
-    const cacheKey = buildCacheKey(context);
+    const cacheKey = buildCacheKey(context, formatDateInTz(new Date(), resolvedTimezone));
 
-    // 2. Check cache (4-hour TTL)
+    // 2. Check cache
     if (!forceRefresh) {
-      const fourHoursAgo = new Date(Date.now() - 4 * 60 * 60 * 1000).toISOString();
+      const cacheCutoff = new Date(Date.now() - SUMMARY_CACHE_TTL_MS).toISOString();
       const { data: cached } = await supabase
         .from('fitness_summaries')
         .select('summary, generated_at')
         .eq('user_id', userId)
         .eq('surface', surface)
         .eq('cache_key', cacheKey)
-        .gte('generated_at', fourHoursAgo)
+        .gte('generated_at', cacheCutoff)
         .single();
 
       if (cached) {

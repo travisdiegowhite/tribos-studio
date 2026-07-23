@@ -150,6 +150,17 @@ export function estimateActivityTSS(
 
 // ─── Week Helpers ────────────────────────────────────────────────────────────
 
+/**
+ * Format a Date as YYYY-MM-DD in LOCAL time. All day/week keys in this module
+ * are local-calendar dates — `toISOString()` (UTC) would shift evening rides
+ * and, for UTC+ timezones, entire week boundaries by a day.
+ */
+function fmtLocalDate(d: Date): string {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(
+    d.getDate(),
+  ).padStart(2, '0')}`;
+}
+
 /** Get the Monday (ISO week start) of the week containing `date`. */
 function getWeekStart(date: Date): string {
   const d = new Date(date);
@@ -157,14 +168,14 @@ function getWeekStart(date: Date): string {
   const diff = d.getDate() - day + (day === 0 ? -6 : 1); // Monday
   d.setDate(diff);
   d.setHours(0, 0, 0, 0);
-  return d.toISOString().split('T')[0];
+  return fmtLocalDate(d);
 }
 
 /** Add N days to a YYYY-MM-DD string and return a new YYYY-MM-DD string. */
 function addDays(dateStr: string, n: number): string {
   const d = new Date(dateStr + 'T00:00:00');
   d.setDate(d.getDate() + n);
-  return d.toISOString().split('T')[0];
+  return fmtLocalDate(d);
 }
 
 // ─── Main Computation ────────────────────────────────────────────────────────
@@ -196,7 +207,7 @@ export function computeWeeklySnapshots(
   const dailyActivities: Record<string, ActivityInput[]> = {};
 
   for (const activity of visible) {
-    const dateStr = activity.start_date.split('T')[0];
+    const dateStr = fmtLocalDate(new Date(activity.start_date));
     const tss = Math.min(estimateActivityTSS(activity, ftp), 500); // cap at 500
     dailyTSS[dateStr] = (dailyTSS[dateStr] || 0) + tss;
     if (!dailyActivities[dateStr]) dailyActivities[dateStr] = [];
@@ -204,7 +215,7 @@ export function computeWeeklySnapshots(
   }
 
   // Determine date range
-  const firstDate = visible[0].start_date.split('T')[0];
+  const firstDate = fmtLocalDate(new Date(visible[0].start_date));
   const firstMonday = getWeekStart(new Date(firstDate + 'T00:00:00'));
   const todayMonday = getWeekStart(new Date());
   const lastMonday = todayMonday; // include current week
@@ -223,9 +234,16 @@ export function computeWeeklySnapshots(
   let weekDistKm = 0;
   let weekElevM = 0;
 
+  // Walk only through today: decaying CTL/ATL across the current week's
+  // FUTURE zero-TSS days would snapshot end-of-week-projected fitness and
+  // disagree with the Today surfaces. Past weeks always end on their Sunday.
+  const todayStr = fmtLocalDate(new Date());
+  const finalSunday = addDays(lastMonday, 6);
+  const walkEnd = finalSunday < todayStr ? finalSunday : todayStr;
+
   let day = firstMonday;
 
-  while (day <= addDays(lastMonday, 6)) {
+  while (day <= walkEnd) {
     // Track yesterday's CTL/ATL for TSB calculation
     const ctlYesterday = ctl;
     const atlYesterday = atl;
@@ -256,7 +274,7 @@ export function computeWeeklySnapshots(
     const nextDay = addDays(day, 1);
     const nextWeekStart = getWeekStart(new Date(nextDay + 'T00:00:00'));
 
-    if (nextWeekStart !== currentWeekStart || nextDay > addDays(lastMonday, 6)) {
+    if (nextWeekStart !== currentWeekStart || nextDay > walkEnd) {
       // Snapshot this week — TSB uses yesterday's CTL/ATL (freshness going into today)
       snapshots.push({
         snapshot_week: currentWeekStart,
@@ -286,4 +304,54 @@ export function computeWeeklySnapshots(
 
   // Return sorted descending (most recent first), matching server convention
   return snapshots.reverse();
+}
+
+// ─── Server Load Overlay ─────────────────────────────────────────────────────
+
+/** A daily row from training_load_daily (canonical-only — legacy columns were dropped by migration 071). */
+export interface ServerLoadDailyRow {
+  date: string; // YYYY-MM-DD
+  tfi?: number | null;
+  afi?: number | null;
+  form_score?: number | null;
+}
+
+/**
+ * Override each weekly snapshot's ctl/atl/tsb with the server-computed
+ * values from `training_load_daily` where available. The server engine is
+ * the source of truth (per-athlete tau, terrain multipliers) — this makes
+ * Progress/HistoricalInsights agree with the Today surfaces. Fallback is
+ * per-week: weeks with no server row keep the client-engine values (the
+ * daily table only reaches back to when the server engine shipped, while
+ * these charts can span years). Volume fields are untouched — server rows
+ * carry no volume.
+ */
+export function overlayServerLoadOnWeeklySnapshots(
+  weekly: WeeklySnapshot[],
+  serverRows: ServerLoadDailyRow[] | null | undefined,
+): WeeklySnapshot[] {
+  if (!weekly?.length || !serverRows?.length) return weekly ?? [];
+
+  // Keep each week's latest usable row (Sunday for complete weeks; today for
+  // the in-progress week — matching the walk cap in computeWeeklySnapshots).
+  const bestByWeek = new Map<string, ServerLoadDailyRow>();
+  for (const row of serverRows) {
+    if (!row?.date) continue;
+    if (!Number.isFinite(row.tfi as number) || !Number.isFinite(row.afi as number)) continue;
+    const week = getWeekStart(new Date(row.date + 'T00:00:00'));
+    const prev = bestByWeek.get(week);
+    if (!prev || row.date > prev.date) bestByWeek.set(week, row);
+  }
+  if (bestByWeek.size === 0) return weekly;
+
+  return weekly.map((snap) => {
+    const row = bestByWeek.get(snap.snapshot_week);
+    if (!row) return snap;
+    return {
+      ...snap,
+      ctl: Math.round(row.tfi as number),
+      atl: Math.round(row.afi as number),
+      tsb: Number.isFinite(row.form_score as number) ? Math.round(row.form_score as number) : snap.tsb,
+    };
+  });
 }

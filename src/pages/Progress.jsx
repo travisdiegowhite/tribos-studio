@@ -8,6 +8,8 @@ import { supabase } from '../lib/supabase';
 import { formatDistance, formatElevation } from '../utils/units';
 import { interpretTSB } from '../utils/trainingPlans';
 import { computeWeeklySnapshots } from '../utils/computeFitnessSnapshots';
+import { buildAthleteMetrics } from '../views/today/athleteMetrics';
+import { formatLocalDate } from '../utils/dateUtils';
 import { translateCTL, translateTSB } from '../lib/fitness/translate';
 import { ctlTooltip, tsbTooltip } from '../lib/fitness/tooltips';
 import { useSegmentLibrary } from '../hooks/useSegmentLibrary';
@@ -60,6 +62,7 @@ function Progress() {
   const [loadError, setLoadError] = useState(null);
   const [reloadKey, setReloadKey] = useState(0);
   const [activities, setActivities] = useState([]);
+  const [serverLoadHistory, setServerLoadHistory] = useState([]);
   const [ftp, setFtp] = useState(null);
   const [unitsPreference, setUnitsPreference] = useState('imperial');
   const [zoneTimeFilter, setZoneTimeFilter] = useState('30');
@@ -119,6 +122,19 @@ function Progress() {
         }
 
         setActivities(allActivities);
+
+        // Server-computed daily load (canonical-only columns — legacy were
+        // dropped by migration 071). Lets the fitness tiles use the same
+        // engine as the Today surfaces (per-athlete tau, terrain multipliers).
+        const ninetyDaysAgo = new Date();
+        ninetyDaysAgo.setDate(ninetyDaysAgo.getDate() - 90);
+        const { data: loadRows } = await supabase
+          .from('training_load_daily')
+          .select('date, tfi, afi, form_score')
+          .eq('user_id', user.id)
+          .gte('date', formatLocalDate(ninetyDaysAgo))
+          .order('date', { ascending: true });
+        setServerLoadHistory(loadRows || []);
       } catch (err) {
         console.error('Error loading progress data:', err);
         setLoadError(err.message || 'Failed to load your training data');
@@ -176,8 +192,24 @@ function Progress() {
     return { zones, totalTime };
   }, [activities, ftp, zoneTimeFilter]);
 
-  // Calculate CTL/ATL/TSB from full activity history
+  // Current CTL/ATL/TSB. Prefer the shared server-preferred walk (same math
+  // as Today/Glance/Dashboard — see docs/tfi-duality-decision.md) so this
+  // page can't disagree with the Today surfaces. Fall back to the full-history
+  // client engine only when no server rows exist (new/pre-engine users) —
+  // there, the full walk beats a 90-day-window EWA cold start.
   const trainingMetrics = useMemo(() => {
+    if (serverLoadHistory.length > 0) {
+      const m = buildAthleteMetrics(activities, ftp || 200, serverLoadHistory);
+      if (m.tfiCurrent != null) {
+        const tsb = Math.round(m.formScore ?? 0);
+        return {
+          ctl: Math.round(m.tfiCurrent),
+          atl: Math.round(m.afiCurrent ?? 0),
+          tsb,
+          interpretation: interpretTSB(tsb),
+        };
+      }
+    }
     const weeklySnapshots = computeWeeklySnapshots(activities, ftp);
     if (weeklySnapshots.length === 0) {
       return { ctl: 0, atl: 0, tsb: 0, interpretation: interpretTSB(0) };
@@ -190,7 +222,7 @@ function Progress() {
       tsb: current.tsb,
       interpretation: interpretTSB(current.tsb),
     };
-  }, [activities, ftp]);
+  }, [activities, serverLoadHistory, ftp]);
 
   // Generate trend insights
   const trendInsights = useMemo(() => {

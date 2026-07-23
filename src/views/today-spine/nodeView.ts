@@ -62,7 +62,6 @@ export function buildNodeVM(days: DayNode[], i: number, todayIndex: number): Nod
   const isToday = i === todayIndex;
   const isFuture = i > todayIndex;
 
-  const ringColor = d.readiness >= 70 ? C.teal : d.readiness >= 45 ? C.gold : C.coral;
   const arrowChar = d.fs > 3 ? '▲' : d.fs < -3 ? '▼' : '—';
   const arrowColor = d.fs > 3 ? C.teal : d.fs < -3 ? C.coral : C.gold;
 
@@ -86,6 +85,12 @@ export function buildNodeVM(days: DayNode[], i: number, todayIndex: number): Nod
     stateColor = C.coral;
   }
   if (isFuture) stateText = `PROJECTED · ${stateText}`;
+
+  // Ring color follows the same band as the state text — deriving it from the
+  // readiness number instead (old ≥70/≥45 cuts) could show an alarm-red ring
+  // next to a teal "LOADING · optimal" label. The ring FILL stays
+  // readiness-driven; only the color is band-driven.
+  const ringColor = stateColor;
 
   const ctl7 = days[Math.max(0, i - 7)].tfi;
   const atlY = days[Math.max(0, i - 1)].afi;

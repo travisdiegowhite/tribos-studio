@@ -13,8 +13,8 @@ export interface FitnessContext {
     last_ride_tss: number | null;
   };
   trends: {
-    ctl_delta_28d: number;
-    ctl_direction: 'building' | 'holding' | 'declining';
+    ctl_delta_pct: number | null;
+    ctl_direction: 'building' | 'maintaining' | 'holding' | 'recovering' | 'declining';
     atl_ctl_ratio: number;
     tsb_range_28d: { min: number; max: number; avg: number };
   };
