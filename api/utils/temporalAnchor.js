@@ -267,7 +267,7 @@ export function buildTemporalAnchor(timezone, plannedWorkouts = [], raceGoals = 
   if (sessionLines.length > 0) {
     lines.push(
       '',
-      'SESSIONS (next 14 days, resolved):',
+      'SESSIONS (next 14 days, scheduled and NOT yet completed — finished sessions are not listed here):',
       ...sessionLines
     );
   }

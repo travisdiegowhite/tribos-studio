@@ -196,6 +196,71 @@ describe('buildCoachEnrichmentBlock', () => {
     expect(block).toContain('running: 1, 12 km');
   });
 
+  describe('TODAY section', () => {
+    it('states nothing happened and nothing is planned when both are empty', () => {
+      const block = buildCoachEnrichmentBlock(
+        { recentActivities: [], latestLoad: null, weekPlanned: [] },
+        { profile: PROFILE, timezone: TZ, now: NOW }
+      );
+      expect(block).toContain('TODAY (Wed Jul 22):');
+      expect(block).toContain('no activity recorded yet today; nothing planned for today');
+    });
+
+    it('lists an activity completed today', () => {
+      const data = {
+        recentActivities: [ride({ start_date: '2026-07-22T16:00:00Z', name: 'Morning Spin' })],
+        latestLoad: null,
+        weekPlanned: [],
+      };
+      const block = buildCoachEnrichmentBlock(data, { profile: null, timezone: TZ, now: NOW });
+      expect(block).toContain('TODAY (Wed Jul 22):');
+      expect(block).toContain('completed: Morning Spin (Ride) — 42.1 km, 1h35m, 78 RSS');
+      expect(block).not.toContain('no activity recorded yet today');
+    });
+
+    it("marks today's uncompleted plan NOT YET DONE and keeps the THIS WEEK [TODAY] line", () => {
+      const data = {
+        recentActivities: [],
+        latestLoad: null,
+        weekPlanned: [workout({ scheduled_date: '2026-07-22', name: 'Sweet Spot 3x12', target_rss: 85 })],
+      };
+      const block = buildCoachEnrichmentBlock(data, { profile: null, timezone: TZ, now: NOW });
+      expect(block).toContain('no activity recorded yet today');
+      expect(block).toContain('planned: Sweet Spot 3x12, 1h30m, ~85 RSS [NOT YET DONE]');
+      expect(block).toContain('[TODAY] Sweet Spot 3x12');
+    });
+
+    it("marks today's completed plan DONE and skipped plan SKIPPED", () => {
+      const data = {
+        recentActivities: [ride({ start_date: '2026-07-22T14:00:00Z' })],
+        latestLoad: null,
+        weekPlanned: [
+          workout({ id: 'w1', scheduled_date: '2026-07-22', name: 'Endurance Z2', completed: true }),
+          workout({ id: 'w2', scheduled_date: '2026-07-22', name: 'Optional Spin', skipped_reason: 'time' }),
+        ],
+      };
+      const block = buildCoachEnrichmentBlock(data, { profile: null, timezone: TZ, now: NOW });
+      expect(block).toContain('planned: Endurance Z2, 1h30m, ~65 RSS [DONE]');
+      expect(block).toContain('planned: Optional Spin, 1h30m, ~65 RSS [SKIPPED]');
+    });
+
+    it('renders a scheduled rest day as such', () => {
+      const data = {
+        recentActivities: [],
+        latestLoad: null,
+        weekPlanned: [workout({ scheduled_date: '2026-07-22', name: 'Rest', workout_type: 'rest', target_rss: null })],
+      };
+      const block = buildCoachEnrichmentBlock(data, { profile: null, timezone: TZ, now: NOW });
+      expect(block).toContain('planned: rest day scheduled');
+      expect(block).not.toContain('[NOT YET DONE]');
+    });
+
+    it('omits the TODAY section entirely when data is null (FTP-only render)', () => {
+      const block = buildCoachEnrichmentBlock(null, { profile: PROFILE, timezone: TZ, now: NOW });
+      expect(block).not.toContain('TODAY (');
+    });
+  });
+
   it('renders race goal details only for goals with detail fields', () => {
     const raceGoals = [
       { id: 'g1', name: 'Steamboat Gravel', priority: 'A', race_date: '2026-08-16', distance_km: 230, elevation_gain_m: 2900, goal_time_minutes: 510, goal_power_watts: null },

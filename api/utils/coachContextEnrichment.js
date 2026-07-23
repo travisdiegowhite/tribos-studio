@@ -218,6 +218,48 @@ export function buildCoachEnrichmentBlock(data, { profile = null, raceGoals = []
   const activities = data?.recentActivities || [];
   const localDateOf = (a) => (a.start_date ? toLocalDateStr(new Date(a.start_date), safeTz) : null);
 
+  // ── TODAY: the headline fact — what has (and hasn't) happened today. The
+  // model must never infer today's status from the absence of a dated line.
+  if (data) {
+    const todayActivities = activities.filter((a) => localDateOf(a) === todayStr);
+    const todayPlanned = (data.weekPlanned || []).filter((w) => w.scheduled_date === todayStr);
+    const todayLines = [];
+
+    if (todayActivities.length === 0 && todayPlanned.length === 0) {
+      todayLines.push('  no activity recorded yet today; nothing planned for today');
+    } else {
+      for (const a of todayActivities) {
+        const parts = [];
+        if (a.distance) parts.push(`${(a.distance / 1000).toFixed(1)} km`);
+        const dur = formatDuration(a.moving_time);
+        if (dur) parts.push(dur);
+        const rss = activityRss(a);
+        if (rss != null) parts.push(`${Math.round(rss)} RSS`);
+        todayLines.push(
+          `  completed: ${a.name || 'Activity'} (${a.sport_type ?? a.type ?? 'Unknown'})${parts.length ? ` — ${parts.join(', ')}` : ''}`
+        );
+      }
+      if (todayActivities.length === 0) {
+        todayLines.push('  no activity recorded yet today');
+      }
+      for (const w of todayPlanned) {
+        if (w.workout_type === 'rest') {
+          todayLines.push('  planned: rest day scheduled');
+          continue;
+        }
+        const parts = [w.name || w.workout_type || 'Workout'];
+        const dur = formatMinutes(w.target_duration);
+        if (dur) parts.push(dur);
+        const targetRss = w.target_rss ?? w.target_tss;
+        if (targetRss) parts.push(`~${Math.round(targetRss)} RSS`);
+        const status = w.completed ? '[DONE]' : w.skipped_reason ? '[SKIPPED]' : '[NOT YET DONE]';
+        todayLines.push(`  planned: ${parts.join(', ')} ${status}`);
+      }
+    }
+
+    lines.push('', `TODAY (${prettyDate(todayStr, safeTz)}):`, ...todayLines);
+  }
+
   // ── THIS WEEK: completed volume per sport + plan status ────────────────────
   const weekActivities = activities.filter((a) => {
     const d = localDateOf(a);

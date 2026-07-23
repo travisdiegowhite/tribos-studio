@@ -22,6 +22,7 @@ interface ChatMessage {
   id: string;
   role: 'user' | 'coach';
   content: string;
+  timestamp?: string;
 }
 
 interface CoachPanelProps {
@@ -37,8 +38,20 @@ function buildContext(data: SpineData): string {
   const t = data.days[data.todayIndex];
   const parts = [
     `Canonical metrics on screen — Form Score (FS): ${t.fs}, Fitness (TFI): ${t.tfi}, Fatigue (AFI): ${t.afi}, readiness ${t.readiness}.`,
-    `Today: ${t.activity.tag} · ${t.activity.name} · ${t.activity.meta}.`,
   ];
+  // The PLAN tag means a workout is scheduled for today — it says nothing
+  // about whether it has been done. Phrase it so the coach never assumes
+  // the session already happened (completion truth lives in the server
+  // snapshot the backend injects).
+  if (t.activity.tag === 'PLAN') {
+    parts.push(
+      `Today's scheduled workout (planned — completion status is in the SERVER TRAINING SNAPSHOT, do not assume it happened): ${t.activity.name} · ${t.activity.meta}.`,
+    );
+  } else if (t.activity.tag === 'REST') {
+    parts.push(`Today is a rest day (${t.activity.name}).`);
+  } else {
+    parts.push(`Today so far (recorded): ${t.activity.tag} · ${t.activity.name} · ${t.activity.meta}.`);
+  }
   if (data.event) parts.push(`Goal: ${data.event.name} in ${data.event.daysToRace} days.`);
   return parts.join(' ');
 }
@@ -109,10 +122,11 @@ export function CoachPanel({ data }: CoachPanelProps) {
             rows
               .slice()
               .reverse()
-              .map((m: { id?: string; role: string; message: string }) => ({
+              .map((m: { id?: string; role: string; message: string; timestamp?: string }) => ({
                 id: m.id || nextId(),
                 role: m.role === 'coach' ? 'coach' : 'user',
                 content: m.message,
+                timestamp: m.timestamp,
               })),
           );
         }
@@ -173,10 +187,18 @@ export function CoachPanel({ data }: CoachPanelProps) {
       setDraft('');
       setTyping(true);
 
-      const userMsg: ChatMessage = { id: nextId(), role: 'user', content: message };
+      const userMsg: ChatMessage = {
+        id: nextId(),
+        role: 'user',
+        content: message,
+        timestamp: new Date().toISOString(),
+      };
+      // Timestamps let the server date prior-day messages so the coach
+      // doesn't read yesterday's "today's ride" as the current day.
       const conversationHistory = messages.map((m) => ({
         role: m.role === 'coach' ? ('assistant' as const) : ('user' as const),
         content: m.content,
+        timestamp: m.timestamp,
       }));
       setMessages((prev) => [...prev, userMsg]);
 
@@ -221,7 +243,10 @@ export function CoachPanel({ data }: CoachPanelProps) {
           throw new Error(err.error || `HTTP ${res.status}`);
         }
         const json = await res.json();
-        setMessages((prev) => [...prev, { id: nextId(), role: 'coach', content: json.message }]);
+        setMessages((prev) => [
+          ...prev,
+          { id: nextId(), role: 'coach', content: json.message, timestamp: new Date().toISOString() },
+        ]);
         await saveTurn('user', message);
         await saveTurn('coach', json.message);
       } catch (err) {
