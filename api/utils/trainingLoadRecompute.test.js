@@ -12,29 +12,47 @@ const TZ = 'America/Denver';
 /**
  * Table-aware supabase mock. Each from(table) chain records filters and
  * resolves with the provided rows; upserts are captured for assertions.
+ * `priorRow` is what the training_load_daily seed lookup returns (null =
+ * true cold start). The activities `then` respects `.range()` pagination.
  */
-function mockSupabase({ profile = {}, activities = [] } = {}) {
+function mockSupabase({ profile = {}, activities = [], priorRow = null } = {}) {
   const upserts = [];
   const client = {
     upserts,
     from(table) {
       const builder = {
         _table: table,
+        _range: null,
         select: () => builder,
         eq: () => builder,
         or: () => builder,
         is: () => builder,
+        lt: () => builder,
         gte: () => builder,
         lte: () => builder,
         order: () => builder,
+        limit: () => builder,
+        range: (from, to) => {
+          builder._range = [from, to];
+          return builder;
+        },
         maybeSingle: () =>
-          Promise.resolve({ data: { timezone: TZ, ftp: 250, tfi_tau: 42, afi_tau: 7, ...profile } }),
+          Promise.resolve(
+            table === 'training_load_daily'
+              ? { data: priorRow, error: null }
+              : { data: { timezone: TZ, ftp: 250, tfi_tau: 42, afi_tau: 7, ...profile } },
+          ),
         upsert: (rows, opts) => {
           upserts.push({ table, rows, opts });
           return Promise.resolve({ error: null });
         },
-        then: (resolve) =>
-          Promise.resolve({ data: table === 'activities' ? activities : [], error: null }).then(resolve),
+        then: (resolve) => {
+          let data = table === 'activities' ? activities : [];
+          if (table === 'activities' && builder._range) {
+            data = data.slice(builder._range[0], builder._range[1] + 1);
+          }
+          return Promise.resolve({ data, error: null }).then(resolve);
+        },
       };
       return builder;
     },
@@ -141,6 +159,56 @@ describe('computeTrainingLoadRows', () => {
     // Day 1 has a 1-deep trail (six zero-padded slots) → low; day 7+ full → 1.0.
     expect(rows[0].fs_confidence).toBeLessThan(0.5);
     expect(rows[7].fs_confidence).toBe(1);
+  });
+
+  it('seeds tfi/afi from the stored row immediately before the window', async () => {
+    // Window: Jul 6–9. Prior row Jul 5 (startKey−1) — no gap to decay.
+    const supabase = mockSupabase({
+      priorRow: { date: '2026-07-05', tfi: 100, afi: 60 },
+    });
+    const { rows } = await computeTrainingLoadRows(supabase, 'u1', { days: 4, now: NOW });
+    // Day 1 (rest day) decays from the seed, not from 0.
+    expect(rows[0].tfi).toBeCloseTo(100 + (0 - 100) / 42, 2);
+    expect(rows[0].afi).toBeCloseTo(60 + (0 - 60) / 7, 2);
+    // Day-1 form_score uses the seeded "yesterday" state, not same-day.
+    expect(rows[0].form_score).toBeCloseTo(100 - 60, 2);
+  });
+
+  it('decays the seed across a multi-day gap before the window', async () => {
+    // Prior row Jul 1; window starts Jul 6 → 4 gap days (Jul 2–5) of
+    // zero-RSS decay before the walk begins.
+    const supabase = mockSupabase({
+      priorRow: { date: '2026-07-01', tfi: 100, afi: 60 },
+    });
+    const { rows } = await computeTrainingLoadRows(supabase, 'u1', { days: 4, now: NOW });
+    let tfi = 100;
+    let afi = 60;
+    for (let i = 0; i < 4; i++) {
+      tfi += (0 - tfi) / 42;
+      afi += (0 - afi) / 7;
+    }
+    // rows[0] = one more decay day (Jul 6 itself).
+    expect(rows[0].tfi).toBeCloseTo(tfi + (0 - tfi) / 42, 2);
+    expect(rows[0].afi).toBeCloseTo(afi + (0 - afi) / 7, 2);
+    expect(rows[0].form_score).toBeCloseTo(tfi - afi, 2);
+  });
+
+  it('cold-starts from 0 with same-day form_score when no prior row exists', async () => {
+    const supabase = mockSupabase({ priorRow: null, activities: [ride('2026-07-06T16:00:00Z', 84)] });
+    const { rows } = await computeTrainingLoadRows(supabase, 'u1', { days: 4, now: NOW });
+    expect(rows[0].tfi).toBeCloseTo(84 / 42, 2);
+    // Same-day fallback: first row's form_score = tfi − afi of that day.
+    expect(rows[0].form_score).toBeCloseTo(84 / 42 - 84 / 7, 2);
+  });
+
+  it('paginates the activities fetch beyond 1000 rows', async () => {
+    // 1004 activities, all on 2026-07-08, 1 RSS each. An un-paginated fetch
+    // (silent 1000-row cap) would sum 1000; pagination sees all 1004 —
+    // spread across the day, no per-activity cap in play.
+    const many = Array.from({ length: 1004 }, () => ride('2026-07-08T16:00:00Z', 1));
+    const supabase = mockSupabase({ activities: many });
+    const { rows } = await computeTrainingLoadRows(supabase, 'u1', { days: 4, now: NOW });
+    expect(rows[2].rss).toBe(1004);
   });
 });
 

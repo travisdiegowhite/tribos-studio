@@ -38,6 +38,7 @@ import { supabase } from '../lib/supabase';
 import { tokens } from '../theme';
 import { ArrowsClockwise, ChartLine, Fire, TrendDown, TrendUp, Trophy, WarningCircle } from '@phosphor-icons/react';
 import { computeWeeklySnapshots, overlayServerLoadOnWeeklySnapshots } from '../utils/computeFitnessSnapshots';
+import { getISOWeek, getISOWeekYear } from '../utils/isoWeek';
 
 /**
  * Year-over-Year CTL Comparison Chart
@@ -46,13 +47,14 @@ function YearOverYearChart({ snapshots, selectedYears }) {
   const chartData = useMemo(() => {
     if (!snapshots || snapshots.length === 0) return [];
 
-    // Group snapshots by year and week of year
+    // Group by ISO week-year and ISO week so week N means the same calendar
+    // alignment on every year's line (a late-December Monday belongs to
+    // week 1 of the NEXT ISO year, not week 53/54 of its calendar year).
     const byYearAndWeek = {};
 
     snapshots.forEach(s => {
-      const date = new Date(s.snapshot_week);
-      const year = date.getFullYear();
-      const weekOfYear = getWeekOfYear(date);
+      const year = getISOWeekYear(s.snapshot_week);
+      const weekOfYear = getISOWeek(s.snapshot_week);
 
       if (!byYearAndWeek[weekOfYear]) {
         byYearAndWeek[weekOfYear] = { week: weekOfYear };
@@ -67,7 +69,7 @@ function YearOverYearChart({ snapshots, selectedYears }) {
   const years = useMemo(() => {
     const uniqueYears = new Set();
     snapshots?.forEach(s => {
-      uniqueYears.add(new Date(s.snapshot_week).getFullYear());
+      uniqueYears.add(getISOWeekYear(s.snapshot_week));
     });
     return Array.from(uniqueYears).sort((a, b) => b - a);
   }, [snapshots]);
@@ -570,10 +572,11 @@ function HistoricalInsights({ userId, activities, ftp }) {
       .sort((a, b) => new Date(b.snapshot_week) - new Date(a.snapshot_week));
   }, [clientSnapshots, serverSnapshots]);
 
-  // Set selected years when snapshots change
+  // Set selected years when snapshots change (ISO week-years, matching the
+  // YearOverYearChart series keys)
   useEffect(() => {
     if (snapshots.length > 0) {
-      const years = [...new Set(snapshots.map(s => new Date(s.snapshot_week).getFullYear()))];
+      const years = [...new Set(snapshots.map(s => getISOWeekYear(s.snapshot_week)))];
       setSelectedYears(prev => prev.length > 0 ? prev : years.sort((a, b) => b - a).slice(0, 3));
     }
   }, [snapshots]);
@@ -614,20 +617,28 @@ function HistoricalInsights({ userId, activities, ftp }) {
     }
   }
 
-  // Daily server load rows for the ctl/atl/tsb overlay. Descending order so
-  // the implicit 1000-row cap sheds the OLDEST rows (~2.7 years covered);
-  // weeks beyond that keep client-engine values.
+  // Daily server load rows for the ctl/atl/tsb overlay. Paginated past the
+  // implicit 1000-row cap: after the full-history rebuild the table spans
+  // the athlete's entire activity history, and shedding the oldest rows
+  // would seam older chart years back to client-engine values mid-year.
+  // Four small columns per row — a decade is a handful of requests.
   async function loadServerLoadDaily() {
     if (!userId) return;
     try {
-      const { data, error: fetchError } = await supabase
-        .from('training_load_daily')
-        .select('date, tfi, afi, form_score')
-        .eq('user_id', userId)
-        .order('date', { ascending: false })
-        .limit(1000);
-      if (fetchError) throw fetchError;
-      setServerLoadDaily(data || []);
+      const PAGE_SIZE = 1000;
+      const rows = [];
+      for (let page = 0; ; page++) {
+        const { data, error: fetchError } = await supabase
+          .from('training_load_daily')
+          .select('date, tfi, afi, form_score')
+          .eq('user_id', userId)
+          .order('date', { ascending: false })
+          .range(page * PAGE_SIZE, (page + 1) * PAGE_SIZE - 1);
+        if (fetchError) throw fetchError;
+        rows.push(...(data || []));
+        if (!data || data.length < PAGE_SIZE) break;
+      }
+      setServerLoadDaily(rows);
     } catch (err) {
       console.error('Error loading daily server load:', err);
       // Non-fatal: charts fall back to client-engine values
@@ -755,13 +766,6 @@ function HistoricalInsights({ userId, activities, ftp }) {
 }
 
 // Helper functions
-function getWeekOfYear(date) {
-  const start = new Date(date.getFullYear(), 0, 1);
-  const diff = date - start + ((start.getTimezoneOffset() - date.getTimezoneOffset()) * 60 * 1000);
-  const oneWeek = 604800000;
-  return Math.ceil((diff / oneWeek) + 1);
-}
-
 function avg(arr) {
   if (!arr || arr.length === 0) return 0;
   return arr.reduce((a, b) => a + (b || 0), 0) / arr.length;

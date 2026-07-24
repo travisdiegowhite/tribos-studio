@@ -35,6 +35,7 @@ import { createClient } from '@supabase/supabase-js';
 import dotenv from 'dotenv';
 import { downloadAndParseFitFile } from '../api/utils/fitParser.js';
 import { fetchAthleteProfile } from '../api/utils/athleteProfile.js';
+import { sanitizeStressScore } from '../api/utils/stressScoreSanitizer.js';
 
 dotenv.config();
 
@@ -127,7 +128,12 @@ async function reprocessOne(activity, { dryRun }) {
     if (result.powerMetrics?.powerCurveSummary) update.power_curve_summary = result.powerMetrics.powerCurveSummary;
     if (result.powerMetrics?.normalizedPower) update.normalized_power = result.powerMetrics.normalizedPower;
     if (result.powerMetrics?.intensityFactor) update.intensity_factor = result.powerMetrics.intensityFactor;
-    if (result.powerMetrics?.trainingStressScore) update.tss = result.powerMetrics.trainingStressScore;
+    // Sanitize (rejects FIT 6553.5 sentinel) and dual-write tss + rss.
+    const tssSafe = sanitizeStressScore(result.powerMetrics?.trainingStressScore);
+    if (tssSafe != null) {
+      update.tss = tssSafe;
+      update.rss = tssSafe;
+    }
 
     const { error } = await supabase.from('activities').update(update).eq('id', activity.id);
     if (error) return { status: 'update_failed', reason: error.message };

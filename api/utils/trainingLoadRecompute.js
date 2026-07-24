@@ -23,7 +23,13 @@
  *    multipliers per spec §3.1 amendments D1/D2/D4), capped at 500 per
  *    activity to match every reader-side series.
  *  - TFI/AFI EWA with the athlete's adaptive tau (user_profiles.tfi_tau /
- *    afi_tau, default 42/7), 180-day cold start (≈98.6% converged).
+ *    afi_tau, default 42/7). The walk is SEEDED from the stored
+ *    training_load_daily row immediately before the window (decayed across
+ *    any gap), so the trailing window is continuous with history and the
+ *    nightly upsert can no longer overwrite a row that is aging out of the
+ *    window with a "day 1 of cold start" value — the bug that froze
+ *    near-zero tfi/afi into every date older than 180 days. Only a user
+ *    with no stored row at all (true first run) cold-starts from 0.
  *  - form_score = yesterday's TFI − AFI (spec §3.6); first day falls back
  *    to same-day, matching upsertTrainingLoadDaily.
  *  - Rest days get confidence 1.0: a day with no recorded activity is a
@@ -60,6 +66,48 @@ function addDaysKey(dateKey, days) {
 const round1 = (v) => Math.round(v * 10) / 10;
 const round2 = (v) => Math.round(v * 100) / 100;
 
+/** Days between two YYYY-MM-DD keys (b − a). */
+function daysBetweenKeys(a, b) {
+  return Math.round(
+    (Date.parse(`${b}T00:00:00Z`) - Date.parse(`${a}T00:00:00Z`)) / 86400000,
+  );
+}
+
+/**
+ * Seed tfi/afi from the last stored row before the window start, decaying
+ * across any gap as zero-RSS days. Returns null when no prior row exists
+ * (true cold start).
+ */
+async function fetchSeedState(supabase, userId, startKey, tfiTau, afiTau) {
+  const { data: prior, error } = await supabase
+    .from('training_load_daily')
+    .select('date, tfi, afi')
+    .eq('user_id', userId)
+    .lt('date', startKey)
+    .order('date', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (error) throw new Error(`seed row fetch failed: ${error.message}`);
+  if (!prior || !Number.isFinite(Number(prior.tfi))) return null;
+
+  let tfi = Number(prior.tfi);
+  let afi = Number(prior.afi) || 0;
+
+  // Decay across the gap between the prior row and the day before startKey.
+  // Nightly cadence makes this 0 days; a lapsed user resuming after months
+  // gets correct decay instead of a stale jump. Past ~10×tfiTau days the
+  // state is indistinguishable from zero (e^-10), so cap the walk there.
+  const gapDays = Math.min(
+    Math.max(daysBetweenKeys(prior.date, startKey) - 1, 0),
+    Math.ceil(tfiTau * 10),
+  );
+  for (let i = 0; i < gapDays; i++) {
+    tfi = tfi + (0 - tfi) / tfiTau;
+    afi = afi + (0 - afi) / afiTau;
+  }
+  return { tfi, afi };
+}
+
 /**
  * Compute the per-day training load rows for a user without writing.
  *
@@ -89,22 +137,31 @@ export async function computeTrainingLoadRows(supabase, userId, opts = {}) {
   const startKey = addDaysKey(todayKey, -days);
 
   // Fetch activities with a ±1-day UTC buffer so timezone conversion can't
-  // drop edge activities out of the window.
-  const { data: activities, error } = await supabase
-    .from('activities')
-    .select(
-      'start_date, type, sport_type, moving_time, distance, ' +
-        'total_elevation_gain, average_watts, average_heartrate, ' +
-        'kilojoules, rss, tss, effective_power, normalized_power',
-    )
-    .eq('user_id', userId)
-    .or('is_hidden.eq.false,is_hidden.is.null')
-    .is('duplicate_of', null)
-    .gte('start_date', `${addDaysKey(startKey, -1)}T00:00:00Z`)
-    .lte('start_date', `${addDaysKey(endKey, 2)}T00:00:00Z`)
-    .order('start_date', { ascending: true });
+  // drop edge activities out of the window. Paginated: supabase-js silently
+  // caps un-ranged selects at 1000 rows, which a full-history rebuild
+  // (opts.days spanning years) or a very active user would exceed.
+  const PAGE_SIZE = 1000;
+  const activities = [];
+  for (let page = 0; ; page++) {
+    const { data: batch, error } = await supabase
+      .from('activities')
+      .select(
+        'start_date, type, sport_type, moving_time, distance, ' +
+          'total_elevation_gain, average_watts, average_heartrate, ' +
+          'kilojoules, rss, tss, effective_power, normalized_power',
+      )
+      .eq('user_id', userId)
+      .or('is_hidden.eq.false,is_hidden.is.null')
+      .is('duplicate_of', null)
+      .gte('start_date', `${addDaysKey(startKey, -1)}T00:00:00Z`)
+      .lte('start_date', `${addDaysKey(endKey, 2)}T00:00:00Z`)
+      .order('start_date', { ascending: true })
+      .range(page * PAGE_SIZE, (page + 1) * PAGE_SIZE - 1);
 
-  if (error) throw new Error(`activities fetch failed: ${error.message}`);
+    if (error) throw new Error(`activities fetch failed: ${error.message}`);
+    activities.push(...(batch ?? []));
+    if (!batch || batch.length < PAGE_SIZE) break;
+  }
 
   // Bucket per local day. Track the dominant (largest-RSS) activity's
   // source/terrain for the day's rss_source/terrain_class.
@@ -132,11 +189,14 @@ export async function computeTrainingLoadRows(supabase, userId, opts = {}) {
     byDay.set(day, bucket);
   }
 
-  // Walk the window with the adaptive-tau EWA.
+  // Walk the window with the adaptive-tau EWA, seeded from the stored row
+  // before the window (continuity with history; see header). No stored row
+  // → true cold start from 0.
+  const seed = await fetchSeedState(supabase, userId, startKey, tfiTau, afiTau);
   const rows = [];
   const confidenceTrail = [];
-  let tfi = 0;
-  let afi = 0;
+  let tfi = seed?.tfi ?? 0;
+  let afi = seed?.afi ?? 0;
 
   for (let key = startKey; key <= endKey; key = addDaysKey(key, 1)) {
     const bucket = byDay.get(key);
@@ -156,10 +216,14 @@ export async function computeTrainingLoadRows(supabase, userId, opts = {}) {
     confidenceTrail.push(confidence);
     if (confidenceTrail.length > 7) confidenceTrail.shift();
 
-    // Spec §3.6 — yesterday's state; first row falls back to same-day
-    // (matches upsertTrainingLoadDaily so the two writers agree).
+    // Spec §3.6 — yesterday's state. With a seed, the first row's
+    // "yesterday" is the seeded state (prevTfi/prevAfi); only a true cold
+    // start falls back to same-day (matches upsertTrainingLoadDaily so the
+    // two writers agree).
     const formScore =
-      rows.length > 0 ? round2(prevTfi - prevAfi) : round2(tfi - afi);
+      rows.length > 0 || seed
+        ? round2(prevTfi - prevAfi)
+        : round2(tfi - afi);
 
     rows.push({
       user_id: userId,

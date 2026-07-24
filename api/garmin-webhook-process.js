@@ -26,6 +26,7 @@ import { fetchGarminActivityDetails, requestActivityDetailsBackfill, fetchGarmin
 import { ensureValidAccessToken } from './utils/garmin/tokenManager.js';
 import { processHealthPushData, extractAndSaveHealthMetrics } from './utils/garmin/healthDataProcessor.js';
 import { updateSnapshotForActivity } from './utils/fitnessSnapshots.js';
+import { sanitizeStressScore } from './utils/stressScoreSanitizer.js';
 import { deriveCompleteness, refreshCompleteness } from './utils/garmin/completeness.js';
 import { captureServerError } from './utils/serverSentry.js';
 import { MAX_RETRIES, computeBackoffMinutes, deadLetterEvent } from './utils/garmin/retryPolicy.js';
@@ -572,9 +573,10 @@ async function handleExistingActivity(event, existing, integration, detailResult
         activityUpdate.effective_power = pm.normalizedPower;
       }
       if (pm.maxPower) activityUpdate.max_watts = pm.maxPower;
-      if (pm.trainingStressScore) {
-        activityUpdate.tss = pm.trainingStressScore;
-        activityUpdate.rss = pm.trainingStressScore;
+      const tssSafe = sanitizeStressScore(pm.trainingStressScore);
+      if (tssSafe != null) {
+        activityUpdate.tss = tssSafe;
+        activityUpdate.rss = tssSafe;
       }
       if (pm.intensityFactor) {
         activityUpdate.intensity_factor = pm.intensityFactor;
@@ -936,9 +938,10 @@ async function applyParsedResultToActivity(activityId, result, userId = null) {
       activityUpdate.effective_power = pm.normalizedPower;
     }
     if (pm.maxPower) activityUpdate.max_watts = pm.maxPower;
-    if (pm.trainingStressScore) {
-      activityUpdate.tss = pm.trainingStressScore;
-      activityUpdate.rss = pm.trainingStressScore;
+    const tssSafe = sanitizeStressScore(pm.trainingStressScore);
+    if (tssSafe != null) {
+      activityUpdate.tss = tssSafe;
+      activityUpdate.rss = tssSafe;
     }
     if (pm.intensityFactor) {
       activityUpdate.intensity_factor = pm.intensityFactor;
