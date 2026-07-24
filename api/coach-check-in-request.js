@@ -67,7 +67,8 @@ Date: ${context.last_activity.date}
 Type: ${context.last_activity.type} — "${context.last_activity.name}"
 Duration: ${context.last_activity.duration_minutes} min | Distance: ${context.last_activity.distance_km} km
 Planned RSS: ${context.last_activity.planned_tss ?? 'N/A'} | Actual RSS: ${context.last_activity.actual_tss ?? 'N/A'}
-${context.last_activity.deviation_percent != null ? `Deviation: ${Math.abs(context.last_activity.deviation_percent)}% ${context.last_activity.over_or_under}` : 'Deviation: N/A (no planned workout matched)'}
+${context.last_activity.deviation_percent != null ? `Deviation: ${Math.abs(context.last_activity.deviation_percent)}% ${context.last_activity.over_or_under}
+${context.last_activity.deviation_percent > 0 ? 'The athlete did MORE than planned. This ride WAS the planned workout, overachieved — treat it as an overachievement (acknowledge it, manage enthusiasm/recovery), NOT as an unplanned or bonus ride.' : context.last_activity.deviation_percent < 0 ? 'The athlete did LESS than planned — treat this as a shortfall against the planned session.' : 'The athlete hit the planned load exactly.'}` : 'Deviation: N/A (no planned workout matched)'}
 Power data: ${context.last_activity.power_summary}
 ${context.last_activity.average_heartrate ? `Avg HR: ${context.last_activity.average_heartrate} bpm` : ''}
 ${context.last_activity.execution_score ? `Execution score: ${context.last_activity.execution_score}/100 (${context.last_activity.execution_rating})` : ''}` : `## ACTIVITY STATUS

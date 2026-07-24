@@ -100,6 +100,78 @@ function humanizeOutcome(outcomeNotes) {
  * @param {string|null} activityId - The activity that triggered this check-in (null for general check-ins)
  * @returns {Promise<object>} Context object ready for system prompt injection
  */
+/**
+ * Local YYYY-MM-DD for an activity: provider-local wall time first (Strava's
+ * start_date_local is a fake-UTC local string — string-split it, never
+ * new Date() it), then the user's timezone, then UTC. Wahoo doesn't write
+ * start_date_local, hence the fallbacks.
+ */
+function getActivityLocalDate(activity, userTimezone) {
+  if (activity?.start_date_local) return String(activity.start_date_local).split('T')[0];
+  if (!activity?.start_date) return null;
+  try {
+    // en-CA gives YYYY-MM-DD
+    return new Date(activity.start_date).toLocaleDateString('en-CA', { timeZone: userTimezone });
+  } catch {
+    return new Date(activity.start_date).toISOString().split('T')[0];
+  }
+}
+
+/**
+ * Resolve the planned workout an activity fulfilled. Fallback chain:
+ *   1. Reverse pointer (activities.matched_planned_workout_id — webhook
+ *      auto-match / useTrainingPlan writes it).
+ *   2. Forward link (planned_workouts.activity_id — the calendar's
+ *      useActivityAutoLink writes ONLY this direction).
+ *   3. Same-LOCAL-day planned row, excluding rest days — mirrors the
+ *      calendar's own date-equality rule, so the check-in can never call a
+ *      ride "unplanned" that the calendar shows as matched.
+ *
+ * Read-only — persisting the link stays with the webhook/calendar matchers.
+ * Exported for unit tests.
+ */
+export async function resolvePlannedWorkoutForActivity(supabase, userId, activity, userTimezone) {
+  if (!activity) return null;
+  const workoutSelect = 'id, name, workout_type, target_rss, target_tss, target_duration';
+
+  if (activity.matched_planned_workout_id) {
+    const { data } = await supabase
+      .from('planned_workouts')
+      .select(workoutSelect)
+      .eq('id', activity.matched_planned_workout_id)
+      .maybeSingle();
+    if (data) return data;
+  }
+
+  if (activity.id) {
+    const { data } = await supabase
+      .from('planned_workouts')
+      .select(workoutSelect)
+      .eq('activity_id', activity.id)
+      .limit(1);
+    if (data && data.length > 0) return data[0];
+  }
+
+  const localDate = getActivityLocalDate(activity, userTimezone);
+  if (localDate) {
+    const { data: sameDay } = await supabase
+      .from('planned_workouts')
+      .select(workoutSelect + ', completed, activity_id, scheduled_date')
+      .eq('user_id', userId)
+      .eq('scheduled_date', localDate)
+      .neq('workout_type', 'rest');
+    if (sameDay && sameDay.length > 0) {
+      return (
+        sameDay.find((w) => w.activity_id === activity.id) ||
+        sameDay.find((w) => w.completed || w.activity_id) ||
+        sameDay[0]
+      );
+    }
+  }
+
+  return null;
+}
+
 export async function assembleCheckInContext(supabase, userId, activityId) {
   // Build the activity query — specific activity or most recent one
   const activityQuery = activityId
@@ -221,16 +293,9 @@ export async function assembleCheckInContext(supabase, userId, activityId) {
   const userProfile = userProfileResult?.data || {};
   const userTimezone = userProfile.timezone || 'America/New_York';
 
-  // Get matched planned workout (if any)
-  let plannedWorkout = null;
-  if (activity?.matched_planned_workout_id) {
-    const { data } = await supabase
-      .from('planned_workouts')
-      .select('name, workout_type, target_tss, target_duration')
-      .eq('id', activity.matched_planned_workout_id)
-      .maybeSingle();
-    plannedWorkout = data;
-  }
+  // Get matched planned workout (if any) — reverse pointer, then the
+  // calendar's forward link, then same-local-day fallback.
+  const plannedWorkout = await resolvePlannedWorkoutForActivity(supabase, userId, activity, userTimezone);
 
   // Get week schedule (planned workouts for current week)
   let weekScheduleRaw = [];
@@ -252,8 +317,8 @@ export async function assembleCheckInContext(supabase, userId, activityId) {
     ? derivePhase(plan.current_week, plan.duration_weeks, plan.methodology)
     : { blockName: 'General Training', blockPurpose: 'Build overall fitness and consistency.' };
 
-  // Calculate deviation
-  const plannedTss = plannedWorkout?.target_tss || null;
+  // Calculate deviation — canonical target_rss first, legacy fallback
+  const plannedTss = plannedWorkout?.target_rss ?? plannedWorkout?.target_tss ?? null;
   const actualTss = activity?.rss || null;
   let deviationPercent = null;
   if (plannedTss && actualTss) {
