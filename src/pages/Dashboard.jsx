@@ -25,6 +25,7 @@ import FitnessSummary from '../components/today/FitnessSummary.jsx';
 import ProprietaryMetricsBar from '../components/today/ProprietaryMetricsBar.tsx';
 import { ActivePlanCard } from '../components/training';
 import { calculateCTL, calculateATL, calculateTSB } from '../utils/trainingPlans';
+import { formatLocalDate } from '../utils/dateUtils';
 import { estimateActivityTSS } from '../utils/computeFitnessSnapshots';
 
 function Dashboard() {
@@ -301,7 +302,9 @@ function Dashboard() {
       dailyTSS[key] = 0;
     }
     (activities || []).forEach((activity) => {
-      const dateStr = activity.start_date?.split('T')[0];
+      // Local-date key to match the local-keyed map above — a UTC split would
+      // shift evening rides to the next day and drop today's ride entirely.
+      const dateStr = activity.start_date ? formatLocalDate(new Date(activity.start_date)) : undefined;
       if (dateStr && dailyTSS[dateStr] !== undefined) {
         const tss = Math.min(estimateActivityTSS(activity, userFtp), 500);
         dailyTSS[dateStr] += tss;

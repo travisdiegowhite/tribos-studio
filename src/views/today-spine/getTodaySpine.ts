@@ -256,7 +256,9 @@ export function assembleSpine(input: AssembleInput): SpineData {
     dailySec[fmtDate(d)] = 0;
   }
   for (const a of activities) {
-    const key = a.start_date?.split('T')[0];
+    // Local-date key to match the fmtDate-keyed maps above — a UTC split
+    // would shift evening rides onto the next day's node.
+    const key = a.start_date ? fmtDate(new Date(a.start_date)) : undefined;
     if (key && dailyRSS[key] !== undefined) {
       dailyRSS[key] += Math.min(estimateActivityTSS(a, ftp), RSS_CAP);
       dailySec[key] += Number(a.moving_time) || 0;

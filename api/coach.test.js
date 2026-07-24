@@ -379,6 +379,46 @@ describe('coach handler — forced tool pass', () => {
     expect(res.body.message).toContain('the thinking behind it');
   });
 
+  it('dates prior-day history messages and leaves today/undated ones untouched', async () => {
+    messagesCreate.mockResolvedValueOnce(textResponse('Your fitness is trending up nicely.'));
+
+    // resolvedTimezone falls back to UTC (no userLocalDate.timezone, stub profile
+    // has no timezone), so build the day boundary in UTC. Anchor timestamps to
+    // UTC noon so the test can never flake across a midnight rollover.
+    const todayUtc = new Date().toISOString().split('T')[0];
+    const yesterdayNoon = new Date(Date.parse(`${todayUtc}T12:00:00Z`) - 24 * 60 * 60 * 1000).toISOString();
+    const todayNoonstamp = `${todayUtc}T12:00:00.000Z`;
+
+    const res = makeRes();
+    await handler(
+      makeReq({
+        message: 'how is my fitness trending?',
+        conversationHistory: [
+          { role: 'user', content: 'how was my ride?', timestamp: yesterdayNoon },
+          { role: 'assistant', content: "today's tempo work landed well", timestamp: yesterdayNoon },
+          { role: 'user', content: 'thanks coach', timestamp: todayNoonstamp },
+          { role: 'assistant', content: 'anytime' },
+          { role: 'user', content: 'one more thing', timestamp: 'not-a-date' },
+        ],
+      }),
+      res
+    );
+
+    expect(res.statusCode).toBe(200);
+    const sent = messagesCreate.mock.calls[0][0].messages;
+    // Prior-day messages get a "[Mon Jul 21]"-style prefix.
+    expect(sent[0].content).toMatch(/^\[\w{3} \w{3} \d{1,2}\] how was my ride\?$/);
+    expect(sent[1].content).toMatch(/^\[\w{3} \w{3} \d{1,2}\] today's tempo work landed well$/);
+    // Same-day, undated, and invalid-timestamp messages pass through unchanged.
+    expect(sent[2].content).toBe('thanks coach');
+    expect(sent[3].content).toBe('anytime');
+    expect(sent[4].content).toBe('one more thing');
+    // The current user turn keeps its [Today is …] prefix.
+    expect(sent[5].content).toMatch(/^\[Today is /);
+    // The system prompt explains the markers.
+    expect(messagesCreate.mock.calls[0][0].system).toContain('occurred on a PREVIOUS day');
+  });
+
   it('injects the server training snapshot block into the system prompt', async () => {
     buildEnrichmentBlock.mockReturnValue(
       '=== SERVER TRAINING SNAPSHOT (DB-VERIFIED) ===\nFTP: 285W'

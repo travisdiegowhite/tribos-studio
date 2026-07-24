@@ -136,6 +136,13 @@ describe('buildTemporalAnchor', () => {
       expect(block).toContain('sess_abcd1234');
     });
 
+    it('labels the SESSIONS list as scheduled-and-not-yet-completed', () => {
+      const now = makeDate('2026-04-22T13:00:00Z');
+      const session = makeWorkout('1111-2222-3333-4444', '2026-04-22');
+      const block = buildTemporalAnchor('America/Denver', [session], [], now);
+      expect(block).toContain('NOT yet completed');
+    });
+
     it('marks race-day sessions', () => {
       const now = makeDate('2026-04-22T13:00:00Z');
       const session = makeWorkout('race-aaaa-bbbb-cccc', '2026-04-26', {

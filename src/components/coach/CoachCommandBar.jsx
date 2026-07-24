@@ -71,12 +71,15 @@ function CoachCommandBar({ trainingContext, onAddWorkout }) {
 
       if (fetchError) throw fetchError;
 
-      // Reverse to chronological order and map to API format
+      // Reverse to chronological order and map to API format. Timestamps let
+      // the server date prior-day messages so the coach doesn't read an
+      // earlier day's "today" as the current day.
       const history = (data || [])
         .reverse()
         .map((msg) => ({
           role: msg.role === 'coach' ? 'assistant' : 'user',
           content: msg.message,
+          timestamp: msg.timestamp,
         }));
 
       setConversationHistory(history);
@@ -293,8 +296,8 @@ function CoachCommandBar({ trainingContext, onAddWorkout }) {
         : '';
       setConversationHistory((prev) => [
         ...prev,
-        { role: 'user', content: query.trim() },
-        { role: 'assistant', content: data.message + recsNote },
+        { role: 'user', content: query.trim(), timestamp: new Date().toISOString() },
+        { role: 'assistant', content: data.message + recsNote, timestamp: new Date().toISOString() },
       ]);
 
       // Save to conversation history in DB

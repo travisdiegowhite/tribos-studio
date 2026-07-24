@@ -2428,10 +2428,12 @@ function buildTrainingContext(trainingMetrics, weeklyStats, actualWeeklyStats, f
       context.push(`\n--- TRAINING CALENDAR (PLANNED WORKOUTS) ---`);
       context.push(`IMPORTANT: These are the workouts currently scheduled on the athlete's training calendar. Reference this when discussing their schedule, suggesting changes, or advising on load management.`);
 
-      // Build date-to-activities lookup for actual vs planned comparison
+      // Build date-to-activities lookup for actual vs planned comparison.
+      // Keyed by LOCAL date to match planned_workouts.scheduled_date — a UTC
+      // split would mismatch evening workouts and print them as [MISSED].
       const activityByDate = {};
       activities.forEach(a => {
-        const dateStr = a.start_date?.split('T')[0];
+        const dateStr = a.start_date ? formatLocalDate(new Date(a.start_date)) : null;
         if (dateStr) {
           if (!activityByDate[dateStr]) activityByDate[dateStr] = [];
           activityByDate[dateStr].push(a);

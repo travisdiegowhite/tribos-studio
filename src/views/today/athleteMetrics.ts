@@ -95,7 +95,9 @@ export function buildDailyLoadSeries(
     dailyRSS[fmtDate(d)] = 0;
   }
   for (const a of activities) {
-    const date = a.start_date?.split('T')[0];
+    // Local-date key to match the fmtDate-keyed map above — a UTC split would
+    // shift evening rides to the next day and drop today's ride entirely.
+    const date = a.start_date ? fmtDate(new Date(a.start_date)) : undefined;
     if (date && dailyRSS[date] !== undefined) {
       dailyRSS[date] += Math.min(estimateActivityTSS(a, ftp), 500);
     }

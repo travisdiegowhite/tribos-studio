@@ -96,10 +96,12 @@ export default function CheckInThread({ checkInId, trainingContext = null }: Che
     setMessages((prev) => [...prev, tempUserMsg]);
 
     try {
-      // Build conversation history for Claude from existing thread messages
+      // Build conversation history for Claude from existing thread messages.
+      // Timestamps let the server date prior-day messages in multi-day threads.
       const history = messages.map((m) => ({
         role: m.role === 'coach' ? 'assistant' : 'user',
         content: m.message,
+        timestamp: m.timestamp,
       }));
 
       // Get auth session

@@ -31,6 +31,22 @@ function formatDateInTimezone(date, timezone) {
   }
 }
 
+// Short "Mon Jul 21" label used to date prior-day conversation-history messages
+function shortDayLabel(date, timezone) {
+  try {
+    const parts = new Intl.DateTimeFormat('en-US', {
+      timeZone: timezone,
+      weekday: 'short',
+      month: 'short',
+      day: 'numeric',
+    }).formatToParts(date);
+    const get = (t) => parts.find((p) => p.type === t)?.value || '';
+    return `${get('weekday')} ${get('month')} ${get('day')}`;
+  } catch {
+    return date.toISOString().split('T')[0];
+  }
+}
+
 // Resolve relative date strings (today, tomorrow, this_monday, next_tuesday, YYYY-MM-DD) to YYYY-MM-DD
 // timezone param ensures dates are resolved in the user's local timezone, not server UTC
 function resolveScheduledDate(dateStr, timezone = 'UTC') {
@@ -1345,8 +1361,11 @@ export default async function handler(req, res) {
     let systemPrompt = `=== TEMPORAL ANCHOR (pre-resolved dates — do not compute new ones) ===
 ${temporalAnchorBlock}
 
-CRITICAL: The conversation history below may contain outdated date references.
-Always use the labels above as your reference point for any day or session mentioned.
+CRITICAL: Conversation-history messages that occurred on a PREVIOUS day are prefixed
+with their date, e.g. "[Mon Jul 21]". Inside a prefixed message, words like "today",
+"tomorrow", or "this ride" refer to THAT date — not the current day. Unprefixed
+history messages are from today. Never treat a prior-day message's "today" as the
+current day; always resolve days via the labels above.
 
 === YOUR ROLE ===
 ${COACHING_KNOWLEDGE}`;
@@ -1558,7 +1577,7 @@ Answer the athlete's literal question in the first sentence. If it is a yes/no q
 Default: 2–4 sentences. Use bullet lists only when the athlete explicitly asks to compare options or list multiple items. Numbered protocol lists are acceptable for multi-step instructions, but only when the athlete asked for them. If the persona style rules specify a shorter limit, follow those.
 
 === SCHEDULE CONTEXT ===
-The athlete's upcoming planned sessions are already loaded in the SESSIONS block of the TEMPORAL ANCHOR above. You have their full schedule for the next 14 days. Do not ask the athlete what their schedule is — look it up in SESSIONS. If a session is missing from SESSIONS, it means nothing is planned on that day.
+The athlete's upcoming planned sessions are already loaded in the SESSIONS block of the TEMPORAL ANCHOR above. You have their full schedule for the next 14 days. Do not ask the athlete what their schedule is — look it up in SESSIONS. If a session is missing from SESSIONS, either nothing is planned on that day or the session was already completed — completion status for this week is in the SERVER TRAINING SNAPSHOT.
 
 === TOOL RESULTS ===
 When you use a server-side tool (adjust_schedule, query_fitness_history, query_training_data, save_coach_memory), the result is returned to you internally. Do not narrate the JSON output or describe what the tool returned. Confirm the outcome in one plain sentence (e.g., "Moved Tuesday's Sweet Spot to Wednesday.") and move on. Never say "Looks like X is marked complete" or "It appears the tool shows Y" — just state the outcome directly.
@@ -1622,11 +1641,22 @@ ${conversationSummary}
     });
     const userMessageWithDate = `[Today is ${todayDateStr}]\n\n${message}`;
 
+    // Date prior-day history messages so the model can't mistake an earlier
+    // day's "today's ride" for the current day. Same-day messages stay
+    // unprefixed; items without a (valid) timestamp are passed through
+    // unchanged for callers that still send bare {role, content}.
+    const todayLocalStr = formatDateInTimezone(new Date(), resolvedTimezone);
     const messages = [
-      ...recentHistory.map(msg => ({
-        role: msg.role,
-        content: msg.content
-      })),
+      ...recentHistory.map(msg => {
+        let content = msg.content;
+        if (msg.timestamp) {
+          const ts = new Date(msg.timestamp);
+          if (!Number.isNaN(ts.getTime()) && formatDateInTimezone(ts, resolvedTimezone) !== todayLocalStr) {
+            content = `[${shortDayLabel(ts, resolvedTimezone)}] ${content}`;
+          }
+        }
+        return { role: msg.role, content };
+      }),
       {
         role: 'user',
         content: userMessageWithDate

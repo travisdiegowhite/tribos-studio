@@ -62,7 +62,7 @@ function getActivityTSS(activity: any, ftp: number | null): number {
   );
 }
 
-interface DayData {
+export interface DayData {
   label: string;        // Mon, Tue, ...
   dateKey: string;      // 2026-03-16
   planned: number;
@@ -70,6 +70,28 @@ interface DayData {
   diff: number;
   isToday: boolean;
   isPast: boolean;
+}
+
+/**
+ * Weekly totals with a to-date view. The deficit/percent must only count
+ * days that are already due (past + today) — summing future planned days
+ * showed athletes hundreds of TSS "behind" mid-week when they were actually
+ * ahead of plan-to-date. Exported for unit tests.
+ */
+export function computeWeekTotals(days: DayData[]) {
+  const totalPlanned = days.reduce((s, d) => s + d.planned, 0);
+  const totalActual = days.reduce((s, d) => s + d.actual, 0);
+  const toDate = days.filter((d) => d.isPast || d.isToday);
+  const plannedToDate = toDate.reduce((s, d) => s + d.planned, 0);
+  const actualToDate = toDate.reduce((s, d) => s + d.actual, 0);
+  return {
+    totalPlanned,
+    totalActual,
+    plannedToDate,
+    actualToDate,
+    diffToDate: actualToDate - plannedToDate,
+    pctToDate: plannedToDate > 0 ? Math.round((actualToDate / plannedToDate) * 100) : null,
+  };
 }
 
 export default function CheckInWeekBar({
@@ -81,22 +103,28 @@ export default function CheckInWeekBar({
   const todayKey = toDateKey(new Date());
 
   const days: DayData[] = useMemo(() => {
-    // Index planned TSS by date
+    // Index planned TSS by date — canonical target_rss first, legacy fallback
     const plannedByDate: Record<string, number> = {};
     for (const w of plannedWorkouts) {
       if (!w.scheduled_date) continue;
       const key = w.scheduled_date.split('T')[0];
-      plannedByDate[key] = (plannedByDate[key] || 0) + (w.target_tss || 0);
+      plannedByDate[key] = (plannedByDate[key] || 0) + (w.target_rss ?? w.target_tss ?? 0);
     }
 
-    // Index actual TSS by date
+    // Index actual TSS by the activity's LOCAL date so evening rides land on
+    // the same day-key as their scheduled_date. start_date_local is a
+    // fake-UTC local wall-time string — string-split it, never new Date() it;
+    // fall back to browser-local rendering of start_date (Wahoo has no
+    // start_date_local).
+    const weekKeys = new Set(week.dates.map(toDateKey));
     const actualByDate: Record<string, number> = {};
     for (const a of activities) {
-      if (!a.start_date) continue;
-      const aDate = new Date(a.start_date);
-      const key = toDateKey(aDate);
+      if (!a.start_date && !a.start_date_local) continue;
+      const key = a.start_date_local
+        ? String(a.start_date_local).split('T')[0]
+        : toDateKey(new Date(a.start_date));
       // Only count activities within this week
-      if (aDate >= week.start && aDate <= week.end) {
+      if (weekKeys.has(key)) {
         actualByDate[key] = (actualByDate[key] || 0) + getActivityTSS(a, ftp);
       }
     }
@@ -120,9 +148,7 @@ export default function CheckInWeekBar({
     });
   }, [plannedWorkouts, activities, ftp, week, todayKey]);
 
-  const totalPlanned = days.reduce((s, d) => s + d.planned, 0);
-  const totalActual = days.reduce((s, d) => s + d.actual, 0);
-  const totalDiff = totalActual - totalPlanned;
+  const totals = computeWeekTotals(days);
 
   return (
     <Paper
@@ -151,6 +177,7 @@ export default function CheckInWeekBar({
         {days.map((d) => {
           const hasPlan = d.planned > 0;
           const hasActivity = d.actual > 0;
+          const isDue = d.isPast || d.isToday;
           const diffColor = d.diff > 0 ? 'teal' : d.diff < 0 ? 'red' : 'dimmed';
           const maxTSS = Math.max(d.planned, d.actual, 1);
 
@@ -229,8 +256,9 @@ export default function CheckInWeekBar({
                   : '—'}
               </Text>
 
-              {/* Diff */}
-              {(hasPlan || hasActivity) && (
+              {/* Diff — only for days already due; a future planned day is
+                  not a deficit yet */}
+              {(hasPlan || hasActivity) && isDue && (
                 <Text size="10px" ff="monospace" fw={600} c={diffColor} lh={1}>
                   {d.diff > 0 ? `+${d.diff}` : d.diff === 0 ? '0' : d.diff}
                 </Text>
@@ -240,21 +268,28 @@ export default function CheckInWeekBar({
         })}
       </SimpleGrid>
 
-      {/* Weekly totals */}
+      {/* Weekly totals — the delta is measured against plan TO DATE, so
+          Friday–Sunday's not-yet-due workouts never read as a deficit */}
       <Group justify="space-between" mt="xs" pt="xs" style={{ borderTop: '1px solid var(--tribos-border-default)' }}>
         <Text size="xs" ff="monospace" c="dimmed">
-          Plan: <Text span fw={600} c="var(--mantine-color-teal-2)">{totalPlanned}</Text>
+          Plan: <Text span fw={600} c="var(--mantine-color-teal-2)">{totals.totalPlanned}</Text>
           {' / '}
-          Actual: <Text span fw={600} c="var(--mantine-color-teal-7)">{totalActual}</Text>
+          Actual: <Text span fw={600} c="var(--mantine-color-teal-7)">{totals.totalActual}</Text>
         </Text>
-        <Text size="xs" ff="monospace" fw={700} c={totalDiff >= 0 ? 'teal' : 'red'}>
-          {totalDiff > 0 ? '+' : ''}{totalDiff} TSS
-          {totalPlanned > 0 && (
-            <Text span c="dimmed" fw={400}>
-              {' '}({Math.round((totalActual / totalPlanned) * 100)}%)
-            </Text>
-          )}
-        </Text>
+        {totals.plannedToDate > 0 ? (
+          <Text size="xs" ff="monospace" fw={700} c={totals.diffToDate >= 0 ? 'teal' : 'red'}>
+            {totals.diffToDate > 0 ? '+' : ''}{totals.diffToDate} TSS vs plan to date
+            {totals.pctToDate != null && (
+              <Text span c="dimmed" fw={400}>
+                {' '}({totals.pctToDate}%)
+              </Text>
+            )}
+          </Text>
+        ) : totals.actualToDate > 0 ? (
+          <Text size="xs" ff="monospace" fw={700} c="dimmed">
+            +{totals.actualToDate} TSS
+          </Text>
+        ) : null}
       </Group>
     </Paper>
   );

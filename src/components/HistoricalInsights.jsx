@@ -37,7 +37,7 @@ import {
 import { supabase } from '../lib/supabase';
 import { tokens } from '../theme';
 import { ArrowsClockwise, ChartLine, Fire, TrendDown, TrendUp, Trophy, WarningCircle } from '@phosphor-icons/react';
-import { computeWeeklySnapshots } from '../utils/computeFitnessSnapshots';
+import { computeWeeklySnapshots, overlayServerLoadOnWeeklySnapshots } from '../utils/computeFitnessSnapshots';
 
 /**
  * Year-over-Year CTL Comparison Chart
@@ -528,16 +528,23 @@ function QuickStats({ snapshots, activities }) {
  */
 function HistoricalInsights({ userId, activities, ftp }) {
   const [serverSnapshots, setServerSnapshots] = useState([]);
+  const [serverLoadDaily, setServerLoadDaily] = useState([]);
   const [serverLoading, setServerLoading] = useState(true);
   const [rebuilding, setRebuilding] = useState(false);
   const [error, setError] = useState(null);
   const [selectedYears, setSelectedYears] = useState([]);
 
-  // Client-side computation from activity data (synchronous, ~1ms for 2+ years)
+  // Client-side computation from activity data (synchronous, ~1ms for 2+ years),
+  // with the server's daily-load engine overriding ctl/atl/tsb per week where
+  // rows exist (training_load_daily > client engine > fitness_snapshots).
+  // Weeks pre-dating the server engine keep the client values.
   const clientSnapshots = useMemo(() => {
     if (!activities || activities.length === 0) return [];
-    return computeWeeklySnapshots(activities, ftp);
-  }, [activities, ftp]);
+    return overlayServerLoadOnWeeklySnapshots(
+      computeWeeklySnapshots(activities, ftp),
+      serverLoadDaily,
+    );
+  }, [activities, ftp, serverLoadDaily]);
 
   // Merge: client data takes priority, server fills gaps (advanced fields)
   const snapshots = useMemo(() => {
@@ -607,8 +614,29 @@ function HistoricalInsights({ userId, activities, ftp }) {
     }
   }
 
+  // Daily server load rows for the ctl/atl/tsb overlay. Descending order so
+  // the implicit 1000-row cap sheds the OLDEST rows (~2.7 years covered);
+  // weeks beyond that keep client-engine values.
+  async function loadServerLoadDaily() {
+    if (!userId) return;
+    try {
+      const { data, error: fetchError } = await supabase
+        .from('training_load_daily')
+        .select('date, tfi, afi, form_score')
+        .eq('user_id', userId)
+        .order('date', { ascending: false })
+        .limit(1000);
+      if (fetchError) throw fetchError;
+      setServerLoadDaily(data || []);
+    } catch (err) {
+      console.error('Error loading daily server load:', err);
+      // Non-fatal: charts fall back to client-engine values
+    }
+  }
+
   useEffect(() => {
     loadServerSnapshots();
+    loadServerLoadDaily();
   }, [userId]);
 
   // Rebuild server snapshots from activity data

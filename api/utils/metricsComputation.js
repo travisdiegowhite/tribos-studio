@@ -352,11 +352,19 @@ async function computeAndStoreEFI(supabase, userId, activityId, activity, workou
  * Try to auto-match an activity to a planned workout.
  * Matches by date proximity (±1 day) and TSS similarity (within 40%).
  * Returns the workout ID if a good match is found, null otherwise.
+ * Exported for unit tests.
  */
-async function tryAutoMatchWorkout(supabase, userId, activity) {
-  const activityDate = activity.start_date
-    ? new Date(activity.start_date).toISOString().split('T')[0]
-    : null;
+export async function tryAutoMatchWorkout(supabase, userId, activity) {
+  // Prefer the provider-local date: scheduled_date is a local calendar date,
+  // and a UTC basis shifts evening rides onto the next day (a Thu 7pm US ride
+  // scored as Friday and missed the exact-date points, failing the match).
+  // start_date_local is a fake-UTC local wall-time string — string-split it,
+  // never new Date() it. Wahoo doesn't write it, so keep the UTC fallback.
+  const activityDate = activity.start_date_local
+    ? String(activity.start_date_local).split('T')[0]
+    : activity.start_date
+      ? new Date(activity.start_date).toISOString().split('T')[0]
+      : null;
   if (!activityDate) return null;
 
   // Find planned workouts within ±1 day that aren't already matched
@@ -377,7 +385,7 @@ async function tryAutoMatchWorkout(supabase, userId, activity) {
 
   const { data: candidates } = await supabase
     .from('planned_workouts')
-    .select('id, scheduled_date, target_tss, target_duration, workout_type')
+    .select('id, scheduled_date, target_rss, target_tss, target_duration, workout_type')
     .in('plan_id', planIds)
     .gte('scheduled_date', dayBefore.toISOString().split('T')[0])
     .lte('scheduled_date', dayAfter.toISOString().split('T')[0])
@@ -401,9 +409,10 @@ async function tryAutoMatchWorkout(supabase, userId, activity) {
       score += 20;
     }
 
-    // TSS match (30pts max)
-    if (workout.target_tss && activity.rss) {
-      const tssDiffPct = Math.abs(activity.rss - workout.target_tss) / workout.target_tss * 100;
+    // TSS match (30pts max) — canonical target_rss first, legacy fallback
+    const targetLoad = workout.target_rss ?? workout.target_tss;
+    if (targetLoad && activity.rss) {
+      const tssDiffPct = Math.abs(activity.rss - targetLoad) / targetLoad * 100;
       if (tssDiffPct <= 15) score += 30;
       else if (tssDiffPct <= 30) score += 20;
       else if (tssDiffPct <= 40) score += 10;

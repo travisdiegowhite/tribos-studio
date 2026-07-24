@@ -13,8 +13,9 @@ import { derivePhase, formatWeekSchedule, weekScheduleToText, formatHealth, fetc
 /**
  * Format a Date as YYYY-MM-DD in the given IANA timezone.
  * Falls back to UTC ISO date if the timezone is invalid.
+ * Exported for fitness-summary.js's cache-key date dimension.
  */
-function formatDateInTz(date, tz) {
+export function formatDateInTz(date, tz) {
   try {
     // en-CA locale yields YYYY-MM-DD format
     return date.toLocaleDateString('en-CA', { timeZone: tz });
@@ -257,7 +258,6 @@ export async function assembleFitnessContext(userId, supabase, clientMetrics, op
       last_ride_tss: clientMetrics.lastRideTss || null,
     },
     trends: {
-      ctl_delta_28d: ctlTrend.delta,
       // Authoritative 28-day CTL change as a %, matching the Trend card.
       // When the coach references the trend, it should use this number.
       ctl_delta_pct: ctlTrend.delta_pct,
@@ -329,15 +329,14 @@ function calculateCTLTrend(activities, currentCTL, clientDeltaPct) {
     else direction = 'recovering';
 
     return {
-      delta: Math.round(clientDeltaPct),       // now expressed as rounded %
-      delta_pct: clientDeltaPct,                // raw % for downstream use
+      delta_pct: clientDeltaPct, // raw % for downstream use
       direction,
     };
   }
 
   // --- Fallback: legacy heuristic (only when client didn't supply delta) ---
   if (activities.length < 3) {
-    return { delta: 0, delta_pct: null, direction: 'holding' };
+    return { delta_pct: null, direction: 'holding' };
   }
 
   const midpoint = Math.floor(activities.length / 2);
@@ -349,7 +348,7 @@ function calculateCTLTrend(activities, currentCTL, clientDeltaPct) {
   const delta = Math.round(lateAvgTSS - earlyAvgTSS);
   const direction = delta > 3 ? 'building' : delta < -3 ? 'declining' : 'holding';
 
-  return { delta, delta_pct: null, direction };
+  return { delta_pct: null, direction };
 }
 
 /**
@@ -409,14 +408,23 @@ function summarizeCoachThread(msgs) {
 /**
  * Build a cache key from the meaningful fields of the context.
  * Excludes coach_summary and generated_at to avoid unnecessary regeneration.
+ *
+ * `localDate` (the athlete-local YYYY-MM-DD) bounds staleness at local
+ * midnight — a new day always regenerates the summary even when the raw
+ * numbers happen to match. The rounded trend percent is keyed so a swing
+ * like −3% → −24% (both "recovering") can't serve frozen text; rounding
+ * mirrors the client's fetch key in FitnessSummary.jsx.
  */
-export function buildCacheKey(context) {
+export function buildCacheKey(context, localDate = null) {
+  const deltaPct = context.trends.ctl_delta_pct;
   const parts = [
+    localDate || 'nodate',
     context.snapshot.ctl,
     context.snapshot.atl,
     context.snapshot.tsb,
     context.snapshot.last_ride_tss || 0,
     context.trends.ctl_direction,
+    typeof deltaPct === 'number' && Number.isFinite(deltaPct) ? Math.round(deltaPct) : 'na',
     context.data_quality.missed_rides_flag ? 1 : 0,
     context.data_quality.rides_completed_this_week,
     context.coach_context.upcoming_key_workout || 'none',

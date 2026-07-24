@@ -59,7 +59,7 @@ export function buildCoachContextString(today: Today): string {
   }
   const presc = today.prescription;
   lines.push(
-    `- Today's session: ${today.heroState === 'rest' ? 'Rest day' : presc ? presc.title : 'No workout prescribed'}`,
+    `- Today's prescribed session (plan only — completion status is in the SERVER TRAINING SNAPSHOT, do not assume it happened): ${today.heroState === 'rest' ? 'Rest day' : presc ? presc.title : 'No workout prescribed'}`,
   );
 
   return lines.join('\n');

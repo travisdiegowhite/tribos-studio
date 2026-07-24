@@ -44,6 +44,7 @@ interface ChatMessage {
   id: string;
   role: 'user' | 'coach';
   content: string;
+  timestamp?: string;
   /** Structured payloads, present only on live in-session coach turns. */
   workoutRecommendations?: unknown[] | null;
   trainingPlanPreview?: Record<string, unknown> | null;
@@ -107,10 +108,11 @@ export function GlanceCoach({ today, maxMessages = 4 }: GlanceCoachProps) {
           const history: ChatMessage[] = data
             .slice()
             .reverse()
-            .map((m: { id?: string; role: string; message: string }) => ({
+            .map((m: { id?: string; role: string; message: string; timestamp?: string }) => ({
               id: m.id || nextId(),
               role: m.role === 'coach' ? 'coach' : 'user',
               content: m.message,
+              timestamp: m.timestamp,
             }));
           setMessages(history);
         }
@@ -170,11 +172,19 @@ export function GlanceCoach({ today, maxMessages = 4 }: GlanceCoachProps) {
       setDraft('');
       setSubmitting(true);
 
-      const userMsg: ChatMessage = { id: nextId(), role: 'user', content: message };
+      const userMsg: ChatMessage = {
+        id: nextId(),
+        role: 'user',
+        content: message,
+        timestamp: new Date().toISOString(),
+      };
       // Memory context from the thread as it stood before this message.
+      // Timestamps let the server date prior-day messages so the coach
+      // doesn't read an earlier day's "today" as the current day.
       const conversationHistory = messages.map((m) => ({
         role: m.role === 'coach' ? ('assistant' as const) : ('user' as const),
         content: m.content,
+        timestamp: m.timestamp,
       }));
       setMessages((prev) => [...prev, userMsg]);
 
@@ -231,6 +241,7 @@ export function GlanceCoach({ today, maxMessages = 4 }: GlanceCoachProps) {
           id: nextId(),
           role: 'coach',
           content: data.message,
+          timestamp: new Date().toISOString(),
           workoutRecommendations,
           trainingPlanPreview,
           autoActivatedPlan,
