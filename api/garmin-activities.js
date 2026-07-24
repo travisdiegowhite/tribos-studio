@@ -6,6 +6,7 @@ import { getSupabaseAdmin } from './utils/supabaseAdmin.js';
 import { setupCors } from './utils/cors.js';
 import { downloadAndParseFitFile } from './utils/fitParser.js';
 import { fetchAthleteProfile } from './utils/athleteProfile.js';
+import { sanitizeStressScore } from './utils/stressScoreSanitizer.js';
 import {
   executeBackfillForUser,
   getBackfillProgress,
@@ -1004,9 +1005,10 @@ async function backfillGpsData(req, res, userId) {
             gpsUpdate.effective_power = pm.normalizedPower;
           }
           if (pm.maxPower) gpsUpdate.max_watts = pm.maxPower;
-          if (pm.trainingStressScore) {
-            gpsUpdate.tss = pm.trainingStressScore;
-            gpsUpdate.rss = pm.trainingStressScore;
+          const tssSafeGps = sanitizeStressScore(pm.trainingStressScore);
+          if (tssSafeGps != null) {
+            gpsUpdate.tss = tssSafeGps;
+            gpsUpdate.rss = tssSafeGps;
           }
           if (pm.intensityFactor) {
             gpsUpdate.intensity_factor = pm.intensityFactor;
@@ -1451,9 +1453,10 @@ async function backfillPowerData(req, res, userId) {
           updateData.effective_power = pm.normalizedPower;
         }
         if (pm.maxPower) updateData.max_watts = pm.maxPower;
-        if (pm.trainingStressScore) {
-          updateData.tss = pm.trainingStressScore;
-          updateData.rss = pm.trainingStressScore;
+        const tssSafePow = sanitizeStressScore(pm.trainingStressScore);
+        if (tssSafePow != null) {
+          updateData.tss = tssSafePow;
+          updateData.rss = tssSafePow;
         }
         if (pm.intensityFactor) {
           updateData.intensity_factor = pm.intensityFactor;
@@ -1823,9 +1826,10 @@ async function backfillStreamsData(req, res, userId) {
             updateData.effective_power = pm.normalizedPower;
           }
           if (pm.maxPower) updateData.max_watts = pm.maxPower;
-          if (pm.trainingStressScore) {
-            updateData.tss = pm.trainingStressScore;
-            updateData.rss = pm.trainingStressScore;
+          const tssSafeStr = sanitizeStressScore(pm.trainingStressScore);
+          if (tssSafeStr != null) {
+            updateData.tss = tssSafeStr;
+            updateData.rss = tssSafeStr;
           }
           if (pm.intensityFactor) {
             updateData.intensity_factor = pm.intensityFactor;

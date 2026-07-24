@@ -35,6 +35,7 @@ import { setupCors } from './utils/cors.js';
 import { rateLimitByUser } from './utils/rateLimit.js';
 import { parseFitBuffer } from './utils/fitParser.js';
 import { fetchAthleteProfile } from './utils/athleteProfile.js';
+import { sanitizeStressScore } from './utils/stressScoreSanitizer.js';
 
 const supabase = getSupabaseAdmin();
 
@@ -312,16 +313,10 @@ export default async function handler(req, res) {
     if (v < 0 || v >= 10) return null;
     return v;
   };
-  // tss / rss are NUMERIC(6,2) — max 9999.99. TSS values that high are
-  // implausible (a 24h race might hit ~1500) so clamp at 9999 and null out
-  // anything beyond.
-  const sanitizeTss = (val) => {
-    if (val == null || isNaN(val) || val < 0 || val >= 10000) return null;
-    return val;
-  };
-
   const intensityValue = sanitizeIntensity(pm.intensityFactor ?? summary.intensityFactor);
-  const tssValue = sanitizeTss(pm.trainingStressScore ?? summary.trainingStressScore);
+  // Shared sanitizer rejects the FIT uint16 sentinel (6553.5) and anything
+  // >= 1000 — see api/utils/stressScoreSanitizer.js for rationale.
+  const tssValue = sanitizeStressScore(pm.trainingStressScore ?? summary.trainingStressScore);
 
   const providerActivityId = provider === 'garmin'
     ? garminActivityId

@@ -33,3 +33,6 @@ coverage/
 # Misc
 .cache/
 *.tgz
+
+# Data-repair backups (scripts/repair-sentinel-tss.js)
+scripts/backups/
