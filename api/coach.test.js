@@ -25,10 +25,15 @@ vi.mock('./utils/contextHelpers.js', () => ({
   formatHealth: () => 'No health data available.',
   fetchProprietaryMetrics: vi.fn().mockResolvedValue(null),
 }));
-vi.mock('./utils/temporalAnchor.js', () => ({
-  buildTemporalAnchor: () => 'ANCHOR',
-  fetchTemporalAnchorData: vi.fn().mockResolvedValue({ plannedWorkouts: [], raceGoals: [] }),
-}));
+const fetchAnchorMock = vi.fn();
+vi.mock('./utils/temporalAnchor.js', async (importOriginal) => {
+  const actual = await importOriginal();
+  return {
+    ...actual, // keep the real sanitizeSessionIds/buildSessionLabelMap
+    buildTemporalAnchor: () => 'ANCHOR',
+    fetchTemporalAnchorData: fetchAnchorMock,
+  };
+});
 const buildEnrichmentBlock = vi.fn();
 vi.mock('./utils/coachContextEnrichment.js', () => ({
   fetchCoachEnrichmentData: vi.fn().mockResolvedValue(null),
@@ -124,6 +129,8 @@ beforeEach(() => {
   fromOverride = null;
   buildEnrichmentBlock.mockReset();
   buildEnrichmentBlock.mockReturnValue(null);
+  fetchAnchorMock.mockReset();
+  fetchAnchorMock.mockResolvedValue({ plannedWorkouts: [], raceGoals: [] });
   process.env.ANTHROPIC_API_KEY = 'sk-test';
   getUser.mockResolvedValue({ data: { user: { id: 'user-1' } }, error: null });
 });
@@ -417,6 +424,32 @@ describe('coach handler — forced tool pass', () => {
     expect(sent[5].content).toMatch(/^\[Today is /);
     // The system prompt explains the markers.
     expect(messagesCreate.mock.calls[0][0].system).toContain('occurred on a PREVIOUS day');
+  });
+
+  it('scrubs internal sess_ ids from the reply, replacing known ids with the session description', async () => {
+    fetchAnchorMock.mockResolvedValue({
+      plannedWorkouts: [
+        {
+          id: 'b9949240-1111-2222-3333-444455556666',
+          scheduled_date: '2026-07-25',
+          name: 'Endurance Ride',
+          workout_type: 'endurance',
+          target_duration: 75,
+        },
+      ],
+      raceGoals: [],
+    });
+    messagesCreate.mockResolvedValueOnce(
+      textResponse("Tomorrow's session (sess_b9949240) is key. Ignore sess_deadbeef.")
+    );
+
+    const res = makeRes();
+    await handler(makeReq({ message: 'how is my fitness trending?' }), res);
+
+    expect(res.statusCode).toBe(200);
+    expect(res.body.message).not.toMatch(/sess_/);
+    expect(res.body.message).toContain('1h15m Endurance Ride');
+    expect(res.body.message).toContain('the scheduled session');
   });
 
   it('injects the server training snapshot block into the system prompt', async () => {

@@ -15,7 +15,7 @@ import { generateFuelPlan } from './utils/fuelPlanGenerator.js';
 import { fetchCalendarContext } from './utils/calendarHelper.js';
 import { PERSONA_DATA } from './utils/personaData.js';
 import { formatHealth, fetchProprietaryMetrics } from './utils/contextHelpers.js';
-import { buildTemporalAnchor, fetchTemporalAnchorData } from './utils/temporalAnchor.js';
+import { buildTemporalAnchor, fetchTemporalAnchorData, buildSessionLabelMap, sanitizeSessionIds } from './utils/temporalAnchor.js';
 import { fetchCoachEnrichmentData, buildCoachEnrichmentBlock } from './utils/coachContextEnrichment.js';
 
 // Initialize Supabase for auth validation
@@ -2126,6 +2126,11 @@ ${conversationSummary}
       quickMode: quickMode,
       suggestedActionsCount: suggestedActions?.length || 0
     });
+
+    // Internal sess_ handles must never reach the athlete — replace any the
+    // model echoed with the session's description (covers every reply branch:
+    // normal, forced-tool, fallback, arc explanation).
+    responseText = sanitizeSessionIds(responseText, buildSessionLabelMap(anchorData.plannedWorkouts));
 
     return res.status(200).json({
       success: true,
