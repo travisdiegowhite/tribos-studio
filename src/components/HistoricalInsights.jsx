@@ -18,6 +18,7 @@ import {
   ThemeIcon,
   Alert,
   Button,
+  SegmentedControl,
 } from '@mantine/core';
 import {
   LineChart,
@@ -39,6 +40,8 @@ import { tokens } from '../theme';
 import { ArrowsClockwise, ChartLine, Fire, TrendDown, TrendUp, Trophy, WarningCircle } from '@phosphor-icons/react';
 import { computeWeeklySnapshots, overlayServerLoadOnWeeklySnapshots } from '../utils/computeFitnessSnapshots';
 import { getISOWeek, getISOWeekYear } from '../utils/isoWeek';
+import { selectTimeTicks } from '../utils/timeAxisTicks';
+import { parseLocalDate } from '../utils/dateUtils';
 
 /**
  * Year-over-Year CTL Comparison Chart
@@ -209,47 +212,81 @@ function SeasonalPatternChart({ snapshots }) {
 /**
  * Long-term Fitness Progression Chart
  */
+const PROGRESSION_RANGES = { All: null, '5y': 5, '2y': 2, '1y': 1 };
+
 function FitnessProgressionChart({ snapshots }) {
+  const [range, setRange] = useState('All');
+
   const chartData = useMemo(() => {
     if (!snapshots || snapshots.length === 0) return [];
 
     return snapshots
       .slice()
-      .sort((a, b) => new Date(a.snapshot_week) - new Date(b.snapshot_week))
-      .map(s => ({
-        date: s.snapshot_week,
-        ctl: s.ctl,
-        atl: s.atl,
-        tsb: s.tsb,
-        hours: s.weekly_hours,
-      }));
+      .sort((a, b) => a.snapshot_week.localeCompare(b.snapshot_week))
+      .map(s => ({ date: s.snapshot_week, ctl: s.ctl }));
   }, [snapshots]);
+
+  // Filter to the selected range by string math on the YYYY-MM-DD key
+  // (never `new Date(key)` — UTC parsing shifts dates in negative offsets).
+  const visibleData = useMemo(() => {
+    const years = PROGRESSION_RANGES[range];
+    if (!years || chartData.length === 0) return chartData;
+    const lastKey = chartData[chartData.length - 1].date;
+    const cutoff = `${Number(lastKey.slice(0, 4)) - years}${lastKey.slice(4)}`;
+    return chartData.filter(d => d.date >= cutoff);
+  }, [chartData, range]);
+
+  const { ticks, format } = useMemo(
+    () => selectTimeTicks(visibleData.map(d => d.date)),
+    [visibleData],
+  );
+
+  // Headline: current CTL vs the snapshot closest to a year ago. Hidden when
+  // there isn't a year of history or the year-ago value is still in the
+  // cold-start ramp (a tiny divisor makes any percentage meaningless — the
+  // old "vs first week ever" version of this badge read +2200%).
+  const yearOverYear = useMemo(() => {
+    if (chartData.length === 0) return null;
+    const lastPoint = chartData[chartData.length - 1];
+    const yearAgoKey = `${Number(lastPoint.date.slice(0, 4)) - 1}${lastPoint.date.slice(4)}`;
+    let prior = null;
+    for (const d of chartData) {
+      if (d.date > yearAgoKey) break;
+      prior = d;
+    }
+    if (!prior || !(prior.ctl >= 5)) return null;
+    return Math.round(((lastPoint.ctl - prior.ctl) / prior.ctl) * 100);
+  }, [chartData]);
 
   if (chartData.length === 0) {
     return null;
   }
 
-  // Calculate overall trend
-  const firstCtl = chartData[0]?.ctl || 0;
-  const lastCtl = chartData[chartData.length - 1]?.ctl || 0;
-  const overallChange = lastCtl - firstCtl;
-  const percentChange = firstCtl > 0 ? Math.round((overallChange / firstCtl) * 100) : 0;
-
   return (
     <Card withBorder p="md">
       <Group justify="space-between" mb="md">
         <Title order={4}>Long-term Fitness Progression</Title>
-        <Badge
-          color={overallChange >= 0 ? 'green' : 'red'}
-          variant="light"
-          leftSection={overallChange >= 0 ? <TrendUp size={14} /> : <TrendDown size={14} />}
-        >
-          {overallChange >= 0 ? '+' : ''}{percentChange}% overall
-        </Badge>
+        <Group gap="sm">
+          {yearOverYear != null && (
+            <Badge
+              color={yearOverYear >= 0 ? 'green' : 'red'}
+              variant="light"
+              leftSection={yearOverYear >= 0 ? <TrendUp size={14} /> : <TrendDown size={14} />}
+            >
+              {yearOverYear >= 0 ? '+' : ''}{yearOverYear}% vs last year
+            </Badge>
+          )}
+          <SegmentedControl
+            size="xs"
+            value={range}
+            onChange={setRange}
+            data={Object.keys(PROGRESSION_RANGES)}
+          />
+        </Group>
       </Group>
 
       <ResponsiveContainer width="100%" height={300}>
-        <AreaChart data={chartData}>
+        <AreaChart data={visibleData}>
           <defs>
             <linearGradient id="ctlGradient" x1="0" y1="0" x2="0" y2="1">
               <stop offset="5%" stopColor="#C49A0A" stopOpacity={0.3}/>
@@ -261,11 +298,9 @@ function FitnessProgressionChart({ snapshots }) {
             dataKey="date"
             stroke={'var(--color-text-muted)'}
             tick={{ fontSize: 12 }}
-            tickFormatter={(date) => {
-              const d = new Date(date);
-              return `${d.getMonth() + 1}/${d.getFullYear().toString().slice(2)}`;
-            }}
-            interval="preserveStartEnd"
+            ticks={ticks}
+            interval={0}
+            tickFormatter={format}
           />
           <YAxis
             stroke={'var(--color-text-muted)'}
@@ -275,9 +310,9 @@ function FitnessProgressionChart({ snapshots }) {
             contentStyle={{
               backgroundColor: 'var(--color-bg-secondary)',
               border: `1px solid ${'var(--tribos-border)'}`,
-              borderRadius: 8
+              borderRadius: 0
             }}
-            labelFormatter={(date) => new Date(date).toLocaleDateString()}
+            labelFormatter={(date) => `Week of ${parseLocalDate(date).toLocaleDateString()}`}
             formatter={(value, name) => [Math.round(value), name.toUpperCase()]}
           />
           <Area
