@@ -25,10 +25,15 @@ vi.mock('./utils/contextHelpers.js', () => ({
   formatHealth: () => 'No health data available.',
   fetchProprietaryMetrics: vi.fn().mockResolvedValue(null),
 }));
-vi.mock('./utils/temporalAnchor.js', () => ({
-  buildTemporalAnchor: () => 'ANCHOR',
-  fetchTemporalAnchorData: vi.fn().mockResolvedValue({ plannedWorkouts: [], raceGoals: [] }),
-}));
+const fetchAnchorMock = vi.fn();
+vi.mock('./utils/temporalAnchor.js', async (importOriginal) => {
+  const actual = await importOriginal();
+  return {
+    ...actual, // keep the real sanitizeSessionIds/buildSessionLabelMap
+    buildTemporalAnchor: () => 'ANCHOR',
+    fetchTemporalAnchorData: fetchAnchorMock,
+  };
+});
 const buildEnrichmentBlock = vi.fn();
 vi.mock('./utils/coachContextEnrichment.js', () => ({
   fetchCoachEnrichmentData: vi.fn().mockResolvedValue(null),
@@ -41,12 +46,46 @@ vi.mock('./utils/personaData.js', () => ({
 // Chainable Supabase stub: any await resolves to an empty list, maybeSingle to null.
 function chain() {
   const obj = {};
-  for (const m of ['select', 'eq', 'order', 'limit', 'is', 'gte', 'lte', 'insert', 'update', 'upsert', 'single']) {
+  for (const m of ['select', 'eq', 'order', 'limit', 'is', 'gte', 'lte', 'in', 'or', 'insert', 'update', 'upsert', 'single']) {
     obj[m] = () => obj;
   }
   obj.maybeSingle = () => Promise.resolve({ data: null, error: null });
   obj.then = (resolve) => Promise.resolve({ data: [], error: null }).then(resolve);
   return obj;
+}
+
+// Recording stub for planned_workouts: the first awaited SELECT resolves
+// `fetchRows`; every awaited UPDATE resolves one affected row and is recorded
+// with its payload + filters, so tests can assert exactly what was written.
+function recordingPlannedWorkouts(fetchRows) {
+  const updates = [];
+  const calls = [];
+  const make = () => {
+    const local = { filters: [], payload: null, isUpdate: false };
+    const c = {};
+    for (const m of ['select', 'eq', 'neq', 'order', 'limit', 'is', 'gte', 'lte', 'in', 'or', 'single']) {
+      c[m] = (...args) => {
+        local.filters.push([m, ...args]);
+        return c;
+      };
+    }
+    c.update = (payload) => {
+      local.isUpdate = true;
+      local.payload = payload;
+      return c;
+    };
+    c.maybeSingle = () => Promise.resolve({ data: null, error: null });
+    c.then = (resolve) => {
+      calls.push(local);
+      if (local.isUpdate) {
+        updates.push(local);
+        return Promise.resolve({ data: [{ id: 'affected' }], error: null }).then(resolve);
+      }
+      return Promise.resolve({ data: fetchRows, error: null }).then(resolve);
+    };
+    return c;
+  };
+  return { make, updates, calls };
 }
 
 // Per-test override for `from`, so a test can simulate a real plan + workout write.
@@ -62,7 +101,13 @@ vi.mock('./utils/supabaseAdmin.js', () => ({
 
 const coachModule = await import('./coach.js');
 const handler = coachModule.default;
-const { detectCoachIntent, detectIntentFromResponse } = coachModule;
+const {
+  detectCoachIntent,
+  detectIntentFromResponse,
+  handleScheduleAdjustment,
+  resolveScheduledDate,
+  swapWorkoutDates,
+} = coachModule;
 
 function makeRes() {
   return {
@@ -124,6 +169,8 @@ beforeEach(() => {
   fromOverride = null;
   buildEnrichmentBlock.mockReset();
   buildEnrichmentBlock.mockReturnValue(null);
+  fetchAnchorMock.mockReset();
+  fetchAnchorMock.mockResolvedValue({ plannedWorkouts: [], raceGoals: [] });
   process.env.ANTHROPIC_API_KEY = 'sk-test';
   getUser.mockResolvedValue({ data: { user: { id: 'user-1' } }, error: null });
 });
@@ -419,6 +466,32 @@ describe('coach handler — forced tool pass', () => {
     expect(messagesCreate.mock.calls[0][0].system).toContain('occurred on a PREVIOUS day');
   });
 
+  it('scrubs internal sess_ ids from the reply, replacing known ids with the session description', async () => {
+    fetchAnchorMock.mockResolvedValue({
+      plannedWorkouts: [
+        {
+          id: 'b9949240-1111-2222-3333-444455556666',
+          scheduled_date: '2026-07-25',
+          name: 'Endurance Ride',
+          workout_type: 'endurance',
+          target_duration: 75,
+        },
+      ],
+      raceGoals: [],
+    });
+    messagesCreate.mockResolvedValueOnce(
+      textResponse("Tomorrow's session (sess_b9949240) is key. Ignore sess_deadbeef.")
+    );
+
+    const res = makeRes();
+    await handler(makeReq({ message: 'how is my fitness trending?' }), res);
+
+    expect(res.statusCode).toBe(200);
+    expect(res.body.message).not.toMatch(/sess_/);
+    expect(res.body.message).toContain('1h15m Endurance Ride');
+    expect(res.body.message).toContain('the scheduled session');
+  });
+
   it('injects the server training snapshot block into the system prompt', async () => {
     buildEnrichmentBlock.mockReturnValue(
       '=== SERVER TRAINING SNAPSHOT (DB-VERIFIED) ===\nFTP: 285W'
@@ -443,5 +516,218 @@ describe('coach handler — forced tool pass', () => {
     expect(res.body.workoutRecommendations).toHaveLength(1);
     expect(res.body.message).toBeTruthy();
     expect(res.body.message.trim().length).toBeGreaterThan(0);
+  });
+});
+
+describe('resolveScheduledDate — athlete-timezone weekdays', () => {
+  // 2026-07-25T03:00:00Z is Friday July 24, 9pm in Denver (UTC-6) but already
+  // Saturday in UTC — the old server-UTC weekday made this_saturday resolve a
+  // full week out.
+  const FRI_NIGHT_DENVER = new Date('2026-07-25T03:00:00Z');
+
+  it("resolves this_saturday to tomorrow for a Friday-evening Denver athlete (old code: a week out)", () => {
+    expect(resolveScheduledDate('this_saturday', 'America/Denver', FRI_NIGHT_DENVER)).toBe('2026-07-25');
+  });
+
+  it('resolves next_saturday to the following week', () => {
+    expect(resolveScheduledDate('next_saturday', 'America/Denver', FRI_NIGHT_DENVER)).toBe('2026-08-01');
+  });
+
+  it('today/tomorrow stay athlete-local', () => {
+    expect(resolveScheduledDate('today', 'America/Denver', FRI_NIGHT_DENVER)).toBe('2026-07-24');
+    expect(resolveScheduledDate('tomorrow', 'America/Denver', FRI_NIGHT_DENVER)).toBe('2026-07-25');
+  });
+
+  it('passes literal dates through and works in UTC', () => {
+    expect(resolveScheduledDate('2026-08-15', 'America/Denver', FRI_NIGHT_DENVER)).toBe('2026-08-15');
+    // In UTC the same instant IS Saturday, so this_saturday is today.
+    expect(resolveScheduledDate('this_saturday', 'UTC', FRI_NIGHT_DENVER)).toBe('2026-08-01');
+  });
+});
+
+describe('handleScheduleAdjustment — honest, user-scoped writes', () => {
+  it('add_rest converts every plan\'s row on the date and dual-writes zero load', async () => {
+    const rec = recordingPlannedWorkouts([
+      { id: 'w1', workout_id: 'endurance_base_1', original_workout_id: null },
+      { id: 'w2', workout_id: 'endurance_base_2', original_workout_id: null },
+    ]);
+    fromOverride = (table) => (table === 'planned_workouts' ? rec.make() : chain());
+
+    const result = await handleScheduleAdjustment(
+      'user-1',
+      { adjustments: [{ action: 'add_rest', source_date: '2026-07-25' }], summary: 'skip Saturday' },
+      null,
+      'UTC'
+    );
+
+    expect(result.success).toBe(true);
+    expect(result.adjustments[0].success).toBe(true);
+    expect(result.adjustments[0].workouts_affected).toBe(2);
+    expect(result.failed).toBe(0);
+
+    // Both rows converted, both metric columns zeroed (freeze-policy dual-write).
+    expect(rec.updates).toHaveLength(2);
+    for (const u of rec.updates) {
+      expect(u.payload.workout_type).toBe('rest');
+      expect(u.payload.target_rss).toBe(0);
+      expect(u.payload.target_tss).toBe(0);
+    }
+
+    // The fetch was user-scoped, never plan-scoped (no planId given).
+    const fetchFilters = rec.calls.find((c) => !c.isUpdate).filters;
+    expect(fetchFilters).toContainEqual(['eq', 'user_id', 'user-1']);
+    expect(fetchFilters.some(([m, col]) => m === 'eq' && col === 'plan_id')).toBe(false);
+    // Null-safe completed filter.
+    expect(fetchFilters).toContainEqual(['or', 'completed.eq.false,completed.is.null']);
+  });
+
+  it('reports failure honestly when no workout exists on the date', async () => {
+    const rec = recordingPlannedWorkouts([]);
+    fromOverride = (table) => (table === 'planned_workouts' ? rec.make() : chain());
+
+    const result = await handleScheduleAdjustment(
+      'user-1',
+      { adjustments: [{ action: 'add_rest', source_date: '2026-07-26' }], summary: 's' },
+      null,
+      'UTC'
+    );
+
+    expect(result.success).toBe(false);
+    expect(result.failed).toBe(1);
+    expect(result.adjustments[0].success).toBe(false);
+    expect(result.adjustments[0].workouts_affected).toBe(0);
+    expect(result.adjustments[0].error).toMatch(/no planned workout found on 2026-07-26/i);
+    expect(rec.updates).toHaveLength(0);
+  });
+
+  it('scopes to an explicitly selected plan when planId is provided', async () => {
+    const rec = recordingPlannedWorkouts([{ id: 'w1', workout_id: null, original_workout_id: null }]);
+    fromOverride = (table) => (table === 'planned_workouts' ? rec.make() : chain());
+
+    await handleScheduleAdjustment(
+      'user-1',
+      { adjustments: [{ action: 'add_rest', source_date: '2026-07-25' }], summary: 's' },
+      'plan-9',
+      'UTC'
+    );
+
+    const fetchFilters = rec.calls.find((c) => !c.isUpdate).filters;
+    expect(fetchFilters).toContainEqual(['eq', 'plan_id', 'plan-9']);
+  });
+
+  it("labels 'remove' as a non-destructive rest-day conversion", async () => {
+    const rec = recordingPlannedWorkouts([{ id: 'w1', workout_id: 'tempo_1', original_workout_id: null }]);
+    fromOverride = (table) => (table === 'planned_workouts' ? rec.make() : chain());
+
+    const result = await handleScheduleAdjustment(
+      'user-1',
+      { adjustments: [{ action: 'remove', source_date: '2026-07-25' }], summary: 's' },
+      null,
+      'UTC'
+    );
+
+    expect(result.adjustments[0].effective_action).toBe('add_rest');
+    expect(result.adjustments[0].note).toMatch(/not deleted/i);
+  });
+
+  it('replace writes the library workout\'s real name, type, and dual-written load', async () => {
+    const rec = recordingPlannedWorkouts([{ id: 'w1', workout_id: 'old_endurance', original_workout_id: null }]);
+    fromOverride = (table) => (table === 'planned_workouts' ? rec.make() : chain());
+
+    const result = await handleScheduleAdjustment(
+      'user-1',
+      { adjustments: [{ action: 'replace', source_date: '2026-07-25', new_workout_id: 'recovery_spin' }], summary: 's' },
+      null,
+      'UTC'
+    );
+
+    expect(result.adjustments[0].success).toBe(true);
+    const payload = rec.updates[0].payload;
+    expect(typeof payload.target_rss).toBe('number');
+    expect(payload.target_rss).toBe(payload.target_tss); // dual-write
+    expect(typeof payload.target_duration).toBe('number');
+    expect(payload.workout_type).toBeTruthy();
+    expect(result.adjustments[0].new_workout_name).toBeTruthy();
+  });
+
+  it('replace flags unknown workout ids instead of silently leaving stale fields', async () => {
+    const rec = recordingPlannedWorkouts([{ id: 'w1', workout_id: 'old_endurance', original_workout_id: null }]);
+    fromOverride = (table) => (table === 'planned_workouts' ? rec.make() : chain());
+
+    const result = await handleScheduleAdjustment(
+      'user-1',
+      { adjustments: [{ action: 'replace', source_date: '2026-07-25', new_workout_id: 'not_a_real_workout' }], summary: 's' },
+      null,
+      'UTC'
+    );
+
+    expect(result.adjustments[0].note).toMatch(/metadata not found/i);
+  });
+});
+
+describe('swapWorkoutDates — rollback on partial failure', () => {
+  it('restores the parked source when the target move fails (no stranded NULL-date row)', async () => {
+    const updateCalls = [];
+    let updateCount = 0;
+    fromOverride = () => {
+      const c = chain();
+      c.update = (payload) => {
+        updateCount++;
+        const n = updateCount;
+        const rec = { n, payload, ids: [] };
+        updateCalls.push(rec);
+        const sub = {
+          eq: (col, val) => {
+            rec.ids.push([col, val]);
+            return sub;
+          },
+          then: (resolve) =>
+            Promise.resolve(n === 2 ? { data: null, error: { message: 'boom' } } : { data: null, error: null }).then(resolve),
+        };
+        return sub;
+      };
+      return c;
+    };
+
+    const result = await swapWorkoutDates('src-1', '2026-07-25', 'tgt-1', '2026-07-26');
+
+    expect(result.success).toBe(false);
+    expect(result.error).toMatch(/boom/);
+    // Call 1 parked the source at NULL; call 2 failed; call 3 must restore the
+    // source back to its original date.
+    expect(updateCalls).toHaveLength(3);
+    expect(updateCalls[0].payload.scheduled_date).toBeNull();
+    expect(updateCalls[2].payload.scheduled_date).toBe('2026-07-25');
+    expect(updateCalls[2].ids).toContainEqual(['id', 'src-1']);
+  });
+});
+
+describe('coach handler — schedule adjustment payload honesty', () => {
+  it('returns scheduleAdjusted:false and the failing adjustment when nothing changed', async () => {
+    const rec = recordingPlannedWorkouts([]);
+    fromOverride = (table) => (table === 'planned_workouts' ? rec.make() : chain());
+
+    messagesCreate
+      .mockResolvedValueOnce({
+        content: [
+          {
+            type: 'tool_use',
+            id: 'ta1',
+            name: 'adjust_schedule',
+            input: { adjustments: [{ action: 'add_rest', source_date: 'today' }], summary: 'rest today' },
+          },
+        ],
+        usage: { input_tokens: 5, output_tokens: 8 },
+      })
+      .mockResolvedValueOnce(textResponse("I couldn't find a planned workout today, so nothing was changed."));
+
+    const res = makeRes();
+    await handler(makeReq({ message: 'give me a rest day tomorrow' }), res);
+
+    expect(res.statusCode).toBe(200);
+    expect(res.body.scheduleAdjusted).toBe(false);
+    expect(res.body.scheduleAdjustments).toHaveLength(1);
+    expect(res.body.scheduleAdjustments[0].success).toBe(false);
+    expect(res.body.scheduleAdjustments[0].workouts_affected).toBe(0);
   });
 });

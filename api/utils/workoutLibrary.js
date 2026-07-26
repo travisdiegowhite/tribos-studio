@@ -442,7 +442,7 @@ The adjustments are applied immediately to the athlete's active plan. Always con
             action: {
               type: "string",
               enum: ["move", "swap", "replace", "remove", "add_rest"],
-              description: "Type of adjustment: move (change workout date), swap (exchange two workouts' dates), replace (change the workout_id to a different workout), remove (delete the workout), add_rest (convert to a rest day)"
+              description: "Type of adjustment: move (change workout date), swap (exchange two workouts' dates), replace (change the workout_id to a different workout), remove (convert the workout to a rest day — non-destructive; the day shows as Rest Day), add_rest (convert to a rest day)"
             },
             source_date: {
               type: "string",

@@ -17,7 +17,7 @@
 import Anthropic from '@anthropic-ai/sdk';
 import { getSupabaseAdmin } from './utils/supabaseAdmin.js';
 import { verifyCronAuth } from './utils/verifyCronAuth.js';
-import { buildTemporalAnchor, fetchTemporalAnchorData } from './utils/temporalAnchor.js';
+import { buildTemporalAnchor, fetchTemporalAnchorData, buildSessionLabelMap, sanitizeSessionIds } from './utils/temporalAnchor.js';
 import {
   CORRECTION_TOOLS,
   buildTokenMap,
@@ -90,7 +90,7 @@ Gap: ${currentTfi < goal.target_tfi_min ? `${goal.target_tfi_min - currentTfi} b
 Your job: propose 1–3 specific session modifications to bring projected TFI into the target band.
 
 ## RULES
-- Use ONLY session IDs from the SESSIONS block above.
+- Use ONLY session IDs from the SESSIONS block above — and ONLY inside propose_modification calls. NEVER write a session_id in opener/closer/reason prose; the athlete reads that text. Refer to sessions there by description and day.
 - Call propose_modification once per session you want to change.
 - After all propose_modification calls, call render_coach_voice exactly once.
 - In render_coach_voice prose, use only {anchor_label} tokens for dates — NEVER raw day names.
@@ -302,10 +302,20 @@ export default async function handler(req, res) {
             goal.user_id, personaId, goal, projectedWithout, anchorBlock, { plannedWorkouts, raceGoals: allGoals }, timezone
           );
 
-          // Resolve tokens server-side
+          // Resolve tokens server-side, then scrub any internal sess_ ids the
+          // model leaked into athlete-facing prose (the mod.session_id FIELDS
+          // are the legitimate contract and are never touched).
           const tokenMap = buildTokenMap(timezone, plannedWorkouts, allGoals);
-          const resolvedOpener = resolveTokens(raw.opener, tokenMap);
-          const resolvedCloser = resolveTokens(raw.closer, tokenMap);
+          const sessionLabels = buildSessionLabelMap(plannedWorkouts);
+          const resolvedOpener = sanitizeSessionIds(resolveTokens(raw.opener, tokenMap), sessionLabels);
+          const resolvedCloser = sanitizeSessionIds(resolveTokens(raw.closer, tokenMap), sessionLabels);
+          if (Array.isArray(raw.modifications)) {
+            for (const mod of raw.modifications) {
+              if (typeof mod?.reason === 'string') {
+                mod.reason = sanitizeSessionIds(mod.reason, sessionLabels);
+              }
+            }
+          }
 
           // Validate (Phase 6)
           const enriched = enrichModificationsWithIds(raw.modifications, plannedWorkouts);

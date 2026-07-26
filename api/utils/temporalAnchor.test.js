@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { buildTemporalAnchor } from './temporalAnchor.js';
+import { buildTemporalAnchor, buildSessionLabelMap, sanitizeSessionIds } from './temporalAnchor.js';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -134,6 +134,14 @@ describe('buildTemporalAnchor', () => {
       const block = buildTemporalAnchor('America/Denver', [session], [], now);
       expect(block).toContain('this_fri');
       expect(block).toContain('sess_abcd1234');
+    });
+
+    it('declares session_ids internal and forbids them in athlete-facing prose', () => {
+      const now = makeDate('2026-04-22T13:00:00Z');
+      const block = buildTemporalAnchor('America/Denver', [], [], now);
+      expect(block).toContain('INTERNAL identifiers for');
+      expect(block).toContain('NEVER write a session_id in text the athlete will read');
+      expect(block).not.toContain('Refer to\nsessions only by session_id');
     });
 
     it('labels the SESSIONS list as scheduled-and-not-yet-completed', () => {
@@ -318,5 +326,44 @@ describe('buildTemporalAnchor', () => {
       expect(anchor['next_tue']).not.toMatch(/May 5/);
       expect(anchor['2026-05-05']).toMatch(/May 5/);
     });
+  });
+});
+
+describe('session-id sanitization', () => {
+  const workout = makeWorkout('b9949240-1111-2222-3333-444455556666', '2026-07-25', {
+    name: 'Endurance Ride',
+    target_duration: 75,
+  });
+
+  it('maps sess_ handles to the same description the SESSIONS block uses', () => {
+    const map = buildSessionLabelMap([workout]);
+    expect(map.get('sess_b9949240')).toBe('1h15m Endurance Ride');
+  });
+
+  it('replaces known sess_ ids in prose with the session description', () => {
+    const map = buildSessionLabelMap([workout]);
+    const text = "Tomorrow's scheduled session (sess_b9949240) is a 1h15m endurance ride.";
+    expect(sanitizeSessionIds(text, map)).toBe(
+      "Tomorrow's scheduled session (1h15m Endurance Ride) is a 1h15m endurance ride."
+    );
+  });
+
+  it('degrades unknown sess_ ids to a generic phrase instead of leaking them', () => {
+    const map = buildSessionLabelMap([workout]);
+    expect(sanitizeSessionIds('Do sess_deadbeef next.', map)).toBe('Do the scheduled session next.');
+  });
+
+  it('is case-insensitive on the id and leaves clean text untouched', () => {
+    const map = buildSessionLabelMap([workout]);
+    expect(sanitizeSessionIds('See SESS_B9949240 tomorrow.', map)).toBe('See 1h15m Endurance Ride tomorrow.');
+    const clean = 'Ride easy tomorrow, session is on the calendar.';
+    expect(sanitizeSessionIds(clean, map)).toBe(clean);
+  });
+
+  it('passes through non-string values unchanged', () => {
+    const map = buildSessionLabelMap([workout]);
+    expect(sanitizeSessionIds(null, map)).toBeNull();
+    expect(sanitizeSessionIds(undefined, map)).toBeUndefined();
+    expect(sanitizeSessionIds(42, map)).toBe(42);
   });
 });

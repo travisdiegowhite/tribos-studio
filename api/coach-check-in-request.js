@@ -14,7 +14,7 @@ import { setupCors } from './utils/cors.js';
 import { enforceAiQuota } from './utils/aiQuota.js';
 import { assembleCheckInContext } from './utils/checkInContext.js';
 import { PERSONA_DATA } from './utils/personaData.js';
-import { buildTemporalAnchor, fetchTemporalAnchorData } from './utils/temporalAnchor.js';
+import { buildTemporalAnchor, fetchTemporalAnchorData, buildSessionLabelMap, sanitizeSessionIds } from './utils/temporalAnchor.js';
 
 const supabase = getSupabaseAdmin();
 
@@ -259,11 +259,13 @@ export default async function handler(req, res) {
       }
     }
 
-    // Build temporal anchor for this user
+    // Build temporal anchor for this user. anchorData is hoisted so the
+    // sess_-id sanitizer below can map ids back to session descriptions.
     const resolvedTimezone = context.user_timezone || 'UTC';
     let anchorBlock = '';
+    let anchorData = { plannedWorkouts: [], raceGoals: [] };
     try {
-      const anchorData = await fetchTemporalAnchorData(userId, supabase, resolvedTimezone);
+      anchorData = await fetchTemporalAnchorData(userId, supabase, resolvedTimezone);
       anchorBlock = buildTemporalAnchor(resolvedTimezone, anchorData.plannedWorkouts, anchorData.raceGoals);
     } catch (anchorErr) {
       console.error('Check-in anchor fetch failed (non-blocking):', anchorErr.message);
@@ -308,6 +310,17 @@ export default async function handler(req, res) {
       }
     }
 
+    // Internal sess_ handles must never reach the athlete (they also
+    // round-trip: stored check-in text is re-injected into later chat
+    // prompts). Replace any the model echoed with the session description.
+    const sessionLabels = buildSessionLabelMap(anchorData.plannedWorkouts);
+    const clean = (v) => sanitizeSessionIds(v, sessionLabels);
+    const cleanRecommendation = parsed.recommendation
+      ? Object.fromEntries(
+          Object.entries(parsed.recommendation).map(([k, v]) => [k, typeof v === 'string' ? clean(v) : v])
+        )
+      : null;
+
     // Save completed check-in to database
     const { data: checkIn, error: insertError } = await supabase
       .from('coach_check_ins')
@@ -316,10 +329,10 @@ export default async function handler(req, res) {
         activity_id: eligibleActivityId,
         persona_id: personaId,
         status: 'completed',
-        narrative: parsed.narrative || '',
-        deviation_callout: parsed.deviation_callout || null,
-        recommendation: parsed.recommendation || null,
-        next_session_purpose: parsed.next_session_purpose || null,
+        narrative: clean(parsed.narrative || ''),
+        deviation_callout: clean(parsed.deviation_callout) || null,
+        recommendation: cleanRecommendation,
+        next_session_purpose: clean(parsed.next_session_purpose) || null,
         context_snapshot: context,
       })
       .select()

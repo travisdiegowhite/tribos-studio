@@ -112,6 +112,11 @@ function anchorLabel(offsetDays, todayDow, usedLabels, dateStr) {
 
 // ─── Session description ──────────────────────────────────────────────────────
 
+/** Short internal handle for a planned_workouts row ("sess_" + 8 hex chars). */
+function sessionIdFor(session) {
+  return 'sess_' + session.id.replace(/-/g, '').slice(0, 8);
+}
+
 function describeSession(session) {
   if (!session) return 'workout';
 
@@ -232,7 +237,7 @@ export function buildTemporalAnchor(timezone, plannedWorkouts = [], raceGoals = 
     .sort((a, b) => (a.scheduled_date > b.scheduled_date ? 1 : -1));
 
   for (const session of workoutsInWindow) {
-    const sessionId = 'sess_' + session.id.replace(/-/g, '').slice(0, 8);
+    const sessionId = sessionIdFor(session);
     const dayLabel = dateToLabel.get(session.scheduled_date) || session.scheduled_date;
     const goal = (raceGoals || []).find(g => g.race_date === session.scheduled_date);
     const isRaceDay = goal &&
@@ -274,11 +279,44 @@ export function buildTemporalAnchor(timezone, plannedWorkouts = [], raceGoals = 
 
   lines.push(
     '',
-    'CONSTRAINT: Refer to days only by labels in CALENDAR_ANCHOR. Refer to',
-    'sessions only by session_id. Do not compute new dates.'
+    'CONSTRAINT: Refer to days only by labels in CALENDAR_ANCHOR. Do not compute new dates.',
+    'session_ids (e.g. "sess_1af3bc12") are INTERNAL identifiers for tool calls only —',
+    'NEVER write a session_id in text the athlete will read. In prose, refer to sessions',
+    'by their description and day instead (e.g. "tomorrow\'s 1h15m endurance ride").'
   );
 
   return lines.join('\n');
+}
+
+// ─── Session-id sanitization (athlete-facing text) ────────────────────────────
+
+/**
+ * Map every planned workout's internal "sess_xxxxxxxx" handle to its
+ * human description (same derivation and wording the SESSIONS block uses).
+ */
+export function buildSessionLabelMap(plannedWorkouts = []) {
+  const map = new Map();
+  for (const session of plannedWorkouts || []) {
+    if (!session?.id) continue;
+    map.set(sessionIdFor(session).toLowerCase(), describeSession(session));
+  }
+  return map;
+}
+
+const SESSION_ID_PATTERN = /\bsess_[0-9a-f]{6,12}\b/gi;
+
+/**
+ * Replace internal session ids in athlete-facing prose with the session's
+ * description. Unknown ids degrade to "the scheduled session" — this runs on
+ * display text only (never on tool payloads), so degrading beats leaking an
+ * internal handle. Non-strings pass through untouched.
+ */
+export function sanitizeSessionIds(text, labelMap) {
+  if (typeof text !== 'string' || !text) return text;
+  return text.replace(SESSION_ID_PATTERN, (match) => {
+    const label = labelMap?.get(match.toLowerCase());
+    return label || 'the scheduled session';
+  });
 }
 
 /**

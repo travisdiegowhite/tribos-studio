@@ -15,7 +15,7 @@ import { generateFuelPlan } from './utils/fuelPlanGenerator.js';
 import { fetchCalendarContext } from './utils/calendarHelper.js';
 import { PERSONA_DATA } from './utils/personaData.js';
 import { formatHealth, fetchProprietaryMetrics } from './utils/contextHelpers.js';
-import { buildTemporalAnchor, fetchTemporalAnchorData } from './utils/temporalAnchor.js';
+import { buildTemporalAnchor, fetchTemporalAnchorData, buildSessionLabelMap, sanitizeSessionIds } from './utils/temporalAnchor.js';
 import { fetchCoachEnrichmentData, buildCoachEnrichmentBlock } from './utils/coachContextEnrichment.js';
 
 // Initialize Supabase for auth validation
@@ -49,11 +49,23 @@ function shortDayLabel(date, timezone) {
 
 // Resolve relative date strings (today, tomorrow, this_monday, next_tuesday, YYYY-MM-DD) to YYYY-MM-DD
 // timezone param ensures dates are resolved in the user's local timezone, not server UTC
-function resolveScheduledDate(dateStr, timezone = 'UTC') {
-  if (!dateStr) return formatDateInTimezone(new Date(), timezone);
+// Day-of-week (0=Sun..6=Sat) in the given IANA timezone — the server runs in
+// UTC, so getDay() alone is the wrong weekday for evening/early-morning hours.
+function getDayOfWeekInTz(date, tz) {
+  try {
+    const dayName = date.toLocaleDateString('en-US', { weekday: 'short', timeZone: tz });
+    const map = { Sun: 0, Mon: 1, Tue: 2, Wed: 3, Thu: 4, Fri: 5, Sat: 6 };
+    return map[dayName] ?? date.getDay();
+  } catch {
+    return date.getDay();
+  }
+}
+
+export function resolveScheduledDate(dateStr, timezone = 'UTC', now = new Date()) {
+  if (!dateStr) return formatDateInTimezone(now, timezone);
   if (/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) return dateStr;
 
-  const today = new Date();
+  const today = new Date(now);
   const dayNames = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
 
   if (dateStr === 'today') return formatDateInTimezone(today, timezone);
@@ -67,7 +79,10 @@ function resolveScheduledDate(dateStr, timezone = 'UTC') {
     const [, prefix, dayName] = match;
     const targetDay = dayNames.indexOf(dayName.toLowerCase());
     if (targetDay >= 0) {
-      const currentDay = today.getDay();
+      // The athlete's local weekday, not the server's UTC weekday — for a
+      // UTC-7 athlete on Friday evening, UTC is already Saturday and
+      // "this_saturday" would otherwise resolve a full week out.
+      const currentDay = getDayOfWeekInTz(today, timezone);
       let diff = targetDay - currentDay;
       // Normalize to a positive offset (next occurrence of targetDay)
       if (diff <= 0) diff += 7;
@@ -198,27 +213,60 @@ export function detectIntentFromResponse(responseText) {
 // Swap two workouts' dates atomically, using a null parking date to avoid unique constraint violation.
 // The planned_workouts table has UNIQUE(plan_id, scheduled_date), so we can't have two rows
 // with the same plan_id and date at the same time. We park one row at NULL first.
-async function swapWorkoutDates(planId, sourceId, sourceDate, targetId, targetDate) {
+// Every step checks its error and rolls back on partial failure — a workout must
+// never be left stranded at scheduled_date NULL (invisible to all date-ranged
+// reads, i.e. it silently disappears from the calendar).
+// Returns { success, error }. Exported for unit tests.
+export async function swapWorkoutDates(sourceId, sourceDate, targetId, targetDate) {
+  const friendly = (error, date) =>
+    error?.code === '23505'
+      ? `${date} is already occupied by another workout in that plan — possibly a completed one`
+      : error?.message;
+
   // Step 1: Park source workout at NULL date (breaks the constraint lock)
-  await supabase.from('planned_workouts')
+  const { error: parkErr } = await supabase.from('planned_workouts')
     .update({ scheduled_date: null })
     .eq('id', sourceId);
+  if (parkErr) {
+    return { success: false, error: `swap failed while parking source: ${parkErr.message}` };
+  }
 
   // Step 2: Move target workout to source date (now free)
-  await supabase.from('planned_workouts')
+  const { error: targetErr } = await supabase.from('planned_workouts')
     .update({
       scheduled_date: sourceDate,
       day_of_week: new Date(sourceDate + 'T12:00:00').getDay()
     })
     .eq('id', targetId);
+  if (targetErr) {
+    // Un-park the source before bailing.
+    const { error: restoreErr } = await supabase.from('planned_workouts')
+      .update({ scheduled_date: sourceDate, day_of_week: new Date(sourceDate + 'T12:00:00').getDay() })
+      .eq('id', sourceId);
+    if (restoreErr) console.error(`[swap] FAILED to restore parked workout ${sourceId} to ${sourceDate}:`, restoreErr.message);
+    return { success: false, error: friendly(targetErr, sourceDate) };
+  }
 
   // Step 3: Move source workout from NULL to target date (now free)
-  await supabase.from('planned_workouts')
+  const { error: sourceErr } = await supabase.from('planned_workouts')
     .update({
       scheduled_date: targetDate,
       day_of_week: new Date(targetDate + 'T12:00:00').getDay()
     })
     .eq('id', sourceId);
+  if (sourceErr) {
+    // Roll back: target returns to targetDate first (frees sourceDate), then source un-parks.
+    const { error: rb1 } = await supabase.from('planned_workouts')
+      .update({ scheduled_date: targetDate, day_of_week: new Date(targetDate + 'T12:00:00').getDay() })
+      .eq('id', targetId);
+    const { error: rb2 } = await supabase.from('planned_workouts')
+      .update({ scheduled_date: sourceDate, day_of_week: new Date(sourceDate + 'T12:00:00').getDay() })
+      .eq('id', sourceId);
+    if (rb1 || rb2) console.error(`[swap] FAILED rollback (workout ${sourceId} may be stranded at NULL date):`, rb1?.message || rb2?.message);
+    return { success: false, error: friendly(sourceErr, targetDate) };
+  }
+
+  return { success: true };
 }
 
 // planned_workouts.workout_type is a constrained enum; map free-form types onto it.
@@ -574,30 +622,23 @@ Respond with ONLY a JSON object: {"leadIn": "...", "signOff": "..."}`;
 }
 
 // Handle schedule adjustment tool calls — modifies existing active plan workouts
-async function handleScheduleAdjustment(userId, input, targetPlanId = null, timezone = 'UTC') {
+export async function handleScheduleAdjustment(userId, input, targetPlanId = null, timezone = 'UTC') {
   const { adjustments, summary } = input;
   const results = [];
 
-  // Get the target plan — use specific plan_id if provided, otherwise fall back to most recent active plan
-  let planQuery = supabase
-    .from('training_plans')
-    .select('id')
-    .eq('user_id', userId);
-
-  if (targetPlanId) {
-    planQuery = planQuery.eq('id', targetPlanId);
-  } else {
-    planQuery = planQuery
-      .eq('status', 'active')
-      .order('created_at', { ascending: false })
-      .limit(1);
-  }
-
-  const { data: activePlan, error: planError } = await planQuery.maybeSingle();
-
-  if (planError || !activePlan) {
-    return { success: false, error: 'No active training plan found. The athlete needs to create or activate a plan first.' };
-  }
+  // Writes are USER-scoped so they hit exactly the rows every reader shows —
+  // the calendar and temporal anchor read planned_workouts across ALL of the
+  // athlete's plans, and the old plan-scoped writes could match 0 rows (the
+  // row living in a different active plan) while still reporting success.
+  // An explicitly selected plan (client-sent planId) still narrows the scope;
+  // the compound user_id + plan_id filter also enforces ownership.
+  const scoped = (q) => {
+    q = q.eq('user_id', userId);
+    return targetPlanId ? q.eq('plan_id', targetPlanId) : q;
+  };
+  // `completed` is nullable — a bare .eq('completed', false) silently skips
+  // rows inserted with NULL.
+  const notCompleted = (q) => q.or('completed.eq.false,completed.is.null');
 
   for (const adj of adjustments) {
     try {
@@ -607,171 +648,273 @@ async function handleScheduleAdjustment(userId, input, targetPlanId = null, time
         case 'move': {
           const targetDate = resolveScheduledDate(adj.target_date, timezone);
 
-          // Fetch source workout and check if target date is occupied
-          const { data: involved } = await supabase
-            .from('planned_workouts')
-            .select('id, scheduled_date, name, workout_id, workout_type, original_scheduled_date, original_workout_id')
-            .eq('plan_id', activePlan.id)
-            .in('scheduled_date', [sourceDate, targetDate])
-            .eq('completed', false);
-
-          const sourceWorkout = involved?.find(w => w.scheduled_date === sourceDate);
-          const targetWorkout = involved?.find(w => w.scheduled_date === targetDate);
-
-          if (!sourceWorkout) {
-            results.push({ action: 'move', from: sourceDate, to: targetDate, success: false, error: `No incomplete workout found on ${sourceDate}` });
+          // Fetch every involved row (possibly one per plan) and per-plan occupants.
+          const { data: involved, error: fetchErr } = await notCompleted(
+            scoped(
+              supabase
+                .from('planned_workouts')
+                .select('id, plan_id, scheduled_date, name, workout_id, workout_type, original_scheduled_date, original_workout_id')
+            )
+          ).in('scheduled_date', [sourceDate, targetDate]);
+          if (fetchErr) {
+            results.push({ action: 'move', from: sourceDate, to: targetDate, success: false, workouts_affected: 0, error: fetchErr.message });
             break;
           }
 
-          // Track original date if not already tracked
-          if (!sourceWorkout.original_scheduled_date) {
-            await supabase.from('planned_workouts')
-              .update({ original_scheduled_date: sourceDate })
-              .eq('id', sourceWorkout.id);
+          const rows = involved || [];
+          const sources = rows.filter(w => w.scheduled_date === sourceDate);
+          if (sources.length === 0) {
+            results.push({ action: 'move', from: sourceDate, to: targetDate, success: false, workouts_affected: 0, error: `No incomplete workout found on ${sourceDate}` });
+            break;
           }
 
-          if (targetWorkout) {
-            // Target date is occupied — auto-swap instead of failing
-            if (!targetWorkout.original_scheduled_date) {
+          let moved = 0;
+          let autoSwapped = false;
+          let firstError = null;
+          const details = [];
+
+          for (const sourceWorkout of sources) {
+            // Track original date if not already tracked
+            if (!sourceWorkout.original_scheduled_date) {
               await supabase.from('planned_workouts')
-                .update({ original_scheduled_date: targetDate })
-                .eq('id', targetWorkout.id);
+                .update({ original_scheduled_date: sourceDate })
+                .eq('id', sourceWorkout.id);
             }
-            await swapWorkoutDates(activePlan.id, sourceWorkout.id, sourceDate, targetWorkout.id, targetDate);
-            results.push({
-              action: 'move', from: sourceDate, to: targetDate,
-              success: true, auto_swapped: true,
-              detail: `Swapped: "${sourceWorkout.name}" moved to ${targetDate}, "${targetWorkout.name}" moved to ${sourceDate}`
-            });
-          } else {
-            // Target date is free — simple move
-            const { error } = await supabase
-              .from('planned_workouts')
-              .update({
-                scheduled_date: targetDate,
-                day_of_week: new Date(targetDate + 'T12:00:00').getDay()
-              })
-              .eq('id', sourceWorkout.id);
-            results.push({
-              action: 'move', from: sourceDate, to: targetDate,
-              success: !error, error: error?.message
-            });
+
+            // Occupancy only matters within the same plan — UNIQUE is per (plan_id, scheduled_date).
+            const targetWorkout = rows.find(w => w.plan_id === sourceWorkout.plan_id && w.scheduled_date === targetDate);
+
+            if (targetWorkout) {
+              // Target date is occupied — auto-swap instead of failing
+              if (!targetWorkout.original_scheduled_date) {
+                await supabase.from('planned_workouts')
+                  .update({ original_scheduled_date: targetDate })
+                  .eq('id', targetWorkout.id);
+              }
+              const swapRes = await swapWorkoutDates(sourceWorkout.id, sourceDate, targetWorkout.id, targetDate);
+              if (swapRes.success) {
+                moved += 2;
+                autoSwapped = true;
+                details.push(`Swapped: "${sourceWorkout.name}" moved to ${targetDate}, "${targetWorkout.name}" moved to ${sourceDate}`);
+              } else {
+                firstError = firstError || swapRes.error;
+              }
+            } else {
+              // Target date is free in this plan — simple move
+              const { data: movedRows, error } = await supabase
+                .from('planned_workouts')
+                .update({
+                  scheduled_date: targetDate,
+                  day_of_week: new Date(targetDate + 'T12:00:00').getDay()
+                })
+                .eq('id', sourceWorkout.id)
+                .select('id');
+              if (error) {
+                // A 23505 means a COMPLETED row (invisible to our query) holds the target date.
+                firstError = firstError || (error.code === '23505'
+                  ? `${targetDate} already has a completed workout in that plan — cannot move onto it`
+                  : error.message);
+              } else {
+                moved += movedRows?.length || 0;
+              }
+            }
           }
+
+          results.push({
+            action: 'move', from: sourceDate, to: targetDate,
+            success: moved > 0, workouts_affected: moved,
+            ...(autoSwapped ? { auto_swapped: true } : {}),
+            ...(details.length ? { detail: details.join('; ') } : {}),
+            ...(firstError ? { error: firstError } : {})
+          });
           break;
         }
         case 'swap': {
           const targetDate = resolveScheduledDate(adj.target_date, timezone);
-          // Fetch workouts on both dates
-          const { data: workouts } = await supabase
-            .from('planned_workouts')
-            .select('id, scheduled_date, day_of_week, name, original_scheduled_date')
-            .eq('plan_id', activePlan.id)
-            .in('scheduled_date', [sourceDate, targetDate])
-            .eq('completed', false);
+          // Fetch workouts on both dates (possibly across plans)
+          const { data: workouts, error: fetchErr } = await notCompleted(
+            scoped(
+              supabase
+                .from('planned_workouts')
+                .select('id, plan_id, scheduled_date, day_of_week, name, original_scheduled_date')
+            )
+          ).in('scheduled_date', [sourceDate, targetDate]);
+          if (fetchErr) {
+            results.push({ action: 'swap', dates: [sourceDate, targetDate], success: false, workouts_affected: 0, error: fetchErr.message });
+            break;
+          }
 
-          const sourceWorkout = workouts?.find(w => w.scheduled_date === sourceDate);
-          const targetWorkout = workouts?.find(w => w.scheduled_date === targetDate);
-
-          if (!sourceWorkout && !targetWorkout) {
-            results.push({ action: 'swap', success: false, error: 'No workouts found on either date' });
+          const rows = workouts || [];
+          if (rows.length === 0) {
+            results.push({ action: 'swap', dates: [sourceDate, targetDate], success: false, workouts_affected: 0, error: 'No workouts found on either date' });
             break;
           }
 
           // Track original dates if not already tracked
-          if (sourceWorkout && !sourceWorkout.original_scheduled_date) {
-            await supabase.from('planned_workouts')
-              .update({ original_scheduled_date: sourceDate })
-              .eq('id', sourceWorkout.id);
-          }
-          if (targetWorkout && !targetWorkout.original_scheduled_date) {
-            await supabase.from('planned_workouts')
-              .update({ original_scheduled_date: targetDate })
-              .eq('id', targetWorkout.id);
+          for (const w of rows) {
+            if (!w.original_scheduled_date) {
+              await supabase.from('planned_workouts')
+                .update({ original_scheduled_date: w.scheduled_date })
+                .eq('id', w.id);
+            }
           }
 
-          if (sourceWorkout && targetWorkout) {
-            // Both dates have workouts — use atomic swap
-            await swapWorkoutDates(activePlan.id, sourceWorkout.id, sourceDate, targetWorkout.id, targetDate);
-          } else if (sourceWorkout) {
-            // Only source has a workout — simple move
-            await supabase.from('planned_workouts')
-              .update({ scheduled_date: targetDate, day_of_week: new Date(targetDate + 'T12:00:00').getDay() })
-              .eq('id', sourceWorkout.id);
-          } else {
-            // Only target has a workout — simple move
-            await supabase.from('planned_workouts')
-              .update({ scheduled_date: sourceDate, day_of_week: new Date(sourceDate + 'T12:00:00').getDay() })
-              .eq('id', targetWorkout.id);
+          // Per-plan pairing: a plan holding both dates gets a real (parked)
+          // swap; a plan holding one side gets a simple move. A cross-plan
+          // "swap" is therefore two one-sided moves — no parking needed
+          // (UNIQUE is per plan).
+          let changed = 0;
+          let firstError = null;
+          for (const planIdKey of [...new Set(rows.map(w => w.plan_id))]) {
+            const src = rows.find(w => w.plan_id === planIdKey && w.scheduled_date === sourceDate);
+            const tgt = rows.find(w => w.plan_id === planIdKey && w.scheduled_date === targetDate);
+            if (src && tgt) {
+              const swapRes = await swapWorkoutDates(src.id, sourceDate, tgt.id, targetDate);
+              if (swapRes.success) changed += 2;
+              else firstError = firstError || swapRes.error;
+            } else {
+              const row = src || tgt;
+              const newDate = src ? targetDate : sourceDate;
+              const { data: movedRows, error } = await supabase.from('planned_workouts')
+                .update({ scheduled_date: newDate, day_of_week: new Date(newDate + 'T12:00:00').getDay() })
+                .eq('id', row.id)
+                .select('id');
+              if (error) {
+                firstError = firstError || (error.code === '23505'
+                  ? `${newDate} already has a completed workout in that plan — cannot move onto it`
+                  : error.message);
+              } else {
+                changed += movedRows?.length || 0;
+              }
+            }
           }
-          results.push({ action: 'swap', dates: [sourceDate, targetDate], success: true });
+
+          results.push({
+            action: 'swap', dates: [sourceDate, targetDate],
+            success: changed > 0, workouts_affected: changed,
+            ...(firstError ? { error: firstError } : {})
+          });
           break;
         }
         case 'replace': {
-          // Fetch current workout to save original workout_id
-          const { data: current } = await supabase
-            .from('planned_workouts')
-            .select('id, workout_id, original_workout_id')
-            .eq('plan_id', activePlan.id)
-            .eq('scheduled_date', sourceDate)
-            .eq('completed', false)
-            .maybeSingle();
+          const { data: currentRows, error: fetchErr } = await notCompleted(
+            scoped(
+              supabase
+                .from('planned_workouts')
+                .select('id, workout_id, original_workout_id')
+            )
+          ).eq('scheduled_date', sourceDate);
+          if (fetchErr) {
+            results.push({ action: 'replace', date: sourceDate, new_workout: adj.new_workout_id, success: false, workouts_affected: 0, error: fetchErr.message });
+            break;
+          }
 
-          const updateData = { workout_id: adj.new_workout_id };
-          if (adj.new_workout_id) {
-            updateData.name = adj.new_workout_id;
+          const rows = currentRows || [];
+          if (rows.length === 0) {
+            results.push({ action: 'replace', date: sourceDate, new_workout: adj.new_workout_id, success: false, workouts_affected: 0, error: `No planned workout found on ${sourceDate} to replace — nothing was changed` });
+            break;
           }
-          // Track original workout_id if not already tracked
-          if (current && !current.original_workout_id) {
-            updateData.original_workout_id = current.workout_id;
+
+          // Pull the replacement's library metadata so the calendar shows the
+          // new workout's real name/type/load/duration — writing only the id
+          // left the old badge, duration and TSS visibly unchanged.
+          const meta = adj.new_workout_id ? getWorkoutMeta(adj.new_workout_id) : null;
+          const normalizedType = (meta?.category || '').toLowerCase().replace(/[\s-]/g, '_');
+
+          let affected = 0;
+          let firstError = null;
+          for (const row of rows) {
+            const updateData = { workout_id: adj.new_workout_id };
+            if (meta) {
+              updateData.name = meta.name || adj.new_workout_id;
+              updateData.workout_type = VALID_WORKOUT_TYPES.includes(normalizedType) ? normalizedType : 'endurance';
+              // Dual-write canonical + legacy per CLAUDE.md.
+              updateData.target_rss = meta.tss ?? null;
+              updateData.target_tss = meta.tss ?? null;
+              updateData.target_duration = meta.duration ?? null;
+              updateData.duration_minutes = meta.duration ?? 0;
+            } else if (adj.new_workout_id) {
+              updateData.name = adj.new_workout_id;
+            }
+            // Track original workout_id if not already tracked
+            if (!row.original_workout_id && row.workout_id) {
+              updateData.original_workout_id = row.workout_id;
+            }
+            const { data: replacedRows, error } = await supabase
+              .from('planned_workouts')
+              .update(updateData)
+              .eq('id', row.id)
+              .select('id');
+            if (error) firstError = firstError || error.message;
+            else affected += replacedRows?.length || 0;
           }
-          const { data: replaced, error } = await supabase
-            .from('planned_workouts')
-            .update(updateData)
-            .eq('plan_id', activePlan.id)
-            .eq('scheduled_date', sourceDate)
-            .eq('completed', false)
-            .select('id');
+
           results.push({
-            action: 'replace', date: sourceDate, new_workout: adj.new_workout_id,
-            success: !error, workouts_affected: replaced?.length || 0,
-            error: error?.message
+            action: 'replace', date: sourceDate,
+            new_workout: adj.new_workout_id,
+            new_workout_name: meta?.name || adj.new_workout_id,
+            success: affected > 0, workouts_affected: affected,
+            ...(firstError ? { error: firstError } : {}),
+            ...(meta ? {} : { note: `Workout metadata not found for "${adj.new_workout_id}" — duration/load shown on the calendar may be stale` })
           });
           break;
         }
         case 'remove':
         case 'add_rest': {
-          // Fetch current workout to save original values
-          const { data: currentWorkout } = await supabase
-            .from('planned_workouts')
-            .select('id, workout_id, original_workout_id')
-            .eq('plan_id', activePlan.id)
-            .eq('scheduled_date', sourceDate)
-            .eq('completed', false)
-            .maybeSingle();
-
-          const restUpdate = {
-            workout_type: 'rest',
-            workout_id: null,
-            name: 'Rest Day',
-            target_tss: 0,
-            target_duration: 0,
-            duration_minutes: 0
-          };
-          // Track original workout_id if not already tracked
-          if (currentWorkout && !currentWorkout.original_workout_id && currentWorkout.workout_id) {
-            restUpdate.original_workout_id = currentWorkout.workout_id;
+          // Fetch matching rows first (possibly one per plan) so 0 matches is
+          // an honest failure, not a silent no-op reported as success.
+          const { data: currentRows, error: fetchErr } = await notCompleted(
+            scoped(
+              supabase
+                .from('planned_workouts')
+                .select('id, workout_id, original_workout_id')
+            )
+          ).eq('scheduled_date', sourceDate);
+          if (fetchErr) {
+            results.push({ action: adj.action, date: sourceDate, success: false, workouts_affected: 0, error: fetchErr.message });
+            break;
           }
-          const { data: updated, error } = await supabase
-            .from('planned_workouts')
-            .update(restUpdate)
-            .eq('plan_id', activePlan.id)
-            .eq('scheduled_date', sourceDate)
-            .eq('completed', false)
-            .select('id');
+
+          const rows = currentRows || [];
+          if (rows.length === 0) {
+            results.push({ action: adj.action, date: sourceDate, success: false, workouts_affected: 0, error: `No planned workout found on ${sourceDate} — nothing was changed` });
+            break;
+          }
+
+          let affected = 0;
+          let firstError = null;
+          for (const row of rows) {
+            const restUpdate = {
+              workout_type: 'rest',
+              workout_id: null,
+              name: 'Rest Day',
+              // Dual-write canonical + legacy per CLAUDE.md — zeroing only
+              // target_tss left phantom load for canonical-first readers.
+              target_rss: 0,
+              target_tss: 0,
+              target_duration: 0,
+              duration_minutes: 0
+            };
+            // Track original workout_id if not already tracked
+            if (!row.original_workout_id && row.workout_id) {
+              restUpdate.original_workout_id = row.workout_id;
+            }
+            const { data: updatedRows, error } = await supabase
+              .from('planned_workouts')
+              .update(restUpdate)
+              .eq('id', row.id)
+              .select('id');
+            if (error) firstError = firstError || error.message;
+            else affected += updatedRows?.length || 0;
+          }
+
           results.push({
             action: adj.action, date: sourceDate,
-            success: !error, workouts_affected: updated?.length || 0,
-            error: error?.message
+            success: affected > 0, workouts_affected: affected,
+            ...(firstError ? { error: firstError } : {}),
+            ...(adj.action === 'remove'
+              ? { effective_action: 'add_rest', note: 'Workout converted to a rest day (not deleted) — the day shows as Rest Day on the calendar.' }
+              : {})
           });
           break;
         }
@@ -789,6 +932,7 @@ async function handleScheduleAdjustment(userId, input, targetPlanId = null, time
     summary,
     total_adjustments: adjustments.length,
     successful: successCount,
+    failed: results.length - successCount,
     adjustments: results
   };
 }
@@ -945,7 +1089,7 @@ When an athlete wants to modify their CURRENT active training plan (not create a
 - move: Change a workout's date (e.g., move Thursday's workout to Friday)
 - swap: Exchange two workouts' dates (e.g., swap Monday and Wednesday)
 - replace: Change the workout itself (e.g., replace intervals with recovery spin)
-- remove: Delete a workout from the plan
+- remove: Convert the workout to a rest day (non-destructive — the day shows as Rest Day on the calendar)
 - add_rest: Convert a workout day to a rest day
 
 **How to use adjust_schedule:**
@@ -1581,6 +1725,7 @@ The athlete's upcoming planned sessions are already loaded in the SESSIONS block
 
 === TOOL RESULTS ===
 When you use a server-side tool (adjust_schedule, query_fitness_history, query_training_data, save_coach_memory), the result is returned to you internally. Do not narrate the JSON output or describe what the tool returned. Confirm the outcome in one plain sentence (e.g., "Moved Tuesday's Sweet Spot to Wednesday.") and move on. Never say "Looks like X is marked complete" or "It appears the tool shows Y" — just state the outcome directly.
+CRITICAL: if a tool result reports success:false or workouts_affected:0, the change did NOT happen — NEVER claim it did. Tell the athlete plainly what failed using the result's error message (e.g., "I couldn't find a planned workout on Saturday to change") and offer the next step.
 
 === CRITICAL: TODAY'S WORKOUT CONSISTENCY ===
 The "TODAY'S WORKOUT RECOMMENDATION" section above shows what the athlete sees on their dashboard right now. You MUST be consistent with it:
@@ -1730,6 +1875,10 @@ ${conversationSummary}
     const fuelPlanUses = toolUses.filter(tool => tool.name === 'generate_fuel_plan');
     const memoryUses = toolUses.filter(tool => tool.name === 'save_coach_memory');
     const scheduleAdjustUses = toolUses.filter(tool => tool.name === 'adjust_schedule');
+    // Actual handler results (row-count-gated success), collected as each
+    // adjust_schedule tool executes — the payload must reflect what really
+    // changed, not merely that the tool was called.
+    const scheduleAdjustResults = [];
     const recommendWorkoutUses = toolUses.filter(tool => tool.name === 'recommend_workout');
 
     // Detailed logging for debugging
@@ -1809,6 +1958,7 @@ ${conversationSummary}
             console.log(`📅 Schedule adjustment requested:`, JSON.stringify(tool.input, null, 2));
             result = await handleScheduleAdjustment(verifiedUserId, tool.input, planId, resolvedTimezone);
             console.log(`📅 Schedule adjustment result:`, JSON.stringify(result));
+            scheduleAdjustResults.push(result);
           }
           toolResults.push({
             type: 'tool_result',
@@ -2127,6 +2277,11 @@ ${conversationSummary}
       suggestedActionsCount: suggestedActions?.length || 0
     });
 
+    // Internal sess_ handles must never reach the athlete — replace any the
+    // model echoed with the session's description (covers every reply branch:
+    // normal, forced-tool, fallback, arc explanation).
+    responseText = sanitizeSessionIds(responseText, buildSessionLabelMap(anchorData.plannedWorkouts));
+
     return res.status(200).json({
       success: true,
       message: responseText,
@@ -2134,7 +2289,13 @@ ${conversationSummary}
       trainingPlanPreview: trainingPlanPreview,
       autoActivatedPlan: autoActivatedPlan,
       fuelPlan: fuelPlan,
-      scheduleAdjusted: scheduleAdjustUses.length > 0,
+      // True only when at least one adjustment actually changed rows — the
+      // frontend uses this to trigger a calendar refetch, which is pointless
+      // (and misleading) when nothing changed.
+      scheduleAdjusted: scheduleAdjustResults.some(r => r?.success),
+      scheduleAdjustments: scheduleAdjustResults.length > 0
+        ? scheduleAdjustResults.flatMap(r => r?.adjustments || [])
+        : null,
       suggestedActions: suggestedActions,
       usage: response.usage
     });
