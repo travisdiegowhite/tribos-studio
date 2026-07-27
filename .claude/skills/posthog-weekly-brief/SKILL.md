@@ -25,7 +25,23 @@ union v1 (`route_builder_*`) + v2 (`rb2_*`) families separately, ignore the dead
 
 ## 3. Run the fixed query set
 
-Load PostHog tools via ToolSearch (query "posthog"). Run each HogQL query twice
+**Getting a query path** (try in order):
+1. PostHog MCP tools — load via ToolSearch (query "posthog") and use its
+   HogQL/execute-sql tool.
+2. REST fallback — if no PostHog MCP tools are available but the
+   `POSTHOG_API_KEY` env var is set, run HogQL via the query API
+   (project 301830, US cloud):
+   ```bash
+   curl -sS -X POST "https://us.posthog.com/api/projects/301830/query/" \
+     -H "Authorization: Bearer $POSTHOG_API_KEY" \
+     -H "Content-Type: application/json" \
+     -d '{"query": {"kind": "HogQLQuery", "query": "<HOGQL HERE>"}}'
+   ```
+   Results are in `.results` (rows) with `.columns`. Scheduled/headless
+   sessions usually take this path — connector tools don't attach to them.
+3. Neither available → the failure mode in §6 (stub-brief PR).
+
+Run each HogQL query twice
 (this week, last week) unless it groups by week itself. Template queries — keep
 the event lists in sync with the catalog:
 
@@ -138,9 +154,11 @@ changed, say so in one line rather than manufacturing insight.
    CLI); locally `gh pr create` is fine. Body: one-paragraph summary of the
    headline numbers.
 
-## Failure mode — never skip silently
+## 6. Failure mode — never skip silently
 
-If PostHog tools are unavailable or every query fails: still write the brief
+If neither the PostHog MCP tools nor the REST fallback works (no
+`POSTHOG_API_KEY`, auth failure, or every query fails): still write the brief
 file containing only the header and a clear statement of what failed (e.g.
-"PostHog MCP connector unavailable in this session — no data this week"), and
-open the PR anyway. A stub PR is the alarm; a silent week is a bug.
+"No PostHog access in this session: MCP connector absent and POSTHOG_API_KEY
+unset — no data this week"), and open the PR anyway. A stub PR is the alarm;
+a silent week is a bug.
