@@ -25,6 +25,22 @@ vi.mock('../lib/supabase', () => ({
   },
 }));
 
+// Mock PostHog — tests must never emit analytics or hit /decide
+vi.mock('posthog-js', () => ({
+  default: {
+    init: vi.fn(),
+    capture: vi.fn(),
+    identify: vi.fn(),
+    reset: vi.fn(),
+    register: vi.fn(),
+    opt_out_capturing: vi.fn(),
+  },
+}));
+vi.mock('posthog-js/react', () => ({
+  PostHogProvider: ({ children }: { children: unknown }) => children,
+  usePostHog: () => ({ capture: vi.fn(), identify: vi.fn(), reset: vi.fn() }),
+}));
+
 // Mock window.matchMedia
 Object.defineProperty(window, 'matchMedia', {
   writable: true,

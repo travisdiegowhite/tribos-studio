@@ -41,7 +41,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     // Fire-and-forget: telemetry must never break auth.
     const identifyUser = (sessionUser: User | null) => {
       try {
-        if (sessionUser) posthog.identify(sessionUser.id);
+        if (sessionUser) {
+          // Minimal non-PII person properties for cohorting. NO email, ever.
+          posthog.identify(sessionUser.id, {
+            account_created_at: sessionUser.created_at,
+            auth_provider: sessionUser.app_metadata?.provider ?? 'email',
+          });
+        }
       } catch {
         // never throw from telemetry
       }
@@ -97,6 +103,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const signOut: AuthContextValue['signOut'] = async () => {
     const { error } = await supabase.auth.signOut();
+    // Unlink the PostHog identity so the next visitor on this browser doesn't
+    // inherit this user's distinct_id. Only on success — a failed signOut
+    // leaves the user signed in. Fire-and-forget: telemetry must never break
+    // auth (same policy as identifyUser above).
+    try {
+      if (!error) posthog.reset();
+    } catch {
+      // never throw from telemetry
+    }
     return { error };
   };
 
