@@ -170,7 +170,7 @@ function activityPower(a) {
  * @param {Date}        [opts.now]      Override "now" (for testing)
  * @returns {string|null}  Formatted block, or null when there is nothing to say
  */
-export function buildCoachEnrichmentBlock(data, { profile = null, raceGoals = [], timezone = 'UTC', now = new Date() } = {}) {
+export function buildCoachEnrichmentBlock(data, { profile = null, raceGoals = [], timezone = 'UTC', now = new Date(), selectedRaceGoalId = null } = {}) {
   const ftp = profile?.ftp || null;
   if (!data && !ftp) return null;
 
@@ -373,6 +373,7 @@ export function buildCoachEnrichmentBlock(data, { profile = null, raceGoals = []
   // ── RACE GOAL DETAILS (dates/countdowns live in the temporal anchor) ──────
   const detailedGoals = (raceGoals || []).filter(
     (g) => g.distance_km != null || g.elevation_gain_m != null || g.goal_time_minutes != null || g.goal_power_watts != null
+      || (selectedRaceGoalId != null && g.id === selectedRaceGoalId)
   );
   if (detailedGoals.length > 0) {
     lines.push('', 'RACE GOAL DETAILS (dates and countdowns are in the TEMPORAL ANCHOR — do not recompute):');
@@ -383,7 +384,8 @@ export function buildCoachEnrichmentBlock(data, { profile = null, raceGoals = []
       if (g.goal_time_minutes != null) parts.push(`goal time ${formatMinutes(g.goal_time_minutes)}`);
       if (g.goal_power_watts != null) parts.push(`goal power ${g.goal_power_watts}W`);
       const priority = g.priority ? ` [${g.priority.toUpperCase()}]` : '';
-      lines.push(`  ${g.name}${priority}: ${parts.join(', ')}`);
+      const selected = selectedRaceGoalId != null && g.id === selectedRaceGoalId ? ' [CURRENTLY SELECTED]' : '';
+      lines.push(`  ${g.name}${priority}${selected}${parts.length ? `: ${parts.join(', ')}` : ''}`);
     }
   }
 

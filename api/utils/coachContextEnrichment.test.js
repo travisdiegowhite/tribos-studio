@@ -274,6 +274,32 @@ describe('buildCoachEnrichmentBlock', () => {
     expect(block).toContain('Steamboat Gravel [A]: 230 km, 2900 m gain, goal time 8h30m');
     expect(block).not.toContain('Bare Goal');
   });
+
+  describe('selected race marker (Race tab scoping)', () => {
+    const raceGoals = [
+      { id: 'g1', name: 'Acreage Criterium', priority: 'B', race_date: '2026-08-20', distance_km: 45, elevation_gain_m: 300, goal_time_minutes: null, goal_power_watts: null },
+      { id: 'g2', name: 'The Rad', priority: 'A', race_date: '2026-09-26', distance_km: 177, elevation_gain_m: 3050, goal_time_minutes: null, goal_power_watts: null },
+    ];
+    const data = { recentActivities: [], latestLoad: null, weekPlanned: [] };
+
+    it('marks only the selected goal', () => {
+      const block = buildCoachEnrichmentBlock(data, { profile: PROFILE, raceGoals, timezone: TZ, now: NOW, selectedRaceGoalId: 'g1' });
+      expect(block).toContain('Acreage Criterium [B] [CURRENTLY SELECTED]: 45 km, 300 m gain');
+      expect(block).toContain('The Rad [A]: 177 km');
+      expect(block.match(/\[CURRENTLY SELECTED\]/g)).toHaveLength(1);
+    });
+
+    it('renders a detail-less selected goal so the marker always lands', () => {
+      const bare = [{ id: 'g3', name: 'Bare Goal', priority: 'C', race_date: '2026-10-01', distance_km: null, elevation_gain_m: null, goal_time_minutes: null, goal_power_watts: null }];
+      const block = buildCoachEnrichmentBlock(data, { profile: PROFILE, raceGoals: bare, timezone: TZ, now: NOW, selectedRaceGoalId: 'g3' });
+      expect(block).toContain('Bare Goal [C] [CURRENTLY SELECTED]');
+    });
+
+    it('marks nothing when no id is passed', () => {
+      const block = buildCoachEnrichmentBlock(data, { profile: PROFILE, raceGoals, timezone: TZ, now: NOW });
+      expect(block).not.toContain('[CURRENTLY SELECTED]');
+    });
+  });
 });
 
 describe('fetchCoachEnrichmentData', () => {

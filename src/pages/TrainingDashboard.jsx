@@ -2206,7 +2206,7 @@ function buildTrainingContext(trainingMetrics, weeklyStats, actualWeeklyStats, f
 
       context.push(`\n${index + 1}. ${race.name} - ${priorityLabel}`);
       context.push(`   Date: ${raceDate.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })}`);
-      context.push(`   Time Until: ${daysUntil} days (${weeksUntil} weeks)`);
+      context.push(`   Time Until: ~${weeksUntil} weeks (exact day counts are in DAYS_UNTIL — use those)`);
       context.push(`   Type: ${race.race_type?.replace('_', ' ') || 'race'}`);
 
       if (race.distance_km) {
@@ -2232,31 +2232,33 @@ function buildTrainingContext(trainingMetrics, weeklyStats, actualWeeklyStats, f
         context.push(`   Course: ${race.course_description}`);
       }
       if (race.route_id) {
-        context.push(`   Has linked route (detailed route data available in Race tab)`);
+        context.push(`   Has a linked route`);
       }
     });
 
-    // Add race-specific coaching guidance
-    const nextARace = raceGoals.find(r => r.priority === 'A');
-    if (nextARace) {
-      const raceDate = new Date(nextARace.race_date + 'T00:00:00');
+    // Race-specific coaching guidance, one line per race so the model can
+    // never apply one race's phase to another.
+    context.push(`\n--- Race Preparation Guidance (PER-RACE — each line applies ONLY to the named race; never apply one race's phase to another) ---`);
+    raceGoals.forEach((race) => {
+      const raceDate = new Date(race.race_date + 'T00:00:00');
       const today = new Date();
       today.setHours(0, 0, 0, 0);
       const daysUntil = Math.ceil((raceDate - today) / (1000 * 60 * 60 * 24));
 
-      context.push(`\n--- Race Preparation Guidance ---`);
+      let phase;
       if (daysUntil <= 7) {
-        context.push(`RACE WEEK: Focus on rest, openers, and mental preparation. Keep ride stress (RSS) very low.`);
+        phase = 'RACE WEEK — rest, openers, and mental preparation; keep ride stress (RSS) very low.';
       } else if (daysUntil <= 14) {
-        context.push(`TAPER PERIOD: Reduce volume by 40-60%, maintain some intensity. Focus on feeling fresh.`);
+        phase = 'TAPER — reduce volume 40-60%, maintain some intensity, focus on feeling fresh.';
       } else if (daysUntil <= 28) {
-        context.push(`FINAL BUILD: Last chance for hard training blocks. After this, begin tapering.`);
+        phase = 'FINAL BUILD — last chance for hard training blocks before the taper.';
       } else if (daysUntil <= 56) {
-        context.push(`BUILD PHASE: Focus on race-specific intensity. Include race-pace efforts.`);
+        phase = 'BUILD — race-specific intensity, include race-pace efforts.';
       } else {
-        context.push(`BASE/EARLY BUILD: Good time to build aerobic base and address limiters.`);
+        phase = 'BASE/EARLY BUILD — build aerobic base and address limiters.';
       }
-    }
+      context.push(`${race.name} (${race.priority || 'B'}-priority): ${phase}`);
+    });
   }
 
   // Add cross-training activities context

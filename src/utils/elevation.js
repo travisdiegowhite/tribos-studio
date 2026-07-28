@@ -374,3 +374,107 @@ export function calculateElevationStats(elevationProfile) {
     max: Math.round(max)
   };
 }
+
+/**
+ * Detect the sustained climbs in an elevation profile.
+ *
+ * Resamples the profile to ~100 m bins, then walks the bins opening a climb
+ * whenever the grade reaches `minGradePct`, tolerating flat/downhill dips
+ * shorter than `maxDipKm` inside a climb. Climbs shorter than `minLengthKm`
+ * or with less than ~10 m of net gain are discarded.
+ *
+ * @param {Array<{distance_km?: number, distance?: number, elevation: number}>} elevationProfile
+ *   Profile points with cumulative distance in KM (canonical `distance_km`,
+ *   legacy `distance` alias accepted).
+ * @returns {Array<{start_km: number, length_km: number, gain_m: number, avg_grade_pct: number, max_grade_pct: number}>}
+ *   Top climbs sorted by gain, descending.
+ */
+export function summarizeClimbs(elevationProfile, {
+  minGradePct = 3,
+  minLengthKm = 0.3,
+  maxDipKm = 0.2,
+  maxClimbs = 3,
+} = {}) {
+  if (!elevationProfile || elevationProfile.length < 2) return [];
+
+  const points = elevationProfile
+    .map(p => ({ km: p.distance_km ?? p.distance, elevation: p.elevation }))
+    .filter(p => Number.isFinite(p.km) && Number.isFinite(p.elevation));
+  if (points.length < 2) return [];
+
+  const totalKm = points[points.length - 1].km;
+  if (!(totalKm > 0)) return [];
+
+  // Resample to ~100 m bins by linear interpolation along the profile.
+  const binKm = 0.1;
+  const binCount = Math.max(1, Math.round(totalKm / binKm));
+  const elevationAt = (km) => {
+    let i = 1;
+    while (i < points.length - 1 && points[i].km < km) i++;
+    const a = points[i - 1];
+    const b = points[i];
+    const span = b.km - a.km;
+    if (!(span > 0)) return a.elevation;
+    const t = Math.min(1, Math.max(0, (km - a.km) / span));
+    return a.elevation + t * (b.elevation - a.elevation);
+  };
+
+  // Per-bin grade in percent: rise (m) over run (m).
+  const bins = [];
+  for (let i = 0; i < binCount; i++) {
+    const startKm = (i * totalKm) / binCount;
+    const endKm = ((i + 1) * totalKm) / binCount;
+    const rise_m = elevationAt(endKm) - elevationAt(startKm);
+    const run_m = (endKm - startKm) * 1000;
+    bins.push({ startKm, endKm, rise_m, gradePct: (rise_m / run_m) * 100 });
+  }
+
+  const minGain_m = 10;
+  const climbs = [];
+  let current = null; // { startKm, endKm, gain_m, maxGradePct, dipKm }
+
+  const closeCurrent = () => {
+    if (!current) return;
+    const length_km = current.endKm - current.startKm;
+    const gain_m = elevationAt(current.endKm) - elevationAt(current.startKm);
+    if (length_km >= minLengthKm && gain_m >= minGain_m) {
+      climbs.push({
+        start_km: current.startKm,
+        length_km,
+        gain_m,
+        avg_grade_pct: (gain_m / (length_km * 1000)) * 100,
+        max_grade_pct: current.maxGradePct,
+      });
+    }
+    current = null;
+  };
+
+  for (const bin of bins) {
+    if (bin.gradePct >= minGradePct) {
+      if (!current) {
+        current = { startKm: bin.startKm, endKm: bin.endKm, maxGradePct: bin.gradePct, dipKm: 0 };
+      } else {
+        current.endKm = bin.endKm;
+        current.maxGradePct = Math.max(current.maxGradePct, bin.gradePct);
+        current.dipKm = 0;
+      }
+    } else if (current) {
+      // endKm only advances on climbing bins, so a dip that ends the climb
+      // is already excluded from the climb's extent.
+      current.dipKm += bin.endKm - bin.startKm;
+      if (current.dipKm > maxDipKm) closeCurrent();
+    }
+  }
+  closeCurrent();
+
+  return climbs
+    .sort((a, b) => b.gain_m - a.gain_m)
+    .slice(0, maxClimbs)
+    .map(c => ({
+      start_km: Math.round(c.start_km * 10) / 10,
+      length_km: Math.round(c.length_km * 10) / 10,
+      gain_m: Math.round(c.gain_m),
+      avg_grade_pct: Math.round(c.avg_grade_pct * 10) / 10,
+      max_grade_pct: Math.round(c.max_grade_pct * 10) / 10,
+    }));
+}

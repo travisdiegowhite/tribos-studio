@@ -26,7 +26,7 @@ import {
 import { useAuth } from '../../contexts/AuthContext.jsx';
 import { supabase } from '../../lib/supabase';
 import { getRoute } from '../../utils/routesService';
-import { getElevationData, calculateElevationStats } from '../../utils/elevation';
+import { getElevationData, calculateElevationStats, summarizeClimbs } from '../../utils/elevation';
 import RaceGoalModal from '../RaceGoalModal';
 import { CoachMarkdown } from '../coach/CoachMarkdown';
 import {
@@ -139,6 +139,10 @@ export default function RaceTab({
   const [routeLoading, setRouteLoading] = useState(false);
   const [elevationProfile, setElevationProfile] = useState<{ elevation: number; distance: number }[] | null>(null);
   const [computedElevation, setComputedElevation] = useState<number | null>(null);
+  const [profileStats, setProfileStats] = useState<{ gain: number; loss: number; min: number; max: number } | null>(null);
+  const [climbSummary, setClimbSummary] = useState<
+    { start_km: number; length_km: number; gain_m: number; avg_grade_pct: number; max_grade_pct: number }[] | null
+  >(null);
 
   // Chat state
   const [messages, setMessages] = useState<ChatMessage[]>([]);
@@ -210,6 +214,8 @@ export default function RaceTab({
     setRouteLoading(true);
     setComputedElevation(null);
     setElevationProfile(null);
+    setProfileStats(null);
+    setClimbSummary(null);
     getRoute(selectedRace.route_id)
       .then(async (data) => {
         const route = data as RouteData;
@@ -223,7 +229,9 @@ export default function RaceTab({
           if (elev?.length >= 2) {
             setElevationProfile(elev);
             const stats = calculateElevationStats(elev);
+            setProfileStats(stats);
             if (stats.gain) setComputedElevation(stats.gain);
+            setClimbSummary(summarizeClimbs(elev));
           }
         }
       })
@@ -282,14 +290,11 @@ export default function RaceTab({
     if (trainingContext) parts.push(trainingContext);
 
     if (selectedRace) {
-      const daysUntil = Math.ceil(
-        (new Date(selectedRace.race_date + 'T00:00:00').getTime() - Date.now()) /
-          (1000 * 60 * 60 * 24)
-      );
-
       parts.push(`\n--- ACTIVE RACE DISCUSSION ---`);
       parts.push(`Race: ${selectedRace.name}`);
-      parts.push(`Date: ${selectedRace.race_date} (${daysUntil} days away)`);
+      // Countdown deliberately omitted — the server's SELECTED_RACE anchor
+      // line is the authoritative day count.
+      parts.push(`Date: ${selectedRace.race_date}`);
       parts.push(`Type: ${selectedRace.race_type?.replace('_', ' ')}`);
       parts.push(`Priority: ${selectedRace.priority}-race`);
       if (selectedRace.distance_km) parts.push(`Distance: ${Math.round(selectedRace.distance_km)} km`);
@@ -320,6 +325,27 @@ export default function RaceTab({
         parts.push(`Estimated Duration: ${h}h ${m}m`);
       }
       parts.push(`The athlete has linked a specific route to this race. Use the route data to provide specific pacing, terrain, and strategy advice.`);
+
+      if (elevationProfile && profileStats) {
+        parts.push(`\n--- COURSE PROFILE (computed from the linked route's elevation data) ---`);
+        const totalKm = routeData.distance_km;
+        parts.push(
+          `Total: ${totalKm != null ? `${totalKm.toFixed(1)} km, ` : ''}${profileStats.gain} m gain / ${profileStats.loss} m loss, elevation range ${profileStats.min}-${profileStats.max} m`
+        );
+        if (climbSummary && climbSummary.length > 0) {
+          climbSummary.forEach((c, i) => {
+            parts.push(
+              `Climb ${i + 1}: starts at km ${c.start_km} — ${c.length_km} km at avg ${c.avg_grade_pct}% (max ${c.max_grade_pct}%), ${c.gain_m} m gain`
+            );
+          });
+          parts.push(`No other sustained climbs of >=3% lasting >=0.3 km.`);
+        } else {
+          parts.push(`This course has no sustained climbs of >=3% lasting >=0.3 km — treat it as flat/rolling.`);
+        }
+        parts.push(
+          `GROUNDING RULE: for any climb/gradient question about this race, use ONLY the numbers above. If a course detail is not listed, say the route profile does not show it — never estimate or invent gradients.`
+        );
+      }
     }
 
     // Include completed race results for historical reference
@@ -369,6 +395,9 @@ export default function RaceTab({
       const history = messages.map((m) => ({
         role: m.role === 'coach' ? 'assistant' : 'user',
         content: m.message,
+        // Timestamps let the server date prior-day messages so the coach
+        // doesn't replay a stale countdown as if said today.
+        timestamp: m.timestamp,
       }));
 
       const { data: { session } } = await supabase.auth.getSession();
@@ -386,8 +415,8 @@ export default function RaceTab({
           conversationHistory: history,
           trainingContext: buildRaceContext(),
           userId: user.id,
+          raceGoalId: selectedRaceId,
           maxTokens: 2048,
-          quickMode: true,
           userLocalDate: {
             dayOfWeek: now.getDay(),
             date: now.getDate(),

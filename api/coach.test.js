@@ -506,6 +506,44 @@ describe('coach handler — forced tool pass', () => {
     expect(messagesCreate.mock.calls[0][0].system).toContain('FTP: 285W');
   });
 
+  it('scopes the prompt to the race the athlete is viewing (raceGoalId)', async () => {
+    fetchAnchorMock.mockResolvedValue({
+      plannedWorkouts: [],
+      raceGoals: [
+        { id: 'g1', name: 'Acreage Criterium', race_date: '2026-08-20', priority: 'B' },
+        { id: 'g2', name: 'The Rad', race_date: '2026-09-26', priority: 'A' },
+      ],
+    });
+    messagesCreate.mockResolvedValueOnce(textResponse('Here is your climb strategy.'));
+
+    const res = makeRes();
+    await handler(makeReq({ message: 'how should I pace the climb?', raceGoalId: 'g1' }), res);
+
+    expect(res.statusCode).toBe(200);
+    const system = messagesCreate.mock.calls[0][0].system;
+    expect(system).toContain('=== ACTIVE RACE FOCUS ===');
+    expect(system).toContain('"Acreage Criterium" on 2026-08-20');
+    expect(system).toContain('never mix races');
+    // The enrichment builder is told which race is selected.
+    expect(buildEnrichmentBlock.mock.calls[0][1].selectedRaceGoalId).toBe('g1');
+  });
+
+  it('adds no race focus block for an unknown or absent raceGoalId', async () => {
+    fetchAnchorMock.mockResolvedValue({
+      plannedWorkouts: [],
+      raceGoals: [{ id: 'g1', name: 'Acreage Criterium', race_date: '2026-08-20', priority: 'B' }],
+    });
+    messagesCreate.mockResolvedValue(textResponse('Sure.'));
+
+    const res1 = makeRes();
+    await handler(makeReq({ message: 'hello coach', raceGoalId: 'nope' }), res1);
+    expect(messagesCreate.mock.calls[0][0].system).not.toContain('ACTIVE RACE FOCUS');
+
+    const res2 = makeRes();
+    await handler(makeReq({ message: 'hello coach' }), res2);
+    expect(messagesCreate.mock.calls[1][0].system).not.toContain('ACTIVE RACE FOCUS');
+  });
+
   it('never returns a blank bubble when only a workout card is produced', async () => {
     // Add-to-calendar follow-up: Claude returns the card with no accompanying prose.
     messagesCreate.mockResolvedValueOnce(workoutToolResponse(null));
