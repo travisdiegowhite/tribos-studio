@@ -196,6 +196,41 @@ describe('buildTemporalAnchor', () => {
     });
   });
 
+  describe('selected race (Race tab scoping)', () => {
+    const now = makeDate('2026-07-28T13:00:00Z'); // Tue Jul 28
+    const crit = { ...makeGoal('g1', 'Acreage Criterium', '2026-08-20'), priority: 'B' }; // 23 days
+    const rad = makeGoal('g2', 'The Rad', '2026-09-26'); // 60 days, A-priority
+
+    it('marks the selected goal in DAYS_UNTIL and emits SELECTED_RACE', () => {
+      const block = buildTemporalAnchor('America/Denver', [], [crit, rad], now, { selectedRaceGoalId: 'g1' });
+      const critLine = block.split('\n').find((l) => l.includes('acreage_criterium:'));
+      expect(critLine).toContain('[CURRENTLY SELECTED]');
+      const radLine = block.split('\n').find((l) => l.includes('the_rad:'));
+      expect(radLine).not.toContain('[CURRENTLY SELECTED]');
+      expect(block).toContain('SELECTED_RACE: Acreage Criterium 2026-08-20 (23 days)');
+    });
+
+    it('emits SELECTED_RACE even for a race beyond the 90-day DAYS_UNTIL cap', () => {
+      const farGoal = makeGoal('g3', 'Winter Epic', '2026-12-01'); // >90 days
+      const block = buildTemporalAnchor('America/Denver', [], [farGoal], now, { selectedRaceGoalId: 'g3' });
+      const du = parseDaysUntil(block);
+      expect(du['winter_epic']).toBeUndefined();
+      expect(block).toMatch(/SELECTED_RACE: Winter Epic 2026-12-01 \(\d+ days\)/);
+    });
+
+    it('emits no SELECTED_RACE or marker when no id is passed', () => {
+      const block = buildTemporalAnchor('America/Denver', [], [crit, rad], now);
+      expect(block).not.toContain('SELECTED_RACE');
+      expect(block).not.toContain('[CURRENTLY SELECTED]');
+    });
+
+    it('emits no SELECTED_RACE when the id matches no goal', () => {
+      const block = buildTemporalAnchor('America/Denver', [], [crit, rad], now, { selectedRaceGoalId: 'nope' });
+      expect(block).not.toContain('SELECTED_RACE');
+      expect(block).not.toContain('[CURRENTLY SELECTED]');
+    });
+  });
+
   describe('timezone correctness', () => {
     it('resolves today correctly for Eastern time', () => {
       // 2026-04-22T02:00:00Z = Apr 21 at 22:00 ET (UTC-4 in spring)

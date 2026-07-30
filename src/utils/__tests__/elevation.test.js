@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { coordinateAtDistanceKm, getElevationData, clearElevationCache } from '../elevation';
+import { coordinateAtDistanceKm, getElevationData, clearElevationCache, summarizeClimbs } from '../elevation';
 
 describe('coordinateAtDistanceKm', () => {
   // A straight east-west segment near the equator. Two coords; the geometric
@@ -126,6 +126,91 @@ describe('getElevationData caching + retry', () => {
     expect(fetchMock).toHaveBeenCalledTimes(2);
     expect(result).toHaveLength(ROUTE.length);
     expect(result[2].elevation).toBe(1600);
+  });
+});
+
+describe('summarizeClimbs', () => {
+  // Build a profile from (km, elevation) pairs using the canonical field name.
+  const profile = (pairs) => pairs.map(([km, elevation]) => ({ distance_km: km, elevation }));
+
+  it('returns [] for empty, null, or single-point input', () => {
+    expect(summarizeClimbs(null)).toEqual([]);
+    expect(summarizeClimbs([])).toEqual([]);
+    expect(summarizeClimbs(profile([[0, 100]]))).toEqual([]);
+  });
+
+  it('returns [] for a flat course', () => {
+    expect(summarizeClimbs(profile([[0, 100], [5, 100], [10, 101]]))).toEqual([]);
+  });
+
+  it('detects a single clean climb with correct position, length, gain, and grade', () => {
+    // Flat to km 5, then 2 km at a steady 5% (100 m gain), then flat.
+    const climbs = summarizeClimbs(profile([[0, 100], [5, 100], [7, 200], [10, 200]]));
+    expect(climbs).toHaveLength(1);
+    const c = climbs[0];
+    expect(c.start_km).toBeCloseTo(5, 0);
+    expect(c.length_km).toBeCloseTo(2, 0);
+    expect(c.gain_m).toBeGreaterThanOrEqual(95);
+    expect(c.gain_m).toBeLessThanOrEqual(105);
+    expect(c.avg_grade_pct).toBeGreaterThanOrEqual(4.5);
+    expect(c.avg_grade_pct).toBeLessThanOrEqual(5.5);
+    expect(c.max_grade_pct).toBeGreaterThanOrEqual(c.avg_grade_pct);
+  });
+
+  it('sorts two climbs by gain, descending', () => {
+    // Small climb: 1 km at 4% (40 m). Big climb: 2 km at 6% (120 m).
+    const climbs = summarizeClimbs(
+      profile([[0, 100], [2, 100], [3, 140], [6, 140], [8, 260], [10, 260]])
+    );
+    expect(climbs).toHaveLength(2);
+    expect(climbs[0].gain_m).toBeGreaterThan(climbs[1].gain_m);
+    expect(climbs[0].start_km).toBeCloseTo(6, 0);
+    expect(climbs[1].start_km).toBeCloseTo(2, 0);
+  });
+
+  it('ignores a spike shorter than minLengthKm', () => {
+    // 0.1 km bump of 15 m: steep but too short to count as a climb.
+    const climbs = summarizeClimbs(profile([[0, 100], [5, 100], [5.1, 115], [5.2, 100], [10, 100]]));
+    expect(climbs).toEqual([]);
+  });
+
+  it('merges a short mid-climb dip into one climb', () => {
+    // 1 km at 6%, a 0.1 km flat shelf, then another 1 km at 6% — one climb.
+    const climbs = summarizeClimbs(
+      profile([[0, 100], [4, 100], [5, 160], [5.1, 160], [6.1, 220], [10, 220]])
+    );
+    expect(climbs).toHaveLength(1);
+    expect(climbs[0].gain_m).toBeGreaterThanOrEqual(110);
+    expect(climbs[0].length_km).toBeGreaterThanOrEqual(2);
+  });
+
+  it('caps the result at maxClimbs, keeping the biggest', () => {
+    // Four separated climbs of increasing gain.
+    const pairs = [[0, 0]];
+    let km = 1;
+    let elev = 0;
+    for (const gain of [40, 60, 80, 100]) {
+      pairs.push([km, elev]); // flat approach
+      km += 1;
+      elev += gain;
+      pairs.push([km, elev]); // climb of `gain` m over 1 km
+      km += 2;
+      pairs.push([km - 1, elev]); // flat recovery
+    }
+    pairs.push([km, elev]);
+    const climbs = summarizeClimbs(profile(pairs));
+    expect(climbs).toHaveLength(3);
+    expect(climbs.map((c) => c.gain_m).every((g) => g >= 55)).toBe(true);
+  });
+
+  it('reads the legacy `distance` alias when `distance_km` is absent', () => {
+    const legacy = [
+      { distance: 0, elevation: 100 },
+      { distance: 5, elevation: 100 },
+      { distance: 7, elevation: 200 },
+      { distance: 10, elevation: 200 },
+    ];
+    expect(summarizeClimbs(legacy)).toHaveLength(1);
   });
 });
 

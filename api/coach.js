@@ -1286,6 +1286,7 @@ export default async function handler(req, res) {
       userAvailability = null,
       checkInId = null,
       planId = null,
+      raceGoalId = null,
     } = req.body;
 
     if (!message || typeof message !== 'string') {
@@ -1488,10 +1489,15 @@ export default async function handler(req, res) {
     } catch (anchorErr) {
       console.error('Temporal anchor fetch failed (non-blocking):', anchorErr.message);
     }
+    // The race open in the Race tab, if any. Only ever matched against the
+    // user's own race_goals rows, so a bogus id silently no-ops.
+    const selectedRaceGoalId = typeof raceGoalId === 'string' && raceGoalId ? raceGoalId : null;
     const temporalAnchorBlock = buildTemporalAnchor(
       resolvedTimezone,
       anchorData.plannedWorkouts,
-      anchorData.raceGoals
+      anchorData.raceGoals,
+      new Date(),
+      { selectedRaceGoalId }
     );
 
     // Determine persona
@@ -1576,6 +1582,7 @@ ${trainingContext}`;
       profile: userProfileResult?.data || null,
       raceGoals: anchorData.raceGoals,
       timezone: resolvedTimezone,
+      selectedRaceGoalId,
     });
     if (enrichmentBlock) {
       systemPrompt += `\n\n${enrichmentBlock}`;
@@ -1592,6 +1599,18 @@ ${healthText}`;
     if (proprietaryMetrics) {
       systemPrompt += `\n\n=== PERFORMANCE METRICS ===
 ${proprietaryMetrics}`;
+    }
+
+    // Scope race discussion to the race the athlete is viewing in the Race tab
+    const selectedRaceGoal = selectedRaceGoalId
+      ? (anchorData.raceGoals || []).find((g) => g.id === selectedRaceGoalId)
+      : null;
+    if (selectedRaceGoal) {
+      systemPrompt += `\n\n=== ACTIVE RACE FOCUS ===
+The athlete is currently viewing/discussing the race "${selectedRaceGoal.name}" on ${selectedRaceGoal.race_date} (marked [CURRENTLY SELECTED] above).
+Answer race questions — date, countdown, course, demands, pacing, taper — about THIS race.
+Other races on the calendar are background context only; mention them ONLY if the athlete names them or asks to compare.
+CRITICAL: never mix races — do not pair one race's date with another race's countdown, course profile, or preparation phase. The SELECTED_RACE line in the TEMPORAL ANCHOR is the authoritative countdown for this race.`;
     }
 
     // Add multi-plan context when the athlete has multiple active training plans

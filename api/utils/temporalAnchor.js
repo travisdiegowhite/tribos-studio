@@ -150,7 +150,7 @@ function describeSession(session) {
  * @param {Date}   [now]           Override "now" (for testing)
  * @returns {string}               Formatted anchor block
  */
-export function buildTemporalAnchor(timezone, plannedWorkouts = [], raceGoals = [], now = new Date()) {
+export function buildTemporalAnchor(timezone, plannedWorkouts = [], raceGoals = [], now = new Date(), { selectedRaceGoalId = null } = {}) {
   const safeTz = timezone || 'UTC';
 
   const todayStr = toLocalDateStr(now, safeTz);
@@ -208,17 +208,21 @@ export function buildTemporalAnchor(timezone, plannedWorkouts = [], raceGoals = 
   // target_event_date when periodizing toward an event.
   const daysUntilLines = [];
   let anchorRace = null; // { goal, diffDays }
+  let selectedRace = null; // { goal, diffDays } — the race open in the Race tab
   for (const goal of (raceGoals || [])) {
     if (!goal.race_date) continue;
     const goalNoon = noonUTCFor(goal.race_date);
     const diffDays = Math.round((goalNoon.getTime() - todayNoon.getTime()) / (24 * 60 * 60 * 1000));
     if (diffDays < 0) continue;
     const priority = (goal.priority || '').toUpperCase();
+    const isSelected = selectedRaceGoalId != null && goal.id === selectedRaceGoalId;
+    if (isSelected) selectedRace = { goal, diffDays };
 
     if (diffDays <= 90) {
       const key = goal.name.toLowerCase().replace(/\s+/g, '_');
       const prioritySuffix = priority ? ` (Priority ${priority})` : '';
-      daysUntilLines.push(`  ${key}: ${diffDays}${prioritySuffix}`);
+      const selectedSuffix = isSelected ? ' [CURRENTLY SELECTED]' : '';
+      daysUntilLines.push(`  ${key}: ${diffDays}${prioritySuffix}${selectedSuffix}`);
     }
 
     // raceGoals arrives sorted by race_date ascending, so the first A we see is
@@ -266,6 +270,15 @@ export function buildTemporalAnchor(timezone, plannedWorkouts = [], raceGoals = 
     lines.push(
       '',
       `${label}: ${anchorRace.goal.name} ${anchorRace.goal.race_date} (${anchorRace.diffDays} days)`
+    );
+  }
+
+  if (selectedRace) {
+    // Emitted even past the 90-day DAYS_UNTIL cap so the open race always has
+    // an authoritative countdown.
+    if (!anchorRace) lines.push('');
+    lines.push(
+      `SELECTED_RACE: ${selectedRace.goal.name} ${selectedRace.goal.race_date} (${selectedRace.diffDays} days) — the race the athlete is currently viewing in the Race tab`
     );
   }
 
