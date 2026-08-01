@@ -83,6 +83,12 @@ export const EventType = {
   DISCUSSION_CREATE: 'discussion_create',
   DISCUSSION_REPLY: 'discussion_reply',
 
+  // Feature usage - Activity share cards
+  SHARE_CARD_OPEN: 'share_card_open',
+  SHARE_CARD_SHARE: 'share_card_share',
+  SHARE_CARD_DOWNLOAD: 'share_card_download',
+  SHARE_CARD_COPY: 'share_card_copy',
+
   // Interactions
   INTEGRATION_CONNECT: 'integration_connect',
   INTEGRATION_DISCONNECT: 'integration_disconnect',

@@ -26,6 +26,7 @@ import {
 } from './ActivityMetrics.jsx';
 import { ViewOnStravaLink, PoweredByStrava, StravaLogo } from './StravaBranding';
 import { PoweredByGarmin } from './GarminBranding';
+import ShareCardModal from './ShareCardModal';
 import { FuelCard } from './fueling';
 import ActivityPowerCurve from './ActivityPowerCurve';
 import SegmentEffortCompare from './SegmentEffortCompare';
@@ -35,7 +36,7 @@ import RideZonesChart from './RideZonesChart';
 import RidePacingChart from './RidePacingChart';
 import { trackFeature, EventType } from '../utils/activityTracking';
 import { isPowerSport, isRunningActivity, getActivityNoun, getLoadLabel } from '../utils/sportType';
-import { ArrowRight, ArrowsClockwise, Clock, Fire, Gauge, Heart, Heartbeat, Lightning, MapTrifold, Mountains, Path, Watch } from '@phosphor-icons/react';
+import { ArrowRight, ArrowsClockwise, Clock, Fire, Gauge, Heart, Heartbeat, Lightning, MapTrifold, Mountains, Path, ShareNetwork, Watch } from '@phosphor-icons/react';
 
 // FIT protocol uses 0xFFFF (65535) for "no data" - must filter before display
 const MAX_VALID_POWER_WATTS = 2500;
@@ -147,6 +148,7 @@ const RideAnalysisModal = ({
 }) => {
   const navigate = useNavigate();
   const [resyncState, setResyncState] = useState({ loading: false, message: null, kind: null });
+  const [shareOpen, setShareOpen] = useState(false);
 
   const handleResync = async () => {
     if (!ride?.id) return;
@@ -822,6 +824,14 @@ const RideAnalysisModal = ({
             {ride.provider === 'strava' && ride.provider_activity_id && (
               <ViewOnStravaLink activityId={ride.provider_activity_id} />
             )}
+            <Button
+              variant="light"
+              color="teal"
+              leftSection={<ShareNetwork size={16} />}
+              onClick={() => setShareOpen(true)}
+            >
+              Share
+            </Button>
             <Button variant="light" color="gray" onClick={onClose}>
               Close
             </Button>
@@ -882,6 +892,16 @@ const RideAnalysisModal = ({
             )}
           </Box>
         )}
+
+        <ShareCardModal
+          opened={shareOpen}
+          onClose={() => setShareOpen(false)}
+          ride={ride}
+          metrics={metrics}
+          formatDistance={formatDistance}
+          formatElevation={formatElevation}
+          formatSpeed={formatSpeed}
+        />
       </Stack>
     </Modal>
   );
