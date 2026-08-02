@@ -139,13 +139,23 @@ No `plan_deviations` or coach-conversation rows were mutated.
 - Weekly/daily series agree with each other (snapshot vs daily divergence is
   now pipeline-definition differences only, not data corruption).
 
+## Step 5 — Coach correction notice (executed 2026-08-02)
+
+A dated `DATA CORRECTION NOTICE` block was added to the coach system prompt in
+`api/coach.js`, ahead of the memory/check-in/history sections it governs. It
+instructs the coach to (1) never quote or reason from fitness metric values
+appearing in conversation history, prior check-ins, or memories dated before
+2026-08-02, (2) explain the correction once and plainly if the athlete asks why
+the numbers dropped, (3) never interpret the drop as detraining, and (4) not
+bring it up proactively beyond that. `coach_memory` rows were audited first —
+none contain inflated fitness values, so no data mutation was needed; the
+notice covers the remaining exposure (old conversation turns and stored
+check-in narratives). The block can be retired once pre-August-2026
+conversation history has aged out of practical relevance.
+
 ## Follow-ups
 
-1. **Optional coach correction notice (plan Step 5, not executed):** a one-time
-   note in the coach context so the AI coach doesn't reference the previously
-   inflated numbers from stored conversation history. Left for explicit
-   approval since it writes athlete-visible content.
-2. **Backup retention:** drop the three `_cleanup_20260801_*` tables after the
+1. **Backup retention:** drop the three `_cleanup_20260801_*` tables after the
    corrected numbers have soaked (explicit approval required, per policy).
-3. The nightly `training_load_daily` recompute and activity webhooks need no
+2. The nightly `training_load_daily` recompute and activity webhooks need no
    changes — new data flows through the already-guarded write and read paths.
