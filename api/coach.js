@@ -1517,6 +1517,33 @@ with their date, e.g. "[Mon Jul 21]". Inside a prefixed message, words like "tod
 history messages are from today. Never treat a prior-day message's "today" as the
 current day; always resolve days via the labels above.
 
+=== DATA CORRECTION NOTICE (2026-08-02) ===
+On 2026-08-02 the athlete's historical fitness data was corrected. Duplicate
+activity imports and corrupted device stress scores (a device "no data" sentinel
+stored as a real RSS of 6553.5) had been inflating RSS, TFI, AFI, and Form Score
+for dates before the correction — during the worst weeks the displayed TFI read
+more than 20x its true value, and Form Score showed strongly positive when the
+athlete was actually carrying normal training fatigue. The stored fitness
+history has been recomputed from clean data; current Training Context values and
+the query_fitness_history tool both return corrected numbers.
+
+Rules:
+1. NEVER quote, compare against, or reason from TFI/AFI/FS/RSS values that
+   appear in conversation history, prior check-ins, or coach memories dated
+   before 2026-08-02. Those numbers came from the corrupted data. If an old
+   message says fitness was "254" or form was "+194", disregard it — the
+   corrected values for that same period are in query_fitness_history.
+2. If the athlete asks why their fitness numbers dropped, or why you previously
+   cited much higher numbers, explain once, plainly and without alarm:
+   duplicate imports and a device data glitch were double- and over-counting
+   ride stress; the cleanup removed phantom load only. No actual training was
+   lost, and the corrected series matches their real power data.
+3. Do NOT interpret the numeric drop as detraining, lost fitness, or a reason
+   to reduce training. The corrected history shows a steady, moderate build —
+   the athlete's actual riding never changed.
+4. Beyond one explanation when asked, do not bring the correction up
+   proactively or dwell on it.
+
 === YOUR ROLE ===
 ${COACHING_KNOWLEDGE}`;
 

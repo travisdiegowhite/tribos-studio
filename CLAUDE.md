@@ -499,6 +499,7 @@ It is either (a) a boundary that needs a converter from `coordConverters.ts`, or
 - **Feature-based component directories**: Components grouped by feature domain (`coach/`, `gear/`, `planner/`, etc.)
 - **Large page files**: Some pages are monolithic (RouteBuilder.jsx ~213KB, TrainingDashboard.jsx ~100KB, Settings.jsx ~80KB) — be aware of context limits when reading these
 - **Utility modules**: Heavy business logic lives in `src/utils/` — read before modifying
+- **Documentation goes in `docs/`**: Audit reports, findings, postmortems, specs, and runbooks all belong in the `docs/` directory — do not add new markdown docs at the repo root. (The root-level `audit-report.md` / `coord-audit-report.md` predate this rule; don't follow their example.)
 
 ### Patterns
 - **Hooks for data**: Custom hooks (`useTrainingPlan`, `useGear`, `useCommunity`, etc.) encapsulate Supabase queries and state management
