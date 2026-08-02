@@ -327,4 +327,22 @@ describe('estimateTSSWithSource tier fallbacks', () => {
     expect(r.source).toBe('kilojoules');
     expect(r.confidence).toBe(0.75);
   });
+
+  it('Tier 1: rejects the FIT uint16 sentinel (6553.5) and falls through to the tiered estimator', () => {
+    // Historical rows written before stressScoreSanitizer existed can still
+    // carry the 0xFFFF/10 "no data" sentinel. It must never be trusted at
+    // device confidence — with power data present it lands on the power tier.
+    const r = estimateTSSWithSource(
+      { ...flatRide, rss: 6553.5, tss: 6553.5, effective_power: 250 },
+      250
+    );
+    expect(r.source).toBe('power');
+    expect(r.tss).toBe(100);
+  });
+
+  it('Tier 1: a sentinel with no other signal degrades to the inferred tier, not a capped device value', () => {
+    const r = estimateTSSWithSource({ ...flatRide, rss: 6553.5, tss: 6553.5 }, 250);
+    expect(r.source).not.toBe('device');
+    expect(r.tss).toBeLessThan(500);
+  });
 });

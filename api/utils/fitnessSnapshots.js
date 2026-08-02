@@ -12,6 +12,7 @@ import {
   estimateDynamicFTP,
   calculateTrainingMonotonyStrain,
 } from './advancedRideAnalytics.js';
+import { sanitizeStressScore } from './stressScoreSanitizer.js';
 
 /**
  * Calculate Chronic Training Load (CTL) - iterative EWA
@@ -315,7 +316,11 @@ export function estimateTSSWithSource(activity, ftp) {
   // where Garmin rows had `tss` populated but `rss` NULL; reading only
   // the canonical column dropped those rides through to Tier 4/5 and
   // double-counted them via the terrain multiplier.
-  const storedRSS = activity.rss ?? activity.tss;
+  // Sanitized on read as well as on ingest: historical rows written before
+  // the sanitizer existed can carry the FIT uint16 sentinel (6553.5) or other
+  // implausible values; those must fall through to the tiered estimators
+  // instead of being trusted at device confidence.
+  const storedRSS = sanitizeStressScore(activity.rss ?? activity.tss);
   if (storedRSS && storedRSS > 0) {
     const rss = applyActivityTypeMultiplier(storedRSS, activity);
     return { tss: rss, source: 'device', confidence: 0.95, terrain_class };
