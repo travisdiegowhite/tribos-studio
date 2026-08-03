@@ -1,13 +1,16 @@
 /**
- * Performance Evidence Engine — Phase 1 offline prototype.
+ * Performance Evidence Engine — core (Phase 2 production module).
  *
- * Reads cleaned activity + segment exports (read-only; see export-queries.sql)
- * and emits one structured verdict per week: does actual performance output
- * (power-duration bests, efficiency factor, repeat segments) run ahead of,
- * consistent with, or behind what the load model (TFI/FS) implies?
+ * Emits one structured verdict per athlete-week: does actual performance
+ * output (power-duration bests, efficiency factor, repeat segments) run
+ * ahead of, consistent with, or behind what the load model (TFI/FS) implies?
  *
- * Pure functions over plain data — no DB access, no writes. The same
- * computeWeekVerdict() is designed to be lifted into a Phase 2 job unchanged.
+ * Pure functions over plain data — no DB access, no writes. The weekly job
+ * (api/evidence-weekly.js) binds it to cleaned production queries; the
+ * calibration harness (scripts/evidence-engine/) binds the same functions to
+ * offline exports. Thresholds were calibrated in
+ * docs/EVIDENCE_ENGINE_CALIBRATION.md — do not change DEFAULT_CONFIG without
+ * re-running that calibration (both ground truths + the sensitivity sweep).
  */
 
 export const DEFAULT_CONFIG = {
@@ -46,6 +49,11 @@ export const DEFAULT_CONFIG = {
     // different heat regimes (May–Sep vs Oct–Apr), confidence in a NEGATIVE
     // EF signal is halved — heat suppresses EF without fitness change.
     hotMonths: [5, 6, 7, 8, 9],
+    // EF numerator: 'avg_power' (shipped v1, per Phase 2 Decision 3) or 'ep'
+    // (stored ride_analytics.efficiency_factor, NP-based) — the latter exists
+    // ONLY for the offline EP÷HR appendix comparison. Production stays on
+    // 'avg_power' until a future recalibration decides otherwise.
+    metric: 'avg_power',
   },
 
   // ── Signal 3: repeat segments (supporting only) ──────────────────────
@@ -141,12 +149,14 @@ function viOf(r) {
   if (r.ep != null && r.avg_w) return r.ep / r.avg_w;
   return null;
 }
-function efValue(r) {
+function efValueFor(r, metric) {
+  if (metric === 'ep') return r.ef ?? null; // stored NP÷HR from ride_analytics
   return r.avg_w / r.avg_hr;
 }
 function efQualifies(r, c) {
   if (r.avg_w == null || r.avg_hr == null || (r.moving_time ?? 0) < c.minDurationS) return false;
   if (c.excludeTrainer && r.trainer === true) return false;
+  if ((c.metric ?? 'avg_power') === 'ep' && r.ef == null) return false;
   const vi = viOf(r);
   return vi == null || vi <= c.viMax;
 }
@@ -162,7 +172,7 @@ export function efSignal(rides, weekEndMs, cfg) {
     return { qualified: false, reason: `steady rides: ${base.length} baseline (need ${c.minBaselineRides}), ${win.length} window (need ${c.minWindowRides})` };
   }
 
-  const efOf = efValue;
+  const efOf = (r) => efValueFor(r, c.metric ?? 'avg_power');
   const mean = (a) => a.reduce((s, v) => s + v, 0) / a.length;
   const viUnknownShare = mean(win.map((r) => (viOf(r) == null ? 1 : 0)));
   const winEfs = win.map(efOf);

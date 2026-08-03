@@ -59,6 +59,10 @@
     {
       "path": "/api/coach-correction-trigger",
       "schedule": "0 12 * * *"
+    },
+    {
+      "path": "/api/evidence-weekly?action=compute-weekly",
+      "schedule": "0 4 * * 1"
     }
   ],
   "functions": {
@@ -93,6 +97,9 @@
       "maxDuration": 60
     },
     "api/fit-upload.js": {
+      "maxDuration": 60
+    },
+    "api/evidence-weekly.js": {
       "maxDuration": 60
     }
   },

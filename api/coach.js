@@ -3,6 +3,7 @@
 
 import Anthropic from '@anthropic-ai/sdk';
 import { getSupabaseAdmin } from './utils/supabaseAdmin.js';
+import { buildEvidenceSection } from './utils/evidenceCoachSection.js';
 import { rateLimitByUser } from './utils/rateLimit.js';
 import { enforceAiQuota } from './utils/aiQuota.js';
 import { WORKOUT_LIBRARY_FOR_AI, ALL_COACH_TOOLS } from './utils/workoutLibrary.js';
@@ -1429,9 +1430,17 @@ export default async function handler(req, res) {
       // week's planned workouts) — grounds surfaces that send a thin
       // trainingContext string. Self-catches to null, non-blocking.
       fetchCoachEnrichmentData(supabase, verifiedUserId),
+      // Performance Evidence Engine verdicts (last 9 weeks, newest first).
+      // Fail-soft: table may be empty or absent for new athletes.
+      supabase
+        .from('fitness_evidence_weekly')
+        .select('week, verdict, verdict_raw, score, confidence, signals, model_divergence, narrative_facts')
+        .eq('user_id', verifiedUserId)
+        .order('week', { ascending: false })
+        .limit(9),
     ];
 
-    const [coachSettingsResult, coachMemoryResult, recentCheckInsResult, calendarContextResult, checkInResult, deviationsResult, userProfileResult, allActivePlansResult, healthMetricsResult, dayAvailabilityResult, trainingPrefsResult, enrichmentData] = await Promise.all(parallelFetches);
+    const [coachSettingsResult, coachMemoryResult, recentCheckInsResult, calendarContextResult, checkInResult, deviationsResult, userProfileResult, allActivePlansResult, healthMetricsResult, dayAvailabilityResult, trainingPrefsResult, enrichmentData, evidenceResult] = await Promise.all(parallelFetches);
 
     const coachSettings = coachSettingsResult.data;
     const activeCheckIn = checkInResult?.data || null;
@@ -1546,6 +1555,15 @@ Rules:
 
 === YOUR ROLE ===
 ${COACHING_KNOWLEDGE}`;
+
+    // Performance Evidence Engine: latest weekly verdict + receipts, with the
+    // cadence throttle and divergence floor computed deterministically in
+    // buildEvidenceSection (see api/utils/evidenceCoachSection.js). Empty
+    // string when there are no verdict rows — section simply absent.
+    const evidenceSection = buildEvidenceSection(evidenceResult?.data || []);
+    if (evidenceSection) {
+      systemPrompt += `\n\n${evidenceSection}`;
+    }
 
     // Inject experience level context (modifies communication style)
     const experienceLevel = coachSettings?.coaching_experience_level || 'experienced';

@@ -1,7 +1,7 @@
 // Runs the evidence engine week-by-week across the athlete's cleaned history
 // and prints the calibration timeline + stability/coverage metrics.
 import { readFileSync, writeFileSync } from 'node:fs';
-import { computeWeekVerdict, DEFAULT_CONFIG } from './evidence-engine.mjs';
+import { computeWeekVerdict, DEFAULT_CONFIG } from '../../api/utils/evidenceEngine.js';
 
 // Data dir holds the read-only exports described in export-queries.sql:
 //   evidence_rides.json, evidence_segments.json, recomputed_daily.json

@@ -1,16 +1,16 @@
-# Performance Evidence Engine — Phase 1 prototype
+# Performance Evidence Engine — calibration harness
 
-Offline, read-only prototype of the weekly performance-evidence verdict.
+Offline calibration harness for the weekly performance-evidence verdict.
 Calibration results and the full design rationale live in
-`docs/EVIDENCE_ENGINE_CALIBRATION.md`. **Phase 2 (production table, job, coach
-integration) is not approved yet — nothing here runs in production.**
+`docs/EVIDENCE_ENGINE_CALIBRATION.md`. The production pieces are
+`api/utils/evidenceEngine.js` (engine core), `api/evidence-weekly.js` (weekly
+job), and `api/utils/evidenceCoachSection.js` (coach prompt section).
 
 ## Files
 
-- `evidence-engine.mjs` — the engine: three signals (power-duration movement,
-  efficiency-factor trend, repeat segments), residual-vs-model verdict,
-  confidence formula, coach-ready narrative facts. Pure functions over plain
-  data; `computeWeekVerdict()` is designed to lift into a Phase 2 job as-is.
+- The engine core lives at **`api/utils/evidenceEngine.js`** (moved there in
+  Phase 2 — the weekly job and these calibration scripts import the same
+  module, so calibration always exercises exactly the shipped math).
 - `run-calibration.mjs` — runs the engine week-by-week (Mondays, aligned with
   `fitness_snapshots` weeks) across the full cleaned history, prints the
   verdict timeline, stability metrics, coverage, and the two ground-truth

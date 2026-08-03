@@ -1,7 +1,7 @@
 // One-at-a-time threshold sensitivity: perturb each key threshold from the
 // default config and report ground-truth outcomes + stability metrics.
 import { readFileSync } from 'node:fs';
-import { computeWeekVerdict, DEFAULT_CONFIG } from './evidence-engine.mjs';
+import { computeWeekVerdict, DEFAULT_CONFIG } from '../../api/utils/evidenceEngine.js';
 
 // Data dir holds the read-only exports described in export-queries.sql:
 //   evidence_rides.json, evidence_segments.json, recomputed_daily.json
