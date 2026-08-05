@@ -39,6 +39,7 @@ const MetricsCalculatorPage = lazy(() => import('./pages/MetricsCalculatorPage.t
 const RouteBuilder2 = lazy(() => import('./pages/RouteBuilder2.tsx'));
 const SharedRoute = lazy(() => import('./pages/SharedRoute.tsx'));
 const RouteBuilder2HarnessDev = lazy(() => import('./pages/RouteBuilder2HarnessDev.tsx'));
+const ActivityDetail = lazy(() => import('./pages/ActivityDetail.tsx'));
 
 // Dev harness gate: only mount when running in dev. The route doesn't exist in
 // production builds.
@@ -329,6 +330,16 @@ function AppRoutes() {
         element={
           <ProtectedRoute>
             <PlannerPage />
+          </ProtectedRoute>
+        }
+      />
+
+      {/* Single-activity analysis page (flagship activity chart) */}
+      <Route
+        path="/activity/:activityId"
+        element={
+          <ProtectedRoute>
+            <ActivityDetail />
           </ProtectedRoute>
         }
       />
