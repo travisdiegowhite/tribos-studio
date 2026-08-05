@@ -18,6 +18,13 @@ import { aggregateColumns } from '../model/columnAggregate';
 import { zoneBandRects } from '../model/zoneBands';
 import type { PowerZone } from '../../../utils/powerZones';
 
+export interface OverlayLine {
+  values: (number | null)[];
+  yMin: number;
+  yMax: number;
+  color: string;
+}
+
 export interface ChartCanvasProps {
   xs: number[];
   values: (number | null)[];
@@ -36,7 +43,13 @@ export interface ChartCanvasProps {
   seriesColor: string;
   /** Baseline color. */
   baselineColor: string;
+  /** Elevation silhouette drawn behind the series (bottom 35% of the plot). */
+  silhouette?: { values: (number | null)[]; color: string } | null;
+  /** Thin normalized overlay lines drawn above the series (W'bal, speed). */
+  overlayLines?: OverlayLine[];
 }
+
+const SILHOUETTE_FRACTION = 0.35;
 
 export function ChartCanvas({
   xs,
@@ -52,6 +65,8 @@ export function ChartCanvas({
   zoneColors,
   seriesColor,
   baselineColor,
+  silhouette,
+  overlayLines,
 }: ChartCanvasProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
@@ -68,6 +83,31 @@ export function ChartCanvas({
     if (canvas.height !== h) canvas.height = h;
 
     ctx.clearRect(0, 0, w, h);
+
+    // Elevation silhouette — behind everything, own scale in the bottom
+    // fraction of the plot, muted fill.
+    if (silhouette) {
+      const agg = aggregateColumns(xs, silhouette.values, i0, i1, x0, x1, w);
+      let eMin = Infinity;
+      let eMax = -Infinity;
+      for (const v of agg.means) {
+        if (v == null) continue;
+        if (v < eMin) eMin = v;
+        if (v > eMax) eMax = v;
+      }
+      if (eMax > eMin) {
+        const bandTop = h * (1 - SILHOUETTE_FRACTION);
+        ctx.globalAlpha = 0.22;
+        ctx.fillStyle = silhouette.color;
+        for (let c = 0; c < w; c++) {
+          const v = agg.means[c];
+          if (v == null) continue;
+          const yTop = h - ((v - eMin) / (eMax - eMin)) * (h - bandTop);
+          ctx.fillRect(c, yTop, 1, h - yTop);
+        }
+        ctx.globalAlpha = 1;
+      }
+    }
 
     const { maxs } = aggregateColumns(xs, values, i0, i1, x0, x1, w);
 
@@ -100,10 +140,38 @@ export function ChartCanvas({
       }
     }
 
+    // Thin overlay lines (W'bal, speed) — normalized to their own domain,
+    // drawn from per-column means with gaps preserved.
+    if (overlayLines) {
+      for (const line of overlayLines) {
+        const span = line.yMax - line.yMin;
+        if (span <= 0) continue;
+        const agg = aggregateColumns(xs, line.values, i0, i1, x0, x1, w);
+        ctx.strokeStyle = line.color;
+        ctx.lineWidth = 2 * dpr;
+        ctx.beginPath();
+        let penDown = false;
+        for (let c = 0; c < w; c++) {
+          const v = agg.means[c];
+          if (v == null) {
+            penDown = false;
+            continue;
+          }
+          const y = h - ((Math.min(v, line.yMax) - line.yMin) / span) * h;
+          if (penDown) ctx.lineTo(c, y);
+          else {
+            ctx.moveTo(c, y);
+            penDown = true;
+          }
+        }
+        ctx.stroke();
+      }
+    }
+
     // Recessive baseline
     ctx.fillStyle = baselineColor;
     ctx.fillRect(0, h - dpr, w, dpr);
-  }, [xs, values, i0, i1, x0, x1, yMax, widthPx, heightPx, zones, zoneColors, seriesColor, baselineColor]);
+  }, [xs, values, i0, i1, x0, x1, yMax, widthPx, heightPx, zones, zoneColors, seriesColor, baselineColor, silhouette, overlayLines]);
 
   return (
     <canvas

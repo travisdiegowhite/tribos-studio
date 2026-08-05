@@ -26,6 +26,11 @@ import {
   AreaChart,
 } from 'recharts';
 import { tokens } from '../theme';
+import {
+  estimateCPandWPrime,
+  predictPowerForDuration,
+  predictDurationForPower,
+} from '../utils/criticalPower';
 import { BatteryMedium, Clock, Fire, Info, Lightning } from '@phosphor-icons/react';
 
 /**
@@ -41,136 +46,16 @@ import { BatteryMedium, Clock, Fire, Info, Lightning } from '@phosphor-icons/rea
  * W' Balance during a ride shows how much anaerobic capacity remains.
  */
 
-/**
- * Estimate Critical Power and W' from best power efforts
- * Uses Morton's 3-parameter model or simpler 2-parameter model
- */
-export function estimateCPandWPrime(bestEfforts, ftp) {
-  // Best efforts should be an object like: { 180: 350, 300: 320, 720: 280, 1200: 260 }
-  // Key is duration in seconds, value is power in watts
-
-  if (!bestEfforts || Object.keys(bestEfforts).length < 2) {
-    // Fallback: estimate from FTP
-    // CP is typically 93-97% of FTP
-    // W' is typically 15-25 kJ for most cyclists
-    if (ftp) {
-      return {
-        cp: Math.round(ftp * 0.95),
-        wPrime: 20000, // 20 kJ default
-        model: 'estimated',
-      };
-    }
-    return null;
-  }
-
-  // Linear regression using work-duration model
-  // Total work = CP * t + W'
-  // W(t) = CP * t + W' (work in joules)
-  // So: W/t = CP + W'/t
-  // P(t) = CP + W'/t
-
-  const durations = Object.keys(bestEfforts).map(Number).sort((a, b) => a - b);
-  const powers = durations.map(t => bestEfforts[t]);
-
-  // Use 2-parameter model: P = CP + W'/t
-  // Rearrange: P*t = CP*t + W'
-  // Linear regression: Work = CP * t + W'
-
-  const n = durations.length;
-  let sumT = 0, sumW = 0, sumT2 = 0, sumTW = 0;
-
-  for (let i = 0; i < n; i++) {
-    const t = durations[i];
-    const w = powers[i] * t; // Work done
-    sumT += t;
-    sumW += w;
-    sumT2 += t * t;
-    sumTW += t * w;
-  }
-
-  // Solve: CP = (n * sumTW - sumT * sumW) / (n * sumT2 - sumT * sumT)
-  const denom = n * sumT2 - sumT * sumT;
-  if (denom === 0) return null;
-
-  const cp = (n * sumTW - sumT * sumW) / denom;
-  const wPrime = (sumW - cp * sumT) / n;
-
-  // Validate results
-  if (cp < 50 || cp > 500 || wPrime < 5000 || wPrime > 50000) {
-    // Results out of reasonable range, use FTP estimate
-    if (ftp) {
-      return {
-        cp: Math.round(ftp * 0.95),
-        wPrime: 20000,
-        model: 'estimated',
-      };
-    }
-    return null;
-  }
-
-  return {
-    cp: Math.round(cp),
-    wPrime: Math.round(wPrime),
-    model: 'calculated',
-  };
-}
-
-/**
- * Calculate W' Balance over time during a ride
- * Uses the differential equation model by Skiba et al.
- *
- * W'bal = W' - integral(P - CP) when P > CP
- * Recovery when P < CP follows exponential recovery
- */
-export function calculateWPrimeBalance(powerData, cp, wPrime) {
-  if (!powerData || powerData.length === 0 || !cp || !wPrime) {
-    return [];
-  }
-
-  const tau = 546 * Math.exp(-0.01 * (cp - 200)) + 316; // Recovery time constant
-  let wBal = wPrime;
-  const result = [];
-
-  for (let i = 0; i < powerData.length; i++) {
-    const power = powerData[i];
-
-    if (power > cp) {
-      // Depleting W'
-      wBal -= (power - cp); // 1 second of work above CP
-    } else {
-      // Recovering W'
-      const dcp = cp - power; // How far below CP
-      const recovery = (wPrime - wBal) * (1 - Math.exp(-dcp / tau));
-      wBal = Math.min(wPrime, wBal + recovery);
-    }
-
-    result.push({
-      time: i,
-      power,
-      wBalance: Math.max(0, wBal),
-      wBalancePercent: Math.max(0, (wBal / wPrime) * 100),
-      aboveCP: power > cp,
-    });
-  }
-
-  return result;
-}
-
-/**
- * Predict maximum sustainable power for a given duration
- */
-export function predictPowerForDuration(cp, wPrime, durationSeconds) {
-  if (!cp || !wPrime || durationSeconds <= 0) return null;
-  return Math.round(cp + wPrime / durationSeconds);
-}
-
-/**
- * Predict maximum duration at a given power
- */
-export function predictDurationForPower(cp, wPrime, power) {
-  if (!cp || !wPrime || power <= cp) return Infinity; // Sustainable indefinitely
-  return Math.round(wPrime / (power - cp));
-}
+// estimateCPandWPrime / calculateWPrimeBalance / predictPowerForDuration /
+// predictDurationForPower were extracted to src/utils/criticalPower.ts so
+// the activity chart can use them without this component; re-exported here
+// for existing importers. Behavior is unchanged.
+export {
+  estimateCPandWPrime,
+  calculateWPrimeBalance,
+  predictPowerForDuration,
+  predictDurationForPower,
+} from '../utils/criticalPower';
 
 /**
  * Critical Power Model Display Component

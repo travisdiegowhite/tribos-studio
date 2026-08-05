@@ -2,9 +2,13 @@
  * Crosshair interaction layer: hover (desktop) or press/drag (touch) shows
  * a hairline + value pill snapped to the nearest sample. `touch-action:
  * pan-y` keeps vertical page scrolling alive while horizontal drags scrub.
+ *
+ * Mouse drag additionally selects an x-range and commits it as a zoom
+ * window (touch never does — the brush strip owns touch zoom, avoiding
+ * the scrub-vs-zoom gesture ambiguity).
  */
 
-import { useCallback } from 'react';
+import { useCallback, useRef, useState } from 'react';
 import type { PointerEvent } from 'react';
 import { Box, Text } from '@mantine/core';
 import { nearestIndex } from '../model/crosshair';
@@ -16,6 +20,8 @@ interface CrosshairLayerProps {
   values: (number | null)[];
   crosshairIndex: number | null;
   onCrosshairChange: (index: number | null) => void;
+  /** Mouse drag-select zoom commit; null disables selection. */
+  onWindowSelect?: ((x0: number, x1: number) => void) | null;
   xScale: LinearScale;
   xMode: XMode;
   widthPx: number;
@@ -25,11 +31,14 @@ interface CrosshairLayerProps {
   hairlineColor: string;
 }
 
+const MIN_SELECT_PX = 8;
+
 export function CrosshairLayer({
   xs,
   values,
   crosshairIndex,
   onCrosshairChange,
+  onWindowSelect,
   xScale,
   xMode,
   widthPx,
@@ -38,14 +47,47 @@ export function CrosshairLayer({
   accentColor,
   hairlineColor,
 }: CrosshairLayerProps) {
-  const handlePointer = useCallback(
+  const [dragRange, setDragRange] = useState<[number, number] | null>(null);
+  const dragStartPx = useRef<number | null>(null);
+
+  const pxFromEvent = (e: PointerEvent<HTMLDivElement>) =>
+    e.clientX - e.currentTarget.getBoundingClientRect().left;
+
+  const handlePointerDown = useCallback(
     (e: PointerEvent<HTMLDivElement>) => {
-      const rect = e.currentTarget.getBoundingClientRect();
-      const px = e.clientX - rect.left;
-      const x = invertScale(px, xScale);
-      onCrosshairChange(nearestIndex(xs, x));
+      const px = pxFromEvent(e);
+      onCrosshairChange(nearestIndex(xs, invertScale(px, xScale)));
+      if (e.pointerType === 'mouse' && onWindowSelect) {
+        dragStartPx.current = px;
+        e.currentTarget.setPointerCapture(e.pointerId);
+      }
+    },
+    [xs, xScale, onCrosshairChange, onWindowSelect]
+  );
+
+  const handlePointerMove = useCallback(
+    (e: PointerEvent<HTMLDivElement>) => {
+      const px = pxFromEvent(e);
+      onCrosshairChange(nearestIndex(xs, invertScale(px, xScale)));
+      if (dragStartPx.current != null && Math.abs(px - dragStartPx.current) >= MIN_SELECT_PX) {
+        setDragRange([Math.min(dragStartPx.current, px), Math.max(dragStartPx.current, px)]);
+      }
     },
     [xs, xScale, onCrosshairChange]
+  );
+
+  const handlePointerUp = useCallback(
+    (e: PointerEvent<HTMLDivElement>) => {
+      if (dragRange && onWindowSelect) {
+        onWindowSelect(invertScale(dragRange[0], xScale), invertScale(dragRange[1], xScale));
+      }
+      dragStartPx.current = null;
+      setDragRange(null);
+      if (e.currentTarget.hasPointerCapture(e.pointerId)) {
+        e.currentTarget.releasePointerCapture(e.pointerId);
+      }
+    },
+    [dragRange, onWindowSelect, xScale]
   );
 
   const idx = crosshairIndex;
@@ -59,8 +101,10 @@ export function CrosshairLayer({
 
   return (
     <Box
-      onPointerMove={handlePointer}
-      onPointerDown={handlePointer}
+      onPointerMove={handlePointerMove}
+      onPointerDown={handlePointerDown}
+      onPointerUp={handlePointerUp}
+      onPointerCancel={handlePointerUp}
       onPointerLeave={() => onCrosshairChange(null)}
       style={{
         position: 'absolute',
@@ -69,6 +113,21 @@ export function CrosshairLayer({
         cursor: 'crosshair',
       }}
     >
+      {dragRange && (
+        <Box
+          style={{
+            position: 'absolute',
+            left: dragRange[0],
+            top: 0,
+            width: dragRange[1] - dragRange[0],
+            height: heightPx,
+            backgroundColor: hairlineColor,
+            opacity: 0.12,
+            border: `1px solid ${hairlineColor}`,
+            pointerEvents: 'none',
+          }}
+        />
+      )}
       {hasCrosshair && (
         <>
           <Box

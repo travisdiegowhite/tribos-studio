@@ -29,6 +29,7 @@ import {
 import { ArrowLeft, Warning } from '@phosphor-icons/react';
 import { supabase } from '../lib/supabase';
 import { ActivityChart, useActivityStreams } from '../features/activity-chart';
+import { estimateCPandWPrime, bestEffortsFromCurves } from '../utils/criticalPower';
 import { decodePolyline, calculateBounds } from '../components/RideAnalysisModal';
 import ColoredRouteMap from '../components/ColoredRouteMap';
 import ActivityPowerCurve from '../components/ActivityPowerCurve';
@@ -140,6 +141,7 @@ export default function ActivityDetail() {
 
   const [activity, setActivity] = useState<ActivityRow | null>(null);
   const [profile, setProfile] = useState<ProfileRow | null>(null);
+  const [snapshotEfforts, setSnapshotEfforts] = useState<Record<string, number> | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -156,15 +158,26 @@ export default function ActivityDetail() {
         const userId = auth?.user?.id;
         if (!userId) throw new Error('Not signed in');
 
-        const [activityRes, profileRes] = await Promise.all([
+        const [activityRes, profileRes, snapshotRes] = await Promise.all([
           supabase.from('activities').select(ACTIVITY_COLUMNS).eq('id', activityId).single(),
           supabase.from('user_profiles').select('ftp, weight_kg, power_zones').eq('id', userId).single(),
+          supabase
+            .from('fitness_snapshots')
+            .select('best_efforts')
+            .eq('user_id', userId)
+            .not('best_efforts', 'is', null)
+            .order('snapshot_week', { ascending: false })
+            .limit(1)
+            .maybeSingle(),
         ]);
 
         if (activityRes.error) throw new Error('Activity not found');
         if (cancelled) return;
         setActivity(activityRes.data as unknown as ActivityRow);
         if (!profileRes.error) setProfile(profileRes.data as ProfileRow);
+        if (!snapshotRes.error && snapshotRes.data?.best_efforts) {
+          setSnapshotEfforts(snapshotRes.data.best_efforts as Record<string, number>);
+        }
       } catch (e) {
         if (!cancelled) setError((e as Error).message);
       } finally {
@@ -177,6 +190,14 @@ export default function ActivityDetail() {
   }, [activityId]);
 
   const ftp = profile?.ftp ?? null;
+
+  // CP/W' for the W'Balance overlay: fit 2–30 min best efforts from the
+  // most recent fitness snapshot merged with this activity's power curve;
+  // estimateCPandWPrime falls back to CP = 0.95×FTP, W' = 20 kJ.
+  const cpEstimate = useMemo(() => {
+    const merged = bestEffortsFromCurves([snapshotEfforts, activity?.power_curve_summary]);
+    return estimateCPandWPrime(Object.keys(merged).length >= 2 ? merged : null, ftp);
+  }, [snapshotEfforts, activity?.power_curve_summary, ftp]);
 
   const routeCoords = useMemo(
     () => decodePolyline(activity?.map_summary_polyline ?? null),
@@ -273,7 +294,12 @@ export default function ActivityDetail() {
           </Center>
         )}
         {!streamsLoading && streams && streams.tier !== 'summary' && (
-          <ActivityChart streams={streams} ftp={ftp} profileZones={profile?.power_zones} />
+          <ActivityChart
+            streams={streams}
+            ftp={ftp}
+            profileZones={profile?.power_zones}
+            cpEstimate={cpEstimate}
+          />
         )}
         {!streamsLoading && (streamsError || streams?.tier === 'summary') && (
           <Text size="xs" c="var(--color-text-muted)" ta="center">
