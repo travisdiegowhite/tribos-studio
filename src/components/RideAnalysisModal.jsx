@@ -43,9 +43,10 @@ const MAX_VALID_POWER_WATTS = 2500;
 const MAX_VALID_HR_BPM = 250;
 
 /**
- * Decode a Google-encoded polyline string to coordinates
+ * Decode a Google-encoded polyline string to coordinates.
+ * Exported for reuse by the ActivityDetail page.
  */
-function decodePolyline(encoded) {
+export function decodePolyline(encoded) {
   if (!encoded) return [];
 
   const coords = [];
@@ -82,9 +83,10 @@ function decodePolyline(encoded) {
 }
 
 /**
- * Calculate bounds for fitting map to route
+ * Calculate bounds for fitting map to route.
+ * Exported for reuse by the ActivityDetail page.
  */
-function calculateBounds(coords) {
+export function calculateBounds(coords) {
   if (!coords || coords.length === 0) return null;
 
   let minLng = Infinity, maxLng = -Infinity;

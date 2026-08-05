@@ -78,14 +78,18 @@ export const lightTokens = {
     error: '#C43C2A',     // Coral (errors)
     info: '#2A8C82',      // Teal (interactive)
 
-    // Training Zone Colors — deferred from brand overhaul, keep existing
-    zone1: '#3D8B50', // Recovery — Green
-    zone2: '#4A7A5A', // Endurance — Sage green
-    zone3: '#D4820A', // Tempo — Amber
-    zone4: '#3A5A8C', // Threshold — Steel blue
-    zone5: '#6B7F94', // VO2max — Slate
-    zone6: '#8B6B5A', // Anaerobic — Iron
-    zone7: '#DDDDD8', // Rest/Neuromuscular — Border
+    // Training Zone Colors — validated ramp (dataviz validate_palette.js,
+    // surface #FFFFFF: lightness band, chroma floor, adjacent-pair CVD and
+    // normal-vision separation all PASS; zone4 contrast 2.6:1 is a WARN
+    // covered by secondary encoding — zone bands are position-ordered and
+    // labeled). Domain-standard hue sequence: cool recovery → warm effort.
+    zone1: '#3FA0BF', // Recovery — Cyan
+    zone2: '#3F55B5', // Endurance — Blue
+    zone3: '#3D8B50', // Tempo — Green
+    zone4: '#C8A012', // Threshold — Gold
+    zone5: '#DA5008', // VO2max — Orange
+    zone6: '#8E2A20', // Anaerobic — Deep red
+    zone7: '#953A8C', // Neuromuscular — Magenta
 
     // Legacy aliases (backward compat)
     electricLime: '#2A8C82',
@@ -148,14 +152,17 @@ export const darkTokens = {
     error: '#D45035',     // Coral
     info: '#3BA89D',      // Teal
 
-    // Training Zone Colors — dark adapted (deferred from overhaul)
-    zone1: '#52B068', // Recovery — Green (dark)
-    zone2: '#407045', // Endurance — Moss (dark)
-    zone3: '#F0960C', // Tempo — Amber
-    zone4: '#5A7AAC', // Threshold — Steel blue
-    zone5: '#6B7F94', // VO2max — Slate
-    zone6: '#7A5E4E', // Anaerobic — Iron (dark)
-    zone7: '#2E2E2A', // Rest — Border (dark)
+    // Training Zone Colors — validated ramp (dataviz validate_palette.js,
+    // surface #222220: all checks PASS; zone5 contrast 2.7:1 WARN covered
+    // by secondary encoding, see light-mode note). Same hue semantics as
+    // light mode, re-stepped for the dark lightness band.
+    zone1: '#3D9DBD', // Recovery — Cyan (dark)
+    zone2: '#5766D8', // Endurance — Blue (dark)
+    zone3: '#3F8A52', // Tempo — Green (dark)
+    zone4: '#B08F1C', // Threshold — Gold (dark)
+    zone5: '#A94708', // VO2max — Orange (dark)
+    zone6: '#E0568A', // Anaerobic — Crimson (dark)
+    zone7: '#9955E0', // Neuromuscular — Violet (dark)
 
     // Legacy aliases
     electricLime: '#3BA89D',
