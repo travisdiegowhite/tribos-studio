@@ -26,10 +26,8 @@
 --    geometry/geography columns, zero non-extension DB functions referencing
 --    PostGIS, zero app-code callers of ST_* functions. The real fix is to drop
 --    the extension (which removes spatial_ref_sys), or recreate it in the
---    `extensions` schema if spatial features are ever wanted. Per the standing
---    "explicit approval before drops" policy, the DROP stays commented out:
---
---    -- DROP EXTENSION IF EXISTS postgis;  -- requires explicit approval
+--    `extensions` schema if spatial features are ever wanted. The drop was
+--    explicitly approved on 2026-08-05 and executed by migration 108.
 
 -- ============================================================================
 -- 1. Backup tables from the 2026-08-01 cleanup: RLS deny-all + revoke grants
