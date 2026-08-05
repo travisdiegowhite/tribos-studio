@@ -134,12 +134,6 @@ const StreamsTooltip = ({ active, payload, label, activeMetrics, xMode, hasEleva
 /**
  * RideStreamsChart — ride profile over distance (or time for indoor rides).
  *
- * DEPRECATED: superseded by the canvas-based flagship chart in
- * src/features/activity-chart/ (rendered by the /activity/:id page, which
- * replaced the RideAnalysisModal flow). Only the modal still mounts this
- * component; prefer ActivityChart for any new surface. See
- * docs/activity-chart-system.md.
- *
  * Power/HR are smoothed with a rolling average and all series are
  * downsampled with peak-preserving LTTB. Elevation always renders as a
  * muted background area. Drag horizontally to zoom; double-click to reset.

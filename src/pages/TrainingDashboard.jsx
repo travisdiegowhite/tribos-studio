@@ -742,12 +742,11 @@ function TrainingDashboard() {
     setWorkoutModalOpen(true);
   }, []);
 
-  // Handle viewing ride details — navigates to the dedicated activity
-  // analysis page (the RideAnalysisModal remains as a fallback component
-  // but is no longer opened from here).
+  // Handle viewing ride details
   const handleViewRide = useCallback((ride) => {
-    navigate(`/activity/${ride.id}`);
-  }, [navigate]);
+    setSelectedRide(ride);
+    setRideAnalysisModalOpen(true);
+  }, []);
 
   // Handle hiding/showing a ride
   const handleHideRide = useCallback(async (ride) => {
