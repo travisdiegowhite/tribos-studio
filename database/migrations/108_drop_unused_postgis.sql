@@ -1,0 +1,22 @@
+-- Migration 108: Drop the unused PostGIS extension
+--
+-- Follow-up to migration 107. The `public.spatial_ref_sys` table (owned by
+-- supabase_admin via the PostGIS extension) was the last remaining
+-- rls_disabled_in_public linter finding and could not be fixed from the
+-- postgres role: RLS can't be enabled (not owner) and the anon/authenticated
+-- grants were made by supabase_admin, so REVOKE as postgres is a no-op.
+--
+-- PostGIS was verified unused before dropping (2026-08-05):
+--   - zero geometry/geography columns in any schema
+--   - zero non-extension database functions referencing PostGIS
+--   - zero app-code callers of ST_* functions (repo grep)
+-- The plain RESTRICT drop below (not CASCADE) is a second, database-enforced
+-- proof: it errors if anything depends on the extension. It succeeded.
+--
+-- Explicitly approved 2026-08-05. Applied to production the same day; the
+-- security linter now reports zero rls_disabled_in_public findings.
+--
+-- If spatial features are ever wanted, reinstall OUTSIDE the API-exposed
+-- schema:  CREATE EXTENSION postgis SCHEMA extensions;
+
+DROP EXTENSION IF EXISTS postgis;
