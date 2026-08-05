@@ -101,9 +101,6 @@
     },
     "api/evidence-weekly.js": {
       "maxDuration": 60
-    },
-    "api/activity-streams.js": {
-      "maxDuration": 60
     }
   },
   "rewrites": [
