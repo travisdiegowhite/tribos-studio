@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import {
   computeTrainingLoadRows,
   recomputeTrainingLoadForUser,
+  fetchSeedState,
   localDateKey,
 } from './trainingLoadRecompute.js';
 
@@ -201,6 +202,27 @@ describe('computeTrainingLoadRows', () => {
     expect(rows[0].form_score).toBeCloseTo(84 / 42 - 84 / 7, 2);
   });
 
+  it('includeToday extends the window through today and picks up a today-dated ride', async () => {
+    // 16:00 UTC Jul 10 = 10:00 Jul 10 in Denver — today at the fixed NOW.
+    const supabase = mockSupabase({ activities: [ride('2026-07-10T16:00:00Z', 77)] });
+    const { rows } = await computeTrainingLoadRows(supabase, 'u1', {
+      days: 4,
+      now: NOW,
+      includeToday: true,
+    });
+    expect(rows).toHaveLength(5); // Jul 6..10 inclusive
+    expect(rows[rows.length - 1].date).toBe('2026-07-10');
+    expect(rows[rows.length - 1].rss).toBe(77);
+    expect(rows[rows.length - 1].afi).toBeCloseTo(77 / 7, 2);
+  });
+
+  it('default opts still end at yesterday even when a today ride exists', async () => {
+    const supabase = mockSupabase({ activities: [ride('2026-07-10T16:00:00Z', 77)] });
+    const { rows } = await computeTrainingLoadRows(supabase, 'u1', { days: 4, now: NOW });
+    expect(rows[rows.length - 1].date).toBe('2026-07-09');
+    expect(rows.every((r) => r.rss === 0)).toBe(true);
+  });
+
   it('paginates the activities fetch beyond 1000 rows', async () => {
     // 1004 activities, all on 2026-07-08, 1 RSS each. An un-paginated fetch
     // (silent 1000-row cap) would sum 1000; pagination sees all 1004 —
@@ -230,6 +252,28 @@ describe('recomputeTrainingLoadForUser', () => {
     expect(result.rowsWritten).toBe(0);
     expect(result.lastDay.date).toBe('2026-07-09');
     expect(supabase.upserts).toHaveLength(0);
+  });
+});
+
+describe('fetchSeedState', () => {
+  it('decays the prior row across the gap to the day before startKey', async () => {
+    // Prior row Jul 1, startKey Jul 6 → 4 gap days (Jul 2–5) of zero-RSS decay.
+    const supabase = mockSupabase({ priorRow: { date: '2026-07-01', tfi: 100, afi: 60 } });
+    const seed = await fetchSeedState(supabase, 'u1', '2026-07-06', 42, 7);
+    let tfi = 100;
+    let afi = 60;
+    for (let i = 0; i < 4; i++) {
+      tfi += (0 - tfi) / 42;
+      afi += (0 - afi) / 7;
+    }
+    expect(seed.tfi).toBeCloseTo(tfi, 6);
+    expect(seed.afi).toBeCloseTo(afi, 6);
+  });
+
+  it('returns null when no prior row exists (true cold start)', async () => {
+    const supabase = mockSupabase({ priorRow: null });
+    const seed = await fetchSeedState(supabase, 'u1', '2026-07-06', 42, 7);
+    expect(seed).toBeNull();
   });
 });
 

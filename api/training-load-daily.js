@@ -15,6 +15,13 @@
  *   client-style numbers (fixed 42/7, no terrain/MTB, 90-day cold start) so
  *   the displayed-number jump is quantified before/after enabling — the
  *   check docs/tfi-duality-decision.md §5.1 asked for.
+ * - POST /api/training-load-daily {action:'refresh', user_id}  Internal
+ *   (CRON_SECRET bearer): short-window recompute for one user INCLUDING
+ *   today's partial row. Fired after activity ingest (webhooks, FIT upload)
+ *   so readers see a fresh server row the moment a ride lands instead of
+ *   client-filling up to two days of tail. 30-day window — exact thanks to
+ *   fetchSeedState seeding, cheap enough to run per-webhook; the nightly
+ *   180-day rollforward remains the reconciler for backdated edits.
  *
  * Cron cadence: daily at 02:30 UTC — after recompute-user-tau (02:00) so the
  * walk uses fresh adaptive tau, before database-cleanup (03:00).
@@ -54,6 +61,12 @@ export default async function handler(req, res) {
     return res.status(405).json({ error: 'Method not allowed' });
   }
 
+  // Internal ingest-triggered refresh — CRON_SECRET bearer, not a user JWT
+  // (same token-compare convention as api/process-deviation.js).
+  if (action === 'refresh') {
+    return handleRefresh(req, res);
+  }
+
   const authUser = await getUserFromAuthHeader(req);
   if (!authUser) {
     return res.status(401).json({ error: 'Unauthorized' });
@@ -66,6 +79,37 @@ export default async function handler(req, res) {
       return handlePreview(req, res, authUser);
     default:
       return res.status(400).json({ error: 'Invalid action. Use: recompute or preview' });
+  }
+}
+
+const REFRESH_WINDOW_DAYS = 30;
+
+async function handleRefresh(req, res) {
+  const authHeader = req.headers.authorization;
+  const cronSecret = process.env.CRON_SECRET;
+  const token = authHeader?.startsWith('Bearer ') ? authHeader.substring(7) : null;
+  if (!cronSecret || token !== cronSecret) {
+    return res.status(401).json({ error: 'Unauthorized' });
+  }
+
+  const userId = req.body?.user_id;
+  if (!userId) {
+    return res.status(400).json({ error: 'user_id required' });
+  }
+
+  try {
+    const result = await recomputeTrainingLoadForUser(supabase, userId, {
+      days: REFRESH_WINDOW_DAYS,
+      includeToday: true,
+    });
+    return res.json({
+      success: true,
+      rowsWritten: result.rowsWritten,
+      lastDate: result.lastDay?.date ?? null,
+    });
+  } catch (error) {
+    console.error('training-load refresh error:', error);
+    return res.status(500).json({ error: error.message });
   }
 }
 
@@ -152,11 +196,18 @@ async function handlePreview(req, res, authUser) {
       .gte('start_date', since.toISOString())
       .order('start_date', { ascending: true });
 
+    // Zero-fill the full 90-day calendar so rest days decay — iterating
+    // only activity days skips the decay steps and inflates the baseline.
     const dailyRSS = {};
+    const cursor = new Date(since);
+    const end = new Date();
+    for (; cursor <= end; cursor.setDate(cursor.getDate() + 1)) {
+      dailyRSS[cursor.toISOString().split('T')[0]] = 0;
+    }
     for (const a of activities ?? []) {
       const key = a.start_date?.split('T')[0];
-      if (!key) continue;
-      dailyRSS[key] = (dailyRSS[key] || 0) + Math.min(estimateActivityTSS(a, profile.ftp), 500);
+      if (!key || dailyRSS[key] === undefined) continue;
+      dailyRSS[key] += Math.min(estimateActivityTSS(a, profile.ftp), 500);
     }
     let ctl = 0;
     let atl = 0;

@@ -170,18 +170,26 @@ function labelActivity(opts: {
   durationSec: number;
   index: number;
   isToday: boolean;
-  todaysWorkout: { name: string; type: string; durationMin: number } | null;
+  todaysWorkout: { name: string; type: string; durationMin: number; targetRss: number } | null;
   plannedName: string | null;
   realName: string | null;
 }): DayActivity {
   const { rss, durationSec, index, isToday, todaysWorkout, plannedName, realName } = opts;
 
-  if (isToday && todaysWorkout) {
+  // The PLAN card only speaks for the plan — its meta is the plan's own
+  // target, never the day's actual RSS. Once something has actually been
+  // ridden (rss > 0), fall through to the standard actual-activity labeling
+  // below so a rest-day plan can't render as "PLAN · Rest Day · 77 RSS" with
+  // the real ride's load fused onto the plan's name.
+  if (isToday && todaysWorkout && rss <= 0) {
     const dur = formatDur(todaysWorkout.durationMin);
     return {
       tag: 'PLAN',
       name: todaysWorkout.name,
-      meta: [dur, rss > 0 ? `${Math.round(rss)} RSS` : null].filter(Boolean).join(' · ') || 'planned',
+      meta:
+        [dur, todaysWorkout.targetRss > 0 ? `~${Math.round(todaysWorkout.targetRss)} RSS` : null]
+          .filter(Boolean)
+          .join(' · ') || 'planned',
       tagColor: '#ffffff',
     };
   }
@@ -224,8 +232,11 @@ export interface AssembleInput {
   serverLoad: ServerLoadRow[];
   activities: Array<AthleteActivityRow & { name?: string | null }>;
   ftp: number;
+  /** Adaptive EWA time constants (user_profiles.tfi_tau/afi_tau); default 42/7. */
+  tfiTau?: number;
+  afiTau?: number;
   planned: PlannedRow[];
-  todaysWorkout: { name: string; type: string; durationMin: number } | null;
+  todaysWorkout: { name: string; type: string; durationMin: number; targetRss: number } | null;
   event: SpineEvent | null;
   persona: { id: string; name: string };
   recentRides: RecentRide[];
@@ -243,6 +254,8 @@ const EMPTY_ROLLUP: WeekRollup = {
 export function assembleSpine(input: AssembleInput): SpineData {
   const { now, serverLoad, activities, ftp, planned, todaysWorkout, event, persona, recentRides, weekRollup } =
     input;
+  const tfiTau = input.tfiTau ?? 42;
+  const afiTau = input.afiTau ?? 7;
 
   const today = startOfDay(now);
   const start90 = addDays(today, -90);
@@ -266,12 +279,15 @@ export function assembleSpine(input: AssembleInput): SpineData {
     }
   }
 
-  // EWA walk (server-preferred), capturing TFI/AFI at every day.
+  // EWA walk (server-preferred), capturing TFI/AFI at every day. Client-filled
+  // days step with the athlete's adaptive tau so the tail decays at the same
+  // rate as the server engine.
   const serverByDate = new Map<string, ServerLoadRow>();
   for (const r of serverLoad) serverByDate.set(r.date, r);
   const tfiByDate: Record<string, number> = {};
   const afiByDate: Record<string, number> = {};
   const sortedDays = Object.keys(dailyRSS).sort();
+  const todayKey = fmtDate(today);
   let tfi = 0;
   let afi = 0;
   let daysWithLoad = 0;
@@ -280,19 +296,28 @@ export function assembleSpine(input: AssembleInput): SpineData {
     // Trust a server row only when tfi/afi are actually present — Number(null)
     // is 0 (finite), so a null-valued row would silently zero fitness instead
     // of falling through to the client EWA.
-    if (
-      server &&
+    const serverUsable =
+      server != null &&
       server.tfi != null &&
       server.afi != null &&
       Number.isFinite(Number(server.tfi)) &&
-      Number.isFinite(Number(server.afi))
-    ) {
-      tfi = Number(server.tfi);
-      afi = Number(server.afi);
+      Number.isFinite(Number(server.afi));
+    // Today-floor guard: today's server row is partial by design (written on
+    // activity ingest). If it undercounts the client-visible RSS — e.g. a
+    // second ride whose refresh trigger failed — it's stale; step past it
+    // instead of adopting it. Finalized past rows are never second-guessed.
+    const staleTodayRow =
+      serverUsable &&
+      day === todayKey &&
+      server!.rss != null &&
+      dailyRSS[day] > Number(server!.rss) + 1;
+    if (serverUsable && !staleTodayRow) {
+      tfi = Number(server!.tfi);
+      afi = Number(server!.afi);
     } else {
       const rss = dailyRSS[day];
-      tfi = tfi + (rss - tfi) / 42;
-      afi = afi + (rss - afi) / 7;
+      tfi = tfi + (rss - tfi) / tfiTau;
+      afi = afi + (rss - afi) / afiTau;
     }
     if (dailyRSS[day] > 0 || server) daysWithLoad += 1;
     tfiByDate[day] = tfi;
@@ -307,8 +332,6 @@ export function assembleSpine(input: AssembleInput): SpineData {
     }
     return sec / 3600;
   };
-
-  const todayKey = fmtDate(today);
 
   // ── Past 43 days ────────────────────────────────────────────────────────
   const days: DayNode[] = [];
@@ -382,7 +405,7 @@ export function assembleSpine(input: AssembleInput): SpineData {
     // INTO the day (yesterday's TFI − AFI), captured before stepping.
     const prevTfi = state.tfi;
     const prevAfi = state.afi;
-    state = stepDay(state, rss);
+    state = stepDay(state, rss, tfiTau, afiTau);
     const dTfi = Math.round(state.tfi);
     const dAfi = Math.round(state.afi);
     const fs = Math.round(prevTfi - prevAfi);
@@ -511,7 +534,7 @@ export async function getTodaySpine(userId: string): Promise<SpineData> {
   const runQueries = () =>
     Promise.all([
       supabase.from('user_coach_settings').select('coaching_persona').eq('user_id', userId).maybeSingle(),
-      supabase.from('user_profiles').select('ftp').eq('id', userId).maybeSingle(),
+      supabase.from('user_profiles').select('ftp, tfi_tau, afi_tau').eq('id', userId).maybeSingle(),
       supabase
         .from('activities')
         .select(
@@ -530,7 +553,7 @@ export async function getTodaySpine(userId: string): Promise<SpineData> {
       // proven reader in src/views/today/useTodayData.ts.
       supabase
         .from('training_load_daily')
-        .select('date, tfi, afi, form_score')
+        .select('date, rss, tfi, afi, form_score')
         .eq('user_id', userId)
         .gte('date', ninetyKey)
         .order('date', { ascending: true }),
@@ -620,9 +643,14 @@ export async function getTodaySpine(userId: string): Promise<SpineData> {
   const persona = { id: personaId, name: PERSONAS[personaId]?.name ?? 'The Pragmatist' };
 
   const ftp = (profileRes.data?.ftp as number | null) || 200;
+  // Adaptive tau — same guard as the server engine (trainingLoadRecompute.js)
+  // so the client-filled tail decays at the athlete's actual rate.
+  const tfiTau = Number(profileRes.data?.tfi_tau) > 0 ? Number(profileRes.data?.tfi_tau) : 42;
+  const afiTau = Number(profileRes.data?.afi_tau) > 0 ? Number(profileRes.data?.afi_tau) : 7;
 
   const serverLoad: ServerLoadRow[] = (serverLoadRes.data ?? []).map((r) => ({
     date: r.date as string,
+    rss: (r.rss ?? null) as number | null,
     tfi: (r.tfi ?? null) as number | null,
     afi: (r.afi ?? null) as number | null,
     form_score: (r.form_score ?? null) as number | null,
@@ -639,6 +667,9 @@ export async function getTodaySpine(userId: string): Promise<SpineData> {
         name: todayPlan.name || todayPlan.workout_type || 'Workout',
         type: (todayPlan.workout_type || 'endurance') as string,
         durationMin: Number(todayPlan.duration_minutes ?? todayPlan.target_duration ?? 0),
+        // The plan's own target load (0 for rest types) — the PLAN card's
+        // meta shows this, never the day's actual RSS.
+        targetRss: plannedRowRSS(todayPlan as PlannedRow),
       }
     : null;
 
@@ -690,6 +721,8 @@ export async function getTodaySpine(userId: string): Promise<SpineData> {
     serverLoad,
     activities,
     ftp,
+    tfiTau,
+    afiTau,
     planned: (plannedRes.data ?? []) as PlannedRow[],
     todaysWorkout,
     event,

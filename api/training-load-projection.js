@@ -44,15 +44,17 @@ export default async function handler(req, res) {
       .limit(1)
       .single();
 
+    // Cold start from 0 (matches the recompute engine) — 42/42 fabricated
+    // fitness and fatigue for users with no stored history.
     const currentState = latestLoad
       ? { tfi: Number(latestLoad.tfi), afi: Number(latestLoad.afi), formScore: Number(latestLoad.form_score) }
-      : { tfi: 42, afi: 42, formScore: 0 };
+      : { tfi: 0, afi: 0, formScore: 0 };
 
-    // Get upcoming planned workouts
+    // Get upcoming planned workouts (canonical-first target per CLAUDE.md)
     const today = new Date().toISOString().split('T')[0];
     const { data: upcoming } = await supabase
       .from('planned_workouts')
-      .select('scheduled_date, target_tss, is_quality, session_type, workout_type')
+      .select('scheduled_date, target_rss, target_tss, is_quality, session_type, workout_type')
       .eq('user_id', user.id)
       .gte('scheduled_date', today)
       .order('scheduled_date', { ascending: true })
@@ -60,7 +62,7 @@ export default async function handler(req, res) {
 
     const schedule = (upcoming ?? []).map(w => ({
       date: w.scheduled_date,
-      rss: w.target_tss || 0,
+      rss: (w.target_rss ?? w.target_tss) || 0,
       is_quality: w.is_quality || false,
       session_type: w.session_type || w.workout_type,
     }));

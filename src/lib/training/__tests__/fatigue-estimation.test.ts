@@ -162,6 +162,21 @@ describe('estimateTSS', () => {
       const result = estimateTSS(activity, defaultCal);
       expect(result.tss).toBeCloseTo(48, 0); // same as endurance
     });
+
+    it('scores rest days as zero even with duration and elevation present', () => {
+      // Before the 'rest' key existed, this fell back to endurance (48/hr) —
+      // a 1.5h ride on a rest day scored ~77 "planned" TSS.
+      const activity: ActivityData = {
+        duration_seconds: 5400,
+        workout_type: 'rest',
+        total_elevation_m: 150,
+      };
+      const result = estimateTSS(activity, defaultCal);
+      expect(result.tss).toBe(0);
+      expect(result.tss_low).toBe(0);
+      expect(result.tss_high).toBe(0);
+      expect(result.source).toBe('inferred');
+    });
   });
 
   describe('Tier priority', () => {

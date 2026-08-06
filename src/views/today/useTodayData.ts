@@ -365,7 +365,7 @@ export function useTodayData(userId: string | null): UseTodayDataReturn {
         // actually did.
         const userProfileQuery = supabase
           .from('user_profiles')
-          .select('ftp')
+          .select('ftp, tfi_tau, afi_tau')
           .eq('id', userId)
           .maybeSingle();
 
@@ -404,7 +404,7 @@ export function useTodayData(userId: string | null): UseTodayDataReturn {
         const ninetyKey = ninetyDaysAgo.toISOString().slice(0, 10);
         const serverLoadQuery = supabase
           .from('training_load_daily')
-          .select('date, tfi, afi, form_score')
+          .select('date, rss, tfi, afi, form_score')
           .eq('user_id', userId)
           .gte('date', ninetyKey)
           .order('date', { ascending: true });
@@ -533,9 +533,15 @@ export function useTodayData(userId: string | null): UseTodayDataReturn {
         // through to the client EWA over activity-derived RSS for any tail
         // days the server hasn't written. See docs/tfi-duality-decision.md.
         const userFtp = (userProfileRes.data?.ftp as number | null) || 200;
+        // Adaptive tau — same guard as the server engine so client-filled
+        // tail days decay at the athlete's actual rate.
+        const taus = {
+          tfi: Number(userProfileRes.data?.tfi_tau) > 0 ? Number(userProfileRes.data?.tfi_tau) : 42,
+          afi: Number(userProfileRes.data?.afi_tau) > 0 ? Number(userProfileRes.data?.afi_tau) : 7,
+        };
         const athleteActivities = (athleteActivitiesRes.data ?? []) as unknown as AthleteActivityRow[];
         const serverLoadHistory = (serverLoadRes.data ?? []) as unknown as ServerLoadRow[];
-        const metrics = buildAthleteMetrics(athleteActivities, userFtp, serverLoadHistory);
+        const metrics = buildAthleteMetrics(athleteActivities, userFtp, serverLoadHistory, taus);
         const { formScore, tfiCurrent, afiCurrent, tfiHistory, afiLast28 } = metrics;
 
         // FATIGUE bar — position in the user's own 28-day AFI range so

@@ -99,6 +99,19 @@ function estimateRunningTSS(activity: ActivityInput): number {
  *
  * Mirrors api/utils/fitnessSnapshots.js estimateTSS.
  */
+/**
+ * Reject implausible stored stress scores so they fall through to the tiered
+ * estimators instead of polluting the series (the FIT uint16 sentinel 6553.5
+ * was the observed corruption). Duplicated from
+ * api/utils/stressScoreSanitizer.js — src/ cannot import api/; keep the two
+ * in sync (same convention as the haversine copy in api/garmin-auth.js).
+ */
+function sanitizeStoredStressScore(value: number | null | undefined): number | null {
+  const n = Number(value);
+  if (!Number.isFinite(n) || n <= 0 || n >= 1000) return null;
+  return n;
+}
+
 export function estimateActivityTSS(
   activity: ActivityInput,
   ftp?: number | null
@@ -107,7 +120,9 @@ export function estimateActivityTSS(
   // per CLAUDE.md policy. activity.rss is populated by server-side ingestors
   // (garmin-webhook-process, garmin-activities, fit-upload); activity.tss is
   // the legacy column, NULL for most activities since the B9 cut-over.
-  const storedRSS = activity.rss ?? activity.tss;
+  // Sanitized to match the server engine — an unsanitized sentinel here used
+  // to render as a capped-500 day while the server correctly discarded it.
+  const storedRSS = sanitizeStoredStressScore(activity.rss ?? activity.tss);
   if (storedRSS && storedRSS > 0) return storedRSS;
 
   // Tier 2: running-specific

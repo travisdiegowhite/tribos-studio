@@ -35,6 +35,9 @@ export const DEFAULT_CALIBRATION = {
 
 // ── Type-based TSS-per-hour defaults ─────────────────────────────────────────
 export const TYPE_TSS_PER_HOUR: Record<string, { low: number; mid: number; high: number }> = {
+  // A rest day prescribes zero load — without this key, 'rest' fell back to
+  // endurance (48/hr) and a ride on a rest day scored as endurance work.
+  rest:      { low: 0, mid: 0, high: 0 },
   recovery:  { low: 22, mid: 30, high: 38 },
   endurance: { low: 38, mid: 48, high: 58 },
   tempo:     { low: 58, mid: 68, high: 78 },

@@ -4,7 +4,9 @@
 
 // ── TSS Estimation ───────────────────────────────────────────────────────────
 
-export type TSSSource = 'power' | 'hr' | 'rpe' | 'inferred';
+// Spec amendment D1 — six tiers, matching estimateTSSWithSource in
+// api/utils/fitnessSnapshots.js and the training_load_daily.rss_source column.
+export type TSSSource = 'device' | 'power' | 'kilojoules' | 'hr' | 'rpe' | 'inferred';
 
 export type TerrainClass = 'flat' | 'rolling' | 'hilly' | 'mountainous';
 

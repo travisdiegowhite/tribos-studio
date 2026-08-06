@@ -188,13 +188,45 @@ describe('assembleSpine', () => {
 
   it('labels a rest day and a today PLAN chip', () => {
     const data = assembleSpine(
-      baseInput({ todaysWorkout: { name: 'Hygiene Loop', type: 'endurance', durationMin: 90 } }),
+      baseInput({ todaysWorkout: { name: 'Hygiene Loop', type: 'endurance', durationMin: 90, targetRss: 72 } }),
     );
     expect(data.days[42].activity.tag).toBe('PLAN');
     expect(data.days[42].activity.name).toBe('Hygiene Loop');
     // A day with no activity + no load is REST.
     const restDay = data.days.find((d) => !d.isFuture && d.rss === 0 && d.index !== 42);
     expect(restDay?.activity.tag).toBe('REST');
+  });
+
+  it("today's PLAN card shows the plan's own target, never the day's actual RSS", () => {
+    const data = assembleSpine(
+      baseInput({ todaysWorkout: { name: 'Hygiene Loop', type: 'endurance', durationMin: 90, targetRss: 72 } }),
+    );
+    expect(data.days[42].activity.meta).toBe('1h30 · ~72 RSS');
+  });
+
+  it("a plan with no target renders 'planned', not a phantom number", () => {
+    const data = assembleSpine(
+      baseInput({ todaysWorkout: { name: 'Openers', type: 'endurance', durationMin: 0, targetRss: 0 } }),
+    );
+    expect(data.days[42].activity.tag).toBe('PLAN');
+    expect(data.days[42].activity.meta).toBe('planned');
+  });
+
+  it('a ride on a planned rest day renders as the actual ride, not a PLAN/actual mash-up', () => {
+    // The observed bug: "PLAN · Rest Day · 77 RSS" — the plan's name with the
+    // real ride's load fused on.
+    const data = assembleSpine(
+      baseInput({
+        todaysWorkout: { name: 'Rest Day', type: 'rest', durationMin: 0, targetRss: 0 },
+        activities: [
+          { start_date: `${fmt(NOW)}T08:00:00`, name: 'Erie Road Cycling', rss: 77, moving_time: 4514 },
+        ],
+      }),
+    );
+    const today = data.days[42].activity;
+    expect(today.tag).toBe('Z3'); // 77 RSS → tempo band
+    expect(today.name).toBe('Erie Road Cycling');
+    expect(today.meta).toContain('77 RSS');
   });
 
   it('uses a real completed-activity name and zone for a past ride', () => {
@@ -339,6 +371,53 @@ describe('future-day weekly volume', () => {
     // 8 days out the ridden 90 min has left the window; only the plan remains.
     const dayEight = data.days[data.todayIndex + 8];
     expect(dayEight.volHours).toBeCloseTo(0, 5);
+  });
+});
+
+describe('adaptive tau parity', () => {
+  it('client-filled tail days step with the athlete tau, not hard-coded 42/7', () => {
+    // Server rows through yesterday only, flat at tfi/afi 30; today is
+    // client-filled from a 200-RSS ride.
+    const rows: ServerLoadRow[] = [];
+    for (let i = 0; i < 42; i++) {
+      rows.push({ date: fmt(addDays(NOW, i - 42)), tfi: 30, afi: 30, form_score: 0 });
+    }
+    const activities = [{ start_date: `${fmt(NOW)}T08:00:00`, rss: 200, moving_time: 7200 }];
+    const data = assembleSpine(
+      baseInput({ serverLoad: rows, activities, tfiTau: 49, afiTau: 8 }),
+    );
+    const today = data.days[42];
+    expect(today.tfi).toBe(Math.round(30 + (200 - 30) / 49)); // 33, not 34 (τ=42)
+    expect(today.afi).toBe(Math.round(30 + (200 - 30) / 8)); // 51, not 54 (τ=7)
+  });
+});
+
+describe('today-floor guard', () => {
+  it('steps past a stale today server row that undercounts client-visible RSS', () => {
+    // Yesterday's server state 30/30; today's server row froze at rss 20 but
+    // the client can see an 80-RSS ride — the row is stale, so today's values
+    // must come from stepping yesterday's state, not from the stale row.
+    const rows: ServerLoadRow[] = [];
+    for (let i = 0; i < 42; i++) {
+      rows.push({ date: fmt(addDays(NOW, i - 42)), tfi: 30, afi: 30, form_score: 0 });
+    }
+    rows.push({ date: fmt(NOW), tfi: 31, afi: 29, form_score: 0, rss: 20 });
+    const activities = [{ start_date: `${fmt(NOW)}T08:00:00`, rss: 80, moving_time: 5400 }];
+    const data = assembleSpine(baseInput({ serverLoad: rows, activities }));
+    const today = data.days[42];
+    expect(today.afi).toBe(Math.round(30 + (80 - 30) / 7)); // 37, not the stale 29
+    expect(today.tfi).toBe(Math.round(30 + (80 - 30) / 42));
+  });
+
+  it('adopts a today server row whose rss covers the client-visible RSS', () => {
+    const rows: ServerLoadRow[] = [];
+    for (let i = 0; i < 42; i++) {
+      rows.push({ date: fmt(addDays(NOW, i - 42)), tfi: 30, afi: 30, form_score: 0 });
+    }
+    rows.push({ date: fmt(NOW), tfi: 31, afi: 37, form_score: 0, rss: 80 });
+    const activities = [{ start_date: `${fmt(NOW)}T08:00:00`, rss: 80, moving_time: 5400 }];
+    const data = assembleSpine(baseInput({ serverLoad: rows, activities }));
+    expect(data.days[42].afi).toBe(37); // the fresh server row wins as usual
   });
 });
 

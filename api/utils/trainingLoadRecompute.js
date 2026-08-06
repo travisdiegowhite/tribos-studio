@@ -12,11 +12,14 @@
  *  - Recomputes the full trailing window (default 180 days) on every run
  *    and bulk-upserts. Self-healing: backdated uploads, edits, deletions,
  *    and duplicate-marking are all absorbed by the next run.
- *  - Writes THROUGH YESTERDAY (user's timezone), never today. Readers
+ *  - Writes THROUGH YESTERDAY (user's timezone) by default. Readers
  *    prefer a server row when one exists for a date; a today row written
- *    before today's ride would mask the ride until the next run. With no
- *    today row, every reader client-fills today from yesterday's stored
- *    state, which stays live as activities land.
+ *    by the nightly cron (i.e. before today's ride) would be a frozen
+ *    0-RSS row that masks the ride until the next run, so the cron never
+ *    includes today. Ingest-triggered refreshes pass includeToday: true
+ *    — they run precisely because an activity just landed, so the today
+ *    row they write already contains it, and re-triggering on each new
+ *    activity keeps it current.
  *  - Dates are the user's LOCAL calendar dates (user_profiles.timezone,
  *    same convention as api/process-deviation.js).
  *  - Per-activity RSS via estimateTSSWithSource (6-tier, terrain + MTB
@@ -38,8 +41,11 @@
  *  - tfi_composition is left NULL here (spec §3.4 composition tracking is
  *    a separate enhancement — see METRICS_ROLLOUT_FREEZE.md §2a).
  *
- * process-deviation.js keeps using upsertTrainingLoadDaily for its
- * single-day incremental writes; the nightly recompute reconciles both.
+ * This module is the ONLY writer of training_load_daily —
+ * process-deviation.js also routes its writes through
+ * recomputeTrainingLoadForUser (includeToday: true) rather than
+ * hand-stepping single-day rows, so redelivered webhooks and same-day
+ * second activities are naturally idempotent.
  */
 
 import {
@@ -78,7 +84,7 @@ function daysBetweenKeys(a, b) {
  * across any gap as zero-RSS days. Returns null when no prior row exists
  * (true cold start).
  */
-async function fetchSeedState(supabase, userId, startKey, tfiTau, afiTau) {
+export async function fetchSeedState(supabase, userId, startKey, tfiTau, afiTau) {
   const { data: prior, error } = await supabase
     .from('training_load_daily')
     .select('date, tfi, afi')
@@ -113,7 +119,7 @@ async function fetchSeedState(supabase, userId, startKey, tfiTau, afiTau) {
  *
  * @param {import('@supabase/supabase-js').SupabaseClient} supabase
  * @param {string} userId
- * @param {{ days?: number, now?: Date }} [opts]
+ * @param {{ days?: number, now?: Date, includeToday?: boolean }} [opts]
  * @returns {Promise<{rows: Array<object>, profile: {ftp: number|null, tfiTau: number, afiTau: number, timezone: string}}>}
  */
 export async function computeTrainingLoadRows(supabase, userId, opts = {}) {
@@ -131,9 +137,10 @@ export async function computeTrainingLoadRows(supabase, userId, opts = {}) {
   const tfiTau = Number(profile?.tfi_tau) > 0 ? Number(profile.tfi_tau) : 42;
   const afiTau = Number(profile?.afi_tau) > 0 ? Number(profile.afi_tau) : 7;
 
-  // Window: [today - days, yesterday] in the user's local calendar.
+  // Window: [today - days, yesterday] in the user's local calendar —
+  // or through today itself for ingest-triggered refreshes (see header).
   const todayKey = localDateKey(now, timezone);
-  const endKey = addDaysKey(todayKey, -1);
+  const endKey = opts.includeToday ? todayKey : addDaysKey(todayKey, -1);
   const startKey = addDaysKey(todayKey, -days);
 
   // Fetch activities with a ±1-day UTC buffer so timezone conversion can't
@@ -250,7 +257,7 @@ export async function computeTrainingLoadRows(supabase, userId, opts = {}) {
  *
  * @param {import('@supabase/supabase-js').SupabaseClient} supabase
  * @param {string} userId
- * @param {{ days?: number, dryRun?: boolean, now?: Date }} [opts]
+ * @param {{ days?: number, dryRun?: boolean, now?: Date, includeToday?: boolean }} [opts]
  * @returns {Promise<{rowsWritten: number, lastDay: object|null, dryRun: boolean}>}
  */
 export async function recomputeTrainingLoadForUser(supabase, userId, opts = {}) {

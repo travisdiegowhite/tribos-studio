@@ -304,6 +304,20 @@ function estimateFromType(activity: ActivityData, terrain_class: TerrainClass): 
   const defaults = TYPE_TSS_PER_HOUR[type] ?? TYPE_TSS_PER_HOUR.endurance;
   const hours = activity.duration_seconds / 3600;
 
+  // Zero-load types (rest) prescribe no work — skip the elevation bonus and
+  // multipliers too, or a rest day with recorded elevation would still score.
+  if (defaults.mid === 0) {
+    return {
+      tss: 0,
+      tss_low: 0,
+      tss_high: 0,
+      confidence: 0.40,
+      source: 'inferred',
+      method_detail: `type=${type} (zero-load)`,
+      terrain_class,
+    };
+  }
+
   // Elevation bonus: ~1 TSS per 30m of gain
   const elevationBonus = (activity.total_elevation_m ?? 0) / 30;
 

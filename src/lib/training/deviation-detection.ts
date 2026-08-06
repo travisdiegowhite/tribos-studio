@@ -20,6 +20,7 @@ import type {
   PlannedWorkoutRef,
   DeviationAnalysis,
   DeviationType,
+  TSSEstimate,
 } from './types';
 
 /**
@@ -30,15 +31,20 @@ import type {
  * @param currentState — Current CTL/ATL/TSB state
  * @param upcomingSchedule — Next 14 days of planned workouts as DailyLoad[]
  * @param calibration — User's TSS estimation calibration factors
+ * @param precomputedEstimate — Optional load estimate computed by the caller
+ *   (e.g. the server tier estimator estimateTSSWithSource, which sees the
+ *   full activity row); when provided it replaces the local estimateTSS so
+ *   deviation numbers match the stored training-load numbers.
  */
 export function analyzeDeviation(
   actual: ActivityData,
   planned: PlannedWorkoutRef,
   currentState: ProjectionState,
   upcomingSchedule: DailyLoad[],
-  calibration: CalibrationFactors
+  calibration: CalibrationFactors,
+  precomputedEstimate?: TSSEstimate
 ): DeviationAnalysis {
-  const estimate = estimateTSS(actual, calibration);
+  const estimate = precomputedEstimate ?? estimateTSS(actual, calibration);
   const delta = estimate.tss - planned.tss;
   const ratio = delta / Math.max(planned.tss, 1);
 
