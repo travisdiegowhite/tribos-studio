@@ -33,7 +33,7 @@ function input(overrides: Partial<AssembleInput> = {}): AssembleInput {
     activities: [],
     ftp: 250,
     planned: [],
-    todaysWorkout: { name: 'Hygiene Loop', type: 'endurance', durationMin: 90 },
+    todaysWorkout: { name: 'Hygiene Loop', type: 'endurance', durationMin: 90, targetRss: 72 },
     event: { name: 'Gran Fondo', date: fmt(addDays(NOW, 12)), daysToRace: 12, priority: 'A' },
     persona: { id: 'pragmatist', name: 'The Pragmatist' },
     recentRides: [],

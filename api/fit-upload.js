@@ -36,6 +36,7 @@ import { rateLimitByUser } from './utils/rateLimit.js';
 import { parseFitBuffer } from './utils/fitParser.js';
 import { fetchAthleteProfile } from './utils/athleteProfile.js';
 import { sanitizeStressScore } from './utils/stressScoreSanitizer.js';
+import { triggerTrainingLoadRefresh } from './utils/trainingLoadRefresh.js';
 
 const supabase = getSupabaseAdmin();
 
@@ -450,6 +451,9 @@ export default async function handler(req, res) {
         return res.status(500).json({ error: 'update_failed', message: updateError.message });
       }
 
+      // Refresh training_load_daily through today (fire-and-forget)
+      triggerTrainingLoadRefresh(userId).catch(() => {});
+
       return res.status(200).json({ success: true, action: 'updated', activity: updated });
     }
 
@@ -471,6 +475,9 @@ export default async function handler(req, res) {
       });
       return res.status(500).json({ error: 'insert_failed', message: insertError.message });
     }
+
+    // Refresh training_load_daily through today (fire-and-forget)
+    triggerTrainingLoadRefresh(userId).catch(() => {});
 
     return res.status(200).json({ success: true, action: 'inserted', activity: inserted });
   } catch (err) {

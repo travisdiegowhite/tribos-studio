@@ -30,10 +30,19 @@ import type {
 /**
  * Step the TFI/AFI/FS state forward by one day given today's RSS.
  * This is the core loop — just three arithmetic operations.
+ *
+ * Callers with the athlete's adaptive tau (user_profiles.tfi_tau/afi_tau)
+ * pass it so the client walk decays at the same rate as the server engine;
+ * the defaults keep every existing caller's behavior unchanged.
  */
-export function stepDay(state: ProjectionState, rss: number): ProjectionState {
-  const tfi = state.tfi + (rss - state.tfi) / TFI_TIME_CONSTANT;
-  const afi = state.afi + (rss - state.afi) / AFI_TIME_CONSTANT;
+export function stepDay(
+  state: ProjectionState,
+  rss: number,
+  tfiTau: number = TFI_TIME_CONSTANT,
+  afiTau: number = AFI_TIME_CONSTANT
+): ProjectionState {
+  const tfi = state.tfi + (rss - state.tfi) / tfiTau;
+  const afi = state.afi + (rss - state.afi) / afiTau;
   return { tfi, afi, formScore: tfi - afi };
 }
 

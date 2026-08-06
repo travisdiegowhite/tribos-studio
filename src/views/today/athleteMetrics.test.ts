@@ -35,3 +35,51 @@ describe('buildAthleteMetrics server-row guards', () => {
     expect(m.afiCurrent).toBeGreaterThan(10);
   });
 });
+
+describe('adaptive tau', () => {
+  it('client-filled days step with the provided tau, defaulting to 42/7', () => {
+    // Server rows through yesterday, flat at 30/30; today client-filled from
+    // a 200-RSS ride.
+    const server: ServerLoadRow[] = [];
+    for (let i = 90; i >= 1; i--) {
+      server.push({ date: fmtDate(daysAgo(i)), tfi: 30, afi: 30, form_score: 0 });
+    }
+    const activities = [{ start_date: `${fmtDate(daysAgo(0))}T08:00:00`, rss: 200, moving_time: 7200 }];
+
+    const adaptive = buildAthleteMetrics(activities, 250, server, { tfi: 49, afi: 8 });
+    expect(adaptive.tfiCurrent).toBe(Math.round(30 + (200 - 30) / 49)); // 33
+    expect(adaptive.afiCurrent).toBe(Math.round(30 + (200 - 30) / 8)); // 51
+
+    const fixed = buildAthleteMetrics(activities, 250, server);
+    expect(fixed.tfiCurrent).toBe(Math.round(30 + (200 - 30) / 42)); // 34
+    expect(fixed.afiCurrent).toBe(Math.round(30 + (200 - 30) / 7)); // 54
+  });
+});
+
+describe('today-floor guard', () => {
+  it('steps past a stale today row that undercounts client-visible RSS', () => {
+    const server: ServerLoadRow[] = [];
+    for (let i = 90; i >= 1; i--) {
+      server.push({ date: fmtDate(daysAgo(i)), tfi: 30, afi: 30, form_score: 0 });
+    }
+    server.push({ date: fmtDate(daysAgo(0)), tfi: 31, afi: 29, form_score: 0, rss: 20 });
+    const activities = [{ start_date: `${fmtDate(daysAgo(0))}T08:00:00`, rss: 80, moving_time: 5400 }];
+    const m = buildAthleteMetrics(activities, 250, server);
+    expect(m.afiCurrent).toBe(Math.round(30 + (80 - 30) / 7)); // 37, not the stale 29
+  });
+
+  it('adopts a fresh today row and leaves callers without rss unaffected', () => {
+    const server: ServerLoadRow[] = [];
+    for (let i = 90; i >= 1; i--) {
+      server.push({ date: fmtDate(daysAgo(i)), tfi: 30, afi: 30, form_score: 0 });
+    }
+    // Row covers the ride; guard must not fire.
+    const covered = [...server, { date: fmtDate(daysAgo(0)), tfi: 31, afi: 37, form_score: 0, rss: 80 }];
+    const activities = [{ start_date: `${fmtDate(daysAgo(0))}T08:00:00`, rss: 80, moving_time: 5400 }];
+    expect(buildAthleteMetrics(activities, 250, covered).afiCurrent).toBe(37);
+
+    // No rss selected (legacy caller) — guard inert, row adopted as before.
+    const noRss = [...server, { date: fmtDate(daysAgo(0)), tfi: 31, afi: 29, form_score: 0 }];
+    expect(buildAthleteMetrics(activities, 250, noRss).afiCurrent).toBe(29);
+  });
+});

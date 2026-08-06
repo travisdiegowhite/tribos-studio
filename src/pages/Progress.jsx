@@ -64,6 +64,9 @@ function Progress() {
   const [activities, setActivities] = useState([]);
   const [serverLoadHistory, setServerLoadHistory] = useState([]);
   const [ftp, setFtp] = useState(null);
+  // Adaptive EWA tau (user_profiles.tfi_tau/afi_tau) so client-filled tail
+  // days decay at the athlete's actual rate — same guard as the server engine.
+  const [taus, setTaus] = useState({ tfi: 42, afi: 7 });
   const [unitsPreference, setUnitsPreference] = useState('imperial');
   const [zoneTimeFilter, setZoneTimeFilter] = useState('30');
 
@@ -82,13 +85,17 @@ function Progress() {
         // Load user profile for FTP and units
         const { data: profile } = await supabase
           .from('user_profiles')
-          .select('units_preference, ftp, power_zones, weight_kg')
+          .select('units_preference, ftp, power_zones, weight_kg, tfi_tau, afi_tau')
           .eq('id', user.id)
           .single();
 
         if (profile) {
           if (profile.ftp) setFtp(profile.ftp);
           if (profile.units_preference) setUnitsPreference(profile.units_preference);
+          setTaus({
+            tfi: Number(profile.tfi_tau) > 0 ? Number(profile.tfi_tau) : 42,
+            afi: Number(profile.afi_tau) > 0 ? Number(profile.afi_tau) : 7,
+          });
         }
 
         // Load all activities with pagination (Supabase caps at 1000 per request)
@@ -199,7 +206,7 @@ function Progress() {
   // there, the full walk beats a 90-day-window EWA cold start.
   const trainingMetrics = useMemo(() => {
     if (serverLoadHistory.length > 0) {
-      const m = buildAthleteMetrics(activities, ftp || 200, serverLoadHistory);
+      const m = buildAthleteMetrics(activities, ftp || 200, serverLoadHistory, taus);
       if (m.tfiCurrent != null) {
         const tsb = Math.round(m.formScore ?? 0);
         return {
@@ -222,7 +229,7 @@ function Progress() {
       tsb: current.tsb,
       interpretation: interpretTSB(current.tsb),
     };
-  }, [activities, serverLoadHistory, ftp]);
+  }, [activities, serverLoadHistory, ftp, taus]);
 
   // Generate trend insights
   const trendInsights = useMemo(() => {

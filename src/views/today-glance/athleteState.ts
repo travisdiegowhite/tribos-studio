@@ -89,7 +89,7 @@ export async function getAthleteState(userId: string): Promise<TodayAthleteState
 
   const ftpQuery = supabase
     .from('user_profiles')
-    .select('ftp')
+    .select('ftp, tfi_tau, afi_tau')
     .eq('id', userId)
     .maybeSingle();
 
@@ -104,8 +104,14 @@ export async function getAthleteState(userId: string): Promise<TodayAthleteState
     ServerLoadRow & { fs_confidence?: number | null }
   >;
   const ftp = (ftpRes.data?.ftp as number | null) || 200;
+  // Adaptive tau — same guard as the server engine so client-filled tail
+  // days decay at the athlete's actual rate.
+  const taus = {
+    tfi: Number(ftpRes.data?.tfi_tau) > 0 ? Number(ftpRes.data?.tfi_tau) : 42,
+    afi: Number(ftpRes.data?.afi_tau) > 0 ? Number(ftpRes.data?.afi_tau) : 7,
+  };
 
-  const metrics = buildAthleteMetrics(activities, ftp, serverHistory);
+  const metrics = buildAthleteMetrics(activities, ftp, serverHistory, taus);
   const { formScore, tfiCurrent, afiCurrent, tfiHistory, afiLast28 } = metrics;
 
   // Fatigue relative to the rider's own 28-day AFI range.

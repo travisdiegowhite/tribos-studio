@@ -14,6 +14,7 @@ import { fetchAthleteProfile } from './utils/athleteProfile.js';
 import { checkForDuplicate, takeoverActivity, mergeActivityData } from './utils/activityDedup.js';
 import { completeActivationStep, enqueueProactiveInsight, enqueueCheckIn } from './utils/activation.js';
 import { enqueueDeviationAnalysis } from './utils/deviationProcessor.js';
+import { triggerTrainingLoadRefresh } from './utils/trainingLoadRefresh.js';
 import { sendPushToUser, buildPostRideMessage } from './utils/pushNotification.js';
 import { updateBackfillChunkIfApplicable } from './utils/garminBackfill.js';
 import { extractAndStoreActivitySegments } from './utils/roadSegmentExtractor.js';
@@ -880,6 +881,9 @@ async function finalizeImportedActivity(event, activity, integration, activityIn
 
     // Enqueue deviation analysis (fire-and-forget)
     enqueueDeviationAnalysis(supabase, integration.user_id, activity.id).catch(() => {});
+
+    // Refresh training_load_daily through today (fire-and-forget)
+    triggerTrainingLoadRefresh(integration.user_id).catch(() => {});
   } catch (activationError) {
     console.error('⚠️ Activation tracking failed (non-critical):', activationError.message);
   }

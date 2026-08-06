@@ -1,7 +1,13 @@
 /**
  * Training Load Upsert Helper
  *
- * Single entry point for writing rows into training_load_daily.
+ * Single-day writer for training_load_daily. CURRENTLY UNUSED: its last
+ * caller (api/process-deviation.js) now routes writes through
+ * recomputeTrainingLoadForUser (trainingLoadRecompute.js), whose
+ * query-the-day's-activities recompute is idempotent under webhook
+ * redeliveries — the hand-stepped single-day write was not. Kept on disk
+ * under the wait-and-watch policy in case a true single-row writer is
+ * ever needed again.
  *
  * Two spec invariants are enforced here (not at call sites) so every
  * writer gets the same semantics:

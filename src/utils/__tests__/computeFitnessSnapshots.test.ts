@@ -8,6 +8,7 @@ process.env.TZ = 'America/Denver';
 import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
 import {
   computeWeeklySnapshots,
+  estimateActivityTSS,
   overlayServerLoadOnWeeklySnapshots,
   type WeeklySnapshot,
   type ServerLoadDailyRow,
@@ -37,6 +38,35 @@ function snap(overrides: Partial<WeeklySnapshot> & { snapshot_week: string }): W
     ...overrides,
   };
 }
+
+describe('estimateActivityTSS — stored-score sanitizer', () => {
+  it('rejects the FIT uint16 sentinel and falls through to the tiered estimators', () => {
+    // 6553.5 is the FIT "no data" sentinel (0xFFFF scaled ×10). The server
+    // engine discards it via sanitizeStressScore; the client must match —
+    // it used to render as a capped-500 monster day.
+    const tss = estimateActivityTSS(
+      {
+        start_date: '2026-07-21T14:00:00Z',
+        rss: 6553.5,
+        moving_time: 3600,
+        effective_power: 200,
+        type: 'Ride',
+      },
+      250,
+    );
+    // Tier 3 power math: IF = 200/250 = 0.8 → 1h × 0.8² × 100 = 64.
+    expect(tss).toBeCloseTo(64, 0);
+  });
+
+  it('still trusts a plausible stored RSS', () => {
+    expect(
+      estimateActivityTSS(
+        { start_date: '2026-07-21T14:00:00Z', rss: 82, moving_time: 3600, type: 'Ride' },
+        250,
+      ),
+    ).toBe(82);
+  });
+});
 
 describe('computeWeeklySnapshots — local-day bucketing', () => {
   it('keeps a Sunday-evening local ride in its local week (not the next UTC week)', () => {

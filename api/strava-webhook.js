@@ -12,6 +12,7 @@ import { checkForDuplicate, takeoverActivity, mergeActivityData } from './utils/
 import { updateSnapshotForActivity } from './utils/fitnessSnapshots.js';
 import { completeActivationStep, enqueueProactiveInsight, enqueueCheckIn } from './utils/activation.js';
 import { enqueueDeviationAnalysis } from './utils/deviationProcessor.js';
+import { triggerTrainingLoadRefresh } from './utils/trainingLoadRefresh.js';
 import { sendPushToUser, buildPostRideMessage } from './utils/pushNotification.js';
 
 // Initialize Supabase (server-side with service key for webhook processing)
@@ -507,6 +508,9 @@ async function handleActivityCreate(eventId, webhookData, integration) {
 
       // Enqueue deviation analysis (fire-and-forget)
       enqueueDeviationAnalysis(supabase, integration.user_id, savedActivity.id).catch(() => {});
+
+      // Refresh training_load_daily through today (fire-and-forget)
+      triggerTrainingLoadRefresh(integration.user_id).catch(() => {});
     } catch (activationError) {
       console.error('⚠️ Activation tracking failed (non-critical):', activationError.message);
     }

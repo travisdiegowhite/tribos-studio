@@ -37,7 +37,21 @@ export interface ServerLoadRow {
   tfi: number | null;
   afi: number | null;
   form_score: number | null;
+  /**
+   * The row's stored daily RSS. Optional — callers that select it enable the
+   * "today floor" staleness guard in buildDailyLoadSeries; callers that don't
+   * leave the guard inert.
+   */
+  rss?: number | null;
 }
+
+/** Adaptive EWA time constants (user_profiles.tfi_tau / afi_tau). */
+export interface TauPair {
+  tfi: number;
+  afi: number;
+}
+
+export const DEFAULT_TAUS: TauPair = { tfi: 42, afi: 7 };
 
 export interface AthleteMetrics {
   formScore: number | null;
@@ -74,14 +88,24 @@ export interface DailyLoadPoint {
  * (Today, Glance, Dashboard, /train) derives fitness/fatigue/form from the
  * same math: per day, prefer the server-stored TFI/AFI from
  * `training_load_daily` (terrain + MTB multipliers, per-athlete tau); fall
- * through to a client EWA (tau 42/7) over activity-derived RSS for dates the
- * server hasn't written. See docs/tfi-duality-decision.md.
+ * through to a client EWA over activity-derived RSS for dates the server
+ * hasn't written. Callers pass the athlete's adaptive tau (`taus`) so the
+ * client fill decays at the same rate as the server engine; the 42/7 default
+ * matches the previous hard-coded behavior. See docs/tfi-duality-decision.md.
+ *
+ * Today-floor guard: today's server row is partial by design (written on
+ * activity ingest). When the caller selected `rss` on the server rows and the
+ * client's activity-derived RSS for TODAY exceeds the stored row's, the row is
+ * stale (e.g. a second ride whose refresh trigger failed) — fall through to
+ * the client EWA step for that one day instead of adopting the stale row.
+ * Finalized past rows are never second-guessed.
  */
 export function buildDailyLoadSeries(
   activities: AthleteActivityRow[],
   ftp: number,
   serverHistory: ServerLoadRow[],
   windowDays = 90,
+  taus: TauPair = DEFAULT_TAUS,
 ): DailyLoadPoint[] {
   if (activities.length === 0 && serverHistory.length === 0) return [];
 
@@ -111,6 +135,7 @@ export function buildDailyLoadSeries(
   // otherwise advance the running EWA with the day's RSS. The EWA state
   // carries across server-vs-client days so we can resume cleanly.
   const series: DailyLoadPoint[] = [];
+  const todayKey = fmtDate(today);
   let tfi = 0;
   let afi = 0;
 
@@ -121,19 +146,26 @@ export function buildDailyLoadSeries(
     // Trust a server row only when tfi/afi are actually present — Number(null)
     // is 0 (finite), so a null-valued row would silently zero fitness instead
     // of falling through to the client EWA.
-    if (
+    const serverUsable =
       server &&
       server.tfi != null &&
       server.afi != null &&
       Number.isFinite(Number(server.tfi)) &&
-      Number.isFinite(Number(server.afi))
-    ) {
+      Number.isFinite(Number(server.afi));
+    // Today-floor guard (see header): a today row that undercounts the
+    // client-visible RSS is stale — step past it.
+    const staleTodayRow =
+      serverUsable &&
+      day === todayKey &&
+      server.rss != null &&
+      dailyRSS[day] > Number(server.rss) + 1;
+    if (serverUsable && !staleTodayRow) {
       tfi = Number(server.tfi);
       afi = Number(server.afi);
     } else {
       const rss = dailyRSS[day];
-      tfi = tfi + (rss - tfi) / 42;
-      afi = afi + (rss - afi) / 7;
+      tfi = tfi + (rss - tfi) / taus.tfi;
+      afi = afi + (rss - afi) / taus.afi;
     }
     const fs =
       server?.form_score != null && Number.isFinite(Number(server.form_score))
@@ -153,8 +185,9 @@ export function buildAthleteMetrics(
   activities: AthleteActivityRow[],
   ftp: number,
   serverHistory: ServerLoadRow[],
+  taus: TauPair = DEFAULT_TAUS,
 ): AthleteMetrics {
-  const series = buildDailyLoadSeries(activities, ftp, serverHistory);
+  const series = buildDailyLoadSeries(activities, ftp, serverHistory, 90, taus);
   if (series.length === 0) {
     return {
       formScore: null,

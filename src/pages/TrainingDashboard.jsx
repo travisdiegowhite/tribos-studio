@@ -121,6 +121,9 @@ function TrainingDashboard() {
   const [speedProfile, setSpeedProfile] = useState(null);
   const [unitsPreference, setUnitsPreference] = useState('imperial');
   const [ftp, setFtp] = useState(null);
+  // Adaptive EWA tau (user_profiles.tfi_tau/afi_tau) so client-filled tail
+  // days decay at the athlete's actual rate — same guard as the server engine.
+  const [taus, setTaus] = useState({ tfi: 42, afi: 7 });
   const [powerZones, setPowerZones] = useState(null);
   const [userWeight, setUserWeight] = useState(null);
   const [trainingMetrics, setTrainingMetrics] = useState({
@@ -171,7 +174,7 @@ function TrainingDashboard() {
   // shows the same fitness/fatigue/form as the Today views and Dashboard:
   // per-day training_load_daily rows win, client EWA fills the gaps.
   useEffect(() => {
-    const series = buildDailyLoadSeries(visibleActivities, ftp, serverLoadHistory);
+    const series = buildDailyLoadSeries(visibleActivities, ftp, serverLoadHistory, 90, taus);
     if (series.length === 0) {
       setDailyTSSData([]);
       setTrainingMetrics({ ctl: 0, atl: 0, tsb: 0, interpretation: null });
@@ -195,7 +198,7 @@ function TrainingDashboard() {
     const atl = Math.round(last.afi);
     const tsb = last.fs;
     setTrainingMetrics({ ctl, atl, tsb, interpretation: interpretTSB(tsb) });
-  }, [visibleActivities, ftp, serverLoadHistory]);
+  }, [visibleActivities, ftp, serverLoadHistory, taus]);
 
   // Load data
   useEffect(() => {
@@ -205,7 +208,7 @@ function TrainingDashboard() {
       try {
         const { data: userProfileData } = await supabase
           .from('user_profiles')
-          .select('units_preference, ftp, power_zones, weight_kg')
+          .select('units_preference, ftp, power_zones, weight_kg, tfi_tau, afi_tau')
           .eq('id', user.id)
           .single();
 
@@ -213,6 +216,10 @@ function TrainingDashboard() {
           setUnitsPreference(userProfileData.units_preference);
         }
         if (userProfileData?.ftp) setFtp(userProfileData.ftp);
+        setTaus({
+          tfi: Number(userProfileData?.tfi_tau) > 0 ? Number(userProfileData.tfi_tau) : 42,
+          afi: Number(userProfileData?.afi_tau) > 0 ? Number(userProfileData.afi_tau) : 7,
+        });
         if (userProfileData?.power_zones) setPowerZones(userProfileData.power_zones);
         if (userProfileData?.weight_kg) setUserWeight(userProfileData.weight_kg);
 

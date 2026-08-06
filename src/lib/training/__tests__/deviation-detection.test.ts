@@ -104,6 +104,33 @@ describe('analyzeDeviation', () => {
     }
   });
 
+  it('uses a caller-precomputed estimate over the local estimator', () => {
+    const activity: ActivityData = {
+      duration_seconds: 3600,
+      normalized_power: 160, // local estimator would say ~40 (no deviation)
+      ftp: 250,
+    };
+    // The server tier estimator saw the full row and scored it 120.
+    const precomputed = {
+      tss: 120,
+      tss_low: 108,
+      tss_high: 132,
+      confidence: 0.95,
+      source: 'device' as const,
+      method_detail: 'estimateTSSWithSource',
+    };
+    const result = analyzeDeviation(
+      activity,
+      planned,
+      currentState,
+      upcomingSchedule,
+      defaultCal,
+      precomputed,
+    );
+    expect(result.has_deviation).toBe(true);
+    expect(result.tss_estimate).toEqual(precomputed);
+  });
+
   it('severity_score is bounded 0–10', () => {
     // Very large deviation
     const activity: ActivityData = {
