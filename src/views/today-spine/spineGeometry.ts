@@ -3,44 +3,59 @@
  *
  * Ported from the design prototype (docs/today-view/Today Spine.dc.html), kept
  * free of React/DOM so it can be unit-tested and so `SpinePanel` stays a thin
- * renderer. The coordinate system is the prototype's exactly — `viewBox
- * "0 0 1144 216"`, past edge at x=40, today at x=700, future end at x=1090 —
- * so the design stays pixel-accurate.
+ * renderer. The coordinate system is the prototype's horizontally — at the
+ * reference width, past edge at x=40, today at x=700, future end at x=1090 —
+ * but the canvas is taller than the prototype's 216 (288) so the floating
+ * node always fits inside the chart regardless of viewport width.
+ *
+ * Every x-producing function takes an optional trailing `widthPx` (default
+ * SPINE_VIEW.w): SpinePanel renders the desktop chart at a fixed pixel height
+ * with the viewBox width matched 1:1 to the container, so the x anchors scale
+ * to the real width while text/strokes render undistorted.
  *
  * The one deliberate generalization: the Y scale is derived from the actual
  * TFI/AFI range rather than the prototype's hard-coded 40→66 CTL window, so a
- * rider whose fitness sits at 20 or 95 still gets a sensibly-framed curve. When
- * the data happens to span ~40→66 the output matches the prototype.
+ * rider whose fitness sits at 20 or 95 still gets a sensibly-framed curve.
  */
 
-export const SPINE_VIEW = { w: 1144, h: 216 } as const;
+export const SPINE_VIEW = { w: 1144, h: 288 } as const;
 
-// X anchors (SVG units).
+// X anchors (SVG units at the reference width SPINE_VIEW.w).
 const X_LEFT = 40; // 6 weeks ago
 const X_TODAY = 700; // today
 const X_FUTURE_SPAN = 390; // today → projection end (x=1090)
 const PAST_SPAN = 660; // X_TODAY − X_LEFT
-const BASELINE_Y = 188;
-const Y_TOP = 24;
-const Y_BOTTOM = 178;
+export const BASELINE_Y = 250;
+const Y_TOP = 32;
+const Y_BOTTOM = 237;
 
 const EVENT_FLAG_X = 1080;
 
+/** Horizontal scale factor for a rendered width. */
+export function xScale(widthPx: number): number {
+  return widthPx / SPINE_VIEW.w;
+}
+
 /** Past-day index (0..pastDays) → x. */
-export function xPast(i: number, pastDays: number): number {
-  return X_LEFT + PAST_SPAN * (i / pastDays);
+export function xPast(i: number, pastDays: number, widthPx: number = SPINE_VIEW.w): number {
+  return (X_LEFT + PAST_SPAN * (i / pastDays)) * xScale(widthPx);
 }
 
 /** Future step k (1..futureDays) → x. */
-export function xFuture(k: number, futureDays: number): number {
-  return X_TODAY + X_FUTURE_SPAN * (k / futureDays);
+export function xFuture(k: number, futureDays: number, widthPx: number = SPINE_VIEW.w): number {
+  return (X_TODAY + X_FUTURE_SPAN * (k / futureDays)) * xScale(widthPx);
 }
 
 /** Day index (past or future) → x. The single source for marker/node placement. */
-export function xOfIndex(index: number, todayIndex: number, futureLen: number): number {
+export function xOfIndex(
+  index: number,
+  todayIndex: number,
+  futureLen: number,
+  widthPx: number = SPINE_VIEW.w,
+): number {
   return index <= todayIndex
-    ? xPast(index, todayIndex)
-    : xFuture(index - todayIndex, Math.max(1, futureLen));
+    ? xPast(index, todayIndex, widthPx)
+    : xFuture(index - todayIndex, Math.max(1, futureLen), widthPx);
 }
 
 /**
@@ -48,12 +63,18 @@ export function xOfIndex(index: number, todayIndex: number, futureLen: number): 
  * nearest day index (0..todayIndex+futureLen). The past and future halves have
  * different day-widths, so the branch point is X_TODAY, not a single ratio.
  */
-export function svgXToIndex(svgX: number, todayIndex: number, futureLen: number): number {
+export function svgXToIndex(
+  svgX: number,
+  todayIndex: number,
+  futureLen: number,
+  widthPx: number = SPINE_VIEW.w,
+): number {
+  const x = svgX / xScale(widthPx); // back to reference-width space
   let idx: number;
-  if (svgX <= X_TODAY) {
-    idx = Math.round(((svgX - X_LEFT) / PAST_SPAN) * todayIndex);
+  if (x <= X_TODAY) {
+    idx = Math.round(((x - X_LEFT) / PAST_SPAN) * todayIndex);
   } else {
-    idx = todayIndex + Math.round(((svgX - X_TODAY) / X_FUTURE_SPAN) * Math.max(1, futureLen));
+    idx = todayIndex + Math.round(((x - X_TODAY) / X_FUTURE_SPAN) * Math.max(1, futureLen));
   }
   return clamp(idx, 0, todayIndex + futureLen);
 }
@@ -98,7 +119,7 @@ export interface Bar {
   dash: string;
 }
 
-const BAR_MAX_H = 72;
+const BAR_MAX_H = 96;
 const BAR_RSS_FULL = 95; // RSS that maps to the tallest bar
 
 function barHeight(rss: number): number {
@@ -144,26 +165,28 @@ export function buildChart(
   todayIndex: number,
   event: { date: string } | null,
   dayDates: string[],
+  widthPx: number = SPINE_VIEW.w,
 ): SpineChart {
   const past = days.filter((d) => !d.isFuture);
   const future = days.filter((d) => d.isFuture);
   const pastDays = todayIndex; // span in "day steps"
+  const k = xScale(widthPx);
 
   const scale = buildYScale(days.map((d) => d.tfi));
   const { yOf } = scale;
 
   // CTL past line + area.
   const pastLine = past
-    .map((d, i) => `${i ? 'L' : 'M'}${xPast(i, pastDays).toFixed(1)},${yOf(d.tfi).toFixed(1)}`)
+    .map((d, i) => `${i ? 'L' : 'M'}${xPast(i, pastDays, widthPx).toFixed(1)},${yOf(d.tfi).toFixed(1)}`)
     .join(' ');
-  const pastArea = `${pastLine} L${X_TODAY},${BASELINE_Y} L${X_LEFT},${BASELINE_Y} Z`;
+  const pastArea = `${pastLine} L${(X_TODAY * k).toFixed(1)},${BASELINE_Y} L${(X_LEFT * k).toFixed(1)},${BASELINE_Y} Z`;
 
   // CTL future projection (dashed), anchored at today's point.
   const todayTfi = past.length ? past[past.length - 1].tfi : 50;
   const futureLine =
-    `M${X_TODAY},${yOf(todayTfi).toFixed(1)} ` +
+    `M${(X_TODAY * k).toFixed(1)},${yOf(todayTfi).toFixed(1)} ` +
     future
-      .map((d, k) => `L${xFuture(k + 1, future.length || 1).toFixed(1)},${yOf(d.tfi).toFixed(1)}`)
+      .map((d, j) => `L${xFuture(j + 1, future.length || 1, widthPx).toFixed(1)},${yOf(d.tfi).toFixed(1)}`)
       .join(' ');
 
   // TSS bars — solid for past, hollow dashed for planned future.
@@ -172,7 +195,7 @@ export function buildChart(
     if (d.rss > 0) {
       const h = barHeight(d.rss);
       bars.push({
-        x: xPast(i, pastDays) - 4,
+        x: xPast(i, pastDays, widthPx) - 4,
         y: BASELINE_Y - h,
         h,
         fill: '#e9e6dd',
@@ -183,11 +206,11 @@ export function buildChart(
   });
   // Hollow planned bars only for real plan sessions — the no-plan maintenance
   // fill shapes the dashed line but must not masquerade as scheduled workouts.
-  future.forEach((d, k) => {
+  future.forEach((d, j) => {
     if (d.planned && d.rss > 0) {
       const h = barHeight(d.rss);
       bars.push({
-        x: xFuture(k + 1, future.length || 1) - 4,
+        x: xFuture(j + 1, future.length || 1, widthPx) - 4,
         y: BASELINE_Y - h,
         h,
         fill: 'none',
@@ -200,7 +223,7 @@ export function buildChart(
   const pastDots = past
     .map((d, i) => ({ d, i }))
     .filter((o) => o.d.rss >= HARD_RSS)
-    .map((o) => ({ x: xPast(o.i, pastDays), y: yOf(o.d.tfi) }));
+    .map((o) => ({ x: xPast(o.i, pastDays, widthPx), y: yOf(o.d.tfi) }));
 
   // Hollow dots mark the key session of each planned week (the max-RSS plan-row
   // day per 7-day chunk) — a handful of markers, not one per hard day.
@@ -208,15 +231,15 @@ export function buildChart(
   for (let start = 0; start < future.length; start += 7) {
     let bestK = -1;
     let bestRss = 0;
-    for (let k = start; k < Math.min(start + 7, future.length); k++) {
-      const d = future[k];
+    for (let j = start; j < Math.min(start + 7, future.length); j++) {
+      const d = future[j];
       if (d.planned && d.rss > bestRss) {
         bestRss = d.rss;
-        bestK = k;
+        bestK = j;
       }
     }
     if (bestK >= 0 && bestRss >= PLANNED_DOT_RSS) {
-      plannedDots.push({ x: xFuture(bestK + 1, future.length), y: yOf(future[bestK].tfi) });
+      plannedDots.push({ x: xFuture(bestK + 1, future.length, widthPx), y: yOf(future[bestK].tfi) });
     }
   }
 
@@ -227,15 +250,15 @@ export function buildChart(
   if (future.length) {
     let best = future[0];
     let bestK = 1;
-    future.forEach((d, k) => {
+    future.forEach((d, j) => {
       if (d.tfi > best.tfi) {
         best = d;
-        bestK = k + 1;
+        bestK = j + 1;
       }
     });
     const todayTfi = past.length ? past[past.length - 1].tfi : best.tfi;
     if (best.tfi >= todayTfi + 2 && bestK >= 3) {
-      const px = xFuture(bestK, future.length);
+      const px = xFuture(bestK, future.length, widthPx);
       peak = { x: px, y: yOf(best.tfi), labelX: px + 8 };
     }
   }
@@ -249,7 +272,7 @@ export function buildChart(
     const todayMs = new Date(`${todayDate}T00:00:00`).getTime();
     const daysOut = Math.round((evMs - todayMs) / 86_400_000);
     const inWindow = future.length > 0 && daysOut > 0 && daysOut <= future.length;
-    const ex = inWindow ? xFuture(daysOut, future.length) : EVENT_FLAG_X;
+    const ex = inWindow ? xFuture(daysOut, future.length, widthPx) : EVENT_FLAG_X * k;
     eventGeom = { x: ex, labelX: ex + 4, beyond: !inWindow, daysOut };
   }
 
@@ -280,10 +303,11 @@ export function selectionGeometry(
   todayIndex: number,
   scale: YScale,
   futureLen = 0,
+  widthPx: number = SPINE_VIEW.w,
 ): SelectionGeom {
-  const selX = xOfIndex(selectedIndex, todayIndex, futureLen);
+  const selX = xOfIndex(selectedIndex, todayIndex, futureLen, widthPx);
   const selY = scale.yOf(day.tfi);
-  const labelX = clamp(selX - LABEL_W / 2, X_LEFT / 2 + 12, SPINE_VIEW.w - LABEL_W - 4);
+  const labelX = clamp(selX - LABEL_W / 2, (X_LEFT * xScale(widthPx)) / 2 + 12, widthPx - LABEL_W - 4);
   const barH = barHeight(day.rss);
   return {
     selX,
@@ -295,7 +319,7 @@ export function selectionGeometry(
     barX: selX - 4,
     barY: BASELINE_Y - barH,
     barH,
-    nodeLeftPct: `${((selX / SPINE_VIEW.w) * 100).toFixed(2)}%`,
+    nodeLeftPct: `${((selX / widthPx) * 100).toFixed(2)}%`,
   };
 }
 
