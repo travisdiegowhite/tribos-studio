@@ -71,6 +71,10 @@ export default function TodaySpine() {
   const { user } = useAuth() as { user: { id: string } | null };
   const { unitsPreference } = useUserPreferences() as { unitsPreference: UnitsPreference };
   const isMobile = useMediaQuery('(max-width: 768px)');
+  // Below this width the arc chart renders too short to contain the floating
+  // node (fixed ~257/291px extent vs width-proportional SVG height), so the
+  // node falls back to the compact card used on mobile.
+  const nodeFloats = useMediaQuery('(min-width: 1081px)');
   const units: UnitsPreference = unitsPreference === 'metric' ? 'metric' : 'imperial';
 
   const { loading, data, error, retry } = useTodaySpine(user?.id ?? null);
@@ -217,7 +221,7 @@ export default function TodaySpine() {
         selectedIndex={Math.min(selected, data.days.length - 1)}
         onSelect={handleSelect}
         vm={vm}
-        showNode={!isMobile}
+        showNode={!isMobile && nodeFloats}
         interactive
         dispTSB={dispTSB}
         dispReady={dispReady}
@@ -241,22 +245,27 @@ export default function TodaySpine() {
       </Box>
     );
 
+    // Node as a normal top card when it can't float on the chart; tap a day on
+    // the spine below to select it (per the design handoff's mobile parity note).
+    const nodeCard = (
+      <FitnessNode
+        vm={vm}
+        dispTSB={dispTSB}
+        dispReady={dispReady}
+        flipped={false}
+        ringHover={false}
+        compact
+        onSnapToday={snapToday}
+      />
+    );
+
     if (isMobile) {
-      // 01 → 02 → 03 → 04: node as a normal top card; tap a day on the compact
-      // spine below to select it (per the design handoff's mobile parity note).
+      // 01 → 02 → 03 → 04 stacked single-column.
       return (
         <Stack gap={16}>
           <PageHeader data={data} />
           <GetStartedGuide />
-          <FitnessNode
-            vm={vm}
-            dispTSB={dispTSB}
-            dispReady={dispReady}
-            flipped={false}
-            ringHover={false}
-            compact
-            onSnapToday={snapToday}
-          />
+          {nodeCard}
           {spine}
           {bottomRow}
         </Stack>
@@ -267,6 +276,7 @@ export default function TodaySpine() {
       <Stack gap={20}>
         <PageHeader data={data} />
         <GetStartedGuide />
+        {!nodeFloats && nodeCard}
         {spine}
         {bottomRow}
       </Stack>

@@ -17,6 +17,14 @@ import type { SpineData } from './types';
 
 const BASELINE_Y = 188;
 
+// Min height of the scrub container while the node floats on it. The node is a
+// fixed-height card (FitnessNode: top 52 + ~244px front face / ~264px flipped,
+// readiness popover bottom ~312px from container top) while the SVG's rendered
+// height scales with width, so without a floor the node bleeds out of the panel
+// and over the cards below. 280 + the ~42px of caption/padding under the
+// container keeps every face inside the panel border.
+const NODE_CLEARANCE = 280;
+
 interface SpinePanelProps {
   data: SpineData;
   selectedIndex: number;
@@ -183,7 +191,12 @@ export function SpinePanel({
           aria-valuemax={lastIndex}
           aria-valuenow={selectedIndex}
           aria-valuetext={selDay.dateLabel}
-          style={{ position: 'relative', cursor: interactive ? 'ew-resize' : 'default', touchAction: 'none' }}
+          style={{
+            position: 'relative',
+            cursor: interactive ? 'ew-resize' : 'default',
+            touchAction: 'none',
+            minHeight: showNode ? NODE_CLEARANCE : undefined,
+          }}
         >
           <svg viewBox={`0 0 ${SPINE_VIEW.w} ${SPINE_VIEW.h}`} width="100%" style={{ display: 'block' }} preserveAspectRatio="none">
             <defs>
