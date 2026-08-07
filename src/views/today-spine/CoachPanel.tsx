@@ -301,7 +301,20 @@ export function CoachPanel({ data }: CoachPanelProps) {
       {/* Thread */}
       <Box
         ref={threadRef}
-        style={{ flex: 1, minHeight: 120, maxHeight: 200, overflowY: 'auto', padding: '12px 16px', display: 'flex', flexDirection: 'column', gap: 8 }}
+        style={{
+          flex: 1,
+          minHeight: 120,
+          maxHeight: 200,
+          overflowY: 'auto',
+          // Real margin + divider so scrolled messages clip at a visible
+          // boundary instead of appearing sliced under the TODAY'S CALL card.
+          marginTop: 13,
+          borderTop: `1px solid ${C.border}`,
+          padding: '12px 16px',
+          display: 'flex',
+          flexDirection: 'column',
+          gap: 8,
+        }}
       >
         {messages.slice(-6).map((m) => {
           const mine = m.role === 'user';
