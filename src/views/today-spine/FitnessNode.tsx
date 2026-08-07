@@ -6,8 +6,7 @@
  *
  * The frosted-glass fill + white text-shadow halos are intentional and tuned
  * (see docs/today-view) — kept verbatim so readouts stay legible over the curve.
- * On mobile and narrow desktop viewports (where the arc chart is too short to
- * contain it) the card renders `compact` (solid, non-floating, read-only).
+ * On mobile the card renders `compact` (solid, non-floating, read-only).
  */
 
 import { ringDash } from './spineGeometry';
