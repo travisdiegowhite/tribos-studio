@@ -106,6 +106,7 @@ describe('submitChatMessage — edit success', () => {
       'make it flatter',
       [{ role: 'user', content: 'earlier' }],
       'route-1',
+      true,
     );
 
     const lastCall = append.mock.calls[append.mock.calls.length - 1][0];
@@ -114,6 +115,24 @@ describe('submitChatMessage — edit success', () => {
     expect(lastCall.text).toContain('24.0 km');
     expect(lastCall.text).toContain('60 m');
     expect(persistTurn).toHaveBeenCalledWith('make it flatter', lastCall.text);
+  });
+
+  it('passes planAware: false through to the edit dispatch ("just riding" mode)', async () => {
+    const { args, applyAIEditImpl } = makeArgs({
+      input: 'make it flatter',
+      planAware: false,
+    });
+    applyAIEditImpl.mockResolvedValue({
+      ok: true,
+      assistantText: 'Flattened it.',
+      distance_km: 24,
+      elevation_gain_m: 40,
+      routeChanged: true,
+    });
+
+    await submitChatMessage(args);
+
+    expect(applyAIEditImpl).toHaveBeenCalledWith('make it flatter', [], 'route-1', false);
   });
 
   it('omits the stats suffix when the route did not change', async () => {

@@ -31,6 +31,9 @@ export interface ChatDockProps {
   onSelectOption?: (messageId: string, index: number) => void;
   /** Render stats in the rider's units. */
   isImperial?: boolean;
+  /** Plan link mode + setter — renders the Training plan / Just riding toggle. */
+  planAware?: boolean;
+  onPlanAwareChange?: (next: boolean) => void;
   /** Optional content rendered between the title bar and the message list
    *  (e.g. the GenerateBar chips). */
   header?: ReactNode;
@@ -50,6 +53,8 @@ export function ChatDock({
   onSubmit,
   onSelectOption,
   isImperial,
+  planAware,
+  onPlanAwareChange,
   header,
   width = 360,
 }: ChatDockProps) {
@@ -164,6 +169,8 @@ export function ChatDock({
         onSubmit={onSubmit}
         onSelectOption={onSelectOption}
         isImperial={isImperial}
+        planAware={planAware}
+        onPlanAwareChange={onPlanAwareChange}
       />
     </Box>
   );

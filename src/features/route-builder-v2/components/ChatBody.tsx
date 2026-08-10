@@ -27,6 +27,14 @@ export interface ChatBodyProps {
   onSelectOption?: (messageId: string, index: number) => void;
   /** Render card stats in the rider's units. */
   isImperial?: boolean;
+  /**
+   * Rider-controlled plan link. When provided together with
+   * `onPlanAwareChange`, a Training plan / Just riding mode toggle renders
+   * above the input. "Just riding" keeps the coach out of training-plan
+   * territory so routes can be built on their own terms.
+   */
+  planAware?: boolean;
+  onPlanAwareChange?: (next: boolean) => void;
 }
 
 export function ChatBody({
@@ -38,6 +46,8 @@ export function ChatBody({
   onSubmit,
   onSelectOption,
   isImperial = false,
+  planAware,
+  onPlanAwareChange,
 }: ChatBodyProps) {
   const [draft, setDraft] = useState('');
 
@@ -125,6 +135,13 @@ export function ChatBody({
           backgroundColor: RB2.cardBg,
         }}
       >
+        {planAware !== undefined && onPlanAwareChange && (
+          <PlanModeToggle
+            planAware={planAware}
+            disabled={isProcessing}
+            onChange={onPlanAwareChange}
+          />
+        )}
         <Box style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
           <TextInput
             data-testid="rb2-chat-input"
@@ -282,6 +299,80 @@ function RouteOptionCards({
                 {option.rationale}
               </Text>
             ) : null}
+          </UnstyledButton>
+        );
+      })}
+    </Box>
+  );
+}
+
+interface PlanModeToggleProps {
+  planAware: boolean;
+  disabled: boolean;
+  onChange: (next: boolean) => void;
+}
+
+/**
+ * Two-chip mode switch: "Training plan" links the coach to today's
+ * prescription and fitness state; "Just riding" builds the route on its
+ * own terms with no training-plan context.
+ */
+function PlanModeToggle({ planAware, disabled, onChange }: PlanModeToggleProps) {
+  const chips: Array<{ id: string; label: string; value: boolean }> = [
+    { id: 'rb2-chat-mode-plan', label: 'Training plan', value: true },
+    { id: 'rb2-chat-mode-free', label: 'Just riding', value: false },
+  ];
+  return (
+    <Box
+      data-testid="rb2-chat-mode-toggle"
+      role="radiogroup"
+      aria-label="Coach mode"
+      style={{
+        display: 'flex',
+        alignItems: 'center',
+        gap: 4,
+        marginBottom: 8,
+      }}
+    >
+      <Text
+        style={{
+          fontFamily: RB2_FONT.mono,
+          fontSize: 10,
+          letterSpacing: '0.08em',
+          textTransform: 'uppercase',
+          color: RB2.textTertiary,
+          marginRight: 4,
+        }}
+      >
+        Coach:
+      </Text>
+      {chips.map((chip) => {
+        const active = planAware === chip.value;
+        return (
+          <UnstyledButton
+            key={chip.id}
+            data-testid={chip.id}
+            role="radio"
+            aria-checked={active}
+            disabled={disabled}
+            onClick={() => {
+              if (!disabled && !active) onChange(chip.value);
+            }}
+            style={{
+              padding: '3px 8px',
+              backgroundColor: active ? RB2.teal : RB2.bgSecondary,
+              color: active ? RB2.textInverse : RB2.textSecondary,
+              border: `1px solid ${active ? RB2.teal : RB2.border}`,
+              borderRadius: 0,
+              fontFamily: RB2_FONT.mono,
+              fontSize: 10,
+              letterSpacing: '0.06em',
+              textTransform: 'uppercase',
+              cursor: disabled || active ? 'default' : 'pointer',
+              opacity: disabled ? 0.6 : 1,
+            }}
+          >
+            {chip.label}
           </UnstyledButton>
         );
       })}

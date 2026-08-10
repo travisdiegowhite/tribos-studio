@@ -52,6 +52,12 @@ export interface SubmitChatMessageArgs {
   conversationHistory: ConversationTurn[];
   /** Render distances/climbing in the rider's units (mi/ft vs km/m). */
   isImperial?: boolean;
+  /**
+   * Rider-controlled plan link. When false ("just riding"), the coach
+   * endpoint omits training-plan/fitness context and treats the route as a
+   * standalone ride. Defaults to true (previous behavior).
+   */
+  planAware?: boolean;
   append: (msg: Omit<ChatMessage, 'id' | 'timestamp'>) => void;
   setProcessing: (b: boolean) => void;
   markRefused: () => void;
@@ -78,6 +84,7 @@ export async function submitChatMessage(args: SubmitChatMessageArgs): Promise<vo
     routeId,
     conversationHistory,
     isImperial = false,
+    planAware = true,
     append,
     setProcessing,
     markRefused,
@@ -211,7 +218,7 @@ export async function submitChatMessage(args: SubmitChatMessageArgs): Promise<vo
 
   setProcessing(true);
   try {
-    const result = await applyAIEditImpl(trimmed, conversationHistory, routeId);
+    const result = await applyAIEditImpl(trimmed, conversationHistory, routeId, planAware);
     if (result.ok) {
       // Suffix the stats only when the route actually changed; otherwise
       // the prose stands alone (clarifying question, refusal, etc.).

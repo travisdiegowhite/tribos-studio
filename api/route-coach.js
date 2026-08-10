@@ -53,6 +53,11 @@ export default async function handler(req, res) {
       routeSnapshot,
       userLocalDate = null,
       maxTokens = 1024,
+      // Rider-controlled plan link. When false ("just riding"), the training
+      // plan and fitness context are omitted entirely and the coach treats
+      // the route as a standalone ride. Defaults to true for older clients
+      // that don't send the flag.
+      planAware = true,
     } = req.body ?? {};
 
     // ── Validation ──────────────────────────────────────────────────────────
@@ -101,8 +106,11 @@ export default async function handler(req, res) {
     if (quotaExceeded !== null) return;
 
     // ── Context assembly (persona + Units 1–3) ──────────────────────────────
+    const isPlanAware = planAware !== false;
     const { persona, prescription, fitnessState, familiarRoads, weather } =
-      await collectRouteCoachContext(supabase, userId, routeSnapshot);
+      await collectRouteCoachContext(supabase, userId, routeSnapshot, {
+        planAware: isPlanAware,
+      });
 
     const systemPrompt = buildRouteCoachSystemPrompt({
       persona,
@@ -112,6 +120,7 @@ export default async function handler(req, res) {
       weather,
       routeSnapshot,
       userLocalDate,
+      planAware: isPlanAware,
     });
 
     // ── Conversation history windowing ──────────────────────────────────────
