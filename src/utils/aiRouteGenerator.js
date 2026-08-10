@@ -52,32 +52,11 @@ function normalizeStartLocation(location) {
   return null;
 }
 
-/**
- * Score how close an actual value lands to an explicit rider target.
- * Returns 0 when no target was set. Exported for tests.
- */
-export function getTargetProximityScore(actual, target, weight) {
-  if (!target || target <= 0 || !actual || actual <= 0) return 0;
-  const ratio = actual / target;
-  if (ratio >= 0.85 && ratio <= 1.15) return weight;        // on target
-  if (ratio >= 0.7 && ratio <= 1.35) return weight * 0.4;   // close
-  if (ratio >= 0.5 && ratio <= 1.7) return 0;               // meh
-  return -weight;                                            // way off
-}
-
-/**
- * Map an elevation-gain target to a Valhalla use_hills bias (0–1) via the
- * implied gain-per-km. Exported for tests.
- */
-export function hillsBiasForTarget(elevationGainTargetM, targetDistanceKm) {
-  if (!elevationGainTargetM || !targetDistanceKm || targetDistanceKm <= 0) return null;
-  const gainPerKm = elevationGainTargetM / targetDistanceKm;
-  if (gainPerKm < 5) return 0.15;   // pancake request — actively avoid climbs
-  if (gainPerKm < 10) return 0.35;  // gently rolling
-  if (gainPerKm < 18) return 0.6;   // rolling/hilly
-  if (gainPerKm < 28) return 0.8;   // hilly
-  return 0.95;                      // mountain day
-}
+// Target-scoring helpers moved to routeTargets.js (shared with the edit
+// service, which must not import this module's heavy dependency graph).
+// Re-exported here for existing callers and tests.
+export { getTargetProximityScore, hillsBiasForTarget } from './routeTargets.js';
+import { getTargetProximityScore, hillsBiasForTarget } from './routeTargets.js';
 
 /**
  * Geocode Claude's named roads/landmarks into routing via-points near the

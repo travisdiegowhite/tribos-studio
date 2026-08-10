@@ -58,6 +58,9 @@ export default async function handler(req, res) {
       // the route as a standalone ride. Defaults to true for older clients
       // that don't send the flag.
       planAware = true,
+      // Rider's display units — the prompt narrates distances/climbing in
+      // these so the coach's prose matches the client's stats suffix.
+      units = 'metric',
     } = req.body ?? {};
 
     // ── Validation ──────────────────────────────────────────────────────────
@@ -121,6 +124,7 @@ export default async function handler(req, res) {
       routeSnapshot,
       userLocalDate,
       planAware: isPlanAware,
+      units: units === 'imperial' ? 'imperial' : 'metric',
     });
 
     // ── Conversation history windowing ──────────────────────────────────────

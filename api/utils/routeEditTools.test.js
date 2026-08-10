@@ -31,13 +31,74 @@ describe('normalizeRouteEdit — validation', () => {
 
 describe('normalizeRouteEdit — simple intents', () => {
   it('normalizes parameterless intents to a bare editIntent', () => {
-    for (const intent of ['flatten', 'add_climbing', 'surface_gravel', 'surface_paved', 'scenic', 'faster', 'reverse']) {
+    for (const intent of ['flatten', 'add_climbing', 'surface_gravel', 'surface_paved', 'scenic', 'faster', 'reverse', 'restore_previous']) {
       const r = normalizeRouteEdit({ intent, reasoning: 'because' }, SNAPSHOT);
       expect(r.ok).toBe(true);
       expect(r.editIntent).toEqual({ intent });
       expect(r.reasoning).toBe('because');
       expect(typeof r.summary).toBe('string');
     }
+  });
+});
+
+describe('normalizeRouteEdit — elevation intents', () => {
+  it('forwards elevation_delta_m for add_climbing', () => {
+    const r = normalizeRouteEdit(
+      { intent: 'add_climbing', elevation_delta_m: 600, reasoning: 'x' },
+      SNAPSHOT,
+    );
+    expect(r.ok).toBe(true);
+    expect(r.editIntent).toEqual({ intent: 'add_climbing', elevationDeltaM: 600 });
+    expect(r.summary).toMatch(/600 m/);
+  });
+
+  it('coerces the sign for flatten (a positive amount still means a reduction)', () => {
+    for (const raw of [300, -300]) {
+      const r = normalizeRouteEdit(
+        { intent: 'flatten', elevation_delta_m: raw, reasoning: 'x' },
+        SNAPSHOT,
+      );
+      expect(r.ok).toBe(true);
+      expect(r.editIntent.elevationDeltaM).toBe(-300);
+    }
+  });
+
+  it('keeps add_climbing deltas positive even when Claude sends a negative', () => {
+    const r = normalizeRouteEdit(
+      { intent: 'add_climbing', elevation_delta_m: -600, reasoning: 'x' },
+      SNAPSHOT,
+    );
+    expect(r.ok).toBe(true);
+    expect(r.editIntent.elevationDeltaM).toBe(600);
+  });
+
+  it('forwards target_distance_km for elevation edits', () => {
+    const r = normalizeRouteEdit(
+      { intent: 'add_climbing', elevation_delta_m: 600, target_distance_km: 28.04, reasoning: 'x' },
+      SNAPSHOT,
+    );
+    expect(r.ok).toBe(true);
+    expect(r.editIntent.targetDistanceKm).toBe(28);
+  });
+
+  it('omits both fields when not provided', () => {
+    const r = normalizeRouteEdit({ intent: 'add_climbing', reasoning: 'x' }, SNAPSHOT);
+    expect(r.ok).toBe(true);
+    expect(r.editIntent).toEqual({ intent: 'add_climbing' });
+  });
+});
+
+describe('normalizeRouteEdit — restore_previous', () => {
+  it('is in the tool schema enum', () => {
+    const enumValues = ROUTE_EDIT_TOOLS[0].input_schema.properties.intent.enum;
+    expect(enumValues).toContain('restore_previous');
+  });
+
+  it('normalizes with no parameters', () => {
+    const r = normalizeRouteEdit({ intent: 'restore_previous', reasoning: 'rider asked to undo' }, SNAPSHOT);
+    expect(r.ok).toBe(true);
+    expect(r.editIntent).toEqual({ intent: 'restore_previous' });
+    expect(r.summary).toMatch(/previous version/i);
   });
 });
 

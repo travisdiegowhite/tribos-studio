@@ -218,7 +218,7 @@ export async function submitChatMessage(args: SubmitChatMessageArgs): Promise<vo
 
   setProcessing(true);
   try {
-    const result = await applyAIEditImpl(trimmed, conversationHistory, routeId, planAware);
+    const result = await applyAIEditImpl(trimmed, conversationHistory, routeId, planAware, isImperial);
     if (result.ok) {
       // Suffix the stats only when the route actually changed; otherwise
       // the prose stands alone (clarifying question, refusal, etc.).
