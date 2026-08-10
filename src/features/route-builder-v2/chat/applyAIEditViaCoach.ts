@@ -41,6 +41,8 @@ export async function applyAIEditViaCoach(
   text: string,
   conversationHistory: ConversationTurn[],
   routeId: string | null,
+  /** When false ("just riding"), the server omits training-plan context. */
+  planAware: boolean = true,
 ): Promise<EditResult & { routeChanged: boolean }> {
   const trimmed = text.trim();
   if (!trimmed) return { ok: false, reason: 'empty input', routeChanged: false };
@@ -84,6 +86,7 @@ export async function applyAIEditViaCoach(
         message: trimmed,
         conversationHistory,
         routeId,
+        planAware,
         routeSnapshot: {
           geometry: routeGeometry,
           stats: routeStats,

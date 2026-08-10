@@ -359,18 +359,24 @@ export async function getFamiliarRoads(supabase, userId, startLocation, targetDi
 }
 
 /**
- * Fetch all four context blocks in parallel. Each fetcher catches its own
+ * Fetch the context blocks in parallel. Each fetcher catches its own
  * errors and returns null / empty, so this never throws.
+ *
+ * `planAware: false` ("just riding" mode) skips the training-plan blocks —
+ * prescription and fitness state are neither fetched nor rendered — so the
+ * coach treats the route as a standalone ride. Persona, familiar roads, and
+ * weather are route-relevant regardless of mode and are always collected.
  */
-export async function collectRouteCoachContext(supabase, userId, routeSnapshot) {
+export async function collectRouteCoachContext(supabase, userId, routeSnapshot, options = {}) {
+  const planAware = options.planAware !== false;
   const startLocation = routeSnapshot?.startLocation;
   const targetDistanceKm = Number(routeSnapshot?.stats?.distance_km) || 30;
   const coordinates = routeSnapshot?.geometry?.coordinates;
 
   const [persona, fitnessState, prescription, familiarRoads, weather] = await Promise.all([
     getCoachPersona(supabase, userId),
-    getFitnessState(supabase, userId),
-    getTodaysPrescription(supabase, userId),
+    planAware ? getFitnessState(supabase, userId) : Promise.resolve(null),
+    planAware ? getTodaysPrescription(supabase, userId) : Promise.resolve(null),
     getFamiliarRoads(supabase, userId, startLocation, targetDistanceKm),
     getRouteWeather(startLocation, coordinates),
   ]);
@@ -552,6 +558,7 @@ export function buildRouteCoachSystemPrompt({
   weather,
   routeSnapshot,
   userLocalDate,
+  planAware = true,
 }) {
   const sections = [];
 
@@ -586,19 +593,33 @@ The rider has generated a route with these characteristics:
 - Start location: ${JSON.stringify(routeSnapshot?.startLocation ?? null)}
 - Number of geometry points: ${routeSnapshot?.geometry?.coordinates?.length ?? 0}`);
 
-  const prescriptionBlock = renderPrescriptionBlock(prescription);
+  const prescriptionBlock = planAware ? renderPrescriptionBlock(prescription) : '';
   if (prescriptionBlock) {
-    sections.push(`=== PRESCRIBED WORKOUT ===
+    sections.push(`=== PRESCRIBED WORKOUT (context, not a constraint) ===
 ${prescriptionBlock}
 
-Any route refinement should remain compatible with this prescription unless the
-rider explicitly chooses to override it.`);
+This is background so you can be a better sounding board — it is NOT a limit on
+what the rider may build. The rider's request always outranks the plan. If a
+requested change clearly diverges from the prescription (much longer, much
+harder), you may note the difference briefly ONCE in this conversation, then
+drop it entirely: never repeat the warning, never scale back or resist what the
+rider asked for, and never treat the plan as a reason to refuse or delay a
+change.`);
   }
 
-  const fitnessBlock = renderFitnessStateBlock(fitnessState);
+  const fitnessBlock = planAware ? renderFitnessStateBlock(fitnessState) : '';
   if (fitnessBlock) {
     sections.push(`=== FITNESS STATE ===
 ${fitnessBlock}`);
+  }
+
+  if (!planAware) {
+    sections.push(`=== RIDE CONTEXT: FREE RIDE ===
+The rider is building this route on its own terms — it is NOT linked to a
+training plan. Do not mention training plans, prescribed workouts, training
+load, fitness or fatigue metrics, or whether the ride "fits" anything. Treat
+every request purely as a route-building request and help them build exactly
+the ride they describe.`);
   }
 
   const familiarBlock = renderFamiliarRoads(familiarRoads);
@@ -615,8 +636,8 @@ ${weatherBlock}
 When the wind is strong (~20+ km/h) and the rider is flexible on direction,
 proactively suggest riding the windward leg first so they earn a tailwind on
 the way home — use shift_direction or reverse to enact it. Frame it as a
-suggestion, never force it, and never override the prescription. Surface any
-HAZARD line plainly regardless of your coach voice.`);
+suggestion, never force it, and never override what the rider asked for.
+Surface any HAZARD line plainly regardless of your coach voice.`);
   }
 
   sections.push(`=== CRITICAL REQUIREMENTS ===
@@ -626,7 +647,8 @@ HAZARD line plainly regardless of your coach voice.`);
 - When the rider asks for a change, describe the proposed change in prose first,
   then call the tool to enact it.
 - Do not invent road names. The familiar-roads data has no street names.
-- Familiarity bias does not override the prescription.
+- The rider's request always wins — familiarity bias, weather, and any training
+  context are advisory only.
 - Safety language is mandatory regardless of coach voice.
 - Use canonical Tribos metric names: RSS, TFI, AFI, FS, RI. Do not use the
   deprecated names TSS, CTL, ATL, TSB, NP, or IF.
@@ -638,10 +660,8 @@ You are helping the rider refine the route they're looking at. They describe wha
 they want changed in natural language. Your job is to:
 1. Understand what they're asking for (ask one clarifying question only if truly
    ambiguous).
-2. Reason about whether the change is compatible with the prescription, their
-   fitness state, and the familiar-roads context.
-3. Describe the proposed change in your persona voice.
-4. Call the apply_route_edit tool with the structured parameters.
+2. Describe the proposed change in your persona voice.
+3. Call the apply_route_edit tool with the structured parameters.
 
 If the rider asks for more than one change in a single message (e.g. "make it
 hillier and a bit longer"), call apply_route_edit once for EACH change in the same

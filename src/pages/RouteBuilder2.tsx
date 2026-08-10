@@ -357,6 +357,11 @@ export default function RouteBuilder2() {
   const [clipMode, setClipMode] = useState(false);
   const [pendingClip, setPendingClip] = useState<ClipSelection | null>(null);
   const [clipBusy, setClipBusy] = useState(false);
+  // Rider-controlled plan link for the coach chat. Plan-aware only when the
+  // session was seeded from a planned workout (picker or calendar arrival);
+  // a fresh builder session starts as a free ride so routes can be built
+  // outside the training plan without plan-compatibility commentary.
+  const [planAware, setPlanAware] = useState<boolean>(hasWorkout || !!arrivalCtx);
   // Desktop region collapse state.
   const [chatCollapsed, setChatCollapsed] = useState(false);
   const [elevationCollapsed, setElevationCollapsed] = useState(false);
@@ -414,6 +419,17 @@ export default function RouteBuilder2() {
     })();
     return () => { cancelled = true; };
   }, [user?.id]);
+
+  // A workout attached mid-session (picker or calendar arrival) re-links the
+  // coach to the plan; the rider can still flip back to "just riding".
+  useEffect(() => {
+    if (hasWorkout || arrivalCtx) setPlanAware(true);
+  }, [hasWorkout, arrivalCtx]);
+
+  const handlePlanAwareChange = useCallback((next: boolean) => {
+    setPlanAware(next);
+    trackRb2('chat_plan_aware_toggled', { plan_aware: next });
+  }, []);
 
   const chat = useChatSession({
     routeId: routeIdFromUrl ?? null,
@@ -800,6 +816,7 @@ export default function RouteBuilder2() {
         routeId: routeIdFromUrl ?? null,
         conversationHistory,
         isImperial,
+        planAware,
         append: chat.append,
         setProcessing: chat.setProcessing,
         markRefused: chat.markRefused,
@@ -812,6 +829,7 @@ export default function RouteBuilder2() {
       hasRouteForChat,
       routeIdFromUrl,
       isImperial,
+      planAware,
       chat.messages,
       chat.append,
       chat.setProcessing,
@@ -1717,6 +1735,8 @@ export default function RouteBuilder2() {
                 onSubmit={handleChatSubmit}
                 onSelectOption={handleSelectRouteOption}
                 isImperial={isImperial}
+                planAware={planAware}
+                onPlanAwareChange={handlePlanAwareChange}
                 header={
                   <GenerateBar
                     key={`gen-${pickedWorkoutId ?? 'none'}-${seedNonce}`}
@@ -1911,6 +1931,8 @@ export default function RouteBuilder2() {
           onSubmit={handleChatSubmit}
           onSelectOption={handleSelectRouteOption}
           isImperial={isImperial}
+          planAware={planAware}
+          onPlanAwareChange={handlePlanAwareChange}
         />
       ),
     },
