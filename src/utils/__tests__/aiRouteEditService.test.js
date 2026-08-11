@@ -299,13 +299,15 @@ describe('applyRouteEdit — add_waypoint', () => {
 });
 
 describe('applyRouteEdit — shift_direction', () => {
-  it('regenerates a loop biased toward the bearing', async () => {
+  it('regenerates a loop biased toward the bearing (one call when distance lands close)', async () => {
+    // Mocked route measures ~17 km; stats say 16 km — within the 20%
+    // convergence window, so no rescale attempt fires.
     getSmartCyclingRoute.mockResolvedValue({ coordinates: loop(0.03), source: 'stadia' });
 
     const res = await applyRouteEdit({
       routeGeometry: geom(loop()),
       routeProfile: 'road',
-      routeStats: stats,
+      routeStats: { distance_km: 16, elevation_gain_m: 300, duration_s: 3600 },
       editIntent: { intent: 'shift_direction', direction: 'west' },
     });
 
@@ -314,6 +316,79 @@ describe('applyRouteEdit — shift_direction', () => {
     // 5 waypoints: start, lobe-30, lobe, lobe+30, start
     expect(getSmartCyclingRoute.mock.calls[0][0]).toHaveLength(5);
     expect(res.message).toMatch(/toward the west/i);
+  });
+
+  it('rescales the lobe once when the first attempt misses the distance', async () => {
+    // First candidate measures ~11 km against a 28 km target → the lobe
+    // radius rescales (clamped ×2.5) and a second, larger candidate wins.
+    const bigLoop = [
+      [-105.27, 40.01],
+      [-105.23, 40.05],
+      [-105.19, 40.01],
+      [-105.23, 39.97],
+      [-105.27, 40.01],
+    ];
+    getSmartCyclingRoute
+      .mockResolvedValueOnce({ coordinates: loop(), source: 'stadia' })
+      .mockResolvedValueOnce({ coordinates: bigLoop, source: 'stadia' });
+
+    const res = await applyRouteEdit({
+      routeGeometry: geom(loop()),
+      routeProfile: 'road',
+      routeStats: stats, // 28 km
+      editIntent: { intent: 'shift_direction', direction: 'west' },
+    });
+
+    expect(res.success).toBe(true);
+    expect(getSmartCyclingRoute).toHaveBeenCalledTimes(2);
+    // Second attempt's far lobe point sits farther from the start.
+    const start = loop()[0];
+    const km = (a, b) => {
+      const R = 6371;
+      const dLat = ((b[1] - a[1]) * Math.PI) / 180;
+      const dLon = ((b[0] - a[0]) * Math.PI) / 180;
+      const x =
+        Math.sin(dLat / 2) ** 2 +
+        Math.cos((a[1] * Math.PI) / 180) * Math.cos((b[1] * Math.PI) / 180) * Math.sin(dLon / 2) ** 2;
+      return R * 2 * Math.atan2(Math.sqrt(x), Math.sqrt(1 - x));
+    };
+    const firstLobe = km(start, getSmartCyclingRoute.mock.calls[0][0][2]);
+    const secondLobe = km(start, getSmartCyclingRoute.mock.calls[1][0][2]);
+    expect(secondLobe).toBeGreaterThan(firstLobe);
+    // The closer-to-target candidate (the big loop) is applied.
+    expect(res.editedRoute.coordinates).toEqual(bigLoop);
+    expect(res.message).toMatch(/keeping your start/i);
+  });
+
+  it("passes quiet-road costing when the rider asked for rural/quiet ('quiet' roadPreference)", async () => {
+    getSmartCyclingRoute.mockResolvedValue({ coordinates: loop(0.03), source: 'stadia' });
+
+    const res = await applyRouteEdit({
+      routeGeometry: geom(loop()),
+      routeProfile: 'road',
+      routeStats: { distance_km: 16, elevation_gain_m: 300, duration_s: 3600 },
+      editIntent: { intent: 'shift_direction', direction: 'west', roadPreference: 'quiet' },
+    });
+
+    expect(res.success).toBe(true);
+    expect(getSmartCyclingRoute.mock.calls[0][1].preferences).toEqual({
+      use_roads: 0,
+      use_living_streets: 1.0,
+    });
+    expect(res.message).toMatch(/quieter roads/i);
+  });
+
+  it('passes no costing preferences without the quiet flag', async () => {
+    getSmartCyclingRoute.mockResolvedValue({ coordinates: loop(0.03), source: 'stadia' });
+
+    await applyRouteEdit({
+      routeGeometry: geom(loop()),
+      routeProfile: 'road',
+      routeStats: { distance_km: 16, elevation_gain_m: 300, duration_s: 3600 },
+      editIntent: { intent: 'shift_direction', direction: 'west' },
+    });
+
+    expect(getSmartCyclingRoute.mock.calls[0][1].preferences).toBeUndefined();
   });
 
   it('bows a point-to-point route toward the bearing (start/end fixed)', async () => {

@@ -43,10 +43,28 @@ export const ROUTE_EDIT_TOOLS = [
             'restore_previous',
           ],
           description:
-            'The primary editing operation to apply. Use restore_previous ' +
-            'when the rider asks to undo, revert, or go back to an earlier ' +
-            'version of the route from this conversation (no other ' +
-            'parameters needed).',
+            'The editing operation to apply. What each one can and cannot do:\n' +
+            '- flatten / add_climbing / surface_gravel / surface_paved / ' +
+            'scenic / faster: re-route the SAME corridor through anchors on ' +
+            'the current route. They change road choice (quieter streets, ' +
+            'gravel, less climbing) but CANNOT move the route to a ' +
+            'different area.\n' +
+            '- shift_direction: RELOCATES the body of the route toward a ' +
+            'compass direction while keeping the start point and roughly ' +
+            'the same distance — the ONLY intent that can move a route out ' +
+            'of its current area. For "more rural", "get out of the city", ' +
+            '"quieter area", or "less suburban" requests: pick the ' +
+            'direction that leads toward open country using your knowledge ' +
+            "of the geography around the route's start coordinates, and " +
+            "set road_preference to 'quiet'.\n" +
+            '- shorter / longer: change total distance (set ' +
+            'target_distance_km).\n' +
+            '- avoid / detour: route around or through a named place ' +
+            '(set avoid_location).\n' +
+            '- add_waypoint: route through an exact coordinate.\n' +
+            '- reverse: ride the same route the other way around.\n' +
+            '- restore_previous: undo — go back one version from this ' +
+            'conversation (no other parameters needed).',
         },
         target_distance_km: {
           type: 'number',
@@ -82,6 +100,14 @@ export const ROUTE_EDIT_TOOLS = [
             'southwest',
           ],
           description: 'For shift_direction: which way to bias the route.',
+        },
+        road_preference: {
+          type: 'string',
+          enum: ['quiet', 'default'],
+          description:
+            "For shift_direction: 'quiet' biases the rebuilt route onto " +
+            'low-traffic rural and residential roads. Set it whenever the ' +
+            'rider asked for rural, quiet, or low-traffic riding.',
         },
         waypoint_coords: {
           type: 'array',
@@ -239,13 +265,13 @@ export function normalizeRouteEdit(input, routeSnapshot) {
             'rider which way to bias the route (e.g. north, southwest)',
         };
       }
-      return {
-        ok: true,
-        intent,
-        editIntent: { intent, direction },
-        reasoning,
-        summary: `Shift the route toward the ${direction}`,
-      };
+      const editIntent = { intent, direction };
+      let summary = `Shift the route toward the ${direction}`;
+      if (input.road_preference === 'quiet') {
+        editIntent.roadPreference = 'quiet';
+        summary = `Shift the route toward the ${direction} on quieter roads`;
+      }
+      return { ok: true, intent, editIntent, reasoning, summary };
     }
 
     case 'add_waypoint': {

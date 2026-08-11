@@ -179,6 +179,16 @@ const TRAFFIC_TOLERANCE_COSTING = {
  * @param {number} options.userSpeed - Optional personalized cycling speed in km/h
  * @returns {Promise<Object>} Route object with coordinates, distance_m, duration_s
  */
+// Snake_case Valhalla bicycle-costing keys that callers may set explicitly
+// via `preferences` to override the profile/goal/traffic-derived values.
+const VALHALLA_OVERRIDE_KEYS = [
+  'use_roads',
+  'use_hills',
+  'use_living_streets',
+  'avoid_bad_surfaces',
+  'use_tracks',
+];
+
 export async function getStadiaMapsRoute(waypoints, options = {}) {
   const {
     profile = 'road',
@@ -289,6 +299,20 @@ export async function getStadiaMapsRoute(waypoints, options = {}) {
 
     if (preferences.avoidHills) {
       costing_options.bicycle.use_hills = 0.1;
+    }
+  }
+
+  // Explicit Valhalla costing overrides passed as snake_case keys on
+  // `preferences` (the route-edit strategies in aiRouteEditService set
+  // these). Applied after the profile/goal/traffic merges so explicit
+  // caller intent wins — these keys were previously dropped silently,
+  // which made "quieter roads" / hills steering no-ops on edits.
+  if (preferences) {
+    for (const key of VALHALLA_OVERRIDE_KEYS) {
+      const value = preferences[key];
+      if (typeof value === 'number' && Number.isFinite(value) && value >= 0 && value <= 1) {
+        costing_options.bicycle[key] = value;
+      }
     }
   }
 
