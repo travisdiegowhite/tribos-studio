@@ -128,6 +128,25 @@ describe('buildRouteCoachSystemPrompt — restore guidance', () => {
   });
 });
 
+describe('buildRouteCoachSystemPrompt — rural/quiet guidance', () => {
+  it('teaches the relocation semantics for rural requests', () => {
+    const prompt = buildPrompt();
+    expect(prompt).toContain('RURAL / QUIET REQUESTS');
+    expect(prompt).toContain('CANNOT relocate the route');
+    expect(prompt).toContain("road_preference 'quiet'");
+  });
+
+  it('requires the tool call to match the prose', () => {
+    const prompt = buildPrompt();
+    expect(prompt).toContain('must enact exactly what your prose promises');
+  });
+
+  it('scopes the no-invented-road-names rule to the familiar-roads data', () => {
+    const prompt = buildPrompt();
+    expect(prompt).toContain('Your own geographic knowledge of the region is fair game');
+  });
+});
+
 describe('collectRouteCoachContext — planAware: false', () => {
   it('does not query planned_workouts or training_load_daily', async () => {
     const queriedTables = [];

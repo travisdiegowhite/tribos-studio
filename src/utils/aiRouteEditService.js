@@ -207,7 +207,11 @@ export async function applyRouteEdit(params) {
           isLoop,
         });
       case 'shift_direction':
-        return await applyShiftDirectionEdit(coords, routeProfile, routeStats, editIntent.direction, isLoop);
+        return await applyShiftDirectionEdit(coords, routeProfile, routeStats, {
+          direction: editIntent.direction,
+          roadPreference: editIntent.roadPreference,
+          isLoop,
+        });
       case 'add_waypoint':
         return await applyAddWaypointEdit(coords, routeProfile, routeStats, editIntent.waypoint);
       case 'surface_gravel':
@@ -823,7 +827,7 @@ const DIRECTION_BEARINGS = {
   northwest: 315,
 };
 
-async function applyShiftDirectionEdit(coords, profile, stats, direction, isLoop) {
+async function applyShiftDirectionEdit(coords, profile, stats, { direction, roadPreference, isLoop }) {
   const bearing = DIRECTION_BEARINGS[direction];
   if (bearing == null) {
     return { success: false, message: `I couldn't tell which way to shift — try "shift north", "shift west", etc.` };
@@ -832,47 +836,91 @@ async function applyShiftDirectionEdit(coords, profile, stats, direction, isLoop
   const start = coords[0];
   const end = coords[coords.length - 1];
   const totalDist = (stats?.distance_km ?? stats?.distance) || estimateDistanceKm(coords);
+  const wantQuiet = roadPreference === 'quiet';
 
-  let waypoints;
-  let kind; // 'loop' | 'point-to-point' — drives the success copy
-  if (isLoop) {
-    // Loops: project a lobe out toward the bearing and route a new loop through
-    // it, keeping roughly the same distance.
-    const radiusKm = totalDist / 4;
-    waypoints = [
+  // Quiet mode ("more rural / less traffic"): bias the rebuilt route onto
+  // low-traffic roads. getSmartCyclingRoute forwards `preferences` into
+  // Valhalla costing; the BRouter fallback simply isn't quiet-biased.
+  const routeOpts = wantQuiet
+    ? { profile, preferences: { use_roads: 0, use_living_streets: 1.0 } }
+    : { profile };
+  const quietNote = wantQuiet ? ' on quieter roads' : '';
+
+  if (!isLoop) {
+    // Point-to-point: keep the start and end fixed and bow the route's midpoint
+    // toward the requested compass direction, then reroute start → bowed → end.
+    const midCoord = coordAtDistanceFraction(coords, 0.5);
+    const shiftKm = Math.max(1, totalDist * 0.15);
+    const bowedMidpoint = projectPoint(midCoord, bearing, shiftKm);
+    try {
+      const route = await getSmartCyclingRoute([start, bowedMidpoint, end], routeOpts);
+      if (route?.coordinates?.length > 1) {
+        const comparison = await buildComparison(coords, route.coordinates, stats);
+        return {
+          success: true,
+          editedRoute: {
+            coordinates: route.coordinates,
+            source: route.source || 'shift_direction',
+          },
+          comparison,
+          message: `Shifted the route toward the ${direction}${quietNote} — now ${comparison.newDistance.toFixed(1)}km`,
+        };
+      }
+    } catch (e) {
+      console.warn('[AI Edit] Shift direction failed:', e.message);
+    }
+    return { success: false, message: `Could not shift the route ${direction}. The roads in that direction may not connect.` };
+  }
+
+  // Loops: project a fresh lobe out toward the bearing and route a new loop
+  // through it — this RELOCATES the body of the ride while keeping the start.
+  // The lobe radius starts at totalDist/4 (≈ the radius of a loop of that
+  // length) and is rescaled once against the measured result so the rebuilt
+  // loop lands near the original distance.
+  let radiusKm = totalDist / 4;
+  let best = null;
+
+  for (let attempt = 0; attempt < 2; attempt++) {
+    const waypoints = [
       start,
       projectPoint(start, bearing - 30, radiusKm),
       projectPoint(start, bearing, radiusKm * 1.3),
       projectPoint(start, bearing + 30, radiusKm),
       start, // close the loop
     ];
-    kind = 'loop';
-  } else {
-    // Point-to-point: keep the start and end fixed and bow the route's midpoint
-    // toward the requested compass direction, then reroute start → bowed → end.
-    const midCoord = coordAtDistanceFraction(coords, 0.5);
-    const shiftKm = Math.max(1, totalDist * 0.15);
-    const bowedMidpoint = projectPoint(midCoord, bearing, shiftKm);
-    waypoints = [start, bowedMidpoint, end];
-    kind = 'point-to-point';
+    try {
+      const route = await getSmartCyclingRoute(waypoints, routeOpts);
+      if (route?.coordinates?.length > 1) {
+        const measuredKm = estimateDistanceKm(route.coordinates);
+        if (!best || Math.abs(measuredKm - totalDist) < Math.abs(best.measuredKm - totalDist)) {
+          best = { route, measuredKm };
+        }
+        if (measuredKm > 0 && Math.abs(measuredKm - totalDist) / totalDist <= 0.2) break;
+        if (attempt === 0 && measuredKm > 0) {
+          radiusKm = Math.min(
+            Math.max(radiusKm * (totalDist / measuredKm), radiusKm * 0.4),
+            radiusKm * 2.5,
+          );
+        }
+      }
+    } catch (e) {
+      console.warn('[AI Edit] Shift direction failed:', e.message);
+    }
   }
 
-  try {
-    const route = await getSmartCyclingRoute(waypoints, { profile });
-    if (route?.coordinates?.length > 1) {
-      const comparison = await buildComparison(coords, route.coordinates, stats);
-      return {
-        success: true,
-        editedRoute: {
-          coordinates: route.coordinates,
-          source: route.source || 'shift_direction',
-        },
-        comparison,
-        message: `Shifted the ${kind === 'loop' ? 'loop' : 'route'} toward the ${direction}`,
-      };
-    }
-  } catch (e) {
-    console.warn('[AI Edit] Shift direction failed:', e.message);
+  // No hard distance reject — relocation is the point; take the closest
+  // candidate and report the real numbers honestly.
+  if (best?.route) {
+    const comparison = await buildComparison(coords, best.route.coordinates, stats);
+    return {
+      success: true,
+      editedRoute: {
+        coordinates: best.route.coordinates,
+        source: best.route.source || 'shift_direction',
+      },
+      comparison,
+      message: `Rebuilt the loop toward the ${direction}${quietNote}, keeping your start — now ${comparison.newDistance.toFixed(1)}km`,
+    };
   }
 
   return { success: false, message: `Could not shift the route ${direction}. The roads in that direction may not connect.` };

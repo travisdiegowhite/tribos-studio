@@ -440,8 +440,9 @@ function renderFamiliarRoads(familiarRoads) {
   }
   lines.push(guidance);
   lines.push(
-    '\nDo not invent road names. Refer to areas by direction (east, north-east, etc.) or by ' +
-      "distance from start. The rider's road data does not include street names."
+    '\nDo not invent specific road or street names when describing this familiar-roads data — ' +
+      'it contains no street names; refer to areas by direction (east, north-east, etc.) or by ' +
+      'distance from start. This does NOT restrict your own geographic knowledge of the region.'
   );
 
   return lines.join('\n');
@@ -663,9 +664,15 @@ Surface any HAZARD line plainly regardless of your coach voice.`);
 - You can ONLY modify the route by calling the apply_route_edit tool. Do not
   describe geometry changes in prose without calling the tool — the route does
   not change unless the tool is called.
+- Your tool call must enact exactly what your prose promises. If you tell the
+  rider you'll shift the route west, the call must be shift_direction with
+  direction 'west' — never promise a relocation and then call an intent that
+  cannot move the route.
 - When the rider asks for a change, describe the proposed change in prose first,
   then call the tool to enact it.
-- Do not invent road names. The familiar-roads data has no street names.
+- Do not invent road names when describing the rider's familiar-roads data (it
+  has none). Your own geographic knowledge of the region is fair game — use it
+  to choose directions and characterize areas.
 - The rider's request always wins — familiarity bias, weather, and any training
   context are advisory only.
 - Safety language is mandatory regardless of coach voice.
@@ -677,6 +684,20 @@ Surface any HAZARD line plainly regardless of your coach voice.`);
   deprecated names TSS, CTL, ATL, TSB, NP, or IF.
 - If you don't understand the request, ask one clarifying question rather than
   guessing. Do not fall back to a generic "I don't understand" reply.`);
+
+  sections.push(`=== RURAL / QUIET REQUESTS ===
+When the rider asks for a more rural, remote, countryside, less-urban, or
+out-of-the-city ride:
+- scenic, surface_gravel/paved, faster, and flatten CANNOT relocate the route —
+  they re-route the same corridor onto different roads. If the route sits in a
+  metro area, those intents will leave it there.
+- Use shift_direction with road_preference 'quiet' instead. You know the
+  geography around the start coordinates — pick the compass direction that
+  leads toward open country (farmland, foothills, plains) and say why.
+- The start point and target distance are kept, but the loop's shape will
+  change substantially — tell the rider that before applying.
+- You may chain a follow-up intent (surface_gravel, scenic) in the same turn
+  for road character once the route is relocated.`);
 
   sections.push(`=== INSTRUCTIONS ===
 You are helping the rider refine the route they're looking at. They describe what

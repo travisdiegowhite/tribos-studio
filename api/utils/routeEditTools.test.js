@@ -167,6 +167,40 @@ describe('normalizeRouteEdit — shift_direction', () => {
     expect(r.editIntent).toEqual({ intent: 'shift_direction', direction: 'west' });
   });
 
+  it("forwards road_preference 'quiet' and reflects it in the summary", () => {
+    const r = normalizeRouteEdit(
+      { intent: 'shift_direction', direction: 'west', road_preference: 'quiet', reasoning: 'x' },
+      SNAPSHOT,
+    );
+    expect(r.ok).toBe(true);
+    expect(r.editIntent).toEqual({
+      intent: 'shift_direction',
+      direction: 'west',
+      roadPreference: 'quiet',
+    });
+    expect(r.summary).toMatch(/quieter roads/i);
+  });
+
+  it('ignores default/unknown road_preference values', () => {
+    for (const road_preference of [undefined, 'default', 'loud', 42]) {
+      const r = normalizeRouteEdit(
+        { intent: 'shift_direction', direction: 'west', road_preference, reasoning: 'x' },
+        SNAPSHOT,
+      );
+      expect(r.ok).toBe(true);
+      expect(r.editIntent).toEqual({ intent: 'shift_direction', direction: 'west' });
+    }
+  });
+
+  it('the schema teaches relocation semantics and exposes road_preference', () => {
+    const schema = ROUTE_EDIT_TOOLS[0].input_schema;
+    expect(schema.properties.road_preference.enum).toEqual(['quiet', 'default']);
+    const intentDesc = schema.properties.intent.description;
+    expect(intentDesc).toMatch(/RELOCATES/);
+    expect(intentDesc).toMatch(/CANNOT move the route/i);
+    expect(intentDesc).toMatch(/more rural/i);
+  });
+
   it('rejects a missing or invalid direction so Claude asks', () => {
     for (const direction of [undefined, 'up', 'norteast']) {
       const r = normalizeRouteEdit(
