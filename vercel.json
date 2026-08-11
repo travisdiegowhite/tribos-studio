@@ -17,6 +17,10 @@
       "schedule": "30 * * * *"
     },
     {
+      "path": "/api/strava-health-monitor",
+      "schedule": "45 * * * *"
+    },
+    {
       "path": "/api/proactive-insights-process",
       "schedule": "*/10 * * * *"
     },
@@ -76,6 +80,9 @@
       "maxDuration": 60
     },
     "api/garmin-health-monitor.js": {
+      "maxDuration": 60
+    },
+    "api/strava-health-monitor.js": {
       "maxDuration": 60
     },
     "api/coros-webhook-process.js": {

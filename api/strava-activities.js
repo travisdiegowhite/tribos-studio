@@ -5,6 +5,12 @@ import { getSupabaseAdmin } from './utils/supabaseAdmin.js';
 import { setupCors } from './utils/cors.js';
 import { checkForDuplicate, mergeActivityData } from './utils/activityDedup.js';
 import { extractAndStoreActivitySegments } from './utils/roadSegmentExtractor.js';
+import { reportStravaApiFailure } from './utils/stravaAppStatus.js';
+
+// User-facing message when Strava has deactivated the API application itself.
+// Surfacing it beats the bare "Strava API error: 403" users saw during the
+// June–August 2026 app deactivation.
+const APP_INACTIVE_USER_MESSAGE = 'Strava has deactivated this app\'s API access (403 Application Inactive). Reconnecting will not help — the app itself must be reinstated with Strava.';
 
 // Initialize Supabase (server-side)
 const supabase = getSupabaseAdmin();
@@ -226,7 +232,13 @@ async function syncActivities(req, res, userId, page, perPage) {
     if (!response.ok) {
       const errorText = await response.text();
       console.error('Strava API error:', errorText);
-      throw new Error(`Strava API error: ${response.status}`);
+      const { appInactive } = reportStravaApiFailure({
+        status: response.status,
+        bodyText: errorText,
+        endpoint: '/athlete/activities',
+        userId,
+      });
+      throw new Error(appInactive ? APP_INACTIVE_USER_MESSAGE : `Strava API error: ${response.status}`);
     }
 
     const activities = await response.json();
@@ -309,6 +321,16 @@ async function syncAllActivities(req, res, userId) {
       if (!response.ok) {
         const errorText = await response.text();
         console.error('Strava API error:', errorText);
+
+        const { appInactive } = reportStravaApiFailure({
+          status: response.status,
+          bodyText: errorText,
+          endpoint: '/athlete/activities',
+          userId,
+        });
+        if (appInactive) {
+          throw new Error(APP_INACTIVE_USER_MESSAGE);
+        }
 
         // Check for rate limiting
         if (response.status === 429) {

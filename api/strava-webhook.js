@@ -14,6 +14,7 @@ import { completeActivationStep, enqueueProactiveInsight, enqueueCheckIn } from 
 import { enqueueDeviationAnalysis } from './utils/deviationProcessor.js';
 import { triggerTrainingLoadRefresh } from './utils/trainingLoadRefresh.js';
 import { sendPushToUser, buildPostRideMessage } from './utils/pushNotification.js';
+import { reportStravaApiFailure, STRAVA_APP_INACTIVE_PROCESS_ERROR, STRAVA_FETCH_FAILED_PREFIX } from './utils/stravaAppStatus.js';
 
 // Initialize Supabase (server-side with service key for webhook processing)
 const supabase = getSupabaseAdmin();
@@ -339,10 +340,10 @@ async function handleActivityCreate(eventId, webhookData, integration) {
     const accessToken = await getValidAccessToken(integration);
 
     // Fetch activity details from Strava
-    const activity = await fetchStravaActivity(webhookData.object_id, accessToken);
+    const { activity, failureReason } = await fetchStravaActivity(webhookData.object_id, accessToken, integration.user_id);
 
     if (!activity) {
-      await markEventProcessed(eventId, 'Failed to fetch activity from Strava');
+      await markEventProcessed(eventId, failureReason);
       return;
     }
 
@@ -585,10 +586,10 @@ async function handleActivityUpdate(eventId, webhookData, integration) {
 
     // Fetch updated activity from Strava
     const accessToken = await getValidAccessToken(integration);
-    const activity = await fetchStravaActivity(webhookData.object_id, accessToken);
+    const { activity, failureReason } = await fetchStravaActivity(webhookData.object_id, accessToken, integration.user_id);
 
     if (!activity) {
-      await markEventProcessed(eventId, 'Failed to fetch updated activity');
+      await markEventProcessed(eventId, failureReason);
       return;
     }
 
@@ -705,7 +706,7 @@ function buildActivityData(userId, activity) {
 /**
  * Fetch activity details from Strava API
  */
-async function fetchStravaActivity(activityId, accessToken) {
+async function fetchStravaActivity(activityId, accessToken, userId) {
   try {
     const response = await fetch(`${STRAVA_API_BASE}/activities/${activityId}`, {
       headers: {
@@ -714,15 +715,26 @@ async function fetchStravaActivity(activityId, accessToken) {
     });
 
     if (!response.ok) {
-      const error = await response.text();
-      console.error('❌ Failed to fetch activity:', response.status, error);
-      return null;
+      const errorBody = await response.text();
+      console.error('❌ Failed to fetch activity:', response.status, errorBody);
+      const { appInactive } = reportStravaApiFailure({
+        status: response.status,
+        bodyText: errorBody,
+        endpoint: `/activities/${activityId}`,
+        userId,
+      });
+      return {
+        activity: null,
+        failureReason: appInactive
+          ? STRAVA_APP_INACTIVE_PROCESS_ERROR
+          : `${STRAVA_FETCH_FAILED_PREFIX} (HTTP ${response.status})`,
+      };
     }
 
-    return response.json();
+    return { activity: await response.json(), failureReason: null };
   } catch (error) {
     console.error('❌ Error fetching activity:', error);
-    return null;
+    return { activity: null, failureReason: `${STRAVA_FETCH_FAILED_PREFIX} (${error.message})` };
   }
 }
 
