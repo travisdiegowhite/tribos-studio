@@ -7,6 +7,7 @@ import { MobileControlSheet, type MobileSheetTab } from '../MobileControlSheet';
 const tabs: MobileSheetTab[] = [
   { id: 'build', label: 'Build', icon: <span>b</span>, content: <div data-testid="content-build">BUILD</div> },
   { id: 'layers', label: 'Layers', icon: <span>l</span>, badge: 3, content: <div data-testid="content-layers">LAYERS</div> },
+  { id: 'chat', label: 'Coach', icon: <span>c</span>, fillContent: true, content: <div data-testid="content-chat">CHAT</div> },
 ];
 
 function Harness({ initial = null as string | null }: { initial?: string | null }) {
@@ -57,5 +58,19 @@ describe('MobileControlSheet', () => {
   it('renders a badge count on a tab', () => {
     render(<Harness />);
     expect(screen.getByTestId('rb2-mobile-tab-layers')).toHaveTextContent('3');
+  });
+
+  it('fillContent tabs get an unpadded flex container that owns scrolling', () => {
+    render(<Harness initial="chat" />);
+    const content = screen.getByTestId('rb2-mobile-sheet-content');
+    expect(content.style.overflow).toBe('hidden');
+    expect(content.style.padding).toBe('');
+  });
+
+  it('normal tabs keep the padded scroll container', () => {
+    render(<Harness initial="build" />);
+    const content = screen.getByTestId('rb2-mobile-sheet-content');
+    expect(content.style.overflowY).toBe('auto');
+    expect(content.style.padding).toBe('12px');
   });
 });

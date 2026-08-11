@@ -50,7 +50,9 @@ import {
   FuelPanel,
   TirePressurePanel,
   PersonaDropdown,
+  personaDisplayName,
   ChatBody,
+  EditReviewCard,
   MobileControlSheet,
   EmptyState,
   LoadingState,
@@ -73,8 +75,14 @@ import {
   useChatSession,
   submitChatMessage,
   EXAMPLE_PHRASES,
+  QUICK_EDIT_CHIPS,
+  CHAT_HISTORY_WINDOW,
+  clearCheckpoints,
+  revertLastChatEdit,
   type ChatMessage,
+  type ChatPhase,
   type FormPanelControl,
+  type RouteCheckpoint,
 } from '../features/route-builder-v2/chat';
 import { Stack as StackIcon, MapPin, FolderOpen, MagnifyingGlass, CloudSun, ForkKnife, Gauge, Barbell, PencilSimpleLine, ChartLineUp, FloppyDisk, ChatCircleDots, Compass, SlidersHorizontal, Signpost } from '@phosphor-icons/react';
 import { CuesPanel } from '../features/route-builder-v2/components/CuesPanel';
@@ -109,6 +117,8 @@ import { trackRb2 } from '../features/route-builder-v2/telemetry/trackRb2';
 import { ElevationHoverMarker } from '../features/route-builder-v2/components/ElevationHoverMarker';
 import { setElevationHoverKm } from '../features/route-builder-v2/state/elevationHoverStore';
 import { getAnyWorkoutById } from '../data/workoutLookup';
+import { formatDistance, formatElevation } from '../utils/units';
+import { EditGhostLayer } from '../features/route-builder-v2/layers/EditGhostLayer';
 import {
   generatePlannedRouteCandidates,
   type RouteCandidate,
@@ -275,6 +285,7 @@ export default function RouteBuilder2() {
   const routeDescription = useRouteBuilderStore((s) => s.routeDescription);
   const routeProfile = useRouteBuilderStore((s) => s.routeProfile);
   const trainingGoal = useRouteBuilderStore((s) => s.trainingGoal);
+  const routeTypeFromStore = useRouteBuilderStore((s) => s.routeType);
   const raceType = useRouteBuilderStore((s) => s.raceType);
   const raceDate = useRouteBuilderStore((s) => s.raceDate);
   const targetFinishMinutes = useRouteBuilderStore((s) => s.targetFinishMinutes);
@@ -362,6 +373,19 @@ export default function RouteBuilder2() {
   // a fresh builder session starts as a free ride so routes can be built
   // outside the training plan without plan-compatibility commentary.
   const [planAware, setPlanAware] = useState<boolean>(hasWorkout || !!arrivalCtx);
+  // Stage of the in-flight chat turn (thinking/generating/rerouting/
+  // measuring) — drives the chat bubble copy and the map's progress
+  // surfaces. Null when idle.
+  const [chatPhase, setChatPhase] = useState<ChatPhase | null>(null);
+  // A chat edit awaiting its Keep/Revert decision: the pre-edit
+  // checkpoint (ghosted on the map) plus before/after stats for the card.
+  const [pendingEditReview, setPendingEditReview] = useState<{
+    previous: RouteCheckpoint;
+    next: { distance_km: number; elevation_gain_m: number };
+    partial: boolean;
+  } | null>(null);
+  // Mobile: assistant replies that landed while the Coach tab was closed.
+  const [chatUnread, setChatUnread] = useState(0);
   // Desktop region collapse state.
   const [chatCollapsed, setChatCollapsed] = useState(false);
   const [elevationCollapsed, setElevationCollapsed] = useState(false);
@@ -394,8 +418,16 @@ export default function RouteBuilder2() {
   // Persona-voiced chat opener — fetched once per session. Falls back to
   // the static line on any error.
   const [opener, setOpener] = useState<ChatMessage>(STATIC_OPENING);
+  // Refetch once with route stats when a URL route finishes loading so
+  // the opener can reference it ("your 42 km loop"). useChatSession's
+  // opener-sync only applies while the thread is still the untouched
+  // opener, so a late route-aware opener never clobbers conversation.
+  const openerRouteReady = !!(routeIdFromUrl && routeStats?.distance_km);
+  const openerFetchedWithRouteRef = useRef(false);
   useEffect(() => {
     if (!user?.id) return;
+    if (openerRouteReady && openerFetchedWithRouteRef.current) return;
+    if (openerRouteReady) openerFetchedWithRouteRef.current = true;
     let cancelled = false;
     (async () => {
       try {
@@ -407,6 +439,19 @@ export default function RouteBuilder2() {
             'Content-Type': 'application/json',
             Authorization: `Bearer ${session.access_token}`,
           },
+          body: JSON.stringify(
+            openerRouteReady
+              ? {
+                  units: isImperial ? 'imperial' : 'metric',
+                  routeSnapshot: {
+                    distance_km: routeStats?.distance_km,
+                    elevation_gain_m: routeStats?.elevation_gain_m,
+                    name: routeName || null,
+                    routeType: routeTypeFromStore ?? null,
+                  },
+                }
+              : {},
+          ),
         });
         if (!res.ok || cancelled) return;
         const { message } = await res.json();
@@ -418,7 +463,10 @@ export default function RouteBuilder2() {
       }
     })();
     return () => { cancelled = true; };
-  }, [user?.id]);
+    // routeStats/routeName intentionally read at fetch time only — the
+    // effect refires solely on the ready flag flipping.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.id, openerRouteReady]);
 
   // A workout attached mid-session (picker or calendar arrival) re-links the
   // coach to the plan; the rider can still flip back to "just riding".
@@ -635,6 +683,9 @@ export default function RouteBuilder2() {
           source: 'imported',
         });
         map.fitBounds(coords);
+        // A different route replaces the chat's restore history.
+        clearCheckpoints();
+        setPendingEditReview(null);
         trackRb2('route_from_activity', {});
         return true;
       } catch (e) {
@@ -670,6 +721,9 @@ export default function RouteBuilder2() {
     lastAppliedRef.current = null;
     chatCandidatesRef.current = [];
     savedGeometryRef.current = null;
+    // The chat's restore checkpoints belong to the cleared route.
+    clearCheckpoints();
+    setPendingEditReview(null);
     // Clearing is deliberate — drop the autosaved draft too so it doesn't
     // resurrect the route on the next visit.
     draftAutosave.discardDraft();
@@ -744,6 +798,9 @@ export default function RouteBuilder2() {
         });
         chatCandidatesRef.current = candidates;
         setAiSuggestions(candidates.map((c) => c.snapshot));
+        // Fresh generation replaces the route — old checkpoints are for a
+        // dead route.
+        clearCheckpoints();
 
         const best = candidates[0];
         const options: RouteOptionSummary[] | undefined =
@@ -797,19 +854,74 @@ export default function RouteBuilder2() {
       if (candidate && candidate.snapshot === chosen) {
         applyCandidateExtras(candidate);
       }
+      // Switching candidates is a route replacement too.
+      clearCheckpoints();
+      setPendingEditReview(null);
       chat.updateMessage(messageId, { selectedOptionIndex: index });
       trackRb2('chat_route_option_selected', { option_index: index });
     },
     [generation, applyCandidateExtras, chat],
   );
 
+  // Keep/Revert decision for the last chat edit. Keep leaves the
+  // checkpoint on the stack so a later "go back" still works; Revert
+  // restores it and narrates the result in the thread.
+  const handleKeepEdit = useCallback(() => {
+    setPendingEditReview((p) => {
+      if (p) trackRb2('chat_edit_kept', { partial: p.partial });
+      return null;
+    });
+  }, []);
+
+  const appendChatLine = chat.append;
+  const handleRevertEdit = useCallback(() => {
+    const restored = revertLastChatEdit();
+    setPendingEditReview((p) => {
+      if (p) trackRb2('chat_edit_reverted', { partial: p.partial });
+      return null;
+    });
+    if (restored) {
+      appendChatLine({
+        role: 'assistant',
+        text: `Reverted — back to ${formatDistance(restored.distance_km, isImperial)}, ${formatElevation(restored.elevation_gain_m, isImperial)} climbing.`,
+      });
+    }
+  }, [appendChatLine, isImperial]);
+
+  // Mobile unread badge: count coach replies landing while the Coach tab
+  // isn't open; opening the tab clears it.
+  const chatSeenCountRef = useRef(chat.messages.length);
+  useEffect(() => {
+    if (!isMobile) return;
+    if (mobileTab === 'chat') {
+      if (chatSeenCountRef.current !== chat.messages.length) {
+        chatSeenCountRef.current = chat.messages.length;
+      }
+      setChatUnread((prev) => {
+        if (prev > 0) trackRb2('chat_unread_badge_opened', { count: prev });
+        return 0;
+      });
+      return;
+    }
+    const unseen = chat.messages
+      .slice(chatSeenCountRef.current)
+      .filter((m) => m.role === 'assistant' && m.id !== 'opening').length;
+    setChatUnread(unseen);
+  }, [chat.messages, mobileTab, isMobile]);
+
   const handleChatSubmit = useCallback(
     (text: string) => {
+      // Any new turn resolves the pending Keep/Revert as an implicit
+      // Keep — the checkpoint is already on the stack, so "revert"
+      // still walks back one step at a time.
+      setPendingEditReview(null);
       // Derive the endpoint's conversation-history shape from the live
-      // message list, dropping the synthetic opener.
+      // message list, dropping the synthetic opener and windowing to the
+      // server's RECENT_WINDOW so long threads don't inflate the payload.
       const conversationHistory = chat.messages
         .filter((m) => m.id !== 'opening')
-        .map((m) => ({ role: m.role, content: m.text }));
+        .map((m) => ({ role: m.role, content: m.text }))
+        .slice(-CHAT_HISTORY_WINDOW);
       void submitChatMessage({
         input: text,
         hasRoute: hasRouteForChat,
@@ -820,6 +932,14 @@ export default function RouteBuilder2() {
         append: chat.append,
         setProcessing: chat.setProcessing,
         markRefused: chat.markRefused,
+        onPhase: setChatPhase,
+        onEditOutcome: ({ previous, next, partial }) => {
+          setPendingEditReview({
+            previous,
+            next,
+            partial,
+          });
+        },
         formPanelControl: formControl.current,
         persistTurn: chat.persistTurn,
         onGenerateFromPrompt: handleGenerateFromPrompt,
@@ -846,7 +966,13 @@ export default function RouteBuilder2() {
     if (loadedRouteIdRef.current === routeIdFromUrl) return;
     loadedRouteIdRef.current = routeIdFromUrl;
     void persistence.loadRoute(routeIdFromUrl).then((ok) => {
-      if (ok) savedGeometryRef.current = useRouteBuilderStore.getState().routeGeometry;
+      if (ok) {
+        savedGeometryRef.current = useRouteBuilderStore.getState().routeGeometry;
+        // The loaded route replaces the chat's restore history — "go back"
+        // must never resurrect a previous route's geometry.
+        clearCheckpoints();
+        setPendingEditReview(null);
+      }
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [routeIdFromUrl]);
@@ -1300,6 +1426,9 @@ export default function RouteBuilder2() {
       clipHighlight={pendingClip?.highlightGeoJSON ?? null}
     >
       <ElevationHoverMarker geometry={geometryForLayers} />
+      {pendingEditReview && (
+        <EditGhostLayer geometry={pendingEditReview.previous.geometry} />
+      )}
       {visibility.surface && (
         <SurfaceLayer geometry={geometryForLayers} onSegments={setSurfaceSegments} />
       )}
@@ -1434,12 +1563,23 @@ export default function RouteBuilder2() {
   const loadingMessage = editing.isApplying ? 'Applying edit…' : 'Updating route…';
 
   // Full generation gets the animated building overlay; quick operations
-  // (chat edits, waypoint re-routes) keep the compact banner.
-  const loadingNode = !isLoading ? null : generation.isGenerating ? (
-    <RouteBuildingOverlay />
-  ) : (
-    <LoadingState message={loadingMessage} />
-  );
+  // (chat edits, waypoint re-routes) keep the compact banner. Chat-driven
+  // work reports through chatPhase (its paths never set the hook flags):
+  // 'generating' → the animated overlay, geometry phases → banners.
+  const chatPhaseMessage =
+    chatPhase === 'rerouting'
+      ? 'Rerouting…'
+      : chatPhase === 'measuring'
+        ? 'Measuring elevation…'
+        : null;
+  const loadingNode =
+    generation.isGenerating || chatPhase === 'generating' ? (
+      <RouteBuildingOverlay />
+    ) : isLoading ? (
+      <LoadingState message={loadingMessage} />
+    ) : chatPhaseMessage ? (
+      <LoadingState message={chatPhaseMessage} />
+    ) : null;
 
   const mapStates = (
     <>
@@ -1447,7 +1587,7 @@ export default function RouteBuilder2() {
       {error && <ErrorState message={error} onDismiss={dismissError} />}
       {arrivalCardNode}
       {arrivalPillNode}
-      {!hasRoute && !isLoading && !arrivalCardNode && <EmptyState isGuest={!user} />}
+      {!hasRoute && !isLoading && !chatPhase && !arrivalCardNode && <EmptyState isGuest={!user} />}
     </>
   );
 
@@ -1693,10 +1833,21 @@ export default function RouteBuilder2() {
                       onCancel={handleCancelClip}
                     />
                   )}
+                  {!clipMode && pendingEditReview && (
+                    <EditReviewCard
+                      previous={pendingEditReview.previous.stats}
+                      next={pendingEditReview.next}
+                      partial={pendingEditReview.partial}
+                      isImperial={isImperial}
+                      busy={chat.isProcessing}
+                      onKeep={handleKeepEdit}
+                      onRevert={handleRevertEdit}
+                    />
+                  )}
                   {clipMode && !pendingClip && (
                     <ClipHint />
                   )}
-                  {!clipMode && !isLoading && (
+                  {!clipMode && !isLoading && !chatPhase && !pendingEditReview && (
                     <ClickToPlaceHint snapEnabled={snapToRoads} hasRoute={hasRoute} />
                   )}
                 </Box>
@@ -1737,6 +1888,12 @@ export default function RouteBuilder2() {
                 isImperial={isImperial}
                 planAware={planAware}
                 onPlanAwareChange={handlePlanAwareChange}
+                autoFocus
+                personaName={personaDisplayName(coach.persona)}
+                processingPhase={chatPhase}
+                quickActions={hasRouteForChat ? QUICK_EDIT_CHIPS : undefined}
+                onRetry={handleChatSubmit}
+                hydrated={chat.hydrated}
                 header={
                   <GenerateBar
                     key={`gen-${pickedWorkoutId ?? 'none'}-${seedNonce}`}
@@ -1922,8 +2079,11 @@ export default function RouteBuilder2() {
       id: 'chat',
       label: 'Coach',
       icon: <ChatCircleDots size={18} />,
+      badge: chatUnread,
+      fillContent: true,
       content: (
         <ChatBody
+          fillHeight
           messages={chat.messages}
           isProcessing={chat.isProcessing}
           exampleHint={EXAMPLE_PHRASES}
@@ -1933,6 +2093,11 @@ export default function RouteBuilder2() {
           isImperial={isImperial}
           planAware={planAware}
           onPlanAwareChange={handlePlanAwareChange}
+          personaName={personaDisplayName(coach.persona)}
+          processingPhase={chatPhase}
+          quickActions={hasRouteForChat ? QUICK_EDIT_CHIPS : undefined}
+          onRetry={handleChatSubmit}
+          hydrated={chat.hydrated}
         />
       ),
     },
@@ -2016,12 +2181,25 @@ export default function RouteBuilder2() {
               />
             </Box>
           )}
+          {!clipMode && pendingEditReview && (
+            <Box style={{ pointerEvents: 'auto', alignSelf: 'flex-start' }}>
+              <EditReviewCard
+                previous={pendingEditReview.previous.stats}
+                next={pendingEditReview.next}
+                partial={pendingEditReview.partial}
+                isImperial={isImperial}
+                busy={chat.isProcessing}
+                onKeep={handleKeepEdit}
+                onRevert={handleRevertEdit}
+              />
+            </Box>
+          )}
           {clipMode && !pendingClip && (
             <Box style={{ pointerEvents: 'auto', alignSelf: 'flex-start' }}>
               <ClipHint />
             </Box>
           )}
-          {!clipMode && !isLoading && (
+          {!clipMode && !isLoading && !chatPhase && !pendingEditReview && (
             <Box style={{ pointerEvents: 'auto', alignSelf: 'flex-start' }}>
               <ClickToPlaceHint snapEnabled={snapToRoads} hasRoute={hasRoute} isMobile />
             </Box>

@@ -82,6 +82,55 @@ beforeEach(() => {
   });
 });
 
+describe('applyAIEditViaCoach — failure classification', () => {
+  it.each([
+    [429, 'infra'],
+    [500, 'infra'],
+    [503, 'infra'],
+    [400, 'refusal'],
+  ] as const)('marks HTTP %d as %s', async (status, kind) => {
+    global.fetch = vi.fn().mockResolvedValue({
+      ok: false,
+      status,
+      json: () => Promise.resolve({ error: 'nope' }),
+    }) as unknown as typeof fetch;
+
+    const res = await applyAIEditViaCoach('hillier', [], 'route-1');
+    expect(res.ok).toBe(false);
+    expect(res.failureKind).toBe(kind);
+  });
+
+  it('marks a network throw as infra', async () => {
+    global.fetch = vi.fn().mockRejectedValue(new TypeError('fetch failed')) as unknown as typeof fetch;
+    const res = await applyAIEditViaCoach('hillier', [], 'route-1');
+    expect(res.ok).toBe(false);
+    expect(res.failureKind).toBe('infra');
+  });
+});
+
+describe('applyAIEditViaCoach — phases', () => {
+  it('emits rerouting then measuring during a geometry edit', async () => {
+    mockFetchResponse({
+      message: 'ok',
+      proposedEdits: [{ editIntent: { intent: 'add_climbing' } }],
+    });
+    const onPhase = vi.fn();
+
+    await applyAIEditViaCoach('hillier', [], 'route-1', true, false, { onPhase });
+
+    expect(onPhase.mock.calls.map((c) => c[0])).toEqual(['rerouting', 'measuring']);
+  });
+
+  it('emits no phases for a conversational reply', async () => {
+    mockFetchResponse({ message: 'Just chatting.', proposedEdits: [] });
+    const onPhase = vi.fn();
+
+    await applyAIEditViaCoach('hello', [], 'route-1', true, false, { onPhase });
+
+    expect(onPhase).not.toHaveBeenCalled();
+  });
+});
+
 describe('applyAIEditViaCoach — request body', () => {
   it('sends units, routeType, and planAware to the endpoint', async () => {
     mockFetchResponse({ message: 'Just chatting.', proposedEdits: [] });
@@ -113,6 +162,11 @@ describe('applyAIEditViaCoach — checkpoints', () => {
       type: 'LineString',
       coordinates: EDITED_COORDS,
     });
+    // The pre-edit snapshot is returned for the Keep/Revert review UI.
+    expect(res.previousCheckpoint?.geometry.coordinates).toEqual(GEOMETRY.coordinates);
+    expect(res.previousCheckpoint?.stats.distance_km).toBe(30);
+    expect(res.partialApplied).toBe(false);
+    expect(res.wasRestore).toBe(false);
   });
 
   it('restore_previous pops a checkpoint and writes it back without re-fetching elevation', async () => {
@@ -145,6 +199,9 @@ describe('applyAIEditViaCoach — checkpoints', () => {
     // A pure restore must not push the version it just left back onto
     // the stack — repeated "go back" walks further back, not in circles.
     expect(checkpointCount()).toBe(0);
+    expect(res.wasRestore).toBe(true);
+    // No Keep/Revert card for an explicit restore.
+    expect(res.previousCheckpoint).toBeNull();
   });
 
   it('an empty checkpoint stack makes restore a graceful no-op', async () => {
@@ -184,6 +241,7 @@ describe('applyAIEditViaCoach — multi-edit sequences', () => {
 
     expect(res.ok).toBe(true);
     expect(res.routeChanged).toBe(true);
+    expect(res.partialApplied).toBe(true);
     const text = res.ok ? res.assistantText : '';
     expect(text).toMatch(/Applied 1 of 2/);
     expect(text).toMatch(/no hillier roads nearby/);

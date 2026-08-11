@@ -32,11 +32,31 @@ export interface ChatMessage {
   /**
    * 'route-options' renders selectable candidate cards under the bubble.
    * Cards are session-only — persistence/rehydration carries `text` alone.
+   * 'refusal' marks a coach turn that declined / needs different phrasing
+   * (drives the "Try: …" example chips). 'error' marks an infrastructure
+   * failure (rate limit, 5xx, network) — rendered plainly with a Retry
+   * affordance, never with phrasing hints.
    */
-  kind?: 'text' | 'route-options';
+  kind?: 'text' | 'route-options' | 'refusal' | 'error';
   options?: RouteOptionSummary[];
   selectedOptionIndex?: number;
+  /** On 'error' messages: the user text to resubmit via the Retry button. */
+  retryText?: string;
 }
+
+/**
+ * Stage of an in-flight chat turn, for progress copy in the chat bubble
+ * and the matching map overlays. `null` = idle. Emission: submitChatMessage
+ * owns 'thinking'/'generating' and the terminal null; applyAIEditViaCoach
+ * emits 'rerouting'/'measuring' during client-side geometry work.
+ */
+export type ChatPhase = 'thinking' | 'generating' | 'rerouting' | 'measuring';
+
+/**
+ * Client-side mirror of api/route-coach.js RECENT_WINDOW — only this many
+ * trailing turns are sent (the server slices defensively too).
+ */
+export const CHAT_HISTORY_WINDOW = 10;
 
 export interface ChatSession {
   messages: ChatMessage[];

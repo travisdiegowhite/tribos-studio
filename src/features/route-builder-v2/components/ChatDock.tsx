@@ -1,9 +1,9 @@
 /**
  * ChatDock — Route Builder 2.0 desktop docked chat.
  *
- * The desktop counterpart to ChatDrawer (mobile). Unlike the floating
- * ChatPanel, this renders in-flow as a right-hand region of the page
- * layout. Two states:
+ * The desktop chat surface (mobile uses the MobileControlSheet "Coach"
+ * tab). Renders in-flow as a right-hand region of the page layout.
+ * Two states:
  *   - open:      header + ChatBody, fixed width (default 360)
  *   - collapsed: slim vertical rail with a launcher button
  *
@@ -34,6 +34,18 @@ export interface ChatDockProps {
   /** Plan link mode + setter — renders the Training plan / Just riding toggle. */
   planAware?: boolean;
   onPlanAwareChange?: (next: boolean) => void;
+  /** Focus the input on mount / after turns (desktop default true). */
+  autoFocus?: boolean;
+  /** Coach persona display name above coach replies. */
+  personaName?: string;
+  /** Stage of the in-flight turn for progress copy. */
+  processingPhase?: import('../chat/types').ChatPhase | null;
+  /** One-tap edit chips above the input. */
+  quickActions?: readonly { id: string; label: string; phrase: string }[];
+  /** Resubmit a failed message without retyping. */
+  onRetry?: (text: string) => void;
+  /** False while the persisted thread loads. */
+  hydrated?: boolean;
   /** Optional content rendered between the title bar and the message list
    *  (e.g. the GenerateBar chips). */
   header?: ReactNode;
@@ -55,6 +67,12 @@ export function ChatDock({
   isImperial,
   planAware,
   onPlanAwareChange,
+  autoFocus = true,
+  personaName,
+  processingPhase,
+  quickActions,
+  onRetry,
+  hydrated,
   header,
   width = 360,
 }: ChatDockProps) {
@@ -171,6 +189,12 @@ export function ChatDock({
         isImperial={isImperial}
         planAware={planAware}
         onPlanAwareChange={onPlanAwareChange}
+        autoFocus={autoFocus}
+        personaName={personaName}
+        processingPhase={processingPhase}
+        quickActions={quickActions}
+        onRetry={onRetry}
+        hydrated={hydrated}
       />
     </Box>
   );

@@ -108,6 +108,7 @@ describe('submitChatMessage — edit success', () => {
       'route-1',
       true,
       false,
+      expect.objectContaining({ onPhase: expect.any(Function) }),
     );
 
     const lastCall = append.mock.calls[append.mock.calls.length - 1][0];
@@ -133,7 +134,14 @@ describe('submitChatMessage — edit success', () => {
 
     await submitChatMessage(args);
 
-    expect(applyAIEditImpl).toHaveBeenCalledWith('make it flatter', [], 'route-1', false, false);
+    expect(applyAIEditImpl).toHaveBeenCalledWith(
+      'make it flatter',
+      [],
+      'route-1',
+      false,
+      false,
+      expect.anything(),
+    );
   });
 
   it('passes isImperial through to the edit dispatch', async () => {
@@ -151,7 +159,14 @@ describe('submitChatMessage — edit success', () => {
 
     await submitChatMessage(args);
 
-    expect(applyAIEditImpl).toHaveBeenCalledWith('make it flatter', [], 'route-1', true, true);
+    expect(applyAIEditImpl).toHaveBeenCalledWith(
+      'make it flatter',
+      [],
+      'route-1',
+      true,
+      true,
+      expect.anything(),
+    );
   });
 
   it('omits the stats suffix when the route did not change', async () => {
@@ -191,8 +206,118 @@ describe('submitChatMessage — edit failure', () => {
     expect(persistTurn).not.toHaveBeenCalled();
     const lastCall = append.mock.calls[append.mock.calls.length - 1][0];
     expect(lastCall.role).toBe('assistant');
+    expect(lastCall.kind).toBe('refusal');
     expect(lastCall.text).toMatch(/couldn't/i);
     expect(lastCall.text).toMatch(/didn't catch that/i);
+  });
+
+  it('renders infra failures plainly with a retry payload and no refusal hints', async () => {
+    const { args, append, markRefused, applyAIEditImpl } = makeArgs({
+      input: 'make it hillier',
+    });
+    applyAIEditImpl.mockResolvedValue({
+      ok: false,
+      reason: 'The coach is busy right now — give it a few seconds and try again.',
+      failureKind: 'infra',
+    });
+
+    await submitChatMessage(args);
+
+    expect(markRefused).not.toHaveBeenCalled();
+    const lastCall = append.mock.calls[append.mock.calls.length - 1][0];
+    expect(lastCall.kind).toBe('error');
+    expect(lastCall.retryText).toBe('make it hillier');
+    // Plain sentence — no "Couldn't make that change" wrapper.
+    expect(lastCall.text).toBe('The coach is busy right now — give it a few seconds and try again.');
+  });
+
+  it('a thrown dispatch also yields a retryable error bubble', async () => {
+    const { args, append, applyAIEditImpl } = makeArgs({ input: 'make it hillier' });
+    applyAIEditImpl.mockRejectedValue(new Error('boom'));
+
+    await submitChatMessage(args);
+
+    const lastCall = append.mock.calls[append.mock.calls.length - 1][0];
+    expect(lastCall.kind).toBe('error');
+    expect(lastCall.retryText).toBe('make it hillier');
+  });
+});
+
+describe('submitChatMessage — phases and edit outcome', () => {
+  it('emits thinking then null around an edit turn', async () => {
+    const onPhase = vi.fn();
+    const { args, applyAIEditImpl } = makeArgs({ input: 'make it flatter', onPhase });
+    applyAIEditImpl.mockResolvedValue({
+      ok: true,
+      assistantText: 'Done',
+      distance_km: 24,
+      elevation_gain_m: 60,
+      routeChanged: false,
+    });
+
+    await submitChatMessage(args);
+
+    expect(onPhase.mock.calls[0][0]).toBe('thinking');
+    expect(onPhase.mock.calls[onPhase.mock.calls.length - 1][0]).toBeNull();
+  });
+
+  it('emits generating then null around a generation turn, even on throw', async () => {
+    const onPhase = vi.fn();
+    const onGenerateFromPrompt = vi.fn().mockRejectedValue(new Error('boom'));
+    const { args } = makeArgs({
+      input: 'build me a 2 hour ride',
+      onPhase,
+      onGenerateFromPrompt,
+    });
+
+    await submitChatMessage(args);
+
+    expect(onPhase.mock.calls[0][0]).toBe('generating');
+    expect(onPhase.mock.calls[onPhase.mock.calls.length - 1][0]).toBeNull();
+  });
+
+  it('fires onEditOutcome with the checkpoint when a chat edit changed the route', async () => {
+    const onEditOutcome = vi.fn();
+    const checkpoint = {
+      geometry: { type: 'LineString' as const, coordinates: [[0, 0], [1, 1]] },
+      stats: { distance_km: 30, elevation_gain_m: 300, duration_s: 0 },
+    };
+    const { args, applyAIEditImpl } = makeArgs({ input: 'make it flatter', onEditOutcome });
+    applyAIEditImpl.mockResolvedValue({
+      ok: true,
+      assistantText: 'Flatter now.',
+      distance_km: 29,
+      elevation_gain_m: 150,
+      routeChanged: true,
+      previousCheckpoint: checkpoint,
+      partialApplied: false,
+    });
+
+    await submitChatMessage(args);
+
+    expect(onEditOutcome).toHaveBeenCalledWith({
+      previous: checkpoint,
+      next: { distance_km: 29, elevation_gain_m: 150 },
+      partial: false,
+    });
+  });
+
+  it('does not fire onEditOutcome for restores or conversational turns', async () => {
+    const onEditOutcome = vi.fn();
+    const { args, applyAIEditImpl } = makeArgs({ input: 'go back', onEditOutcome });
+    applyAIEditImpl.mockResolvedValue({
+      ok: true,
+      assistantText: 'Restored.',
+      distance_km: 30,
+      elevation_gain_m: 300,
+      routeChanged: true,
+      previousCheckpoint: null,
+      wasRestore: true,
+    });
+
+    await submitChatMessage(args);
+
+    expect(onEditOutcome).not.toHaveBeenCalled();
   });
 });
 

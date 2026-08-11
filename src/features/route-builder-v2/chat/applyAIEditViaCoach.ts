@@ -28,11 +28,30 @@ import {
 import { pushCheckpoint, popCheckpoint } from './editCheckpoints';
 import type { RouteCheckpoint } from './editCheckpoints';
 import type { EditResult } from './replicatedEditLogic';
+import type { ChatPhase } from './types';
 import type { Coordinate } from '../../../types/geo';
 
 interface ConversationTurn {
   role: 'user' | 'assistant';
   content: string;
+}
+
+export interface ApplyAIEditOptions {
+  /** Progress callback for client-side geometry phases. This function
+   *  never emits null — submitChatMessage owns clearing the phase. */
+  onPhase?: (phase: ChatPhase) => void;
+}
+
+export interface ApplyAIEditExtras {
+  routeChanged: boolean;
+  /** Only on ok:false — infra (retryable outage) vs refusal (phrasing). */
+  failureKind?: 'infra' | 'refusal';
+  /** The pre-edit snapshot pushed for this edit (geometry edits only). */
+  previousCheckpoint?: RouteCheckpoint | null;
+  /** applied < requested edits (result kept, per partial-apply policy). */
+  partialApplied?: boolean;
+  /** The last applied op was restore_previous. */
+  wasRestore?: boolean;
 }
 
 const MAPBOX_TOKEN: string =
@@ -47,9 +66,12 @@ export async function applyAIEditViaCoach(
   planAware: boolean = true,
   /** Rider's display units — the coach narrates in these (prose only). */
   isImperial: boolean = false,
-): Promise<EditResult & { routeChanged: boolean }> {
+  opts: ApplyAIEditOptions = {},
+): Promise<EditResult & ApplyAIEditExtras> {
   const trimmed = text.trim();
-  if (!trimmed) return { ok: false, reason: 'empty input', routeChanged: false };
+  if (!trimmed) {
+    return { ok: false, reason: 'empty input', routeChanged: false, failureKind: 'refusal' };
+  }
 
   const state = useRouteBuilderStore.getState();
   const routeGeometry = state.routeGeometry;
@@ -58,13 +80,13 @@ export async function applyAIEditViaCoach(
   const routeType = state.routeType ?? null;
 
   if (!routeGeometry?.coordinates || routeGeometry.coordinates.length < 2) {
-    return { ok: false, reason: 'no current route', routeChanged: false };
+    return { ok: false, reason: 'no current route', routeChanged: false, failureKind: 'refusal' };
   }
 
   // Auth token for the endpoint's Bearer gate.
   const { data: { session } } = await supabase.auth.getSession();
   if (!session?.access_token) {
-    return { ok: false, reason: 'not authenticated', routeChanged: false };
+    return { ok: false, reason: 'not authenticated', routeChanged: false, failureKind: 'infra' };
   }
 
   // Local date for the prompt's temporal anchor.
@@ -109,14 +131,20 @@ export async function applyAIEditViaCoach(
       // a normal Claude refusal so we can both alert on it and tell the user
       // it's transient rather than "your edit was rejected".
       const err = await res.json().catch(() => ({}));
+      const isInfra = res.status === 429 || res.status >= 500;
       const reason =
         res.status === 429
-          ? "the coach is busy right now — give it a few seconds and try again"
+          ? 'The coach is busy right now — give it a few seconds and try again.'
           : res.status >= 500
-            ? "the coach is temporarily unavailable — try again in a moment"
+            ? 'The coach is temporarily unavailable — try again in a moment.'
             : err.error || `endpoint returned ${res.status}`;
       trackRb2('coach_api_failed', { status: res.status });
-      return { ok: false, reason, routeChanged: false };
+      return {
+        ok: false,
+        reason,
+        routeChanged: false,
+        failureKind: isInfra ? 'infra' : 'refusal',
+      };
     }
 
     data = await res.json();
@@ -124,8 +152,9 @@ export async function applyAIEditViaCoach(
     trackRb2('coach_api_failed', { status: 0, error_name: err instanceof Error ? err.name : 'unknown' });
     return {
       ok: false,
-      reason: 'the coach is temporarily unreachable — check your connection and try again',
+      reason: 'The coach is temporarily unreachable — check your connection and try again.',
       routeChanged: false,
+      failureKind: 'infra',
     };
   }
 
@@ -169,6 +198,8 @@ export async function applyAIEditViaCoach(
   // When the LAST applied op was a restore, its checkpoint stats are
   // authoritative — skip the final elevation re-fetch.
   let restoredStats: RouteCheckpoint['stats'] | null = null;
+
+  opts.onPhase?.('rerouting');
 
   for (const edit of edits) {
     const intentName = (edit.editIntent as { intent?: string }).intent;
@@ -242,16 +273,21 @@ export async function applyAIEditViaCoach(
 
   // Elevation for the combined result: a pure restore already knows its
   // stats; geometry edits get one authoritative fetch.
-  const elevation_gain_m = restoredStats
-    ? restoredStats.elevation_gain_m
-    : ((await fetchElevationGain(curCoords)) ?? routeStats?.elevation_gain_m ?? 0);
+  let elevation_gain_m: number;
+  if (restoredStats) {
+    elevation_gain_m = restoredStats.elevation_gain_m;
+  } else {
+    opts.onPhase?.('measuring');
+    elevation_gain_m = (await fetchElevationGain(curCoords)) ?? routeStats?.elevation_gain_m ?? 0;
+  }
 
   // Checkpoint the route this sequence replaced — but only when a real
   // geometry edit ran. A pure restore must NOT push the version it just
   // left, or repeated "go back" would bounce between two versions
   // instead of walking further back.
+  let previousCheckpoint: RouteCheckpoint | null = null;
   if (geometryEditApplied) {
-    pushCheckpoint({
+    previousCheckpoint = {
       geometry: { type: 'LineString', coordinates: routeGeometry.coordinates as Coordinate[] },
       stats: {
         distance_km:
@@ -259,17 +295,18 @@ export async function applyAIEditViaCoach(
         elevation_gain_m: routeStats?.elevation_gain_m ?? 0,
         duration_s: durationS,
       },
-    });
+    };
+    pushCheckpoint(previousCheckpoint);
   }
   state.setRouteGeometry({ type: 'LineString', coordinates: curCoords });
   state.setRouteStats({ distance_km: curDistance, elevation_gain_m, duration_s: durationS });
 
   // Partial result stays applied (rider's choice in review) — but name the
   // failure and offer the one-word way back.
-  const partial =
-    applied < edits.length
-      ? ` (Applied ${applied} of ${edits.length} changes — ${lastFailure ?? 'the rest failed'}. Say "revert" to go back.)`
-      : '';
+  const partialApplied = applied < edits.length;
+  const partial = partialApplied
+    ? ` (Applied ${applied} of ${edits.length} changes — ${lastFailure ?? 'the rest failed'}. Say "revert" to go back.)`
+    : '';
 
   return {
     ok: true,
@@ -277,5 +314,8 @@ export async function applyAIEditViaCoach(
     distance_km: Math.round(curDistance),
     elevation_gain_m: Math.round(elevation_gain_m),
     routeChanged: true,
+    previousCheckpoint,
+    partialApplied,
+    wasRestore: restoredStats != null,
   };
 }

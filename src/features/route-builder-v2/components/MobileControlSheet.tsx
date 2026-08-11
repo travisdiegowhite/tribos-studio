@@ -21,6 +21,11 @@ export interface MobileSheetTab {
   content: ReactNode;
   /** Optional count badge on the tab (e.g. active layers). */
   badge?: number;
+  /**
+   * Content owns the full panel height and its own scrolling (no sheet
+   * padding/scroll) — for chat-style layouts with a pinned input.
+   */
+  fillContent?: boolean;
 }
 
 export interface MobileControlSheetProps {
@@ -98,14 +103,25 @@ export function MobileControlSheet({
             </UnstyledButton>
           </Box>
           <Box
-            style={{
-              flex: 1,
-              overflowY: 'auto',
-              padding: 12,
-              display: 'flex',
-              flexDirection: 'column',
-              gap: 8,
-            }}
+            data-testid="rb2-mobile-sheet-content"
+            style={
+              active.fillContent
+                ? {
+                    flex: 1,
+                    minHeight: 0,
+                    overflow: 'hidden',
+                    display: 'flex',
+                    flexDirection: 'column',
+                  }
+                : {
+                    flex: 1,
+                    overflowY: 'auto',
+                    padding: 12,
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: 8,
+                  }
+            }
           >
             {active.content}
           </Box>
