@@ -10,7 +10,8 @@
  * and opens the form panel. Everything else goes through the endpoint.
  */
 import { applyAIEditViaCoach } from './applyAIEditViaCoach';
-import type { ChatMessage, RouteOptionSummary } from './types';
+import type { ChatMessage, ChatPhase, RouteOptionSummary } from './types';
+import type { RouteCheckpoint } from './editCheckpoints';
 import { trackRb2 } from '../telemetry/trackRb2';
 import { formatDistance, formatElevation } from '../../../utils/units';
 
@@ -61,6 +62,21 @@ export interface SubmitChatMessageArgs {
   append: (msg: Omit<ChatMessage, 'id' | 'timestamp'>) => void;
   setProcessing: (b: boolean) => void;
   markRefused: () => void;
+  /**
+   * Staged-progress callback. This function owns the terminal `null`;
+   * 'rerouting'/'measuring' arrive from the edit dispatch mid-turn.
+   */
+  onPhase?: (phase: ChatPhase | null) => void;
+  /**
+   * Fired when a chat edit changed the route (full or partial apply) —
+   * carries the pre-edit checkpoint for the Keep/Revert review UI.
+   * Never fired for restore turns or conversational replies.
+   */
+  onEditOutcome?: (outcome: {
+    previous: RouteCheckpoint;
+    next: { distance_km: number; elevation_gain_m: number };
+    partial: boolean;
+  }) => void;
   formPanelControl: FormPanelControl;
   /** Persists the completed user/assistant pair. Owned by `useChatSession`. */
   persistTurn?: (userText: string, assistantText: string) => Promise<void>;
@@ -88,6 +104,8 @@ export async function submitChatMessage(args: SubmitChatMessageArgs): Promise<vo
     append,
     setProcessing,
     markRefused,
+    onPhase,
+    onEditOutcome,
     formPanelControl,
     persistTurn,
     applyAIEditImpl = applyAIEditViaCoach,
@@ -108,6 +126,7 @@ export async function submitChatMessage(args: SubmitChatMessageArgs): Promise<vo
   const wantsGenerate = COLD_START_PATTERN.test(trimmed) || !hasRoute;
   if (wantsGenerate && onGenerateFromPrompt) {
     setProcessing(true);
+    onPhase?.('generating');
     try {
       const result = await onGenerateFromPrompt(trimmed);
       if (result.ok) {
@@ -166,6 +185,7 @@ export async function submitChatMessage(args: SubmitChatMessageArgs): Promise<vo
       } else if (result.reason === 'no_start') {
         append({
           role: 'assistant',
+          kind: 'refusal',
           text: 'I need a starting point — open the form to set one, then I can build it.',
         });
         formPanelControl.expand();
@@ -188,6 +208,7 @@ export async function submitChatMessage(args: SubmitChatMessageArgs): Promise<vo
       trackRb2('chat_error', { error_name: errName });
     } finally {
       setProcessing(false);
+      onPhase?.(null);
     }
     return;
   }
@@ -206,6 +227,7 @@ export async function submitChatMessage(args: SubmitChatMessageArgs): Promise<vo
   if (!hasRoute) {
     append({
       role: 'assistant',
+      kind: 'refusal',
       text: 'No route to edit yet — generate one first by typing something like "build me a 2 hour ride".',
     });
     markRefused();
@@ -217,8 +239,16 @@ export async function submitChatMessage(args: SubmitChatMessageArgs): Promise<vo
   }
 
   setProcessing(true);
+  onPhase?.('thinking');
   try {
-    const result = await applyAIEditImpl(trimmed, conversationHistory, routeId, planAware, isImperial);
+    const result = await applyAIEditImpl(
+      trimmed,
+      conversationHistory,
+      routeId,
+      planAware,
+      isImperial,
+      { onPhase: (phase) => onPhase?.(phase) },
+    );
     if (result.ok) {
       // Suffix the stats only when the route actually changed; otherwise
       // the prose stands alone (clarifying question, refusal, etc.).
@@ -232,12 +262,36 @@ export async function submitChatMessage(args: SubmitChatMessageArgs): Promise<vo
         elevation_gain_m: result.elevation_gain_m,
         route_changed: result.routeChanged,
       });
+      if (result.routeChanged && result.previousCheckpoint) {
+        onEditOutcome?.({
+          previous: result.previousCheckpoint,
+          next: {
+            distance_km: result.distance_km,
+            elevation_gain_m: result.elevation_gain_m,
+          },
+          partial: !!result.partialApplied,
+        });
+      }
       if (persistTurn) {
         await persistTurn(trimmed, assistantText);
       }
+    } else if (result.failureKind === 'infra') {
+      // Server/network outage — not the rider's phrasing. Plain sentence,
+      // Retry button, and no "try different words" hints.
+      append({
+        role: 'assistant',
+        kind: 'error',
+        text: result.reason,
+        retryText: trimmed,
+      });
+      trackRb2('chat_infra_error', {
+        input_length: trimmed.length,
+        failure_reason: result.reason.slice(0, 200),
+      });
     } else {
       append({
         role: 'assistant',
+        kind: 'refusal',
         text: `Couldn't make that change — ${result.reason}. Want to try something else?`,
       });
       markRefused();
@@ -248,9 +302,10 @@ export async function submitChatMessage(args: SubmitChatMessageArgs): Promise<vo
     }
   } catch (e) {
     const errName = e instanceof Error ? e.name : 'unknown';
-    append({ role: 'assistant', text: 'Hit an error. Try again?' });
+    append({ role: 'assistant', kind: 'error', text: 'Hit an error.', retryText: trimmed });
     trackRb2('chat_error', { error_name: errName });
   } finally {
     setProcessing(false);
+    onPhase?.(null);
   }
 }

@@ -107,6 +107,161 @@ describe('ChatBody — route option cards', () => {
     expect(screen.queryByTestId('rb2-chat-route-options')).toBeNull();
   });
 
+  it('auto-scrolls to the newest message', () => {
+    const { rerender } = renderBody({
+      messages: [{ id: 'm1', role: 'user', text: 'first', timestamp: 1 }],
+    });
+    const list = screen.getByTestId('rb2-chat-bubbles');
+    Object.defineProperty(list, 'scrollHeight', { configurable: true, value: 640 });
+    rerender(
+      <MantineProvider>
+        <ChatBody
+          messages={[
+            { id: 'm1', role: 'user', text: 'first', timestamp: 1 },
+            { id: 'm2', role: 'assistant', text: 'second', timestamp: 2 },
+          ]}
+          isProcessing={false}
+          exampleHint={[]}
+          showAfterRefuseHint={false}
+          onSubmit={vi.fn()}
+        />
+      </MantineProvider>,
+    );
+    expect(list.scrollTop).toBe(640);
+  });
+
+  it('keeps the input readOnly (not disabled) while processing', () => {
+    renderBody({ isProcessing: true });
+    const input = screen.getByTestId('rb2-chat-input');
+    expect(input).toHaveAttribute('readonly');
+    expect(input).not.toBeDisabled();
+  });
+
+  it('shows phase-specific progress copy and a status role while processing', () => {
+    renderBody({ isProcessing: true, processingPhase: 'rerouting' });
+    const typing = screen.getByTestId('rb2-chat-typing');
+    expect(typing).toHaveTextContent('Rerouting…');
+    expect(screen.getByRole('status')).toBeInTheDocument();
+  });
+
+  it('falls back to thinking copy when no phase is set', () => {
+    renderBody({ isProcessing: true });
+    expect(screen.getByTestId('rb2-chat-typing')).toHaveTextContent('Coach is thinking…');
+  });
+
+  it('announces the thread politely', () => {
+    renderBody();
+    expect(screen.getByTestId('rb2-chat-bubbles')).toHaveAttribute('aria-live', 'polite');
+  });
+
+  it('renders coach markdown but keeps user text literal', () => {
+    renderBody({
+      messages: [
+        { id: 'u1', role: 'user', text: '**not bold**', timestamp: 1 },
+        { id: 'a1', role: 'assistant', text: 'A **bold** move', timestamp: 2 },
+      ],
+    });
+    expect(screen.getByText('bold').tagName).toBe('STRONG');
+    expect(screen.getByText('**not bold**')).toBeInTheDocument();
+  });
+
+  it('labels the start of each coach run with the persona name', () => {
+    renderBody({
+      personaName: 'The Scientist',
+      messages: [
+        { id: 'a1', role: 'assistant', text: 'one', timestamp: 1 },
+        { id: 'a2', role: 'assistant', text: 'two', timestamp: 2 },
+        { id: 'u1', role: 'user', text: 'ok', timestamp: 3 },
+        { id: 'a3', role: 'assistant', text: 'three', timestamp: 4 },
+      ],
+    });
+    // Once for the opening run, once after the user turn — not per message.
+    expect(screen.getAllByTestId('rb2-chat-persona-label')).toHaveLength(2);
+  });
+
+  it('renders a timestamp for real messages but not the synthetic opener', () => {
+    renderBody({
+      messages: [
+        { id: 'opening', role: 'assistant', text: 'Hello', timestamp: 0 },
+        {
+          id: 'a1',
+          role: 'assistant',
+          text: 'Later',
+          timestamp: new Date(2026, 7, 11, 14, 5).getTime(),
+        },
+      ],
+    });
+    expect(screen.getByText(/2:05|14:05/)).toBeInTheDocument();
+  });
+
+  it('example phrases are clickable chips that submit the phrase', () => {
+    const onSubmit = vi.fn();
+    renderBody({
+      onSubmit,
+      exampleHint: ['make it flatter'],
+      messages: [{ id: 'm1', role: 'assistant', text: 'hi', timestamp: 1 }],
+    });
+    fireEvent.click(screen.getByText('make it flatter'));
+    expect(onSubmit).toHaveBeenCalledWith('make it flatter');
+  });
+
+  it('renders quick-action chips that submit their phrase', () => {
+    const onSubmit = vi.fn();
+    renderBody({
+      onSubmit,
+      quickActions: [{ id: 'flatten', label: 'Flatter', phrase: 'Make it flatter' }],
+    });
+    fireEvent.click(screen.getByTestId('rb2-chat-quick-flatten'));
+    expect(onSubmit).toHaveBeenCalledWith('Make it flatter');
+  });
+
+  it('shows refusal examples for kind-tagged refusals, not for error bubbles', () => {
+    const base = {
+      exampleHint: ['make it flatter'] as readonly string[],
+      showAfterRefuseHint: true,
+    };
+    renderBody({
+      ...base,
+      messages: [
+        { id: 'r1', role: 'assistant', kind: 'refusal', text: "Couldn't make that change", timestamp: 1 },
+      ],
+    });
+    expect(screen.getByTestId('rb2-chat-refuse-examples')).toBeInTheDocument();
+
+    renderBody({
+      ...base,
+      messages: [
+        { id: 'e1', role: 'assistant', kind: 'error', text: 'The coach is busy right now.', timestamp: 1 },
+      ],
+    });
+    expect(screen.queryAllByTestId('rb2-chat-refuse-examples')).toHaveLength(1); // only the first render's
+  });
+
+  it('error bubbles offer a Retry button that resubmits the original text', () => {
+    const onRetry = vi.fn();
+    renderBody({
+      onRetry,
+      messages: [
+        {
+          id: 'e1',
+          role: 'assistant',
+          kind: 'error',
+          text: 'The coach is temporarily unavailable.',
+          retryText: 'make it hillier',
+          timestamp: 1,
+        },
+      ],
+    });
+    fireEvent.click(screen.getByTestId('rb2-chat-retry'));
+    expect(onRetry).toHaveBeenCalledWith('make it hillier');
+  });
+
+  it('shows a loading placeholder while the thread hydrates', () => {
+    renderBody({ hydrated: false });
+    expect(screen.getByTestId('rb2-chat-hydrating')).toBeInTheDocument();
+    expect(screen.queryByText('Northeast Loop')).toBeNull();
+  });
+
   it('shows the measured gravel % (with target) and rationale when present', () => {
     const message: ChatMessage = {
       id: 'opts-2',

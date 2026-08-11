@@ -1,20 +1,20 @@
 /**
  * ChatBody — Route Builder 2.0 shared chat body (bubbles + input).
  *
- * Shared between ChatPanel (desktop floating) and ChatDrawer (mobile
- * bottom sheet). P1.4 wires it to the real chat session: `messages`,
- * `isProcessing`, `onSubmit`, and an `exampleHint` row below the input.
- *
- * P1.4 STUB awareness: the chat surface itself is permanent; only the
- * heuristic translation backing it (in `../chat/`) is throwaway.
+ * Shared between ChatDock (desktop right-hand region) and the
+ * MobileControlSheet "Coach" tab. Renders the message list (markdown for
+ * coach turns), route-option cards, the plan-mode toggle, suggestion
+ * chips, staged-progress copy, and the input row.
  */
 
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Box, Text, TextInput, UnstyledButton } from '@mantine/core';
 import { PaperPlaneRight } from '@phosphor-icons/react';
 import { RB2, RB2_FONT } from './brand';
+import { CoachMarkdown } from '../../../components/coach/CoachMarkdown';
 import { formatDistance, formatElevation } from '../../../utils/units';
-import type { ChatMessage, RouteOptionSummary } from '../chat/types';
+import { trackRb2 } from '../telemetry/trackRb2';
+import type { ChatMessage, ChatPhase, RouteOptionSummary } from '../chat/types';
 
 export interface ChatBodyProps {
   fillHeight?: boolean;
@@ -35,7 +35,26 @@ export interface ChatBodyProps {
    */
   planAware?: boolean;
   onPlanAwareChange?: (next: boolean) => void;
+  /** Focus the input on mount and re-focus after each turn (desktop). */
+  autoFocus?: boolean;
+  /** Coach persona display name, shown above each coach reply run. */
+  personaName?: string;
+  /** Stage of the in-flight turn — drives the progress bubble copy. */
+  processingPhase?: ChatPhase | null;
+  /** One-tap edit chips rendered above the input (page passes when a route exists). */
+  quickActions?: readonly { id: string; label: string; phrase: string }[];
+  /** Resubmit an error bubble's retryText without retyping. */
+  onRetry?: (text: string) => void;
+  /** False while the persisted thread is loading; shows a placeholder. */
+  hydrated?: boolean;
 }
+
+const PHASE_LABEL: Record<ChatPhase, string> = {
+  thinking: 'Coach is thinking…',
+  generating: 'Planning route options…',
+  rerouting: 'Rerouting…',
+  measuring: 'Measuring elevation…',
+};
 
 export function ChatBody({
   fillHeight = false,
@@ -48,23 +67,58 @@ export function ChatBody({
   isImperial = false,
   planAware,
   onPlanAwareChange,
+  autoFocus = false,
+  personaName,
+  processingPhase = null,
+  quickActions,
+  onRetry,
+  hydrated = true,
 }: ChatBodyProps) {
   const [draft, setDraft] = useState('');
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  // Keep the newest message (or the typing bubble) in view.
+  useEffect(() => {
+    if (scrollRef.current) {
+      scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+    }
+  }, [messages, isProcessing]);
+
+  // Desktop: focus the input on mount…
+  useEffect(() => {
+    if (autoFocus) inputRef.current?.focus();
+  }, [autoFocus]);
+
+  // …and re-focus when a turn finishes (readOnly keeps focus in most
+  // cases, but cover the paths where it was lost anyway).
+  const prevProcessingRef = useRef(isProcessing);
+  useEffect(() => {
+    if (prevProcessingRef.current && !isProcessing && autoFocus) {
+      inputRef.current?.focus();
+    }
+    prevProcessingRef.current = isProcessing;
+  }, [isProcessing, autoFocus]);
 
   const handleSubmit = () => {
+    if (isProcessing) return;
     const text = draft.trim();
     if (!text) return;
     onSubmit(text);
     setDraft('');
   };
 
-  // Track which assistant message is the most recent "refuse" so we can
-  // render examples right under it. Easiest heuristic: the last
-  // assistant message text contains "don't understand".
+  const submitPhrase = (phrase: string) => {
+    if (isProcessing) return;
+    onSubmit(phrase);
+  };
+
+  // The most recent coach refusal (kind-tagged by submitChatMessage) in
+  // the trailing assistant run — phrasing examples render right under it.
   const lastRefuseIndex = (() => {
     for (let i = messages.length - 1; i >= 0; i--) {
       const m = messages[i];
-      if (m.role === 'assistant' && /don'?t understand/i.test(m.text)) return i;
+      if (m.role === 'assistant' && m.kind === 'refusal') return i;
       if (m.role === 'user') return -1;
     }
     return -1;
@@ -80,8 +134,14 @@ export function ChatBody({
         minHeight: 0,
       }}
     >
+      {/* First (and so far only) consumer of the RB2.focusRing token. */}
+      <style>{`.rb2-focusable:focus-visible { outline: none; box-shadow: 0 0 0 3px ${RB2.focusRing}; }`}</style>
       <Box
+        ref={scrollRef}
         data-testid="rb2-chat-bubbles"
+        role="log"
+        aria-live="polite"
+        aria-label="Coach conversation"
         style={{
           flex: 1,
           overflowY: 'auto',
@@ -92,26 +152,71 @@ export function ChatBody({
           backgroundColor: RB2.bgBase,
         }}
       >
-        {messages.map((m, i) => (
-          <Box key={m.id}>
-            <Bubble role={m.role} text={m.text} />
-            {m.kind === 'route-options' && (m.options?.length ?? 0) > 0 && (
-              <RouteOptionCards
-                options={m.options as RouteOptionSummary[]}
-                selectedIndex={m.selectedOptionIndex ?? 0}
-                isImperial={isImperial}
-                disabled={isProcessing}
-                onSelect={(index) => onSelectOption?.(m.id, index)}
+        {!hydrated ? (
+          <Text
+            data-testid="rb2-chat-hydrating"
+            style={{
+              fontFamily: RB2_FONT.body,
+              fontSize: 12,
+              fontStyle: 'italic',
+              color: RB2.textTertiary,
+            }}
+          >
+            Loading conversation…
+          </Text>
+        ) : (
+          messages.map((m, i) => (
+            <Box key={m.id}>
+              {m.role === 'assistant' &&
+                personaName &&
+                (i === 0 || messages[i - 1].role !== 'assistant') && (
+                  <Text
+                    data-testid="rb2-chat-persona-label"
+                    style={{
+                      fontFamily: RB2_FONT.mono,
+                      fontSize: 9,
+                      letterSpacing: '0.08em',
+                      textTransform: 'uppercase',
+                      color: RB2.textTertiary,
+                      marginBottom: 3,
+                    }}
+                  >
+                    {personaName}
+                  </Text>
+                )}
+              <Bubble
+                message={m}
+                isProcessing={isProcessing}
+                onRetry={onRetry}
               />
-            )}
-            {i === lastRefuseIndex && showAfterRefuseHint && exampleHint.length > 0 && (
-              <ExampleList data-testid="rb2-chat-refuse-examples" items={exampleHint} prominent />
-            )}
-          </Box>
-        ))}
+              {m.kind === 'route-options' && (m.options?.length ?? 0) > 0 && (
+                <RouteOptionCards
+                  options={m.options as RouteOptionSummary[]}
+                  selectedIndex={m.selectedOptionIndex ?? 0}
+                  isImperial={isImperial}
+                  disabled={isProcessing}
+                  onSelect={(index) => onSelectOption?.(m.id, index)}
+                />
+              )}
+              {i === lastRefuseIndex && showAfterRefuseHint && exampleHint.length > 0 && (
+                <ExampleChips
+                  data-testid="rb2-chat-refuse-examples"
+                  items={exampleHint}
+                  prominent
+                  disabled={isProcessing}
+                  onPick={(phrase) => {
+                    trackRb2('chat_example_chip_clicked', { phrase });
+                    submitPhrase(phrase);
+                  }}
+                />
+              )}
+            </Box>
+          ))
+        )}
         {isProcessing && (
           <Box data-testid="rb2-chat-typing" style={{ display: 'flex', justifyContent: 'flex-start' }}>
             <Box
+              role="status"
               style={{
                 padding: '6px 10px',
                 backgroundColor: RB2.cardBg,
@@ -123,7 +228,7 @@ export function ChatBody({
                 borderRadius: 0,
               }}
             >
-              Coach is thinking…
+              {processingPhase ? PHASE_LABEL[processingPhase] : PHASE_LABEL.thinking}
             </Box>
           </Box>
         )}
@@ -142,8 +247,44 @@ export function ChatBody({
             onChange={onPlanAwareChange}
           />
         )}
+        {quickActions && quickActions.length > 0 && (
+          <Box
+            data-testid="rb2-chat-quick-actions"
+            style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginBottom: 8 }}
+          >
+            {quickActions.map((action) => (
+              <UnstyledButton
+                key={action.id}
+                data-testid={`rb2-chat-quick-${action.id}`}
+                className="rb2-focusable"
+                aria-disabled={isProcessing}
+                onClick={() => {
+                  if (isProcessing) return;
+                  trackRb2('chat_quick_action_clicked', { action_id: action.id });
+                  submitPhrase(action.phrase);
+                }}
+                style={{
+                  padding: '3px 8px',
+                  backgroundColor: RB2.bgSecondary,
+                  color: RB2.textSecondary,
+                  border: `1px solid ${RB2.border}`,
+                  borderRadius: 0,
+                  fontFamily: RB2_FONT.mono,
+                  fontSize: 10,
+                  letterSpacing: '0.06em',
+                  textTransform: 'uppercase',
+                  cursor: isProcessing ? 'default' : 'pointer',
+                  opacity: isProcessing ? 0.6 : 1,
+                }}
+              >
+                {action.label}
+              </UnstyledButton>
+            ))}
+          </Box>
+        )}
         <Box style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
           <TextInput
+            ref={inputRef}
             data-testid="rb2-chat-input"
             value={draft}
             onChange={(e) => setDraft(e.currentTarget.value)}
@@ -154,17 +295,22 @@ export function ChatBody({
               }
             }}
             placeholder="Type a request…"
-            disabled={isProcessing}
+            readOnly={isProcessing}
             styles={{
               root: { flex: 1 },
-              input: { borderRadius: 0, fontFamily: RB2_FONT.body },
+              input: {
+                borderRadius: 0,
+                fontFamily: RB2_FONT.body,
+                opacity: isProcessing ? 0.6 : 1,
+              },
             }}
             aria-label="Chat message"
           />
           <UnstyledButton
             data-testid="rb2-chat-send"
+            className="rb2-focusable"
             onClick={handleSubmit}
-            disabled={isProcessing}
+            aria-disabled={isProcessing}
             aria-label="Send message"
             style={{
               padding: 8,
@@ -178,7 +324,15 @@ export function ChatBody({
           </UnstyledButton>
         </Box>
         {exampleHint.length > 0 && (
-          <ExampleList data-testid="rb2-chat-examples-hint" items={exampleHint} />
+          <ExampleChips
+            data-testid="rb2-chat-examples-hint"
+            items={exampleHint}
+            disabled={isProcessing}
+            onPick={(phrase) => {
+              trackRb2('chat_example_chip_clicked', { phrase });
+              submitPhrase(phrase);
+            }}
+          />
         )}
       </Box>
     </Box>
@@ -219,6 +373,8 @@ function RouteOptionCards({
   return (
     <Box
       data-testid="rb2-chat-route-options"
+      role="radiogroup"
+      aria-label="Route options"
       style={{ marginTop: 8, display: 'flex', flexDirection: 'column', gap: 6 }}
     >
       {options.map((option) => {
@@ -227,10 +383,12 @@ function RouteOptionCards({
           <UnstyledButton
             key={option.index}
             data-testid={`rb2-chat-route-option-${option.index}`}
+            className="rb2-focusable"
             onClick={() => {
               if (!disabled && !selected) onSelect(option.index);
             }}
             aria-pressed={selected}
+            aria-disabled={disabled}
             aria-label={`Route option ${option.index + 1}: ${option.name}`}
             style={{
               padding: '8px 10px',
@@ -352,6 +510,7 @@ function PlanModeToggle({ planAware, disabled, onChange }: PlanModeToggleProps) 
           <UnstyledButton
             key={chip.id}
             data-testid={chip.id}
+            className="rb2-focusable"
             role="radio"
             aria-checked={active}
             disabled={disabled}
@@ -380,13 +539,29 @@ function PlanModeToggle({ planAware, disabled, onChange }: PlanModeToggleProps) 
   );
 }
 
-function Bubble({ role, text }: { role: 'user' | 'assistant'; text: string }) {
-  const isUser = role === 'user';
+interface BubbleProps {
+  message: ChatMessage;
+  isProcessing: boolean;
+  onRetry?: (text: string) => void;
+}
+
+function Bubble({ message, isProcessing, onRetry }: BubbleProps) {
+  const isUser = message.role === 'user';
+  const isError = message.kind === 'error';
+  const timeLabel =
+    message.timestamp > 0
+      ? new Date(message.timestamp).toLocaleTimeString([], {
+          hour: 'numeric',
+          minute: '2-digit',
+        })
+      : null;
+
   return (
     <Box
       style={{
         display: 'flex',
-        justifyContent: isUser ? 'flex-end' : 'flex-start',
+        flexDirection: 'column',
+        alignItems: isUser ? 'flex-end' : 'flex-start',
       }}
     >
       <Box
@@ -394,32 +569,81 @@ function Bubble({ role, text }: { role: 'user' | 'assistant'; text: string }) {
           maxWidth: '80%',
           padding: '8px 12px',
           backgroundColor: isUser ? RB2.teal : RB2.cardBg,
-          border: isUser ? 'none' : `1px solid ${RB2.border}`,
+          border: isUser ? 'none' : `1px solid ${isError ? RB2.coral : RB2.border}`,
           color: isUser ? RB2.textInverse : RB2.textPrimary,
           borderRadius: 0,
         }}
       >
+        {isUser ? (
+          <Text
+            style={{
+              fontFamily: RB2_FONT.body,
+              fontSize: 13,
+              lineHeight: 1.45,
+            }}
+          >
+            {message.text}
+          </Text>
+        ) : (
+          <Box style={{ fontFamily: RB2_FONT.body }}>
+            <CoachMarkdown size="xs" color={RB2.textPrimary}>
+              {message.text}
+            </CoachMarkdown>
+          </Box>
+        )}
+        {isError && message.retryText && onRetry && (
+          <UnstyledButton
+            data-testid="rb2-chat-retry"
+            className="rb2-focusable"
+            aria-disabled={isProcessing}
+            onClick={() => {
+              if (isProcessing) return;
+              trackRb2('chat_retry_clicked', {});
+              onRetry(message.retryText as string);
+            }}
+            style={{
+              marginTop: 6,
+              padding: '2px 8px',
+              border: `1px solid ${RB2.coral}`,
+              color: RB2.coral,
+              borderRadius: 0,
+              fontFamily: RB2_FONT.mono,
+              fontSize: 10,
+              letterSpacing: '0.08em',
+              textTransform: 'uppercase',
+              cursor: isProcessing ? 'default' : 'pointer',
+              opacity: isProcessing ? 0.6 : 1,
+            }}
+          >
+            Retry
+          </UnstyledButton>
+        )}
+      </Box>
+      {timeLabel && (
         <Text
           style={{
-            fontFamily: RB2_FONT.body,
-            fontSize: 13,
-            lineHeight: 1.45,
+            fontFamily: RB2_FONT.mono,
+            fontSize: 9,
+            color: RB2.textTertiary,
+            marginTop: 2,
           }}
         >
-          {text}
+          {timeLabel}
         </Text>
-      </Box>
+      )}
     </Box>
   );
 }
 
-interface ExampleListProps {
+interface ExampleChipsProps {
   items: readonly string[];
+  onPick: (phrase: string) => void;
+  disabled: boolean;
   prominent?: boolean;
   'data-testid'?: string;
 }
 
-function ExampleList({ items, prominent = false, ...rest }: ExampleListProps) {
+function ExampleChips({ items, onPick, disabled, prominent = false, ...rest }: ExampleChipsProps) {
   return (
     <Box
       data-testid={rest['data-testid']}
@@ -427,6 +651,7 @@ function ExampleList({ items, prominent = false, ...rest }: ExampleListProps) {
         marginTop: prominent ? 8 : 6,
         display: 'flex',
         flexWrap: 'wrap',
+        alignItems: 'center',
         gap: 6,
       }}
     >
@@ -443,17 +668,28 @@ function ExampleList({ items, prominent = false, ...rest }: ExampleListProps) {
         Try:
       </Text>
       {items.map((phrase) => (
-        <Text
+        <UnstyledButton
           key={phrase}
+          className="rb2-focusable"
+          aria-disabled={disabled}
+          onClick={() => {
+            if (!disabled) onPick(phrase);
+          }}
           style={{
+            padding: '2px 8px',
+            backgroundColor: prominent ? RB2.cardBg : 'transparent',
+            border: `1px solid ${RB2.border}`,
+            borderRadius: 0,
             fontFamily: RB2_FONT.body,
             fontSize: prominent ? 12 : 11,
             color: prominent ? RB2.textPrimary : RB2.textSecondary,
             fontStyle: 'italic',
+            cursor: disabled ? 'default' : 'pointer',
+            opacity: disabled ? 0.6 : 1,
           }}
         >
           {phrase}
-        </Text>
+        </UnstyledButton>
       ))}
     </Box>
   );

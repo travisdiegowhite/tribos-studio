@@ -21,6 +21,11 @@ const PERSONAS: Array<{ id: PersonaId; name: string; tagline: string }> = [
   { id: 'competitor', name: 'The Competitor', tagline: 'Always racing the clock' },
 ];
 
+/** Display name for a persona id (chat bubbles etc.); undefined for 'pending'. */
+export function personaDisplayName(persona: PersonaId | null | undefined): string | undefined {
+  return PERSONAS.find((p) => p.id === persona)?.name;
+}
+
 export interface PersonaDropdownProps {
   persona: PersonaId;
   onChange: (next: PersonaId) => Promise<void>;

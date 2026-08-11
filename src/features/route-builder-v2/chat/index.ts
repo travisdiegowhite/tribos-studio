@@ -5,5 +5,9 @@ export type { SubmitChatMessageArgs, FormPanelControl, GenerateOutcome } from '.
 export { applyAIEdit } from './replicatedEditLogic';
 export { applyAIEditViaCoach } from './applyAIEditViaCoach';
 export type { EditResult } from './replicatedEditLogic';
-export { EXAMPLE_PHRASES, COLD_START_EXAMPLES } from './examplePhrases';
-export type { ChatMessage, ChatRole, ChatSession, RouteOptionSummary } from './types';
+export { EXAMPLE_PHRASES, COLD_START_EXAMPLES, QUICK_EDIT_CHIPS } from './examplePhrases';
+export { CHAT_HISTORY_WINDOW } from './types';
+export type { ChatMessage, ChatPhase, ChatRole, ChatSession, RouteOptionSummary } from './types';
+export { clearCheckpoints, checkpointCount } from './editCheckpoints';
+export type { RouteCheckpoint } from './editCheckpoints';
+export { revertLastChatEdit } from './revertLastChatEdit';
