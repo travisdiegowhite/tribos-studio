@@ -40,8 +40,13 @@ export const ROUTE_EDIT_TOOLS = [
             'reverse',
             'shift_direction',
             'add_waypoint',
+            'restore_previous',
           ],
-          description: 'The primary editing operation to apply.',
+          description:
+            'The primary editing operation to apply. Use restore_previous ' +
+            'when the rider asks to undo, revert, or go back to an earlier ' +
+            'version of the route from this conversation (no other ' +
+            'parameters needed).',
         },
         target_distance_km: {
           type: 'number',
@@ -53,8 +58,10 @@ export const ROUTE_EDIT_TOOLS = [
         elevation_delta_m: {
           type: 'number',
           description:
-            'For flatten/add_climbing: approximate elevation gain change ' +
-            'in meters (negative = flatten). Informational.',
+            'For flatten/add_climbing: the elevation gain change the rider ' +
+            'asked for, in meters (negative = flatten). Drives how ' +
+            'aggressively the routing engine seeks or avoids hills — ' +
+            'always set it when the rider gave an amount.',
         },
         avoid_location: {
           type: 'string',
@@ -98,6 +105,8 @@ export const ROUTE_EDIT_TOOLS = [
 ];
 
 // v1 intents the client's applyRouteEdit can execute today.
+// restore_previous is executed by the chat layer's checkpoint stack
+// (applyAIEditViaCoach) rather than the geometry engine.
 const IMPLEMENTED_INTENTS = new Set([
   'flatten',
   'add_climbing',
@@ -112,6 +121,7 @@ const IMPLEMENTED_INTENTS = new Set([
   'reverse',
   'shift_direction',
   'add_waypoint',
+  'restore_previous',
 ]);
 
 // Conversational-only intents — defined in the schema so Claude can
@@ -140,6 +150,7 @@ const SIMPLE_SUMMARY = {
   scenic: 'Prefer bike paths and quieter roads',
   faster: 'Find a more direct route',
   reverse: 'Reverse the route direction',
+  restore_previous: 'Restore the previous version of the route',
 };
 
 /**
@@ -176,12 +187,39 @@ export function normalizeRouteEdit(input, routeSnapshot) {
 
   switch (intent) {
     case 'flatten':
-    case 'add_climbing':
+    case 'add_climbing': {
+      const editIntent = { intent };
+      let summary = SIMPLE_SUMMARY[intent];
+
+      // Forward the rider's elevation target so the client can steer the
+      // routing engine toward the implied gain instead of the extremes.
+      const rawDeltaM = Number(input.elevation_delta_m);
+      if (Number.isFinite(rawDeltaM) && rawDeltaM !== 0) {
+        // flatten means LESS climbing — coerce the sign so a positive
+        // "flatten by 300m" from Claude still reads as a reduction.
+        const deltaM =
+          intent === 'flatten' ? -Math.abs(rawDeltaM) : Math.abs(rawDeltaM);
+        editIntent.elevationDeltaM = Math.round(deltaM);
+        summary =
+          intent === 'flatten'
+            ? `Re-route to cut ~${Math.abs(editIntent.elevationDeltaM)} m of climbing`
+            : `Re-route to add ~${editIntent.elevationDeltaM} m of climbing`;
+      }
+
+      const targetKm = Number(input.target_distance_km);
+      if (Number.isFinite(targetKm) && targetKm > 0) {
+        editIntent.targetDistanceKm = Number(targetKm.toFixed(1));
+      }
+
+      return { ok: true, intent, editIntent, reasoning, summary };
+    }
+
     case 'surface_gravel':
     case 'surface_paved':
     case 'scenic':
     case 'faster':
     case 'reverse':
+    case 'restore_previous':
       return {
         ok: true,
         intent,

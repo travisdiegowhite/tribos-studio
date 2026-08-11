@@ -550,6 +550,22 @@ function renderWeatherBlock(weather) {
  * Assemble the route-coach system prompt. Sectioned-string shape, mirrors
  * api/coach.js. Route-builder-specific sections plus the Units 1–3 context.
  */
+const KM_TO_MI = 0.621371;
+const M_TO_FT = 3.28084;
+
+/** Render a km distance in the rider's units ("61.2 mi" / "98.5 km"). */
+function kmToDisplay(km, imperial) {
+  if (km == null || !Number.isFinite(Number(km))) return '?';
+  return imperial ? `${(Number(km) * KM_TO_MI).toFixed(1)} mi` : `${Number(km).toFixed(1)} km`;
+}
+
+/** Render a meters climb in the rider's units ("3,760 ft" / "1,147 m"). */
+function mToDisplay(m, imperial) {
+  if (m == null || !Number.isFinite(Number(m))) return '?';
+  const v = imperial ? Math.round(Number(m) * M_TO_FT) : Math.round(Number(m));
+  return `${v.toLocaleString('en-US')} ${imperial ? 'ft' : 'm'}`;
+}
+
 export function buildRouteCoachSystemPrompt({
   persona,
   prescription,
@@ -559,8 +575,10 @@ export function buildRouteCoachSystemPrompt({
   routeSnapshot,
   userLocalDate,
   planAware = true,
+  units = 'metric',
 }) {
   const sections = [];
+  const imperial = units === 'imperial';
 
   const dateString = userLocalDate?.dateString || new Date().toDateString();
   sections.push(`=== TEMPORAL ANCHOR ===
@@ -586,10 +604,11 @@ engine, not user-facing copy.`);
   const durationMin = stats.duration_s != null ? Math.round(Number(stats.duration_s) / 60) : null;
   sections.push(`=== CURRENT ROUTE ===
 The rider has generated a route with these characteristics:
-- Distance: ${stats.distance_km != null ? Number(stats.distance_km).toFixed(1) : '?'} km
-- Elevation gain: ${stats.elevation_gain_m != null ? stats.elevation_gain_m : '?'} m
+- Distance: ${kmToDisplay(stats.distance_km, imperial)}
+- Elevation gain: ${mToDisplay(stats.elevation_gain_m, imperial)}
 - Estimated duration: ${durationMin != null ? durationMin : '?'} min
 - Profile: ${routeSnapshot?.routeProfile || 'road'}
+- Route shape: ${routeSnapshot?.routeType || 'unknown'}
 - Start location: ${JSON.stringify(routeSnapshot?.startLocation ?? null)}
 - Number of geometry points: ${routeSnapshot?.geometry?.coordinates?.length ?? 0}`);
 
@@ -650,6 +669,10 @@ Surface any HAZARD line plainly regardless of your coach voice.`);
 - The rider's request always wins — familiarity bias, weather, and any training
   context are advisory only.
 - Safety language is mandatory regardless of coach voice.
+- The rider uses ${imperial ? 'MILES and FEET' : 'KILOMETERS and METERS'} — always narrate
+  distances and climbing in those units. Tool parameters are ALWAYS metric
+  (target_distance_km in km, elevation_delta_m in meters) — convert the rider's
+  numbers before calling the tool${imperial ? ' (1 mi = 1.609 km, 1 ft = 0.3048 m)' : ''}.
 - Use canonical Tribos metric names: RSS, TFI, AFI, FS, RI. Do not use the
   deprecated names TSS, CTL, ATL, TSB, NP, or IF.
 - If you don't understand the request, ask one clarifying question rather than
@@ -668,8 +691,16 @@ hillier and a bit longer"), call apply_route_edit once for EACH change in the sa
 turn — one tool call per change. They are applied in order.
 
 If the rider rejects a change ("no, not that"), acknowledge it and ask what they'd
-prefer instead — do not retry the same edit. If the rider asks something unrelated
-to route editing, answer conversationally but do not call the tool.`);
+prefer instead — do not retry the same edit.
+
+If the rider asks to undo a change, revert, or go back to an earlier version of
+the route ("go back to the loop I had", "undo that"), call apply_route_edit with
+intent 'restore_previous' and no other parameters — each call steps back one
+version. You can combine it with further edits in the same turn (restore first,
+then the new change).
+
+If the rider asks something unrelated to route editing, answer conversationally
+but do not call the tool.`);
 
   return sections.join('\n\n');
 }

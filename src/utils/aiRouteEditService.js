@@ -19,6 +19,7 @@ import { getSmartCyclingRoute } from './smartCyclingRouter.js';
 import { getBRouterDirections, BROUTER_PROFILES } from './brouter.js';
 import { getStadiaMapsRoute } from './stadiaMapsRouter.js';
 import { getElevationData, calculateElevationStats } from './elevation.js';
+import { hillsBiasForTarget } from './routeTargets.js';
 
 // ── Intent classification ──────────────────────────────────────────────────────
 
@@ -172,10 +173,14 @@ export const QUICK_ACTIONS = [
  * @param {Object} params.routeStats     { distance_km, elevation_gain_m, duration_s }
  * @param {Object} params.editIntent     Output of classifyEditIntent()
  * @param {Object} [params.mapboxToken]  For geocoding detour locations
+ * @param {string} [params.routeType]    Declared shape from the builder store
+ *                                       ('loop' | 'out_and_back' | 'point_to_point').
+ *                                       Optional — omitted (RB1 callers) falls back
+ *                                       to pure geometric loop detection.
  * @returns {Promise<Object>} { success, editedRoute, comparison, message }
  */
 export async function applyRouteEdit(params) {
-  const { routeGeometry, routeProfile, routeStats, editIntent, mapboxToken } = params;
+  const { routeGeometry, routeProfile, routeStats, editIntent, mapboxToken, routeType } = params;
 
   if (!routeGeometry?.coordinates || routeGeometry.coordinates.length < 2) {
     return { success: false, message: 'No route to edit' };
@@ -183,35 +188,50 @@ export async function applyRouteEdit(params) {
 
   const coords = routeGeometry.coordinates;
   const intent = editIntent.intent;
+  const totalDistKm =
+    (routeStats?.distance_km ?? routeStats?.distance) || estimateDistanceKm(coords);
+  const isLoop = resolveIsLoop(coords, totalDistKm, routeType);
 
   try {
     switch (intent) {
       case 'flatten':
-        return await applyFlattenEdit(coords, routeProfile, routeStats);
+        return await applyElevationEdit(coords, routeProfile, routeStats, {
+          direction: 'down',
+          elevationDeltaM: editIntent.elevationDeltaM,
+          isLoop,
+        });
       case 'add_climbing':
-        return await applyAddClimbingEdit(coords, routeProfile, routeStats);
+        return await applyElevationEdit(coords, routeProfile, routeStats, {
+          direction: 'up',
+          elevationDeltaM: editIntent.elevationDeltaM,
+          isLoop,
+        });
       case 'shift_direction':
-        return await applyShiftDirectionEdit(coords, routeProfile, routeStats, editIntent.direction);
+        return await applyShiftDirectionEdit(coords, routeProfile, routeStats, editIntent.direction, isLoop);
       case 'add_waypoint':
         return await applyAddWaypointEdit(coords, routeProfile, routeStats, editIntent.waypoint);
       case 'surface_gravel':
-        return await applySurfaceEdit(coords, routeProfile, routeStats, 'gravel');
+        return await applySurfaceEdit(coords, routeProfile, routeStats, 'gravel', isLoop);
       case 'surface_paved':
-        return await applySurfaceEdit(coords, routeProfile, routeStats, 'paved');
+        return await applySurfaceEdit(coords, routeProfile, routeStats, 'paved', isLoop);
       case 'scenic':
-        return await applyScenicEdit(coords, routeProfile, routeStats);
+        return await applyScenicEdit(coords, routeProfile, routeStats, isLoop);
       case 'faster':
-        return await applyFasterEdit(coords, routeProfile, routeStats);
+        return await applyFasterEdit(coords, routeProfile, routeStats, isLoop);
       case 'shorter':
-        return applyShorterEdit(coords, routeStats, editIntent.distanceModifier);
+        return applyShorterEdit(coords, routeStats, editIntent.distanceModifier, isLoop);
       case 'longer':
-        return await applyLongerEdit(coords, routeProfile, routeStats, editIntent.distanceModifier);
+        return await applyLongerEdit(coords, routeProfile, routeStats, editIntent.distanceModifier, isLoop);
       case 'reverse':
         return applyReverseEdit(coords, routeStats);
       case 'avoid':
-        return await applyAvoidEdit(coords, routeProfile, routeStats, editIntent.location, mapboxToken);
+        return await applyAvoidEdit(coords, routeProfile, routeStats, editIntent.location, mapboxToken, isLoop);
       case 'detour':
         return await applyDetourEdit(coords, routeProfile, routeStats, editIntent.location, mapboxToken);
+      case 'restore_previous':
+        // Handled by the chat layer's checkpoint stack before geometry
+        // dispatch — reaching here means a caller without checkpoints.
+        return { success: false, message: 'Nothing to restore here — use Undo instead.' };
       default:
         return { success: false, message: `I couldn't understand that edit. Try "make it flatter", "more gravel", "avoid [place]", or use the quick actions.` };
     }
@@ -223,108 +243,157 @@ export async function applyRouteEdit(params) {
 
 // ── Individual edit strategies ──────────────────────────────────────────────────
 
-async function applyFlattenEdit(coords, profile, stats) {
-  const start = coords[0];
-  const end = coords[coords.length - 1];
-  const isLoop = haversineKm(start, end) < 1;
-  const waypoints = sampleWaypoints(coords, isLoop ? 5 : 3);
+// A hilly/flat reroute may not drift more than this fraction from the
+// original distance — beyond it, the edit silently rewrites the ride.
+const ELEVATION_EDIT_MAX_DISTANCE_DRIFT = 0.25;
 
-  // Strategy 1: Stadia Maps with use_hills=0 (flattest possible)
+/**
+ * Shared core for flatten ('down') and add_climbing ('up').
+ *
+ * Distance-preserving by design: anchors are sampled by cumulative
+ * distance (one per ~8 km, clamped 4–8) so the reroute keeps the ride's
+ * shape, candidates that drift more than 25 % from the original distance
+ * are rejected outright, and a finite `elevationDeltaM` steers Valhalla's
+ * use_hills toward the implied gain/km instead of the blunt 0/1 extremes.
+ */
+async function applyElevationEdit(coords, profile, stats, { direction, elevationDeltaM, isLoop }) {
+  const wantMore = direction === 'up';
+  // The gate compares router geometry against current geometry — both via
+  // estimateDistanceKm — so a stale stats row can't skew the drift check.
+  const originalGeomDistKm = estimateDistanceKm(coords);
+  const originalDistKm = (stats?.distance_km ?? stats?.distance) || originalGeomDistKm;
+  const originalGainM = stats?.elevation_gain_m ?? stats?.elevation ?? null;
+
+  const anchorCount = Math.min(8, Math.max(4, Math.round(originalDistKm / 8)));
+  const waypoints = buildRerouteWaypoints(coords, isLoop, anchorCount);
+
+  const targetGainM =
+    Number.isFinite(elevationDeltaM) && Number.isFinite(originalGainM)
+      ? Math.max(0, originalGainM + elevationDeltaM)
+      : null;
+  let useHills = wantMore ? 1 : 0;
+  if (targetGainM != null) {
+    const bias = hillsBiasForTarget(targetGainM, originalDistKm);
+    if (bias != null) useHills = bias;
+  }
+
   const results = [];
+
+  // Strategy 1: Stadia Maps with the hills bias
   try {
     const stadiaRoute = await getStadiaMapsRoute(waypoints, {
       profile: profile === 'mountain' ? 'gravel' : profile,
-      preferences: { use_hills: 0, avoid_bad_surfaces: profile === 'road' ? 0.8 : 0.2 },
+      preferences: { use_hills: useHills, avoid_bad_surfaces: profile === 'road' ? 0.8 : 0.2 },
     });
     if (stadiaRoute?.coordinates?.length > 1) {
-      results.push({ ...stadiaRoute, label: 'Flattest (Valhalla)', strategy: 'stadia_flat' });
+      results.push({
+        ...stadiaRoute,
+        label: wantMore ? 'Hilliest (Valhalla)' : 'Flattest (Valhalla)',
+        strategy: wantMore ? 'stadia_hills' : 'stadia_flat',
+      });
     }
-  } catch (e) { console.warn('[AI Edit] Stadia flat failed:', e.message); }
+  } catch (e) { console.warn(`[AI Edit] Stadia ${wantMore ? 'hills' : 'flat'} failed:`, e.message); }
 
-  // Strategy 2: BRouter with safety profile (tends to avoid steep roads)
+  // Strategy 2: BRouter — trekking trends toward terrain, safety avoids steep roads
   try {
-    const brouterRoute = await getBRouterDirections(waypoints, { profile: 'safety' });
+    const brouterRoute = await getBRouterDirections(waypoints, {
+      profile: wantMore ? 'trekking' : 'safety',
+    });
     if (brouterRoute?.coordinates?.length > 1) {
-      results.push({ ...brouterRoute, label: 'Safer & flatter (BRouter)', strategy: 'brouter_safety' });
+      results.push({
+        ...brouterRoute,
+        label: wantMore ? 'Hillier (BRouter)' : 'Safer & flatter (BRouter)',
+        strategy: wantMore ? 'brouter_trekking' : 'brouter_safety',
+      });
     }
-  } catch (e) { console.warn('[AI Edit] BRouter safety failed:', e.message); }
+  } catch (e) { console.warn(`[AI Edit] BRouter ${wantMore ? 'trekking' : 'safety'} failed:`, e.message); }
 
   if (results.length === 0) {
-    return { success: false, message: 'Could not find a flatter alternative. The area may not have lower-elevation options.' };
+    return {
+      success: false,
+      message: wantMore
+        ? 'Could not find a hillier alternative. The area may not have steeper options.'
+        : 'Could not find a flatter alternative. The area may not have lower-elevation options.',
+    };
   }
 
-  // Pick the one with lowest elevation gain
-  const best = await pickBestByElevation(results, 'lowest');
-  const comparison = await buildComparison(coords, best.coordinates, stats);
+  // Measure each candidate: distance is free; gain costs one elevation
+  // lookup per candidate (≤2 here, +0 for the winner since we reuse it).
+  const measured = [];
+  for (const route of results) {
+    const distKm = estimateDistanceKm(route.coordinates);
+    let gain = null;
+    try {
+      const elevData = await getElevationData(route.coordinates);
+      if (elevData) {
+        const elevStats = calculateElevationStats(elevData);
+        if (Number.isFinite(elevStats?.gain)) gain = elevStats.gain;
+      }
+    } catch { /* fall through to router-reported gain */ }
+    if (gain == null) {
+      const reported = route.elevation?.ascent ?? route.elevationGain;
+      if (Number.isFinite(reported)) gain = reported;
+    }
+    measured.push({ route, distKm, gain });
+  }
+
+  const surviving = measured.filter(
+    (m) =>
+      Math.abs(m.distKm - originalGeomDistKm) / originalGeomDistKm <=
+      ELEVATION_EDIT_MAX_DISTANCE_DRIFT
+  );
+  if (surviving.length === 0) {
+    return {
+      success: false,
+      message: wantMore
+        ? "Couldn't add climbing without changing the route's distance too much — try a detour through a hilly area instead."
+        : "Couldn't flatten the route without changing its distance too much — try a specific detour instead.",
+    };
+  }
+
+  // With a target: closest gain to it. Without: hilliest / flattest.
+  let best = surviving[0];
+  for (const m of surviving.slice(1)) {
+    if (m.gain == null) continue;
+    if (best.gain == null) { best = m; continue; }
+    if (targetGainM != null) {
+      if (Math.abs(m.gain - targetGainM) < Math.abs(best.gain - targetGainM)) best = m;
+    } else if (wantMore ? m.gain > best.gain : m.gain < best.gain) {
+      best = m;
+    }
+  }
+
+  const comparison = await buildComparison(
+    coords,
+    best.route.coordinates,
+    stats,
+    best.gain != null ? { newGainM: best.gain } : {}
+  );
+
+  const distNote =
+    Math.abs(comparison.distanceDelta) < originalDistKm * 0.05
+      ? 'distance roughly unchanged'
+      : `${comparison.distanceDelta > 0 ? '+' : ''}${comparison.distanceDelta.toFixed(1)}km`;
 
   return {
     success: true,
     editedRoute: {
-      coordinates: best.coordinates,
-      source: best.source || best.strategy,
+      coordinates: best.route.coordinates,
+      source: best.route.source || best.route.strategy,
     },
     comparison,
-    message: comparison.elevationDelta < 0
-      ? `Found a flatter route: ${Math.abs(comparison.elevationDelta)}m less climbing`
-      : 'This is already one of the flattest routes in the area',
+    message: wantMore
+      ? comparison.elevationDelta > 0
+        ? `Found a hillier route: ${comparison.elevationDelta}m more climbing (${distNote})`
+        : 'This is already one of the hilliest routes nearby that keeps your distance'
+      : comparison.elevationDelta < 0
+        ? `Found a flatter route: ${Math.abs(comparison.elevationDelta)}m less climbing (${distNote})`
+        : 'This is already one of the flattest routes nearby that keeps your distance',
   };
 }
 
-async function applyAddClimbingEdit(coords, profile, stats) {
-  const start = coords[0];
-  const end = coords[coords.length - 1];
-  const isLoop = haversineKm(start, end) < 1;
-  const waypoints = sampleWaypoints(coords, isLoop ? 5 : 3);
-
-  // Mirror of applyFlattenEdit: re-route through the same waypoints but favour
-  // hills, then keep the candidate with the MOST climbing.
-  const results = [];
-
-  // Strategy 1: Stadia Maps with use_hills=1 (hilliest possible)
-  try {
-    const stadiaRoute = await getStadiaMapsRoute(waypoints, {
-      profile: profile === 'mountain' ? 'gravel' : profile,
-      preferences: { use_hills: 1, avoid_bad_surfaces: profile === 'road' ? 0.8 : 0.2 },
-    });
-    if (stadiaRoute?.coordinates?.length > 1) {
-      results.push({ ...stadiaRoute, label: 'Hilliest (Valhalla)', strategy: 'stadia_hills' });
-    }
-  } catch (e) { console.warn('[AI Edit] Stadia hills failed:', e.message); }
-
-  // Strategy 2: BRouter trekking (tends toward terrain/paths over flat roads)
-  try {
-    const brouterRoute = await getBRouterDirections(waypoints, { profile: 'trekking' });
-    if (brouterRoute?.coordinates?.length > 1) {
-      results.push({ ...brouterRoute, label: 'Hillier (BRouter)', strategy: 'brouter_trekking' });
-    }
-  } catch (e) { console.warn('[AI Edit] BRouter trekking failed:', e.message); }
-
-  if (results.length === 0) {
-    return { success: false, message: 'Could not find a hillier alternative. The area may not have steeper options.' };
-  }
-
-  // Pick the one with the most elevation gain
-  const best = await pickBestByElevation(results, 'highest');
-  const comparison = await buildComparison(coords, best.coordinates, stats);
-
-  return {
-    success: true,
-    editedRoute: {
-      coordinates: best.coordinates,
-      source: best.source || best.strategy,
-    },
-    comparison,
-    message: comparison.elevationDelta > 0
-      ? `Found a hillier route: ${comparison.elevationDelta}m more climbing`
-      : 'This is already one of the hilliest routes in the area',
-  };
-}
-
-async function applySurfaceEdit(coords, profile, stats, targetSurface) {
-  const start = coords[0];
-  const end = coords[coords.length - 1];
-  const isLoop = haversineKm(start, end) < 1;
-  const waypoints = sampleWaypoints(coords, isLoop ? 5 : 3);
+async function applySurfaceEdit(coords, profile, stats, targetSurface, isLoop) {
+  const waypoints = buildRerouteWaypoints(coords, isLoop, isLoop ? 5 : 3);
 
   const newProfile = targetSurface === 'gravel' ? 'gravel' : 'road';
   const results = [];
@@ -377,11 +446,8 @@ async function applySurfaceEdit(coords, profile, stats, targetSurface) {
   };
 }
 
-async function applyScenicEdit(coords, profile, stats) {
-  const start = coords[0];
-  const end = coords[coords.length - 1];
-  const isLoop = haversineKm(start, end) < 1;
-  const waypoints = sampleWaypoints(coords, isLoop ? 5 : 3);
+async function applyScenicEdit(coords, profile, stats, isLoop) {
+  const waypoints = buildRerouteWaypoints(coords, isLoop, isLoop ? 5 : 3);
   const results = [];
 
   // Stadia Maps with max bike path preference
@@ -421,11 +487,8 @@ async function applyScenicEdit(coords, profile, stats) {
   };
 }
 
-async function applyFasterEdit(coords, profile, stats) {
-  const start = coords[0];
-  const end = coords[coords.length - 1];
-  const isLoop = haversineKm(start, end) < 1;
-  const waypoints = sampleWaypoints(coords, isLoop ? 5 : 3);
+async function applyFasterEdit(coords, profile, stats, isLoop) {
+  const waypoints = buildRerouteWaypoints(coords, isLoop, isLoop ? 5 : 3);
   const results = [];
 
   // BRouter fastbike profile
@@ -466,16 +529,12 @@ async function applyFasterEdit(coords, profile, stats) {
   };
 }
 
-function applyShorterEdit(coords, stats, targetReduction) {
+function applyShorterEdit(coords, stats, targetReduction, isLoop) {
   const totalDist = (stats.distance_km ?? stats.distance) || estimateDistanceKm(coords);
 
   // Default: cut ~20%, or user-specified amount
   const cutKm = targetReduction || totalDist * 0.2;
   const keepRatio = Math.max(0.4, 1 - cutKm / totalDist);
-
-  const start = coords[0];
-  const end = coords[coords.length - 1];
-  const isLoop = haversineKm(start, end) < 1;
 
   let newCoords;
   if (isLoop) {
@@ -514,32 +573,30 @@ function applyShorterEdit(coords, stats, targetReduction) {
   };
 }
 
-async function applyLongerEdit(coords, profile, stats, targetExtension) {
+async function applyLongerEdit(coords, profile, stats, targetExtension, isLoop) {
   const totalDist = (stats.distance_km ?? stats.distance) || estimateDistanceKm(coords);
   const addKm = targetExtension || totalDist * 0.2;
   const start = coords[0];
   const end = coords[coords.length - 1];
-  const isLoop = haversineKm(start, end) < 1;
 
   if (!isLoop) {
-    return { success: false, message: 'Extending point-to-point routes is not yet supported. Try adding a detour instead.' };
+    return await extendPointToPoint(coords, profile, stats, totalDist, addKm, start, end);
   }
 
   // For loops: push the farthest point outward to extend the loop
-  const midIdx = Math.floor(coords.length / 2);
-  const midCoord = coords[midIdx];
+  const midCoord = coordAtDistanceFraction(coords, 0.5);
   const bearing = calculateBearing(start, midCoord);
 
   // Push the midpoint further out
   const extraKm = addKm / 2; // Extending both legs
   const newMidpoint = projectPoint(midCoord, bearing, extraKm);
 
-  // Create extended waypoints
+  // Create extended waypoints (anchors by cumulative distance, close the loop)
   const waypoints = [
     start,
-    coords[Math.floor(coords.length * 0.25)],
+    coordAtDistanceFraction(coords, 0.25),
     newMidpoint,
-    coords[Math.floor(coords.length * 0.75)],
+    coordAtDistanceFraction(coords, 0.75),
     start, // Close loop
   ];
 
@@ -564,6 +621,62 @@ async function applyLongerEdit(coords, profile, stats, targetExtension) {
   return { success: false, message: 'Could not extend the route. Try a specific detour instead.' };
 }
 
+/**
+ * Extend a point-to-point route without moving either endpoint: bow the
+ * route's distance-based midpoint perpendicular to the start→end chord
+ * and reroute start → bowed midpoint → end. The bow height starts at
+ * addKm/2 and is rescaled once against the measured result when the
+ * first attempt lands more than 20 % off target (max 2 routing calls).
+ */
+async function extendPointToPoint(coords, profile, stats, totalDist, addKm, start, end) {
+  const midCoord = coordAtDistanceFraction(coords, 0.5);
+  const bowBearing = (calculateBearing(start, end) + 90) % 360;
+  let bowKm = Math.max(0.5, addKm / 2);
+  let best = null;
+
+  for (let attempt = 0; attempt < 2; attempt++) {
+    const bowedMid = projectPoint(midCoord, bowBearing, bowKm);
+    try {
+      const route = await getSmartCyclingRoute([start, bowedMid, end], { profile });
+      if (route?.coordinates?.length > 1) {
+        const achievedDeltaKm = estimateDistanceKm(route.coordinates) - totalDist;
+        if (
+          !best ||
+          Math.abs(achievedDeltaKm - addKm) < Math.abs(best.achievedDeltaKm - addKm)
+        ) {
+          best = { route, achievedDeltaKm };
+        }
+        if (achievedDeltaKm > 0 && Math.abs(achievedDeltaKm - addKm) / addKm <= 0.2) break;
+        if (attempt === 0) {
+          // Rescale the bow height toward the target; if the first bow
+          // added nothing measurable, just bow twice as far.
+          bowKm =
+            achievedDeltaKm > 0
+              ? Math.min(bowKm * (addKm / achievedDeltaKm), bowKm * 4)
+              : bowKm * 2;
+        }
+      }
+    } catch (e) {
+      console.warn('[AI Edit] Extend point-to-point failed:', e.message);
+    }
+  }
+
+  if (best?.route && best.achievedDeltaKm > 0) {
+    const comparison = await buildComparison(coords, best.route.coordinates, stats);
+    return {
+      success: true,
+      editedRoute: {
+        coordinates: best.route.coordinates,
+        source: best.route.source,
+      },
+      comparison,
+      message: `Extended the route by ~${Math.abs(comparison.distanceDelta).toFixed(1)}km (start and end unchanged)`,
+    };
+  }
+
+  return { success: false, message: 'Could not extend the route. Try adding a detour through a nearby area instead.' };
+}
+
 function applyReverseEdit(coords, stats) {
   const reversed = [...coords].reverse();
   return {
@@ -582,7 +695,7 @@ function applyReverseEdit(coords, stats) {
   };
 }
 
-async function applyAvoidEdit(coords, profile, stats, location, mapboxToken) {
+async function applyAvoidEdit(coords, profile, stats, location, mapboxToken, isLoop) {
   if (!location) {
     return { success: false, message: 'Please specify what to avoid (e.g., "avoid the highway" or "avoid downtown").' };
   }
@@ -593,7 +706,7 @@ async function applyAvoidEdit(coords, profile, stats, location, mapboxToken) {
 
   if (isRoadTypeAvoid) {
     // Re-route with bike-path-heavy preferences
-    return await applyScenicEdit(coords, profile, stats);
+    return await applyScenicEdit(coords, profile, stats, isLoop);
   }
 
   // Location-based avoidance: geocode → find nearest segment → re-route around
@@ -710,7 +823,7 @@ const DIRECTION_BEARINGS = {
   northwest: 315,
 };
 
-async function applyShiftDirectionEdit(coords, profile, stats, direction) {
+async function applyShiftDirectionEdit(coords, profile, stats, direction, isLoop) {
   const bearing = DIRECTION_BEARINGS[direction];
   if (bearing == null) {
     return { success: false, message: `I couldn't tell which way to shift — try "shift north", "shift west", etc.` };
@@ -718,7 +831,6 @@ async function applyShiftDirectionEdit(coords, profile, stats, direction) {
 
   const start = coords[0];
   const end = coords[coords.length - 1];
-  const isLoop = haversineKm(start, end) < 1;
   const totalDist = (stats?.distance_km ?? stats?.distance) || estimateDistanceKm(coords);
 
   let waypoints;
@@ -738,7 +850,7 @@ async function applyShiftDirectionEdit(coords, profile, stats, direction) {
   } else {
     // Point-to-point: keep the start and end fixed and bow the route's midpoint
     // toward the requested compass direction, then reroute start → bowed → end.
-    const midCoord = coords[Math.floor(coords.length / 2)];
+    const midCoord = coordAtDistanceFraction(coords, 0.5);
     const shiftKm = Math.max(1, totalDist * 0.15);
     const bowedMidpoint = projectPoint(midCoord, bearing, shiftKm);
     waypoints = [start, bowedMidpoint, end];
@@ -811,13 +923,74 @@ async function applyAddWaypointEdit(coords, profile, stats, waypoint) {
 
 // ── Helpers ─────────────────────────────────────────────────────────────────────
 
-function sampleWaypoints(coords, count) {
-  const wps = [];
-  for (let i = 0; i < count; i++) {
-    const idx = Math.min(Math.round(i * (coords.length - 1) / (count - 1)), coords.length - 1);
+/**
+ * Loop detection with an optional declared shape. Geometry rules first: a
+ * start/end gap under 1 km is always a loop. A route the builder DECLARES
+ * to be a loop keeps loop status up to a wider gap — max(2, 5 % of
+ * distance) km — so one edit that fails to close cleanly doesn't silently
+ * reclassify the route as point-to-point for every edit after it.
+ */
+function resolveIsLoop(coords, totalDistKm, declaredRouteType) {
+  const gapKm = haversineKm(coords[0], coords[coords.length - 1]);
+  if (gapKm < 1) return true;
+  if (declaredRouteType === 'loop') {
+    return gapKm < Math.max(2, totalDistKm * 0.05);
+  }
+  return false;
+}
+
+/**
+ * Sample `count` anchors spaced evenly by CUMULATIVE DISTANCE. Router
+ * output is far denser through turns and urban sections than on straights,
+ * so index-based sampling lands anchors nowhere near their intended
+ * distance fraction — the cause of drastic route shrink on reroutes.
+ * Keeps the exact first and last coordinates.
+ */
+function sampleWaypointsByDistance(coords, count) {
+  if (count <= 2 || coords.length <= count) {
+    return count <= 2 ? [coords[0], coords[coords.length - 1]] : [...coords];
+  }
+  const cumKm = [0];
+  for (let i = 1; i < coords.length; i++) {
+    cumKm.push(cumKm[i - 1] + haversineKm(coords[i - 1], coords[i]));
+  }
+  const totalKm = cumKm[cumKm.length - 1];
+  if (totalKm <= 0) return [coords[0], coords[coords.length - 1]];
+
+  const wps = [coords[0]];
+  let idx = 0;
+  for (let i = 1; i < count - 1; i++) {
+    const targetKm = (totalKm * i) / (count - 1);
+    while (idx < cumKm.length - 1 && cumKm[idx] < targetKm) idx++;
     wps.push(coords[idx]);
   }
+  wps.push(coords[coords.length - 1]);
   return wps;
+}
+
+/**
+ * Anchors for rerouting the whole route. Loops end with the EXACT start
+ * coordinate so the rerouted result closes again — even when the current
+ * geometry's closure has drifted.
+ */
+function buildRerouteWaypoints(coords, isLoop, count) {
+  const wps = sampleWaypointsByDistance(coords, count);
+  if (isLoop) wps[wps.length - 1] = coords[0];
+  return wps;
+}
+
+/** The coordinate at a cumulative-distance fraction (0–1) along the route. */
+function coordAtDistanceFraction(coords, fraction) {
+  if (coords.length < 2) return coords[0];
+  const totalKm = estimateDistanceKm(coords);
+  if (totalKm <= 0) return coords[Math.floor(coords.length * fraction)];
+  const targetKm = totalKm * Math.min(1, Math.max(0, fraction));
+  let cum = 0;
+  for (let i = 1; i < coords.length; i++) {
+    cum += haversineKm(coords[i - 1], coords[i]);
+    if (cum >= targetKm) return coords[i];
+  }
+  return coords[coords.length - 1];
 }
 
 function haversineKm(a, b) {
@@ -900,57 +1073,29 @@ async function geocodeLocation(query, nearCoord, mapboxToken) {
   return null;
 }
 
-async function pickBestByElevation(routes, strategy = 'lowest') {
-  // Pick the candidate with the lowest gain ('lowest', flatten) or the
-  // highest gain ('highest', add_climbing).
-  const wantHighest = strategy === 'highest';
-  let bestRoute = routes[0];
-  let bestGain = wantHighest ? -Infinity : Infinity;
-
-  const isBetter = (gain) => (wantHighest ? gain > bestGain : gain < bestGain);
-
-  for (const route of routes) {
-    try {
-      const elevData = await getElevationData(route.coordinates);
-      if (elevData) {
-        const stats = calculateElevationStats(elevData);
-        const fallback = wantHighest ? -Infinity : Infinity;
-        const gain = stats.totalAscent || route.elevation?.ascent || fallback;
-        if (isBetter(gain)) {
-          bestGain = gain;
-          bestRoute = route;
-        }
-      }
-    } catch {
-      // Use router-reported elevation if available
-      const fallback = wantHighest ? -Infinity : Infinity;
-      const gain = route.elevation?.ascent || route.elevationGain || fallback;
-      if (isBetter(gain)) {
-        bestGain = gain;
-        bestRoute = route;
-      }
-    }
-  }
-
-  return bestRoute;
-}
-
-async function buildComparison(originalCoords, newCoords, originalStats) {
+async function buildComparison(originalCoords, newCoords, originalStats, precomputed = {}) {
   // Read canonical-first with legacy fallback (RB2/route-coach passes
   // distance_km/elevation_gain_m; older callers pass distance/elevation).
   const originalDist =
     originalStats?.distance_km ?? originalStats?.distance ?? estimateDistanceKm(originalCoords);
   const newDist = estimateDistanceKm(newCoords);
+  const originalElev = originalStats?.elevation_gain_m ?? originalStats?.elevation ?? 0;
 
   let elevationDelta = null;
-  try {
-    const newElev = await getElevationData(newCoords);
-    if (newElev) {
-      const newStats = calculateElevationStats(newElev);
-      const originalElev = originalStats?.elevation_gain_m ?? originalStats?.elevation ?? 0;
-      elevationDelta = Math.round((newStats.totalAscent || 0) - originalElev);
-    }
-  } catch { /* elevation comparison unavailable */ }
+  if (Number.isFinite(precomputed.newGainM)) {
+    // Caller already measured the new route's gain — don't re-fetch.
+    elevationDelta = Math.round(precomputed.newGainM - originalElev);
+  } else {
+    try {
+      const newElev = await getElevationData(newCoords);
+      if (newElev) {
+        const newStats = calculateElevationStats(newElev);
+        if (Number.isFinite(newStats?.gain)) {
+          elevationDelta = Math.round(newStats.gain - originalElev);
+        }
+      }
+    } catch { /* elevation comparison unavailable */ }
+  }
 
   return {
     originalDistance: parseFloat(originalDist.toFixed(1)),

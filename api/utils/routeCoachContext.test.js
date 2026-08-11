@@ -97,6 +97,37 @@ describe('buildRouteCoachSystemPrompt — free ride mode (planAware: false)', ()
   });
 });
 
+describe('buildRouteCoachSystemPrompt — units', () => {
+  it('defaults to metric narration', () => {
+    const prompt = buildPrompt();
+    expect(prompt).toContain('Distance: 97.7 km');
+    expect(prompt).toContain('Elevation gain: 1,147 m');
+    expect(prompt).toContain('KILOMETERS and METERS');
+  });
+
+  it('renders the current route in miles/feet for imperial riders', () => {
+    const prompt = buildPrompt({ units: 'imperial' });
+    // 97.7 km ≈ 60.7 mi; 1147 m ≈ 3763 ft
+    expect(prompt).toContain('Distance: 60.7 mi');
+    expect(prompt).toContain('Elevation gain: 3,763 ft');
+    expect(prompt).toContain('MILES and FEET');
+  });
+
+  it('always pins tool parameters to metric', () => {
+    for (const units of ['metric', 'imperial']) {
+      const prompt = buildPrompt({ units });
+      expect(prompt).toContain('Tool parameters are ALWAYS metric');
+    }
+  });
+});
+
+describe('buildRouteCoachSystemPrompt — restore guidance', () => {
+  it('tells the coach how to handle undo/revert requests', () => {
+    const prompt = buildPrompt();
+    expect(prompt).toContain("intent 'restore_previous'");
+  });
+});
+
 describe('collectRouteCoachContext — planAware: false', () => {
   it('does not query planned_workouts or training_load_daily', async () => {
     const queriedTables = [];

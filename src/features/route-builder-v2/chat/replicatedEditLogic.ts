@@ -67,6 +67,7 @@ export async function applyAIEdit(text: string): Promise<EditResult> {
   const routeGeometry = state.routeGeometry;
   const routeStats = state.routeStats;
   const routeProfile = state.routeProfile ?? 'road';
+  const routeType = (state as { routeType?: string }).routeType;
 
   if (!routeGeometry?.coordinates || routeGeometry.coordinates.length < 2) {
     return { ok: false, reason: 'no current route' };
@@ -75,6 +76,7 @@ export async function applyAIEdit(text: string): Promise<EditResult> {
   const result = (await applyRouteEdit({
     routeGeometry,
     routeProfile,
+    routeType,
     routeStats: routeStats ?? { distance_km: 0, elevation_gain_m: 0, duration_s: 0 },
     editIntent,
     mapboxToken: MAPBOX_TOKEN,

@@ -25,6 +25,8 @@ import {
   rerouteShortened,
   fetchElevationGain,
 } from '../../../utils/routeMutation';
+import { pushCheckpoint, popCheckpoint } from './editCheckpoints';
+import type { RouteCheckpoint } from './editCheckpoints';
 import type { EditResult } from './replicatedEditLogic';
 import type { Coordinate } from '../../../types/geo';
 
@@ -43,6 +45,8 @@ export async function applyAIEditViaCoach(
   routeId: string | null,
   /** When false ("just riding"), the server omits training-plan context. */
   planAware: boolean = true,
+  /** Rider's display units — the coach narrates in these (prose only). */
+  isImperial: boolean = false,
 ): Promise<EditResult & { routeChanged: boolean }> {
   const trimmed = text.trim();
   if (!trimmed) return { ok: false, reason: 'empty input', routeChanged: false };
@@ -51,6 +55,7 @@ export async function applyAIEditViaCoach(
   const routeGeometry = state.routeGeometry;
   const routeStats = state.routeStats;
   const routeProfile = state.routeProfile ?? 'road';
+  const routeType = state.routeType ?? null;
 
   if (!routeGeometry?.coordinates || routeGeometry.coordinates.length < 2) {
     return { ok: false, reason: 'no current route', routeChanged: false };
@@ -87,10 +92,12 @@ export async function applyAIEditViaCoach(
         conversationHistory,
         routeId,
         planAware,
+        units: isImperial ? 'imperial' : 'metric',
         routeSnapshot: {
           geometry: routeGeometry,
           stats: routeStats,
           routeProfile,
+          routeType,
           startLocation: routeGeometry.coordinates[0],
         },
         userLocalDate,
@@ -147,20 +154,48 @@ export async function applyAIEditViaCoach(
 
   // Case 2: apply the edits in sequence — each one operates on the geometry
   // the previous produced, re-routing between, with one final write.
+  // `restore_previous` is executed here (not in the geometry engine): it
+  // pops a checkpoint pushed by an earlier successful edit, so "go back
+  // and make it longer" restores first, then edits the restored route.
   let curCoords = routeGeometry.coordinates as Coordinate[];
   let curDistance = routeStats?.distance_km ?? computeDistanceKm(curCoords);
+  // Running elevation so a second edit in the sequence reasons on the
+  // first edit's result instead of the pre-sequence gain.
+  let curElevationM = routeStats?.elevation_gain_m ?? 0;
   const durationS = routeStats?.duration_s ?? 0;
   let applied = 0;
+  let geometryEditApplied = false;
   let lastFailure: string | null = null;
+  // When the LAST applied op was a restore, its checkpoint stats are
+  // authoritative — skip the final elevation re-fetch.
+  let restoredStats: RouteCheckpoint['stats'] | null = null;
 
   for (const edit of edits) {
+    const intentName = (edit.editIntent as { intent?: string }).intent;
+
+    if (intentName === 'restore_previous') {
+      const checkpoint = popCheckpoint();
+      if (!checkpoint) {
+        lastFailure =
+          'no earlier version from this chat to restore — the Undo button (⌘Z) covers manual edits';
+        continue;
+      }
+      curCoords = checkpoint.geometry.coordinates;
+      curDistance = checkpoint.stats.distance_km;
+      curElevationM = checkpoint.stats.elevation_gain_m;
+      restoredStats = checkpoint.stats;
+      applied += 1;
+      continue;
+    }
+
     try {
       const editResult = (await applyRouteEdit({
         routeGeometry: { type: 'LineString', coordinates: curCoords },
         routeProfile,
+        routeType: routeType ?? undefined,
         routeStats: {
           distance_km: curDistance,
-          elevation_gain_m: routeStats?.elevation_gain_m ?? 0,
+          elevation_gain_m: curElevationM,
           duration_s: durationS,
         },
         editIntent: edit.editIntent,
@@ -168,6 +203,7 @@ export async function applyAIEditViaCoach(
       })) as {
         success: boolean;
         editedRoute?: { coordinates?: Array<[number, number]>; needsReroute?: boolean };
+        comparison?: { elevationDelta?: number | null };
         message?: string;
       };
 
@@ -182,6 +218,11 @@ export async function applyAIEditViaCoach(
       }
       curCoords = nextCoords;
       curDistance = computeDistanceKm(curCoords);
+      if (Number.isFinite(editResult.comparison?.elevationDelta)) {
+        curElevationM += Number(editResult.comparison?.elevationDelta);
+      }
+      restoredStats = null;
+      geometryEditApplied = true;
       applied += 1;
     } catch (err) {
       lastFailure = err instanceof Error ? err.message : 'geometry op threw';
@@ -199,14 +240,36 @@ export async function applyAIEditViaCoach(
     };
   }
 
-  // One final elevation fetch + store write for the combined result.
-  const elevation_gain_m =
-    (await fetchElevationGain(curCoords)) ?? routeStats?.elevation_gain_m ?? 0;
+  // Elevation for the combined result: a pure restore already knows its
+  // stats; geometry edits get one authoritative fetch.
+  const elevation_gain_m = restoredStats
+    ? restoredStats.elevation_gain_m
+    : ((await fetchElevationGain(curCoords)) ?? routeStats?.elevation_gain_m ?? 0);
+
+  // Checkpoint the route this sequence replaced — but only when a real
+  // geometry edit ran. A pure restore must NOT push the version it just
+  // left, or repeated "go back" would bounce between two versions
+  // instead of walking further back.
+  if (geometryEditApplied) {
+    pushCheckpoint({
+      geometry: { type: 'LineString', coordinates: routeGeometry.coordinates as Coordinate[] },
+      stats: {
+        distance_km:
+          routeStats?.distance_km ?? computeDistanceKm(routeGeometry.coordinates as Coordinate[]),
+        elevation_gain_m: routeStats?.elevation_gain_m ?? 0,
+        duration_s: durationS,
+      },
+    });
+  }
   state.setRouteGeometry({ type: 'LineString', coordinates: curCoords });
   state.setRouteStats({ distance_km: curDistance, elevation_gain_m, duration_s: durationS });
 
+  // Partial result stays applied (rider's choice in review) — but name the
+  // failure and offer the one-word way back.
   const partial =
-    applied < edits.length ? ` (Applied ${applied} of ${edits.length} changes.)` : '';
+    applied < edits.length
+      ? ` (Applied ${applied} of ${edits.length} changes — ${lastFailure ?? 'the rest failed'}. Say "revert" to go back.)`
+      : '';
 
   return {
     ok: true,
