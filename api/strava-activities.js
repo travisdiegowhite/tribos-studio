@@ -20,8 +20,9 @@ const STRAVA_API_BASE = 'https://www.strava.com/api/v3';
 /**
  * Match the gate used in api/strava-webhook.js. Returns true when this user
  * has Strava auto-import disabled AND a Garmin/Wahoo integration exists.
+ * Exported for api/internal/backfill-strava-gap.js.
  */
-async function shouldSkipStravaIngest(userId) {
+export async function shouldSkipStravaIngest(userId) {
   try {
     const { data: profile } = await supabase
       .from('user_profiles')
@@ -141,8 +142,10 @@ export default async function handler(req, res) {
 
 /**
  * Get valid access token, refreshing if needed
+ * Exported for api/internal/backfill-strava-gap.js (same pattern as
+ * api/coros-activities.js importing from coros-auth.js).
  */
-async function getValidAccessToken(userId) {
+export async function getValidAccessToken(userId) {
   // Get stored tokens
   const { data: integration, error } = await supabase
     .from('bike_computer_integrations')
@@ -405,8 +408,9 @@ async function syncAllActivities(req, res, userId) {
 
 /**
  * Store activities in Supabase with cross-provider duplicate detection
+ * Exported for api/internal/backfill-strava-gap.js.
  */
-async function storeActivities(userId, activities, importSource = null) {
+export async function storeActivities(userId, activities, importSource = null) {
   if (activities.length === 0) return 0;
 
   let stored = 0;
@@ -574,8 +578,9 @@ async function calculateSpeedProfile(req, res, userId) {
 
 /**
  * Calculate and store speed profile
+ * Exported for api/internal/backfill-strava-gap.js.
  */
-async function calculateAndStoreSpeedProfile(userId) {
+export async function calculateAndStoreSpeedProfile(userId) {
   // Get recent outdoor cycling activities (last 3 months)
   // Speed profiles are cycling-specific; running pace profiles are handled separately
   const threeMonthsAgo = new Date();

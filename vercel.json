@@ -85,6 +85,9 @@
     "api/strava-health-monitor.js": {
       "maxDuration": 60
     },
+    "api/internal/backfill-strava-gap.js": {
+      "maxDuration": 60
+    },
     "api/coros-webhook-process.js": {
       "maxDuration": 60
     },
