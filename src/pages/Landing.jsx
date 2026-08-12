@@ -116,6 +116,9 @@ function Landing() {
                   <Anchor href="/terms" size="xs" style={{ color: 'var(--color-text-muted)' }}>
                     Terms
                   </Anchor>
+                  <Anchor href="/support" size="xs" style={{ color: 'var(--color-text-muted)' }}>
+                    Support
+                  </Anchor>
                   <Anchor href="mailto:travis@tribos.studio" size="xs" style={{ color: 'var(--color-text-muted)' }}>
                     Contact
                   </Anchor>
