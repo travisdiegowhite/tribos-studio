@@ -15,6 +15,7 @@ import Landing from './pages/Landing.jsx';
 import Auth from './pages/Auth.jsx';
 import PrivacyPolicy from './pages/PrivacyPolicy.jsx';
 import Terms from './pages/Terms.jsx';
+import Support from './pages/Support.jsx';
 import NotFound from './pages/NotFound.jsx';
 
 // Pages — lazy loaded (protected, heavy)
@@ -183,6 +184,7 @@ function AppRoutes() {
       <Route path="/welcome" element={<Landing />} />
       <Route path="/privacy" element={<PrivacyPolicy />} />
       <Route path="/terms" element={<Terms />} />
+      <Route path="/support" element={<Support />} />
       <Route path="/learn/metrics" element={<MetricsCalculatorPage />} />
       <Route
         path="/auth"
