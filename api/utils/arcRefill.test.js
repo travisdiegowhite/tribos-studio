@@ -237,3 +237,110 @@ describe('computeDailyStatsFromActivities', () => {
     expect(eased?.target_rss).toBe(55);
   });
 });
+
+describe('computeArcRefill full-horizon mode', () => {
+  // Full horizon: window from WINDOW_START to the arc's last day.
+  const LAST_DAY = arc.blocks[arc.blocks.length - 1].end_date;
+  const FULL_DAYS =
+    Math.round(
+      (new Date(LAST_DAY + 'T00:00:00Z') - new Date(WINDOW_START + 'T00:00:00Z')) / 86400000
+    ) + 1;
+
+  function fullExistingRows() {
+    return canonical
+      .filter((r) => r.scheduled_date >= WINDOW_START)
+      .map((r) => ({
+        id: `row-${r.scheduled_date}`,
+        scheduled_date: r.scheduled_date,
+        source: 'arc',
+        completed: false,
+        workout_type: r.workout_type,
+        name: r.name,
+        target_rss: r.target_rss,
+        target_duration: r.target_duration,
+        duration_minutes: r.duration_minutes,
+        notes: r.notes,
+        adjustment_reason: null,
+        phase: r.phase,
+      }));
+  }
+
+  it('confines readiness gating to gatingWindowDays even over a long window', () => {
+    const { upserts } = computeArcRefill(
+      base({
+        windowDays: FULL_DAYS,
+        gatingWindowDays: 7,
+        existingRows: fullExistingRows(),
+        gatingCtx: { daily_stats: dailyStats({ fs: -18 }), subjective: [], coefficients: COEFFS },
+      })
+    );
+    const gateBoundary = addDays(WINDOW_START, 6);
+    for (const u of upserts) {
+      if (u.scheduled_date > gateBoundary) {
+        // Beyond the gating window nothing may carry an easing reason.
+        expect(u.adjustment_reason).toBeNull();
+      }
+    }
+    // Inside the window the FS rule still fires on the quality day.
+    const eased = upserts.find((u) => u.scheduled_date === WINDOW_START);
+    expect(eased?.adjustment_reason).toMatch(/FS/);
+  });
+
+  it('emits id-less insert rows only for dates with no existing row when allowInserts', () => {
+    // Drop two future dates from the existing rows to simulate holes.
+    const all = fullExistingRows();
+    const removed = [all[10].scheduled_date, all[20].scheduled_date];
+    const holey = all.filter((r) => !removed.includes(r.scheduled_date));
+
+    const { upserts, changes } = computeArcRefill(
+      base({
+        windowDays: FULL_DAYS,
+        gatingWindowDays: 7,
+        allowInserts: true,
+        existingRows: holey,
+        gatingCtx: { daily_stats: dailyStats({ fs: 0 }), subjective: [], coefficients: COEFFS },
+      })
+    );
+    const inserts = upserts.filter((u) => !u.id);
+    expect(inserts.map((u) => u.scheduled_date).sort()).toEqual(removed.sort());
+    for (const ins of inserts) {
+      expect(ins.target_rss).toBe(ins.target_tss); // dual-write
+      expect(ins.source).toBe('arc');
+    }
+    for (const date of removed) {
+      expect(changes.find((c) => c.scheduled_date === date)?.reason).toMatch(/inserted/);
+    }
+  });
+
+  it('never emits inserts when allowInserts is false (default), even with holes', () => {
+    const all = fullExistingRows();
+    const holey = all.filter((_, i) => i !== 10);
+    const { upserts } = computeArcRefill(
+      base({
+        windowDays: FULL_DAYS,
+        existingRows: holey,
+        gatingCtx: { daily_stats: dailyStats({ fs: 0 }), subjective: [], coefficients: COEFFS },
+      })
+    );
+    expect(upserts.filter((u) => !u.id)).toHaveLength(0);
+  });
+
+  it('still never rewrites completed or non-arc rows in full mode', () => {
+    const all = fullExistingRows();
+    // Mark one future arc row completed and one as coach-sourced, then zero
+    // their content so a rewrite WOULD be emitted if the guards failed.
+    all[5] = { ...all[5], completed: true, target_rss: 1, duration_minutes: 1 };
+    all[6] = { ...all[6], source: 'coach', target_rss: 1, duration_minutes: 1 };
+    const { upserts } = computeArcRefill(
+      base({
+        windowDays: FULL_DAYS,
+        gatingWindowDays: 7,
+        allowInserts: true,
+        existingRows: all,
+        gatingCtx: { daily_stats: dailyStats({ fs: 0 }), subjective: [], coefficients: COEFFS },
+      })
+    );
+    expect(upserts.find((u) => u.scheduled_date === all[5].scheduled_date)).toBeUndefined();
+    expect(upserts.find((u) => u.scheduled_date === all[6].scheduled_date)).toBeUndefined();
+  });
+});

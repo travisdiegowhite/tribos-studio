@@ -7,6 +7,7 @@
 
 import type { BlockDefinition, GeneratedSession } from './types';
 import { afiTfiRatio, enumerateDates } from './types';
+import { longRideTargetMin, volumeScale, z2RssForDuration } from './raceDemand';
 
 const HARD_MIN_DAYS = 7;
 const HARD_MAX_DAYS = 14;
@@ -56,10 +57,17 @@ export const raceSpecific: BlockDefinition = {
     const dates = enumerateDates(start, end);
     const totalDays = dates.length;
 
-    // Race type drives the simulation session contents
+    // Race type drives the simulation session contents. Prefer the structured
+    // race_type from race_demand; the name sniff stays as a fallback.
+    const raceDemand = ctx?.race_demand ?? null;
+    const fillScale = volumeScale(raceDemand);
+    const structuredType = raceDemand?.race_type ?? '';
     const raceType = ctx.upcoming_events[0]?.name?.toLowerCase() ?? '';
-    const isCrit = raceType.includes('crit');
-    const isGravel = raceType.includes('gravel');
+    const isCrit = structuredType === 'criterium' || raceType.includes('crit');
+    const isGravel = structuredType === 'gravel' || raceType.includes('gravel');
+    // Long races need endurance rehearsal inside the race-specific block, not
+    // just openers and spins.
+    const isLongRace = !!raceDemand && raceDemand.goal_duration_min >= 240;
 
     return dates.map((date, idx): GeneratedSession => {
       // Race simulation early in block
@@ -93,11 +101,14 @@ export const raceSpecific: BlockDefinition = {
           };
         }
         if (isGravel) {
+          const simMin = raceDemand
+            ? Math.max(165, longRideTargetMin(raceDemand, date, 165))
+            : 165;
           return {
             date,
             session_type: 'race_sim',
-            target_rss: 130,
-            target_duration_min: 165,
+            target_rss: raceDemand ? Math.round(simMin * 0.75) : 130,
+            target_duration_min: simMin,
             prescribed_intervals: [
               {
                 duration_min: 30,
@@ -122,11 +133,14 @@ export const raceSpecific: BlockDefinition = {
           };
         }
         // Default: granfondo/road race
+        const defaultSimMin = raceDemand
+          ? Math.max(150, longRideTargetMin(raceDemand, date, 150))
+          : 150;
         return {
           date,
           session_type: 'race_sim',
-          target_rss: 120,
-          target_duration_min: 150,
+          target_rss: raceDemand ? Math.round(defaultSimMin * 0.8) : 120,
+          target_duration_min: defaultSimMin,
           prescribed_intervals: [
             {
               duration_min: 35,
@@ -196,11 +210,33 @@ export const raceSpecific: BlockDefinition = {
         };
       }
 
+      // Long races: one more substantial endurance day mid-block (idx 4 —
+      // safely clear of the race-sim at 1, the opener at totalDays-2, and the
+      // final-taper rest days), at 60% of goal duration capped by the ramp.
+      if (isLongRace && idx === 4 && idx < totalDays - 5) {
+        const enduranceMin = Math.min(
+          Math.round((raceDemand!.goal_duration_min * 0.6) / 5) * 5,
+          longRideTargetMin(raceDemand, date, 150)
+        );
+        return {
+          date,
+          session_type: 'z2',
+          target_rss: z2RssForDuration(enduranceMin),
+          target_duration_min: enduranceMin,
+          prescribed_intervals: null,
+          long_ride_flag: true,
+          notes: 'Final long Z2 before the taper-in. Rehearse race-day fueling.',
+        };
+      }
+
+      // Long races earn slightly longer easy spins early in the block; the
+      // final 5 days before race day keep the historical 45-min taper-in.
+      const spinMin = isLongRace && idx < totalDays - 5 ? Math.round(45 * fillScale) : 45;
       return {
         date,
         session_type: 'z1',
-        target_rss: 35,
-        target_duration_min: 45,
+        target_rss: spinMin === 45 ? 35 : Math.round(35 * (spinMin / 45)),
+        target_duration_min: spinMin,
         prescribed_intervals: null,
         long_ride_flag: false,
         notes: 'Easy Z1 — taper begins. Stay loose.',

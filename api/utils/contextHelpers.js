@@ -5,6 +5,122 @@
  * to ensure consistent data formatting across all AI coach surfaces.
  */
 
+import { BLOCK_INFO } from './arcBuilder.js';
+
+/**
+ * Format a Date as YYYY-MM-DD in the given IANA timezone.
+ * Falls back to UTC ISO date if the timezone is invalid.
+ */
+export function formatDateInTz(date, tz) {
+  try {
+    // en-CA locale yields YYYY-MM-DD format
+    return date.toLocaleDateString('en-CA', { timeZone: tz });
+  } catch {
+    return date.toISOString().split('T')[0];
+  }
+}
+
+/**
+ * Get the day-of-week number (0=Sun..6=Sat) in the given IANA timezone.
+ * Falls back to the server's local day if the timezone is invalid.
+ */
+export function getDayOfWeekInTz(date, tz) {
+  try {
+    const dayName = date.toLocaleDateString('en-US', { weekday: 'short', timeZone: tz });
+    const map = { Sun: 0, Mon: 1, Tue: 2, Wed: 3, Thu: 4, Fri: 5, Sat: 6 };
+    return map[dayName] ?? date.getDay();
+  } catch {
+    return date.getDay();
+  }
+}
+
+/**
+ * Monday-based bounds of the current week in the user's timezone.
+ * weekEndStr is the NEXT Monday (exclusive upper bound for scheduled_date ranges).
+ *
+ * @param {Date} now
+ * @param {string} tz IANA timezone
+ * @returns {{ weekStartStr: string, weekEndStr: string }}
+ */
+export function weekBoundsInTz(now, tz) {
+  const dayOfWeek = getDayOfWeekInTz(now, tz);
+  const mondayOffset = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
+  const weekStart = new Date(now);
+  weekStart.setDate(weekStart.getDate() - mondayOffset);
+  const weekEnd = new Date(weekStart);
+  weekEnd.setDate(weekEnd.getDate() + 7);
+  return {
+    weekStartStr: formatDateInTz(weekStart, tz),
+    weekEndStr: formatDateInTz(weekEnd, tz),
+  };
+}
+
+const YMD_RE = /^\d{4}-\d{2}-\d{2}$/;
+
+/**
+ * The plan's REAL current week, derived from its start date — never trust
+ * training_plans.current_week, which is written as 1 at creation and (until
+ * the arc-refill sync shipped alongside this helper) was never advanced.
+ *
+ * @param {{ start_date?: string|null, started_at?: string|null, duration_weeks?: number|null }} plan
+ * @param {string} todayStr user-local YYYY-MM-DD
+ * @returns {number} 1-based week, clamped to [1, duration_weeks]
+ */
+export function deriveCurrentWeek(plan, todayStr) {
+  const start = String(plan?.started_at || plan?.start_date || '').slice(0, 10);
+  if (!YMD_RE.test(start) || !YMD_RE.test(String(todayStr))) return 1;
+  const days = Math.round(
+    (new Date(todayStr + 'T00:00:00Z') - new Date(start + 'T00:00:00Z')) / 86400000
+  );
+  let week = Math.floor(days / 7) + 1;
+  if (week < 1) week = 1;
+  const totalWeeks = Number(plan?.duration_weeks) || 0;
+  if (totalWeeks > 0 && week > totalWeeks) week = totalWeeks;
+  return week;
+}
+
+/**
+ * Phase from an arc plan's `blocks` JSONB by calendar date — the authoritative
+ * source when present (the ratio heuristic in derivePhase can't know that an
+ * arc front-loads maintenance/reactivation filler). Returns null when blocks
+ * are absent/invalid so callers can fall back to derivePhase.
+ *
+ * Dates outside the arc resolve to the nearest block (before → first,
+ * after → last); a gap between blocks resolves to the next upcoming block.
+ *
+ * @param {Array<{block_type: string, start_date: string, end_date: string}>|null} blocks
+ * @param {string} todayStr user-local YYYY-MM-DD
+ * @returns {{ blockType: string, blockName: string, blockPurpose: string }|null}
+ */
+export function derivePhaseFromBlocks(blocks, todayStr) {
+  if (!Array.isArray(blocks) || !YMD_RE.test(String(todayStr))) return null;
+  const valid = blocks.filter(
+    (b) => b && b.block_type && YMD_RE.test(String(b.start_date)) && YMD_RE.test(String(b.end_date))
+  );
+  if (valid.length === 0) return null;
+
+  const sorted = [...valid].sort((a, b) => (a.start_date < b.start_date ? -1 : 1));
+  let block = sorted.find((b) => b.start_date <= todayStr && todayStr <= b.end_date);
+  if (!block) {
+    if (todayStr < sorted[0].start_date) {
+      block = sorted[0];
+    } else if (todayStr > sorted[sorted.length - 1].end_date) {
+      block = sorted[sorted.length - 1];
+    } else {
+      // Gap between blocks — attribute to the next upcoming block.
+      block = sorted.find((b) => b.start_date > todayStr) || sorted[sorted.length - 1];
+    }
+  }
+
+  const info = BLOCK_INFO[block.block_type];
+  const purpose = info?.why ? info.why.charAt(0).toUpperCase() + info.why.slice(1) + '.' : '';
+  return {
+    blockType: block.block_type,
+    blockName: info?.label || block.block_type,
+    blockPurpose: purpose,
+  };
+}
+
 /**
  * Derive training phase/block from current week position and methodology.
  */

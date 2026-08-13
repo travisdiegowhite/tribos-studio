@@ -176,6 +176,12 @@ function applyGateToRow(row, gate) {
  * @param {object} [params.availability]   { weeklyAvailability, preferences } — re-applied like activation
  * @param {Array}  [params.existingRows]   current planned_workouts rows in the window (need id, scheduled_date,
  *                                         source, completed + content fields)
+ * @param {number} [params.gatingWindowDays=7] readiness gating only applies to rows within this many
+ *                                         days of windowStart — today's Form Score must not ease a
+ *                                         ride weeks out (matters for full-horizon rebuilds)
+ * @param {boolean} [params.allowInserts=false] emit persistable rows (no `id`) for regenerated dates
+ *                                         with NO existing row at all, so the writer can insert them.
+ *                                         Dates holding any existing row keep the update-only rules.
  * @returns {{ upserts: Array<object>, changes: Array<object> }}
  *   upserts: persistable planned_workouts partials (no plan_id/user_id — the writer adds them),
  *            each carrying `id` when the existing row had one (for targeted update).
@@ -190,6 +196,8 @@ export function computeArcRefill({
   genCtx,
   availability,
   existingRows = [],
+  gatingWindowDays = 7,
+  allowInserts = false,
 }) {
   const bands = Array.isArray(blocks) ? blocks : [];
   if (bands.length === 0 || !windowStart) return { upserts: [], changes: [] };
@@ -208,8 +216,15 @@ export function computeArcRefill({
     (r) => r.scheduled_date >= windowStart && r.scheduled_date <= windowEnd,
   );
 
-  // 3. Gate each windowed row against current fitness state.
+  // 3. Gate each windowed row against current fitness state — but only rows
+  //    within the gating window. Today's readiness must not ease a session
+  //    weeks away; beyond the gating window rows stay canonical.
+  const gatingEnd = addDaysIso(windowStart, gatingWindowDays - 1);
   for (const row of windowRows) {
+    if (row.scheduled_date > gatingEnd) {
+      row.adjustment_reason = null; // canonical prescription, no easing
+      continue;
+    }
     const prescription = {
       date: row.scheduled_date,
       session_type: row.session_type,
@@ -234,7 +249,23 @@ export function computeArcRefill({
   const changes = [];
   for (const row of windowRows) {
     const existing = existingByDate.get(row.scheduled_date);
-    if (!existing) continue; // never INSERT new arc days here — only adapt existing ones
+    if (!existing) {
+      // Default: never INSERT new arc days — only adapt existing ones. A
+      // full-horizon rebuild opts in to filling truly empty dates (the
+      // writer inserts with onConflict-ignore, so a race with a concurrent
+      // insert is harmless).
+      if (allowInserts && row.workout_type !== undefined) {
+        const out = persistable(row);
+        upserts.push(out);
+        changes.push({
+          scheduled_date: row.scheduled_date,
+          from: null,
+          to: { workout_type: row.workout_type, target_rss: row.target_rss ?? null },
+          reason: 'inserted (no existing row)',
+        });
+      }
+      continue;
+    }
     if (existing.source !== 'arc') continue; // respect manual / coach edits
     if (existing.completed) continue; // never rewrite a logged session
 

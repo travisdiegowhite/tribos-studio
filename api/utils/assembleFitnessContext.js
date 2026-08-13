@@ -8,35 +8,21 @@
  * (not recovery) and flags it so the AI doesn't misinterpret the data.
  */
 
-import { derivePhase, formatWeekSchedule, weekScheduleToText, formatHealth, fetchProprietaryMetrics } from './contextHelpers.js';
+import {
+  derivePhase,
+  derivePhaseFromBlocks,
+  deriveCurrentWeek,
+  formatWeekSchedule,
+  weekScheduleToText,
+  formatHealth,
+  fetchProprietaryMetrics,
+  formatDateInTz,
+  getDayOfWeekInTz,
+} from './contextHelpers.js';
 
-/**
- * Format a Date as YYYY-MM-DD in the given IANA timezone.
- * Falls back to UTC ISO date if the timezone is invalid.
- * Exported for fitness-summary.js's cache-key date dimension.
- */
-export function formatDateInTz(date, tz) {
-  try {
-    // en-CA locale yields YYYY-MM-DD format
-    return date.toLocaleDateString('en-CA', { timeZone: tz });
-  } catch {
-    return date.toISOString().split('T')[0];
-  }
-}
-
-/**
- * Get the day-of-week number (0=Sun..6=Sat) in the given IANA timezone.
- * Falls back to the server's local day if the timezone is invalid.
- */
-function getDayOfWeekInTz(date, tz) {
-  try {
-    const dayName = date.toLocaleDateString('en-US', { weekday: 'short', timeZone: tz });
-    const map = { Sun: 0, Mon: 1, Tue: 2, Wed: 3, Thu: 4, Fri: 5, Sat: 6 };
-    return map[dayName] ?? date.getDay();
-  } catch {
-    return date.getDay();
-  }
-}
+// Re-export for fitness-summary.js's cache-key date dimension (the helper now
+// lives in contextHelpers.js so checkInContext.js can share it).
+export { formatDateInTz };
 
 /**
  * @param {string} userId
@@ -80,13 +66,17 @@ export async function assembleFitnessContext(userId, supabase, clientMetrics, op
   // must join through training_plans to scope workouts to this user)
   const { data: activePlans } = await supabase
     .from('training_plans')
-    .select('id, name, current_week, duration_weeks, methodology, goal')
+    .select('id, name, current_week, duration_weeks, methodology, goal, start_date, started_at, blocks')
     .eq('user_id', userId)
     .eq('status', 'active')
     .order('updated_at', { ascending: false });
 
   const planIds = (activePlans || []).map(p => p.id);
   const primaryPlan = (activePlans && activePlans.length > 0) ? activePlans[0] : null;
+
+  // Derive the REAL current week from the plan's start date — the stored
+  // current_week column was historically never advanced past 1.
+  const computedWeek = primaryPlan ? deriveCurrentWeek(primaryPlan, today) : null;
 
   // Run all queries in parallel
   const [
@@ -156,13 +146,16 @@ export async function assembleFitnessContext(userId, supabase, clientMetrics, op
       .eq('id', userId)
       .single(),
 
-    // 7. Full week schedule with workout names (for primary plan's current week)
+    // 7. Full week schedule with workout names (for the primary plan's current
+    // calendar week). Filter by scheduled_date, NOT week_number — week_number
+    // stamps are unreliable (coach-inserted rows are stamped 1 regardless of date).
     primaryPlan
       ? supabase
           .from('planned_workouts')
-          .select('day_of_week, scheduled_date, name, workout_type, target_tss, actual_tss, completed, activity_id')
+          .select('id, day_of_week, scheduled_date, name, workout_type, target_tss, actual_tss, completed, activity_id')
           .eq('plan_id', primaryPlan.id)
-          .eq('week_number', primaryPlan.current_week || 1)
+          .gte('scheduled_date', weekStartStr)
+          .lt('scheduled_date', weekEndStr)
       : Promise.resolve({ data: [] }),
 
     // 8. Upcoming race goal (highest priority)
@@ -197,8 +190,11 @@ export async function assembleFitnessContext(userId, supabase, clientMetrics, op
   const healthData = healthResult.data || null;
 
   // --- Training plan phase & week schedule ---
+  // Blocks-first: an arc plan's blocks say exactly which phase today falls in;
+  // the week-ratio heuristic is only a fallback for non-arc plans.
   const phase = primaryPlan
-    ? derivePhase(primaryPlan.current_week, primaryPlan.duration_weeks, primaryPlan.methodology)
+    ? (derivePhaseFromBlocks(primaryPlan.blocks, today)
+        || derivePhase(computedWeek, primaryPlan.duration_weeks, primaryPlan.methodology))
     : null;
   const weekSchedule = formatWeekSchedule(weekScheduleRaw);
   const weekScheduleText = weekScheduleToText(weekSchedule);
@@ -288,7 +284,7 @@ export async function assembleFitnessContext(userId, supabase, clientMetrics, op
       name: primaryPlan.name,
       methodology: primaryPlan.methodology,
       goal: primaryPlan.goal,
-      current_week: primaryPlan.current_week,
+      current_week: computedWeek,
       total_weeks: primaryPlan.duration_weeks,
       block: phase.blockName,
       block_purpose: phase.blockPurpose,

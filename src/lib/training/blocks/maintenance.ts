@@ -10,6 +10,7 @@
 
 import type { BlockDefinition, GeneratedSession } from './types';
 import { enumerateDates } from './types';
+import { longRideTargetMin, z2RssForDuration } from './raceDemand';
 
 const HARD_MIN_DAYS = 7;
 const HARD_MAX_DAYS = 84; // can be held indefinitely; we keep 12 weeks as a sane upper bound per cycle
@@ -29,8 +30,9 @@ export const maintenance: BlockDefinition = {
 
   default_duration: (_ctx) => 21, // 3 weeks per cycle (spec §6.1)
 
-  generate_sessions: (start, end, _ctx) => {
+  generate_sessions: (start, end, ctx) => {
     const dates = enumerateDates(start, end);
+    const raceDemand = ctx?.race_demand ?? null;
 
     return dates.map((date, idx): GeneratedSession => {
       const dow = idx % 7;
@@ -118,13 +120,15 @@ export const maintenance: BlockDefinition = {
         };
       }
 
-      // Saturday: long ride at 80% of build-block volume
+      // Saturday: long ride at 80% of build-block volume (race-demand ramp
+      // when a target race is in ctx)
       if (dow === 5) {
+        const longMin = longRideTargetMin(raceDemand, date, 145);
         return {
           date,
           session_type: 'z2',
-          target_rss: 90,
-          target_duration_min: 145,
+          target_rss: raceDemand ? z2RssForDuration(longMin) : 90,
+          target_duration_min: longMin,
           prescribed_intervals: null,
           long_ride_flag: true,
           notes: 'Long Z2 — 80% of full-build volume. Conversational.',

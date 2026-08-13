@@ -323,3 +323,136 @@ describe('coefficientsForMode', () => {
     expect(c.fs_recovery_target).toBe(-3);
   });
 });
+
+// ────────────────────────────────────────────────────────────────────────
+// Race-demand scaling (ctx.race_demand)
+// ────────────────────────────────────────────────────────────────────────
+
+import { buildRaceDemand } from './raceDemand.js';
+
+// The production race the race-demand work was diagnosed against:
+// The Rad — 177 km gravel, A-priority, goal 390 min, race 2026-09-26.
+const RAD_DEMAND = buildRaceDemand({
+  race_date: '2026-09-26',
+  race_type: 'gravel',
+  goal_time_minutes: 390,
+  priority: 'A',
+});
+const RAD_CTX = {
+  upcoming_events: [{ tier: 'A', date: '2026-09-26', name: 'The Rad', race_type: 'gravel' }],
+  race_demand: RAD_DEMAND,
+};
+
+describe('race-demand fallback parity', () => {
+  const BLOCKS = [
+    ['maintenance', '2026-06-28', '2026-07-09'],
+    ['aerobic_build', '2026-07-17', '2026-07-30'],
+    ['threshold', '2026-07-31', '2026-08-20'],
+    ['vo2', '2026-08-21', '2026-09-03'],
+    ['race_specific', '2026-09-04', '2026-09-13'],
+    ['taper', '2026-09-14', '2026-09-25'],
+  ];
+
+  it('race_demand: null → byte-identical to the pre-race-demand ctx output', () => {
+    const events = [{ tier: 'A', date: '2026-09-26' }];
+    for (const [type, start, end] of BLOCKS) {
+      const before = generateSessionsForBlock(type, start, end, { upcoming_events: events });
+      const withNull = generateSessionsForBlock(type, start, end, {
+        upcoming_events: events,
+        race_demand: null,
+      });
+      expect(withNull).toEqual(before);
+    }
+  });
+});
+
+describe('race-demand-aware generation (The Rad)', () => {
+  it('threshold block long rides ramp toward the peak instead of holding 165', () => {
+    const out = generateThresholdSessions('2026-07-31', '2026-08-20', RAD_CTX);
+    const longRides = out.filter((s) => s.long_ride_flag);
+    expect(longRides.length).toBeGreaterThan(0);
+    for (const lr of longRides) {
+      expect(lr.target_duration_min).toBeGreaterThan(165);
+      expect(lr.target_duration_min).toBeLessThanOrEqual(280);
+      expect(lr.target_rss).toBe(Math.round(lr.target_duration_min * 0.61));
+    }
+    // Later long rides are longer (the ramp).
+    expect(longRides[longRides.length - 1].target_duration_min)
+      .toBeGreaterThanOrEqual(longRides[0].target_duration_min);
+  });
+
+  it('vo2 block gets a long ride EVERY week for a 4h+ race (the mid-plan volume collapse fix)', () => {
+    const out = generateVo2Sessions('2026-08-21', '2026-09-03', RAD_CTX);
+    const week1 = out.slice(0, 7).filter((s) => s.long_ride_flag);
+    const week2 = out.slice(7, 14).filter((s) => s.long_ride_flag);
+    expect(week1.length).toBe(1);
+    expect(week2.length).toBe(1);
+    expect(week1[0].target_duration_min).toBeGreaterThanOrEqual(220);
+    // Week-2 absorption long ride keeps the historical -15% discount.
+    expect(week2[0].target_duration_min).toBeLessThan(week1[0].target_duration_min * 1.01);
+  });
+
+  it('vo2 long ride never lands on a HIT day', () => {
+    const out = generateVo2Sessions('2026-08-21', '2026-09-03', {
+      ...RAD_CTX,
+      coefficients: { hit_spacing_hours: 36 },
+    });
+    for (const s of out) {
+      if (s.long_ride_flag) expect(s.session_type).toBe('z2');
+    }
+    const week1 = out.slice(0, 7);
+    expect(week1.filter((s) => s.session_type === 'vo2').length).toBeGreaterThan(0);
+  });
+
+  it('gravel race-sim fires from structured race_type (no name sniff needed) and scales duration', () => {
+    const ctxNoName = {
+      upcoming_events: [{ tier: 'A', date: '2026-09-26' }],
+      race_demand: RAD_DEMAND,
+    };
+    const out = generateRaceSpecificSessions('2026-09-04', '2026-09-13', ctxNoName);
+    const sim = out[1];
+    expect(sim.session_type).toBe('race_sim');
+    expect(sim.notes).toMatch(/gravel/i);
+    // Sep 5, one week before the Sep 8 peak → 260 min (vs the hardcoded 165).
+    expect(sim.target_duration_min).toBe(260);
+    expect(sim.target_rss).toBe(Math.round(260 * 0.75));
+  });
+
+  it('race-specific block upgrades a filler day to a real endurance ride for long races', () => {
+    const out = generateRaceSpecificSessions('2026-09-04', '2026-09-13', RAD_CTX);
+    const endurance = out.filter((s) => s.long_ride_flag && s.session_type === 'z2');
+    expect(endurance.length).toBe(1);
+    // min(0.6*390 = 235 (round5), ramp) — a substantial ride, not a 45-min spin.
+    expect(endurance[0].target_duration_min).toBeGreaterThanOrEqual(200);
+    // The last 5 days before the race keep the historical taper-in spins.
+    const lastFive = out.slice(-5).filter((s) => s.session_type === 'z1');
+    for (const s of lastFive) expect(s.target_duration_min).toBe(45);
+  });
+
+  it('taper output is untouched by race demand', () => {
+    const bare = generateTaperSessions('2026-09-14', '2026-09-25', {
+      upcoming_events: [{ tier: 'A', date: '2026-09-26' }],
+    });
+    const withDemand = generateTaperSessions('2026-09-14', '2026-09-25', RAD_CTX);
+    expect(withDemand).toEqual(bare);
+  });
+
+  it('short races do not trigger the vo2 weekly long ride or race-specific endurance day', () => {
+    const critDemand = buildRaceDemand({
+      race_date: '2026-09-26',
+      race_type: 'criterium',
+      goal_time_minutes: 60,
+      priority: 'A',
+    });
+    const ctx = {
+      upcoming_events: [{ tier: 'A', date: '2026-09-26', race_type: 'criterium' }],
+      race_demand: critDemand,
+    };
+    const vo2 = generateVo2Sessions('2026-08-21', '2026-09-03', ctx);
+    expect(vo2.slice(0, 7).some((s) => s.long_ride_flag)).toBe(false);
+    const rs = generateRaceSpecificSessions('2026-09-04', '2026-09-13', ctx);
+    expect(rs[1].session_type).toBe('race_sim');
+    expect(rs[1].target_duration_min).toBe(75); // crit sim unchanged
+    expect(rs.filter((s) => s.long_ride_flag)).toHaveLength(0);
+  });
+});

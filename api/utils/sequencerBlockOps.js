@@ -11,6 +11,13 @@
 
 // ── Shared helpers ──────────────────────────────────────────────────────────
 
+import { longRideTargetMin, z2RssForDuration, volumeScale } from './raceDemand.js';
+
+// Race-demand scaling contract: every generator reads `ctx.race_demand`
+// (built by raceDemand.buildRaceDemand from the target race_goals row).
+// When it is null/absent, output is BYTE-IDENTICAL to the historical
+// hardcoded prescriptions — asserted by the fallback-parity tests.
+
 function enumerateDates(start, end) {
   const out = [];
   const startDate = new Date(start + 'T00:00:00Z');
@@ -41,8 +48,9 @@ function afiGrowth4d(ctx) {
 
 // ── Maintenance generator (mirrors src/lib/training/blocks/maintenance.ts) ──
 
-export function generateMaintenanceSessions(start, end) {
+export function generateMaintenanceSessions(start, end, ctx) {
   const dates = enumerateDates(start, end);
+  const raceDemand = ctx?.race_demand || null;
 
   return dates.map((date, idx) => {
     const dow = idx % 7;
@@ -121,11 +129,12 @@ export function generateMaintenanceSessions(start, end) {
       };
     }
     if (dow === 5) {
+      const longMin = longRideTargetMin(raceDemand, date, 145);
       return {
         date,
         session_type: 'z2',
-        target_rss: 90,
-        target_duration_min: 145,
+        target_rss: raceDemand ? z2RssForDuration(longMin) : 90,
+        target_duration_min: longMin,
         prescribed_intervals: null,
         long_ride_flag: true,
         notes: 'Long Z2 — 80% of full-build volume. Conversational.',
@@ -277,8 +286,10 @@ export function generateReactivationSessions(start, end) {
 
 // ── Aerobic Build generator (mirrors aerobicBuild.ts) ──────────────────────
 
-export function generateAerobicBuildSessions(start, end) {
+export function generateAerobicBuildSessions(start, end, ctx) {
   const dates = enumerateDates(start, end);
+  const raceDemand = ctx?.race_demand || null;
+  const fillScale = volumeScale(raceDemand);
 
   return dates.map((date, idx) => {
     const dow = idx % 7;
@@ -335,21 +346,23 @@ export function generateAerobicBuildSessions(start, end) {
       };
     }
     if (dow === 5) {
+      const longMin = longRideTargetMin(raceDemand, date, 180);
       return {
         date,
         session_type: 'z2',
-        target_rss: 110,
-        target_duration_min: 180,
+        target_rss: raceDemand ? z2RssForDuration(longMin) : 110,
+        target_duration_min: longMin,
         prescribed_intervals: null,
         long_ride_flag: true,
         notes: 'Long Z2 (≤75% FTP). Build the aerobic floor.',
       };
     }
+    const fillMin = raceDemand ? Math.round(75 * fillScale) : 75;
     return {
       date,
       session_type: 'z2',
-      target_rss: 55,
-      target_duration_min: 75,
+      target_rss: raceDemand ? Math.round(55 * (fillMin / 75)) : 55,
+      target_duration_min: fillMin,
       prescribed_intervals: null,
       long_ride_flag: false,
       notes: 'Z2 base (65–75% FTP).',
@@ -362,6 +375,8 @@ export function generateAerobicBuildSessions(start, end) {
 export function generateThresholdSessions(start, end, ctx) {
   const dates = enumerateDates(start, end);
   const spacing = ctx?.coefficients?.hit_spacing_hours ?? 36;
+  const raceDemand = ctx?.race_demand || null;
+  const fillScale = volumeScale(raceDemand);
 
   return dates.map((date, idx) => {
     const dow = idx % 7;
@@ -477,22 +492,26 @@ export function generateThresholdSessions(start, end, ctx) {
     }
 
     if (dow === 5) {
+      const longMin = longRideTargetMin(raceDemand, date, 165);
       return {
         date,
         session_type: 'z2',
-        target_rss: 100,
-        target_duration_min: 165,
+        target_rss: raceDemand ? z2RssForDuration(longMin) : 100,
+        target_duration_min: longMin,
         prescribed_intervals: null,
         long_ride_flag: true,
-        notes: 'Long Z2 ride — maintained, not progressed.',
+        notes: raceDemand
+          ? 'Long Z2 ride — progressing toward race duration.'
+          : 'Long Z2 ride — maintained, not progressed.',
       };
     }
 
+    const fillMin = raceDemand ? Math.round(60 * fillScale) : 60;
     return {
       date,
       session_type: 'z2',
-      target_rss: 50,
-      target_duration_min: 60,
+      target_rss: raceDemand ? Math.round(50 * (fillMin / 60)) : 50,
+      target_duration_min: fillMin,
       prescribed_intervals: null,
       long_ride_flag: false,
       notes: 'Z2 fill (65–75% FTP).',
@@ -506,12 +525,20 @@ export function generateVo2Sessions(start, end, ctx) {
   const dates = enumerateDates(start, end);
   const spacingHours = ctx?.coefficients?.hit_spacing_hours ?? 36;
   const stackEveryOther = spacingHours === 36;
+  const raceDemand = ctx?.race_demand || null;
+  const fillScale = volumeScale(raceDemand);
+  // Long races can't afford a fortnight without a long ride: when the goal
+  // duration is 4h+, weeks 1 and 3+ of the vo2 block (which historically had
+  // NO long ride) get a weekend Z2 long ride. HIT placement wins ties.
+  const needsWeeklyLongRide = !!raceDemand && raceDemand.goal_duration_min >= 240;
+  const isHitDayAt = (i) => (stackEveryOther ? i % 2 === 1 : i % 3 === 1);
+  const week0LongRideIdx = needsWeeklyLongRide ? (isHitDayAt(5) ? 6 : 5) : -1;
 
   return dates.map((date, idx) => {
     const weekIdx = Math.floor(idx / 7);
 
     if (weekIdx === 0) {
-      const isHitDay = stackEveryOther ? idx % 2 === 1 : idx % 3 === 1;
+      const isHitDay = isHitDayAt(idx);
       if (isHitDay) {
         const sessionPick = idx % 3;
         const intervals =
@@ -555,6 +582,18 @@ export function generateVo2Sessions(start, end, ctx) {
           prescribed_intervals: intervals,
           long_ride_flag: false,
           notes: 'VO2 quality (week 1, dense block).',
+        };
+      }
+      if (idx === week0LongRideIdx) {
+        const longMin = longRideTargetMin(raceDemand, date, 150);
+        return {
+          date,
+          session_type: 'z2',
+          target_rss: z2RssForDuration(longMin),
+          target_duration_min: longMin,
+          prescribed_intervals: null,
+          long_ride_flag: true,
+          notes: 'Long Z2 — endurance maintained through the VO2 block.',
         };
       }
       return {
@@ -602,21 +641,26 @@ export function generateVo2Sessions(start, end, ctx) {
         };
       }
       if (dow === 5) {
+        // Absorption week keeps the historical -15% discount off the ramp.
+        const longMin = raceDemand
+          ? Math.round(longRideTargetMin(raceDemand, date, 150) * 0.85)
+          : 150;
         return {
           date,
           session_type: 'z2',
-          target_rss: 95,
-          target_duration_min: 150,
+          target_rss: raceDemand ? z2RssForDuration(longMin) : 95,
+          target_duration_min: longMin,
           prescribed_intervals: null,
           long_ride_flag: true,
           notes: 'Long Z2 — slightly reduced (-15%) vs threshold block.',
         };
       }
+      const absorbMin = raceDemand ? Math.round(70 * fillScale) : 70;
       return {
         date,
         session_type: 'z2',
-        target_rss: 55,
-        target_duration_min: 70,
+        target_rss: raceDemand ? Math.round(55 * (absorbMin / 70)) : 55,
+        target_duration_min: absorbMin,
         prescribed_intervals: null,
         long_ride_flag: false,
         notes: 'Z2 absorption.',
@@ -644,11 +688,24 @@ export function generateVo2Sessions(start, end, ctx) {
         notes: 'Final VO2 quality before race-specific block.',
       };
     }
+    if (needsWeeklyLongRide && dow3 === 5) {
+      const longMin = longRideTargetMin(raceDemand, date, 150);
+      return {
+        date,
+        session_type: 'z2',
+        target_rss: z2RssForDuration(longMin),
+        target_duration_min: longMin,
+        prescribed_intervals: null,
+        long_ride_flag: true,
+        notes: 'Long Z2 — endurance maintained through the VO2 block.',
+      };
+    }
+    const transMin = raceDemand ? Math.round(60 * fillScale) : 60;
     return {
       date,
       session_type: 'z2',
-      target_rss: 50,
-      target_duration_min: 60,
+      target_rss: raceDemand ? Math.round(50 * (transMin / 60)) : 50,
+      target_duration_min: transMin,
       prescribed_intervals: null,
       long_ride_flag: false,
       notes: 'Z2 transition into race-specific.',
@@ -662,9 +719,18 @@ export function generateRaceSpecificSessions(start, end, ctx) {
   const dates = enumerateDates(start, end);
   const totalDays = dates.length;
 
+  const raceDemand = ctx?.race_demand || null;
+  const fillScale = volumeScale(raceDemand);
+  // Prefer the structured race_type from race_demand; the historical name
+  // sniff (which coach.js never actually fed — the events carried no name)
+  // stays as a fallback.
+  const structuredType = raceDemand?.race_type || ctx?.upcoming_events?.[0]?.race_type || '';
   const raceType = (ctx?.upcoming_events?.[0]?.name ?? '').toLowerCase();
-  const isCrit = raceType.includes('crit');
-  const isGravel = raceType.includes('gravel');
+  const isCrit = structuredType === 'criterium' || raceType.includes('crit');
+  const isGravel = structuredType === 'gravel' || raceType.includes('gravel');
+  // Long races need endurance rehearsal inside the race-specific block, not
+  // just openers and spins.
+  const isLongRace = !!raceDemand && raceDemand.goal_duration_min >= 240;
 
   return dates.map((date, idx) => {
     if (idx === 1) {
@@ -697,11 +763,14 @@ export function generateRaceSpecificSessions(start, end, ctx) {
         };
       }
       if (isGravel) {
+        const simMin = raceDemand
+          ? Math.max(165, longRideTargetMin(raceDemand, date, 165))
+          : 165;
         return {
           date,
           session_type: 'race_sim',
-          target_rss: 130,
-          target_duration_min: 165,
+          target_rss: raceDemand ? Math.round(simMin * 0.75) : 130,
+          target_duration_min: simMin,
           prescribed_intervals: [
             {
               duration_min: 30,
@@ -725,11 +794,14 @@ export function generateRaceSpecificSessions(start, end, ctx) {
             'Gravel race simulation: 90 min sub-threshold + 5x 4 min surges. Rehearse fueling.',
         };
       }
+      const defaultSimMin = raceDemand
+        ? Math.max(150, longRideTargetMin(raceDemand, date, 150))
+        : 150;
       return {
         date,
         session_type: 'race_sim',
-        target_rss: 120,
-        target_duration_min: 150,
+        target_rss: raceDemand ? Math.round(defaultSimMin * 0.8) : 120,
+        target_duration_min: defaultSimMin,
         prescribed_intervals: [
           {
             duration_min: 35,
@@ -797,11 +869,33 @@ export function generateRaceSpecificSessions(start, end, ctx) {
       };
     }
 
+    // Long races: one more substantial endurance day mid-block (idx 4 —
+    // safely clear of the race-sim at 1, the opener at totalDays-2, and the
+    // final-taper rest days), at 60% of goal duration capped by the ramp.
+    if (isLongRace && idx === 4 && idx < totalDays - 5) {
+      const enduranceMin = Math.min(
+        Math.round((raceDemand.goal_duration_min * 0.6) / 5) * 5,
+        longRideTargetMin(raceDemand, date, 150)
+      );
+      return {
+        date,
+        session_type: 'z2',
+        target_rss: z2RssForDuration(enduranceMin),
+        target_duration_min: enduranceMin,
+        prescribed_intervals: null,
+        long_ride_flag: true,
+        notes: 'Final long Z2 before the taper-in. Rehearse race-day fueling.',
+      };
+    }
+
+    // Long races earn slightly longer easy spins early in the block; the
+    // final 5 days before race day keep the historical 45-min taper-in.
+    const spinMin = isLongRace && idx < totalDays - 5 ? Math.round(45 * fillScale) : 45;
     return {
       date,
       session_type: 'z1',
-      target_rss: 35,
-      target_duration_min: 45,
+      target_rss: spinMin === 45 ? 35 : Math.round(35 * (spinMin / 45)),
+      target_duration_min: spinMin,
       prescribed_intervals: null,
       long_ride_flag: false,
       notes: 'Easy Z1 — taper begins. Stay loose.',
@@ -923,13 +1017,13 @@ export function generateTaperSessions(start, end, ctx) {
 export function generateSessionsForBlock(blockType, start, end, ctx) {
   switch (blockType) {
     case 'maintenance':
-      return generateMaintenanceSessions(start, end);
+      return generateMaintenanceSessions(start, end, ctx);
     case 'recovery':
       return generateRecoverySessions(start, end);
     case 'reactivation':
       return generateReactivationSessions(start, end);
     case 'aerobic_build':
-      return generateAerobicBuildSessions(start, end);
+      return generateAerobicBuildSessions(start, end, ctx);
     case 'threshold':
       return generateThresholdSessions(start, end, ctx);
     case 'vo2':

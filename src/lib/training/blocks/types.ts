@@ -16,6 +16,7 @@ import type {
   SessionPrescription,
   EventTier,
 } from '@/types/training';
+import type { RaceDemand } from './raceDemand';
 
 /**
  * Daily-stats slice the sequencer reads from training_load_daily.
@@ -86,6 +87,11 @@ export interface SequencerContext {
   horizon_event: CalendarEvent | null;
   /** Pre-race tier when the entry/exit gate references "post-race". */
   post_race_tier: EventTier | null;
+  /**
+   * Demand model of the target race (buildRaceDemand). Scales endurance
+   * volume in the generators; null/absent → historical hardcoded output.
+   */
+  race_demand?: RaceDemand | null;
 }
 
 /**

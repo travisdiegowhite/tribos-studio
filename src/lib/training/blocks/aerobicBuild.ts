@@ -7,6 +7,7 @@
 
 import type { BlockDefinition, GeneratedSession } from './types';
 import { afiTfiRatio, enumerateDates, latestSnapshot } from './types';
+import { longRideTargetMin, volumeScale, z2RssForDuration } from './raceDemand';
 
 const HARD_MIN_DAYS = 14;
 const HARD_MAX_DAYS = 28;
@@ -53,8 +54,10 @@ export const aerobicBuild: BlockDefinition = {
     return 14;
   },
 
-  generate_sessions: (start, end, _ctx) => {
+  generate_sessions: (start, end, ctx) => {
     const dates = enumerateDates(start, end);
+    const raceDemand = ctx?.race_demand ?? null;
+    const fillScale = volumeScale(raceDemand);
 
     return dates.map((date, idx): GeneratedSession => {
       const dow = idx % 7;
@@ -116,25 +119,27 @@ export const aerobicBuild: BlockDefinition = {
         };
       }
 
-      // Long Z2 ride: Saturday (dow === 5)
+      // Long Z2 ride: Saturday (dow === 5) — race-demand ramp when present
       if (dow === 5) {
+        const longMin = longRideTargetMin(raceDemand, date, 180);
         return {
           date,
           session_type: 'z2',
-          target_rss: 110,
-          target_duration_min: 180,
+          target_rss: raceDemand ? z2RssForDuration(longMin) : 110,
+          target_duration_min: longMin,
           prescribed_intervals: null,
           long_ride_flag: true,
           notes: 'Long Z2 (≤75% FTP). Build the aerobic floor.',
         };
       }
 
-      // Default: easy Z2 fill day
+      // Default: easy Z2 fill day (scaled up to +40% for long races)
+      const fillMin = raceDemand ? Math.round(75 * fillScale) : 75;
       return {
         date,
         session_type: 'z2',
-        target_rss: 55,
-        target_duration_min: 75,
+        target_rss: raceDemand ? Math.round(55 * (fillMin / 75)) : 55,
+        target_duration_min: fillMin,
         prescribed_intervals: null,
         long_ride_flag: false,
         notes: 'Z2 base (65–75% FTP).',

@@ -6,7 +6,17 @@
  * fetches the most recent activity for context (if any exist).
  */
 
-import { derivePhase, formatWeekSchedule, weekScheduleToText, formatHealth, fetchProprietaryMetrics } from './contextHelpers.js';
+import {
+  derivePhase,
+  derivePhaseFromBlocks,
+  deriveCurrentWeek,
+  weekBoundsInTz,
+  formatDateInTz,
+  formatWeekSchedule,
+  weekScheduleToText,
+  formatHealth,
+  fetchProprietaryMetrics,
+} from './contextHelpers.js';
 
 /**
  * Build a map of workout_id → annotation string from recent accepted decisions.
@@ -198,7 +208,7 @@ export async function assembleCheckInContext(supabase, userId, activityId) {
 
     supabase
       .from('training_plans')
-      .select('id, name, current_week, duration_weeks, methodology, goal, status')
+      .select('id, name, current_week, duration_weeks, methodology, goal, status, start_date, started_at, blocks')
       .eq('user_id', userId)
       .eq('status', 'active')
       .order('updated_at', { ascending: false })
@@ -297,9 +307,17 @@ export async function assembleCheckInContext(supabase, userId, activityId) {
   // calendar's forward link, then same-local-day fallback.
   const plannedWorkout = await resolvePlannedWorkoutForActivity(supabase, userId, activity, userTimezone);
 
-  // Get week schedule (planned workouts for current week)
+  // The plan's REAL current week, derived from its start date (the stored
+  // current_week column was historically never advanced past 1).
+  const todayLocalStr = formatDateInTz(new Date(), userTimezone);
+  const computedWeek = plan ? deriveCurrentWeek(plan, todayLocalStr) : 0;
+
+  // Get week schedule (planned workouts for the current calendar week).
+  // Filter by scheduled_date, NOT week_number — week_number stamps are
+  // unreliable (coach-inserted rows are stamped 1 regardless of date).
   let weekScheduleRaw = [];
   if (plan) {
+    const { weekStartStr, weekEndStr } = weekBoundsInTz(new Date(), userTimezone);
     const { data: weekWorkouts } = await supabase
       .from('planned_workouts')
       .select(`
@@ -307,14 +325,16 @@ export async function assembleCheckInContext(supabase, userId, activityId) {
         target_tss, actual_tss, completed, activity_id
       `)
       .eq('plan_id', plan.id)
-      .eq('week_number', plan.current_week || 1);
+      .gte('scheduled_date', weekStartStr)
+      .lt('scheduled_date', weekEndStr);
 
     weekScheduleRaw = weekWorkouts || [];
   }
 
-  // Derive phase
+  // Derive phase — blocks-first for arc plans, week-ratio heuristic as fallback.
   const phase = plan
-    ? derivePhase(plan.current_week, plan.duration_weeks, plan.methodology)
+    ? (derivePhaseFromBlocks(plan.blocks, todayLocalStr)
+        || derivePhase(computedWeek, plan.duration_weeks, plan.methodology))
     : { blockName: 'General Training', blockPurpose: 'Build overall fitness and consistency.' };
 
   // Calculate deviation — canonical target_rss first, legacy fallback
@@ -434,7 +454,7 @@ export async function assembleCheckInContext(supabase, userId, activityId) {
 
     block_name: phase.blockName,
     block_purpose: phase.blockPurpose,
-    current_week: plan?.current_week || 0,
+    current_week: computedWeek || 0,
     total_weeks: plan?.duration_weeks || 0,
 
     ctl: fitness?.ctl || null,
