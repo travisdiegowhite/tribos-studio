@@ -6,24 +6,22 @@
  * body swallows the event so clicking it flips instead.
  */
 
-import { useCallback, useMemo, useRef } from 'react';
+import { useCallback, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { Box, Group, Text } from '@mantine/core';
 import { useNavigate } from 'react-router-dom';
-import { buildChart, selectionGeometry, svgXToIndex, SPINE_VIEW, type DayGeom } from './spineGeometry';
+import {
+  BASELINE_Y,
+  buildChart,
+  selectionGeometry,
+  svgXToIndex,
+  xScale,
+  SPINE_VIEW,
+  type DayGeom,
+} from './spineGeometry';
 import { FitnessNode } from './FitnessNode';
 import type { NodeVM } from './nodeView';
 import { C, CHART, FONT, GRIDLINE_XS } from './tokens';
 import type { SpineData } from './types';
-
-const BASELINE_Y = 188;
-
-// Min height of the scrub container while the node floats on it. The node is a
-// fixed-height card (FitnessNode: top 52 + ~244px front face / ~264px flipped,
-// readiness popover bottom ~312px from container top) while the SVG's rendered
-// height scales with width, so without a floor the node bleeds out of the panel
-// and over the cards below. 280 + the ~42px of caption/padding under the
-// container keeps every face inside the panel border.
-const NODE_CLEARANCE = 280;
 
 interface SpinePanelProps {
   data: SpineData;
@@ -82,6 +80,22 @@ export function SpinePanel({
   const futureDays = days.length - todayIndex - 1;
   const futureWeeks = Math.max(1, Math.round(futureDays / 7));
 
+  // When the node floats (desktop) the chart renders at a FIXED pixel height
+  // with the viewBox width matched 1:1 to the measured container width — the
+  // x anchors scale to the real width while height stays SPINE_VIEW.h, so the
+  // fixed-size node always fits and nothing (text, dots, strokes) distorts.
+  // On mobile (no node) the SVG keeps its natural width-proportional scaling.
+  const [measuredW, setMeasuredW] = useState<number | null>(null);
+  useLayoutEffect(() => {
+    const el = spineRef.current;
+    if (!el || typeof ResizeObserver === 'undefined') return;
+    const ro = new ResizeObserver((entries) => setMeasuredW(entries[0].contentRect.width));
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+  const vbW = showNode && measuredW ? measuredW : SPINE_VIEW.w;
+  const k = xScale(vbW);
+
   const chart = useMemo(() => {
     const geom: DayGeom[] = days.map((d) => ({
       index: d.index,
@@ -96,11 +110,12 @@ export function SpinePanel({
       todayIndex,
       event ? { date: event.date } : null,
       days.map((d) => d.date),
+      vbW,
     );
-  }, [days, todayIndex, event]);
+  }, [days, todayIndex, event, vbW]);
 
   const selDay = days[selectedIndex] ?? days[todayIndex];
-  const sel = selectionGeometry(selectedIndex, selDay, todayIndex, chart.scale, futureDays);
+  const sel = selectionGeometry(selectedIndex, selDay, todayIndex, chart.scale, futureDays, vbW);
   const lastIndex = days.length - 1;
 
   const scrub = useCallback(
@@ -108,10 +123,10 @@ export function SpinePanel({
       const el = spineRef.current;
       if (!el) return;
       const r = el.getBoundingClientRect();
-      const svgX = ((clientX - r.left) / r.width) * SPINE_VIEW.w;
-      onSelect(svgXToIndex(svgX, todayIndex, futureDays));
+      const svgX = ((clientX - r.left) / r.width) * vbW;
+      onSelect(svgXToIndex(svgX, todayIndex, futureDays, vbW));
     },
-    [onSelect, todayIndex, futureDays],
+    [onSelect, todayIndex, futureDays, vbW],
   );
 
   const onScrubDown = useCallback(
@@ -191,14 +206,14 @@ export function SpinePanel({
           aria-valuemax={lastIndex}
           aria-valuenow={selectedIndex}
           aria-valuetext={selDay.dateLabel}
-          style={{
-            position: 'relative',
-            cursor: interactive ? 'ew-resize' : 'default',
-            touchAction: 'none',
-            minHeight: showNode ? NODE_CLEARANCE : undefined,
-          }}
+          style={{ position: 'relative', cursor: interactive ? 'ew-resize' : 'default', touchAction: 'none' }}
         >
-          <svg viewBox={`0 0 ${SPINE_VIEW.w} ${SPINE_VIEW.h}`} width="100%" style={{ display: 'block' }} preserveAspectRatio="none">
+          <svg
+            viewBox={`0 0 ${vbW} ${SPINE_VIEW.h}`}
+            width="100%"
+            style={{ display: 'block', height: showNode ? SPINE_VIEW.h : undefined }}
+            preserveAspectRatio="none"
+          >
             <defs>
               <linearGradient id="spine-ctlfill" x1="0" y1="0" x2="0" y2="1">
                 <stop offset="0" stopColor="#141410" stopOpacity=".07" />
@@ -209,13 +224,13 @@ export function SpinePanel({
             {/* gridlines + baseline */}
             <g stroke={CHART.gridline} strokeWidth="1">
               {GRIDLINE_XS.map((x) => (
-                <line key={x} x1={x} y1="14" x2={x} y2={BASELINE_Y} />
+                <line key={x} x1={x * k} y1="19" x2={x * k} y2={BASELINE_Y} />
               ))}
             </g>
-            <line x1="24" y1={BASELINE_Y} x2="1120" y2={BASELINE_Y} stroke={CHART.baseline} strokeWidth="1.5" />
+            <line x1={24 * k} y1={BASELINE_Y} x2={vbW - 24 * k} y2={BASELINE_Y} stroke={CHART.baseline} strokeWidth="1.5" />
 
             {/* selected week band */}
-            <rect x={sel.bandX} y="14" width="14" height="174" fill="rgba(42,140,130,.09)" />
+            <rect x={sel.bandX} y="19" width="14" height={BASELINE_Y - 19} fill="rgba(42,140,130,.09)" />
 
             {/* TSS bars */}
             {chart.bars.map((b, i) => (
@@ -250,9 +265,9 @@ export function SpinePanel({
             {/* peak marker */}
             {chart.peak && (
               <>
-                <line x1={chart.peak.x} y1="20" x2={chart.peak.x} y2={BASELINE_Y} stroke={C.gold} strokeWidth="1.2" strokeDasharray="3 3" />
+                <line x1={chart.peak.x} y1="27" x2={chart.peak.x} y2={BASELINE_Y} stroke={C.gold} strokeWidth="1.2" strokeDasharray="3 3" />
                 <circle cx={chart.peak.x} cy={chart.peak.y} r="4.5" fill={C.gold} />
-                <text x={chart.peak.labelX} y="30" style={{ fontFamily: FONT.mono, fontWeight: 500, fontSize: 9, fill: C.gold, letterSpacing: '1px' }}>
+                <text x={chart.peak.labelX} y="37" style={{ fontFamily: FONT.mono, fontWeight: 500, fontSize: 9, fill: C.gold, letterSpacing: '1px' }}>
                   PEAK
                 </text>
               </>
@@ -261,11 +276,11 @@ export function SpinePanel({
             {/* event flag */}
             {chart.event && event && (
               <>
-                <line x1={chart.event.x} y1="20" x2={chart.event.x} y2={BASELINE_Y} stroke={C.coral} strokeWidth="1.2" />
-                <path d={`M${chart.event.x - 34},20 h34 v13 h-34 z`} fill={C.coral} />
+                <line x1={chart.event.x} y1="27" x2={chart.event.x} y2={BASELINE_Y} stroke={C.coral} strokeWidth="1.2" />
+                <path d={`M${chart.event.x - 34},27 h34 v13 h-34 z`} fill={C.coral} />
                 <text
                   x={chart.event.x - 31}
-                  y="30"
+                  y="37"
                   style={{ fontFamily: FONT.mono, fontWeight: 500, fontSize: 8, fill: '#fff', letterSpacing: '.5px' }}
                 >
                   {eventShortLabel(event.name)}
@@ -274,7 +289,7 @@ export function SpinePanel({
                 {chart.event.beyond && (
                   <text
                     x={chart.event.x - 3}
-                    y="44"
+                    y="51"
                     textAnchor="end"
                     style={{ fontFamily: FONT.mono, fontWeight: 500, fontSize: 8, fill: C.coral, letterSpacing: '.5px' }}
                   >
@@ -293,10 +308,10 @@ export function SpinePanel({
                 role="link"
                 aria-label="Set a goal event"
               >
-                <rect x="1004" y="20" width="76" height="14" fill="none" stroke={C.coral} strokeWidth="1" strokeDasharray="3 2" opacity=".65" />
+                <rect x={1004 * k} y="27" width="76" height="14" fill="none" stroke={C.coral} strokeWidth="1" strokeDasharray="3 2" opacity=".65" />
                 <text
-                  x="1042"
-                  y="30"
+                  x={1004 * k + 38}
+                  y="37"
                   textAnchor="middle"
                   style={{ fontFamily: FONT.mono, fontWeight: 500, fontSize: 8, fill: C.coral, letterSpacing: '.5px', opacity: 0.85 }}
                 >
@@ -309,11 +324,11 @@ export function SpinePanel({
             {sel.barShow && <rect x={sel.barX} y={sel.barY} width="8" height={sel.barH} fill={C.teal} opacity=".55" />}
 
             {/* selected marker line */}
-            <line x1={sel.selX} y1="28" x2={sel.selX} y2={BASELINE_Y} stroke={C.teal} strokeWidth="1.6" strokeDasharray="4 3" />
+            <line x1={sel.selX} y1="37" x2={sel.selX} y2={BASELINE_Y} stroke={C.teal} strokeWidth="1.6" strokeDasharray="4 3" />
 
             {/* date flag */}
-            <rect x={sel.labelX} y="10" width="88" height="17" fill={C.teal} />
-            <text x={sel.labelTX} y="22" textAnchor="middle" style={{ fontFamily: FONT.mono, fontWeight: 500, fontSize: 9, fill: '#fff', letterSpacing: '1px' }}>
+            <rect x={sel.labelX} y="13" width="88" height="17" fill={C.teal} />
+            <text x={sel.labelTX} y="25" textAnchor="middle" style={{ fontFamily: FONT.mono, fontWeight: 500, fontSize: 9, fill: '#fff', letterSpacing: '1px' }}>
               {selDay.dateLabel}
             </text>
 
@@ -321,13 +336,13 @@ export function SpinePanel({
             <circle cx={sel.selX} cy={sel.selY} r="5.5" fill={C.teal} stroke="#fff" strokeWidth="2" />
 
             {/* axis labels */}
-            <text x="40" y="208" style={{ fontFamily: FONT.mono, fontWeight: 500, fontSize: 9, fill: CHART.axisMuted, letterSpacing: '1px' }}>
+            <text x={40 * k} y="277" style={{ fontFamily: FONT.mono, fontWeight: 500, fontSize: 9, fill: CHART.axisMuted, letterSpacing: '1px' }}>
               6 WK AGO
             </text>
-            <text x="380" y="208" style={{ fontFamily: FONT.mono, fontWeight: 500, fontSize: 9, fill: CHART.axisMuted, letterSpacing: '1px' }}>
+            <text x={380 * k} y="277" style={{ fontFamily: FONT.mono, fontWeight: 500, fontSize: 9, fill: CHART.axisMuted, letterSpacing: '1px' }}>
               PAST
             </text>
-            <text x="880" y="208" style={{ fontFamily: FONT.mono, fontWeight: 500, fontSize: 9, fill: CHART.axisFuture, letterSpacing: '1px' }}>
+            <text x={880 * k} y="277" style={{ fontFamily: FONT.mono, fontWeight: 500, fontSize: 9, fill: CHART.axisFuture, letterSpacing: '1px' }}>
               NEXT {futureWeeks} WEEKS · PLANNED
             </text>
           </svg>

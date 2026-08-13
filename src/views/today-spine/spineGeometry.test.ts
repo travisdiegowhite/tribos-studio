@@ -26,14 +26,23 @@ describe('spineGeometry x mapping', () => {
     expect(xFuture(21, 21)).toBeCloseTo(1090, 5);
     expect(xFuture(1, 21)).toBeGreaterThan(700);
   });
+
+  it('scales the anchors proportionally for an explicit render width', () => {
+    expect(xPast(0, 42, SPINE_VIEW.w / 2)).toBeCloseTo(20, 5);
+    expect(xPast(42, 42, SPINE_VIEW.w / 2)).toBeCloseTo(350, 5);
+    expect(xFuture(21, 21, SPINE_VIEW.w / 2)).toBeCloseTo(545, 5);
+    // The inverse honors the same width.
+    expect(svgXToIndex(350, 42, 21, SPINE_VIEW.w / 2)).toBe(42);
+    expect(svgXToIndex(20, 42, 21, SPINE_VIEW.w / 2)).toBe(0);
+  });
 });
 
 describe('buildYScale', () => {
   it('maps higher fitness to a smaller y and clamps into the frame', () => {
     const s = buildYScale([40, 50, 66]);
     expect(s.yOf(66)).toBeLessThan(s.yOf(40)); // higher on screen
-    expect(s.yOf(s.domainMax)).toBeGreaterThanOrEqual(24);
-    expect(s.yOf(s.domainMin)).toBeLessThanOrEqual(178);
+    expect(s.yOf(s.domainMax)).toBeGreaterThanOrEqual(32);
+    expect(s.yOf(s.domainMin)).toBeLessThanOrEqual(237);
   });
 
   it('pads the domain around the observed range', () => {
