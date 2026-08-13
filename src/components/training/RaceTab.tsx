@@ -261,8 +261,7 @@ export default function RaceTab({
           .limit(50);
 
         if (error) {
-          // race_goal_id column may not exist yet if migration hasn't run
-          console.log('Race chat history query failed (migration may be pending):', error.message);
+          console.error('Failed to load race chat history:', error.message);
           setMessages([]);
           return;
         }
@@ -440,7 +439,8 @@ export default function RaceTab({
       const data = await res.json();
       const coachResponse = data.message || '';
 
-      // Persist messages — try with race_goal_id, fall back without if column doesn't exist
+      // Persist messages. coach_type must be 'strategist' or 'pulse' (DB CHECK
+      // constraint); the race/training provenance goes in context_snapshot.
       const timestamp = new Date().toISOString();
       const userMsg = {
         user_id: user.id,
@@ -448,7 +448,8 @@ export default function RaceTab({
         message: msg,
         message_type: 'chat',
         race_goal_id: selectedRaceId,
-        coach_type: 'training',
+        coach_type: 'strategist',
+        context_snapshot: { coach_type: 'training', surface: 'race_tab' },
         timestamp,
       };
       const coachMsg = {
@@ -457,7 +458,8 @@ export default function RaceTab({
         message: coachResponse,
         message_type: 'chat',
         race_goal_id: selectedRaceId,
-        coach_type: 'training',
+        coach_type: 'strategist',
+        context_snapshot: { coach_type: 'training', surface: 'race_tab' },
         timestamp: new Date(Date.now() + 1).toISOString(),
       };
 
@@ -466,14 +468,10 @@ export default function RaceTab({
         supabase.from('coach_conversations').insert(coachMsg),
       ]);
 
-      // If inserts failed (race_goal_id column missing), retry without it
-      if (results[0].error || results[1].error) {
-        const { race_goal_id: _u, ...userMsgFallback } = userMsg;
-        const { race_goal_id: _c, ...coachMsgFallback } = coachMsg;
-        await Promise.all([
-          supabase.from('coach_conversations').insert(userMsgFallback),
-          supabase.from('coach_conversations').insert(coachMsgFallback),
-        ]);
+      for (const { error } of results) {
+        if (error) {
+          console.error('Failed to persist race chat message:', error);
+        }
       }
 
       setMessages((prev) => [
