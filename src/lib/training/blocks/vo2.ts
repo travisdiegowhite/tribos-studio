@@ -7,6 +7,7 @@
 
 import type { BlockDefinition, GeneratedSession } from './types';
 import { afiTfiRatio, enumerateDates, latestSnapshot } from './types';
+import { longRideTargetMin, volumeScale, z2RssForDuration } from './raceDemand';
 
 const HARD_MIN_DAYS = 9;
 const HARD_MAX_DAYS = 21;
@@ -54,13 +55,21 @@ export const vo2: BlockDefinition = {
     const spacingHours = ctx.coefficients.hit_spacing_hours;
     // 36h spacing → can stack quality every other day; 48h → every 3rd day
     const stackEveryOther = spacingHours === 36;
+    const raceDemand = ctx?.race_demand ?? null;
+    const fillScale = volumeScale(raceDemand);
+    // Long races can't afford a fortnight without a long ride: when the goal
+    // duration is 4h+, weeks 1 and 3+ of the vo2 block (which historically
+    // had NO long ride) get a weekend Z2 long ride. HIT placement wins ties.
+    const needsWeeklyLongRide = !!raceDemand && raceDemand.goal_duration_min >= 240;
+    const isHitDayAt = (i: number) => (stackEveryOther ? i % 2 === 1 : i % 3 === 1);
+    const week0LongRideIdx = needsWeeklyLongRide ? (isHitDayAt(5) ? 6 : 5) : -1;
 
     return dates.map((date, idx): GeneratedSession => {
       const weekIdx = Math.floor(idx / 7);
 
       // Week 1: dense HIT (4–5 sessions)
       if (weekIdx === 0) {
-        const isHitDay = stackEveryOther ? idx % 2 === 1 : idx % 3 === 1;
+        const isHitDay = isHitDayAt(idx);
         if (isHitDay) {
           // Rotate session menu
           const sessionPick = idx % 3;
@@ -105,6 +114,18 @@ export const vo2: BlockDefinition = {
             prescribed_intervals: intervals,
             long_ride_flag: false,
             notes: `VO2 quality (week 1, dense block).`,
+          };
+        }
+        if (idx === week0LongRideIdx) {
+          const longMin = longRideTargetMin(raceDemand, date, 150);
+          return {
+            date,
+            session_type: 'z2',
+            target_rss: z2RssForDuration(longMin),
+            target_duration_min: longMin,
+            prescribed_intervals: null,
+            long_ride_flag: true,
+            notes: 'Long Z2 — endurance maintained through the VO2 block.',
           };
         }
         // Z1 day between quality
@@ -154,21 +175,26 @@ export const vo2: BlockDefinition = {
           };
         }
         if (dow === 5) {
+          // Absorption week keeps the historical -15% discount off the ramp.
+          const longMin = raceDemand
+            ? Math.round(longRideTargetMin(raceDemand, date, 150) * 0.85)
+            : 150;
           return {
             date,
             session_type: 'z2',
-            target_rss: 95,
-            target_duration_min: 150,
+            target_rss: raceDemand ? z2RssForDuration(longMin) : 95,
+            target_duration_min: longMin,
             prescribed_intervals: null,
             long_ride_flag: true,
             notes: 'Long Z2 — slightly reduced (-15%) vs threshold block.',
           };
         }
+        const absorbMin = raceDemand ? Math.round(70 * fillScale) : 70;
         return {
           date,
           session_type: 'z2',
-          target_rss: 55,
-          target_duration_min: 70,
+          target_rss: raceDemand ? Math.round(55 * (absorbMin / 70)) : 55,
+          target_duration_min: absorbMin,
           prescribed_intervals: null,
           long_ride_flag: false,
           notes: 'Z2 absorption.',
@@ -197,11 +223,24 @@ export const vo2: BlockDefinition = {
           notes: 'Final VO2 quality before race-specific block.',
         };
       }
+      if (needsWeeklyLongRide && dow3 === 5) {
+        const longMin = longRideTargetMin(raceDemand, date, 150);
+        return {
+          date,
+          session_type: 'z2',
+          target_rss: z2RssForDuration(longMin),
+          target_duration_min: longMin,
+          prescribed_intervals: null,
+          long_ride_flag: true,
+          notes: 'Long Z2 — endurance maintained through the VO2 block.',
+        };
+      }
+      const transMin = raceDemand ? Math.round(60 * fillScale) : 60;
       return {
         date,
         session_type: 'z2',
-        target_rss: 50,
-        target_duration_min: 60,
+        target_rss: raceDemand ? Math.round(50 * (transMin / 60)) : 50,
+        target_duration_min: transMin,
         prescribed_intervals: null,
         long_ride_flag: false,
         notes: 'Z2 transition into race-specific.',

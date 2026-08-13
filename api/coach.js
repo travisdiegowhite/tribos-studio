@@ -11,6 +11,7 @@ import { handleFitnessHistoryQuery } from './utils/fitnessHistoryTool.js';
 import { handleTrainingDataQuery } from './utils/trainingDataTool.js';
 import { generateTrainingPlan, getWorkoutMeta } from './utils/planGenerator.js';
 import { buildArc, generateArcWorkouts, applyAvailabilityToArcWorkouts, buildArcExplanation, assembleHybridArcMessage } from './utils/arcBuilder.js';
+import { buildRaceDemand } from './utils/raceDemand.js';
 import { setupCors } from './utils/cors.js';
 import { generateFuelPlan } from './utils/fuelPlanGenerator.js';
 import { fetchCalendarContext } from './utils/calendarHelper.js';
@@ -399,7 +400,9 @@ async function fetchUpcomingRaces(supabase, userId) {
   const today = new Date().toISOString().slice(0, 10);
   const { data } = await supabase
     .from('race_goals')
-    .select('id, name, race_date, priority, status')
+    // Demand columns (race_type/distance/elevation/goal time) feed
+    // buildRaceDemand so the arc's endurance volume scales to the race.
+    .select('id, name, race_date, priority, status, race_type, distance_km, elevation_gain_m, goal_time_minutes')
     .eq('user_id', userId)
     .eq('status', 'upcoming')
     .gte('race_date', today)
@@ -2153,10 +2156,22 @@ ${conversationSummary}
             // ── LIVING ARC PATH (race-targeted, block-periodized) ──────────────
             const tier = targetRace?.priority || 'A';
             const arc = buildArc({ today, raceDate: targetDate, tier, recoveryMode: userRecoveryMode });
+            // Race demand scales the arc's endurance volume (long-ride
+            // progression toward the race's expected duration). Null when the
+            // race has no distance/goal-time data → hardcoded defaults.
+            // NOTE: this ctx must stay byte-identical with api/arc-refill.js's
+            // genCtx, or the next dashboard refill reverts the content.
+            const raceDemand = targetRace ? buildRaceDemand({ ...targetRace, tier }) : null;
             const arcWorkouts = generateArcWorkouts(arc.blocks, {
               ctx: {
                 coefficients: undefined, // generateArcWorkouts seeds nothing fatigue-related (B1)
-                upcoming_events: [{ tier, date: targetDate }],
+                upcoming_events: [{
+                  tier,
+                  date: targetDate,
+                  name: targetRace?.name || null,
+                  race_type: targetRace?.race_type || null,
+                }],
+                race_demand: raceDemand,
               },
               arcStart: today,
             });

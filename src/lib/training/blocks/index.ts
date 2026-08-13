@@ -38,3 +38,12 @@ export type {
 } from './types';
 
 export { MASTERS_FACTOR_DEFAULTS, sessionTypeLabel } from './types';
+
+export type { RaceDemand, RaceDemandInput } from './raceDemand';
+export {
+  buildRaceDemand,
+  estimateGoalDurationMin,
+  longRideTargetMin,
+  volumeScale,
+  z2RssForDuration,
+} from './raceDemand';

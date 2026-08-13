@@ -53,7 +53,8 @@ function daysBetween(startStr, endStr) {
 
 // Per-block: a display label and the one-line "why" the coach uses to explain the
 // arc. Keyed by block_type from buildEventAnchoredSequence.
-const BLOCK_INFO = {
+// Exported so contextHelpers.derivePhaseFromBlocks can reuse the same labels.
+export const BLOCK_INFO = {
   reactivation: { label: 'Reactivation', why: 'ease back into structure and rebuild the habit after time off the bike' },
   maintenance: { label: 'Maintenance', why: 'hold your aerobic base while the race is still far out' },
   recovery: { label: 'Recovery', why: 'absorb the work and let your body adapt' },

@@ -6,6 +6,7 @@
 
 import type { BlockDefinition, GeneratedSession } from './types';
 import { afiTfiRatio, enumerateDates, latestSnapshot } from './types';
+import { longRideTargetMin, volumeScale, z2RssForDuration } from './raceDemand';
 
 const HARD_MIN_DAYS = 14;
 const HARD_MAX_DAYS = 28;
@@ -63,6 +64,8 @@ export const threshold: BlockDefinition = {
     const dates = enumerateDates(start, end);
     const totalDays = dates.length;
     const spacing = ctx.coefficients.hit_spacing_hours; // 36 or 48 hours
+    const raceDemand = ctx?.race_demand ?? null;
+    const fillScale = volumeScale(raceDemand);
 
     return dates.map((date, idx): GeneratedSession => {
       const dow = idx % 7;
@@ -180,25 +183,29 @@ export const threshold: BlockDefinition = {
         };
       }
 
-      // Long ride (Saturday, maintained not progressed)
+      // Long ride (Saturday) — race-demand ramp when present, else maintained
       if (dow === 5) {
+        const longMin = longRideTargetMin(raceDemand, date, 165);
         return {
           date,
           session_type: 'z2',
-          target_rss: 100,
-          target_duration_min: 165,
+          target_rss: raceDemand ? z2RssForDuration(longMin) : 100,
+          target_duration_min: longMin,
           prescribed_intervals: null,
           long_ride_flag: true,
-          notes: 'Long Z2 ride — maintained, not progressed.',
+          notes: raceDemand
+            ? 'Long Z2 ride — progressing toward race duration.'
+            : 'Long Z2 ride — maintained, not progressed.',
         };
       }
 
-      // Z1/Z2 fill day
+      // Z1/Z2 fill day (scaled up to +40% for long races)
+      const fillMin = raceDemand ? Math.round(60 * fillScale) : 60;
       return {
         date,
         session_type: 'z2',
-        target_rss: 50,
-        target_duration_min: 60,
+        target_rss: raceDemand ? Math.round(50 * (fillMin / 60)) : 50,
+        target_duration_min: fillMin,
         prescribed_intervals: null,
         long_ride_flag: false,
         notes: 'Z2 fill (65–75% FTP).',
