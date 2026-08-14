@@ -210,7 +210,7 @@ export default function TodaySpine() {
           <PageHeader data={data} />
           <GetStartedGuide />
           <SpineEmptyState />
-          <CoachPanel data={data} />
+          <CoachPanel data={data} onScheduleChanged={retry} />
         </Stack>
       );
     }
@@ -241,7 +241,9 @@ export default function TodaySpine() {
     const bottomRow = (
       <Box style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1.32fr 1fr', gap: 20, alignItems: 'stretch' }}>
         <RidesMap rides={data.recentRides} weekRollup={data.weekRollup} units={units} />
-        <CoachPanel data={data} />
+        {/* A successful coach schedule adjustment refetches the spine so the
+            projected bars reflect the new calendar without a reload. */}
+        <CoachPanel data={data} onScheduleChanged={retry} />
       </Box>
     );
 
