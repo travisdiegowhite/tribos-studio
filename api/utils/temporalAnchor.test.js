@@ -106,6 +106,23 @@ describe('buildTemporalAnchor', () => {
       const block = buildTemporalAnchor('America/Denver', [], [], now);
       expect(block).toContain('Do not compute new dates.');
     });
+
+    it('labels every day of the 14-day window, marking free days', () => {
+      // Gap days must be nameable: the coach can't reason "Saturday is free
+      // before Sunday's race" about a day it is forbidden from mentioning.
+      const now = makeDate('2026-04-22T13:00:00Z'); // Wednesday Denver
+      const session = makeWorkout('sat0-aaaa-bbbb-cccc', '2026-04-25'); // Sat only
+      const block = buildTemporalAnchor('America/Denver', [session], [], now);
+      const anchor = parseAnchor(block);
+
+      // 14 labeled days even though only one has a session.
+      expect(Object.keys(anchor)).toHaveLength(14);
+      // Empty days carry an explicit marker; the session day does not.
+      const lineFor = (label) =>
+        block.split('\n').find((l) => l.trim().startsWith(label)) || '';
+      expect(lineFor('this_fri')).toContain('(nothing planned)');
+      expect(lineFor('this_sat')).not.toContain('(nothing planned)');
+    });
   });
 
   describe('session rendering', () => {

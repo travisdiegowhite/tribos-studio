@@ -581,6 +581,23 @@ describe('resolveScheduledDate — athlete-timezone weekdays', () => {
     // In UTC the same instant IS Saturday, so this_saturday is today.
     expect(resolveScheduledDate('this_saturday', 'UTC', FRI_NIGHT_DENVER)).toBe('2026-08-01');
   });
+
+  it('accepts the SHORT day labels the CALENDAR_ANCHOR block teaches (this_sat, next_sun)', () => {
+    // The temporal anchor emits this_sat / next_sun style labels and instructs
+    // the model to use only those — they must resolve identically to the full
+    // names, or the raw label reaches Postgres as a non-date string (the bug
+    // behind `invalid input syntax for type date: "this_sat"`).
+    expect(resolveScheduledDate('this_sat', 'America/Denver', FRI_NIGHT_DENVER)).toBe('2026-07-25');
+    expect(resolveScheduledDate('next_sat', 'America/Denver', FRI_NIGHT_DENVER)).toBe('2026-08-01');
+    expect(resolveScheduledDate('this_sun', 'America/Denver', FRI_NIGHT_DENVER)).toBe('2026-07-26');
+    expect(resolveScheduledDate('this_tue', 'America/Denver', FRI_NIGHT_DENVER)).toBe(
+      resolveScheduledDate('this_tuesday', 'America/Denver', FRI_NIGHT_DENVER)
+    );
+  });
+
+  it('returns unrecognized strings verbatim (handlers reject them before Postgres)', () => {
+    expect(resolveScheduledDate('the_weekend', 'America/Denver', FRI_NIGHT_DENVER)).toBe('the_weekend');
+  });
 });
 
 describe('handleScheduleAdjustment — honest, user-scoped writes', () => {
@@ -617,6 +634,26 @@ describe('handleScheduleAdjustment — honest, user-scoped writes', () => {
     expect(fetchFilters.some(([m, col]) => m === 'eq' && col === 'plan_id')).toBe(false);
     // Null-safe completed filter.
     expect(fetchFilters).toContainEqual(['or', 'completed.eq.false,completed.is.null']);
+  });
+
+  it('fails an adjustment with an actionable error when a date does not resolve, without touching the DB', async () => {
+    const rec = recordingPlannedWorkouts([
+      { id: 'w1', workout_id: 'endurance_base_1', original_workout_id: null },
+    ]);
+    fromOverride = (table) => (table === 'planned_workouts' ? rec.make() : chain());
+
+    const result = await handleScheduleAdjustment(
+      'user-1',
+      { adjustments: [{ action: 'swap', source_date: 'tomorrow', target_date: 'the_weekend' }], summary: 's' },
+      null,
+      'UTC'
+    );
+
+    expect(result.success).toBe(false);
+    expect(result.failed).toBe(1);
+    expect(result.adjustments[0].error).toMatch(/Unrecognized date "the_weekend"/);
+    // The garbage string must never reach a Postgres date filter.
+    expect(rec.calls).toHaveLength(0);
   });
 
   it('reports failure honestly when no workout exists on the date', async () => {

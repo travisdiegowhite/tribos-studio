@@ -168,38 +168,30 @@ export function buildTemporalAnchor(timezone, plannedWorkouts = [], raceGoals = 
     hour12: false,
   }).format(now);
 
-  // Build a set of dates that need labels: today, tomorrow, +days with sessions or goals
-  const goalDateSet = new Set((raceGoals || []).map(g => g.race_date).filter(Boolean));
   const sessionDateSet = new Set(
     (plannedWorkouts || []).map(w => w.scheduled_date).filter(Boolean)
   );
 
-  // Collect all offsets 0..13; we always include today(0) and tomorrow(1)
-  const relevantOffsets = new Set([0, 1]);
-  for (let i = 2; i <= 13; i++) {
-    const dateStr = localDateOffset(todayNoon, i, safeTz);
-    if (goalDateSet.has(dateStr) || sessionDateSet.has(dateStr)) {
-      relevantOffsets.add(i);
-    }
-  }
-
-  // Build the CALENDAR_ANCHOR entries and a dateStr→label lookup
+  // Every day in the 14-day window gets a label — including days with nothing
+  // planned. A gap day the model cannot name is a gap day it cannot reason
+  // about ("you'd have Saturday free before Sunday's race"), and the
+  // CONSTRAINT below forbids naming unlabeled days.
   const usedLabels = new Set();
   const dateToLabel = new Map(); // dateStr → anchor label
   const anchorLines = [];
 
-  for (const offset of [...relevantOffsets].sort((a, b) => a - b)) {
+  for (let offset = 0; offset <= 13; offset++) {
     const dateStr = offset === 0 ? todayStr : localDateOffset(todayNoon, offset, safeTz);
     const label = anchorLabel(offset, todayDow, usedLabels, dateStr);
     usedLabels.add(label);
     dateToLabel.set(dateStr, label);
 
     const goal = (raceGoals || []).find(g => g.race_date === dateStr);
-    const goalSuffix = goal
+    const suffix = goal
       ? `  (goal_event: ${goal.name.toLowerCase().replace(/\s+/g, '_')})`
-      : '';
+      : sessionDateSet.has(dateStr) ? '' : '  (nothing planned)';
 
-    anchorLines.push(`  ${label.padEnd(12)} → ${prettyDate(dateStr, safeTz)}${goalSuffix}`);
+    anchorLines.push(`  ${label.padEnd(12)} → ${prettyDate(dateStr, safeTz)}${suffix}`);
   }
 
   // DAYS_UNTIL for race goals within 90 days, plus the anchor race (soonest
@@ -353,7 +345,9 @@ export async function fetchTemporalAnchorData(userId, supabase, timezone) {
       .from('planned_workouts')
       .select('id, scheduled_date, workout_type, name, target_duration, target_rss')
       .eq('user_id', userId)
-      .eq('completed', false)
+      // `completed` is nullable — a bare .eq('completed', false) silently
+      // skips rows inserted with NULL (same fix as coach.js notCompleted).
+      .or('completed.eq.false,completed.is.null')
       .gte('scheduled_date', todayStr)
       .lte('scheduled_date', cutoffStr)
       .order('scheduled_date', { ascending: true }),

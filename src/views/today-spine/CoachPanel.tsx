@@ -27,6 +27,8 @@ interface ChatMessage {
 
 interface CoachPanelProps {
   data: SpineData;
+  /** Called after the coach reports a schedule adjustment so the spine can refetch. */
+  onScheduleChanged?: () => void;
 }
 
 const QUICK_CHIPS: Array<{ label: string; query: string }> = [
@@ -56,7 +58,7 @@ function buildContext(data: SpineData): string {
   return parts.join(' ');
 }
 
-export function CoachPanel({ data }: CoachPanelProps) {
+export function CoachPanel({ data, onScheduleChanged }: CoachPanelProps) {
   const { user } = useAuth() as { user: { id: string } | null };
   const { coach } = data;
 
@@ -243,12 +245,18 @@ export function CoachPanel({ data }: CoachPanelProps) {
           throw new Error(err.error || `HTTP ${res.status}`);
         }
         const json = await res.json();
+        // The server guarantees a non-empty message, but never render or
+        // persist a blank coach bubble if one slips through.
+        const coachText: string = json.message || 'Sorry — I didn’t finish that response. Mind asking again?';
         setMessages((prev) => [
           ...prev,
-          { id: nextId(), role: 'coach', content: json.message, timestamp: new Date().toISOString() },
+          { id: nextId(), role: 'coach', content: coachText, timestamp: new Date().toISOString() },
         ]);
         await saveTurn('user', message);
-        await saveTurn('coach', json.message);
+        await saveTurn('coach', coachText);
+        // A schedule adjustment actually wrote to the calendar — refetch the
+        // spine so the bars reflect it without a manual reload.
+        if (json.scheduleAdjusted) onScheduleChanged?.();
       } catch (err) {
         console.error('spine coach send failed', err);
         setMessages((prev) => prev.filter((m) => m.id !== userMsg.id));
@@ -257,7 +265,7 @@ export function CoachPanel({ data }: CoachPanelProps) {
         setTyping(false);
       }
     },
-    [typing, user?.id, consent, messages, data, saveTurn],
+    [typing, user?.id, consent, messages, data, saveTurn, onScheduleChanged],
   );
 
   return (

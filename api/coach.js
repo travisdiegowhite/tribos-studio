@@ -79,7 +79,11 @@ export function resolveScheduledDate(dateStr, timezone = 'UTC', now = new Date()
   const match = dateStr.match(/^(this|next)_(\w+)$/);
   if (match) {
     const [, prefix, dayName] = match;
-    const targetDay = dayNames.indexOf(dayName.toLowerCase());
+    // The CALENDAR_ANCHOR block teaches the model SHORT labels (this_sat,
+    // next_sun), so accept both the full name and its 3-letter form —
+    // a label that falls through here reaches Postgres as a non-date string.
+    const normalized = dayName.toLowerCase();
+    const targetDay = dayNames.findIndex(d => d === normalized || d.slice(0, 3) === normalized);
     if (targetDay >= 0) {
       // The athlete's local weekday, not the server's UTC weekday — for a
       // UTC-7 athlete on Friday evening, UTC is already Saturday and
@@ -101,6 +105,14 @@ export function resolveScheduledDate(dateStr, timezone = 'UTC', now = new Date()
   }
 
   return dateStr;
+}
+
+// A resolved date that still isn't ISO would reach Postgres as a raw string
+// ("invalid input syntax for type date") — fail with something the model can
+// act on in its tool_result instead.
+const ISO_DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
+function unrecognizedDateError(raw) {
+  return `Unrecognized date "${raw}" — use YYYY-MM-DD, today, tomorrow, or a this_saturday / next_saturday style label`;
 }
 
 // Detect the athlete's primary intent from their raw message so we can force the
@@ -339,6 +351,9 @@ async function handleRecommendWorkout(userId, input, planId = null, timezone = '
     }
 
     const scheduledDate = resolveScheduledDate(input.scheduled_date, timezone);
+    if (!ISO_DATE_RE.test(scheduledDate)) {
+      return { success: false, error: unrecognizedDateError(input.scheduled_date) };
+    }
     const dayOfWeek = new Date(scheduledDate + 'T12:00:00').getDay();
 
     const normalizedType = (meta?.category || input.workout_type || '')
@@ -647,10 +662,18 @@ export async function handleScheduleAdjustment(userId, input, targetPlanId = nul
   for (const adj of adjustments) {
     try {
       const sourceDate = resolveScheduledDate(adj.source_date, timezone);
+      if (!ISO_DATE_RE.test(sourceDate)) {
+        results.push({ action: adj.action, date: sourceDate, success: false, workouts_affected: 0, error: unrecognizedDateError(adj.source_date) });
+        continue;
+      }
 
       switch (adj.action) {
         case 'move': {
           const targetDate = resolveScheduledDate(adj.target_date, timezone);
+          if (!ISO_DATE_RE.test(targetDate)) {
+            results.push({ action: 'move', from: sourceDate, to: targetDate, success: false, workouts_affected: 0, error: unrecognizedDateError(adj.target_date) });
+            break;
+          }
 
           // Fetch every involved row (possibly one per plan) and per-plan occupants.
           const { data: involved, error: fetchErr } = await notCompleted(
@@ -735,6 +758,10 @@ export async function handleScheduleAdjustment(userId, input, targetPlanId = nul
         }
         case 'swap': {
           const targetDate = resolveScheduledDate(adj.target_date, timezone);
+          if (!ISO_DATE_RE.test(targetDate)) {
+            results.push({ action: 'swap', dates: [sourceDate, targetDate], success: false, workouts_affected: 0, error: unrecognizedDateError(adj.target_date) });
+            break;
+          }
           // Fetch workouts on both dates (possibly across plans)
           const { data: workouts, error: fetchErr } = await notCompleted(
             scoped(
@@ -1788,7 +1815,7 @@ Answer the athlete's literal question in the first sentence. If it is a yes/no q
 Default: 2–4 sentences. Use bullet lists only when the athlete explicitly asks to compare options or list multiple items. Numbered protocol lists are acceptable for multi-step instructions, but only when the athlete asked for them. If the persona style rules specify a shorter limit, follow those.
 
 === SCHEDULE CONTEXT ===
-The athlete's upcoming planned sessions are already loaded in the SESSIONS block of the TEMPORAL ANCHOR above. You have their full schedule for the next 14 days. Do not ask the athlete what their schedule is — look it up in SESSIONS. If a session is missing from SESSIONS, either nothing is planned on that day or the session was already completed — completion status for this week is in the SERVER TRAINING SNAPSHOT.
+The athlete's upcoming planned sessions are already loaded in the SESSIONS block of the TEMPORAL ANCHOR above. You have their full schedule for the next 14 days: every day appears in CALENDAR_ANCHOR, and days marked "(nothing planned)" are free. Do not ask the athlete what their schedule is — look it up there. When advising around a key day (a race or big ride), reason about EVERY day between now and it, including the free ones — e.g. moving intervals to tomorrow matters differently if the day before the race is free vs loaded. "(nothing planned)" means no scheduled-and-not-yet-completed session on that day; a day can carry the marker because its session was already done — completion status for this week is in the SERVER TRAINING SNAPSHOT.
 
 === TOOL RESULTS ===
 When you use a server-side tool (adjust_schedule, query_fitness_history, query_training_data, save_coach_memory), the result is returned to you internally. Do not narrate the JSON output or describe what the tool returned. Confirm the outcome in one plain sentence (e.g., "Moved Tuesday's Sweet Spot to Wednesday.") and move on. Never say "Looks like X is marked complete" or "It appears the tool shows Y" — just state the outcome directly.
@@ -1962,24 +1989,77 @@ ${conversationSummary}
       console.log(`   - Plan creation input:`, JSON.stringify(planCreationUses[0].input, null, 2));
     }
 
-    // Handle server-side tool calls that require a continuation turn
-    // (fitness history and training data queries need server-side processing)
-    // Memory saves are also processed here so Claude gets confirmation before responding.
-    const serverSideTools = [...fitnessHistoryUses, ...trainingDataUses, ...memoryUses, ...scheduleAdjustUses];
+    // Handle server-side tool calls (fitness/training queries, memory saves,
+    // schedule adjustments) with a bounded continuation loop. One round =
+    // execute the pending server-side tools, hand Claude the tool_results, and
+    // let it respond. The model often follows a failed or partial result with
+    // ANOTHER tool call (e.g. retrying a swap with corrected dates) — the old
+    // single-shot continuation silently dropped those, so the coach would
+    // confirm changes that never executed.
+    const serverSideToolNames = new Set(['query_fitness_history', 'query_training_data', 'save_coach_memory', 'adjust_schedule']);
 
-    // Preserve client-side tool calls (recommend_workout, create_training_plan, generate_fuel_plan)
-    // from the first response — these would be lost when toolUses is overwritten by the continuation.
-    // recommend_workout is persisted server-side AFTER this block (no extra Claude turn), so it
-    // must survive the continuation merge — keep it in this set.
+    // Client-side tool calls (recommend_workout, create_training_plan,
+    // generate_fuel_plan) are processed AFTER this loop, so collect them from
+    // every round — recommend_workout in particular is persisted server-side
+    // below (no extra Claude turn) and must survive the loop.
     const clientSideToolNames = new Set(['recommend_workout', 'create_training_plan', 'generate_fuel_plan']);
-    const firstResponseClientTools = toolUses.filter(tool => clientSideToolNames.has(tool.name));
+    const collectedClientTools = toolUses.filter(tool => clientSideToolNames.has(tool.name));
 
-    if (serverSideTools.length > 0 && verifiedUserId) {
+    const executeServerTool = async (tool) => {
+      let result;
+      if (tool.name === 'query_fitness_history') {
+        console.log(`🤖 Fitness history tool requested. userId: ${verifiedUserId}`);
+        result = await handleFitnessHistoryQuery(verifiedUserId, tool.input);
+      } else if (tool.name === 'query_training_data') {
+        console.log(`📋 Training data query requested. userId: ${verifiedUserId}`);
+        result = await handleTrainingDataQuery(verifiedUserId, tool.input);
+      } else if (tool.name === 'save_coach_memory') {
+        console.log(`🧠 Saving coach memory: [${tool.input.category}] ${tool.input.content}`);
+        // Calculate expiry for short/medium memories
+        let expiresAt = null;
+        if (tool.input.memory_type === 'short') {
+          expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
+        } else if (tool.input.memory_type === 'medium') {
+          expiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
+        }
+        const { error: memError } = await supabase
+          .from('coach_memory')
+          .insert({
+            user_id: verifiedUserId,
+            memory_type: tool.input.memory_type,
+            category: tool.input.category,
+            content: tool.input.content,
+            source_type: 'conversation',
+            expires_at: expiresAt,
+          });
+        if (memError) {
+          console.error('Failed to save coach memory:', memError);
+          result = { success: false, error: 'Failed to save memory' };
+        } else {
+          result = { success: true, saved: tool.input.content };
+        }
+      } else if (tool.name === 'adjust_schedule') {
+        console.log(`📅 Schedule adjustment requested:`, JSON.stringify(tool.input, null, 2));
+        result = await handleScheduleAdjustment(verifiedUserId, tool.input, planId, resolvedTimezone);
+        console.log(`📅 Schedule adjustment result:`, JSON.stringify(result));
+        scheduleAdjustResults.push(result);
+      }
+      return result;
+    };
+
+    const MAX_TOOL_ROUNDS = 3;
+    let convoMessages = messages;
+    let pendingServerTools = toolUses.filter(tool => serverSideToolNames.has(tool.name));
+    let toolRound = 0;
+
+    while (pendingServerTools.length > 0 && verifiedUserId && toolRound < MAX_TOOL_ROUNDS) {
+      toolRound++;
       const toolResults = [];
 
-      // Send acknowledgment tool_results for client-side tools from the first response
-      // so the Claude API doesn't reject the continuation (all tool_use blocks need results).
-      for (const tool of firstResponseClientTools) {
+      // Every tool_use block in the assistant turn needs a tool_result, so
+      // client-side tools in this round get an acknowledgment (they're
+      // actually processed after the loop).
+      for (const tool of response.content.filter(block => block.type === 'tool_use' && clientSideToolNames.has(block.name))) {
         toolResults.push({
           type: 'tool_result',
           tool_use_id: tool.id,
@@ -1987,46 +2067,9 @@ ${conversationSummary}
         });
       }
 
-      for (const tool of serverSideTools) {
+      for (const tool of pendingServerTools) {
         try {
-          let result;
-          if (tool.name === 'query_fitness_history') {
-            console.log(`🤖 Fitness history tool requested. userId: ${verifiedUserId}`);
-            result = await handleFitnessHistoryQuery(verifiedUserId, tool.input);
-          } else if (tool.name === 'query_training_data') {
-            console.log(`📋 Training data query requested. userId: ${verifiedUserId}`);
-            result = await handleTrainingDataQuery(verifiedUserId, tool.input);
-          } else if (tool.name === 'save_coach_memory') {
-            console.log(`🧠 Saving coach memory: [${tool.input.category}] ${tool.input.content}`);
-            // Calculate expiry for short/medium memories
-            let expiresAt = null;
-            if (tool.input.memory_type === 'short') {
-              expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
-            } else if (tool.input.memory_type === 'medium') {
-              expiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
-            }
-            const { error: memError } = await supabase
-              .from('coach_memory')
-              .insert({
-                user_id: verifiedUserId,
-                memory_type: tool.input.memory_type,
-                category: tool.input.category,
-                content: tool.input.content,
-                source_type: 'conversation',
-                expires_at: expiresAt,
-              });
-            if (memError) {
-              console.error('Failed to save coach memory:', memError);
-              result = { success: false, error: 'Failed to save memory' };
-            } else {
-              result = { success: true, saved: tool.input.content };
-            }
-          } else if (tool.name === 'adjust_schedule') {
-            console.log(`📅 Schedule adjustment requested:`, JSON.stringify(tool.input, null, 2));
-            result = await handleScheduleAdjustment(verifiedUserId, tool.input, planId, resolvedTimezone);
-            console.log(`📅 Schedule adjustment result:`, JSON.stringify(result));
-            scheduleAdjustResults.push(result);
-          }
+          const result = await executeServerTool(tool);
           toolResults.push({
             type: 'tool_result',
             tool_use_id: tool.id,
@@ -2046,8 +2089,8 @@ ${conversationSummary}
       }
 
       // Continue conversation with tool results
-      const continueMessages = [
-        ...messages,
+      convoMessages = [
+        ...convoMessages,
         { role: 'assistant', content: response.content },
         { role: 'user', content: toolResults }
       ];
@@ -2057,15 +2100,24 @@ ${conversationSummary}
         max_tokens: Math.min(maxTokens, 4096),
         temperature: 0.7,
         system: systemPrompt,
-        messages: continueMessages,
+        messages: convoMessages,
         tools: ALL_COACH_TOOLS
       });
 
-      // Merge client-side tools from the first response with any new tools from continuation.
-      // Without this, recommend_workout/create_training_plan calls from the first response are lost.
-      const continuationToolUses = response.content.filter(block => block.type === 'tool_use');
-      toolUses = [...firstResponseClientTools, ...continuationToolUses];
+      const roundToolUses = response.content.filter(block => block.type === 'tool_use');
+      collectedClientTools.push(...roundToolUses.filter(tool => clientSideToolNames.has(tool.name)));
+      pendingServerTools = roundToolUses.filter(tool => serverSideToolNames.has(tool.name));
     }
+
+    if (pendingServerTools.length > 0 && toolRound >= MAX_TOOL_ROUNDS) {
+      // Round cap hit with tool calls still pending — they were NOT executed.
+      console.warn(`⚠️ Tool-round cap (${MAX_TOOL_ROUNDS}) reached with unexecuted server-side tool calls: ${pendingServerTools.map(t => t.name).join(', ')}`);
+    }
+
+    // Client-side tools from every round drive the post-loop processing;
+    // unexecuted server-side leftovers are kept only so the empty-response
+    // guard below knows a tool call happened.
+    toolUses = [...collectedClientTools, ...pendingServerTools];
 
     // Persist recommend_workout calls straight to the calendar (no extra Claude turn).
     // This is what makes "I've added that workout" true instead of an empty promise:
@@ -2118,7 +2170,25 @@ ${conversationSummary}
       responseText = "Here's a workout for you — tap Add to put it on your calendar.";
     }
 
-    // Final guard: never return an empty bubble (no text and no tools to explain the silence).
+    // A schedule adjustment ran but the model produced no prose (e.g. it spent
+    // its final turn on a tool call) — synthesize the outcome so the athlete
+    // never gets a blank bubble that hides a success or, worse, a failure.
+    if (!responseText && scheduleAdjustResults.length > 0) {
+      const allOk = scheduleAdjustResults.every(r => r.success);
+      if (allOk) {
+        const lastSummary = scheduleAdjustResults[scheduleAdjustResults.length - 1].summary;
+        responseText = lastSummary ? `Done — ${lastSummary}` : 'Done — your schedule has been updated.';
+      } else {
+        const firstError = scheduleAdjustResults
+          .flatMap(r => r.adjustments || [])
+          .find(a => a.error)?.error;
+        responseText = `I wasn't able to complete that schedule change${firstError ? ` (${firstError})` : ''}. Want me to try again?`;
+      }
+    }
+
+    // Guard: no text and no tools at all — nothing downstream will fill this in.
+    // (The create_training_plan default message is applied later, so the
+    // catch-all empty-bubble guard lives just before the response is sent.)
     if (!responseText && toolUses.length === 0) {
       responseText = "Sorry, I didn't catch that — could you rephrase?";
     }
@@ -2355,6 +2425,13 @@ ${conversationSummary}
       quickMode: quickMode,
       suggestedActionsCount: suggestedActions?.length || 0
     });
+
+    // Catch-all: never return an empty bubble. An empty message reads as a
+    // dead coach and gets persisted to the chat history as one (this is what
+    // happened when a failed swap left the model with no final prose).
+    if (!responseText) {
+      responseText = "Sorry — I didn't finish that response. Mind asking again?";
+    }
 
     // Internal sess_ handles must never reach the athlete — replace any the
     // model echoed with the session's description (covers every reply branch:
