@@ -215,22 +215,26 @@ export function analyzeTrainingNeeds({
 }
 
 // ─── Form Status ─────────────────────────────────────────────────────────────
-// Delegates to canonical translate.ts thresholds (spec §5 bands — see
-// src/utils/formBands.js), maps labels to legacy engine tokens.
+// Delegates to the canonical spec §5 band resolver (src/utils/formBands.js)
+// and maps band KEYS to legacy engine tokens.
 
-import { translateTSB } from '../lib/fitness/translate';
+import { formBandForScore } from '../utils/formBands';
 
+// Band key → legacy engine token. Keyed by the STABLE band key (never the
+// display label) so copy changes can't silently break this lookup again.
+// Note the historical token names: the 'optimal' training band maps to the
+// engine's 'tired' token, and 'grey' (Coasting) to 'optimal'.
 const FORM_STATUS_MAP = {
-  'Too fresh — fitness fading': 'fresh',
-  'Fresh — race ready': 'ready',
-  'Coasting': 'optimal',
-  'Optimal training load': 'tired',
-  'Overloaded — dug in deep': 'fatigued',
+  transition: 'fresh',
+  fresh: 'ready',
+  grey: 'optimal',
+  optimal: 'tired',
+  overreached: 'fatigued',
 };
 
 export function getFormStatus(tsb) {
-  const t = translateTSB(tsb);
-  return FORM_STATUS_MAP[t.label] || 'optimal';
+  const band = formBandForScore(tsb);
+  return band ? FORM_STATUS_MAP[band.key] : 'optimal';
 }
 
 // ─── Recommendation Building ─────────────────────────────────────────────────
