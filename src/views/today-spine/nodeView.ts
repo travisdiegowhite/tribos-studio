@@ -10,6 +10,8 @@
 
 import { C } from './tokens';
 import { sparklinePoints } from './spineGeometry';
+import { formStateText } from '../../utils/todayVocabulary';
+import { formBandForScore } from '../../utils/formBands';
 import type { DayActivity, DayNode } from './types';
 
 const TEAL_LIFTED = '#3BA89D';
@@ -65,25 +67,19 @@ export function buildNodeVM(days: DayNode[], i: number, todayIndex: number): Nod
   const arrowChar = d.fs > 3 ? '▲' : d.fs < -3 ? '▼' : '—';
   const arrowColor = d.fs > 3 ? C.teal : d.fs < -3 ? C.coral : C.gold;
 
-  // Spec §5 form bands — keep cuts in lockstep with src/utils/formBands.js.
-  let stateText: string;
-  let stateColor: string;
-  if (d.fs > 20) {
-    stateText = 'TOO FRESH · transition';
-    stateColor = C.orange;
-  } else if (d.fs >= 10) {
-    stateText = 'FRESH';
-    stateColor = C.gold;
-  } else if (d.fs >= -5) {
-    stateText = 'NEUTRAL · grey zone';
-    stateColor = C.text3;
-  } else if (d.fs >= -30) {
-    stateText = 'LOADING · optimal';
-    stateColor = C.teal;
-  } else {
-    stateText = 'OVERREACHED';
-    stateColor = C.coral;
-  }
+  // Copy comes from the shared vocabulary (src/utils/todayVocabulary.ts);
+  // colors stay in the spine's locked token palette, keyed by the same
+  // spec §5 band so text and color can never disagree.
+  const bandColors: Record<string, string> = {
+    transition: C.orange,
+    fresh: C.gold,
+    grey: C.text3,
+    optimal: C.teal,
+    overreached: C.coral,
+  };
+  const band = formBandForScore(d.fs);
+  let stateText = formStateText(d.fs);
+  const stateColor = band ? bandColors[band.key] : C.text3;
   if (isFuture) stateText = `PROJECTED · ${stateText}`;
 
   // Ring color follows the same band as the state text — deriving it from the

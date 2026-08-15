@@ -17,6 +17,7 @@ import { estimateActivityTSS } from '../../utils/computeFitnessSnapshots';
 import { stepDay } from '../../lib/training/tsb-projection';
 import { TYPE_TSS_PER_HOUR } from '../../lib/training/constants';
 import { PERSONAS } from '../../data/coachingPersonas';
+import { formPhrase } from '../../utils/todayVocabulary';
 import { fmtDate } from '../today/athleteMetrics';
 import type { AthleteActivityRow, ServerLoadRow } from '../today/athleteMetrics';
 import { mapRowToRecentRide, type RecentRide } from '../today/shared/recentRides';
@@ -142,14 +143,9 @@ export function plannedRowRSS(p: PlannedRow): number {
   const minutes = Number(p.duration_minutes ?? p.target_duration ?? 0) || 60;
   return Math.round(perHour.mid * (minutes / 60));
 }
-// Spec §5 form bands — keep cuts in lockstep with src/utils/formBands.js.
-function formWord(fs: number): string {
-  if (fs > 20) return 'too fresh — losing fitness';
-  if (fs >= 10) return 'fresh';
-  if (fs >= -5) return 'in the grey zone';
-  if (fs >= -30) return 'carrying productive load';
-  return 'overreached';
-}
+// Band → phrase lives in the shared vocabulary module so every surface
+// composes from the same words (spec §5 cuts via formBandForScore).
+const formWord = formPhrase;
 
 const ENDURANCE_NAMES = ['Foothills loop', 'Valley endurance', 'Reservoir loop', 'Canyon spin'];
 

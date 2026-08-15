@@ -33,11 +33,11 @@ function makeDays(todayFs: number, todayReadiness: number): DayNode[] {
 
 describe('buildNodeVM — ring color follows the spec §5 form band', () => {
   it.each([
-    [25, 'TOO FRESH · transition', C.orange],
-    [15, 'FRESH', C.gold],
-    [0, 'NEUTRAL · grey zone', C.text3],
-    [-15, 'LOADING · optimal', C.teal],
-    [-40, 'OVERREACHED', C.coral],
+    [25, 'Too fresh — fitness fading', C.orange],
+    [15, 'Fresh', C.gold],
+    [0, 'In the grey zone', C.text3],
+    [-15, 'Carrying productive load', C.teal],
+    [-40, 'Deep in a heavy block', C.coral],
   ])('fs=%d → "%s" with a matching ring', (fs, stateText, color) => {
     const vm = buildNodeVM(makeDays(fs as number, 60), 42, 42);
     expect(vm.stateText).toBe(stateText);

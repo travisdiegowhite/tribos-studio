@@ -135,7 +135,7 @@ describe('formVerdict', () => {
     expect(formVerdict(15)).toBe('fresh — cleared for quality');
     expect(formVerdict(0)).toBe('grey zone — cleared for quality');
     expect(formVerdict(-15)).toBe('productive load — steady aerobic');
-    expect(formVerdict(-31)).toBe('overreached — recover');
+    expect(formVerdict(-31)).toBe('deep in a heavy block — absorbing a lot of load');
   });
 });
 
