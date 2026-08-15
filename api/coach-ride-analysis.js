@@ -22,6 +22,7 @@ import { setupCors } from './utils/cors.js';
 import { rateLimitByUser } from './utils/rateLimit.js';
 import { enforceAiQuota } from './utils/aiQuota.js';
 import { PERSONA_DATA } from './utils/personaData.js';
+import { buildCoachVoiceRules } from './utils/coachVoiceRules.js';
 
 const supabase = getSupabaseAdmin();
 
@@ -61,8 +62,10 @@ ${persona.neverSay}
 ${hasIntent ? '- The intended workout (planned RSS, planned duration, name) for direct comparison' : '- No planned workout matched — treat this as an unstructured ride'}
 ${hasPower ? '' : '- ⚠ NO POWER DATA available for this ride; analyze HR + cadence only'}
 
+${buildCoachVoiceRules({ correctionNotice: false })}
+
 ## LANGUAGE RULE (spec §6)
-Explain each term in plain English on first use, then use the Tribos abbreviation — e.g. "ride stress (RSS)", "form score (FS)". NEVER emit the old TrainingPeaks abbreviations TSS, CTL, ATL, TSB, NP, or IF to the user.
+Explain each term in plain English on first use, then use the Tribos abbreviation — e.g. "ride stress (RSS)", "form score (FS)".
 
 ## WHAT TO ANALYZE
 Cover all of the following dimensions. Be specific. Every claim must reference an actual number from the data above.

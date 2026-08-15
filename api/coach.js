@@ -4,6 +4,7 @@
 import Anthropic from '@anthropic-ai/sdk';
 import { getSupabaseAdmin } from './utils/supabaseAdmin.js';
 import { buildEvidenceSection } from './utils/evidenceCoachSection.js';
+import { VOCABULARY_RULES, TRANSLATION_RULES, DATA_CORRECTION_NOTICE } from './utils/coachVoiceRules.js';
 import { rateLimitByUser } from './utils/rateLimit.js';
 import { enforceAiQuota } from './utils/aiQuota.js';
 import { WORKOUT_LIBRARY_FOR_AI, ALL_COACH_TOOLS } from './utils/workoutLibrary.js';
@@ -945,7 +946,7 @@ export async function handleScheduleAdjustment(userId, input, targetPlanId = nul
 const COACHING_KNOWLEDGE = `You are an expert endurance sports coach with deep knowledge of:
 - Training periodization and load management for BOTH cycling and running
 - Power-based training (cycling) and pace-based training (running)
-- Tribos metrics — Ride Stress Score (RSS), Training Fitness Index (TFI), Acute Fatigue Index (AFI), Form Score (FS) — and their rTSS equivalents for running
+- Tribos metrics — Ride Stress Score (RSS), Training Fitness Index (TFI), Acute Fatigue Index (AFI), Form Score (FS) — across cycling and running (run stress is also RSS, derived from pace/HR)
 - Cycling and running physiology and performance optimization
 - Recovery and fatigue management across multiple sports
 - Workout prescription for different training phases
@@ -963,7 +964,7 @@ FOR CYCLISTS:
 
 FOR RUNNERS:
 - Use pace-based metrics (min/km, threshold pace, VDOT)
-- rTSS estimated from pace, HR, and duration; zones based on threshold pace
+- Run stress (RSS) estimated from pace, HR, and duration; zones based on threshold pace
 - Workouts: run_recovery_jog, run_easy_aerobic, run_threshold_intervals, etc.
 - Key events: 5K, 10K, half marathon, marathon, ultra, trail races
 - Running-specific advice: cadence (170-180 spm), form cues, injury prevention
@@ -1529,32 +1530,11 @@ with their date, e.g. "[Mon Jul 21]". Inside a prefixed message, words like "tod
 history messages are from today. Never treat a prior-day message's "today" as the
 current day; always resolve days via the labels above.
 
-=== DATA CORRECTION NOTICE (2026-08-02) ===
-On 2026-08-02 the athlete's historical fitness data was corrected. Duplicate
-activity imports and corrupted device stress scores (a device "no data" sentinel
-stored as a real RSS of 6553.5) had been inflating RSS, TFI, AFI, and Form Score
-for dates before the correction — during the worst weeks the displayed TFI read
-more than 20x its true value, and Form Score showed strongly positive when the
-athlete was actually carrying normal training fatigue. The stored fitness
-history has been recomputed from clean data; current Training Context values and
-the query_fitness_history tool both return corrected numbers.
+${DATA_CORRECTION_NOTICE}
 
-Rules:
-1. NEVER quote, compare against, or reason from TFI/AFI/FS/RSS values that
-   appear in conversation history, prior check-ins, or coach memories dated
-   before 2026-08-02. Those numbers came from the corrupted data. If an old
-   message says fitness was "254" or form was "+194", disregard it — the
-   corrected values for that same period are in query_fitness_history.
-2. If the athlete asks why their fitness numbers dropped, or why you previously
-   cited much higher numbers, explain once, plainly and without alarm:
-   duplicate imports and a device data glitch were double- and over-counting
-   ride stress; the cleanup removed phantom load only. No actual training was
-   lost, and the corrected series matches their real power data.
-3. Do NOT interpret the numeric drop as detraining, lost fitness, or a reason
-   to reduce training. The corrected history shows a steady, moderate build —
-   the athlete's actual riding never changed.
-4. Beyond one explanation when asked, do not bring the correction up
-   proactively or dwell on it.
+${VOCABULARY_RULES}
+
+${TRANSLATION_RULES}
 
 === YOUR ROLE ===
 ${COACHING_KNOWLEDGE}`;
@@ -1572,17 +1552,15 @@ ${COACHING_KNOWLEDGE}`;
     const experienceLevel = coachSettings?.coaching_experience_level || 'experienced';
     if (experienceLevel === 'just_starting' || experienceLevel === 'developing') {
       systemPrompt += `\n\n=== COACHING COMMUNICATION LEVEL: ${experienceLevel === 'just_starting' ? 'BEGINNER' : 'DEVELOPING'} ===
-This athlete is ${experienceLevel === 'just_starting' ? 'new to structured training (< 1 year)' : 'developing as a structured cyclist (1-3 years)'}. Adapt your communication:
+This athlete is ${experienceLevel === 'just_starting' ? 'new to structured training (< 1 year)' : 'developing as a structured cyclist (1-3 years)'}. Adapt your communication (the Tribos voice rules above still apply in full):
 
-1. EXPLAIN JARGON ON FIRST USE (spec §6): When you mention RSS, TFI, AFI, FS, EP, RI, FTP, or any training acronym, use plain English first, then the Tribos abbreviation. Example: "Your ride stress (RSS) — how hard today's effort was — was 82." Only expand each term once per conversation. NEVER use the old TrainingPeaks abbreviations (TSS, CTL, ATL, TSB, NP, IF) in user-facing text.
+1. EXPLAIN JARGON ON FIRST USE (spec §6): When you mention RSS, TFI, AFI, FS, EP, RI, FTP, or any training acronym, use plain English first, then the Tribos abbreviation. Example: "Your ride stress (RSS) — how hard today's effort was — was 82." Only expand each term once per conversation.
 
 2. CELEBRATE MILESTONES: Call out achievements explicitly — biggest ride ever, first week hitting all planned workouts, first structured interval session completed, consistency streaks. These matter more at this stage.
 
 3. LEAD WITH WHY: Frame the purpose before the prescription. Instead of "Do a 45-minute Zone 2 ride today," say "Your body needs time to absorb this week's harder efforts — a 45-minute easy ride today accelerates that recovery."
 
-4. TRANSLATE METRICS: Never open with raw numbers. Instead of "Your AFI is 52 and FS is -19," say "You've put in a big week — your body's carrying some fatigue right now, which is normal and expected."
-
-5. FRAME PROGRESS FROM START: When showing adherence or fitness metrics, contextualise against where the athlete started, not just the target. Example: "Your fitness score was 28 four weeks ago — 38 now is real progress even if the target is 50."`;
+4. FRAME PROGRESS FROM START: When showing adherence or fitness metrics, contextualise against where the athlete started, not just the target. Example: "Your fitness score was 28 four weeks ago — 38 now is real progress even if the target is 50."`;
     }
 
     // Inject coach memory (persistent behavioral insights)

@@ -7,6 +7,7 @@ import { rateLimitByUser } from './utils/rateLimit.js';
 import { setupCors } from './utils/cors.js';
 import { requireAuth } from './utils/auth.js';
 import { enforceAiQuota } from './utils/aiQuota.js';
+import { buildCoachVoiceRules } from './utils/coachVoiceRules.js';
 
 // Initialize Supabase (server-side)
 const supabase = getSupabaseAdmin();
@@ -132,11 +133,13 @@ export default async function handler(req, res) {
     // Call Claude API for coach response
     const model = 'claude-sonnet-4-5-20250929';
 
+    // The shared voice rules append server-side so a client-supplied prompt
+    // can never drop the vocabulary contract.
     const response = await claude.messages.create({
       model,
       max_tokens: Math.min(maxTokens, 1024),
       temperature: 0.8, // Slightly more creative for personality
-      system: systemPrompt,
+      system: `${systemPrompt || ''}\n\n${buildCoachVoiceRules({ correctionNotice: false })}`,
       messages
     });
 

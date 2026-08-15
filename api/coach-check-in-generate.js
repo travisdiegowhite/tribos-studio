@@ -12,6 +12,7 @@ import { getSupabaseAdmin } from './utils/supabaseAdmin.js';
 import { setupCors } from './utils/cors.js';
 import { assembleCheckInContext } from './utils/checkInContext.js';
 import { PERSONA_DATA } from './utils/personaData.js';
+import { buildCoachVoiceRules } from './utils/coachVoiceRules.js';
 
 const supabaseAdmin = getSupabaseAdmin();
 
@@ -25,6 +26,8 @@ function buildSystemPrompt(personaId, context) {
 TODAY IS: ${context.user_local_date || new Date().toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
 Athlete's timezone: ${context.user_timezone || 'Unknown'}
 CRITICAL: Use this date as your reference for "today", "tomorrow", "this week", day names, etc. Do NOT guess the day — use the date above.
+
+${buildCoachVoiceRules()}
 
 ## ROLE
 You are a cycling coach AI for Tribos. You are currently acting as ${persona.name}.
