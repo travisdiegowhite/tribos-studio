@@ -25,8 +25,12 @@ import {
 const TRAVERSAL_COLUMNS =
   'id, segment_id, activity_id, ridden_at, avg_power, normalized_power, max_power, avg_hr, max_hr, duration_seconds, avg_speed, avg_cadence, stop_count';
 
-/** Cap on history rows fetched across all matched segments. */
-const HISTORY_LIMIT = 300;
+/**
+ * Cap on history rows fetched *per matched segment*. A single global cap
+ * lets one heavily-ridden segment consume the whole budget and starve the
+ * rest of their history, so the fetch is issued per segment instead.
+ */
+const HISTORY_LIMIT_PER_SEGMENT = 100;
 
 export type ComparisonStatus = 'idle' | 'loading' | 'analyzing' | 'ready' | 'empty' | 'error';
 
@@ -125,32 +129,39 @@ export function useSegmentEffortComparison(
 
         const segmentIds = [...new Set(currentRows.map((r) => r.segment_id))];
 
-        const [segmentsRes, historyRes] = await Promise.all([
+        const [segmentsRes, ...historyResults] = await Promise.all([
           supabase
             .from('training_segments')
             .select('id, display_name, terrain_type, distance_meters, avg_gradient, ride_count')
             .in('id', segmentIds),
-          supabase
-            .from('training_segment_rides')
-            .select(TRAVERSAL_COLUMNS)
-            .in('segment_id', segmentIds)
-            .neq('activity_id', activityId)
-            .order('ridden_at', { ascending: false })
-            .limit(HISTORY_LIMIT),
+          // One query per segment so a heavily-ridden segment can't starve
+          // the others out of the row budget.
+          ...segmentIds.map((segmentId) =>
+            supabase
+              .from('training_segment_rides')
+              .select(TRAVERSAL_COLUMNS)
+              .eq('segment_id', segmentId)
+              .neq('activity_id', activityId)
+              .order('ridden_at', { ascending: false })
+              .limit(HISTORY_LIMIT_PER_SEGMENT)
+          ),
         ]);
 
         if (segmentsRes.error) throw new Error(segmentsRes.error.message);
-        if (historyRes.error) throw new Error(historyRes.error.message);
+        const historyError = historyResults.find((r) => r.error);
+        if (historyError?.error) throw new Error(historyError.error.message);
         if (cancelled) return;
 
         const segmentById = new Map<string, ComparisonSegmentInfo>(
           ((segmentsRes.data || []) as ComparisonSegmentInfo[]).map((s) => [s.id, s])
         );
         const historyBySegment = new Map<string, SegmentTraversal[]>();
-        for (const row of (historyRes.data || []) as SegmentTraversal[]) {
-          const list = historyBySegment.get(row.segment_id) || [];
-          list.push(row);
-          historyBySegment.set(row.segment_id, list);
+        for (const res of historyResults) {
+          for (const row of (res.data || []) as SegmentTraversal[]) {
+            const list = historyBySegment.get(row.segment_id) || [];
+            list.push(row);
+            historyBySegment.set(row.segment_id, list);
+          }
         }
 
         const inputs: CompareInput[] = [];

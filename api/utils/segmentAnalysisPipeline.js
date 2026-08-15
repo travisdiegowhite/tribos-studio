@@ -42,11 +42,23 @@ const CONFIG = {
   MIN_DURATION_SECONDS: 600,       // 10 min minimum ride duration
   MIN_STREAM_POINTS: 20,           // Need enough GPS points
 
-  // Segment matching thresholds
+  // Segment geometry bounds. Without an upper bound the boundary detector
+  // emits the entire ride as a single "segment" whenever the track is too
+  // coarse for gradient changes to register — which is most Strava rides.
+  MIN_SEGMENT_METERS: 500,
+  MAX_SEGMENT_METERS: 8000,
+  SPLIT_TARGET_METERS: 5000,
+  MAX_ACTIVITY_FRACTION: 0.5,      // a segment covering half the ride is a ride
+
+  // Boundary detection
+  GRADIENT_CHANGE_PCT: 3,          // % gradient delta that opens a boundary
+  GRADIENT_SUSTAIN_METERS: 200,    // distance the delta must persist
+  GRADIENT_DROPOUT_TOLERANCE: 2,   // points below threshold tolerated mid-run
+
+  // Segment matching. Identity is mutual path coverage, not endpoint
+  // equality — endpoints move between rides, the road does not.
   MATCH_BBOX_EXPANSION: 0.005,     // ~500m at mid-latitudes
-  MATCH_START_END_PROXIMITY: 200,  // meters
-  MATCH_MIN_OVERLAP: 0.60,        // 60% overlap
-  MATCH_DISTANCE_RATIO: 0.40,     // within 40% distance
+  MATCH_MIN_MUTUAL_COVERAGE: 0.80,
 
   // Power zone boundaries (% of FTP)
   POWER_ZONES: {
@@ -89,6 +101,13 @@ export async function analyzeActivitySegments(activityId, userId) {
     return { success: false, error: 'Activity not found', segments: 0 };
   }
 
+  // A ride imported from two providers must only contribute traversals once.
+  // The batch entry points already filter on this; the webhook path runs
+  // before dedup resolves, so it has to check explicitly.
+  if (activity.duplicate_of) {
+    return { success: true, skipped: true, reason: 'duplicate', segments: 0 };
+  }
+
   // Validate minimum requirements
   if (!activity.activity_streams?.coords || activity.activity_streams.coords.length < CONFIG.MIN_STREAM_POINTS) {
     return { success: false, error: 'Insufficient stream data', segments: 0 };
@@ -101,7 +120,9 @@ export async function analyzeActivitySegments(activityId, userId) {
   }
 
   // Step 2: Detect segments from stream data
-  const detected = detectSegmentsFromStreams(activity.activity_streams);
+  const detected = detectSegmentsFromStreams(activity.activity_streams, {
+    activityDistanceMeters: distance,
+  });
   if (detected.segments.length === 0) {
     // Mark as analyzed even with no segments
     await markAnalyzed(supabase, activityId);
@@ -158,13 +179,18 @@ export async function analyzeSegmentsForNewActivity(activityId, userId) {
   try {
     const { data: activity, error } = await supabase
       .from('activities')
-      .select('id, training_segments_analyzed_at, polyline_segments_analyzed_at, map_summary_polyline, distance, moving_time, start_date, max_heartrate, activity_streams')
+      .select('id, duplicate_of, training_segments_analyzed_at, polyline_segments_analyzed_at, map_summary_polyline, distance, moving_time, start_date, max_heartrate, activity_streams')
       .eq('id', activityId)
       .eq('user_id', userId)
       .single();
 
     if (error || !activity) {
       return { success: false, error: error?.message || 'Activity not found', segments: 0 };
+    }
+
+    // See analyzeActivitySegments — webhooks fire before dedup resolves.
+    if (activity.duplicate_of) {
+      return { success: true, skipped: true, reason: 'duplicate', segments: 0 };
     }
 
     if (activity.activity_streams?.coords?.length) {
@@ -348,7 +374,7 @@ async function analyzeActivityFromPolyline(activity, userId, supabase) {
   }
 
   // Detect segments (terrain-only — no speed/power/HR)
-  const detected = detectSegmentsFromStreams(streams);
+  const detected = detectSegmentsFromStreams(streams, { activityDistanceMeters: activityDistance });
   if (detected.segments.length === 0) {
     return { success: true, segments: 0, message: 'No trainable segments detected' };
   }
@@ -390,7 +416,7 @@ async function analyzeActivityFromPolyline(activity, userId, supabase) {
 async function fetchActivity(supabase, activityId, userId) {
   const { data, error } = await supabase
     .from('activities')
-    .select('id, user_id, name, distance, moving_time, elapsed_time, total_elevation_gain, average_watts, average_heartrate, max_heartrate, average_speed, start_date, activity_streams, type, sport_type')
+    .select('id, user_id, name, distance, moving_time, elapsed_time, total_elevation_gain, average_watts, average_heartrate, max_heartrate, average_speed, start_date, activity_streams, type, sport_type, duplicate_of')
     .eq('id', activityId)
     .eq('user_id', userId)
     .single();
@@ -428,11 +454,20 @@ async function markAnalyzed(supabase, activityId) {
  * Detect segments from activity stream data.
  * This is the server-side version of the detection algorithm.
  */
-function detectSegmentsFromStreams(streams) {
+function detectSegmentsFromStreams(streams, options = {}) {
+  const { activityDistanceMeters = 0 } = options;
   const { coords, elevation, speed, power, heartRate, cadence } = streams;
   if (!coords || coords.length < 10) {
     return { segments: [], stops: [] };
   }
+
+  // A track built from a bare polyline carries no speed stream. Previously
+  // a 5 m/s default was substituted, which fabricated an 18 km/h time axis
+  // and wrote invented durations into training_segment_rides. There is no
+  // honest timing to derive here, so there is none: durations stay null and
+  // the traversal is kept for familiarity only.
+  const hasTiming = Array.isArray(speed)
+    && speed.some(v => typeof v === 'number' && v > 0);
 
   // Build enriched point array
   const points = [];
@@ -448,8 +483,10 @@ function detectSegmentsFromStreams(streams) {
         lat, lng
       );
       cumDist += dist;
-      const spd = speed?.[i] ?? speed?.[i - 1] ?? 5;
-      cumTime += spd > 0.1 ? dist / spd : dist / 1.4;
+      if (hasTiming) {
+        const spd = speed[i] ?? speed[i - 1] ?? 0;
+        cumTime += spd > 0.1 ? dist / spd : 0;
+      }
     }
 
     points.push({
@@ -460,7 +497,7 @@ function detectSegmentsFromStreams(streams) {
       heartRate: heartRate?.[i] ?? 0,
       cadence: cadence?.[i] ?? 0,
       distance: cumDist,
-      timestamp: cumTime,
+      timestamp: hasTiming ? cumTime : null,
     });
   }
 
@@ -468,13 +505,22 @@ function detectSegmentsFromStreams(streams) {
   smoothElevation(points);
 
   // Detect stops
-  const stops = detectStops(points);
+  const stops = detectStops(points, hasTiming);
 
   // Calculate gradients
   const gradients = calculateGradients(points);
 
   // Find boundaries
   const boundaries = findBoundaries(points, gradients, stops);
+
+  // A segment longer than half the ride is not a segment, it is the ride.
+  // Cap against both an absolute ceiling and the activity's own length.
+  const effectiveMax = activityDistanceMeters > 0
+    ? Math.max(
+        CONFIG.MIN_SEGMENT_METERS,
+        Math.min(CONFIG.MAX_SEGMENT_METERS, CONFIG.MAX_ACTIVITY_FRACTION * activityDistanceMeters)
+      )
+    : CONFIG.MAX_SEGMENT_METERS;
 
   // Build and characterize segments
   const segments = [];
@@ -483,9 +529,10 @@ function detectSegmentsFromStreams(streams) {
     const endIdx = boundaries[i + 1];
     const dist = points[endIdx].distance - points[startIdx].distance;
 
-    if (dist < 500) continue; // min 500m
+    if (dist < CONFIG.MIN_SEGMENT_METERS) continue;
+    if (dist > effectiveMax) continue;
 
-    const seg = characterizeSegment(points, startIdx, endIdx, stops);
+    const seg = characterizeSegment(points, startIdx, endIdx, stops, hasTiming);
     if (seg) segments.push(seg);
   }
 
@@ -514,7 +561,12 @@ function smoothElevation(points) {
   }
 }
 
-function detectStops(points) {
+function detectStops(points, hasTiming = true) {
+  // Without a speed stream every point reads as "stopped" (speed defaults to
+  // 0), the run never closes, and the result is silently always empty. Be
+  // explicit rather than accidentally correct.
+  if (!hasTiming) return [];
+
   const stops = [];
   let stopStart = -1;
 
@@ -565,26 +617,48 @@ function calculateGradients(points) {
 function findBoundaries(points, gradients, stops) {
   const boundaries = [0]; // always start
 
-  let prevAvgGrad = 0;
-  let sustainedDist = 0;
+  // Seed from the data rather than 0 — starting mid-climb otherwise reads as
+  // an instant 3% delta and plants a spurious boundary at the first point.
+  let prevAvgGrad = gradients[1] ?? 0;
+  // Index where the current above-threshold run began. The previous code
+  // derived this as `i - ceil(sustainedDist / distStep)`, mixing a distance
+  // accumulated over many steps with only the most recent step's length; the
+  // result routinely landed behind the previous boundary, was rejected by the
+  // spacing guard, and the run state was reset anyway — so the boundary was
+  // silently lost. Tracking the run start directly is both correct and simpler.
+  let runStartIdx = -1;
+  let runDist = 0;
+  let missStreak = 0;
 
   for (let i = 1; i < points.length; i++) {
     const distStep = points[i].distance - points[i - 1].distance;
     const gradDiff = Math.abs(gradients[i] - prevAvgGrad);
 
-    if (gradDiff >= 3) { // 3% change threshold
-      sustainedDist += distStep;
-      if (sustainedDist >= 200) { // sustained for 200m
-        const boundaryIdx = Math.max(0, i - Math.ceil(sustainedDist / Math.max(distStep, 1)));
-        if (boundaryIdx > boundaries[boundaries.length - 1] + 5) {
-          boundaries.push(boundaryIdx);
+    if (gradDiff >= CONFIG.GRADIENT_CHANGE_PCT) {
+      if (runStartIdx === -1) runStartIdx = i - 1;
+      runDist += distStep;
+      missStreak = 0;
+
+      if (runDist >= CONFIG.GRADIENT_SUSTAIN_METERS) {
+        const last = boundaries[boundaries.length - 1];
+        // Space boundaries by distance, not by index — index spacing is
+        // meaningless when point density varies by an order of magnitude
+        // between providers.
+        if (points[runStartIdx].distance - points[last].distance >= CONFIG.MIN_SEGMENT_METERS) {
+          boundaries.push(runStartIdx);
         }
         prevAvgGrad = gradients[i];
-        sustainedDist = 0;
+        runStartIdx = -1;
+        runDist = 0;
       }
+    } else if (runStartIdx !== -1 && ++missStreak <= CONFIG.GRADIENT_DROPOUT_TOLERANCE) {
+      // A one- or two-point dip below threshold is noise, not the end of a run.
+      runDist += distStep;
     } else {
-      prevAvgGrad = prevAvgGrad * 0.9 + gradients[i] * 0.1;
-      sustainedDist = 0;
+      prevAvgGrad = prevAvgGrad * 0.8 + gradients[i] * 0.2;
+      runStartIdx = -1;
+      runDist = 0;
+      missStreak = 0;
     }
   }
 
@@ -601,16 +675,60 @@ function findBoundaries(points, gradients, stops) {
   boundaries.push(points.length - 1); // always end
   boundaries.sort((a, b) => a - b);
 
-  // Remove duplicates
-  return [...new Set(boundaries)];
+  return enforceMaxSegmentLength(points, [...new Set(boundaries)]);
 }
 
-function characterizeSegment(points, startIdx, endIdx, allStops) {
+/**
+ * Split any span longer than MAX_SEGMENT_METERS into roughly equal pieces.
+ *
+ * This is the backstop that matters: when a track is too coarse for gradient
+ * changes to register, the loop above yields just [0, last] and the whole ride
+ * becomes one "segment". Rather than emit a 48 km "climb", cut it into
+ * road-sized pieces that can at least be matched against other rides.
+ */
+function enforceMaxSegmentLength(points, boundaries) {
+  const out = [boundaries[0]];
+
+  for (let i = 1; i < boundaries.length; i++) {
+    const startIdx = boundaries[i - 1];
+    const endIdx = boundaries[i];
+    const span = points[endIdx].distance - points[startIdx].distance;
+
+    if (span > CONFIG.MAX_SEGMENT_METERS) {
+      const pieces = Math.ceil(span / CONFIG.SPLIT_TARGET_METERS);
+      for (let p = 1; p < pieces; p++) {
+        const targetDist = points[startIdx].distance + (span * p) / pieces;
+        const idx = indexAtDistance(points, startIdx, endIdx, targetDist);
+        if (idx > out[out.length - 1]) out.push(idx);
+      }
+    }
+
+    if (endIdx > out[out.length - 1]) out.push(endIdx);
+  }
+
+  return out;
+}
+
+/** Binary search for the point index closest to a cumulative distance. */
+function indexAtDistance(points, lo, hi, targetDistance) {
+  let low = lo;
+  let high = hi;
+  while (low < high) {
+    const mid = (low + high) >> 1;
+    if (points[mid].distance < targetDistance) low = mid + 1;
+    else high = mid;
+  }
+  return low;
+}
+
+function characterizeSegment(points, startIdx, endIdx, allStops, hasTiming = true) {
   const segPoints = points.slice(startIdx, endIdx + 1);
   if (segPoints.length < 3) return null;
 
   const distMeters = segPoints[segPoints.length - 1].distance - segPoints[0].distance;
-  const durSeconds = segPoints[segPoints.length - 1].timestamp - segPoints[0].timestamp;
+  const durSeconds = hasTiming
+    ? segPoints[segPoints.length - 1].timestamp - segPoints[0].timestamp
+    : null;
 
   // Elevation analysis
   let elevGain = 0;
@@ -694,8 +812,8 @@ function characterizeSegment(points, startIdx, endIdx, allStops) {
     elevationGain: round1(elevGain),
     elevationLoss: round1(elevLoss),
     terrainType,
-    durationSeconds: Math.round(durSeconds),
-    avgSpeedKmh: round1(avgSpeed),
+    durationSeconds: durSeconds == null ? null : Math.round(durSeconds),
+    avgSpeedKmh: speedSamples.length > 0 ? round1(avgSpeed) : null,
     avgPower,
     maxPower,
     normalizedPower: avgPower, // simplified for server-side
@@ -899,9 +1017,11 @@ async function createNewSegment(supabase, userId, segment, dataQualityTier = 'me
       max_uninterrupted_seconds: obstruction.maxUninterrupted,
       topology: topology.topology,
       is_repeatable: topology.isRepeatable,
-      ride_count: 1,
-      first_ridden_at: new Date().toISOString(),
-      last_ridden_at: new Date().toISOString(),
+      // ride_count / first_ridden_at / last_ridden_at are owned by
+      // recompute_training_segment_rollup, which runs immediately after the
+      // first traversal row is written. Seeding them here (with NOW(), not
+      // the activity date) only created values that had to be corrected.
+      ride_count: 0,
       confidence_score: dataQualityTier === 'geometry_only' ? 15 : 20,
       data_quality_tier: dataQualityTier,
     })
@@ -1129,11 +1249,13 @@ async function updateSegmentProfile(supabase, segmentId, ftp) {
   else if (daysSince >= 90) confidence -= 20;
   confidence = Math.max(0, Math.min(100, confidence));
 
+  // ride_count is deliberately NOT written here. recompute_training_segment_rollup
+  // (migration 092) is its single writer, derived from training_segment_rides.
+  // Two writers in one request is how the counts drifted in the first place.
   await supabase
     .from('training_segments')
     .update({
       confidence_score: confidence,
-      ride_count: rides.length,
     })
     .eq('id', segmentId);
 }
@@ -1179,8 +1301,9 @@ function calculateObstruction(segment) {
   const surfScore = Math.max(0, Math.min(100, Math.round(100 - segment.gradientVariability * 5)));
   const overall = Math.round(stopFreq * 0.4 + turnScore * 0.25 + surfScore * 0.35);
 
-  // Estimate max uninterrupted time
-  let maxUninterrupted = segment.durationSeconds;
+  // Estimate max uninterrupted time. Column is INTEGER NOT NULL-ish in
+  // practice, so an untimed segment reports 0 rather than null/NaN.
+  let maxUninterrupted = segment.durationSeconds ?? 0;
   if (segment.stopCount > 0 && segment.durationSeconds > 0) {
     const avgSpeed = segment.distanceMeters / segment.durationSeconds;
     if (avgSpeed > 0) {
@@ -1219,25 +1342,32 @@ function generateAutoName(segment) {
     : segment.terrainType === 'rolling' ? 'Rolling'
     : 'Flat';
   const distKm = (segment.distanceMeters / 1000).toFixed(1);
-  const durMin = Math.round(segment.durationSeconds / 60);
 
-  if (segment.terrainType === 'climb') {
+  // Untimed (polyline-derived) segments have no duration to name themselves
+  // by, so they fall back to the distance form rather than "NaN min Climb".
+  if (segment.terrainType === 'climb' && segment.durationSeconds != null) {
+    const durMin = Math.round(segment.durationSeconds / 60);
     return `${durMin} min ${suffix} ${segment.avgGradient.toFixed(1)}%`;
+  }
+  if (segment.terrainType === 'climb') {
+    return `${suffix} ${distKm}km ${segment.avgGradient.toFixed(1)}%`;
   }
   return `${suffix} ${distKm}km`;
 }
 
 function generateDescription(segment) {
   const parts = [];
-  const duration = segment.durationSeconds < 60
-    ? `${Math.round(segment.durationSeconds)}s`
-    : `${Math.round(segment.durationSeconds / 60)} min`;
+  const duration = segment.durationSeconds == null
+    ? null
+    : segment.durationSeconds < 60
+      ? `${Math.round(segment.durationSeconds)}s`
+      : `${Math.round(segment.durationSeconds / 60)} min`;
 
   const terrainDesc = segment.terrainType === 'climb'
     ? (segment.avgGradient >= 8 ? 'steep climb' : segment.avgGradient >= 5 ? 'sustained climb' : 'gradual climb')
     : segment.terrainType;
 
-  parts.push(`${duration} ${terrainDesc}`);
+  parts.push(duration ? `${duration} ${terrainDesc}` : `${(segment.distanceMeters / 1000).toFixed(1)}km ${terrainDesc}`);
   if (segment.terrainType === 'climb' || segment.terrainType === 'rolling') {
     parts.push(`${segment.avgGradient.toFixed(1)}% avg`);
   }
@@ -1267,8 +1397,11 @@ function calculateQuality(distM, durS, gradVar, stops, turns, distKm) {
   let score = 100;
   if (distM < 1000) score -= 15;
   else if (distM < 2000) score -= 5;
-  if (durS < 180) score -= 15;
-  else if (durS < 300) score -= 5;
+  // Untimed segments are neither rewarded nor punished on duration.
+  if (durS != null) {
+    if (durS < 180) score -= 15;
+    else if (durS < 300) score -= 5;
+  }
   if (gradVar > 5) score -= 20;
   else if (gradVar > 3) score -= 10;
   const sPerKm = distKm > 0 ? stops / distKm : 0;
