@@ -32,13 +32,21 @@ describe('buildNodeVM — state copy follows the spec §5 form band', () => {
   it.each([
     [25, 'Too fresh — fitness fading', C.orange],
     [15, 'Fresh', C.gold],
-    [0, 'In the grey zone', C.text3],
+    [0, 'Coasting — load and recovery canceling out', C.text3],
     [-15, 'Carrying productive load', C.teal],
     [-40, 'Deep in a heavy block', C.coral],
   ])('fs=%d → "%s" with a matching color', (fs, stateText, color) => {
     const vm = buildNodeVM(makeDays(fs as number), 42, 42);
     expect(vm.stateText).toBe(stateText);
     expect(vm.stateColor).toBe(color);
+  });
+
+  it('reads as a recovery week when the plan says so (grey band, current week)', () => {
+    const vm = buildNodeVM(makeDays(5), 42, 42, true);
+    expect(vm.stateText).toBe('Recovery week — freshness coming back on schedule');
+    // Outside the grey band the load words stay — still true, more useful.
+    const heavy = buildNodeVM(makeDays(-15), 42, 42, true);
+    expect(heavy.stateText).toBe('Carrying productive load');
   });
 
   it('renders a future day as a conditional sentence, not a bare projected state', () => {

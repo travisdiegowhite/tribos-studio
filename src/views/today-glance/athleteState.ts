@@ -21,6 +21,7 @@ import {
   fatigueWordFromAFI,
   formVerdictSentence,
   todayColors,
+  type FormCopyContext,
 } from '../../utils/todayVocabulary';
 import { classifyFormBandDisplay, classifyFsConfidenceTier } from '../../utils/formBands';
 import type { TodayAthleteState } from './types';
@@ -31,8 +32,8 @@ function clamp01(v: number): number {
 
 /** Plain-language readiness verdict for the FORM line, by Form Score.
  * Copy + spec §5 cuts live in the shared vocabulary module. */
-export function formVerdict(fs: number | null): string {
-  return formVerdictSentence(fs);
+export function formVerdict(fs: number | null, ctx?: FormCopyContext): string {
+  return formVerdictSentence(fs, ctx);
 }
 
 export const EMPTY_ATHLETE_STATE: TodayAthleteState = {

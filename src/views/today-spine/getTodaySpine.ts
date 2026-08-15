@@ -17,6 +17,9 @@ import { estimateActivityTSS } from '../../utils/computeFitnessSnapshots';
 import { stepDay } from '../../lib/training/tsb-projection';
 import { TYPE_TSS_PER_HOUR } from '../../lib/training/constants';
 import { PERSONAS } from '../../data/coachingPersonas';
+import { getPlanTemplate } from '../../data/trainingPlanTemplates';
+import { resolveActivePlan } from '../../utils/activePlan';
+import { getISOWeek, getISOWeekYear } from '../../utils/isoWeek';
 import { formPhrase } from '../../utils/todayVocabulary';
 import { fmtDate } from '../today/athleteMetrics';
 import type { AthleteActivityRow, ServerLoadRow } from '../today/athleteMetrics';
@@ -234,6 +237,13 @@ export interface AssembleInput {
   persona: { id: string; name: string };
   recentRides: RecentRide[];
   weekRollup: WeekRollup;
+  /** Active plan's current block is a recovery phase (template-driven). */
+  planRecoveryPhase?: boolean;
+}
+
+/** Same ISO week (Mon-anchored) — used to scope recovery-week copy. */
+export function sameISOWeek(a: string, b: string): boolean {
+  return getISOWeek(a) === getISOWeek(b) && getISOWeekYear(a) === getISOWeekYear(b);
 }
 
 const EMPTY_ROLLUP: WeekRollup = {
@@ -445,8 +455,18 @@ export function assembleSpine(input: AssembleInput): SpineData {
   }
   const hasHistory = daysWithLoad >= 7;
 
+  // Planned rest week: the plan's current block is a recovery phase, or every
+  // remaining planned session this week is rest/recovery-typed. Same-state
+  // copy flips from "coasting" (drift) to "recovery week" (the plan working).
+  const weekRowsAhead = planned.filter(
+    (p) => p.scheduled_date >= todayNode.date && sameISOWeek(p.scheduled_date, todayNode.date),
+  );
+  const rowsSayRecovery =
+    hasPlan && weekRowsAhead.length > 0 && weekRowsAhead.every((p) => REST_TYPES.test(p.workout_type ?? ''));
+  const recoveryWeek = Boolean(input.planRecoveryPhase) || rowsSayRecovery;
+
   let summaryLine: string | null = null;
-  const fw = formWord(todayNode.fs);
+  const fw = formWord(todayNode.fs, { recoveryWeek });
   if (!hasHistory) {
     summaryLine = null; // no data — don't claim a form state
   } else if (event && peakDaysOut) {
@@ -493,6 +513,7 @@ export function assembleSpine(input: AssembleInput): SpineData {
     coach: rec,
     summaryLine,
     hasHistory,
+    recoveryWeek,
   };
 }
 
@@ -574,6 +595,10 @@ export async function getTodaySpine(userId: string): Promise<SpineData> {
         .order('start_date', { ascending: false })
         .limit(50),
     ]);
+
+  // Active plan (for the recovery-phase signal). Non-load-bearing: fetched in
+  // parallel with the batch, degrades to null on any failure.
+  const planPromise = resolveActivePlan(supabase, userId).catch(() => null);
 
   let batch = await withLoadWatchdog(runQueries(), LOAD_WATCHDOG_MS);
   let retried = false;
@@ -707,6 +732,17 @@ export async function getTodaySpine(userId: string): Promise<SpineData> {
     rideCount: week.length,
   };
 
+  // Recovery-phase signal from the active plan's template (same lookup the
+  // glance uses for its block chip).
+  const activePlan = (await planPromise) as { template_id?: string | null; current_week?: number | null } | null;
+  let planRecoveryPhase = false;
+  if (activePlan?.template_id) {
+    const template = getPlanTemplate(activePlan.template_id);
+    const week = Number(activePlan.current_week) || 1;
+    const phase = template?.phases?.find((p) => p.weeks.includes(week));
+    planRecoveryPhase = phase?.phase === 'recovery';
+  }
+
   return assembleSpine({
     now,
     serverLoad,
@@ -720,5 +756,6 @@ export async function getTodaySpine(userId: string): Promise<SpineData> {
     persona,
     recentRides,
     weekRollup,
+    planRecoveryPhase,
   });
 }

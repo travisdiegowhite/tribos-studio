@@ -115,7 +115,7 @@ function classifyFormBandDisplay(fs) {
   const v = Number(fs);
   if (v > 20) return 'transition';
   if (v >= 10) return 'fresh';
-  if (v >= -5) return 'grey zone';
+  if (v >= -5) return 'coasting (neither fresh nor fatigued)';
   if (v >= -30) return 'optimal training load';
   return 'high risk / overreached';
 }

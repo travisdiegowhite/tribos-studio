@@ -496,7 +496,7 @@ describe('getWorkoutRecommendation', () => {
     expect(result.analysis.needs).toBeDefined();
     expect(result.analysis.raceProximity).toBeDefined();
     expect(result.analysis.gaps).toBeDefined();
-    // TSB 5 sits in the spec §5 grey zone (−5..+10) → engine token 'optimal'.
+    // TSB 5 sits in the spec §5 neutral band (−5..+10, displayed 'Coasting') → engine token 'optimal'.
     expect(result.analysis.formStatus).toBe('optimal');
   });
 

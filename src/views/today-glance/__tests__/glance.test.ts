@@ -133,7 +133,8 @@ describe('formVerdict', () => {
     expect(formVerdict(null)).toBe('building baseline');
     expect(formVerdict(25)).toBe('too fresh — add load');
     expect(formVerdict(15)).toBe('fresh — cleared for quality');
-    expect(formVerdict(0)).toBe('grey zone — cleared for quality');
+    expect(formVerdict(0)).toBe('coasting — cleared for quality work');
+    expect(formVerdict(0, { recoveryWeek: true })).toBe('recovery week — this is the plan working');
     expect(formVerdict(-15)).toBe('productive load — steady aerobic');
     expect(formVerdict(-31)).toBe('deep in a heavy block — absorbing a lot of load');
   });

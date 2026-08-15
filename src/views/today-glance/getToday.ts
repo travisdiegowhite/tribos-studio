@@ -19,7 +19,7 @@ import { getPlanTemplate } from '../../data/trainingPlanTemplates';
 import { PERSONAS } from '../../data/coachingPersonas';
 import { decodePolyline } from '../today/shared/decodePolyline';
 import { deriveIntervalSegments } from './deriveIntervalSegments';
-import { getAthleteState, EMPTY_ATHLETE_STATE } from './athleteState';
+import { getAthleteState, formVerdict, EMPTY_ATHLETE_STATE } from './athleteState';
 import { mapRowToRecentRide, type RecentRide } from '../today/shared/recentRides';
 import type {
   ConsistencyDay,
@@ -173,11 +173,13 @@ export async function getTodayShell(userId: string): Promise<Today> {
   const dayTotal: number | null = null;
   let chipLabel: string | null = null;
   const blockGoal: string | null = null;
+  let recoveryWeek = false;
   if (activePlan) {
     const template = activePlan.template_id ? getPlanTemplate(activePlan.template_id) : undefined;
     const week = (activePlan.current_week as number) ?? 1;
     const phase = template?.phases?.find((p) => p.weeks.includes(week));
     if (phase) {
+      recoveryWeek = phase.phase === 'recovery';
       blockName = `${capitalize(phase.phase)} block`;
       chipLabel = `${blockName} · Week ${week}`;
     } else if (activePlan.name) {
@@ -205,6 +207,12 @@ export async function getTodayShell(userId: string): Promise<Today> {
     heroState = 'first-run';
   }
 
+  // On a planned recovery week, the neutral-band verdict flips from
+  // "coasting" to "recovery week — this is the plan working".
+  const athleteStateFinal = recoveryWeek
+    ? { ...athleteState, formVerdict: formVerdict(athleteState.fs, { recoveryWeek: true }) }
+    : athleteState;
+
   return {
     date: today,
     heroState,
@@ -213,7 +221,7 @@ export async function getTodayShell(userId: string): Promise<Today> {
     // oneLineTake is filled by the deferred persona summary (getTodayCoach);
     // the shell leaves it null so the rail can stream it in.
     coach: { personaId, personaName, oneLineTake: null },
-    athleteState,
+    athleteState: athleteStateFinal,
     planContext: { blockName, dayIndex, dayTotal, chipLabel },
     outlook,
     ribbon,

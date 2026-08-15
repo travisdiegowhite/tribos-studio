@@ -47,6 +47,43 @@ function baseInput(overrides: Partial<AssembleInput> = {}): AssembleInput {
   };
 }
 
+describe('assembleSpine — planned recovery week', () => {
+  const recoveryRows = (): PlannedRow[] =>
+    [1, 2, 3].map((k) => ({
+      scheduled_date: fmt(addDays(NOW, k)), // Wed–Fri of the same ISO week
+      name: 'Recovery spin',
+      workout_type: 'recovery',
+      duration_minutes: 40,
+      target_rss: 20,
+    }));
+
+  it('flags the week and flips the neutral-band copy to recovery-week words', () => {
+    const data = assembleSpine(baseInput({ planned: recoveryRows() }));
+    expect(data.recoveryWeek).toBe(true);
+    // form_score 4 → grey band → recovery-week phrase instead of "coasting".
+    expect(data.summaryLine).toMatch(/recovery week/);
+    expect(data.summaryLine).not.toMatch(/coasting/);
+  });
+
+  it('accepts the template phase signal even with mixed planned rows', () => {
+    const mixed = [...recoveryRows(), {
+      scheduled_date: fmt(addDays(NOW, 4)),
+      name: 'Openers',
+      workout_type: 'threshold',
+      duration_minutes: 45,
+      target_rss: 60,
+    }];
+    expect(assembleSpine(baseInput({ planned: mixed })).recoveryWeek).toBe(false);
+    expect(assembleSpine(baseInput({ planned: mixed, planRecoveryPhase: true })).recoveryWeek).toBe(true);
+  });
+
+  it('stays off with no plan at all', () => {
+    const data = assembleSpine(baseInput());
+    expect(data.recoveryWeek).toBe(false);
+    expect(data.summaryLine).toMatch(/coasting/);
+  });
+});
+
 describe('assembleSpine', () => {
   it('produces 43 past + 21 future days with today at index 42', () => {
     const data = assembleSpine(baseInput());

@@ -223,7 +223,7 @@ import { translateTSB } from '../lib/fitness/translate';
 const FORM_STATUS_MAP = {
   'Transition — too fresh': 'fresh',
   'Fresh — race ready': 'ready',
-  'Grey zone': 'optimal',
+  'Coasting': 'optimal',
   'Optimal training load': 'tired',
   'Overreached — high risk': 'fatigued',
 };
