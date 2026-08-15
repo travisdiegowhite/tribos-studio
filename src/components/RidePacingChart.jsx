@@ -118,6 +118,11 @@ const RidePacingChart = ({ activity, ftp }) => {
               {strategy.label}
             </Badge>
           </Group>
+          {strategy.description && (
+            <Text size="xs" style={{ color: 'var(--color-text-muted)' }}>
+              {strategy.description}
+            </Text>
+          )}
         </Paper>
         {splitRatio != null && (
           <Paper p="xs" style={{ backgroundColor: 'var(--color-bg-secondary)' }}>
