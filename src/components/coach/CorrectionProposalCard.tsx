@@ -118,6 +118,26 @@ export default function CorrectionProposalCard({ proposal, onDecision }: Props) 
     ? proposal.projected_tfi_with - proposal.projected_tfi_without
     : null;
 
+  // The decision in words (thesis P5) — the number ladder below stays as the
+  // citation, collapsed by default.
+  const inBand = (v: number | null | undefined) =>
+    v != null && proposal.target_tfi_min != null && proposal.target_tfi_max != null
+      ? v >= proposal.target_tfi_min && v <= proposal.target_tfi_max
+      : null;
+  const withIn = inBand(proposal.projected_tfi_with);
+  const withoutIn = inBand(proposal.projected_tfi_without);
+  let consequence: string | null = null;
+  if (withIn === true && withoutIn === false) {
+    const missSide =
+      proposal.projected_tfi_without != null && proposal.target_tfi_min != null &&
+      proposal.projected_tfi_without < proposal.target_tfi_min
+        ? 'under'
+        : 'over';
+    consequence = `Take these changes and you finish the block inside your target band — as planned now, you'd land ${missSide} it.`;
+  } else if (withIn === true && withoutIn === true) {
+    consequence = 'Either way you stay in range — these changes get you there with less strain.';
+  }
+
   const toggleMod = (sessionId: string) => {
     setSelectedIds(prev => {
       const next = new Set(prev);
@@ -216,6 +236,13 @@ export default function CorrectionProposalCard({ proposal, onDecision }: Props) 
             />
           ))}
         </Stack>
+      )}
+
+      {/* The consequence in calendar terms; numbers below are the citation. */}
+      {consequence && (
+        <Text size="sm" fw={500} mb="sm" style={{ lineHeight: 1.5 }}>
+          {consequence}
+        </Text>
       )}
 
       {/* TFI projection */}
