@@ -4,7 +4,7 @@
  * `assembleSpine()` is pure (no Supabase, no React) so the projection /
  * readiness / labelling logic is unit-testable; `getTodaySpine()` runs the
  * Supabase reads (mirroring the query shapes proven in
- * src/views/today/useTodayData.ts) and hands the rows to it.
+ * the retired TodayView's reader) and hands the rows to it.
  *
  * Reader policy per CLAUDE.md — canonical-first with legacy fallback:
  *   training_load_daily.tfi ?? .ctl, .afi ?? .atl, .form_score ?? .tsb
@@ -541,7 +541,7 @@ export async function getTodaySpine(userId: string): Promise<SpineData> {
         .limit(500),
       // Canonical-only: migration 071 dropped the legacy ctl/atl/tsb columns
       // from this table — selecting them 400s the whole query. Matches the
-      // proven reader in src/views/today/useTodayData.ts.
+      // proven reader in the retired TodayView (same query shape).
       supabase
         .from('training_load_daily')
         .select('date, rss, tfi, afi, form_score')
