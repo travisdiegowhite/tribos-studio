@@ -162,7 +162,7 @@ export function buildPostRideMessage(load) {
  * @param {string} [workout.name] - Workout name (from planned_workouts)
  * @param {number} [workout.target_duration_mins] - Duration in minutes (scheduled_workouts)
  * @param {number} [workout.duration_minutes] - Duration in minutes (planned_workouts)
- * @param {number} [workout.target_tss] - Target TSS
+ * @param {number} [workout.target_tss] - Target load (RSS)
  * @returns {{ title: string, body: string }}
  */
 export function buildWorkoutPreviewMessage(workout) {
@@ -179,7 +179,7 @@ export function buildWorkoutPreviewMessage(workout) {
   }
   bodyParts.push(type);
   if (tss) {
-    bodyParts.push(`~${tss} TSS`);
+    bodyParts.push(`~${tss} RSS`);
   }
 
   return {
