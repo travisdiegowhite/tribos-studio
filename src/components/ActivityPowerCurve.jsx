@@ -199,7 +199,7 @@ const ActivityPowerCurve = ({ powerCurveSummary, ftp, weight }) => {
       </ResponsiveContainer>
 
       <Text size="xs" c="dimmed" mt={4}>
-        Mean Maximal Power at each duration — from power meter data
+        Your best power for each length of effort in this ride — from power meter data
       </Text>
     </Box>
   );

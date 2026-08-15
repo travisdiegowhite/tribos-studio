@@ -132,10 +132,10 @@ describe('formVerdict', () => {
   it('maps Form Score to a plain-language verdict (spec §5 bands)', () => {
     expect(formVerdict(null)).toBe('building baseline');
     expect(formVerdict(25)).toBe('too fresh — add load');
-    expect(formVerdict(15)).toBe('fresh — cleared for quality');
-    expect(formVerdict(0)).toBe('coasting — cleared for quality work');
+    expect(formVerdict(15)).toBe('fresh — cleared for hard work');
+    expect(formVerdict(0)).toBe('coasting — cleared for hard work');
     expect(formVerdict(0, { recoveryWeek: true })).toBe('recovery week — this is the plan working');
-    expect(formVerdict(-15)).toBe('productive load — steady aerobic');
+    expect(formVerdict(-15)).toBe('productive load — steady endurance riding');
     expect(formVerdict(-31)).toBe('deep in a heavy block — absorbing a lot of load');
   });
 });

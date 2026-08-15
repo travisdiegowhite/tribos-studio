@@ -304,7 +304,7 @@ const AerobicDecoupling = ({ activities, timeRange = 90 }) => {
           <Text size="lg" fw={700} c={analysis.interpretation?.color}>
             {analysis.avgDecoupling}%
           </Text>
-          <Text size="xs" c="dimmed">{analysis.interpretation?.status}</Text>
+          <Text size="xs" c="dimmed">{analysis.interpretation?.message}</Text>
         </Paper>
 
         <Paper p="sm" style={{ backgroundColor: 'var(--color-bg-secondary)' }}>

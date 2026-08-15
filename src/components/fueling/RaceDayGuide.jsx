@@ -10,7 +10,7 @@ import { RACE_TYPE_MAP } from '../../utils/raceTypes';
  */
 const WARMUP_PROTOCOLS = {
   criterium: { minutes: 25, description: 'Progressive warm-up with 2-3 hard efforts (30s at race pace). Criteriums start fast.' },
-  time_trial: { minutes: 30, description: 'Extended warm-up with 2x 5-min tempo efforts and 2x 30s at threshold. Peak readiness at start.' },
+  time_trial: { minutes: 30, description: 'Extended warm-up with 2× 5-min brisk efforts and 2× 30s hard. You start at full throttle, so arrive fully warm.' },
   road_race: { minutes: 20, description: 'Easy spin with 3-4 short accelerations. Conserve energy for the race.' },
   gran_fondo: { minutes: 15, description: 'Easy 15-min spin. The first 30 min of the ride is your warm-up.' },
   century: { minutes: 10, description: 'Light spin. Pace yourself — it is a long day.' },
@@ -28,7 +28,7 @@ const PRE_RACE_NOTES = {
   criterium: 'Lighter pre-race meal — criteriums are high-intensity. Avoid heavy fiber.',
   time_trial: 'Standard pre-race meal. Have a gel 10 min before start.',
   road_race: 'Full pre-race meal. Top off with a gel/bar 30 min before.',
-  gran_fondo: 'Heavier carb loading — you need deep glycogen stores.',
+  gran_fondo: 'Heavier carb loading — you need deep fuel stores.',
   century: 'Heavier carb loading. Eat breakfast you have tested before.',
   gravel: 'Full pre-race meal. Pack extra food — aid stations may be sparse.',
   cyclocross: 'Light meal — CX races are short and intense.',
@@ -297,7 +297,7 @@ export default function RaceDayGuide({
               />
               <NutritionTimelineItem
                 time="30 min before"
-                description="1 gel + small sips of water. Top off glycogen stores."
+                description="1 gel + small sips of water. Top off your fuel stores."
                 icon={<Clock size={14} />}
               />
               <NutritionTimelineItem

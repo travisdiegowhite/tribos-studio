@@ -19,11 +19,11 @@
  *   overreached (<−30)                → coral  (warning)
  */
 export const FORM_BANDS = [
-  { key: 'transition',  word: 'Too fresh',    display: 'transition',                color: 'orange' },
+  { key: 'transition',  word: 'Too fresh',    display: 'too fresh (losing fitness)', color: 'orange' },
   { key: 'fresh',       word: 'Fresh',        display: 'fresh',                     color: 'gold' },
   { key: 'grey',        word: 'Coasting',     display: 'coasting (neither fresh nor fatigued)', color: 'gray' },
   { key: 'optimal',     word: 'Optimal load', display: 'optimal training load',     color: 'teal' },
-  { key: 'overreached', word: 'Overreached',  display: 'high risk / overreached',   color: 'coral' },
+  { key: 'overreached', word: 'Overloaded',   display: 'overloaded (dug in deep — high strain)', color: 'coral' },
 ];
 
 /**

@@ -20,7 +20,20 @@ const PACING_CLAUSES: Record<string, string> = {
   negative_split: 'you got stronger as it went',
   even_split: 'held at a steady effort throughout',
   positive_split: 'with some fade in the back half',
-  positive_split_heavy: 'with a heavy power fade late',
+  positive_split_heavy: 'and faded hard late',
+};
+
+// The headline sentence never leans on zone names (thesis: zero-jargon
+// headline). Zone → plain adjective; the zone name itself stays available in
+// the RI tile behind the door.
+const ZONE_ADJECTIVES: Record<string, string> = {
+  recovery: 'easy',
+  endurance: 'steady',
+  tempo: 'brisk',
+  threshold: 'hard, steady',
+  vo2max: 'very hard, punchy',
+  anaerobic: 'all-out',
+  neuromuscular: 'all-out',
 };
 
 function durationPhrase(durationSec: number): string | null {
@@ -41,8 +54,9 @@ export function buildRideSummary(input: RideSummaryInput): string | null {
   if (!dur) return null;
 
   const noun = input.isRun ? 'run' : 'ride';
-  const zone = input.intensityZoneName?.toLowerCase() ?? null;
-  const base = zone ? `A ${dur} ${zone} ${noun}` : `A ${dur} ${noun}`;
+  const zoneKey = input.intensityZoneName?.toLowerCase().replace(/[^a-z0-9]/g, '') ?? null;
+  const adjective = zoneKey ? (ZONE_ADJECTIVES[zoneKey] ?? null) : null;
+  const base = adjective ? `A ${dur} ${adjective} ${noun}` : `A ${dur} ${noun}`;
   const pacing = input.pacingStrategy ? PACING_CLAUSES[input.pacingStrategy] : undefined;
   return pacing ? `${base} — ${pacing}.` : `${base}.`;
 }

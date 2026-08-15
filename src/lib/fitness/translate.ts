@@ -27,11 +27,11 @@ export function translateATL(atl: number, ctl: number): MetricTranslation {
 /** TSB (Form) — fitness minus fatigue. Bands are the spec §5 zones (single
  * authority: src/utils/formBands.js) — keep cuts in lockstep. */
 export function translateTSB(tsb: number): MetricTranslation {
-  if (tsb > 20) return { label: 'Transition — too fresh', color: 'orange' };
+  if (tsb > 20) return { label: 'Too fresh — fitness fading', color: 'orange' };
   if (tsb >= 10) return { label: 'Fresh — race ready', color: 'gold' };
   if (tsb >= -5) return { label: 'Coasting', color: 'muted' };
   if (tsb >= -30) return { label: 'Optimal training load', color: 'teal' };
-  return { label: 'Overreached — high risk', color: 'coral' };
+  return { label: 'Overloaded — dug in deep', color: 'coral' };
 }
 
 /** Trend direction — CTL trajectory over 4 weeks */

@@ -545,7 +545,7 @@ const RideAnalysisModal = ({
               {metrics?.powerTSS || metrics?.estimatedTSS || '-'}
             </Text>
             <Text size="xs" c="dimmed">
-              {loadLabel} {!hasPowerData && '(est.)'}
+              Ride stress ({loadLabel}){!hasPowerData && ' · est.'}
             </Text>
           </Paper>
         </SimpleGrid>

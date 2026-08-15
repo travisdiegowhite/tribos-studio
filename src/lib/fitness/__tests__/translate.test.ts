@@ -66,9 +66,9 @@ describe('translateATL', () => {
 
 // Spec §5 form bands — single authority in src/utils/formBands.js.
 describe('translateTSB', () => {
-  it('returns "Overreached — high risk" for TSB < -30', () => {
-    expect(translateTSB(-31)).toEqual({ label: 'Overreached — high risk', color: 'coral' });
-    expect(translateTSB(-50)).toEqual({ label: 'Overreached — high risk', color: 'coral' });
+  it('returns "Overloaded — dug in deep" for TSB < -30', () => {
+    expect(translateTSB(-31)).toEqual({ label: 'Overloaded — dug in deep', color: 'coral' });
+    expect(translateTSB(-50)).toEqual({ label: 'Overloaded — dug in deep', color: 'coral' });
   });
 
   it('returns "Optimal training load" for TSB -30 to -6', () => {
@@ -88,9 +88,9 @@ describe('translateTSB', () => {
     expect(translateTSB(20)).toEqual({ label: 'Fresh — race ready', color: 'gold' });
   });
 
-  it('returns "Transition — too fresh" for TSB > +20', () => {
-    expect(translateTSB(21)).toEqual({ label: 'Transition — too fresh', color: 'orange' });
-    expect(translateTSB(35)).toEqual({ label: 'Transition — too fresh', color: 'orange' });
+  it('returns "Too fresh — fitness fading" for TSB > +20', () => {
+    expect(translateTSB(21)).toEqual({ label: 'Too fresh — fitness fading', color: 'orange' });
+    expect(translateTSB(35)).toEqual({ label: 'Too fresh — fitness fading', color: 'orange' });
   });
 });
 

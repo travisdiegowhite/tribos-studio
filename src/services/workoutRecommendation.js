@@ -122,7 +122,7 @@ export function analyzeTrainingNeeds({
 
   if (raceProximity.phase === 'race_week') {
     needs.recovery.score = 95;
-    needs.recovery.reason = `Race week — ${raceProximity.nextRace.name} in ${raceProximity.daysUntilRace} days. Recovery and openers only.`;
+    needs.recovery.reason = `Race week — ${raceProximity.nextRace.name} in ${raceProximity.daysUntilRace} days. Easy spinning, plus a few short bursts to keep the legs sharp.`;
     needs.endurance.score = 15;
     needs.intensity.score = 5;
     needs.vo2max.score = 0;
@@ -200,7 +200,7 @@ export function analyzeTrainingNeeds({
 
   if (gaps.missingZ2) {
     needs.endurance.score += 20;
-    needs.endurance.reason = needs.endurance.reason || 'No long Z2 ride in the last week';
+    needs.endurance.reason = needs.endurance.reason || 'No long steady ride in the last week';
   }
 
   if (gaps.missingIntensity && tsb > -10) {
@@ -221,11 +221,11 @@ export function analyzeTrainingNeeds({
 import { translateTSB } from '../lib/fitness/translate';
 
 const FORM_STATUS_MAP = {
-  'Transition — too fresh': 'fresh',
+  'Too fresh — fitness fading': 'fresh',
   'Fresh — race ready': 'ready',
   'Coasting': 'optimal',
   'Optimal training load': 'tired',
-  'Overreached — high risk': 'fatigued',
+  'Overloaded — dug in deep': 'fatigued',
 };
 
 export function getFormStatus(tsb) {
@@ -262,7 +262,7 @@ function buildCategoryRecommendations(needs, timeAvailable = null) {
       title: 'Threshold / Sweet Spot',
       threshold: 50,
       libraryCategories: ['threshold', 'sweet_spot'],
-      defaultReason: 'Improve FTP and lactate clearance',
+      defaultReason: 'Raise the pace you can hold for long efforts',
     },
     {
       key: 'vo2max',

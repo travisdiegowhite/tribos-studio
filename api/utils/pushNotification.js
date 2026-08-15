@@ -165,6 +165,26 @@ export function buildPostRideMessage(load) {
  * @param {number} [workout.target_tss] - Target load (RSS)
  * @returns {{ title: string, body: string }}
  */
+// Plain-language phrase per workout type. A notification body is the one
+// surface that can never carry a gloss, so the phrase replaces the raw type.
+// Client twin: workoutTypeCopy() in src/utils/todayVocabulary.ts — keep in sync.
+const WORKOUT_TYPE_PHRASES = {
+  rest: 'day off',
+  recovery: 'easy spinning',
+  endurance: 'steady riding',
+  tempo: 'brisk, controlled effort',
+  sweet_spot: 'hard-but-sustainable effort',
+  threshold: 'hard, steady effort',
+  vo2max: 'very hard, punchy efforts',
+  anaerobic: 'all-out short efforts',
+  race: 'race effort',
+};
+
+export function workoutTypePhrase(type) {
+  const key = String(type || '').toLowerCase().trim();
+  return WORKOUT_TYPE_PHRASES[key] || key.replace(/_/g, ' ') || 'workout';
+}
+
 export function buildWorkoutPreviewMessage(workout) {
   const type = workout.workout_type || 'workout';
   const name = workout.name || type.charAt(0).toUpperCase() + type.slice(1);
@@ -177,7 +197,7 @@ export function buildWorkoutPreviewMessage(workout) {
     const mins = duration % 60;
     bodyParts.push(hrs > 0 ? `${hrs}h ${mins}m` : `${mins}m`);
   }
-  bodyParts.push(type);
+  bodyParts.push(workoutTypePhrase(type));
   if (tss) {
     bodyParts.push(`~${tss} RSS`);
   }

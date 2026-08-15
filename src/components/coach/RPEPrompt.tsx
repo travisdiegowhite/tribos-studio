@@ -102,7 +102,7 @@ export default function RPEPrompt({ activityName, tssSource, onSubmit }: RPEProm
           onClick={handleSubmit}
           style={{ borderRadius: 0 }}
         >
-          Submit RPE {rpe}
+          Submit — {rpe}/10
         </Button>
       </Stack>
     </Paper>

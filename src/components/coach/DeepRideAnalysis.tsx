@@ -121,7 +121,7 @@ export default function DeepRideAnalysis({ activityId }: DeepRideAnalysisProps) 
         {status === 'idle' && (
           <Text size="sm" c="dimmed">
             Generate a long-form coach analysis of power, heart rate, and cadence
-            for this ride — execution fidelity, decoupling, dropouts, the works.
+            for this ride — how well you executed the workout, where you faded, and what it cost. The works.
           </Text>
         )}
 

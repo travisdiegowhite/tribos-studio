@@ -14,6 +14,7 @@ import {
 import {
   ArrowRight, ArrowUp, ArrowDown, Check, Swap, Plus, X, Warning,
 } from '@phosphor-icons/react';
+import { workoutTypeCopy } from '../../utils/todayVocabulary';
 import type { CorrectionProposal, CorrectionModification, CorrectionOp } from '../../types/checkIn';
 
 interface Props {
@@ -82,7 +83,7 @@ function ModRow({ mod, selected, onToggle }: {
             >
               {OP_LABELS[mod.op]}
               {durationNote && ` ${durationNote}`}
-              {mod.new_type && ` → ${mod.new_type}`}
+              {mod.new_type && ` → ${workoutTypeCopy(mod.new_type).label}`}
             </Badge>
             {mod.new_rss != null && (
               <Text size="xs" c="dimmed" ff="monospace">

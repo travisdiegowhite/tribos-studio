@@ -33,7 +33,7 @@ const ZONE_STYLES: Record<string, { bg: string; text: string; label: string }> =
   race_ready:  { bg: 'var(--mantine-color-green-0)',  text: 'var(--mantine-color-green-8)', label: 'Race ready' },
   building:    { bg: 'var(--mantine-color-teal-0)',   text: 'var(--mantine-color-teal-8)',  label: 'Building' },
   heavy_load:  { bg: 'var(--mantine-color-yellow-0)', text: 'var(--mantine-color-yellow-8)', label: 'Heavy load' },
-  overreached: { bg: 'var(--mantine-color-red-0)',    text: 'var(--mantine-color-red-8)',   label: 'Overreached' },
+  overreached: { bg: 'var(--mantine-color-red-0)',    text: 'var(--mantine-color-red-8)',   label: 'Overloaded' },
 };
 
 const CONFIDENCE_LABEL: Record<string, string> = {

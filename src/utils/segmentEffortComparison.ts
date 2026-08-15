@@ -225,10 +225,10 @@ const METRIC_SPECS: MetricSpec[] = [
   { key: 'speed', label: 'Speed', kind: 'outcome', threshold: THRESHOLD_PCT.speed, pick: (d) => d.avgSpeedKmh },
   { key: 'power', label: 'Power', kind: 'effort', threshold: THRESHOLD_PCT.power, pick: (d) => d.power },
   { key: 'hr', label: 'Heart Rate', kind: 'effort', threshold: THRESHOLD_PCT.hr, pick: (d) => d.avgHr },
-  { key: 'ef', label: 'Efficiency (W/bpm)', kind: 'outcome', threshold: THRESHOLD_PCT.ef, pick: (d) => d.efficiencyFactor },
+  { key: 'ef', label: 'Efficiency', kind: 'outcome', threshold: THRESHOLD_PCT.ef, pick: (d) => d.efficiencyFactor },
   { key: 'speed_per_watt', label: 'Speed per Watt', kind: 'outcome', threshold: THRESHOLD_PCT.speed_per_watt, pick: (d) => d.speedPerWatt },
   { key: 'speed_per_beat', label: 'Speed per Beat', kind: 'outcome', threshold: THRESHOLD_PCT.speed_per_beat, pick: (d) => d.speedPerBeat },
-  { key: 'vi', label: 'Pacing (VI)', kind: 'outcome_inverse', threshold: THRESHOLD_PCT.vi, pick: (d) => d.variabilityIndex },
+  { key: 'vi', label: 'Pacing steadiness', kind: 'outcome_inverse', threshold: THRESHOLD_PCT.vi, pick: (d) => d.variabilityIndex },
   { key: 'cadence', label: 'Cadence', kind: 'effort', threshold: THRESHOLD_PCT.power, pick: (d) => d.avgCadence },
 ];
 
