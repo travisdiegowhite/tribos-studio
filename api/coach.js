@@ -224,23 +224,34 @@ export function detectIntentFromResponse(responseText) {
 }
 
 
-// Swap two workouts' dates atomically, using a null parking date to avoid unique constraint violation.
-// The planned_workouts table has UNIQUE(plan_id, scheduled_date), so we can't have two rows
-// with the same plan_id and date at the same time. We park one row at NULL first.
-// Every step checks its error and rolls back on partial failure — a workout must
-// never be left stranded at scheduled_date NULL (invisible to all date-ranged
-// reads, i.e. it silently disappears from the calendar).
+// Swap two workouts' dates atomically. planned_workouts has
+// UNIQUE(plan_id, scheduled_date) AND scheduled_date NOT NULL, so the swap
+// first "parks" the source row at a sentinel date far outside any real plan.
+// (The original implementation parked at NULL, which the NOT NULL constraint
+// rejects — that made every same-plan swap fail.) Calendar reads are
+// date-ranged, so a parked row can't surface mid-swap; every step still checks
+// its error and rolls back on partial failure so a workout is never left
+// stranded on the sentinel (invisible to all date-ranged reads, i.e. it would
+// silently disappear from the calendar).
 // Returns { success, error }. Exported for unit tests.
+const PARK_DATES = ['1900-01-01', '1900-01-02', '1900-01-03'];
+
 export async function swapWorkoutDates(sourceId, sourceDate, targetId, targetDate) {
   const friendly = (error, date) =>
     error?.code === '23505'
       ? `${date} is already occupied by another workout in that plan — possibly a completed one`
       : error?.message;
 
-  // Step 1: Park source workout at NULL date (breaks the constraint lock)
-  const { error: parkErr } = await supabase.from('planned_workouts')
-    .update({ scheduled_date: null })
-    .eq('id', sourceId);
+  // Step 1: Park source workout at a sentinel date (breaks the constraint
+  // lock). Retry the next sentinel on the off chance a concurrent swap in the
+  // same plan holds it.
+  let parkErr = null;
+  for (const parkDate of PARK_DATES) {
+    ({ error: parkErr } = await supabase.from('planned_workouts')
+      .update({ scheduled_date: parkDate })
+      .eq('id', sourceId));
+    if (!parkErr || parkErr.code !== '23505') break;
+  }
   if (parkErr) {
     return { success: false, error: `swap failed while parking source: ${parkErr.message}` };
   }
@@ -261,7 +272,7 @@ export async function swapWorkoutDates(sourceId, sourceDate, targetId, targetDat
     return { success: false, error: friendly(targetErr, sourceDate) };
   }
 
-  // Step 3: Move source workout from NULL to target date (now free)
+  // Step 3: Move source workout from the parking date to target date (now free)
   const { error: sourceErr } = await supabase.from('planned_workouts')
     .update({
       scheduled_date: targetDate,
@@ -276,7 +287,7 @@ export async function swapWorkoutDates(sourceId, sourceDate, targetId, targetDat
     const { error: rb2 } = await supabase.from('planned_workouts')
       .update({ scheduled_date: sourceDate, day_of_week: new Date(sourceDate + 'T12:00:00').getDay() })
       .eq('id', sourceId);
-    if (rb1 || rb2) console.error(`[swap] FAILED rollback (workout ${sourceId} may be stranded at NULL date):`, rb1?.message || rb2?.message);
+    if (rb1 || rb2) console.error(`[swap] FAILED rollback (workout ${sourceId} may be stranded at the parking date):`, rb1?.message || rb2?.message);
     return { success: false, error: friendly(sourceErr, targetDate) };
   }
 
