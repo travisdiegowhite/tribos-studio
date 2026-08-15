@@ -66,8 +66,8 @@ export function EFICalculator() {
 
       <Text size="sm" c="dimmed" style={{ fontStyle: 'italic' }}>{insight}</Text>
 
-      <SliderRow label="Planned TSS" value={plannedTSS} onChange={setPlannedTSS} min={20} max={300} />
-      <SliderRow label="Actual TSS" value={actualTSS} onChange={setActualTSS} min={0} max={400} />
+      <SliderRow label="Planned RSS" value={plannedTSS} onChange={setPlannedTSS} min={20} max={300} />
+      <SliderRow label="Actual RSS" value={actualTSS} onChange={setActualTSS} min={0} max={400} />
       <SliderRow label="Planned Z2 %" value={plannedZ2} onChange={setPlannedZ2} min={0} max={80} />
       <SliderRow label="Actual Z2 %" value={actualZ2} onChange={setActualZ2} min={0} max={100} />
       <SliderRow label="Planned Z5 %" value={plannedZ5} onChange={setPlannedZ5} min={0} max={50} />
@@ -85,7 +85,7 @@ export function EFICalculator() {
           <Accordion.Panel>
             <Text size="xs" c="dimmed" style={{ fontFamily: "'DM Mono', monospace", lineHeight: 1.8 }}>
               EFI = (0.30 × VF + 0.40 × IFS + 0.30 × CF) × 100{'\n\n'}
-              VF: Volume Fidelity — TSS ratio with 0.85–1.10 sweet spot{'\n'}
+              VF: Volume Fidelity — planned-vs-actual RSS ratio with 0.85–1.10 sweet spot{'\n'}
               IFS: Intensity Fidelity — Zone distribution match (Z2 weighted highest){'\n'}
               CF: Consistency Fidelity — 28-day session completion with partial credit
             </Text>

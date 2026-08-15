@@ -56,8 +56,9 @@ export function MetricsCalculator() {
             <Stack gap="xs">
               <Text size="sm" fw={600}>Terrain-Weighted Load</Text>
               <Text size="xs" c="dimmed" mb="sm">
-                TSS is terrain-blind. TWL adjusts your training load for climbing rate, gradient
-                variability, and altitude — revealing the hidden physiological cost of where you ride.
+                Traditional load scores like TSS are terrain-blind. TWL adjusts your ride stress (RSS)
+                for climbing rate, gradient variability, and altitude — revealing the hidden
+                physiological cost of where you ride.
               </Text>
               <TWLCalculator />
             </Stack>
