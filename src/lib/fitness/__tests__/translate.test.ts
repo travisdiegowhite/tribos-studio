@@ -77,10 +77,10 @@ describe('translateTSB', () => {
     expect(translateTSB(-6)).toEqual({ label: 'Optimal training load', color: 'teal' });
   });
 
-  it('returns "Grey zone" for TSB -5 to +9', () => {
-    expect(translateTSB(-5)).toEqual({ label: 'Grey zone', color: 'muted' });
-    expect(translateTSB(0)).toEqual({ label: 'Grey zone', color: 'muted' });
-    expect(translateTSB(9)).toEqual({ label: 'Grey zone', color: 'muted' });
+  it('returns "Coasting" for TSB -5 to +9', () => {
+    expect(translateTSB(-5)).toEqual({ label: 'Coasting', color: 'muted' });
+    expect(translateTSB(0)).toEqual({ label: 'Coasting', color: 'muted' });
+    expect(translateTSB(9)).toEqual({ label: 'Coasting', color: 'muted' });
   });
 
   it('returns "Fresh — race ready" for TSB +10 to +20', () => {

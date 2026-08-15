@@ -261,7 +261,10 @@ Applies everywhere: dashboard, TODAY card, PROGRESS charts, ride recap, coach me
 ```
 FS > +20       → Yellow  (Transition — too fresh, losing fitness)
 +10 to +20     → Blue    (Fresh)
--5 to +10      → Grey    (Grey zone)
+-5 to +10      → Grey    (displayed "Coasting" — amended 2026-08-15 per the
+                          thesis-audit presentation rules; band cuts unchanged.
+                          On a planned rest/recovery week, surfaces render this
+                          band as "Recovery week" instead of "Coasting".)
 -30 to -5      → Green   (Optimal training load)
 < -30          → Red     (High risk / overreached)
 ```

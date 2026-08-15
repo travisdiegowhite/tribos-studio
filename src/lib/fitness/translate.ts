@@ -29,7 +29,7 @@ export function translateATL(atl: number, ctl: number): MetricTranslation {
 export function translateTSB(tsb: number): MetricTranslation {
   if (tsb > 20) return { label: 'Transition — too fresh', color: 'orange' };
   if (tsb >= 10) return { label: 'Fresh — race ready', color: 'gold' };
-  if (tsb >= -5) return { label: 'Grey zone', color: 'muted' };
+  if (tsb >= -5) return { label: 'Coasting', color: 'muted' };
   if (tsb >= -30) return { label: 'Optimal training load', color: 'teal' };
   return { label: 'Overreached — high risk', color: 'coral' };
 }

@@ -83,10 +83,10 @@ export const todayFixture: Today = {
     fs: 8,
     tfi: 62,
     afi: 54,
-    formBand: 'grey zone',
-    formWord: 'Grey zone',
+    formBand: 'coasting (neither fresh nor fatigued)',
+    formWord: 'Coasting',
     formColor: '#B4B2A9',
-    formVerdict: 'grey zone — cleared for quality',
+    formVerdict: 'coasting — cleared for quality work',
     formRampPos: 0.63,
     confidenceTier: 'high',
     fitnessHistory: [

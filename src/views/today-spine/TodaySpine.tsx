@@ -99,7 +99,10 @@ export default function TodaySpine() {
   );
 
   const vm = useMemo(
-    () => (data ? buildNodeVM(data.days, Math.min(selected, data.days.length - 1), data.todayIndex) : null),
+    () =>
+      data
+        ? buildNodeVM(data.days, Math.min(selected, data.days.length - 1), data.todayIndex, data.recoveryWeek)
+        : null,
     [data, selected],
   );
 

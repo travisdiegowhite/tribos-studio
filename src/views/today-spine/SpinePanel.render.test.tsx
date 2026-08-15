@@ -69,7 +69,7 @@ describe('SpinePanel render', () => {
     expect(screen.getByText('Hygiene Loop')).toBeTruthy();
     expect(screen.getByText('FORM')).toBeTruthy();
     // Sentence-first: the state word is rendered with the FS value as a chip.
-    expect(screen.getByText('In the grey zone')).toBeTruthy();
+    expect(screen.getByText('Coasting — load and recovery canceling out')).toBeTruthy();
     expect(screen.getByText('+4')).toBeTruthy();
   });
 

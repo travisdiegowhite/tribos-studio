@@ -95,4 +95,7 @@ export interface SpineData {
   summaryLine: string | null;
   /** False when the athlete has too little history to draw a meaningful arc. */
   hasHistory: boolean;
+  /** True on a planned rest/recovery week — flips neutral-band copy from
+   * "coasting" to "recovery week" (the plan working as intended). */
+  recoveryWeek: boolean;
 }

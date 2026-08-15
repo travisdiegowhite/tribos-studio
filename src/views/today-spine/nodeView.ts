@@ -8,6 +8,7 @@ import { C } from './tokens';
 import { sparklinePoints } from './spineGeometry';
 import { formStateText, formPhrase } from '../../utils/todayVocabulary';
 import { formBandForScore } from '../../utils/formBands';
+import { getISOWeek, getISOWeekYear } from '../../utils/isoWeek';
 import type { DayActivity, DayNode } from './types';
 
 export interface NodeVM {
@@ -41,10 +42,22 @@ export function ctlDeltaPctFromDays(days: Array<{ tfi: number }>, todayIndex: nu
   return ((today - base) / base) * 100;
 }
 
-export function buildNodeVM(days: DayNode[], i: number, todayIndex: number): NodeVM {
+export function buildNodeVM(
+  days: DayNode[],
+  i: number,
+  todayIndex: number,
+  recoveryWeek = false,
+): NodeVM {
   const d = days[i];
   const isToday = i === todayIndex;
   const isFuture = i > todayIndex;
+
+  // Recovery-week copy applies only to days inside the current (ISO) week —
+  // scrubbing into another week always reads normally.
+  const todayDate = days[todayIndex].date;
+  const inCurrentWeek =
+    getISOWeek(d.date) === getISOWeek(todayDate) && getISOWeekYear(d.date) === getISOWeekYear(todayDate);
+  const copyCtx = { recoveryWeek: recoveryWeek && inCurrentWeek };
 
   // Copy comes from the shared vocabulary (src/utils/todayVocabulary.ts);
   // colors stay in the spine's locked token palette, keyed by the same
@@ -59,7 +72,9 @@ export function buildNodeVM(days: DayNode[], i: number, todayIndex: number): Nod
     overreached: C.coral,
   };
   const band = formBandForScore(d.fs);
-  const stateText = isFuture ? `On this path, you'd be ${formPhrase(d.fs)}` : formStateText(d.fs);
+  const stateText = isFuture
+    ? `On this path, you'd be ${formPhrase(d.fs, copyCtx)}`
+    : formStateText(d.fs, copyCtx);
   const stateColor = band ? bandColors[band.key] : C.text3;
 
   const ctl7 = days[Math.max(0, i - 7)].tfi;

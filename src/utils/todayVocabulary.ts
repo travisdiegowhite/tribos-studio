@@ -71,7 +71,7 @@ const formBandColors: Record<string, ZoneColor> = {
 export const formZones: ZoneStop[] = [
   { min: -Infinity, max: -30, word: 'Overreached',  color: todayColors.coral },
   { min: -30,       max: -5,  word: 'Optimal load', color: todayColors.teal },
-  { min: -5,        max: 10,  word: 'Grey zone',    color: todayColors.gray },
+  { min: -5,        max: 10,  word: 'Coasting',     color: todayColors.gray },
   { min: 10,        max: 21,  word: 'Fresh',        color: todayColors.gold },
   { min: 21,        max: Infinity, word: 'Too fresh', color: todayColors.orange },
 ];
@@ -105,7 +105,7 @@ export function freshnessFromFormScore(score: number | null): FormVerdict {
 const formStateTexts: Record<string, string> = {
   transition: 'Too fresh — fitness fading',
   fresh: 'Fresh',
-  grey: 'In the grey zone',
+  grey: 'Coasting — load and recovery canceling out',
   optimal: 'Carrying productive load',
   overreached: 'Deep in a heavy block',
 };
@@ -113,7 +113,7 @@ const formStateTexts: Record<string, string> = {
 const formPhrases: Record<string, string> = {
   transition: 'too fresh — losing fitness',
   fresh: 'fresh',
-  grey: 'in the grey zone',
+  grey: 'coasting — load and recovery canceling out',
   optimal: 'carrying productive load',
   overreached: 'deep in a heavy block',
 };
@@ -121,27 +121,43 @@ const formPhrases: Record<string, string> = {
 const formVerdictSentences: Record<string, string> = {
   transition: 'too fresh — add load',
   fresh: 'fresh — cleared for quality',
-  grey: 'grey zone — cleared for quality',
+  grey: 'coasting — cleared for quality work',
   optimal: 'productive load — steady aerobic',
   overreached: 'deep in a heavy block — absorbing a lot of load',
 };
 
+/**
+ * Context for the form-state copy. On a *planned* rest/recovery week the
+ * neutral band is the plan working, not drift — the copy says so instead of
+ * "coasting". Applies to the grey band only: a deeply negative FS during a
+ * recovery week keeps its load words, which are still true and more useful.
+ */
+export interface FormCopyContext {
+  recoveryWeek?: boolean;
+}
+
 /** Standing state line for the selected day ("Carrying productive load"). */
-export function formStateText(fs: number | null | undefined): string {
+export function formStateText(fs: number | null | undefined, ctx?: FormCopyContext): string {
   const band = formBandForScore(fs);
-  return band ? formStateTexts[band.key] : 'Building baseline';
+  if (!band) return 'Building baseline';
+  if (band.key === 'grey' && ctx?.recoveryWeek) return 'Recovery week — freshness coming back on schedule';
+  return formStateTexts[band.key];
 }
 
 /** Lowercase phrase for composing sentences ("You're carrying productive load."). */
-export function formPhrase(fs: number | null | undefined): string {
+export function formPhrase(fs: number | null | undefined, ctx?: FormCopyContext): string {
   const band = formBandForScore(fs);
-  return band ? formPhrases[band.key] : 'building a baseline';
+  if (!band) return 'building a baseline';
+  if (band.key === 'grey' && ctx?.recoveryWeek) return 'on a recovery week — freshness coming back on schedule';
+  return formPhrases[band.key];
 }
 
 /** One-line FORM verdict for the glance band. */
-export function formVerdictSentence(fs: number | null | undefined): string {
+export function formVerdictSentence(fs: number | null | undefined, ctx?: FormCopyContext): string {
   const band = formBandForScore(fs);
-  return band ? formVerdictSentences[band.key] : 'building baseline';
+  if (!band) return 'building baseline';
+  if (band.key === 'grey' && ctx?.recoveryWeek) return 'recovery week — this is the plan working';
+  return formVerdictSentences[band.key];
 }
 
 /** Band color for a Form Score, in the locked Today palette. */

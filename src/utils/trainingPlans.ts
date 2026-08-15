@@ -547,7 +547,7 @@ export function interpretFS(formScore: number): TSBInterpretation {
     return {
       status: 'grey_zone',
       color: '#D4820A',
-      message: 'Grey zone - neither fresh nor productively loaded',
+      message: 'Coasting — load and recovery canceling out',
       recommendation: 'Continue with planned training'
     };
   } else if (tsb >= -30) {

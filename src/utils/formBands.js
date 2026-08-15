@@ -21,7 +21,7 @@
 export const FORM_BANDS = [
   { key: 'transition',  word: 'Too fresh',    display: 'transition',                color: 'orange' },
   { key: 'fresh',       word: 'Fresh',        display: 'fresh',                     color: 'gold' },
-  { key: 'grey',        word: 'Grey zone',    display: 'grey zone',                 color: 'gray' },
+  { key: 'grey',        word: 'Coasting',     display: 'coasting (neither fresh nor fatigued)', color: 'gray' },
   { key: 'optimal',     word: 'Optimal load', display: 'optimal training load',     color: 'teal' },
   { key: 'overreached', word: 'Overreached',  display: 'high risk / overreached',   color: 'coral' },
 ];
@@ -46,7 +46,7 @@ export function formBandForScore(fs) {
  * Classify a form score into the §5 display band.
  *
  * @param {number|null|undefined} fs - Form score (TFI − AFI).
- * @returns {string|null} One of: 'transition', 'fresh', 'grey zone',
+ * @returns {string|null} One of: 'transition', 'fresh', 'coasting (neither fresh nor fatigued)',
  *   'optimal training load', 'high risk / overreached'. Returns null
  *   if the input is non-numeric.
  */
