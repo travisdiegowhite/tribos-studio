@@ -87,6 +87,17 @@ export default function DeviationCard({
   const formatTsb = (val: number) => `${val >= 0 ? '+' : ''}${val.toFixed(1)}`;
   const formatLabel = (key: string) => key.replace(/_/g, ' ');
 
+  // The consequence in words (thesis P5); the projection grid below is the
+  // citation, demoted to fine print.
+  const zoneWord = (z: string) => (ZONE_STYLES[z] ?? ZONE_STYLES.building).label.toLowerCase();
+  const noAdjustZone = classifyFS(options.no_adjust ?? 0);
+  const consequence =
+    top.option === 'no_adjust'
+      ? `Leave the week as planned and your form stays ${zoneWord(topZone)}.`
+      : noAdjustZone === topZone
+        ? `Either way your form stays ${zoneWord(topZone)} — this option keeps the week's purpose intact.`
+        : `Apply "${formatLabel(top.option)}" and your form lands ${zoneWord(topZone)} — leave the week untouched and it heads ${zoneWord(noAdjustZone)}.`;
+
   return (
     <Paper
       p="md"
@@ -105,7 +116,7 @@ export default function DeviationCard({
           </Text>
           <Text size="xs" c="dimmed" mt={2}>
             {CONFIDENCE_LABEL[tssSource] ?? CONFIDENCE_LABEL.inferred}
-            {' · '}+{Math.round(deviation.tss_delta ?? 0)} TSS over planned
+            {' · '}+{Math.round(deviation.tss_delta ?? 0)} RSS over planned
           </Text>
         </div>
         <Badge
@@ -133,7 +144,10 @@ export default function DeviationCard({
         </Text>
       </Box>
 
-      {/* TSB impact comparison */}
+      {/* The consequence in words; the projection numbers are fine print. */}
+      <Text size="sm" fw={500} mb="sm" style={{ lineHeight: 1.5 }}>
+        {consequence}
+      </Text>
       <SimpleGrid cols={3} spacing="xs" mb="md">
         {(['planned', 'no_adjust', top.option] as string[])
           .filter((v, i, a) => a.indexOf(v) === i)
@@ -146,7 +160,10 @@ export default function DeviationCard({
                 <Text size="xs" ff="monospace" c="dimmed" tt="uppercase" mb={4}>
                   {formatLabel(key)}
                 </Text>
-                <Text size="lg" fw={600} ff="monospace" style={{ color: zs.text }}>
+                <Text size="sm" fw={600} style={{ color: zs.text }}>
+                  {zs.label}
+                </Text>
+                <Text size="xs" c="dimmed" ff="monospace">
                   {formatTsb(tsb)}
                 </Text>
               </Box>

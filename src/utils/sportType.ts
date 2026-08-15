@@ -87,12 +87,13 @@ export function isPowerSport(activity: ActivityLike): boolean {
 }
 
 /**
- * Sport-aware label for the training-load metric. The canonical name is
- * "rss" but users still recognize "TSS" for cycling power-based load. For
- * runs we surface a sport-neutral "Load" until rTSS lands in Phase 2.
+ * Label for the training-load metric. RSS (Ride Stress Score) is the one
+ * Tribos load vocabulary across sports — derivation differs by sport, the
+ * name doesn't. Kept as a function so call sites stay sport-aware if a
+ * per-sport label ever returns.
  */
-export function getLoadLabel(activity: ActivityLike): 'TSS' | 'Load' {
-  return isPowerSport(activity) ? 'TSS' : 'Load';
+export function getLoadLabel(_activity: ActivityLike): 'RSS' {
+  return 'RSS';
 }
 
 /**

@@ -69,16 +69,6 @@ describe('assembleSpine', () => {
     expect(data.days[42].fs).toBe(4); // from form_score, not tfi-afi (=4 here anyway)
   });
 
-  it('derives readiness from form score, clamped 28..96', () => {
-    const data = assembleSpine(baseInput());
-    for (const d of data.days) {
-      expect(d.readiness).toBeGreaterThanOrEqual(28);
-      expect(d.readiness).toBeLessThanOrEqual(96);
-    }
-    // fs=4 → round(52 + 4*1.86)=59
-    expect(data.days[42].readiness).toBe(59);
-  });
-
   it('projects a peak when a hard block is planned, then seeds the summary', () => {
     const planned: PlannedRow[] = [];
     for (let k = 1; k <= 11; k++) {

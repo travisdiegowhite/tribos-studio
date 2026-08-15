@@ -1,5 +1,6 @@
-import { Box, Group, Text, SimpleGrid, Skeleton } from '@mantine/core';
+import { Box, SimpleGrid, Skeleton } from '@mantine/core';
 import { useMediaQuery } from '@mantine/hooks';
+import { MetricCitation } from '../ui/MetricCitation';
 
 function WeekSummaryGrid({ weeklyStats, actualWeeklyStats, plannedWorkouts, formatDist, formatTime, loading }) {
   const isMobile = useMediaQuery('(max-width: 768px)');
@@ -59,67 +60,46 @@ function WeekSummaryGrid({ weeklyStats, actualWeeklyStats, plannedWorkouts, form
   const totalTime = actualWeeklyStats?.totalTime || 0;
   const formattedTime = formatTime ? formatTime(totalTime) : `${Math.round(totalTime / 3600)}h`;
 
-  const cells = [
+  // The sentence carries the cell row (thesis P2); the numbers cite it.
+  const remaining = Math.max(0, plannedCount - completedCount);
+  let sentence;
+  if (plannedCount > 0) {
+    sentence =
+      remaining === 0
+        ? `All ${plannedCount} planned sessions done — the week's work is banked.`
+        : `You're ${completedCount} of ${plannedCount} sessions into the week's plan, with ${remaining} still ahead.`;
+  } else if (weeklyTSS > 0 || totalTime > 0) {
+    sentence = `An unplanned week so far — ${formattedTime} of riding logged.`;
+  } else {
+    sentence = 'Nothing logged yet this week.';
+  }
+
+  const metrics = [
     {
       label: 'RSS',
       value: plannedTSS > 0 ? `${Math.round(weeklyTSS)}/${Math.round(plannedTSS)}` : String(Math.round(weeklyTSS)),
-      color: 'var(--color-teal)',
     },
-    {
-      label: 'DURATION',
-      value: formattedTime,
-      color: 'var(--color-text-primary)',
-    },
-    {
-      label: 'WORKOUTS',
-      value: `${completedCount}/${plannedCount}`,
-      color: 'var(--color-teal)',
-    },
-    {
-      label: 'COMPLIANCE',
-      value: plannedCount > 0 ? `${compliance}%` : '--',
-      color: compliance >= 80 ? 'var(--color-teal)' : compliance >= 50 ? 'var(--color-gold)' : 'var(--color-orange)',
-    },
+    { label: 'TIME', value: formattedTime },
+    { label: 'WORKOUTS', value: `${completedCount}/${plannedCount}` },
+    { label: 'COMPLIANCE', value: plannedCount > 0 ? `${compliance}%` : '--' },
   ];
 
   return (
-    <SimpleGrid cols={isMobile ? 2 : 4} spacing={0}>
-      {cells.map((cell) => (
-        <Box
-          key={cell.label}
-          style={{
-            padding: '12px 16px',
-            border: '0.5px solid var(--color-border)',
-            backgroundColor: 'var(--color-card)',
-          }}
-        >
-          <Text
-            style={{
-              fontFamily: "'Barlow Condensed', sans-serif",
-              fontSize: 11,
-              fontWeight: 700,
-              letterSpacing: '2px',
-              textTransform: 'uppercase',
-              color: 'var(--color-text-muted)',
-              marginBottom: 4,
-            }}
-          >
-            {cell.label}
-          </Text>
-          <Text
-            style={{
-              fontFamily: "'DM Mono', monospace",
-              fontSize: 20,
-              fontWeight: 700,
-              color: cell.color,
-              lineHeight: 1.2,
-            }}
-          >
-            {cell.value}
-          </Text>
-        </Box>
-      ))}
-    </SimpleGrid>
+    <Box
+      style={{
+        padding: '14px 16px',
+        border: '0.5px solid var(--color-border)',
+        backgroundColor: 'var(--color-card)',
+      }}
+    >
+      <MetricCitation
+        sentence={sentence}
+        color="var(--color-text-primary)"
+        metrics={metrics}
+        sentenceStyle={{ fontSize: isMobile ? 16 : 18 }}
+        chipStyle={{ fontFamily: "'DM Mono', monospace", color: 'var(--color-text-muted)', flexWrap: 'wrap' }}
+      />
+    </Box>
   );
 }
 

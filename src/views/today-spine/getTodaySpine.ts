@@ -4,7 +4,7 @@
  * `assembleSpine()` is pure (no Supabase, no React) so the projection /
  * readiness / labelling logic is unit-testable; `getTodaySpine()` runs the
  * Supabase reads (mirroring the query shapes proven in
- * src/views/today/useTodayData.ts) and hands the rows to it.
+ * the retired TodayView's reader) and hands the rows to it.
  *
  * Reader policy per CLAUDE.md — canonical-first with legacy fallback:
  *   training_load_daily.tfi ?? .ctl, .afi ?? .atl, .form_score ?? .tsb
@@ -17,6 +17,7 @@ import { estimateActivityTSS } from '../../utils/computeFitnessSnapshots';
 import { stepDay } from '../../lib/training/tsb-projection';
 import { TYPE_TSS_PER_HOUR } from '../../lib/training/constants';
 import { PERSONAS } from '../../data/coachingPersonas';
+import { formPhrase } from '../../utils/todayVocabulary';
 import { fmtDate } from '../today/athleteMetrics';
 import type { AthleteActivityRow, ServerLoadRow } from '../today/athleteMetrics';
 import { mapRowToRecentRide, type RecentRide } from '../today/shared/recentRides';
@@ -118,9 +119,6 @@ function dateLabel(dateKey: string): string {
 
 // ── athlete-facing wording ───────────────────────────────────────────────────
 
-function readinessFromFS(fs: number): number {
-  return Math.max(28, Math.min(96, Math.round(52 + fs * 1.86)));
-}
 function daysStr(n: number): string {
   return n === 1 ? '1 day' : `${n} days`;
 }
@@ -142,14 +140,9 @@ export function plannedRowRSS(p: PlannedRow): number {
   const minutes = Number(p.duration_minutes ?? p.target_duration ?? 0) || 60;
   return Math.round(perHour.mid * (minutes / 60));
 }
-// Spec §5 form bands — keep cuts in lockstep with src/utils/formBands.js.
-function formWord(fs: number): string {
-  if (fs > 20) return 'too fresh — losing fitness';
-  if (fs >= 10) return 'fresh';
-  if (fs >= -5) return 'in the grey zone';
-  if (fs >= -30) return 'carrying productive load';
-  return 'overreached';
-}
+// Band → phrase lives in the shared vocabulary module so every surface
+// composes from the same words (spec §5 cuts via formBandForScore).
+const formWord = formPhrase;
 
 const ENDURANCE_NAMES = ['Foothills loop', 'Valley endurance', 'Reservoir loop', 'Canyon spin'];
 
@@ -362,7 +355,6 @@ export function assembleSpine(input: AssembleInput): SpineData {
       fs,
       rss,
       planned: rss > 0,
-      readiness: readinessFromFS(fs),
       volHours: volHoursAt(date),
       activity: labelActivity({
         rss,
@@ -424,7 +416,6 @@ export function assembleSpine(input: AssembleInput): SpineData {
       fs,
       rss: Math.round(rss),
       planned: isPlannedSession,
-      readiness: readinessFromFS(fs),
       volHours: volHoursAt(date),
       activity: labelActivity({
         rss: Math.round(rss),
@@ -550,7 +541,7 @@ export async function getTodaySpine(userId: string): Promise<SpineData> {
         .limit(500),
       // Canonical-only: migration 071 dropped the legacy ctl/atl/tsb columns
       // from this table — selecting them 400s the whole query. Matches the
-      // proven reader in src/views/today/useTodayData.ts.
+      // proven reader in the retired TodayView (same query shape).
       supabase
         .from('training_load_daily')
         .select('date, rss, tfi, afi, form_score')

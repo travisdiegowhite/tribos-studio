@@ -107,9 +107,10 @@ function FitnessSummary({ tfi, afi, formScore, lastRideRss, ctlDeltaPct }) {
         <Text
           style={{
             fontFamily: "'Barlow', sans-serif",
-            fontSize: 15,
+            fontSize: 16,
+            fontWeight: 500,
             lineHeight: 1.55,
-            color: 'var(--color-text-secondary)',
+            color: 'var(--color-text-primary)',
           }}
         >
           {summary}

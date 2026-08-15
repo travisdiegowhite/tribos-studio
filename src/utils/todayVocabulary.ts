@@ -88,6 +88,69 @@ export function freshnessFromFormScore(score: number | null): FormVerdict {
 }
 
 // ────────────────────────────────────────────────────────────────────────────
+// FORM STATE COPY — the single authority for turning a Form Score band into
+// user-facing words. Three registers, all derived from formBandForScore so the
+// cuts can never drift between surfaces:
+//
+//   formStateText     — standing state line on the Spine node ("Carrying
+//                       productive load"). Descriptive, never prescriptive:
+//                       a persistent surface describes; prescriptions
+//                       ("recover", "add load") belong to the gated coach
+//                       layer, which can weigh evidence before speaking.
+//   formPhrase        — lowercase composable phrase for sentences like
+//                       "You're carrying productive load."
+//   formVerdictSentence — the glance FORM band's one-line verdict.
+// ────────────────────────────────────────────────────────────────────────────
+
+const formStateTexts: Record<string, string> = {
+  transition: 'Too fresh — fitness fading',
+  fresh: 'Fresh',
+  grey: 'In the grey zone',
+  optimal: 'Carrying productive load',
+  overreached: 'Deep in a heavy block',
+};
+
+const formPhrases: Record<string, string> = {
+  transition: 'too fresh — losing fitness',
+  fresh: 'fresh',
+  grey: 'in the grey zone',
+  optimal: 'carrying productive load',
+  overreached: 'deep in a heavy block',
+};
+
+const formVerdictSentences: Record<string, string> = {
+  transition: 'too fresh — add load',
+  fresh: 'fresh — cleared for quality',
+  grey: 'grey zone — cleared for quality',
+  optimal: 'productive load — steady aerobic',
+  overreached: 'deep in a heavy block — absorbing a lot of load',
+};
+
+/** Standing state line for the selected day ("Carrying productive load"). */
+export function formStateText(fs: number | null | undefined): string {
+  const band = formBandForScore(fs);
+  return band ? formStateTexts[band.key] : 'Building baseline';
+}
+
+/** Lowercase phrase for composing sentences ("You're carrying productive load."). */
+export function formPhrase(fs: number | null | undefined): string {
+  const band = formBandForScore(fs);
+  return band ? formPhrases[band.key] : 'building a baseline';
+}
+
+/** One-line FORM verdict for the glance band. */
+export function formVerdictSentence(fs: number | null | undefined): string {
+  const band = formBandForScore(fs);
+  return band ? formVerdictSentences[band.key] : 'building baseline';
+}
+
+/** Band color for a Form Score, in the locked Today palette. */
+export function formStateColor(fs: number | null | undefined): ZoneColor {
+  const band = formBandForScore(fs);
+  return band ? (formBandColors[band.key] ?? todayColors.gray) : todayColors.gray;
+}
+
+// ────────────────────────────────────────────────────────────────────────────
 // FITNESS — slope of the last 14 days of TFI drives the word.
 // ────────────────────────────────────────────────────────────────────────────
 

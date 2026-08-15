@@ -420,7 +420,7 @@ export function useCrossTraining() {
 
       return (data || []).reduce((sum, a) => sum + (a.estimated_tss || 0), 0);
     } catch (err) {
-      console.error('Error getting TSS for date:', err);
+      console.error('Error getting RSS for date:', err);
       return 0;
     }
   }, [user]);
@@ -447,7 +447,7 @@ export function useCrossTraining() {
 
       return dailyTSS;
     } catch (err) {
-      console.error('Error getting daily TSS range:', err);
+      console.error('Error getting daily RSS range:', err);
       return new Map();
     }
   }, [user]);

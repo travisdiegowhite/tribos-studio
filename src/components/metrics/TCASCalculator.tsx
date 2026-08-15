@@ -42,8 +42,8 @@ export function TCASCalculator() {
       <Text size="xs" fw={600} c="dimmed" style={{ fontFamily: "'Barlow Condensed', sans-serif", textTransform: 'uppercase', letterSpacing: '1px' }}>
         Fitness trajectory
       </Text>
-      <SliderRow label="CTL now" value={ctlNow} onChange={setCtlNow} min={0} max={120} />
-      <SliderRow label="CTL 6 weeks ago" value={ctl6wAgo} onChange={setCtl6wAgo} min={0} max={120} />
+      <SliderRow label="Fitness (TFI) now" value={ctlNow} onChange={setCtlNow} min={0} max={120} />
+      <SliderRow label="Fitness (TFI) 6 weeks ago" value={ctl6wAgo} onChange={setCtl6wAgo} min={0} max={120} />
       <SliderRow label="Avg weekly hours" value={avgWeeklyHours} onChange={setAvgWeeklyHours} min={2} max={20} />
       <SliderRow label="Years of training" value={yearsTraining} onChange={setYearsTraining} min={0} max={25} />
 

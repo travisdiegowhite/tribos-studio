@@ -118,13 +118,13 @@ export function generateCSV(
     'Workout Name',
     'Type',
     'Target Duration (min)',
-    'Target TSS',
+    'Target RSS',
     'Target Distance (km)',
     'Description',
     'Coach Notes',
     'Completed',
     'Actual Duration (min)',
-    'Actual TSS',
+    'Actual RSS',
     'Actual Distance (km)',
     'Notes',
   ].join(','));
@@ -221,7 +221,7 @@ export function generateICal(
     const descParts: string[] = [];
     if (workout?.category) descParts.push(`Type: ${workout.category}`);
     if (w.target_tss || workout?.targetTSS) {
-      descParts.push(`Target TSS: ${w.target_tss || workout?.targetTSS}`);
+      descParts.push(`Target RSS: ${w.target_tss || workout?.targetTSS}`);
     }
     if (duration) descParts.push(`Duration: ${formatDuration(duration)}`);
     if (w.target_distance_km) descParts.push(`Distance: ${w.target_distance_km} km`);

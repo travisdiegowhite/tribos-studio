@@ -7,6 +7,7 @@ import { getSupabaseAdmin } from './utils/supabaseAdmin.js';
 import { completeActivationStep } from './utils/activation.js';
 import { assembleCheckInContext } from './utils/checkInContext.js';
 import { PERSONA_DATA } from './utils/personaData.js';
+import { buildCoachVoiceRules } from './utils/coachVoiceRules.js';
 
 const supabase = getSupabaseAdmin();
 
@@ -190,11 +191,15 @@ Give one specific, actionable coaching insight about this activity in 2-3 senten
 
   const claude = new Anthropic({ apiKey });
 
-  // Build persona-aware system prompt
+  // Build persona-aware system prompt. The shared voice rules ride along
+  // unconditionally — this endpoint's output renders verbatim in the
+  // ProactiveInsightCard with no review step.
   const systemPrompt = `You are ${persona.name}, a cycling coach AI for Tribos.
 Your philosophy: ${persona.philosophy}
 Your voice: ${persona.voice}
-Analyze the activity data and give one specific, actionable insight in 2-3 sentences. Be direct and reference actual numbers. No greetings or sign-offs.`;
+Analyze the activity data and give one specific, actionable insight in 2-3 sentences. Be direct — cite the concrete facts (watts, heart rate, duration) behind your point. No greetings or sign-offs.
+
+${buildCoachVoiceRules()}`;
 
   const response = await claude.messages.create({
     model: 'claude-sonnet-4-5-20241022',

@@ -44,21 +44,11 @@ function getCoachingMessage(trainingContext, workoutRecommendation) {
     return `Today I'd suggest ${rec.workout.name}${sourceNote} — ${rec.reason.charAt(0).toLowerCase() + rec.reason.slice(1)} Ask me if you want to adjust or discuss alternatives.`;
   }
 
-  // Fallback: TSB-based message if no recommendation available
-  const tsbMatch = trainingContext.match(/TSB[:\s]+(-?\d+)/i);
-  const tsb = tsbMatch ? parseInt(tsbMatch[1], 10) : 0;
-
-  if (tsb > 15) {
-    return "You're feeling fresh and ready to push. Ask me about interval strategies, race tactics, or how to make the most of today's energy.";
-  } else if (tsb > 5) {
-    return "Good form right now. Want to discuss pacing for your next race, or how to balance intensity with recovery this week?";
-  } else if (tsb > -10) {
-    return "You're in a productive training phase. Ask me about optimizing your training load, nutrition timing, or upcoming goals.";
-  } else if (tsb > -20) {
-    return "I notice some accumulated fatigue. Let's talk about recovery strategies, sleep optimization, or adjusting your training plan.";
-  } else {
-    return "Your body is asking for rest. I can help you think through recovery protocols, when to return to intensity, or mental training during rest days.";
-  }
+  // No recommendation available: invite a question rather than pronounce a
+  // fitness state. Standing verdicts belong to the gated coach layer, which
+  // can weigh evidence before speaking (thesis C6) — not to a client-side
+  // threshold on a scraped context string.
+  return "Ask me about today's ride, how your training is landing, or what to do with the week ahead.";
 }
 
 function CoachCard({ trainingContext, workoutRecommendation, onAddWorkout }) {

@@ -37,7 +37,7 @@ function buildCoachAnnotations(decisions) {
 
       switch (o.action) {
         case 'modify':
-          annotations.set(o.workout_id, `(coach-adjusted from ${o.original_tss} TSS on ${date})`);
+          annotations.set(o.workout_id, `(coach-adjusted from ${o.original_tss} RSS on ${date})`);
           break;
         case 'insert_rest':
           annotations.set(o.workout_id, `(coach-converted to rest on ${date})`);
@@ -81,7 +81,7 @@ function humanizeOutcome(outcomeNotes) {
 
     switch (o.action) {
       case 'modify':
-        return `Modified '${o.workout_name || 'workout'}' from ${o.original_tss} to ${o.new_tss} TSS (${Math.round((o.scale_factor || 0.7) * 100)}% scale) on ${o.date || 'unknown date'}`;
+        return `Modified '${o.workout_name || 'workout'}' from ${o.original_tss} to ${o.new_tss} RSS (${Math.round((o.scale_factor || 0.7) * 100)}% scale) on ${o.date || 'unknown date'}`;
       case 'swap':
         if (o.swapped && o.swapped.length === 2) {
           return `Swapped '${o.swapped[0].name}' to ${o.swapped[0].moved_to} and '${o.swapped[1].name}' to ${o.swapped[1].moved_to}`;

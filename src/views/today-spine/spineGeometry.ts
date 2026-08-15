@@ -345,10 +345,3 @@ export function sparklinePoints(values: number[]): string {
     })
     .join(' ');
 }
-
-/** Readiness ring stroke-dasharray for the 54px donut (r=25 → C≈157.08). */
-export const RING_CIRCUMFERENCE = 2 * Math.PI * 25;
-export function ringDash(readiness: number): string {
-  const filled = (clamp(readiness, 0, 100) / 100) * RING_CIRCUMFERENCE;
-  return `${filled.toFixed(1)} ${RING_CIRCUMFERENCE.toFixed(1)}`;
-}

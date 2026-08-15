@@ -181,7 +181,7 @@ function estimateFromPower(activity: ActivityData): TSSEstimate {
     tss_high: round2(tss * 1.05),
     confidence: 0.95,
     source: 'power',
-    method_detail: `NP=${np}w, FTP=${ftp}w, IF=${intensity_factor.toFixed(2)}`,
+    method_detail: `EP=${np}w, FTP=${ftp}w, RI=${intensity_factor.toFixed(2)}`,
   };
 }
 

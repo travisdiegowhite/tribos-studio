@@ -324,7 +324,7 @@ function WorkoutRow({
         </Text>
         <Text style={{ fontFamily: RB2_FONT.mono, fontSize: 10, color: RB2.textTertiary }}>
           {prefix ? `${prefix} · ` : ''}
-          {workout.category} · {durationMinutes}min · {workout.targetTSS} TSS
+          {workout.category} · {durationMinutes}min · {workout.targetTSS} RSS
         </Text>
       </Box>
     </UnstyledButton>

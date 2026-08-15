@@ -123,7 +123,7 @@ function WeeklyLoadRow({ analysis }: { analysis: WeeklyLoadAnalysis }) {
       <Text size="sm">Week of {weekStr}</Text>
       <Group gap="xs">
         <Text size="sm" fw={500}>
-          {analysis.combinedTSS} / {analysis.capacityTSS} TSS
+          {analysis.combinedTSS} / {analysis.capacityTSS} RSS
         </Text>
         {analysis.isOverloaded ? (
           <Badge size="xs" color="red" variant="filled">

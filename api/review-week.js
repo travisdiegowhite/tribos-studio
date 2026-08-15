@@ -13,6 +13,7 @@ import Anthropic from '@anthropic-ai/sdk';
 import { requireAuth } from './utils/auth.js';
 import { rateLimitByUser } from './utils/rateLimit.js';
 import { enforceAiQuota } from './utils/aiQuota.js';
+import { buildCoachVoiceRules } from './utils/coachVoiceRules.js';
 
 const anthropic = new Anthropic();
 
@@ -395,10 +396,11 @@ export default async function handler(req, res) {
       userPatterns: userPatterns || null,
     });
 
-    // Call Claude API
+    // Call Claude API — shared voice rules ride as the system prompt.
     const message = await anthropic.messages.create({
       model: 'claude-sonnet-4-20250514',
       max_tokens: 2048, // Increased for more detailed analysis
+      system: buildCoachVoiceRules({ correctionNotice: false }),
       messages: [
         {
           role: 'user',

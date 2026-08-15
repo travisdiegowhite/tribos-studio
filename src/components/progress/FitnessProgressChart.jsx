@@ -1,5 +1,10 @@
 /**
- * Fitness progression chart — CTL (τ=42) and TFI (adaptive τ) as peer lines.
+ * Fitness progression chart — one "Fitness" line, server-preferred
+ * (training_load_daily.tfi with a client-computed classic fill for days the
+ * server hasn't written — the same reader policy every surface adopted in the
+ * TFI-duality fix, docs/tfi-duality-decision.md). A plain-language headline
+ * and, when a race is set, a calendar-terms decision sentence lead the chart
+ * (thesis P2/P5); the chart is their citation.
  * Self-contained: fetches its own data from Supabase.
  * Embedded at the top of the Progress page.
  */
@@ -19,12 +24,19 @@ import { useAuth } from '../../contexts/AuthContext.jsx';
 import { supabase } from '../../lib/supabase';
 import { getTodayString, formatLocalDate, parseLocalDate } from '../../utils/dateUtils.js';
 
-const CTL_COLOR       = '#2A8C82';
-const TFI_COLOR       = '#C49A0A';
-const SEASON_START    = '2026-01-01';
-const BOULDER_ROUBAIX = '2026-04-26';
-const BWR             = '2026-05-03';
+const FITNESS_COLOR   = '#2A8C82';
+const RACE_COLOR      = '#C49A0A';
 const CTL_TAU         = 42;
+
+/** Short flag label for a race reference line ("Boulder Roubaix" → "BR"). */
+function raceShortLabel(name) {
+  const initials = String(name || '')
+    .split(/\s+/)
+    .map((w) => w[0])
+    .join('')
+    .toUpperCase();
+  return initials.slice(0, 3) || 'RACE';
+}
 
 const WORKOUT_COLORS = {
   recovery:  '#868e96',
@@ -60,10 +72,10 @@ function findBestBuildBlock(rows, minDays = 7) {
   let bestGain = 0;
   let bestBlock = null;
   for (let i = 0; i < rows.length; i++) {
-    if (rows[i].ctl == null) continue;
+    if (rows[i].fitness == null) continue;
     for (let j = i + minDays; j < rows.length; j++) {
-      if (rows[j].ctl == null) continue;
-      const gain = rows[j].ctl - rows[i].ctl;
+      if (rows[j].fitness == null) continue;
+      const gain = rows[j].fitness - rows[i].fitness;
       if (gain > bestGain) {
         bestGain = gain;
         bestBlock = {
@@ -120,8 +132,7 @@ const STATUS_CONFIG = {
 
 const ProgressTooltip = ({ active, payload, label }) => {
   if (!active || !payload?.length) return null;
-  const ctlEntry = payload.find(p => p.dataKey === 'ctl');
-  const tfiEntry = payload.find(p => p.dataKey === 'tfi');
+  const fitnessEntry = payload.find(p => p.dataKey === 'fitness');
   const row = payload[0]?.payload ?? {};
   const activity = row.activity ?? null;
   const planned = row.plannedWorkout ?? null;
@@ -138,11 +149,8 @@ const ProgressTooltip = ({ active, payload, label }) => {
       }}
     >
       <Text size="xs" fw={700} mb={4}>{label}</Text>
-      {ctlEntry?.value != null && (
-        <Text size="xs" style={{ color: CTL_COLOR }}>CTL: {Number(ctlEntry.value).toFixed(1)}</Text>
-      )}
-      {tfiEntry?.value != null && (
-        <Text size="xs" style={{ color: TFI_COLOR }}>TFI: {Number(tfiEntry.value).toFixed(1)}</Text>
+      {fitnessEntry?.value != null && (
+        <Text size="xs" style={{ color: FITNESS_COLOR }}>Fitness: {Number(fitnessEntry.value).toFixed(1)}</Text>
       )}
       {activity && (
         <Text size="xs" c="dimmed" mt={2}>{activity.name}</Text>
@@ -150,7 +158,7 @@ const ProgressTooltip = ({ active, payload, label }) => {
       {planned?.workout_type && (
         <Text size="xs" mt={2} style={{ color: getWorkoutColor(planned.workout_type) }}>
           Planned: {planned.workout_type}
-          {(planned.actual_tss ?? planned.target_tss) ? ` · ${planned.actual_tss ?? planned.target_tss} TSS target` : ''}
+          {(planned.actual_tss ?? planned.target_tss) ? ` · ${planned.actual_tss ?? planned.target_tss} RSS target` : ''}
         </Text>
       )}
       {deviated && (
@@ -168,6 +176,7 @@ export default function FitnessProgressChart() {
 
   const [activities, setActivities] = useState([]);
   const [tldRows, setTldRows] = useState([]);
+  const [races, setRaces] = useState([]);
   const [nextRace, setNextRace] = useState(null);
   const [ftp, setFtp] = useState(null);
   const [plannedWorkouts, setPlannedWorkouts] = useState([]);
@@ -227,6 +236,7 @@ export default function FitnessProgressChart() {
       setTldRows(tldResult.data ?? []);
 
       const goals = goalsResult.data ?? [];
+      setRaces(goals);
       setNextRace(goals.find(g => g.priority === 'A') ?? goals[0] ?? null);
 
       // Step 2: fetch planned workouts if there are active plans
@@ -289,23 +299,22 @@ export default function FitnessProgressChart() {
       const tld = tfiByDate[dateStr];
       merged.push({
         date: dateStr,
-        ctl: Math.round(ctl * 10) / 10,
-        tfi: tld?.tfi ?? null,
+        // Server-preferred with classic-formula fill (duality decision).
+        fitness: tld?.tfi ?? Math.round(ctl * 10) / 10,
         activity: dayData?.activity ?? null,
         rss: dayData?.rss ?? 0,
         plannedWorkout: plannedByDate[dateStr] ?? null,
-        tfi_tau: tld?.tfi_tau ?? null,
       });
     }
 
-    const extendTo = nextRace?.race_date ? addDays(nextRace.race_date, 1) : addDays(BWR, 1);
+    const extendTo = nextRace?.race_date ? addDays(nextRace.race_date, 1) : addDays(TODAY, 14);
     const lastDate = merged[merged.length - 1]?.date ?? TODAY;
     const placeholders = [];
     let cursor = parseLocalDate(addDays(lastDate, 1));
     const end = parseLocalDate(extendTo);
     if (cursor && end) {
       while (cursor <= end) {
-        placeholders.push({ date: formatLocalDate(cursor) ?? '', ctl: null, tfi: null, activity: null, rss: 0, plannedWorkout: null, tfi_tau: null });
+        placeholders.push({ date: formatLocalDate(cursor) ?? '', fitness: null, activity: null, rss: 0, plannedWorkout: null });
         cursor.setDate(cursor.getDate() + 1);
       }
     }
@@ -313,29 +322,50 @@ export default function FitnessProgressChart() {
     return { chartRows: [...merged, ...placeholders], withActivity: merged };
   }, [activities, ftp, tldRows, nextRace, plannedByDate, windowStart, TODAY]);
 
+  const seasonStart = `${TODAY.slice(0, 4)}-01-01`;
+
   const displayRows = useMemo(() => {
-    const start = window_ === 'jan1' ? SEASON_START : window_ === '90' ? daysBefore(TODAY, 90) : daysBefore(TODAY, 30);
+    const start = window_ === 'jan1' ? seasonStart : window_ === '90' ? daysBefore(TODAY, 90) : daysBefore(TODAY, 30);
     return chartRows.filter(r => r.date >= start);
-  }, [chartRows, window_, TODAY]);
+  }, [chartRows, window_, TODAY, seasonStart]);
 
   const bestBlock = useMemo(() => findBestBuildBlock(withActivity), [withActivity]);
 
   const tickInterval = displayRows.length <= 45 ? 6 : displayRows.length <= 100 ? 10 : 14;
 
   const lastReal = withActivity[withActivity.length - 1] ?? null;
-  const currentCTL = lastReal?.ctl ?? null;
-  const currentTFI = lastReal?.tfi ?? null;
+  const currentFitness = lastReal?.fitness ?? null;
 
   const status = useMemo(() => {
-    if (currentCTL == null || nextRace?.target_tfi_min == null || nextRace?.target_tfi_max == null) return null;
-    if (currentCTL < nextRace.target_tfi_min) return 'OFF_TARGET';
-    if (currentCTL > nextRace.target_tfi_max) return 'RUNNING_HOT';
+    if (currentFitness == null || nextRace?.target_tfi_min == null || nextRace?.target_tfi_max == null) return null;
+    if (currentFitness < nextRace.target_tfi_min) return 'OFF_TARGET';
+    if (currentFitness > nextRace.target_tfi_max) return 'RUNNING_HOT';
     return 'ON_TRACK';
-  }, [currentCTL, nextRace]);
+  }, [currentFitness, nextRace]);
 
   const fmt = (v, d = 1) => v != null ? Number(v).toFixed(d) : '—';
   const showTargetBand = nextRace?.target_tfi_min != null && nextRace?.target_tfi_max != null;
   const hasPlan = plannedWorkouts.length > 0;
+
+  // Plain-language headline (thesis P2) — the chart below is its citation.
+  const headline = useMemo(() => {
+    if (currentFitness == null || withActivity.length < 2) return null;
+    const back = withActivity[Math.max(0, withActivity.length - 43)];
+    const delta = back?.fitness != null ? Math.round(currentFitness - back.fitness) : null;
+    if (delta == null) return null;
+    if (delta >= 5) return `Your fitness base is up ${delta} points over the last six weeks — steady building.`;
+    if (delta <= -5) return `Your fitness has eased ${Math.abs(delta)} points over the last six weeks — lighter riding lately.`;
+    return 'Your fitness has held steady over the last six weeks.';
+  }, [currentFitness, withActivity]);
+
+  // Calendar-terms decision (thesis P5) — replaces "read the band off the curve".
+  const decisionLine = useMemo(() => {
+    if (!status || !nextRace) return null;
+    if (status === 'ON_TRACK') return `Hold this rhythm and you arrive at ${nextRace.name} inside your target range.`;
+    if (status === 'OFF_TARGET')
+      return `You're under target for ${nextRace.name} — ${hasPlan ? 'the plan closes the gap if the next weeks hold' : 'consistent weeks from here close the gap'}.`;
+    return `You're above target for ${nextRace.name} — easing off as race day nears keeps you sharp.`;
+  }, [status, nextRace, hasPlan]);
 
   return (
     <Box
@@ -366,14 +396,26 @@ export default function FitnessProgressChart() {
         </ActionIcon>
       </Group>
 
+      {/* The sentences lead; the number and chart are their citations. */}
+      {headline && (
+        <Text size="md" fw={600} mb={4} style={{ lineHeight: 1.35 }}>
+          {headline}
+        </Text>
+      )}
+      {decisionLine && (
+        <Text size="sm" fw={500} c="dimmed" mb={10} style={{ lineHeight: 1.4 }}>
+          {decisionLine}
+        </Text>
+      )}
+
       {/* Status readout */}
       <Group gap={28} wrap="wrap" mb={14}>
         <Box>
           <Group gap={8} align="center">
-            <Text style={{ fontFamily: 'monospace', fontSize: isMobile ? 22 : 28, fontWeight: 700, color: CTL_COLOR, lineHeight: 1 }}>
-              {fmt(currentCTL)}
+            <Text style={{ fontFamily: 'monospace', fontSize: isMobile ? 18 : 22, fontWeight: 700, color: FITNESS_COLOR, lineHeight: 1 }}>
+              {fmt(currentFitness)}
             </Text>
-            <Text size="xs" c="dimmed" style={{ fontFamily: 'monospace' }}>CTL</Text>
+            <Text size="xs" c="dimmed" style={{ fontFamily: 'monospace' }}>FITNESS · TFI</Text>
             {status && (
               <Badge color={STATUS_CONFIG[status].color} variant="filled" size="sm">
                 {STATUS_CONFIG[status].label}
@@ -384,17 +426,6 @@ export default function FitnessProgressChart() {
             <Text size="xs" c="dimmed" style={{ fontFamily: 'monospace' }} mt={2}>
               target {nextRace.target_tfi_min}–{nextRace.target_tfi_max} by {nextRace.name} ({nextRace.race_date.slice(5)})
             </Text>
-          )}
-        </Box>
-        <Box>
-          <Group gap={8} align="center">
-            <Text style={{ fontFamily: 'monospace', fontSize: isMobile ? 22 : 28, fontWeight: 700, color: TFI_COLOR, lineHeight: 1 }}>
-              {fmt(currentTFI)}
-            </Text>
-            <Text size="xs" c="dimmed" style={{ fontFamily: 'monospace' }}>TFI</Text>
-          </Group>
-          {lastReal?.tfi_tau != null && (
-            <Text size="xs" c="dimmed" style={{ fontFamily: 'monospace' }} mt={2}>τ={lastReal.tfi_tau}d</Text>
           )}
         </Box>
       </Group>
@@ -416,12 +447,8 @@ export default function FitnessProgressChart() {
       {/* Legend */}
       <Group gap={isMobile ? 8 : 16} mb={10} wrap="wrap">
         <Group gap={6} align="center">
-          <Box style={{ width: 18, height: 2, backgroundColor: CTL_COLOR }} />
-          <Text size="xs" style={{ fontFamily: 'monospace', color: CTL_COLOR }}>CTL (τ=42)</Text>
-        </Group>
-        <Group gap={6} align="center">
-          <Box style={{ width: 18, height: 0, borderTop: `2px dashed ${TFI_COLOR}` }} />
-          <Text size="xs" style={{ fontFamily: 'monospace', color: TFI_COLOR }}>TFI (adaptive τ)</Text>
+          <Box style={{ width: 18, height: 2, backgroundColor: FITNESS_COLOR }} />
+          <Text size="xs" style={{ fontFamily: 'monospace', color: FITNESS_COLOR }}>Fitness</Text>
         </Group>
         {hasPlan ? (
           <>
@@ -455,12 +482,12 @@ export default function FitnessProgressChart() {
           <ChartTooltip content={<ProgressTooltip />} />
 
           {/* Best build block — shaded region */}
-          {bestBlock && bestBlock.start >= (window_ === 'jan1' ? SEASON_START : window_ === '90' ? daysBefore(TODAY, 90) : daysBefore(TODAY, 30)) && (
+          {bestBlock && bestBlock.start >= (window_ === 'jan1' ? seasonStart : window_ === '90' ? daysBefore(TODAY, 90) : daysBefore(TODAY, 30)) && (
             <ReferenceArea
               x1={bestBlock.start} x2={bestBlock.end}
-              fill={CTL_COLOR} fillOpacity={0.07}
-              stroke={CTL_COLOR} strokeOpacity={0.20}
-              label={{ value: `+${bestBlock.gain} CTL`, position: 'insideTopLeft', fontSize: 9, fill: CTL_COLOR, fontFamily: 'monospace' }}
+              fill={FITNESS_COLOR} fillOpacity={0.07}
+              stroke={FITNESS_COLOR} strokeOpacity={0.20}
+              label={{ value: `+${bestBlock.gain} fitness`, position: 'insideTopLeft', fontSize: 9, fill: FITNESS_COLOR, fontFamily: 'monospace' }}
             />
           )}
 
@@ -468,28 +495,35 @@ export default function FitnessProgressChart() {
             <ReferenceArea
               x1={TODAY} x2={nextRace.race_date}
               y1={nextRace.target_tfi_min} y2={nextRace.target_tfi_max}
-              fill={CTL_COLOR} fillOpacity={0.10}
-              stroke={CTL_COLOR} strokeOpacity={0.25}
-              label={{ value: 'CTL TARGET ZONE', position: 'insideRight', fontSize: 9, fill: CTL_COLOR, fontFamily: 'monospace' }}
+              fill={FITNESS_COLOR} fillOpacity={0.10}
+              stroke={FITNESS_COLOR} strokeOpacity={0.25}
+              label={{ value: 'RACE TARGET', position: 'insideRight', fontSize: 9, fill: FITNESS_COLOR, fontFamily: 'monospace' }}
             />
           )}
 
-          <ReferenceLine x={BOULDER_ROUBAIX} stroke={TFI_COLOR} strokeWidth={1.5} label={{ value: 'BR', fontSize: 9, fill: TFI_COLOR, position: 'top' }} />
-          <ReferenceLine x={BWR} stroke={TFI_COLOR} strokeWidth={1.5} label={{ value: 'BWR', fontSize: 9, fill: TFI_COLOR, position: 'top' }} />
+          {races.map((race) => (
+            <ReferenceLine
+              key={race.id}
+              x={race.race_date}
+              stroke={RACE_COLOR}
+              strokeWidth={1.5}
+              label={{ value: raceShortLabel(race.name), fontSize: 9, fill: RACE_COLOR, position: 'top' }}
+            />
+          ))}
           <ReferenceLine x={TODAY} stroke="var(--mantine-color-dark-3)" strokeDasharray="4 2" label={{ value: 'TODAY', fontSize: 8, fill: 'var(--mantine-color-dark-3)', position: 'top' }} />
 
           <Line
-            type="monotone" dataKey="ctl" name="CTL"
-            stroke={CTL_COLOR} strokeWidth={2}
+            type="monotone" dataKey="fitness" name="Fitness"
+            stroke={FITNESS_COLOR} strokeWidth={2}
             dot={(props) => {
               const { payload } = props;
-              if (!payload?.activity || payload.ctl == null) return <g key={props.key} />;
+              if (!payload?.activity || payload.fitness == null) return <g key={props.key} />;
 
               const pw = payload.plannedWorkout;
               // rest day with a planned rest — skip dot
               if (pw?.workout_type?.toLowerCase() === 'rest') return <g key={props.key} />;
 
-              const color = hasPlan ? getWorkoutColor(pw?.workout_type) : CTL_COLOR;
+              const color = hasPlan ? getWorkoutColor(pw?.workout_type) : FITNESS_COLOR;
               const r = getDotRadius(payload.rss);
               const deviated = isSignificantDeviation(pw, payload.rss);
 
@@ -508,13 +542,7 @@ export default function FitnessProgressChart() {
                 </g>
               );
             }}
-            activeDot={{ r: 5, fill: CTL_COLOR }}
-            connectNulls={false}
-          />
-          <Line
-            type="monotone" dataKey="tfi" name="TFI"
-            stroke={TFI_COLOR} strokeWidth={2} strokeDasharray="4 2"
-            dot={false} activeDot={{ r: 4, fill: TFI_COLOR }}
+            activeDot={{ r: 5, fill: FITNESS_COLOR }}
             connectNulls={false}
           />
         </LineChart>

@@ -342,7 +342,7 @@ const RideHistoryTable = ({
               <Group justify="space-between" align="center">
                 <Group gap="xs">
                   <Badge color="blue" variant="light" size="sm">
-                    {estimateTSS(ride)} TSS
+                    {estimateTSS(ride)} RSS
                   </Badge>
                   {getSportType(ride) === 'running' && getPace(ride) ? (
                     <Badge color="teal" variant="light" size="sm">
@@ -396,7 +396,7 @@ const RideHistoryTable = ({
                 <Table.Th>Distance</Table.Th>
                 <Table.Th>Elevation</Table.Th>
                 <Table.Th>Duration</Table.Th>
-                <Table.Th>TSS</Table.Th>
+                <Table.Th>RSS</Table.Th>
                 <Table.Th>Pace/Power</Table.Th>
                 <Table.Th>Actions</Table.Th>
               </Table.Tr>

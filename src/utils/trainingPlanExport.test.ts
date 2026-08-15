@@ -200,7 +200,7 @@ describe('generateCSV', () => {
     const headerLine = lines.find(l => l.startsWith('Week,'));
     expect(headerLine).toBeDefined();
     expect(headerLine).toContain('Target Duration');
-    expect(headerLine).toContain('Target TSS');
+    expect(headerLine).toContain('Target RSS');
     expect(headerLine).toContain('Coach Notes');
 
     // Should have data rows
@@ -258,7 +258,7 @@ describe('generateICal', () => {
   it('includes description with workout details', () => {
     const ical = generateICal(mockPlan, mockWorkouts);
 
-    expect(ical).toContain('Target TSS: 85');
+    expect(ical).toContain('Target RSS: 85');
     expect(ical).toContain('sweet_spot');
   });
 

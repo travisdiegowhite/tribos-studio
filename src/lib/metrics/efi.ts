@@ -75,7 +75,7 @@ export function efiCoachInsight(result: EFIResult): string {
     return `Athlete EFI is ${efi}/100. Primary drag: Consistency Fidelity (${(cf * 100).toFixed(0)}%). Session completion is below target over the past 28 days. Probe for external life stressors or training load mismatch.`;
   }
   if (vf < 0.75) {
-    return `Athlete EFI is ${efi}/100. Primary drag: Volume Fidelity (${(vf * 100).toFixed(0)}%). Significant gap between planned and actual TSS. Check if workouts are being cut short or if planned load is miscalibrated.`;
+    return `Athlete EFI is ${efi}/100. Primary drag: Volume Fidelity (${(vf * 100).toFixed(0)}%). Significant gap between planned and actual RSS. Check if workouts are being cut short or if planned load is miscalibrated.`;
   }
   return `Athlete EFI is ${efi}/100. Moderate execution — all sub-scores are middling. No single dominant failure mode; review overall training adherence pattern.`;
 }

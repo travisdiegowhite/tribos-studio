@@ -239,7 +239,7 @@ function Progress() {
     if (trainingMetrics.ctl > 0) {
       const ctlTranslation = translateCTL(trainingMetrics.ctl);
       insights.push({
-        title: `Fitness (CTL): ${trainingMetrics.ctl}`,
+        title: `Fitness: ${ctlTranslation.label}`,
         detail: ctlTooltip(trainingMetrics.ctl),
         sentiment: ctlTranslation.color === 'teal' || ctlTranslation.color === 'gold' ? 'positive' : 'neutral',
       });

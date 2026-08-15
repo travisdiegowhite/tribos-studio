@@ -430,8 +430,9 @@ const AerobicDecoupling = ({ activities, timeRange = 90 }) => {
       </Paper>
 
       <Text size="xs" c="dimmed" mt="md">
-        EF (Efficiency Factor) = Normalized Power / Heart Rate. Higher is better.
-        Track EF over time to see aerobic fitness improvements.
+        Efficiency (EF) = Effective Power (EP) / Heart Rate — how much power each
+        heartbeat buys you. Higher is better. Track it over time to see aerobic
+        fitness improvements.
       </Text>
     </Card>
   );

@@ -90,7 +90,7 @@ const TrainNow = ({
             TrainNow
           </Text>
           <Badge color={tsb > 5 ? 'green' : tsb > -10 ? 'yellow' : 'red'} variant="light" size="sm">
-            TSB: {tsb > 0 ? '+' : ''}{Math.round(tsb)}
+            Form {tsb > 0 ? '+' : ''}{Math.round(tsb)}
           </Badge>
         </Group>
         <Group gap="xs">
@@ -140,7 +140,7 @@ const TrainNow = ({
                       <Group gap="xs" mt={4}>
                         <Badge size="xs" variant="light">{primaryRec.workouts[0].duration}m</Badge>
                         <Badge size="xs" variant="light" color="blue">
-                          ~{primaryRec.workouts[0].targetTSS} TSS
+                          ~{primaryRec.workouts[0].targetTSS} RSS
                         </Badge>
                         <WorkoutDifficultyBadge
                           workout={primaryRec.workouts[0]}

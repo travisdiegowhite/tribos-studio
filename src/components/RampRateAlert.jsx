@@ -67,37 +67,37 @@ const RampRateAlert = ({ dailyTSSData, currentCTL, showDetails = true }) => {
       status = 'danger';
       color = 'red';
       icon = Warning;
-      message = `Ramp rate of +${weeklyRampRate} RSS/week is dangerously high`;
+      message = `You're ramping load far faster than your body can absorb (+${weeklyRampRate} RSS/week)`;
       recommendation = 'Significantly reduce training load immediately. High risk of overtraining, injury, or illness.';
     } else if (weeklyRampRate > 7) {
       status = 'warning';
       color = 'orange';
       icon = Warning;
-      message = `Ramp rate of +${weeklyRampRate} RSS/week is aggressive`;
+      message = `You're building load aggressively (+${weeklyRampRate} RSS/week)`;
       recommendation = 'Consider backing off slightly. Monitor fatigue levels closely.';
     } else if (weeklyRampRate >= 3 && weeklyRampRate <= 7) {
       status = 'optimal';
       color = 'green';
       icon = Check;
-      message = `Ramp rate of +${weeklyRampRate} RSS/week is optimal`;
+      message = `You're building load at a sustainable rate (+${weeklyRampRate} RSS/week)`;
       recommendation = 'Great job! This is the ideal rate for sustainable fitness gains.';
     } else if (weeklyRampRate >= 0 && weeklyRampRate < 3) {
       status = 'maintenance';
       color = 'blue';
       icon = Info;
-      message = `Ramp rate of +${weeklyRampRate} RSS/week - maintaining fitness`;
+      message = `You're holding fitness steady (+${weeklyRampRate} RSS/week)`;
       recommendation = 'You\'re maintaining fitness. Increase load slightly if looking to improve.';
     } else if (weeklyRampRate >= -5) {
       status = 'recovery';
       color = 'teal';
       icon = TrendDown;
-      message = `Ramp rate of ${weeklyRampRate} RSS/week - planned recovery`;
+      message = `Load is easing off — recovery or taper (${weeklyRampRate} RSS/week)`;
       recommendation = 'This could be a recovery week or taper. Normal if intentional.';
     } else {
       status = 'detraining';
       color = 'yellow';
       icon = TrendDown;
-      message = `Ramp rate of ${weeklyRampRate} RSS/week - losing fitness`;
+      message = `Load has dropped enough that fitness is fading (${weeklyRampRate} RSS/week)`;
       recommendation = 'Significant fitness loss occurring. Resume training if unintentional.';
     }
 

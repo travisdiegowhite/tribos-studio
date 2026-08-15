@@ -1745,7 +1745,7 @@ function Settings() {
                 Training & Power
               </Title>
               <Text size="sm" style={{ color: 'var(--color-text-secondary)' }}>
-                Set your FTP to calculate personalized power zones
+                Set your Functional Threshold Power (FTP) to calculate personalized power zones
               </Text>
 
               <SimpleGrid cols={{ base: 1, sm: 2 }} spacing="sm">
@@ -1761,7 +1761,7 @@ function Settings() {
                 />
                 <NumberInput
                   label="Weight"
-                  description="For W/kg calculations"
+                  description="For watts-per-kilogram (W/kg) — your climbing power"
                   placeholder={unitsPreference === 'imperial' ? 'e.g., 165' : 'e.g., 75'}
                   value={unitsPreference === 'imperial' && weightKg ? Math.round(weightKg * 2.20462) : (weightKg || '')}
                   onChange={(val) => {
@@ -2129,7 +2129,7 @@ function Settings() {
                   </Text>
                   <List size="sm" spacing="xs">
                     <List.Item icon={<ThemeIcon color="blue" size={20} radius="xl"><Check size={12} /></ThemeIcon>}>
-                      Imports the full .fit file (power streams, NP, IF, ride analytics)
+                      Imports the full .fit file (power streams, effective power, ride analytics)
                     </List.Item>
                     <List.Item icon={<ThemeIcon color="blue" size={20} radius="xl"><Check size={12} /></ThemeIcon>}>
                       Dedupes against activities already synced via the Garmin webhook

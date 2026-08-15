@@ -3,12 +3,13 @@
  * canonical routing-first glance (src/views/today-glance) and mounted at
  * /today/spine; the live /today is untouched until we choose to flip it.
  *
- * Owns the interaction state (scrub selection, node flip, readiness popover, the
- * TSB/readiness count-up) and the responsive layout. All truth comes from one
- * SpineData via useTodaySpine(); zones are pure renderers.
+ * Owns the interaction state (scrub selection, node flip) and the responsive
+ * layout. All truth comes from one SpineData via useTodaySpine(); zones are
+ * pure renderers. The page hero is the plain-language summaryLine — the chart
+ * and the node's FS chip are its citations (thesis P4).
  */
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Box, Skeleton, Stack, Text } from '@mantine/core';
 import { useMediaQuery } from '@mantine/hooks';
 import AppShell from '../../components/AppShell.jsx';
@@ -26,40 +27,34 @@ import { C, FONT } from './tokens';
 import type { UnitsPreference } from './units';
 import type { SpineData } from './types';
 
-const COUNT_UP_MS = 750;
-
-function prefersReducedMotion(): boolean {
-  return typeof window !== 'undefined' && window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
-}
-
 function PageHeader({ data }: { data: SpineData }) {
   const today = data.days[data.todayIndex];
   const [weekday, ...rest] = today.dateLabel.split(' ');
   const datePortion = `${weekday} ${rest.join(' ')}`;
   return (
-    <Box
-      style={{
-        display: 'flex',
-        alignItems: 'flex-end',
-        justifyContent: 'space-between',
-        gap: 16,
-        flexWrap: 'wrap',
-        marginBottom: 4,
-      }}
-    >
-      <Box>
-        <Text style={{ fontFamily: FONT.mono, fontSize: 11, fontWeight: 500, letterSpacing: '3px', color: C.teal, marginBottom: 5 }}>
-          DEPARTMENT OF CYCLING INTELLIGENCE
-        </Text>
-        <Text
-          component="h1"
-          style={{ margin: 0, fontFamily: FONT.heading, fontWeight: 700, fontSize: 34, letterSpacing: '.04em', textTransform: 'uppercase', color: C.text }}
-        >
-          TODAY <span style={{ color: C.text3, fontWeight: 600 }}>— {datePortion}</span>
-        </Text>
-      </Box>
+    <Box style={{ marginBottom: 4 }}>
+      <Text style={{ fontFamily: FONT.mono, fontSize: 11, fontWeight: 500, letterSpacing: '3px', color: C.teal, marginBottom: 5 }}>
+        DEPARTMENT OF CYCLING INTELLIGENCE
+      </Text>
+      <Text
+        component="h1"
+        style={{ margin: 0, fontFamily: FONT.heading, fontWeight: 700, fontSize: 24, letterSpacing: '.04em', textTransform: 'uppercase', color: C.text3 }}
+      >
+        TODAY <span style={{ fontWeight: 600 }}>— {datePortion}</span>
+      </Text>
+      {/* The page hero: the sentence, full-width. The chart below is its citation. */}
       {data.summaryLine && (
-        <Text style={{ fontFamily: FONT.body, fontSize: 13, lineHeight: 1.5, color: C.text2, maxWidth: 300, textAlign: 'right' }}>
+        <Text
+          style={{
+            fontFamily: FONT.body,
+            fontSize: 20,
+            fontWeight: 600,
+            lineHeight: 1.35,
+            color: C.text,
+            marginTop: 6,
+            maxWidth: 760,
+          }}
+        >
           {data.summaryLine}
         </Text>
       )}
@@ -77,60 +72,20 @@ export default function TodaySpine() {
 
   const [selected, setSelected] = useState(0);
   const [flipped, setFlipped] = useState(false);
-  const [ringHover, setRingHover] = useState(false);
-  const [dispTSB, setDispTSB] = useState(0);
-  const [dispReady, setDispReady] = useState(0);
-  const rafRef = useRef<number | null>(null);
 
-  const stopAnim = useCallback(() => {
-    if (rafRef.current != null) cancelAnimationFrame(rafRef.current);
-    rafRef.current = null;
-  }, []);
-
-  const animate = useCallback(
-    (tsb: number, ready: number) => {
-      stopAnim();
-      if (prefersReducedMotion()) {
-        setDispTSB(tsb);
-        setDispReady(ready);
-        return;
-      }
-      const t0 = performance.now();
-      const ease = (x: number) => 1 - Math.pow(1 - x, 3);
-      const step = (now: number) => {
-        const p = Math.min(1, (now - t0) / COUNT_UP_MS);
-        setDispTSB(tsb * ease(p));
-        setDispReady(ready * ease(p));
-        if (p < 1) rafRef.current = requestAnimationFrame(step);
-      };
-      rafRef.current = requestAnimationFrame(step);
-    },
-    [stopAnim],
-  );
-
-  // Initialize selection + count-up once data lands.
+  // Initialize selection once data lands.
   useEffect(() => {
     if (!data) return;
     setSelected(data.todayIndex);
-    const t = data.days[data.todayIndex];
-    setDispTSB(0);
-    setDispReady(0);
-    animate(t.fs, t.readiness);
-    return stopAnim;
-  }, [data, animate, stopAnim]);
+  }, [data]);
 
   const handleSelect = useCallback(
     (i: number) => {
       if (!data) return;
-      stopAnim();
       setSelected(i);
       setFlipped(false);
-      setRingHover(false);
-      const d = data.days[i];
-      setDispTSB(d.fs); // scrubbing shows values immediately, no count-up
-      setDispReady(d.readiness);
     },
-    [data, stopAnim],
+    [data],
   );
 
   const snapToday = useCallback(
@@ -139,16 +94,9 @@ export default function TodaySpine() {
       if (!data) return;
       setSelected(data.todayIndex);
       setFlipped(false);
-      setRingHover(false);
-      setDispTSB(0);
-      setDispReady(0);
-      const t = data.days[data.todayIndex];
-      animate(t.fs, t.readiness);
     },
-    [data, animate],
+    [data],
   );
-
-  const toggleRing = useCallback(() => setRingHover((v) => !v), []);
 
   const vm = useMemo(
     () => (data ? buildNodeVM(data.days, Math.min(selected, data.days.length - 1), data.todayIndex) : null),
@@ -219,18 +167,9 @@ export default function TodaySpine() {
         vm={vm}
         showNode={!isMobile}
         interactive
-        dispTSB={dispTSB}
-        dispReady={dispReady}
         flipped={flipped}
-        ringHover={ringHover}
-        onToggleFlip={() => {
-          setFlipped((f) => !f);
-          setRingHover(false);
-        }}
+        onToggleFlip={() => setFlipped((f) => !f)}
         onSnapToday={snapToday}
-        onRingEnter={() => setRingHover(true)}
-        onRingLeave={() => setRingHover(false)}
-        onRingToggle={toggleRing}
       />
     );
 
@@ -245,17 +184,7 @@ export default function TodaySpine() {
 
     // Mobile: node as a normal top card; tap a day on the spine below to
     // select it (per the design handoff's mobile parity note).
-    const nodeCard = (
-      <FitnessNode
-        vm={vm}
-        dispTSB={dispTSB}
-        dispReady={dispReady}
-        flipped={false}
-        ringHover={false}
-        compact
-        onSnapToday={snapToday}
-      />
-    );
+    const nodeCard = <FitnessNode vm={vm} flipped={false} compact onSnapToday={snapToday} />;
 
     if (isMobile) {
       // 01 → 02 → 03 → 04 stacked single-column.

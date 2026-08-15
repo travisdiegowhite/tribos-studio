@@ -31,7 +31,7 @@ export function TWLCalculator() {
       }}>
         <div style={{ textAlign: 'center' }}>
           <Text style={{ fontFamily: "'Barlow Condensed', sans-serif", fontSize: 11, color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: '1px' }}>
-            Base TSS
+            Base RSS
           </Text>
           <Text style={{ fontFamily: "'DM Mono', monospace", fontSize: 28, fontWeight: 700, color: 'var(--color-text-muted)' }}>
             {baseTSS}
@@ -64,7 +64,7 @@ export function TWLCalculator() {
       </div>
 
       {/* Sliders */}
-      <SliderRow label="Base TSS" value={baseTSS} onChange={setBaseTSS} min={20} max={400} />
+      <SliderRow label="Base RSS" value={baseTSS} onChange={setBaseTSS} min={20} max={400} />
       <SliderRow label="Elevation gain (m)" value={elevationGain} onChange={setElevationGain} min={0} max={3000} />
       <SliderRow label="Duration (hours)" value={durationHours} onChange={setDurationHours} min={0.5} max={8} step={0.5} />
       <SliderRow label="Gradient variability (σ %)" value={gvi} onChange={setGvi} min={0} max={12} step={0.5} />
@@ -79,7 +79,7 @@ export function TWLCalculator() {
           </Accordion.Control>
           <Accordion.Panel>
             <Text size="xs" c="dimmed" style={{ fontFamily: "'DM Mono', monospace", lineHeight: 1.8 }}>
-              TWL = TSS × M_terrain{'\n'}
+              TWL = RSS × M_terrain{'\n'}
               M_terrain = 1 + (α × VAM_norm) + (β × GVI) + (γ × ALT){'\n\n'}
               α = 0.10 (climbing rate){'\n'}
               β = 0.03 (gradient variability){'\n'}

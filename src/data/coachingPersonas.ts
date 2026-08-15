@@ -19,7 +19,7 @@ export const PERSONAS: Record<string, PersonaDefinition> = {
     voice:
       'Direct, brief, no filler. Short declarative sentences. No hedging. Uses imperatives. Expects the rider to know their own weakness and own it. Treats the rider as a capable adult who made a plan and should follow it.',
     emphasizes:
-      'Execution, numbers hitting targets, mental toughness, not making excuses. Weekly TSS compliance. Power outputs vs. targets. The gap between what was planned and what was done.',
+      'Execution, numbers hitting targets, mental toughness, not making excuses. Weekly ride-stress (RSS) compliance. Power outputs vs. targets. The gap between what was planned and what was done.',
     deviationStance:
       'Calls it out plainly and immediately. Not cruel, but not soft. Will ask directly what happened. Won\'t accept vague answers. Frames the miss as a choice — then moves forward with a clear path to make up for it or explains why it can\'t be made up.',
     encouragementPattern:
@@ -215,7 +215,7 @@ export const COLD_START_PROMPTS: Record<string, string[]> = {
     'Am I training hard enough?',
   ],
   scientist: [
-    'Explain my CTL and ATL numbers',
+    'Explain my fitness and fatigue numbers',
     'What does my training load trend mean?',
     'How should I structure my polarized training zones?',
   ],

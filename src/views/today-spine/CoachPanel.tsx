@@ -39,7 +39,7 @@ const QUICK_CHIPS: Array<{ label: string; query: string }> = [
 function buildContext(data: SpineData): string {
   const t = data.days[data.todayIndex];
   const parts = [
-    `Canonical metrics on screen — Form Score (FS): ${t.fs}, Fitness (TFI): ${t.tfi}, Fatigue (AFI): ${t.afi}, readiness ${t.readiness}.`,
+    `Canonical metrics on screen — Form Score (FS): ${t.fs}, Fitness (TFI): ${t.tfi}, Fatigue (AFI): ${t.afi}.`,
   ];
   // The PLAN tag means a workout is scheduled for today — it says nothing
   // about whether it has been done. Phrase it so the coach never assumes
@@ -300,7 +300,7 @@ export function CoachPanel({ data, onScheduleChanged }: CoachPanelProps) {
           <Text style={{ fontFamily: FONT.heading, fontWeight: 700, fontSize: 18, letterSpacing: '.03em', textTransform: 'uppercase', color: C.text }}>
             {coach.recTitle}
           </Text>
-          <Text style={{ fontFamily: FONT.body, fontSize: 13, lineHeight: 1.5, color: C.text2, marginTop: 3 }}>
+          <Text style={{ fontFamily: FONT.body, fontSize: 15, lineHeight: 1.5, color: C.text2, marginTop: 3 }}>
             {take ?? coach.oneLineTake ?? coach.recBody}
           </Text>
         </Box>

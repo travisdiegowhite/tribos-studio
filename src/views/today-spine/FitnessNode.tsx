@@ -1,32 +1,27 @@
 /**
  * FitnessNode — Zone 01. The floating frosted-glass card that sits on the spine
- * as the "today" marker and scrubs along it. Front = FORM/TSB + readiness ring +
- * TFI/AFI/volume; back (on click) = the CTL/ATL trend sparklines. The teal
- * header doubles as the day's workout chip and the drag handle.
+ * as the "today" marker and scrubs along it. Front = the form state in words
+ * (sentence-first, FS as a quiet citation chip); back (on click) = the TFI/AFI
+ * trend sparklines + week volume. The teal header doubles as the day's workout
+ * chip and the drag handle.
  *
  * The frosted-glass fill + white text-shadow halos are intentional and tuned
  * (see docs/today-view) — kept verbatim so readouts stay legible over the curve.
  * On mobile the card renders `compact` (solid, non-floating, read-only).
  */
 
-import { ringDash } from './spineGeometry';
 import { C, CHART, FONT } from './tokens';
+import { MetricCitation } from '../../components/ui/MetricCitation';
 import type { NodeVM } from './nodeView';
 
 interface FitnessNodeProps {
   vm: NodeVM;
-  dispTSB: number;
-  dispReady: number;
   flipped: boolean;
-  ringHover: boolean;
   nodeLeftPct?: string;
   compact?: boolean;
   onHeaderPointerDown?: (e: React.PointerEvent) => void;
   onSnapToday?: (e: React.MouseEvent) => void;
   onToggleFlip?: () => void;
-  onRingEnter?: () => void;
-  onRingLeave?: () => void;
-  onRingToggle?: () => void;
 }
 
 const HALO_STRONG =
@@ -36,21 +31,14 @@ const HALO_SOFT = '0 1px 1px rgba(244,244,242,.85)';
 
 export function FitnessNode({
   vm,
-  dispTSB,
-  dispReady,
   flipped,
-  ringHover,
   nodeLeftPct,
   compact = false,
   onHeaderPointerDown,
   onSnapToday,
   onToggleFlip,
-  onRingEnter,
-  onRingLeave,
-  onRingToggle,
 }: FitnessNodeProps) {
-  const readyNum = Math.round(dispReady);
-  const tsbLabel = `${dispTSB >= 0 ? '+' : ''}${Math.round(dispTSB)}`;
+  const fsLabel = `${vm.fs >= 0 ? '+' : ''}${Math.round(vm.fs)}`;
 
   const containerStyle: React.CSSProperties = compact
     ? {
@@ -183,186 +171,48 @@ export function FitnessNode({
       >
         {!flipped ? (
           <div style={{ padding: '11px 12px 9px' }}>
-            <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between' }}>
-              <div>
-                <div
-                  style={{
-                    fontFamily: FONT.mono,
-                    fontSize: 9,
-                    fontWeight: 500,
-                    letterSpacing: '1.5px',
-                    color: '#45443f',
-                    textShadow: HALO_SOFT,
-                  }}
-                >
-                  FORM · FS
-                </div>
-                <div style={{ display: 'flex', alignItems: 'baseline', gap: 6 }}>
-                  <span
-                    style={{
-                      fontFamily: FONT.mono,
-                      fontWeight: 500,
-                      fontSize: 41,
-                      lineHeight: 0.9,
-                      color: CHART.ink,
-                      fontVariantNumeric: 'tabular-nums',
-                      textShadow: HALO_STRONG,
-                    }}
-                  >
-                    {tsbLabel}
-                  </span>
-                  <span style={{ fontFamily: FONT.mono, fontWeight: 500, fontSize: 15, color: vm.arrowColor }}>
-                    {vm.arrowChar}
-                  </span>
-                </div>
-                <div
-                  style={{
-                    fontFamily: FONT.body,
-                    fontWeight: 600,
-                    fontSize: 11,
-                    color: vm.stateColor,
-                    letterSpacing: '.02em',
-                    marginTop: 2,
-                    textShadow: HALO_MED,
-                  }}
-                >
-                  {vm.stateText}
-                </div>
-              </div>
-              <div
-                onMouseEnter={onRingEnter}
-                onMouseLeave={onRingLeave}
-                onClick={(e) => {
-                  e.stopPropagation();
-                  onRingToggle?.();
-                }}
-                role="button"
-                aria-label={`Readiness ${readyNum} — show reasoning`}
-                style={{ textAlign: 'center', cursor: 'help' }}
-              >
-                <svg width="54" height="54" viewBox="0 0 64 64">
-                  <circle cx="32" cy="32" r="25" fill="none" stroke={CHART.ringTrack} strokeWidth="7" />
-                  <circle
-                    cx="32"
-                    cy="32"
-                    r="25"
-                    fill="none"
-                    stroke={vm.ringColor}
-                    strokeWidth="7"
-                    strokeDasharray={ringDash(dispReady)}
-                    strokeLinecap="round"
-                    transform="rotate(-90 32 32)"
-                  />
-                  <text
-                    x="32"
-                    y="34"
-                    textAnchor="middle"
-                    style={{
-                      fontFamily: FONT.mono,
-                      fontWeight: 500,
-                      fontSize: 18,
-                      fill: CHART.ink,
-                      paintOrder: 'stroke',
-                      stroke: 'rgba(244,244,242,1)',
-                      strokeWidth: '3.5px',
-                    }}
-                  >
-                    {readyNum}
-                  </text>
-                  <text
-                    x="32"
-                    y="45"
-                    textAnchor="middle"
-                    style={{ fontFamily: FONT.mono, fontWeight: 500, fontSize: 6, fill: C.text3, letterSpacing: '1px' }}
-                  >
-                    READY
-                  </text>
-                </svg>
-              </div>
-            </div>
-
             <div
               style={{
-                display: 'grid',
-                gridTemplateColumns: '1fr 1fr 1fr',
-                marginTop: 11,
-                borderTop: `1px dashed ${C.border}`,
+                fontFamily: FONT.mono,
+                fontSize: 9,
+                fontWeight: 500,
+                letterSpacing: '1.5px',
+                color: '#45443f',
+                textShadow: HALO_SOFT,
+                marginBottom: 4,
               }}
             >
-              <NodeStat label="TFI · FITNESS" value={vm.ctl} />
-              <NodeStat label="AFI · FATIGUE" value={vm.atl} divider />
-              <NodeStat label="WK VOLUME" value={vm.volLabel} divider />
+              FORM
             </div>
-
+            <MetricCitation
+              sentence={vm.stateText}
+              color={vm.stateColor}
+              metrics={[{ label: 'FS', value: fsLabel }]}
+              sentenceStyle={{
+                fontFamily: FONT.body,
+                fontSize: 17,
+                lineHeight: 1.25,
+                letterSpacing: '.01em',
+                textShadow: HALO_STRONG,
+              }}
+              chipStyle={{
+                fontFamily: FONT.mono,
+                color: '#45443f',
+                textShadow: HALO_SOFT,
+              }}
+            />
             <div
               style={{
                 fontFamily: FONT.mono,
                 fontSize: 8.5,
                 letterSpacing: '1px',
                 color: '#c9c7c0',
-                marginTop: 9,
+                marginTop: 10,
                 textAlign: 'center',
               }}
             >
-              CLICK FOR TFI / AFI DETAIL
+              SEE THE TREND →
             </div>
-
-            {ringHover && !compact && (
-              <div
-                style={{
-                  position: 'absolute',
-                  right: 12,
-                  top: 98,
-                  width: 206,
-                  background: C.navy,
-                  border: `1px solid ${C.teal}`,
-                  boxShadow: '0 10px 24px rgba(20,16,8,.35)',
-                  padding: '11px 12px',
-                  zIndex: 5,
-                }}
-              >
-                <div
-                  style={{
-                    fontFamily: FONT.mono,
-                    fontSize: 8,
-                    fontWeight: 500,
-                    letterSpacing: '1.5px',
-                    color: '#3BA89D',
-                    marginBottom: 8,
-                  }}
-                >
-                  WHY READINESS {readyNum}
-                </div>
-                {vm.reasons.map((r) => (
-                  <div
-                    key={r.k}
-                    style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'space-between',
-                      gap: 8,
-                      marginBottom: 5,
-                    }}
-                  >
-                    <span style={{ fontFamily: FONT.body, fontSize: 11, color: '#B0B0A8' }}>{r.k}</span>
-                    <span style={{ fontFamily: FONT.mono, fontWeight: 500, fontSize: 10, color: r.c }}>{r.v}</span>
-                  </div>
-                ))}
-                <div
-                  style={{
-                    borderTop: '1px solid #2E2E2A',
-                    marginTop: 6,
-                    paddingTop: 6,
-                    fontFamily: FONT.body,
-                    fontSize: 10,
-                    lineHeight: 1.35,
-                    color: C.text3,
-                  }}
-                >
-                  → feeds today’s coach call
-                </div>
-              </div>
-            )}
           </div>
         ) : (
           <div style={{ padding: '11px 12px 9px' }}>
@@ -379,7 +229,7 @@ export function FitnessNode({
               TREND · {vm.headerDate}
             </div>
             <TrendRow
-              label="TFI · 42-DAY FITNESS"
+              label="FITNESS · TFI · 42-DAY"
               value={vm.ctl}
               delta={vm.ctlDelta}
               deltaColor={vm.ctlDeltaColor}
@@ -387,13 +237,27 @@ export function FitnessNode({
               stroke={CHART.pastLine}
             />
             <TrendRow
-              label="AFI · 7-DAY FATIGUE"
+              label="FATIGUE · AFI · 7-DAY"
               value={vm.atl}
               delta={vm.atlDelta}
               deltaColor={vm.atlDeltaColor}
               points={vm.atlSpark}
               stroke={C.orange}
             />
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'baseline',
+                justifyContent: 'space-between',
+                borderTop: `1px dashed ${C.border}`,
+                paddingTop: 6,
+              }}
+            >
+              <span style={{ fontFamily: FONT.mono, fontSize: 9, color: CHART.axisMuted }}>WK VOLUME</span>
+              <span style={{ fontFamily: FONT.mono, fontWeight: 500, fontSize: 13, color: C.text, textShadow: HALO_MED }}>
+                {vm.volLabel}
+              </span>
+            </div>
             <div
               style={{
                 fontFamily: FONT.mono,
@@ -404,46 +268,10 @@ export function FitnessNode({
                 textAlign: 'center',
               }}
             >
-              CLICK TO CLOSE
+              BACK
             </div>
           </div>
         )}
-      </div>
-    </div>
-  );
-}
-
-function NodeStat({ label, value, divider }: { label: string; value: number | string; divider?: boolean }) {
-  return (
-    <div
-      style={{
-        padding: divider ? '8px 0 0' : '8px 0 0',
-        borderLeft: divider ? '1px solid #eeece6' : undefined,
-        paddingLeft: divider ? 12 : undefined,
-      }}
-    >
-      <div
-        style={{
-          fontFamily: FONT.mono,
-          fontSize: 8,
-          fontWeight: 500,
-          letterSpacing: '1px',
-          color: '#55544e',
-          textShadow: HALO_SOFT,
-        }}
-      >
-        {label}
-      </div>
-      <div
-        style={{
-          fontFamily: FONT.mono,
-          fontWeight: 500,
-          fontSize: 20,
-          color: CHART.ink,
-          textShadow: HALO_MED,
-        }}
-      >
-        {value}
       </div>
     </div>
   );

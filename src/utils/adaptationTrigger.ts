@@ -411,7 +411,7 @@ export function getAdaptationSummary(adaptation: WorkoutAdaptation): string {
 
   switch (adaptationType) {
     case 'completed_as_planned':
-      return `Completed as planned (${actual.tss} TSS)`;
+      return `Completed as planned (${actual.tss} RSS)`;
 
     case 'time_truncated':
       return `Shortened from ${planned.duration}min to ${actual.duration}min (${analysis.stimulusAchievedPct}% stimulus)`;
@@ -423,16 +423,16 @@ export function getAdaptationSummary(adaptation: WorkoutAdaptation): string {
       return `Swapped ${planned.workoutType} for ${actual.workoutType}`;
 
     case 'upgraded':
-      return `Upgraded from ${planned.workoutType} to ${actual.workoutType} (+${analysis.tssDelta} TSS)`;
+      return `Upgraded from ${planned.workoutType} to ${actual.workoutType} (+${analysis.tssDelta} RSS)`;
 
     case 'downgraded':
-      return `Downgraded from ${planned.workoutType} to ${actual.workoutType} (${analysis.tssDelta} TSS)`;
+      return `Downgraded from ${planned.workoutType} to ${actual.workoutType} (${analysis.tssDelta} RSS)`;
 
     case 'skipped':
-      return `Skipped planned ${planned.workoutType} workout (${planned.tss} TSS missed)`;
+      return `Skipped planned ${planned.workoutType} workout (${planned.tss} RSS missed)`;
 
     case 'unplanned':
-      return `Unplanned ${actual.workoutType} activity (${actual.tss} TSS)`;
+      return `Unplanned ${actual.workoutType} activity (${actual.tss} RSS)`;
 
     default:
       return `Activity completed with adaptation`;

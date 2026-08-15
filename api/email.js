@@ -375,7 +375,7 @@ function getBetaNotifyEmailHtml() {
               <ul style="margin: 0 0 25px; padding-left: 20px; font-size: 15px; line-height: 2; color: #B8B8B8;">
                 <li><strong style="color: #32CD32;">Training analytics that guide you</strong> - fitness, fatigue, and form scores explained with daily recommendations</li>
                 <li><strong style="color: #32CD32;">Smart route planning</strong> - AI-powered routes based on your fitness and goals</li>
-                <li><strong style="color: #32CD32;">Recovery tracking</strong> - Log sleep, HRV, and readiness for smarter training</li>
+                <li><strong style="color: #32CD32;">Recovery tracking</strong> - Log sleep, recovery signals like heart-rate variability (HRV), and readiness for smarter training</li>
                 <li><strong style="color: #32CD32;">Strava & Garmin sync</strong> - Auto-import rides and export routes to your devices</li>
               </ul>
 

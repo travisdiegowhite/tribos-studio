@@ -38,27 +38,28 @@ export function translateTCAS(score: number): MetricTranslation {
 
 // ─── Tooltips ────────────────────────────────────────────────────────────────
 
+// Plain language first, abbreviation as the citation (spec §6 rule 2).
 export const METRICS_TOOLTIPS = {
   efi(score: number | null): string {
-    if (score == null) return 'EFI measures how closely your riding matches your training plan. Requires an active training plan.';
-    if (score >= 80) return `EFI ${score} — You're executing your plan with precision. Keep it up.`;
-    if (score >= 60) return `EFI ${score} — Decent execution but some sessions are drifting from the plan.`;
-    if (score >= 40) return `EFI ${score} — Significant gap between planned and actual training. Review your workout structure.`;
-    return `EFI ${score} — Training is substantially different from your plan. Consider adjusting the plan or your approach.`;
+    if (score == null) return 'Execution fidelity (EFI) measures how closely your riding matches your training plan. Requires an active training plan.';
+    if (score >= 80) return `You're executing your plan with precision — keep it up. (EFI ${score})`;
+    if (score >= 60) return `Decent execution, but some sessions are drifting from the plan. (EFI ${score})`;
+    if (score >= 40) return `There's a significant gap between planned and actual training — review your workout structure. (EFI ${score})`;
+    return `Training is substantially different from your plan — consider adjusting the plan or your approach. (EFI ${score})`;
   },
 
   twl(twl: number | null, baseTSS: number | null): string {
-    if (twl == null || baseTSS == null) return 'TWL adjusts your training load for terrain — climbing, gradient changes, and altitude all add hidden stress that TSS misses.';
+    if (twl == null || baseTSS == null) return 'Terrain-weighted load (TWL) adjusts your ride stress for terrain — climbing, gradient changes, and altitude all add hidden stress a flat-road score misses.';
     const overage = baseTSS > 0 ? Math.round(((twl / baseTSS) - 1) * 100) : 0;
-    if (overage <= 5) return `TWL ${twl} — Terrain added minimal extra load. Flat or smooth terrain.`;
-    if (overage <= 15) return `TWL ${twl} (+${overage}% over TSS) — Rolling terrain added moderate extra stress.`;
-    return `TWL ${twl} (+${overage}% over TSS) — Significant terrain load. Recovery should account for this hidden stress.`;
+    if (overage <= 5) return `Terrain added minimal extra load — flat or smooth riding. (TWL ${twl})`;
+    if (overage <= 15) return `Rolling terrain added moderate extra stress — about ${overage}% over the flat-road score. (TWL ${twl})`;
+    return `Significant terrain load — about ${overage}% over the flat-road score. Recovery should account for this hidden stress. (TWL ${twl})`;
   },
 
   tcas(score: number | null): string {
-    if (score == null) return 'TCAS measures how efficiently you turn available training hours into fitness. Requires 6 weeks of riding data.';
-    if (score >= 75) return `TCAS ${score} — Excellent adaptation efficiency. Your training time is producing real fitness gains.`;
-    if (score >= 50) return `TCAS ${score} — Moderate efficiency. There may be opportunities to improve session quality or recovery patterns.`;
-    return `TCAS ${score} — Low adaptation efficiency. Consider whether training structure, intensity, or recovery need adjustment.`;
+    if (score == null) return 'Adaptation efficiency (TCAS) measures how well you turn available training hours into fitness. Requires 6 weeks of riding data.';
+    if (score >= 75) return `Excellent adaptation efficiency — your training time is producing real fitness gains. (TCAS ${score})`;
+    if (score >= 50) return `Moderate efficiency — there may be room to improve session quality or recovery patterns. (TCAS ${score})`;
+    return `Low adaptation efficiency — consider whether training structure, intensity, or recovery need adjustment. (TCAS ${score})`;
   },
 };

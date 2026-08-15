@@ -522,7 +522,7 @@ function SegmentDetailModal({
                 </div>
                 {profile.mean_avg_power && profile.std_dev_power != null && (
                   <div>
-                    <Text size="xs" c="dimmed">Normalized Power</Text>
+                    <Text size="xs" c="dimmed">Effective Power (EP)</Text>
                     <Text fw={600} size="sm">
                       {Math.round(profile.mean_avg_power + (profile.std_dev_power || 0) * 0.3)}W
                     </Text>

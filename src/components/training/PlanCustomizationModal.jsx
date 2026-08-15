@@ -321,7 +321,7 @@ export default function PlanCustomizationModal({
                 </Group>
                 <Group spacing={4}>
                   <Fire size={16} />
-                  <Text fw={500}>{weeklyStats.tss} TSS</Text>
+                  <Text fw={500}>{weeklyStats.tss} RSS</Text>
                 </Group>
                 <Group spacing={4}>
                   <Target size={16} />

@@ -14,6 +14,7 @@ import {
   Button,
   Tooltip,
   Alert,
+  Collapse,
 } from '@mantine/core';
 import { notifications } from '@mantine/notifications';
 import { garminService } from '../utils/garminService';
@@ -36,6 +37,7 @@ import RideZonesChart from './RideZonesChart';
 import RidePacingChart from './RidePacingChart';
 import { trackFeature, EventType } from '../utils/activityTracking';
 import { isPowerSport, isRunningActivity, getActivityNoun, getLoadLabel } from '../utils/sportType';
+import { buildRideSummary } from '../utils/rideSummary';
 import { ArrowRight, ArrowsClockwise, Clock, Fire, Gauge, Heart, Heartbeat, Lightning, MapTrifold, Mountains, Path, ShareNetwork, Watch } from '@phosphor-icons/react';
 
 // FIT protocol uses 0xFFFF (65535) for "no data" - must filter before display
@@ -149,6 +151,8 @@ const RideAnalysisModal = ({
   const navigate = useNavigate();
   const [resyncState, setResyncState] = useState({ loading: false, message: null, kind: null });
   const [shareOpen, setShareOpen] = useState(false);
+  // The stats door (thesis P6): deep analysis renders behind one labeled click.
+  const [showNumbers, setShowNumbers] = useState(false);
 
   const handleResync = async () => {
     if (!ride?.id) return;
@@ -420,6 +424,20 @@ const RideAnalysisModal = ({
   const isRun = isRunningActivity(ride);
   const activityNoun = getActivityNoun(ride);
   const loadLabel = getLoadLabel(ride);
+  // The sentence that leads the surface; the tiles below it are the citations.
+  const rideSummary = buildRideSummary({
+    durationSec: metrics?.duration ?? 0,
+    intensityZoneName: metrics?.ifZone?.name ?? null,
+    pacingStrategy: ride.ride_analytics?.pacing?.strategy ?? null,
+    isRun,
+  });
+  const hasDeepStats = Boolean(
+    hasPowerData ||
+      hasHRData ||
+      ride.activity_streams ||
+      ride.ride_analytics?.hr_zones ||
+      (ride.ride_analytics?.pacing && hasPowerData),
+  );
 
   return (
     <Modal
@@ -480,6 +498,13 @@ const RideAnalysisModal = ({
           </Paper>
         )}
 
+        {/* The plain-language reading — what this ride was. */}
+        {rideSummary && (
+          <Text size="lg" fw={600} style={{ lineHeight: 1.35 }}>
+            {rideSummary}
+          </Text>
+        )}
+
         {/* Key Metrics */}
         <SimpleGrid cols={{ base: 2, sm: 4 }} spacing="sm">
           <Paper p="md" withBorder ta="center">
@@ -525,6 +550,25 @@ const RideAnalysisModal = ({
           </Paper>
         </SimpleGrid>
 
+        {/* Familiar Segments — this ride's efforts vs your history on the
+            same segments. The only receipts on the surface, so they render
+            up top, right under the summary and key facts. */}
+        <SegmentEffortCompare ride={ride} enabled={opened} formatSpeed={formatSpeed} />
+
+        {/* The stats door — full analysis is one deliberate, labeled click away. */}
+        {hasDeepStats && (
+          <Button
+            variant="light"
+            color="gray"
+            onClick={() => setShowNumbers((v) => !v)}
+            leftSection={<Gauge size={16} />}
+          >
+            {showNumbers ? 'Hide the numbers' : 'Show me the numbers'}
+          </Button>
+        )}
+
+        <Collapse in={showNumbers}>
+        <Stack gap="md">
         {/* Power Analysis — cycling only; runs render pace + HR instead */}
         {hasPowerData && (
           <>
@@ -562,12 +606,12 @@ const RideAnalysisModal = ({
               {metrics.np && (
                 <Paper p="sm" withBorder>
                   <Tooltip label={metrics.hasRealNP
-                    ? 'Normalized Power — calculated from power meter stream'
-                    : 'Normalized Power — estimated from avg/max power'
+                    ? 'Effective Power (EP) — your steady-effort equivalent, calculated from the power meter stream'
+                    : 'Effective Power (EP) — your steady-effort equivalent, estimated from avg/max power'
                   }>
                     <Box>
                       <Group gap={4} align="center">
-                        <Text size="xs" c="dimmed">NP</Text>
+                        <Text size="xs" c="dimmed">EP</Text>
                         {!metrics.hasRealNP && (
                           <Badge size="xs" variant="light" color="gray">est.</Badge>
                         )}
@@ -587,9 +631,9 @@ const RideAnalysisModal = ({
 
               {metrics.intensityFactor && ftp && (
                 <Paper p="sm" withBorder>
-                  <Tooltip label={`Intensity Factor — ${metrics.ifZone?.name || ''}`}>
+                  <Tooltip label={`Ride Intensity (RI) — EP as % of your FTP${metrics.ifZone?.name ? ` (${metrics.ifZone.name})` : ''}`}>
                     <Box>
-                      <Text size="xs" c="dimmed">IF</Text>
+                      <Text size="xs" c="dimmed">RI</Text>
                       <Group gap="xs">
                         <Text fw={600}>{metrics.intensityFactor}</Text>
                         {metrics.ifZone && (
@@ -605,7 +649,7 @@ const RideAnalysisModal = ({
 
               {metrics.vi && (
                 <Paper p="sm" withBorder>
-                  <Tooltip label="Variability Index — NP / Avg Power">
+                  <Tooltip label="Variability Index — EP / Avg Power">
                     <Box>
                       <Text size="xs" c="dimmed">VI</Text>
                       <Text fw={600}>{metrics.vi}</Text>
@@ -677,11 +721,6 @@ const RideAnalysisModal = ({
           </>
         )}
 
-        {/* Familiar Segments — this ride's efforts vs your history on the
-            same segments (holistic: effort, speed, efficiency, pacing).
-            Renders nothing when no segments match. */}
-        <SegmentEffortCompare ride={ride} enabled={opened} formatSpeed={formatSpeed} />
-
         {/* Heart Rate Section */}
         {hasHRData && (
           <>
@@ -737,6 +776,8 @@ const RideAnalysisModal = ({
             </SimpleGrid>
           </>
         )}
+        </Stack>
+        </Collapse>
 
         {/* Retrospective Fuel Analysis — cycling-specific (kJ/watt based).
             Run fueling lands in Phase 3. */}

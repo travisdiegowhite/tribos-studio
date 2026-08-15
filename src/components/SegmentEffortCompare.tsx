@@ -94,7 +94,7 @@ const METRIC_TOOLTIPS: Partial<Record<MetricComparison['key'], string>> = {
   ef: 'Efficiency Factor — power produced per heartbeat. Higher means the same output cost you less.',
   speed_per_watt: 'Speed each watt bought you — sensitive to wind, position, and surface.',
   speed_per_beat: 'Speed per heartbeat — aerobic efficiency when no power meter is present.',
-  vi: 'Variability Index (NP ÷ avg power) — lower means steadier pacing.',
+  vi: 'Variability Index (EP ÷ avg power) — lower means steadier pacing.',
   duration: 'Compared to your median time across past efforts on this segment.',
 };
 
@@ -216,7 +216,7 @@ export default function SegmentEffortCompare({ ride, enabled, formatSpeed }: Seg
       <Divider label="Familiar Segments" labelPosition="center" />
       <Stack gap="sm">
         {summary?.headline && (
-          <Text size="sm" c="dimmed">{summary.headline}</Text>
+          <Text size="sm" fw={500}>{summary.headline}</Text>
         )}
         {comparisons.map((c) => (
           <SegmentCard key={c.segment.id} comparison={c} formatSpeed={formatSpeed} />

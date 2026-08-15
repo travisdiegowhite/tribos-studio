@@ -7,8 +7,6 @@ import {
   buildChart,
   selectionGeometry,
   sparklinePoints,
-  ringDash,
-  RING_CIRCUMFERENCE,
   SPINE_VIEW,
   svgXToIndex,
   xOfIndex,
@@ -167,15 +165,6 @@ describe('sparklinePoints', () => {
   it('handles empty and single-value series', () => {
     expect(sparklinePoints([])).toBe('');
     expect(sparklinePoints([5])).toContain('2,16');
-  });
-});
-
-describe('ringDash', () => {
-  it('fills proportionally to readiness and never exceeds the circumference', () => {
-    expect(ringDash(0).startsWith('0.0')).toBe(true);
-    const full = ringDash(100);
-    expect(parseFloat(full.split(' ')[0])).toBeCloseTo(RING_CIRCUMFERENCE, 1);
-    expect(clamp(200, 0, 100)).toBe(100);
   });
 });
 

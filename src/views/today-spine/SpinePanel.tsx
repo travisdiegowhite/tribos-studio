@@ -31,15 +31,9 @@ interface SpinePanelProps {
   showNode?: boolean;
   /** Scrub/keyboard selection. On mobile the node hides but taps still select. */
   interactive?: boolean;
-  dispTSB: number;
-  dispReady: number;
   flipped: boolean;
-  ringHover: boolean;
   onToggleFlip: () => void;
   onSnapToday: (e: React.MouseEvent) => void;
-  onRingEnter: () => void;
-  onRingLeave: () => void;
-  onRingToggle: () => void;
 }
 
 /** Short, article-stripped event name for the coral flag (e.g. "The Rad" → "RAD"). */
@@ -63,15 +57,9 @@ export function SpinePanel({
   vm,
   showNode = true,
   interactive = true,
-  dispTSB,
-  dispReady,
   flipped,
-  ringHover,
   onToggleFlip,
   onSnapToday,
-  onRingEnter,
-  onRingLeave,
-  onRingToggle,
 }: SpinePanelProps) {
   const spineRef = useRef<HTMLDivElement>(null);
   const navigate = useNavigate();
@@ -79,6 +67,7 @@ export function SpinePanel({
   const { days, todayIndex, event } = data;
   const futureDays = days.length - todayIndex - 1;
   const futureWeeks = Math.max(1, Math.round(futureDays / 7));
+  const hasPlan = days.some((d) => d.isFuture && d.planned);
 
   // When the node floats (desktop) the chart renders at a FIXED pixel height
   // with the viewBox width matched 1:1 to the measured container width — the
@@ -186,7 +175,7 @@ export function SpinePanel({
           style={{ fontFamily: FONT.mono, fontSize: 10, letterSpacing: '1px', color: C.text3 }}
           visibleFrom="sm"
         >
-          <LegendKey swatch={<span style={{ width: 16, height: 2, background: CHART.pastLine }} />} label="FITNESS · TFI" />
+          <LegendKey swatch={<span style={{ width: 16, height: 2, background: CHART.pastLine }} />} label="FITNESS" />
           <LegendKey swatch={<span style={{ width: 16, height: 0, borderTop: `2px dashed ${C.text3}` }} />} label="PROJECTED" />
           <LegendKey swatch={<span style={{ width: 10, height: 10, background: CHART.tssBar }} />} label="DAILY RSS" />
         </Group>
@@ -350,25 +339,19 @@ export function SpinePanel({
           {showNode && (
             <FitnessNode
               vm={vm}
-              dispTSB={dispTSB}
-              dispReady={dispReady}
               flipped={flipped}
-              ringHover={ringHover}
               nodeLeftPct={sel.nodeLeftPct}
               onHeaderPointerDown={onScrubDown}
               onSnapToday={onSnapToday}
               onToggleFlip={onToggleFlip}
-              onRingEnter={onRingEnter}
-              onRingLeave={onRingLeave}
-              onRingToggle={onRingToggle}
             />
           )}
         </div>
 
         <Text style={{ fontFamily: FONT.body, fontSize: 10.5, color: CHART.axisMuted, marginTop: 12, textAlign: 'center' }}>
-          {showNode
-            ? 'Drag the node to scrub past days or ahead into the plan · click it for the TFI/AFI trend · click the ring for readiness'
-            : `Tap a day to inspect it — the last 6 weeks and the ${futureWeeks}-week projection ahead.`}
+          {`The dashed line is where you're headed — ${
+            hasPlan ? 'on your current plan' : 'if you keep riding like the last week'
+          }. ${showNode ? 'Drag the node to explore any day.' : 'Tap a day to inspect it.'}`}
         </Text>
       </Box>
     </Box>

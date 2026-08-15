@@ -19,6 +19,7 @@ import {
   freshnessFromFormScore,
   fitnessWordFromSlope,
   fatigueWordFromAFI,
+  formVerdictSentence,
   todayColors,
 } from '../../utils/todayVocabulary';
 import { classifyFormBandDisplay, classifyFsConfidenceTier } from '../../utils/formBands';
@@ -29,14 +30,9 @@ function clamp01(v: number): number {
 }
 
 /** Plain-language readiness verdict for the FORM line, by Form Score.
- * Spec §5 bands — keep cuts in lockstep with src/utils/formBands.js. */
+ * Copy + spec §5 cuts live in the shared vocabulary module. */
 export function formVerdict(fs: number | null): string {
-  if (fs == null) return 'building baseline';
-  if (fs > 20) return 'too fresh — add load';
-  if (fs >= 10) return 'fresh — cleared for quality';
-  if (fs >= -5) return 'grey zone — cleared for quality';
-  if (fs >= -30) return 'productive load — steady aerobic';
-  return 'overreached — recover';
+  return formVerdictSentence(fs);
 }
 
 export const EMPTY_ATHLETE_STATE: TodayAthleteState = {

@@ -48,7 +48,6 @@ export interface DayNode {
    * maintenance fill that only shapes the projection line (never drawn as bars).
    */
   planned: boolean;
-  readiness: number; // derived from FS, clamped 28..96
   volHours: number; // rolling 7-day ride time, hours
   activity: DayActivity;
 }

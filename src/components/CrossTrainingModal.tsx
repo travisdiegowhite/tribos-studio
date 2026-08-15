@@ -646,7 +646,7 @@ export default function CrossTrainingModal({
               </Group>
               <Group gap="xs">
                 <Badge color="orange" variant="filled" size="lg">
-                  {estimatedTSS} TSS
+                  {estimatedTSS} RSS
                 </Badge>
                 <Text size="xs" c="dimmed">
                   {duration}min @ {INTENSITY_LABELS[intensity]}

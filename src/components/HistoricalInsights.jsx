@@ -90,7 +90,7 @@ function YearOverYearChart({ snapshots, selectedYears }) {
   return (
     <Card withBorder p="md">
       <Group justify="space-between" mb="md">
-        <Title order={4}>Year-over-Year Fitness (CTL)</Title>
+        <Title order={4}>Year-over-Year Fitness</Title>
         <Badge color="blue" variant="light">Week of Year Comparison</Badge>
       </Group>
 
@@ -106,7 +106,7 @@ function YearOverYearChart({ snapshots, selectedYears }) {
           <YAxis
             stroke={'var(--color-text-muted)'}
             tick={{ fontSize: 12 }}
-            label={{ value: 'CTL', angle: -90, position: 'insideLeft' }}
+            label={{ value: 'Fitness (TFI)', angle: -90, position: 'insideLeft' }}
           />
           <Tooltip
             contentStyle={{
@@ -193,7 +193,7 @@ function SeasonalPatternChart({ snapshots }) {
               borderRadius: 8
             }}
             formatter={(value, name) => {
-              if (name === 'avgCtl') return [value, 'Avg CTL'];
+              if (name === 'avgCtl') return [value, 'Avg fitness'];
               if (name === 'avgHours') return [value, 'Avg Hours/Week'];
               return [value, name];
             }}
@@ -392,7 +392,7 @@ function PeakFitnessCard({ snapshots }) {
                 </Group>
                 <Group gap="xs">
                   <Badge size="lg" color={i === 0 ? 'yellow' : 'gray'} variant="light">
-                    CTL {peak.ctl}
+                    TFI {peak.ctl}
                   </Badge>
                   {isRecent && <Badge color="green" size="xs">Recent</Badge>}
                 </Group>
@@ -464,7 +464,7 @@ function VolumeComparisonChart({ snapshots }) {
             orientation="right"
             stroke={'var(--color-text-muted)'}
             tick={{ fontSize: 12 }}
-            label={{ value: 'Peak CTL', angle: 90, position: 'insideRight' }}
+            label={{ value: 'Peak fitness', angle: 90, position: 'insideRight' }}
           />
           <Tooltip
             contentStyle={{
@@ -485,7 +485,7 @@ function VolumeComparisonChart({ snapshots }) {
             yAxisId="ctl"
             dataKey="peakCtl"
             fill="#C49A0A"
-            name="Peak CTL"
+            name="Peak fitness"
             radius={[4, 4, 0, 0]}
           />
         </BarChart>
@@ -532,7 +532,7 @@ function QuickStats({ snapshots, activities }) {
   return (
     <SimpleGrid cols={{ base: 2, sm: 4 }} spacing="md">
       <Paper p="md" withBorder>
-        <Text size="xs" c="dimmed" tt="uppercase">Current CTL</Text>
+        <Text size="xs" c="dimmed" tt="uppercase">Current fitness (TFI)</Text>
         <Text size="xl" fw={700}>{stats.currentCtl}</Text>
         <Text size="xs" c="dimmed">{stats.percentOfPeak}% of peak</Text>
       </Paper>
