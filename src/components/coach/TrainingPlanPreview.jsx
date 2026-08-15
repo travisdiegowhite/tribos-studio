@@ -108,7 +108,7 @@ function TrainingPlanPreview({ plan, onActivate, onDismiss, compact = false, act
             <Group gap={4} wrap="nowrap">
               <Fire size={14} style={{ color: 'var(--color-text-muted)', flexShrink: 0 }} />
               <Text size="xs" c="dimmed">
-                ~{plan.summary.avg_weekly_tss} TSS/wk
+                ~{plan.summary.avg_weekly_tss} RSS/wk
               </Text>
             </Group>
           </SimpleGrid>

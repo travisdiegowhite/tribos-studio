@@ -1088,7 +1088,7 @@ const TrainingPlanBrowser = ({ activePlan, onPlanActivated, compact = false }) =
           <Group gap={4}>
             <TrendUp size={14} style={{ color: 'var(--color-text-muted)' }} />
             <Text size="xs" c="dimmed">
-              {plan.weeklyTSS?.min}-{plan.weeklyTSS?.max} TSS
+              {plan.weeklyTSS?.min}-{plan.weeklyTSS?.max} RSS
             </Text>
           </Group>
         </Group>
@@ -1141,7 +1141,7 @@ const TrainingPlanBrowser = ({ activePlan, onPlanActivated, compact = false }) =
             <Paper p="sm" withBorder ta="center">
               <TrendUp size={20} style={{ color: 'var(--color-text-muted)', marginBottom: 4 }} />
               <Text size="lg" fw={700}>{selectedPlan.weeklyTSS?.min}-{selectedPlan.weeklyTSS?.max}</Text>
-              <Text size="xs" c="dimmed">weekly TSS</Text>
+              <Text size="xs" c="dimmed">weekly RSS</Text>
             </Paper>
           </SimpleGrid>
 

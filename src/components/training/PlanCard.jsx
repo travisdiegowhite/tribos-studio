@@ -108,7 +108,7 @@ export default function PlanCard({
           <Group spacing={6}>
             <Fire size={16} color="var(--mantine-color-dimmed)" />
             <Text size="sm" c="dimmed">
-              {plan.weeklyTSS.min}-{plan.weeklyTSS.max} TSS/wk
+              {plan.weeklyTSS.min}-{plan.weeklyTSS.max} RSS/wk
             </Text>
           </Group>
         </Group>

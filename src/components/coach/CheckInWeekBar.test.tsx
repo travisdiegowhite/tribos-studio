@@ -83,6 +83,6 @@ describe('CheckInWeekBar rendering', () => {
     expect(screen.getByText('55/43')).toBeTruthy(); // Monday
     expect(screen.getByText(/vs plan to date/)).toBeTruthy();
     // To-date: planned 110 (Mon+Thu), actual 118 → +8, teal, not a -110 deficit.
-    expect(screen.getByText(/\+8 TSS vs plan to date/)).toBeTruthy();
+    expect(screen.getByText(/\+8 RSS vs plan to date/)).toBeTruthy();
   });
 });

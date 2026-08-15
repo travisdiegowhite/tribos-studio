@@ -1215,7 +1215,7 @@ const TrainingCalendar = ({ activePlan, rides = [], formatDistance: formatDistan
                 <ThemeIcon size="sm" color="orange" variant="light">
                   <Fire size={14} />
                 </ThemeIcon>
-                <Text size="xs" c="dimmed">TSS</Text>
+                <Text size="xs" c="dimmed">RSS</Text>
               </Group>
               <Text fw={600}>
                 {Math.round(weeklyStats[currentWeek].actualTSS)} / {weeklyStats[currentWeek].plannedTSS}
@@ -1603,7 +1603,7 @@ const TrainingCalendar = ({ activePlan, rides = [], formatDistance: formatDistan
                             )}
                             {workout.target_tss > 0 && (
                               <Text size="xs" fw={600} c="orange">
-                                {workout.target_tss} TSS
+                                {workout.target_tss} RSS
                               </Text>
                             )}
                             {/* Fuel indicator for longer workouts */}
@@ -1826,7 +1826,7 @@ const TrainingCalendar = ({ activePlan, rides = [], formatDistance: formatDistan
                                 )}
                               </Group>
                               {totalTSS > 0 && (
-                                <Text size="xs" c="indigo" fw={500}>+{Math.round(totalTSS)} TSS</Text>
+                                <Text size="xs" c="indigo" fw={500}>+{Math.round(totalTSS)} RSS</Text>
                               )}
                             </Box>
                           </Tooltip>
@@ -1835,7 +1835,7 @@ const TrainingCalendar = ({ activePlan, rides = [], formatDistance: formatDistan
 
                       {/* Show actual TSS if rides */}
                       {dayTSS > 0 && (
-                        <Text size="xs" c="orange" fw={500}>{Math.round(dayTSS)} TSS</Text>
+                        <Text size="xs" c="orange" fw={500}>{Math.round(dayTSS)} RSS</Text>
                       )}
 
                       {dayRides.length > 0 && (

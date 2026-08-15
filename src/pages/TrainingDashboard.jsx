@@ -1640,6 +1640,15 @@ const TrendsTab = React.memo(function TrendsTab({ dailyTSSData, trainingMetrics,
               {fitnessDelta4w == null ? '--' : `${fitnessDelta4w >= 0 ? '+' : ''}${fitnessDelta4w}`}
             </Text>
             <Text size="sm" c="dimmed">Fitness change (4 weeks)</Text>
+            <Text size="xs" c="dimmed" mt={4}>
+              {fitnessDelta4w == null
+                ? 'Log a few weeks of riding to see your trend.'
+                : fitnessDelta4w > 3
+                  ? 'Your base is growing — the training is landing.'
+                  : fitnessDelta4w < -3
+                    ? 'A lighter month — fitness eases when the load does.'
+                    : 'Holding steady over the last month.'}
+            </Text>
           </Paper>
           <Paper p="md" ta="center" style={{ background: 'var(--tribos-input)', border: '1px solid var(--tribos-border-subtle)', boxShadow: 'var(--tribos-shadow-inset)' }}>
             <Path size={24} color="#3D8B50" style={{ marginBottom: 8 }} />
@@ -1682,11 +1691,7 @@ const TrendsTab = React.memo(function TrendsTab({ dailyTSSData, trainingMetrics,
             </ThemeIcon>
             <Text fw={600}>Riding Patterns</Text>
           </Group>
-          <SimpleGrid cols={{ base: 1, sm: 3 }} spacing="md">
-            <Box>
-              <Text size="xs" c="dimmed">Most Active Days</Text>
-              <Text size="sm" fw={500}>Tue, Thu, Sat</Text>
-            </Box>
+          <SimpleGrid cols={{ base: 1, sm: 2 }} spacing="md">
             <Box>
               <Text size="xs" c="dimmed">Preferred Duration</Text>
               <Text size="sm" fw={500}>
@@ -1780,6 +1785,9 @@ const PowerTab = React.memo(function PowerTab({ ftp, powerZones, navigate, activ
                 </Text>
               )}
             </Group>
+            <Text size="sm" c="dimmed" mt={4}>
+              Your FTP — the anchor for all your zones and intensity targets.
+            </Text>
             <Text size="xs" c="dimmed" mt="xs">
               Last updated: Manual entry
             </Text>

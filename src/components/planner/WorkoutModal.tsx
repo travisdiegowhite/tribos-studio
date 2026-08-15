@@ -737,8 +737,8 @@ export function WorkoutModal({
                   </Group>
                 )}
                 {workout.intensityFactor > 0 && (
-                  <Tooltip label="Intensity Factor">
-                    <Text size="sm" c="dimmed">IF {workout.intensityFactor.toFixed(2)}</Text>
+                  <Tooltip label="Ride Intensity (RI) — effort as a share of your FTP">
+                    <Text size="sm" c="dimmed">RI {workout.intensityFactor.toFixed(2)}</Text>
                   </Tooltip>
                 )}
               </Group>
