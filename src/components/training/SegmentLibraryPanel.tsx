@@ -480,8 +480,11 @@ function SegmentDetailModal({
               <Text fw={600} size="sm">{formatDuration(segment.max_uninterrupted_seconds)}</Text>
             </Paper>
             <Paper withBorder p="xs" style={{ borderRadius: 0 }}>
-              <Text size="xs" c="dimmed">Ride Count</Text>
+              <Text size="xs" c="dimmed">Rides Here</Text>
               <Text fw={600} size="sm">{segment.ride_count}</Text>
+              {segment.measured_ride_count != null && segment.measured_ride_count < segment.ride_count && (
+                <Text size="xs" c="dimmed">{segment.measured_ride_count} timed</Text>
+              )}
             </Paper>
             <Paper withBorder p="xs" style={{ borderRadius: 0 }}>
               <Text size="xs" c="dimmed">Confidence</Text>

@@ -20,6 +20,7 @@ import {
   type RideEffortSummary,
   type SegmentComparison,
   type SegmentTraversal,
+  type FamiliarSegmentSummary,
 } from '../utils/segmentEffortComparison';
 
 const TRAVERSAL_COLUMNS =
@@ -37,6 +38,7 @@ export type ComparisonStatus = 'idle' | 'loading' | 'analyzing' | 'ready' | 'emp
 export interface SegmentEffortComparisonState {
   status: ComparisonStatus;
   comparisons: SegmentComparison[];
+  familiarOnly: FamiliarSegmentSummary[];
   summary: RideEffortSummary | null;
   error: string | null;
 }
@@ -45,7 +47,9 @@ interface RideLike {
   id: string;
   user_id?: string;
   activity_streams?: unknown;
+  map_summary_polyline?: string | null;
   training_segments_analyzed_at?: string | null;
+  segment_coverage_analyzed_at?: string | null;
 }
 
 const getApiBaseUrl = () => {
@@ -86,6 +90,7 @@ export function useSegmentEffortComparison(
   const [state, setState] = useState<SegmentEffortComparisonState>({
     status: 'idle',
     comparisons: [],
+    familiarOnly: [],
     summary: null,
     error: null,
   });
@@ -94,27 +99,30 @@ export function useSegmentEffortComparison(
 
   useEffect(() => {
     if (!enabled || !activityId) {
-      setState({ status: 'idle', comparisons: [], summary: null, error: null });
+      setState({ status: 'idle', comparisons: [], familiarOnly: [], summary: null, error: null });
       return;
     }
 
     let cancelled = false;
 
     const load = async () => {
-      setState({ status: 'loading', comparisons: [], summary: null, error: null });
+      setState({ status: 'loading', comparisons: [], familiarOnly: [], summary: null, error: null });
       try {
         let currentRows = await fetchTraversalsForActivity(activityId);
 
-        // Self-heal: older rides with streams may never have been analyzed.
+        // Self-heal: rides that were never analysed. Coverage matching works
+        // from a bare polyline too, so this is no longer limited to rides
+        // with streams — which previously excluded every Strava import.
         const hasStreams = !!(ride as RideLike & { activity_streams?: { coords?: unknown[] } })
           ?.activity_streams?.coords?.length;
+        const hasPolyline = !!ride?.map_summary_polyline;
         if (
           currentRows.length === 0 &&
-          hasStreams &&
-          !ride?.training_segments_analyzed_at
+          (hasStreams || hasPolyline) &&
+          !ride?.segment_coverage_analyzed_at
         ) {
           if (cancelled) return;
-          setState({ status: 'analyzing', comparisons: [], summary: null, error: null });
+          setState({ status: 'analyzing', comparisons: [], familiarOnly: [], summary: null, error: null });
           const analyzed = await triggerActivityAnalysis(activityId).catch(() => false);
           if (cancelled) return;
           if (analyzed) {
@@ -123,7 +131,7 @@ export function useSegmentEffortComparison(
         }
 
         if (currentRows.length === 0) {
-          if (!cancelled) setState({ status: 'empty', comparisons: [], summary: null, error: null });
+          if (!cancelled) setState({ status: 'empty', comparisons: [], familiarOnly: [], summary: null, error: null });
           return;
         }
 
@@ -132,7 +140,7 @@ export function useSegmentEffortComparison(
         const [segmentsRes, ...historyResults] = await Promise.all([
           supabase
             .from('training_segments')
-            .select('id, display_name, terrain_type, distance_meters, avg_gradient, ride_count')
+            .select('id, display_name, terrain_type, distance_meters, avg_gradient, ride_count, measured_ride_count')
             .in('id', segmentIds),
           // One query per segment so a heavily-ridden segment can't starve
           // the others out of the row budget.
@@ -177,11 +185,12 @@ export function useSegmentEffortComparison(
           inputs.push({ segment, current, history });
         }
 
-        const { comparisons, summary } = compareActivitySegments(inputs, newSegmentCount);
+        const { comparisons, familiarOnly, summary } = compareActivitySegments(inputs, newSegmentCount);
         if (cancelled) return;
         setState({
-          status: comparisons.length > 0 ? 'ready' : 'empty',
+          status: comparisons.length > 0 || familiarOnly.length > 0 ? 'ready' : 'empty',
           comparisons,
+          familiarOnly,
           summary,
           error: null,
         });
@@ -190,6 +199,7 @@ export function useSegmentEffortComparison(
           setState({
             status: 'error',
             comparisons: [],
+            familiarOnly: [],
             summary: null,
             error: err instanceof Error ? err.message : 'Failed to compare segment efforts',
           });
@@ -204,7 +214,12 @@ export function useSegmentEffortComparison(
     // ride object identity changes on every dashboard refresh; key off the id
     // and the analyzed flag instead to avoid refetch loops.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [enabled, activityId, ride?.training_segments_analyzed_at]);
+  }, [
+    enabled,
+    activityId,
+    ride?.training_segments_analyzed_at,
+    ride?.segment_coverage_analyzed_at,
+  ]);
 
   return state;
 }

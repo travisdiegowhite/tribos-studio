@@ -11,7 +11,11 @@
 import { Badge, Box, Divider, Group, Loader, Paper, SimpleGrid, Stack, Text, Tooltip } from '@mantine/core';
 import { Lightning, TrendDown, TrendUp } from '@phosphor-icons/react';
 import { useSegmentEffortComparison } from '../hooks/useSegmentEffortComparison';
-import type { MetricComparison, SegmentComparison } from '../utils/segmentEffortComparison';
+import type {
+  FamiliarSegmentSummary,
+  MetricComparison,
+  SegmentComparison,
+} from '../utils/segmentEffortComparison';
 
 // ============================================================================
 // FORMATTING
@@ -119,7 +123,7 @@ function MetricCell({ metric, formatSpeed }: { metric: MetricComparison; formatS
 }
 
 function SegmentCard({ comparison, formatSpeed }: { comparison: SegmentComparison; formatSpeed?: (kmh: number) => string }) {
-  const { segment, metrics, verdict, historyCount, isFastest, isBestEfficiency, effort } = comparison;
+  const { segment, metrics, verdict, historyCount, totalTraversalCount, isFastest, isBestEfficiency, effort } = comparison;
 
   const shownMetrics = DISPLAY_ORDER
     .map((key) => metrics.find((m) => m.key === key))
@@ -143,7 +147,8 @@ function SegmentCard({ comparison, formatSpeed }: { comparison: SegmentCompariso
             <Text size="xs" c="dimmed">
               {distKm} km {segment.terrain_type}
               {segment.avg_gradient ? ` · ${segment.avg_gradient > 0 ? '+' : ''}${Number(segment.avg_gradient).toFixed(1)}%` : ''}
-              {' · '}vs {historyCount} past effort{historyCount === 1 ? '' : 's'}
+              {' · '}vs {historyCount} timed effort{historyCount === 1 ? '' : 's'}
+              {totalTraversalCount > historyCount && ` of ${totalTraversalCount} rides here`}
             </Text>
           </Box>
           <Group gap={4} style={{ flexShrink: 0 }}>
@@ -171,6 +176,27 @@ function SegmentCard({ comparison, formatSpeed }: { comparison: SegmentCompariso
   );
 }
 
+/**
+ * A road the rider knows but has no timed effort on. Deliberately minimal:
+ * no metrics, no verdict — it answers "have I been here" and nothing more.
+ */
+function FamiliarRow({ familiar }: { familiar: FamiliarSegmentSummary }) {
+  const { segment, totalTraversalCount, lastRiddenAt } = familiar;
+  const distKm = (segment.distance_meters / 1000).toFixed(1);
+
+  return (
+    <Group justify="space-between" wrap="nowrap" gap="sm">
+      <Text size="sm" lineClamp={1} style={{ minWidth: 0 }}>
+        {segment.display_name || 'Unnamed segment'}
+      </Text>
+      <Text size="xs" c="dimmed" style={{ flexShrink: 0 }}>
+        {distKm} km · ridden {totalTraversalCount + 1} time{totalTraversalCount === 0 ? '' : 's'}
+        {lastRiddenAt ? ` · last ${new Date(lastRiddenAt).toLocaleDateString()}` : ''}
+      </Text>
+    </Group>
+  );
+}
+
 // ============================================================================
 // MAIN COMPONENT
 // ============================================================================
@@ -180,14 +206,16 @@ interface SegmentEffortCompareProps {
     id: string;
     user_id?: string;
     activity_streams?: unknown;
+    map_summary_polyline?: string | null;
     training_segments_analyzed_at?: string | null;
+    segment_coverage_analyzed_at?: string | null;
   } | null;
   enabled: boolean;
   formatSpeed?: (kmh: number) => string;
 }
 
 export default function SegmentEffortCompare({ ride, enabled, formatSpeed }: SegmentEffortCompareProps) {
-  const { status, comparisons, summary } = useSegmentEffortComparison(ride, enabled);
+  const { status, comparisons, familiarOnly, summary } = useSegmentEffortComparison(ride, enabled);
 
   // Nothing to say: no matched segments, error, or not started. Stay silent —
   // this panel should only appear when it has something useful to show.
@@ -209,7 +237,7 @@ export default function SegmentEffortCompare({ ride, enabled, formatSpeed }: Seg
     );
   }
 
-  if (comparisons.length === 0) return null;
+  if (comparisons.length === 0 && familiarOnly.length === 0) return null;
 
   return (
     <>
@@ -221,6 +249,14 @@ export default function SegmentEffortCompare({ ride, enabled, formatSpeed }: Seg
         {comparisons.map((c) => (
           <SegmentCard key={c.segment.id} comparison={c} formatSpeed={formatSpeed} />
         ))}
+        {familiarOnly.length > 0 && (
+          <Stack gap={4}>
+            <Text size="xs" c="dimmed">Roads you know, with no timed effort to compare yet</Text>
+            {familiarOnly.map((f) => (
+              <FamiliarRow key={f.segment.id} familiar={f} />
+            ))}
+          </Stack>
+        )}
       </Stack>
     </>
   );

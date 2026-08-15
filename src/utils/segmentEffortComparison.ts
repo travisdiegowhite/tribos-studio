@@ -29,7 +29,9 @@ export interface SegmentTraversal {
   max_power: number | null;
   avg_hr: number | null;
   max_hr: number | null;
-  duration_seconds: number;
+  // Nullable: a traversal without timing says the rider was here, which
+  // is worth recording even though it cannot be compared against.
+  duration_seconds: number | null;
   avg_speed: number | null; // km/h
   avg_cadence: number | null;
   stop_count: number | null;
@@ -43,6 +45,7 @@ export interface ComparisonSegmentInfo {
   distance_meters: number;
   avg_gradient: number;
   ride_count: number;
+  measured_ride_count?: number;
 }
 
 /** Per-traversal derived metrics used for comparison. */
@@ -89,7 +92,10 @@ export interface MetricComparison {
 export interface SegmentComparison {
   segment: ComparisonSegmentInfo;
   current: DerivedEffort;
+  /** Past traversals with enough signal to compare against. */
   historyCount: number;
+  /** Every past traversal, including untimed familiarity rows. */
+  totalTraversalCount: number;
   metrics: MetricComparison[];
   effort: EffortVerdict;
   output: OutputVerdict;
@@ -100,8 +106,20 @@ export interface SegmentComparison {
   verdict: string;
 }
 
+/**
+ * A segment the rider has ridden before but has no timed effort to compare
+ * against. Common by design: a traversal recorded from geometry alone is
+ * true ("you have ridden this road") without being measurable.
+ */
+export interface FamiliarSegmentSummary {
+  segment: ComparisonSegmentInfo;
+  totalTraversalCount: number;
+  lastRiddenAt: string | null;
+}
+
 export interface RideEffortSummary {
   comparedCount: number;
+  familiarOnlyCount: number;
   newSegmentCount: number;
   harderCount: number;
   easierCount: number;
@@ -159,7 +177,7 @@ export function deriveEffort(t: SegmentTraversal): DerivedEffort {
   const power = np ?? avgPower;
   const avgHr = cleanHr(t.avg_hr);
   const speed = t.avg_speed != null && t.avg_speed > 0 ? t.avg_speed : null;
-  const duration = t.duration_seconds > 0 ? t.duration_seconds : null;
+  const duration = t.duration_seconds != null && t.duration_seconds > 0 ? t.duration_seconds : null;
   const cadence = t.avg_cadence != null && t.avg_cadence > 0 ? t.avg_cadence : null;
 
   return {
@@ -321,6 +339,7 @@ export function compareTraversal(
     segment,
     current,
     historyCount: history.length,
+    totalTraversalCount: historyRows.length,
     metrics,
     effort,
     output,
@@ -398,13 +417,40 @@ function buildVerdict(v: {
 // RIDE-LEVEL SUMMARY
 // ============================================================================
 
+/** Familiarity-only view of a segment: been here, nothing to race against. */
+export function summarizeFamiliarity(
+  segment: ComparisonSegmentInfo,
+  historyRows: SegmentTraversal[]
+): FamiliarSegmentSummary {
+  const lastRiddenAt = historyRows.reduce<string | null>((latest, r) => {
+    if (!r.ridden_at) return latest;
+    return latest == null || r.ridden_at > latest ? r.ridden_at : latest;
+  }, null);
+
+  return { segment, totalTraversalCount: historyRows.length, lastRiddenAt };
+}
+
 export function compareActivitySegments(
   inputs: CompareInput[],
   newSegmentCount = 0
-): { comparisons: SegmentComparison[]; summary: RideEffortSummary } {
-  const comparisons = inputs
-    .map(({ segment, current, history }) => compareTraversal(segment, current, history))
-    .filter((c): c is SegmentComparison => c != null);
+): {
+  comparisons: SegmentComparison[];
+  familiarOnly: FamiliarSegmentSummary[];
+  summary: RideEffortSummary;
+} {
+  const comparisons: SegmentComparison[] = [];
+  const familiarOnly: FamiliarSegmentSummary[] = [];
+
+  for (const { segment, current, history } of inputs) {
+    const compared = compareTraversal(segment, current, history);
+    if (compared) {
+      comparisons.push(compared);
+    } else if (history.length > 0) {
+      // Ridden before, but nothing timed to compare. Previously this
+      // rendered nothing at all, which hid most of the library.
+      familiarOnly.push(summarizeFamiliarity(segment, history));
+    }
+  }
 
   // Most interesting first: personal bests, then largest output swing.
   comparisons.sort((a, b) => {
@@ -418,11 +464,17 @@ export function compareActivitySegments(
     return swing(b) - swing(a);
   });
 
-  const summary = buildSummary(comparisons, newSegmentCount);
-  return { comparisons, summary };
+  familiarOnly.sort((a, b) => b.totalTraversalCount - a.totalTraversalCount);
+
+  const summary = buildSummary(comparisons, familiarOnly, newSegmentCount);
+  return { comparisons, familiarOnly, summary };
 }
 
-function buildSummary(comparisons: SegmentComparison[], newSegmentCount: number): RideEffortSummary {
+function buildSummary(
+  comparisons: SegmentComparison[],
+  familiarOnly: FamiliarSegmentSummary[],
+  newSegmentCount: number
+): RideEffortSummary {
   const harderCount = comparisons.filter((c) => c.effort === 'harder').length;
   const easierCount = comparisons.filter((c) => c.effort === 'easier').length;
   const moreEfficientCount = comparisons.filter((c) => c.efficiency === 'more_efficient').length;
@@ -443,12 +495,19 @@ function buildSummary(comparisons: SegmentComparison[], newSegmentCount: number)
     if (effBits.length > 0) parts.push(`Efficiency was ${effBits.join(' and ')}.`);
     if (fastestCount > 0) parts.push(`New fastest effort on ${fastestCount} segment${fastestCount === 1 ? '' : 's'}.`);
   }
+  const f = familiarOnly.length;
+  if (f > 0) {
+    parts.push(
+      `You've ridden ${f} more familiar road${f === 1 ? '' : 's'} without a timed effort to compare against yet.`
+    );
+  }
   if (newSegmentCount > 0) {
     parts.push(`${newSegmentCount} new segment${newSegmentCount === 1 ? '' : 's'} added to your library.`);
   }
 
   return {
     comparedCount: n,
+    familiarOnlyCount: f,
     newSegmentCount,
     harderCount,
     easierCount,

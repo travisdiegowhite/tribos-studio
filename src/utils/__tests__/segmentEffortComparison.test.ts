@@ -253,12 +253,54 @@ describe('compareActivitySegments', () => {
     expect(summary.headline).toContain('2 new segments');
   });
 
-  it('drops segments with no comparable history', () => {
+  it('drops segments with no history at all', () => {
     const noHistory = { segment: SEGMENT, current: traversal(), history: [] as SegmentTraversal[] };
-    const { comparisons, summary } = compareActivitySegments([noHistory]);
+    const { comparisons, familiarOnly, summary } = compareActivitySegments([noHistory]);
     expect(comparisons).toHaveLength(0);
+    expect(familiarOnly).toHaveLength(0);
     expect(summary.comparedCount).toBe(0);
     expect(summary.headline).toBe('');
+  });
+
+  it('surfaces a known road with untimed history as familiar rather than dropping it', () => {
+    // ~83% of the production library looks like this: traversals recorded
+    // from geometry alone, which are true but carry nothing to compare.
+    // These used to render nothing at all.
+    const untimed = [
+      traversal({ duration_seconds: null, avg_speed: null, avg_power: null, normalized_power: null, avg_hr: null, ridden_at: '2026-05-02T09:00:00Z' }),
+      traversal({ duration_seconds: null, avg_speed: null, avg_power: null, normalized_power: null, avg_hr: null, ridden_at: '2026-06-14T09:00:00Z' }),
+    ];
+    const input = { segment: SEGMENT, current: traversal(), history: untimed };
+
+    const { comparisons, familiarOnly, summary } = compareActivitySegments([input]);
+
+    expect(comparisons).toHaveLength(0);
+    expect(familiarOnly).toHaveLength(1);
+    expect(familiarOnly[0].totalTraversalCount).toBe(2);
+    expect(familiarOnly[0].lastRiddenAt).toBe('2026-06-14T09:00:00Z');
+    expect(summary.familiarOnlyCount).toBe(1);
+    expect(summary.headline).toContain('familiar road');
+  });
+
+  it('excludes untimed rows from the baseline and reports both counts', () => {
+    // Untimed rows must not drag the median, but they are still rides here.
+    const history = [
+      ...baselineHistory(),
+      traversal({ duration_seconds: null, avg_speed: null, avg_power: null, normalized_power: null, avg_hr: null }),
+      traversal({ duration_seconds: null, avg_speed: null, avg_power: null, normalized_power: null, avg_hr: null }),
+    ];
+    const { comparisons } = compareActivitySegments([
+      { segment: SEGMENT, current: traversal(), history },
+    ]);
+
+    expect(comparisons).toHaveLength(1);
+    expect(comparisons[0].historyCount).toBe(3);
+    expect(comparisons[0].totalTraversalCount).toBe(5);
+
+    // The duration baseline is the median of the three real efforts (600s),
+    // untouched by the two untimed rows.
+    const duration = comparisons[0].metrics.find((m) => m.key === 'duration');
+    expect(duration?.baseline).toBe(600);
   });
 
   it('sorts personal bests first', () => {
