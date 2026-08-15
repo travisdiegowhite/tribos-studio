@@ -173,7 +173,8 @@ export function useSegmentLibrary(userId?: string) {
             relevance_score
           )
         `)
-        .eq('user_id', userId);
+        .eq('user_id', userId)
+        .is('retired_at', null);
 
       if (filters?.terrainType) {
         query = query.eq('terrain_type', filters.terrainType);

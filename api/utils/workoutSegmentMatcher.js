@@ -378,7 +378,8 @@ export async function computeWorkoutSegmentMatches(userId, workoutId, workoutDef
         frequency_tier
       )
     `)
-    .eq('user_id', userId);
+    .eq('user_id', userId)
+    .is('retired_at', null);
 
   if (segError || !segments?.length) {
     return { computed: 0, matches: [] };
