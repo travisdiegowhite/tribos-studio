@@ -17,7 +17,7 @@ export default function FtpMissingBadge({ ftp, size = 'sm' }) {
     <StatusBadge
       tier="muted"
       size={size}
-      tooltip="No FTP set — intensity, TSS, and form values are estimated. Set your FTP in Settings for accurate metrics."
+      tooltip="No FTP set — intensity, ride stress, and form values are estimated. Set your FTP in Settings for accurate numbers."
     >
       Set FTP
     </StatusBadge>

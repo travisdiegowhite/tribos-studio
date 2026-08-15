@@ -141,19 +141,19 @@ function DiscussionThread({
               <Group gap="lg">
                 {discussion.training_context.ctl && (
                   <Box>
-                    <Text size="xs" c="dimmed">CTL</Text>
+                    <Text size="xs" c="dimmed">Fitness</Text>
                     <Text size="sm" fw={500}>{discussion.training_context.ctl}</Text>
                   </Box>
                 )}
                 {discussion.training_context.atl && (
                   <Box>
-                    <Text size="xs" c="dimmed">ATL</Text>
+                    <Text size="xs" c="dimmed">Fatigue</Text>
                     <Text size="sm" fw={500}>{discussion.training_context.atl}</Text>
                   </Box>
                 )}
                 {discussion.training_context.tsb && (
                   <Box>
-                    <Text size="xs" c="dimmed">TSB</Text>
+                    <Text size="xs" c="dimmed">Form</Text>
                     <Text size="sm" fw={500}>{discussion.training_context.tsb}</Text>
                   </Box>
                 )}
@@ -334,7 +334,7 @@ function ReplyCard({ reply, isOwn, onMarkHelpful, onUnmarkHelpful, onDelete }) {
             <Group gap="md">
               {reply.training_context.ctl && (
                 <Box>
-                  <Text size="xs" c="dimmed">CTL</Text>
+                  <Text size="xs" c="dimmed">Fitness</Text>
                   <Text size="xs" fw={500}>{reply.training_context.ctl}</Text>
                 </Box>
               )}

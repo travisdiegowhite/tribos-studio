@@ -924,7 +924,7 @@ function CheckInCard({ checkIn, isOwn, onEncourage, compact = false }) {
             {checkIn.total_tss > 0 && (
               <Box>
                 <Text size="lg" fw={600}>{checkIn.total_tss}</Text>
-                <Text size="xs" c="dimmed">TSS</Text>
+                <Text size="xs" c="dimmed">RSS</Text>
               </Box>
             )}
           </Group>

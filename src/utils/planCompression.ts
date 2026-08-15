@@ -344,7 +344,7 @@ export function compressPlan(
   // Add fitness-based context to warnings
   if (effectiveLevel !== fitnessLevel && ctl !== undefined) {
     warnings.push(
-      `Fitness level adjusted from "${fitnessLevel}" to "${effectiveLevel}" based on your CTL of ${ctl}.`
+      `Fitness level adjusted from "${fitnessLevel}" to "${effectiveLevel}" based on your fitness (TFI) of ${ctl}.`
     );
   }
 

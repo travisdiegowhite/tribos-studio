@@ -168,7 +168,7 @@ function WeeklyCheckInWidget({
                   <Text size="xl" fw={600} style={{ color: 'var(--color-text-primary)' }}>
                     {weekStats.tss}
                   </Text>
-                  <Text size="xs" c="dimmed">TSS</Text>
+                  <Text size="xs" c="dimmed">RSS</Text>
                 </Box>
               )}
             </Group>
@@ -427,7 +427,7 @@ function WeeklyCheckInWidget({
                 </Box>
                 <Box ta="center">
                   <Text size="lg" fw={600}>{weekStats.tss || 0}</Text>
-                  <Text size="xs" c="dimmed">TSS</Text>
+                  <Text size="xs" c="dimmed">RSS</Text>
                 </Box>
               </Group>
             </Card>

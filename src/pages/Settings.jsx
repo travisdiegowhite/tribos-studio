@@ -1745,7 +1745,7 @@ function Settings() {
                 Training & Power
               </Title>
               <Text size="sm" style={{ color: 'var(--color-text-secondary)' }}>
-                Set your FTP to calculate personalized power zones
+                Set your Functional Threshold Power (FTP) to calculate personalized power zones
               </Text>
 
               <SimpleGrid cols={{ base: 1, sm: 2 }} spacing="sm">
@@ -1761,7 +1761,7 @@ function Settings() {
                 />
                 <NumberInput
                   label="Weight"
-                  description="For W/kg calculations"
+                  description="For watts-per-kilogram (W/kg) — your climbing power"
                   placeholder={unitsPreference === 'imperial' ? 'e.g., 165' : 'e.g., 75'}
                   value={unitsPreference === 'imperial' && weightKg ? Math.round(weightKg * 2.20462) : (weightKg || '')}
                   onChange={(val) => {

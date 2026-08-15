@@ -292,7 +292,7 @@ export function CoachPanel({ data }: CoachPanelProps) {
           <Text style={{ fontFamily: FONT.heading, fontWeight: 700, fontSize: 18, letterSpacing: '.03em', textTransform: 'uppercase', color: C.text }}>
             {coach.recTitle}
           </Text>
-          <Text style={{ fontFamily: FONT.body, fontSize: 13, lineHeight: 1.5, color: C.text2, marginTop: 3 }}>
+          <Text style={{ fontFamily: FONT.body, fontSize: 15, lineHeight: 1.5, color: C.text2, marginTop: 3 }}>
             {take ?? coach.oneLineTake ?? coach.recBody}
           </Text>
         </Box>

@@ -77,7 +77,7 @@ const ONBOARDING_QUESTIONS = [
     options: [
       { value: 'event', label: 'A specific event', description: 'Race, gran fondo, or target ride' },
       { value: 'fitness', label: 'General fitness', description: 'Build base, stay healthy' },
-      { value: 'performance', label: 'Getting faster', description: 'Push FTP and performance' },
+      { value: 'performance', label: 'Getting faster', description: 'Push my limits and chase speed' },
       { value: 'comeback', label: 'Getting back into it', description: 'Returning from injury or time off' },
     ],
     hasEventFollowUp: true,

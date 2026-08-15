@@ -288,7 +288,7 @@ function TWLProjection({ stats, hasETA, personalizedETA }) {
             Est. load
           </Text>
           <Text size="sm" c="dimmed" style={{ fontFamily: "'DM Mono', monospace" }}>
-            TSS ~{estimatedTSS}
+            RSS ~{estimatedTSS}
           </Text>
           <Text size="sm" fw={700} style={{ fontFamily: "'DM Mono', monospace", color: 'var(--color-teal)' }}>
             TWL ~{Math.round(twlResult.twl)}
