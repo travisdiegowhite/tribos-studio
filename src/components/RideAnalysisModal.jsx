@@ -593,9 +593,11 @@ const RideAnalysisModal = ({
                     <Group gap={4} align="baseline">
                       <Text fw={600}>{Math.round(metrics.avgPower)}W</Text>
                       {weight > 0 && (
-                        <Text size="xs" c="dimmed">
-                          {(metrics.avgPower / weight).toFixed(1)} W/kg
-                        </Text>
+                        <Tooltip label="Watts per kilogram — your climbing power">
+                          <Text size="xs" c="dimmed">
+                            {(metrics.avgPower / weight).toFixed(1)} W/kg
+                          </Text>
+                        </Tooltip>
                       )}
                     </Group>
                   </Box>
@@ -649,7 +651,7 @@ const RideAnalysisModal = ({
 
               {metrics.vi && (
                 <Paper p="sm" withBorder>
-                  <Tooltip label="Variability Index — EP / Avg Power">
+                  <Tooltip label="How steady your power was (EP ÷ average power — lower is steadier)">
                     <Box>
                       <Text size="xs" c="dimmed">VI</Text>
                       <Text fw={600}>{metrics.vi}</Text>
@@ -660,7 +662,7 @@ const RideAnalysisModal = ({
 
               {metrics.kilojoules > 0 && (
                 <Paper p="sm" withBorder>
-                  <Tooltip label="Total mechanical work output">
+                  <Tooltip label="Total energy you put into the pedals (kJ — kilojoules)">
                     <Box>
                       <Text size="xs" c="dimmed">Work</Text>
                       <Text fw={600}>{Math.round(metrics.kilojoules)} kJ</Text>
@@ -754,7 +756,7 @@ const RideAnalysisModal = ({
                         single-leg, so double it for the conventional 160-180 spm range. */}
                     <Text fw={600}>
                       {isRun
-                        ? `${Math.round(metrics.avgCadence * 2)} spm`
+                        ? `${Math.round(metrics.avgCadence * 2)} steps/min`
                         : `${Math.round(metrics.avgCadence)} rpm`}
                     </Text>
                   </Box>

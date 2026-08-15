@@ -1,4 +1,5 @@
-import { Box, Group, Text, Stack } from '@mantine/core';
+import { Box, Group, Text, Stack, Tooltip } from '@mantine/core';
+import { TRAINING_ZONES } from '../../utils/trainingPlans';
 
 const ZONE_COLORS = {
   1: '#8CBFA8',  // Recovery - sage green
@@ -45,8 +46,16 @@ function ZoneDistributionRow({ zones, totalTime }) {
         const name = ZONE_NAMES[zone.zone] || `Z${zone.zone}`;
         const barWidth = maxPercent > 0 ? (zone.percentage / maxPercent) * 100 : 0;
 
+        const zoneDescription = TRAINING_ZONES[zone.zone]?.description;
         return (
-          <Group key={zone.zone} gap="sm" wrap="nowrap" align="center">
+          <Tooltip
+            key={zone.zone}
+            label={zoneDescription ? `${name.charAt(0)}${name.slice(1).toLowerCase()} — ${zoneDescription}` : name}
+            withArrow
+            multiline
+            w={280}
+          >
+          <Group gap="sm" wrap="nowrap" align="center">
             {/* Zone label */}
             <Text
               style={{
@@ -125,6 +134,7 @@ function ZoneDistributionRow({ zones, totalTime }) {
               {zone.hours || '0:00'}
             </Text>
           </Group>
+          </Tooltip>
         );
       })}
     </Stack>

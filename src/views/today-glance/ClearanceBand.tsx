@@ -42,7 +42,7 @@ export function ClearanceBand({ state }: { state: TodayAthleteState }) {
             color: C.text3,
           }}
         >
-          Form
+          Form · freshness
         </Text>
         <Text
           style={{

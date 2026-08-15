@@ -321,6 +321,12 @@ const CriticalPowerModel = ({ activities, ftp, weight }) => {
         />
       </Group>
 
+      {/* The gloss leads: what this model is, before any tile uses its terms. */}
+      <Text size="xs" c="dimmed" mb="md">
+        Critical Power (CP) is the hardest pace you can hold for a long effort. Above
+        it you drain a small "sprint battery" (W&prime;) that recharges when you ease off.
+      </Text>
+
       {/* Key Metrics */}
       <SimpleGrid cols={{ base: 2, sm: 4 }} spacing="sm" mb="md">
         <Paper p="sm" style={{ backgroundColor: 'var(--color-bg-secondary)' }}>
@@ -335,16 +341,16 @@ const CriticalPowerModel = ({ activities, ftp, weight }) => {
         <Paper p="sm" style={{ backgroundColor: 'var(--color-bg-secondary)' }}>
           <Group gap="xs" mb={2}>
             <BatteryMedium size={14} color={tokens.colors.zone5} />
-            <Text size="xs" c="dimmed">W' (W Prime)</Text>
+            <Text size="xs" c="dimmed">Sprint battery (W&prime;)</Text>
           </Group>
           <Text size="lg" fw={700} c="red">{(cpModel.wPrime / 1000).toFixed(1)} kJ</Text>
-          <Text size="xs" c="dimmed">Anaerobic capacity</Text>
+          <Text size="xs" c="dimmed">Energy available above CP</Text>
         </Paper>
 
         <Paper p="sm" style={{ backgroundColor: 'var(--color-bg-secondary)' }}>
           <Group gap="xs" mb={2}>
             <Clock size={14} color={tokens.colors.zone2} />
-            <Text size="xs" c="dimmed">TTE at 120% CP</Text>
+            <Text size="xs" c="dimmed">Time to empty at 120% of CP</Text>
           </Group>
           <Text size="lg" fw={700} c="blue">
             {Math.round(predictDurationForPower(cpModel.cp, cpModel.wPrime, cpModel.cp * 1.2) / 60)}m
@@ -443,7 +449,7 @@ const CriticalPowerModel = ({ activities, ftp, weight }) => {
           ))}
 
           <Text size="xs" c="dimmed" ta="center" mt="sm">
-            Predictions based on P = CP + W'/t power-duration model
+            Predictions from your critical-power model.
           </Text>
         </Stack>
       )}
@@ -464,11 +470,11 @@ export function WPrimeBalanceGauge({ wBalancePercent, wPrimeKJ }) {
   };
 
   return (
-    <Tooltip label={`W' Balance: ${wBalancePercent.toFixed(0)}% of ${wPrimeKJ.toFixed(1)} kJ remaining`}>
+    <Tooltip label={`Sprint battery: ${wBalancePercent.toFixed(0)}% of ${wPrimeKJ.toFixed(1)} kJ remaining`}>
       <Paper p="xs" style={{ backgroundColor: 'var(--color-bg-secondary)' }}>
         <Group gap="xs" mb={4}>
           <BatteryMedium size={14} />
-          <Text size="xs">W' Balance</Text>
+          <Text size="xs">Battery remaining</Text>
         </Group>
         <Progress
           value={wBalancePercent}

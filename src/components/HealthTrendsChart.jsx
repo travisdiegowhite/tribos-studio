@@ -26,7 +26,7 @@ const METRICS = {
   },
   hrv: {
     key: 'hrv',
-    label: 'HRV',
+    label: 'HRV (heart-rate variability)',
     unit: 'ms',
     color: '#2A8C82',
     icon: Heartbeat,

@@ -135,7 +135,7 @@ describe('tooltip functions', () => {
   it('ctlTooltip returns different copy per range', () => {
     expect(ctlTooltip(10)).toContain('early-stage');
     expect(ctlTooltip(30)).toContain('building phase');
-    expect(ctlTooltip(50)).toContain('aerobic base');
+    expect(ctlTooltip(50)).toContain('base of fitness');
     expect(ctlTooltip(70)).toContain('consistent work');
     expect(ctlTooltip(90)).toContain('Elite');
   });
@@ -149,7 +149,7 @@ describe('tooltip functions', () => {
 
   it('tsbTooltip returns different copy per range', () => {
     expect(tsbTooltip(-25)).toContain('fatigue hole');
-    expect(tsbTooltip(-15)).toContain('Working hard');
+    expect(tsbTooltip(-15)).toContain('working hard');
     expect(tsbTooltip(-5)).toContain('ideal for training');
     expect(tsbTooltip(10)).toContain('clearing');
     expect(tsbTooltip(20)).toContain('fully rested');

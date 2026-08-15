@@ -141,6 +141,7 @@ const RampRateAlert = ({ dailyTSSData, currentCTL, showDetails = true }) => {
       title={
         <Group gap="xs">
           <Text fw={600}>Training Ramp Rate</Text>
+          <Text size="xs" c="dimmed">How fast you're adding training load</Text>
           <Badge color={rampRateData.color} variant="filled" size="sm">
             {rampRateData.weeklyRampRate > 0 ? '+' : ''}{rampRateData.weeklyRampRate} RSS/week
           </Badge>
@@ -155,9 +156,9 @@ const RampRateAlert = ({ dailyTSSData, currentCTL, showDetails = true }) => {
             {/* Ramp Rate Gauge */}
             <Box>
               <Group justify="space-between" mb={4}>
-                <Text size="xs" c="dimmed">Detraining</Text>
-                <Text size="xs" c="dimmed">Optimal (3-7)</Text>
-                <Text size="xs" c="dimmed">Overreaching</Text>
+                <Text size="xs" c="dimmed">Losing fitness</Text>
+                <Text size="xs" c="dimmed">Sustainable (3–7 RSS/wk)</Text>
+                <Text size="xs" c="dimmed">Too fast to absorb</Text>
               </Group>
               <Box style={{ position: 'relative' }}>
                 <Progress
@@ -192,7 +193,7 @@ const RampRateAlert = ({ dailyTSSData, currentCTL, showDetails = true }) => {
             <Group gap="lg">
               <Tooltip label="Average weekly fitness (TFI) change over last 4 weeks">
                 <Paper p="xs" style={{ backgroundColor: 'var(--color-bg-secondary)', flex: 1 }}>
-                  <Text size="xs" c="dimmed">4-Week Avg</Text>
+                  <Text size="xs" c="dimmed">4-Week Avg (fitness change/wk)</Text>
                   <Text size="sm" fw={600}>
                     {rampRateData.monthlyRampRate > 0 ? '+' : ''}{rampRateData.monthlyRampRate}/week
                   </Text>
@@ -215,7 +216,7 @@ const RampRateAlert = ({ dailyTSSData, currentCTL, showDetails = true }) => {
               </Tooltip>
               <Tooltip label="Current Training Fitness Index (fitness)">
                 <Paper p="xs" style={{ backgroundColor: 'var(--color-bg-secondary)', flex: 1 }}>
-                  <Text size="xs" c="dimmed">Current TFI</Text>
+                  <Text size="xs" c="dimmed">Current fitness (TFI)</Text>
                   <Text size="sm" fw={600}>{rampRateData.ctlNow}</Text>
                 </Paper>
               </Tooltip>
