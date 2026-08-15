@@ -138,6 +138,57 @@ function RestCard({ today, units }: { today: Today; units: UnitsPreference }) {
 /** First-run / suggested: no plan. A prompt to generate a route to ride. */
 
 /**
+ * First-run only: an honest note instead of a dashboard of zeroed gauges
+ * (thesis M10 — an empty surface answers no rider question; say what will
+ * appear and how to make it appear).
+ */
+function FirstRunStatsNote({ today, isMobile }: { today: Today; isMobile: boolean }) {
+  const navigate = useNavigate();
+  const note = (
+    <Box style={{ border: `1px solid ${C.border}`, background: C.card, padding: 20 }}>
+      <Text style={{ fontFamily: FONT.heading, fontSize: 18, fontWeight: 700, color: C.text }}>
+        No riding history yet
+      </Text>
+      <Text style={{ fontFamily: FONT.body, fontSize: 14, lineHeight: 1.5, color: C.text2, marginTop: 6 }}>
+        Connect Strava, Garmin, or Wahoo — or log your first ride — and your form,
+        fitness, and the coach&rsquo;s daily take build themselves right here.
+      </Text>
+      <Group mt={14}>
+        <Box
+          component="button"
+          onClick={() => navigate('/settings')}
+          style={{
+            fontFamily: FONT.mono,
+            fontSize: 12,
+            color: '#FFFFFF',
+            backgroundColor: C.teal,
+            border: 'none',
+            padding: '8px 14px',
+            cursor: 'pointer',
+          }}
+        >
+          CONNECT A SERVICE
+        </Box>
+      </Group>
+    </Box>
+  );
+  if (isMobile) {
+    return (
+      <>
+        {note}
+        <GlanceCoach today={today} maxMessages={2} />
+      </>
+    );
+  }
+  return (
+    <Box style={{ display: 'grid', gridTemplateColumns: '1fr 1.5fr', gap: 16, alignItems: 'start' }}>
+      {note}
+      <GlanceCoach today={today} maxMessages={4} />
+    </Box>
+  );
+}
+
+/**
  * The fitness story + coach, as two columns: stats stacked on the left, the
  * coach conversation on the right (so you can interrogate the numbers next to
  * them). Stacks to a single column on mobile.
@@ -242,7 +293,11 @@ export default function TodayGlance({ fixture }: TodayGlanceProps) {
               </Box>
             </Box>
           )}
-          <StatsCoachSection today={today} isMobile={!!isMobile} />
+          {state === 'first-run' ? (
+            <FirstRunStatsNote today={today} isMobile={!!isMobile} />
+          ) : (
+            <StatsCoachSection today={today} isMobile={!!isMobile} />
+          )}
           <GlanceFooter routeId={null} />
           <ConsistencyRibbon days={today.ribbon} />
         </Stack>
