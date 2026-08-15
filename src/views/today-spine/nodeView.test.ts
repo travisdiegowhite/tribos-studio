@@ -18,42 +18,37 @@ function makeDay(index: number, overrides: Partial<DayNode> = {}): DayNode {
     fs: 5,
     rss: 0,
     planned: false,
-    readiness: 60,
     volHours: 4,
     activity: { tag: 'REST', tagColor: C.text3, name: 'Recovery day', meta: 'off the bike' },
     ...overrides,
   };
 }
 
-function makeDays(todayFs: number, todayReadiness: number): DayNode[] {
-  return Array.from({ length: 43 }, (_, i) =>
-    makeDay(i, i === 42 ? { fs: todayFs, readiness: todayReadiness } : {}),
-  );
+function makeDays(todayFs: number): DayNode[] {
+  return Array.from({ length: 43 }, (_, i) => makeDay(i, i === 42 ? { fs: todayFs } : {}));
 }
 
-describe('buildNodeVM — ring color follows the spec §5 form band', () => {
+describe('buildNodeVM — state copy follows the spec §5 form band', () => {
   it.each([
     [25, 'Too fresh — fitness fading', C.orange],
     [15, 'Fresh', C.gold],
     [0, 'In the grey zone', C.text3],
     [-15, 'Carrying productive load', C.teal],
     [-40, 'Deep in a heavy block', C.coral],
-  ])('fs=%d → "%s" with a matching ring', (fs, stateText, color) => {
-    const vm = buildNodeVM(makeDays(fs as number, 60), 42, 42);
+  ])('fs=%d → "%s" with a matching color', (fs, stateText, color) => {
+    const vm = buildNodeVM(makeDays(fs as number), 42, 42);
     expect(vm.stateText).toBe(stateText);
     expect(vm.stateColor).toBe(color);
-    expect(vm.ringColor).toBe(color);
   });
 
-  it('never lets the ring contradict the state text, regardless of readiness', () => {
-    // The old readiness-driven cuts (≥70 teal / ≥45 gold / else coral) showed
-    // an alarm-red ring for FS −15 (readiness ≈ 24) next to teal "optimal".
-    for (let fs = -50; fs <= 30; fs += 5) {
-      for (const readiness of [28, 44, 45, 69, 70, 96]) {
-        const vm = buildNodeVM(makeDays(fs, readiness), 42, 42);
-        expect(vm.ringColor).toBe(vm.stateColor);
-      }
-    }
+  it('renders a future day as a conditional sentence, not a bare projected state', () => {
+    const days = makeDays(5).map((d, i) =>
+      i === 40 ? { ...d, fs: -12 } : d,
+    );
+    // Pretend day 40 is in the future relative to a today at index 30.
+    const vm = buildNodeVM(days, 40, 30);
+    expect(vm.isFuture).toBe(true);
+    expect(vm.stateText).toBe("On this path, you'd be carrying productive load");
   });
 });
 

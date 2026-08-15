@@ -52,15 +52,9 @@ function renderPanel(data: SpineData, onSelect: (i: number) => void = () => {}, 
           selectedIndex={selectedIndex}
           onSelect={onSelect}
           vm={vm}
-          dispTSB={data.days[selectedIndex].fs}
-          dispReady={data.days[selectedIndex].readiness}
           flipped={false}
-          ringHover={false}
           onToggleFlip={() => {}}
           onSnapToday={() => {}}
-          onRingEnter={() => {}}
-          onRingLeave={() => {}}
-          onRingToggle={() => {}}
         />
       </MemoryRouter>
     </MantineProvider>,
@@ -73,7 +67,10 @@ describe('SpinePanel render', () => {
     renderPanel(data);
     expect(screen.getByText('TRAINING ARC')).toBeTruthy();
     expect(screen.getByText('Hygiene Loop')).toBeTruthy();
-    expect(screen.getByText('FORM · FS')).toBeTruthy();
+    expect(screen.getByText('FORM')).toBeTruthy();
+    // Sentence-first: the state word is rendered with the FS value as a chip.
+    expect(screen.getByText('In the grey zone')).toBeTruthy();
+    expect(screen.getByText('+4')).toBeTruthy();
   });
 
   it('moves the selection with arrow keys and snaps with T', () => {

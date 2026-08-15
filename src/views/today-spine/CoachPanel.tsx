@@ -37,7 +37,7 @@ const QUICK_CHIPS: Array<{ label: string; query: string }> = [
 function buildContext(data: SpineData): string {
   const t = data.days[data.todayIndex];
   const parts = [
-    `Canonical metrics on screen — Form Score (FS): ${t.fs}, Fitness (TFI): ${t.tfi}, Fatigue (AFI): ${t.afi}, readiness ${t.readiness}.`,
+    `Canonical metrics on screen — Form Score (FS): ${t.fs}, Fitness (TFI): ${t.tfi}, Fatigue (AFI): ${t.afi}.`,
   ];
   // The PLAN tag means a workout is scheduled for today — it says nothing
   // about whether it has been done. Phrase it so the coach never assumes

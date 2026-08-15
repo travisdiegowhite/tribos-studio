@@ -119,9 +119,6 @@ function dateLabel(dateKey: string): string {
 
 // ── athlete-facing wording ───────────────────────────────────────────────────
 
-function readinessFromFS(fs: number): number {
-  return Math.max(28, Math.min(96, Math.round(52 + fs * 1.86)));
-}
 function daysStr(n: number): string {
   return n === 1 ? '1 day' : `${n} days`;
 }
@@ -358,7 +355,6 @@ export function assembleSpine(input: AssembleInput): SpineData {
       fs,
       rss,
       planned: rss > 0,
-      readiness: readinessFromFS(fs),
       volHours: volHoursAt(date),
       activity: labelActivity({
         rss,
@@ -420,7 +416,6 @@ export function assembleSpine(input: AssembleInput): SpineData {
       fs,
       rss: Math.round(rss),
       planned: isPlannedSession,
-      readiness: readinessFromFS(fs),
       volHours: volHoursAt(date),
       activity: labelActivity({
         rss: Math.round(rss),
