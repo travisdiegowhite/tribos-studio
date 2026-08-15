@@ -74,8 +74,8 @@ export function calculateVI(normalizedPower, avgPower) {
  */
 export function calculateTSSFromPower(durationSeconds, normalizedPower, ftp) {
   if (!durationSeconds || !normalizedPower || !ftp) return null;
-  const IF = normalizedPower / ftp;
-  return Math.round((durationSeconds * normalizedPower * IF) / (ftp * 3600) * 100);
+  const intensity = normalizedPower / ftp;
+  return Math.round((durationSeconds * normalizedPower * intensity) / (ftp * 3600) * 100);
 }
 
 /**

@@ -55,13 +55,13 @@ export function tcasCoachInsight(result: TCASResult): string {
     return `TCAS ${tcas}/100 — excellent adaptation efficiency for available hours. Quality signals confirm gains are real.`;
   }
   if (fv < 0) {
-    return `TCAS ${tcas}/100. CTL is declining (FV = ${fv.toFixed(2)}). If this is intentional recovery, expected. If not, load or recovery alignment needs review.`;
+    return `TCAS ${tcas}/100. Fitness (TFI) is declining (FV = ${fv.toFixed(2)}). If this is intentional recovery, expected. If not, load or recovery alignment needs review.`;
   }
   if (he < 0.5) {
     return `TCAS ${tcas}/100. Hours Efficiency is low — fitness is not moving in proportion to training investment. Review session quality and structure.`;
   }
   if (aq < 0.4) {
-    return `TCAS ${tcas}/100. Adaptation Quality is low — CTL may be rising but physiological markers (EF, decoupling, peak power) aren't confirming real adaptation. Risk of junk miles.`;
+    return `TCAS ${tcas}/100. Adaptation Quality is low — Fitness (TFI) may be rising but physiological markers (EF, decoupling, peak power) aren't confirming real adaptation. Risk of junk miles.`;
   }
   return `TCAS ${tcas}/100. Moderate adaptation efficiency. Both HE and AQ have room to improve. Focus on session quality over raw volume.`;
 }

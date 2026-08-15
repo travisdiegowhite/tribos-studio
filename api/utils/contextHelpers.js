@@ -284,7 +284,7 @@ export async function fetchProprietaryMetrics(supabase, userId) {
       sections.push(`  Volume Fidelity: ${pctFmt(efi.vf)}, Intensity Fidelity: ${pctFmt(efi.ifs)}, Consistency: ${pctFmt(efi.cf)}`);
     }
     if (twl) {
-      sections.push(`TWL (Terrain-Weighted Load, last ride): ${twl.twl} (base TSS: ${twl.base_tss}, multiplier: ${twl.m_terrain?.toFixed(3)}x)`);
+      sections.push(`TWL (Terrain-Weighted Load, last ride): ${twl.twl} (base RSS: ${twl.base_tss}, multiplier: ${twl.m_terrain?.toFixed(3)}x)`);
     }
     if (tcas) {
       sections.push(`TCAS (Time-Constrained Adaptation): ${tcas.tcas}/100`);

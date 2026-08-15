@@ -4,76 +4,76 @@ export const WORKOUT_LIBRARY_FOR_AI = `
 AVAILABLE WORKOUTS IN LIBRARY:
 
 === CYCLING: RECOVERY (Zone 1) ===
-- recovery_spin: 30min, 20 TSS - Easy spinning for active recovery
-- easy_recovery_ride: 45min, 30 TSS - Extended recovery ride
+- recovery_spin: 30min, 20 RSS - Easy spinning for active recovery
+- easy_recovery_ride: 45min, 30 RSS - Extended recovery ride
 
 === CYCLING: ENDURANCE / BASE (Zone 2) ===
-- foundation_miles: 60min, 55 TSS - Classic Z2 endurance ride
-- endurance_base_build: 90min, 70 TSS - 90min Zone 2 for aerobic capacity
-- long_endurance_ride: 180min, 140 TSS - Classic 3-hour long ride
-- polarized_long_ride: 240min, 180 TSS - 4-hour polarized endurance
+- foundation_miles: 60min, 55 RSS - Classic Z2 endurance ride
+- endurance_base_build: 90min, 70 RSS - 90min Zone 2 for aerobic capacity
+- long_endurance_ride: 180min, 140 RSS - Classic 3-hour long ride
+- polarized_long_ride: 240min, 180 RSS - 4-hour polarized endurance
 
 === CYCLING: TEMPO (Zone 3) ===
-- tempo_ride: 60min, 65 TSS - Sustained Zone 3 tempo effort
-- two_by_twenty_tempo: 75min, 80 TSS - 2x20min tempo intervals
+- tempo_ride: 60min, 65 RSS - Sustained Zone 3 tempo effort
+- two_by_twenty_tempo: 75min, 80 RSS - 2x20min tempo intervals
 
 === CYCLING: SWEET SPOT (88-94% FTP) ===
-- traditional_sst: 65min, 85 TSS - 45min sustained Sweet Spot
-- three_by_ten_sst: 60min, 80 TSS - 3x10min sweet spot intervals
-- four_by_twelve_sst: 80min, 95 TSS - 4x12min sweet spot intervals
-- sweet_spot_progression: 90min, 105 TSS - Progressive sweet spot
+- traditional_sst: 65min, 85 RSS - 45min sustained Sweet Spot
+- three_by_ten_sst: 60min, 80 RSS - 3x10min sweet spot intervals
+- four_by_twelve_sst: 80min, 95 RSS - 4x12min sweet spot intervals
+- sweet_spot_progression: 90min, 105 RSS - Progressive sweet spot
 
 === CYCLING: THRESHOLD / FTP (95-105% FTP) ===
-- two_by_twenty_ftp: 70min, 90 TSS - Classic 2x20min at FTP
-- over_under_intervals: 75min, 100 TSS - Over-under threshold intervals
-- three_by_twelve_threshold: 75min, 95 TSS - 3x12min at threshold
+- two_by_twenty_ftp: 70min, 90 RSS - Classic 2x20min at FTP
+- over_under_intervals: 75min, 100 RSS - Over-under threshold intervals
+- three_by_twelve_threshold: 75min, 95 RSS - 3x12min at threshold
 
 === CYCLING: VO2 MAX (106-120% FTP) ===
-- thirty_thirty_intervals: 60min, 85 TSS - 30/30s VO2max intervals
-- five_by_four_vo2: 65min, 95 TSS - 5x4min VO2max
-- four_by_eight_vo2: 75min, 105 TSS - 4x8min VO2max (research-proven)
-- bossi_intervals: 65min, 100 TSS - Surging VO2max protocol
-- polarized_intensity_day: 90min, 110 TSS - High-intensity polarized day
+- thirty_thirty_intervals: 60min, 85 RSS - 30/30s VO2max intervals
+- five_by_four_vo2: 65min, 95 RSS - 5x4min VO2max
+- four_by_eight_vo2: 75min, 105 RSS - 4x8min VO2max (research-proven)
+- bossi_intervals: 65min, 100 RSS - Surging VO2max protocol
+- polarized_intensity_day: 90min, 110 RSS - High-intensity polarized day
 
 === CYCLING: CLIMBING / HILLS ===
-- hill_repeats: 70min, 80 TSS - 6x3min climbing intervals
+- hill_repeats: 70min, 80 RSS - 6x3min climbing intervals
 
 === CYCLING: HIGH INTENSITY / RACE PREP ===
-- sprint_intervals: 75min, 70 TSS - 10x30s max sprints
-- race_simulation: 90min, 105 TSS - Race-like efforts with surges
+- sprint_intervals: 75min, 70 RSS - 10x30s max sprints
+- race_simulation: 90min, 105 RSS - Race-like efforts with surges
 
 === RUNNING: RECOVERY ===
-- run_recovery_jog: 25min, 20 rTSS, ~4km - Very easy jog for recovery
-- run_easy_recovery: 30min, 30 rTSS, ~5km - Easy run with strides
+- run_recovery_jog: 25min, 20 RSS, ~4km - Very easy jog for recovery
+- run_easy_recovery: 30min, 30 RSS, ~5km - Easy run with strides
 
 === RUNNING: EASY / AEROBIC (Zone 2) ===
-- run_easy_aerobic: 40min, 45 rTSS, ~7km - Easy aerobic run
-- run_easy_long: 60min, 60 rTSS, ~10km - Hour-long easy run
-- run_long_run: 90min, 100 rTSS, ~16km - Long run for endurance
-- run_long_run_extended: 120min, 140 rTSS, ~20km - Extended long run
+- run_easy_aerobic: 40min, 45 RSS, ~7km - Easy aerobic run
+- run_easy_long: 60min, 60 RSS, ~10km - Hour-long easy run
+- run_long_run: 90min, 100 RSS, ~16km - Long run for endurance
+- run_long_run_extended: 120min, 140 RSS, ~20km - Extended long run
 
 === RUNNING: TEMPO (Zone 3) ===
-- run_tempo_continuous: 45min, 65 rTSS, ~8km - Continuous 20min tempo block
-- run_tempo_cruise: 50min, 70 rTSS, ~9km - 2x15min cruise intervals
-- run_progression_run: 50min, 70 rTSS, ~9km - Easy to tempo progression
+- run_tempo_continuous: 45min, 65 RSS, ~8km - Continuous 20min tempo block
+- run_tempo_cruise: 50min, 70 RSS, ~9km - 2x15min cruise intervals
+- run_progression_run: 50min, 70 RSS, ~9km - Easy to tempo progression
 
 === RUNNING: THRESHOLD (Zone 4) ===
-- run_threshold_intervals: 50min, 80 rTSS, ~9km - 4x5min at threshold pace
-- run_threshold_continuous: 45min, 75 rTSS, ~8.5km - 20min continuous threshold
-- run_tempo_threshold_combo: 55min, 80 rTSS, ~10km - Mixed tempo & threshold
+- run_threshold_intervals: 50min, 80 RSS, ~9km - 4x5min at threshold pace
+- run_threshold_continuous: 45min, 75 RSS, ~8.5km - 20min continuous threshold
+- run_tempo_threshold_combo: 55min, 80 RSS, ~10km - Mixed tempo & threshold
 
 === RUNNING: VO2MAX (Zone 5) ===
-- run_vo2max_800s: 50min, 80 rTSS, ~8km - 5x800m at VO2max pace (track)
-- run_vo2max_1000s: 50min, 80 rTSS, ~9km - 4x1000m at VO2max pace
-- run_vo2max_hills: 45min, 75 rTSS, ~7km - 8x90sec uphill hard
+- run_vo2max_800s: 50min, 80 RSS, ~8km - 5x800m at VO2max pace (track)
+- run_vo2max_1000s: 50min, 80 RSS, ~9km - 4x1000m at VO2max pace
+- run_vo2max_hills: 45min, 75 RSS, ~7km - 8x90sec uphill hard
 
 === RUNNING: SPEED (Zone 6) ===
-- run_speed_200s: 40min, 60 rTSS, ~6km - 8x200m fast (track)
-- run_speed_400s: 45min, 65 rTSS, ~8km - 6x400m at 5K pace (track)
+- run_speed_200s: 40min, 60 RSS, ~6km - 8x200m fast (track)
+- run_speed_400s: 45min, 65 RSS, ~8km - 6x400m at 5K pace (track)
 
 === RUNNING: RACE-SPECIFIC ===
-- run_race_pace_half: 60min, 90 rTSS, ~11km - 30min at half marathon pace
-- run_race_pace_marathon: 90min, 110 rTSS, ~16km - 60min at marathon pace
+- run_race_pace_half: 60min, 90 RSS, ~11km - 30min at half marathon pace
+- run_race_pace_marathon: 90min, 110 RSS, ~16km - 60min at marathon pace
 
 === STRENGTH / CORE / FLEXIBILITY (both sports) ===
 - cyclist_strength_foundation: 45min - Full body foundation strength

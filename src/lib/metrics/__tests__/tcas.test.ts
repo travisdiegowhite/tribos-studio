@@ -117,7 +117,7 @@ describe('tcasCoachInsight', () => {
     const insight = tcasCoachInsight({
       tcas: 20, he: 0, aq: 0.5, taa: 1, fv: -2, eft: 0, adi: 0, ppd: 0,
     });
-    expect(insight).toContain('CTL is declining');
+    expect(insight).toContain('Fitness (TFI) is declining');
   });
 
   it('flags low hours efficiency', () => {

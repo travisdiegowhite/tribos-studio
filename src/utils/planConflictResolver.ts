@@ -235,7 +235,7 @@ function resolveDayConflict(
       primaryWorkout: primary,
       secondaryWorkout: secondary,
       action: 'skip_secondary',
-      reason: `Deep fatigue detected (TSB: ${fitness.tsb}). Skipping secondary ${secondary.workout_type} to protect recovery.`,
+      reason: `Deep fatigue detected (Form Score: ${fitness.tsb}). Skipping secondary ${secondary.workout_type} to protect recovery.`,
     };
   }
 
@@ -261,7 +261,7 @@ function resolveDayConflict(
         primaryWorkout: primary,
         secondaryWorkout: secondary,
         action: 'skip_secondary',
-        reason: `Two key workouts conflict and no adjacent day available. Moderate fatigue (TSB: ${fitness.tsb}) — skipping secondary.`,
+        reason: `Two key workouts conflict and no adjacent day available. Moderate fatigue (Form Score: ${fitness.tsb}) — skipping secondary.`,
       };
     }
 
@@ -285,7 +285,7 @@ function resolveDayConflict(
         secondaryWorkout: secondary,
         action: 'move_secondary',
         movedToDate: movedDate,
-        reason: `Combined TSS (${combinedTSS}) exceeds daily limit. Moving secondary to ${movedDate}.`,
+        reason: `Combined RSS (${combinedTSS}) exceeds daily limit. Moving secondary to ${movedDate}.`,
       };
     }
 
@@ -295,7 +295,7 @@ function resolveDayConflict(
       secondaryWorkout: secondary,
       action: 'downgrade_secondary',
       replacementWorkoutId: getRecoveryWorkoutForSport(secondary.plan_sport_type),
-      reason: `Combined TSS (${combinedTSS}) exceeds daily limit. Downgrading secondary to recovery.`,
+      reason: `Combined RSS (${combinedTSS}) exceeds daily limit. Downgrading secondary to recovery.`,
     };
   }
 

@@ -73,11 +73,11 @@ export function calculateMatchScore(
 
     if (tssPercent <= 15) {
       score += 30;
-      reasons.push('TSS matches closely');
+      reasons.push('RSS matches closely');
     } else if (tssPercent <= (options.tssTolerancePercent || 30)) {
       const tssScore = Math.round(30 * (1 - tssPercent / 50));
       score += Math.max(0, tssScore);
-      reasons.push(`TSS within ${Math.round(tssPercent)}%`);
+      reasons.push(`RSS within ${Math.round(tssPercent)}%`);
     }
   }
 

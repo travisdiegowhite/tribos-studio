@@ -2129,7 +2129,7 @@ function Settings() {
                   </Text>
                   <List size="sm" spacing="xs">
                     <List.Item icon={<ThemeIcon color="blue" size={20} radius="xl"><Check size={12} /></ThemeIcon>}>
-                      Imports the full .fit file (power streams, NP, IF, ride analytics)
+                      Imports the full .fit file (power streams, effective power, ride analytics)
                     </List.Item>
                     <List.Item icon={<ThemeIcon color="blue" size={20} radius="xl"><Check size={12} /></ThemeIcon>}>
                       Dedupes against activities already synced via the Garmin webhook
