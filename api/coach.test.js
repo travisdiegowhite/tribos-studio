@@ -741,7 +741,69 @@ describe('handleScheduleAdjustment — honest, user-scoped writes', () => {
 });
 
 describe('swapWorkoutDates — rollback on partial failure', () => {
-  it('restores the parked source when the target move fails (no stranded NULL-date row)', async () => {
+  it('parks at a real sentinel date, never NULL (scheduled_date is NOT NULL in prod)', async () => {
+    // Parking at NULL made EVERY same-plan swap fail with a not-null
+    // violation — the production bug behind "swap failed while parking source".
+    const updateCalls = [];
+    fromOverride = () => {
+      const c = chain();
+      c.update = (payload) => {
+        const rec = { payload, ids: [] };
+        updateCalls.push(rec);
+        const sub = {
+          eq: (col, val) => {
+            rec.ids.push([col, val]);
+            return sub;
+          },
+          then: (resolve) => Promise.resolve({ data: null, error: null }).then(resolve),
+        };
+        return sub;
+      };
+      return c;
+    };
+
+    const result = await swapWorkoutDates('src-1', '2026-07-25', 'tgt-1', '2026-07-26');
+
+    expect(result.success).toBe(true);
+    expect(updateCalls).toHaveLength(3);
+    // Park uses a concrete pre-plan sentinel, not NULL.
+    expect(updateCalls[0].payload.scheduled_date).toBe('1900-01-01');
+    // Then target → source date, source → target date.
+    expect(updateCalls[1].payload.scheduled_date).toBe('2026-07-25');
+    expect(updateCalls[1].ids).toContainEqual(['id', 'tgt-1']);
+    expect(updateCalls[2].payload.scheduled_date).toBe('2026-07-26');
+    expect(updateCalls[2].ids).toContainEqual(['id', 'src-1']);
+  });
+
+  it('retries the next sentinel when the parking date is occupied', async () => {
+    const parkAttempts = [];
+    let updateCount = 0;
+    fromOverride = () => {
+      const c = chain();
+      c.update = (payload) => {
+        updateCount++;
+        const n = updateCount;
+        if (n <= 2) parkAttempts.push(payload.scheduled_date);
+        const sub = {
+          eq: () => sub,
+          // First parking attempt collides (23505); everything after succeeds.
+          then: (resolve) =>
+            Promise.resolve(
+              n === 1 ? { data: null, error: { code: '23505', message: 'duplicate key' } } : { data: null, error: null }
+            ).then(resolve),
+        };
+        return sub;
+      };
+      return c;
+    };
+
+    const result = await swapWorkoutDates('src-1', '2026-07-25', 'tgt-1', '2026-07-26');
+
+    expect(result.success).toBe(true);
+    expect(parkAttempts).toEqual(['1900-01-01', '1900-01-02']);
+  });
+
+  it('restores the parked source when the target move fails (no stranded parked row)', async () => {
     const updateCalls = [];
     let updateCount = 0;
     fromOverride = () => {
@@ -768,10 +830,10 @@ describe('swapWorkoutDates — rollback on partial failure', () => {
 
     expect(result.success).toBe(false);
     expect(result.error).toMatch(/boom/);
-    // Call 1 parked the source at NULL; call 2 failed; call 3 must restore the
-    // source back to its original date.
+    // Call 1 parked the source at the sentinel; call 2 failed; call 3 must
+    // restore the source back to its original date.
     expect(updateCalls).toHaveLength(3);
-    expect(updateCalls[0].payload.scheduled_date).toBeNull();
+    expect(updateCalls[0].payload.scheduled_date).toBe('1900-01-01');
     expect(updateCalls[2].payload.scheduled_date).toBe('2026-07-25');
     expect(updateCalls[2].ids).toContainEqual(['id', 'src-1']);
   });
