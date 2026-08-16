@@ -19,9 +19,9 @@
 --
 -- Additive plus one constraint relaxation. Nothing is dropped.
 --
--- NOTE: the duration/speed clear in section C is not reversible without
--- re-running the polyline pipeline. scripts/rebuild-training-segments.js
--- --report snapshots the values first; take that snapshot before applying.
+-- The duration/speed clear in section C backs the old values up to
+-- training_segment_rides_duration_backup first, so it is reversible without
+-- re-running the polyline pipeline. No pre-flight step is required.
 -- ============================================================================
 
 -- ----------------------------------------------------------------------------
@@ -65,7 +65,49 @@ WHERE a.id = r.activity_id
 -- avg_speed goes too: it was derived from the same invented time axis.
 -- Power and HR are left alone — those were never synthesised, they are
 -- simply absent on this tier.
+--
+-- The backup is taken here rather than by the rebuild script, because the
+-- script cannot run until this migration has added the columns it reads —
+-- which means by the time it could take a snapshot, the values are already
+-- gone. Owning the backup makes the step self-undoing with no ordering
+-- dependency at all.
 -- ----------------------------------------------------------------------------
+
+-- Deliberately no foreign keys: the merge phase deletes duplicate traversal
+-- rows, and a backup that cascades away with the thing it is backing up is
+-- not a backup. user_id is denormalised for the same reason — so a restore
+-- can be scoped to one rider without joining to rows that may be gone.
+CREATE TABLE IF NOT EXISTS public.training_segment_rides_duration_backup (
+  ride_id          UUID PRIMARY KEY,
+  user_id          UUID NOT NULL,
+  segment_id       UUID NOT NULL,
+  activity_id      UUID NOT NULL,
+  duration_seconds INTEGER,
+  avg_speed        NUMERIC,
+  backed_up_at     TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_segment_duration_backup_user
+  ON public.training_segment_rides_duration_backup(user_id);
+
+COMMENT ON TABLE public.training_segment_rides_duration_backup IS
+  'Pre-migration-110 values of training_segment_rides.duration_seconds/avg_speed for geometry_only traversals. These were synthesised from a flat 5 m/s assumption and are not real measurements; kept only so section C is reversible.';
+
+-- Same treatment migration 107 applied to the _cleanup_20260801_* tables:
+-- this holds real per-user activity rows, so RLS on with zero policies gives
+-- anon/authenticated deny-all while service_role (used by /api and the
+-- rebuild script) bypasses RLS and can still restore. Without this the table
+-- would reproduce the exact rls_disabled_in_public finding 107 closed.
+ALTER TABLE public.training_segment_rides_duration_backup ENABLE ROW LEVEL SECURITY;
+REVOKE ALL ON public.training_segment_rides_duration_backup FROM anon, authenticated;
+
+INSERT INTO public.training_segment_rides_duration_backup
+  (ride_id, user_id, segment_id, activity_id, duration_seconds, avg_speed)
+SELECT id, user_id, segment_id, activity_id, duration_seconds, avg_speed
+  FROM public.training_segment_rides
+ WHERE data_quality_tier = 'geometry_only'
+   AND duration_seconds IS NOT NULL
+ON CONFLICT (ride_id) DO NOTHING;
 
 UPDATE public.training_segment_rides
 SET duration_seconds = NULL,

@@ -29,8 +29,8 @@
  *   --since <date>        Only consider activities on/after this ISO date
  *   --min-coverage <f>    Traversal + merge coverage threshold (default: 0.8)
  *   --tolerance <m>       Match radius in metres (default: 40)
- *   --report <path>       Write a JSON report, including a snapshot of every
- *                         duration about to be discarded
+ *   --report <path>       Write a JSON report, including the durations that
+ *                         migration 110 discarded (read from its backup table)
  *   --verbose
  *
  * Environment:
@@ -325,22 +325,28 @@ async function phaseRollup(userId, opts, report, segmentIds = null) {
 }
 
 /**
- * Snapshot every fabricated duration before migration 110 clears it. This is
- * the only undo available for that step, so it runs regardless of phase.
+ * Include the durations migration 110 discarded in the report.
+ *
+ * The migration takes this backup itself. It has to: this script cannot run
+ * until the migration has added the columns it reads, so by the time it could
+ * snapshot anything the values are already gone. Reading the backup here just
+ * puts them in the report alongside everything else.
  */
-async function snapshotDurations(userId, report) {
+async function includeDiscardedDurations(userId, report) {
   const { data, error } = await supabase
-    .from('training_segment_rides')
-    .select('id, segment_id, activity_id, duration_seconds, avg_speed, data_quality_tier')
-    .eq('user_id', userId)
-    .not('duration_seconds', 'is', null);
+    .from('training_segment_rides_duration_backup')
+    .select('ride_id, segment_id, activity_id, duration_seconds, avg_speed')
+    .eq('user_id', userId);
 
   if (error) {
-    console.error(`  duration snapshot failed: ${error.message}`);
+    // Absent table means the migration has not run yet, which is worth
+    // knowing but is not this phase's problem to solve.
+    console.warn(`  discarded-duration backup unavailable: ${error.message}`);
     return;
   }
-  report.durationSnapshot = data || [];
-  console.log(`  snapshotted ${data?.length || 0} traversal durations`);
+
+  report.discardedDurations = data || [];
+  console.log(`  ${report.discardedDurations.length} fabricated durations discarded by migration 110 (recorded in report)`);
 }
 
 // ============================================================================
@@ -357,7 +363,7 @@ async function processUser(userId, opts) {
   report.before = { rideCountHistogram: await rideCountHistogram(userId) };
   console.log(`\nride_count before:  ${fmtHistogram(report.before.rideCountHistogram)}`);
 
-  if (opts.report) await snapshotDurations(userId, report);
+  if (opts.report) await includeDiscardedDurations(userId, report);
 
   const run = (p) => opts.phase === 'all' || opts.phase === p;
   let touched = null;
