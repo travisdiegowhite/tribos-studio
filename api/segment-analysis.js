@@ -187,7 +187,8 @@ async function handleGetSegments(res, supabase, userId, params) {
         relevance_score
       )
     `)
-    .eq('user_id', userId);
+    .eq('user_id', userId)
+    .is('retired_at', null);
 
   // Filters
   if (terrainType) {

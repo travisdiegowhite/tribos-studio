@@ -98,6 +98,9 @@ export async function fetchEvidenceInputs(client, userId, weekStart, { lookbackD
     .from('training_segment_rides')
     .select('seg:training_segments!inner(display_name, auto_name, distance_meters, user_id), ridden_at, dur_s:duration_seconds, w:avg_power, hr:avg_hr, activity_id')
     .eq('training_segments.user_id', userId)
+    // Familiarity-only traversals carry no timing; they are not efforts and
+    // must not reach the coach narrative as if they were.
+    .not('duration_seconds', 'is', null)
     .gte('ridden_at', fromIso)
     .lt('ridden_at', toIso);
   if (segErr) throw new Error(`segments query: ${segErr.message}`);

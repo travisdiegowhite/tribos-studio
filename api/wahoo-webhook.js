@@ -260,11 +260,15 @@ async function processWahooWorkout(integration, workout, webhookData, webhookSum
   // Try to get GPS data (polyline) + deep FIT coach context from the workout file
   let mapPolyline = null;
   let fitCoachContext = null;
+  let activityStreams = null;
+  let rideAnalytics = null;
   if (workoutDetails.file?.url) {
     try {
       const fitData = await extractGPSFromWahooFile(workoutDetails.file.url, accessToken, integration.user_id);
       mapPolyline = fitData.polyline;
       fitCoachContext = fitData.fitCoachContext;
+      activityStreams = fitData.activityStreams;
+      rideAnalytics = fitData.rideAnalytics;
     } catch (err) {
       console.warn('Could not extract FIT data from Wahoo file:', err.message);
     }
@@ -294,6 +298,8 @@ async function processWahooWorkout(integration, workout, webhookData, webhookSum
     trainer: workoutDetails.workout_type === 'indoor_cycling' || workoutDetails.workout_type === 'treadmill_running',
     map_summary_polyline: mapPolyline,
     fit_coach_context: fitCoachContext,
+    activity_streams: activityStreams,
+    ride_analytics: rideAnalytics,
     raw_data: webhookData,
     imported_from: 'wahoo_webhook'
   };
@@ -318,6 +324,8 @@ async function processWahooWorkout(integration, workout, webhookData, webhookSum
     // Merge Wahoo data into existing activity from another provider
     const wahooData = {
       map_summary_polyline: mapPolyline || null,
+      activity_streams: activityStreams || null,
+      ride_analytics: rideAnalytics || null,
       average_watts: activityData.average_watts || null,
       average_heartrate: activityData.average_heartrate || null,
       max_heartrate: activityData.max_heartrate || null,
@@ -438,7 +446,8 @@ async function updateExistingActivity(activityId, activityData, integration) {
     'distance', 'moving_time', 'elapsed_time', 'total_elevation_gain',
     'average_speed', 'max_speed', 'average_watts', 'average_heartrate',
     'max_heartrate', 'average_cadence', 'kilojoules', 'calories',
-    'map_summary_polyline', 'trainer'
+    'map_summary_polyline', 'trainer',
+    'activity_streams', 'ride_analytics', 'fit_coach_context'
   ];
 
   for (const field of fieldsToUpdate) {
@@ -572,11 +581,11 @@ function mapWahooWorkoutType(wahooType) {
  * @param {string} fileUrl
  * @param {string} accessToken
  * @param {string|null} userId - user_id for athlete profile lookup
- * @returns {Promise<{polyline: string|null, fitCoachContext: Object|null}>}
+ * @returns {Promise<{polyline: string|null, fitCoachContext: Object|null, activityStreams: Object|null, rideAnalytics: Object|null}>}
  */
 async function extractGPSFromWahooFile(fileUrl, accessToken, userId = null) {
   if (!fileUrl) {
-    return { polyline: null, fitCoachContext: null };
+    return { polyline: null, fitCoachContext: null, activityStreams: null, rideAnalytics: null };
   }
 
   console.log('🗺️ Extracting GPS data from Wahoo FIT file...');
@@ -587,7 +596,7 @@ async function extractGPSFromWahooFile(fileUrl, accessToken, userId = null) {
 
     if (result.error) {
       console.warn('⚠️ GPS extraction warning:', result.error);
-      return { polyline: null, fitCoachContext: null };
+      return { polyline: null, fitCoachContext: null, activityStreams: null, rideAnalytics: null };
     }
 
     if (result.polyline) {
@@ -603,10 +612,15 @@ async function extractGPSFromWahooFile(fileUrl, accessToken, userId = null) {
     return {
       polyline: result.polyline || null,
       fitCoachContext: result.fitCoachContext || null,
+      // The FIT is fully parsed here; keeping only the polyline threw away
+      // the per-point streams that segment analysis needs to produce real
+      // (rather than synthesised) traversal timings.
+      activityStreams: result.activityStreams || null,
+      rideAnalytics: result.rideAnalytics || null,
     };
 
   } catch (error) {
     console.error('❌ FIT extraction failed:', error.message);
-    return { polyline: null, fitCoachContext: null };
+    return { polyline: null, fitCoachContext: null, activityStreams: null, rideAnalytics: null };
   }
 }

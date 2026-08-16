@@ -655,6 +655,7 @@ export function buildActivityStreams(simplifiedPoints) {
   let hasPower = false;
   let hasSpeed = false;
   let hasHeartRate = false;
+  let hasCadence = false;
 
   for (const pt of simplifiedPoints) {
     if (pt.latitude == null || pt.longitude == null) continue;
@@ -670,6 +671,7 @@ export function buildActivityStreams(simplifiedPoints) {
     if (pt.power != null) hasPower = true;
     if (pt.speed != null) hasSpeed = true;
     if (pt.heartRate != null) hasHeartRate = true;
+    if (pt.cadence != null) hasCadence = true;
   }
 
   if (coords.length < 2) return null;
@@ -680,6 +682,7 @@ export function buildActivityStreams(simplifiedPoints) {
   if (hasPower) streams.power = power;
   if (hasSpeed) streams.speed = speed;
   if (hasHeartRate) streams.heartRate = heartRate;
+  if (hasCadence) streams.cadence = cadence;
 
   return streams;
 }

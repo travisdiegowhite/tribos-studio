@@ -37,6 +37,7 @@ import { parseFitBuffer } from './utils/fitParser.js';
 import { fetchAthleteProfile } from './utils/athleteProfile.js';
 import { sanitizeStressScore } from './utils/stressScoreSanitizer.js';
 import { triggerTrainingLoadRefresh } from './utils/trainingLoadRefresh.js';
+import { analyzeSegmentsForNewActivity } from './utils/segmentAnalysisPipeline.js';
 
 const supabase = getSupabaseAdmin();
 
@@ -454,6 +455,13 @@ export default async function handler(req, res) {
       // Refresh training_load_daily through today (fire-and-forget)
       triggerTrainingLoadRefresh(userId).catch(() => {});
 
+      // Awaited, unlike the load refresh: a missed load refresh is repaired
+      // by the next cron, but a missed segment analysis is only recovered by
+      // a manual backfill, and Vercel may kill detached work once the
+      // response returns. Cheap now that coverage makes no network call.
+      await analyzeSegmentsForNewActivity(existingId, userId)
+        .catch((err) => console.warn('fit-upload: segment analysis failed:', err.message));
+
       return res.status(200).json({ success: true, action: 'updated', activity: updated });
     }
 
@@ -478,6 +486,10 @@ export default async function handler(req, res) {
 
     // Refresh training_load_daily through today (fire-and-forget)
     triggerTrainingLoadRefresh(userId).catch(() => {});
+
+    // See the update branch above for why this one is awaited.
+    await analyzeSegmentsForNewActivity(inserted.id, userId)
+      .catch((err) => console.warn('fit-upload: segment analysis failed:', err.message));
 
     return res.status(200).json({ success: true, action: 'inserted', activity: inserted });
   } catch (err) {
