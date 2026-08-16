@@ -41,9 +41,9 @@ function formatMetricValue(m: MetricComparison, formatSpeed?: (kmh: number) => s
       return `${m.current.toFixed(2)} W/bpm`;
     case 'speed_per_watt':
       // Scale to a readable magnitude: km/h produced per 100 W.
-      return `${(m.current * 100).toFixed(1)} km/h·100W`;
+      return `${(m.current * 100).toFixed(1)}`;
     case 'speed_per_beat':
-      return `${(m.current * 10).toFixed(2)} km/h·10bpm`;
+      return `${(m.current * 10).toFixed(2)}`;
     case 'vi':
       return m.current.toFixed(2);
     case 'cadence':
@@ -95,7 +95,7 @@ const METRIC_TOOLTIPS: Partial<Record<MetricComparison['key'], string>> = {
   speed_per_watt: 'Speed each watt bought you — sensitive to wind, position, and surface.',
   speed_per_beat: 'Speed per heartbeat — aerobic efficiency when no power meter is present.',
   vi: 'Variability Index (EP ÷ avg power) — lower means steadier pacing.',
-  duration: 'Compared to your median time across past efforts on this segment.',
+  duration: 'Compared to your typical time across past efforts on this segment.',
 };
 
 // ============================================================================

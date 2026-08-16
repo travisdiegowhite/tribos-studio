@@ -35,56 +35,56 @@ export const TRAINING_ZONES: TrainingZonesMap = {
     name: 'Recovery',
     color: '#3D8B50',
     ftp: { min: 0, max: 55 },
-    description: 'Active recovery, easy spinning',
+    description: 'Easy spinning — lets your body absorb harder days',
     icon: '😌'
   },
   2: {
     name: 'Endurance',
     color: '#3D8B50',
     ftp: { min: 56, max: 75 },
-    description: 'Aerobic base building, long steady rides',
+    description: 'Long, steady, conversational riding — builds your base',
     icon: '🚴'
   },
   3: {
     name: 'Tempo',
     color: '#D4820A',
     ftp: { min: 76, max: 90 },
-    description: 'Moderate intensity, sustainable pace',
+    description: 'Brisk but sustainable — breathing harder, still in control',
     icon: '💪'
   },
   3.5: {
     name: 'Sweet Spot',
     color: '#D4820A',
     ftp: { min: 88, max: 94 },
-    description: 'High aerobic load, time-efficient training',
+    description: 'Hard-but-sustainable — a lot of fitness per hour of training',
     icon: '🍯'
   },
   4: {
     name: 'Threshold',
     color: '#3A5A8C',
     ftp: { min: 91, max: 105 },
-    description: 'Lactate threshold, hard sustained effort',
+    description: 'The hardest pace you can hold for about an hour — builds sustained speed',
     icon: '🔥'
   },
   5: {
     name: 'VO2 Max',
     color: '#3A5A8C',
     ftp: { min: 106, max: 120 },
-    description: 'Maximum aerobic capacity, very hard efforts',
+    description: 'Very hard 3–8 minute efforts — raises your engine\'s ceiling',
     icon: '🚀'
   },
   6: {
     name: 'Anaerobic',
     color: '#6B7F94',
     ftp: { min: 121, max: 150 },
-    description: 'Anaerobic capacity, short very hard efforts',
+    description: 'Near-maximal efforts under 2 minutes — builds surge power',
     icon: '⚡'
   },
   7: {
     name: 'Neuromuscular',
     color: '#8B6B5A',
     ftp: { min: 151, max: 999 },
-    description: 'Sprint power, maximal short efforts',
+    description: 'All-out sprints of a few seconds',
     icon: '🏁'
   }
 };

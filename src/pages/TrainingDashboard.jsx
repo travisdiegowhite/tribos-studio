@@ -66,7 +66,7 @@ import HistoricalInsights from '../components/HistoricalInsights.jsx';
 import { WORKOUT_LIBRARY, getWorkoutsByCategory, getWorkoutById } from '../data/workoutLibrary';
 import { getWorkoutRecommendation } from '../services/workoutRecommendation';
 import { getAllPlans } from '../data/trainingPlanTemplates';
-import { interpretTSB, findOptimalSupplementDays } from '../utils/trainingPlans';
+import { interpretTSB, findOptimalSupplementDays, TRAINING_ZONES } from '../utils/trainingPlans';
 import { estimateActivityTSS } from '../utils/computeFitnessSnapshots';
 import { buildDailyLoadSeries } from '../views/today/athleteMetrics';
 import { FtpMissingBadge } from '../components/ui';
@@ -1386,14 +1386,16 @@ const TrendsTab = React.memo(function TrendsTab({ dailyTSSData, trainingMetrics,
 // POWER TAB
 // ============================================================================
 const PowerTab = React.memo(function PowerTab({ ftp, powerZones, navigate, activities, weight }) {
+  // Names/ranges local; plain-language descriptions come from the canonical
+  // zone table so every surface explains a zone the same way.
   const zones = [
-    { zone: 1, name: 'Recovery', range: '< 55%', color: '#51cf66' },
-    { zone: 2, name: 'Endurance', range: '55-75%', color: '#4dabf7' },
-    { zone: 3, name: 'Tempo', range: '75-90%', color: '#ffd43b' },
-    { zone: 4, name: 'Threshold', range: '90-105%', color: '#ff922b' },
-    { zone: 5, name: 'VO2max', range: '105-120%', color: '#ff6b6b' },
-    { zone: 6, name: 'Anaerobic', range: '120-150%', color: '#cc5de8' },
-    { zone: 7, name: 'Neuromuscular', range: '> 150%', color: '#862e9c' },
+    { zone: 1, name: 'Recovery', range: '< 55%', color: '#51cf66', description: TRAINING_ZONES[1]?.description },
+    { zone: 2, name: 'Endurance', range: '55-75%', color: '#4dabf7', description: TRAINING_ZONES[2]?.description },
+    { zone: 3, name: 'Tempo', range: '75-90%', color: '#ffd43b', description: TRAINING_ZONES[3]?.description },
+    { zone: 4, name: 'Threshold', range: '90-105%', color: '#ff922b', description: TRAINING_ZONES[4]?.description },
+    { zone: 5, name: 'VO2max', range: '105-120%', color: '#ff6b6b', description: TRAINING_ZONES[5]?.description },
+    { zone: 6, name: 'Anaerobic', range: '120-150%', color: '#cc5de8', description: TRAINING_ZONES[6]?.description },
+    { zone: 7, name: 'Neuromuscular', range: '> 150%', color: '#862e9c', description: TRAINING_ZONES[7]?.description },
   ];
 
   // Check if we have any power data
@@ -1442,7 +1444,7 @@ const PowerTab = React.memo(function PowerTab({ ftp, powerZones, navigate, activ
               </Text>
               {weight && (
                 <Text size="lg" c="dimmed">
-                  ({(ftp / weight).toFixed(2)} W/kg)
+                  ({(ftp / weight).toFixed(2)} W/kg — watts per kilogram)
                 </Text>
               )}
             </Group>
@@ -1483,6 +1485,11 @@ const PowerTab = React.memo(function PowerTab({ ftp, powerZones, navigate, activ
                     <Text size="sm">{z.name}</Text>
                     <Text size="sm" c="dimmed">{z.range}</Text>
                   </Group>
+                  {z.description && (
+                    <Text size="xs" c="dimmed" mb={4}>
+                      {z.description}
+                    </Text>
+                  )}
                   <Progress
                     value={watts ? (z.zone / 7) * 100 : 0}
                     color={z.color}

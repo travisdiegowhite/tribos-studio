@@ -206,7 +206,7 @@ const RideZonesChart = ({ activity, ftp, maxHr }) => {
           <Text size="sm" fw={600}>Zone Distribution</Text>
           {dominant?.label && (
             <Badge size="xs" variant="light" color="gray">
-              Dominant: {dominant.label}
+              Most time in: {dominant.label}
             </Badge>
           )}
         </Group>

@@ -79,7 +79,7 @@ export function interpretDecoupling(decoupling) {
       color: 'green',
       icon: Check,
       message: 'Excellent aerobic fitness',
-      description: 'Minimal cardiac drift indicates strong aerobic base and good pacing.',
+      description: 'Minimal heart-rate drift — a strong aerobic engine and good pacing.',
     };
   } else if (decoupling < 5) {
     return {
@@ -87,7 +87,7 @@ export function interpretDecoupling(decoupling) {
       color: 'blue',
       icon: Check,
       message: 'Good aerobic fitness',
-      description: 'Low decoupling shows solid aerobic conditioning.',
+      description: 'Low heart-rate drift shows solid aerobic conditioning.',
     };
   } else if (decoupling < 10) {
     return {
@@ -95,7 +95,7 @@ export function interpretDecoupling(decoupling) {
       color: 'yellow',
       icon: Info,
       message: 'Moderate decoupling',
-      description: 'Normal for hard efforts. For Z2 rides, indicates room for aerobic improvement.',
+      description: 'Normal for hard efforts. On steady endurance rides, it means room for aerobic improvement.',
     };
   } else if (decoupling < 15) {
     return {
@@ -103,7 +103,7 @@ export function interpretDecoupling(decoupling) {
       color: 'orange',
       icon: Warning,
       message: 'High decoupling',
-      description: 'Significant cardiac drift. May indicate overreaching or poor pacing.',
+      description: 'Significant heart-rate drift — could be accumulated fatigue, heat, or pacing.',
     };
   } else {
     return {
@@ -111,7 +111,7 @@ export function interpretDecoupling(decoupling) {
       color: 'red',
       icon: Warning,
       message: 'Very high decoupling',
-      description: 'Excessive cardiac drift. Review pacing, hydration, and heat factors.',
+      description: 'Heart rate climbed a lot at the same power — review pacing, hydration, and heat.',
     };
   }
 }
@@ -277,13 +277,22 @@ const AerobicDecoupling = ({ activities, timeRange = 90 }) => {
         <Group gap="sm">
           <Heart size={20} color="#2A8C82" />
           <Text size="sm" fw={600} style={{ color: 'var(--color-text-primary)' }}>
-            Aerobic Efficiency (Pw:Hr)
+            Aerobic Efficiency
           </Text>
         </Group>
         <Badge color={analysis.interpretation?.color || 'gray'} variant="light">
-          {analysis.avgDecoupling}% avg decoupling
+          {analysis.avgDecoupling}% avg drift
         </Badge>
       </Group>
+
+      {/* The gloss leads (hoisted from the old footer): say what this measures
+          before any number uses the terms. */}
+      <Text size="xs" c="dimmed" mb="md">
+        Efficiency (EF) = Effective Power (EP) / Heart Rate — how much power each
+        heartbeat buys you. Higher is better. "Drift" (decoupling) is how much your
+        heart rate rose at the same power as a ride went on — lower means a stronger
+        aerobic base.
+      </Text>
 
       {/* Summary Metrics */}
       <SimpleGrid cols={{ base: 2, sm: 4 }} spacing="sm" mb="md">
@@ -293,7 +302,7 @@ const AerobicDecoupling = ({ activities, timeRange = 90 }) => {
             <Text size="xs" c="dimmed">Avg EF</Text>
           </Group>
           <Text size="lg" fw={700}>{analysis.avgEF}</Text>
-          <Text size="xs" c="dimmed">Power/HR ratio</Text>
+          <Text size="xs" c="dimmed">watts per heartbeat</Text>
         </Paper>
 
         <Paper p="sm" style={{ backgroundColor: 'var(--color-bg-secondary)' }}>
@@ -304,7 +313,7 @@ const AerobicDecoupling = ({ activities, timeRange = 90 }) => {
           <Text size="lg" fw={700} c={analysis.interpretation?.color}>
             {analysis.avgDecoupling}%
           </Text>
-          <Text size="xs" c="dimmed">{analysis.interpretation?.status}</Text>
+          <Text size="xs" c="dimmed">{analysis.interpretation?.message}</Text>
         </Paper>
 
         <Paper p="sm" style={{ backgroundColor: 'var(--color-bg-secondary)' }}>
@@ -430,9 +439,7 @@ const AerobicDecoupling = ({ activities, timeRange = 90 }) => {
       </Paper>
 
       <Text size="xs" c="dimmed" mt="md">
-        Efficiency (EF) = Effective Power (EP) / Heart Rate — how much power each
-        heartbeat buys you. Higher is better. Track it over time to see aerobic
-        fitness improvements.
+        Track efficiency over time to see aerobic fitness improvements.
       </Text>
     </Card>
   );

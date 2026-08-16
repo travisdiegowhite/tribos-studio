@@ -23,6 +23,7 @@ import { ArrowsClockwise } from '@phosphor-icons/react';
 import { useAuth } from '../../contexts/AuthContext.jsx';
 import { supabase } from '../../lib/supabase';
 import { getTodayString, formatLocalDate, parseLocalDate } from '../../utils/dateUtils.js';
+import { workoutTypeCopy } from '../../utils/todayVocabulary';
 
 const FITNESS_COLOR   = '#2A8C82';
 const RACE_COLOR      = '#C49A0A';
@@ -157,7 +158,7 @@ const ProgressTooltip = ({ active, payload, label }) => {
       )}
       {planned?.workout_type && (
         <Text size="xs" mt={2} style={{ color: getWorkoutColor(planned.workout_type) }}>
-          Planned: {planned.workout_type}
+          Planned: {workoutTypeCopy(planned.workout_type).label}
           {(planned.actual_tss ?? planned.target_tss) ? ` · ${planned.actual_tss ?? planned.target_tss} RSS target` : ''}
         </Text>
       )}
@@ -468,7 +469,7 @@ export default function FitnessProgressChart() {
               <Box style={{ width: 8, height: 8, borderRadius: '50%', backgroundColor: UNPLANNED_COLOR }} />
               <Text size="xs" style={{ fontFamily: 'monospace', color: UNPLANNED_COLOR }}>unplanned</Text>
             </Group>
-            <Text size="xs" c="dimmed" style={{ fontFamily: 'monospace' }}>size=RSS · ⊙=deviated</Text>
+            <Text size="xs" c="dimmed" style={{ fontFamily: 'monospace' }}>dot size = ride stress · dashed ring = off-plan</Text>
           </>
         ) : null}
       </Group>

@@ -22,7 +22,7 @@ const COLOR_MODES = {
   speed: { label: 'Speed', icon: Gauge, unit: 'km/h' },
   power: { label: 'Power', icon: Lightning, unit: 'W' },
   elevation: { label: 'Elevation', icon: Mountains, unit: 'm' },
-  heartRate: { label: 'HR', icon: Heartbeat, unit: 'bpm' },
+  heartRate: { label: 'Heart rate', icon: Heartbeat, unit: 'bpm' },
 };
 
 /**

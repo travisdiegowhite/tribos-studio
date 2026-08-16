@@ -20,7 +20,7 @@ import { PERSONAS } from '../../data/coachingPersonas';
 import { getPlanTemplate } from '../../data/trainingPlanTemplates';
 import { resolveActivePlan } from '../../utils/activePlan';
 import { getISOWeek, getISOWeekYear } from '../../utils/isoWeek';
-import { formPhrase } from '../../utils/todayVocabulary';
+import { formPhrase, workoutTypeCopy } from '../../utils/todayVocabulary';
 import { fmtDate } from '../today/athleteMetrics';
 import type { AthleteActivityRow, ServerLoadRow } from '../today/athleteMetrics';
 import { mapRowToRecentRide, type RecentRide } from '../today/shared/recentRides';
@@ -195,20 +195,20 @@ function labelActivity(opts: {
   const min = durationSec > 0 ? Math.round(durationSec / 60) : Math.round(rss * 1.4);
   const meta = [formatDur(min), `${Math.round(rss)} RSS`].filter(Boolean).join(' · ');
   if (rss < 45) {
-    return { tag: 'Z1', name: realName ?? plannedName ?? 'Recovery spin', meta, tagColor: '#d3efe1' };
+    return { tag: 'EASY', name: realName ?? plannedName ?? 'Recovery spin', meta, tagColor: '#d3efe1' };
   }
   if (rss < 70) {
     return {
-      tag: 'Z2',
+      tag: 'STEADY',
       name: realName ?? plannedName ?? ENDURANCE_NAMES[index % ENDURANCE_NAMES.length],
       meta,
       tagColor: '#d3efe1',
     };
   }
   if (rss < 88) {
-    return { tag: 'Z3', name: realName ?? plannedName ?? 'Tempo blocks', meta, tagColor: '#ffe1a0' };
+    return { tag: 'BRISK', name: realName ?? plannedName ?? 'Tempo blocks', meta, tagColor: '#ffe1a0' };
   }
-  return { tag: 'Z4', name: realName ?? plannedName ?? 'Threshold 4×8', meta, tagColor: '#ffcf8f' };
+  return { tag: 'HARD', name: realName ?? plannedName ?? 'Threshold 4×8', meta, tagColor: '#ffcf8f' };
 }
 
 // ── pure assembler ───────────────────────────────────────────────────────────
@@ -492,7 +492,9 @@ export function assembleSpine(input: AssembleInput): SpineData {
     recBody = `Rest day. You're ${fw} — stay off the bike and let the work settle in.`;
   } else {
     const dur = formatDur(todaysWorkout.durationMin);
-    recBody = `${dur ? `${dur} ` : ''}${todaysWorkout.type}. You're ${fw} — ${
+    // Plain phrase leads; the workout-type name rides along as the citation.
+    const tc = workoutTypeCopy(todaysWorkout.type);
+    recBody = `${dur ? `${dur} of ` : ''}${tc.phrase} (${tc.label.toLowerCase()}). You're ${fw} — ${
       todayNode.fs >= 5 ? 'keep it controlled and bank the work.' : 'respect the fatigue and keep it honest.'
     }`;
   }

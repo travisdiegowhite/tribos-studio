@@ -66,9 +66,9 @@ describe('translateATL', () => {
 
 // Spec §5 form bands — single authority in src/utils/formBands.js.
 describe('translateTSB', () => {
-  it('returns "Overreached — high risk" for TSB < -30', () => {
-    expect(translateTSB(-31)).toEqual({ label: 'Overreached — high risk', color: 'coral' });
-    expect(translateTSB(-50)).toEqual({ label: 'Overreached — high risk', color: 'coral' });
+  it('returns "Overloaded — dug in deep" for TSB < -30', () => {
+    expect(translateTSB(-31)).toEqual({ label: 'Overloaded — dug in deep', color: 'coral' });
+    expect(translateTSB(-50)).toEqual({ label: 'Overloaded — dug in deep', color: 'coral' });
   });
 
   it('returns "Optimal training load" for TSB -30 to -6', () => {
@@ -88,9 +88,9 @@ describe('translateTSB', () => {
     expect(translateTSB(20)).toEqual({ label: 'Fresh — race ready', color: 'gold' });
   });
 
-  it('returns "Transition — too fresh" for TSB > +20', () => {
-    expect(translateTSB(21)).toEqual({ label: 'Transition — too fresh', color: 'orange' });
-    expect(translateTSB(35)).toEqual({ label: 'Transition — too fresh', color: 'orange' });
+  it('returns "Too fresh — fitness fading" for TSB > +20', () => {
+    expect(translateTSB(21)).toEqual({ label: 'Too fresh — fitness fading', color: 'orange' });
+    expect(translateTSB(35)).toEqual({ label: 'Too fresh — fitness fading', color: 'orange' });
   });
 });
 
@@ -135,7 +135,7 @@ describe('tooltip functions', () => {
   it('ctlTooltip returns different copy per range', () => {
     expect(ctlTooltip(10)).toContain('early-stage');
     expect(ctlTooltip(30)).toContain('building phase');
-    expect(ctlTooltip(50)).toContain('aerobic base');
+    expect(ctlTooltip(50)).toContain('base of fitness');
     expect(ctlTooltip(70)).toContain('consistent work');
     expect(ctlTooltip(90)).toContain('Elite');
   });
@@ -149,7 +149,7 @@ describe('tooltip functions', () => {
 
   it('tsbTooltip returns different copy per range', () => {
     expect(tsbTooltip(-25)).toContain('fatigue hole');
-    expect(tsbTooltip(-15)).toContain('Working hard');
+    expect(tsbTooltip(-15)).toContain('working hard');
     expect(tsbTooltip(-5)).toContain('ideal for training');
     expect(tsbTooltip(10)).toContain('clearing');
     expect(tsbTooltip(20)).toContain('fully rested');

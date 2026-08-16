@@ -12,7 +12,7 @@ import {
   Cell,
 } from 'recharts';
 
-const QUARTER_LABELS = ['Q1 (0-25%)', 'Q2 (25-50%)', 'Q3 (50-75%)', 'Q4 (75-100%)'];
+const QUARTER_LABELS = ['1st quarter', '2nd quarter', '3rd quarter', '4th quarter'];
 
 /**
  * Get strategy display info
@@ -113,16 +113,16 @@ const RidePacingChart = ({ activity, ftp }) => {
       <SimpleGrid cols={{ base: 2, sm: 3 }} spacing="xs">
         <Paper p="xs" style={{ backgroundColor: 'var(--color-bg-secondary)' }}>
           <Text size="xs" style={{ color: 'var(--color-text-muted)' }}>Strategy</Text>
+          {strategy.description && (
+            <Text size="sm" fw={600}>
+              {strategy.description}
+            </Text>
+          )}
           <Group gap={4}>
             <Badge size="sm" color={strategy.color} variant="light">
               {strategy.label}
             </Badge>
           </Group>
-          {strategy.description && (
-            <Text size="xs" style={{ color: 'var(--color-text-muted)' }}>
-              {strategy.description}
-            </Text>
-          )}
         </Paper>
         {splitRatio != null && (
           <Paper p="xs" style={{ backgroundColor: 'var(--color-bg-secondary)' }}>
@@ -135,7 +135,7 @@ const RidePacingChart = ({ activity, ftp }) => {
         )}
         {powerFade != null && (
           <Paper p="xs" style={{ backgroundColor: 'var(--color-bg-secondary)' }}>
-            <Text size="xs" style={{ color: 'var(--color-text-muted)' }}>Power Fade</Text>
+            <Text size="xs" style={{ color: 'var(--color-text-muted)' }}>Power Fade — drop by the end</Text>
             <Text size="sm" fw={600} style={{ color: powerFade > 10 ? 'var(--color-coral)' : 'inherit' }}>
               {powerFade > 0 ? `-${Math.round(powerFade)}%` : `+${Math.abs(Math.round(powerFade))}%`}
             </Text>

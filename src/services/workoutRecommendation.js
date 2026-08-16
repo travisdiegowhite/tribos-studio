@@ -122,7 +122,7 @@ export function analyzeTrainingNeeds({
 
   if (raceProximity.phase === 'race_week') {
     needs.recovery.score = 95;
-    needs.recovery.reason = `Race week — ${raceProximity.nextRace.name} in ${raceProximity.daysUntilRace} days. Recovery and openers only.`;
+    needs.recovery.reason = `Race week — ${raceProximity.nextRace.name} in ${raceProximity.daysUntilRace} days. Easy spinning, plus a few short bursts to keep the legs sharp.`;
     needs.endurance.score = 15;
     needs.intensity.score = 5;
     needs.vo2max.score = 0;
@@ -200,7 +200,7 @@ export function analyzeTrainingNeeds({
 
   if (gaps.missingZ2) {
     needs.endurance.score += 20;
-    needs.endurance.reason = needs.endurance.reason || 'No long Z2 ride in the last week';
+    needs.endurance.reason = needs.endurance.reason || 'No long steady ride in the last week';
   }
 
   if (gaps.missingIntensity && tsb > -10) {
@@ -215,22 +215,26 @@ export function analyzeTrainingNeeds({
 }
 
 // ─── Form Status ─────────────────────────────────────────────────────────────
-// Delegates to canonical translate.ts thresholds (spec §5 bands — see
-// src/utils/formBands.js), maps labels to legacy engine tokens.
+// Delegates to the canonical spec §5 band resolver (src/utils/formBands.js)
+// and maps band KEYS to legacy engine tokens.
 
-import { translateTSB } from '../lib/fitness/translate';
+import { formBandForScore } from '../utils/formBands';
 
+// Band key → legacy engine token. Keyed by the STABLE band key (never the
+// display label) so copy changes can't silently break this lookup again.
+// Note the historical token names: the 'optimal' training band maps to the
+// engine's 'tired' token, and 'grey' (Coasting) to 'optimal'.
 const FORM_STATUS_MAP = {
-  'Transition — too fresh': 'fresh',
-  'Fresh — race ready': 'ready',
-  'Coasting': 'optimal',
-  'Optimal training load': 'tired',
-  'Overreached — high risk': 'fatigued',
+  transition: 'fresh',
+  fresh: 'ready',
+  grey: 'optimal',
+  optimal: 'tired',
+  overreached: 'fatigued',
 };
 
 export function getFormStatus(tsb) {
-  const t = translateTSB(tsb);
-  return FORM_STATUS_MAP[t.label] || 'optimal';
+  const band = formBandForScore(tsb);
+  return band ? FORM_STATUS_MAP[band.key] : 'optimal';
 }
 
 // ─── Recommendation Building ─────────────────────────────────────────────────
@@ -262,7 +266,7 @@ function buildCategoryRecommendations(needs, timeAvailable = null) {
       title: 'Threshold / Sweet Spot',
       threshold: 50,
       libraryCategories: ['threshold', 'sweet_spot'],
-      defaultReason: 'Improve FTP and lactate clearance',
+      defaultReason: 'Raise the pace you can hold for long efforts',
     },
     {
       key: 'vo2max',

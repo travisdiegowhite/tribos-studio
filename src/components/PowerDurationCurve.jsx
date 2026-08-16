@@ -258,6 +258,12 @@ const PowerDurationCurve = ({ activities, ftp, weight }) => {
         />
       </Group>
 
+      {/* The gloss leads: what this chart is, before the term-heavy tiles. */}
+      <Text size="xs" c="dimmed" mb="md">
+        Your best efforts at each duration, across recent rides — a snapshot of what
+        you can do from a few seconds to an hour.
+      </Text>
+
       {/* Key Power Metrics */}
       <SimpleGrid cols={{ base: 3, sm: 6 }} spacing="xs" mb="md">
         <PowerMetricCard

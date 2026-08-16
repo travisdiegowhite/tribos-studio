@@ -70,7 +70,7 @@ export function FitnessRow({
   return (
     <Box style={{ display: 'grid', gridTemplateColumns, gap: 14 }}>
       {/* FORM — where you are */}
-      <CellShell label="Form">
+      <CellShell label="Form · freshness">
         <ValueWord word={state.formWord} color={state.formColor} />
         <Text style={{ fontFamily: FONT.mono, fontSize: 13, color: C.text3, marginTop: 4 }}>
           FS {state.fs == null ? '—' : Math.round(state.fs)}

@@ -392,7 +392,7 @@ function PeakFitnessCard({ snapshots }) {
                 </Group>
                 <Group gap="xs">
                   <Badge size="lg" color={i === 0 ? 'yellow' : 'gray'} variant="light">
-                    TFI {peak.ctl}
+                    Fitness {peak.ctl}
                   </Badge>
                   {isRecent && <Badge color="green" size="xs">Recent</Badge>}
                 </Group>

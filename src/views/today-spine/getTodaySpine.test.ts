@@ -251,7 +251,7 @@ describe('assembleSpine', () => {
       }),
     );
     const today = data.days[42].activity;
-    expect(today.tag).toBe('Z3'); // 77 RSS → tempo band
+    expect(today.tag).toBe('BRISK'); // 77 RSS → tempo band
     expect(today.name).toBe('Erie Road Cycling');
     expect(today.meta).toContain('77 RSS');
   });
@@ -265,7 +265,7 @@ describe('assembleSpine', () => {
     );
     const node = data.days.find((d) => d.date === rideDate)!;
     expect(node.activity.name).toBe('Sunday Big Loop');
-    expect(node.activity.tag).toBe('Z3'); // 82 RSS → tempo band
+    expect(node.activity.tag).toBe('BRISK'); // 82 RSS → tempo band
   });
 
   it('flags thin history and still returns a full spine', () => {

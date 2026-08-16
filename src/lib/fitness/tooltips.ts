@@ -8,13 +8,13 @@
 /** TFI (Fitness) tooltip */
 export function ctlTooltip(ctl: number): string {
   if (ctl >= 86)
-    return 'Elite-level fitness. Takes a long time to build and drops quickly without maintenance.';
+    return 'Elite-level fitness (TFI, your long-term training load). Takes a long time to build and drops quickly without maintenance.';
   if (ctl >= 66)
-    return 'This reflects months of consistent work. You\'re in the fitness range of a competitive amateur.';
+    return 'Your fitness (TFI, long-term training load) reflects months of consistent work — the range of a competitive amateur.';
   if (ctl >= 46)
-    return 'Good aerobic base. You have the fitness to handle structured training and longer rides without falling apart.';
+    return 'A good base of fitness (TFI, long-term training load) — enough to handle structured training and longer rides without falling apart.';
   if (ctl >= 26)
-    return 'You\'re in a solid building phase. TFI climbs slowly — consistency over weeks is what moves this number.';
+    return 'You\'re in a solid building phase. Fitness (TFI) climbs slowly — consistency over weeks is what moves this number.';
   return 'TFI (Training Fitness Index) measures long-term training load — how fit you are right now. Yours is early-stage, which is a great place to build from.';
 }
 
@@ -33,13 +33,13 @@ export function atlTooltip(atl: number, ctl: number): string {
 /** FS (Form) tooltip */
 export function tsbTooltip(tsb: number): string {
   if (tsb > 15)
-    return 'You\'re fully rested. If there\'s a race or big day coming, this is the window. Fitness can start softening after a few days here.';
+    return 'Your Form Score (fitness minus fatigue) says you\'re fully rested. If there\'s a race or big day coming, this is the window — fitness starts softening after a few days here.';
   if (tsb > 2)
-    return 'Fatigue is clearing and fitness is holding. Good time for hard efforts, races, or key workouts.';
+    return 'Your Form Score (fitness minus fatigue) shows fatigue clearing while fitness holds. Good time for hard efforts, races, or key workouts.';
   if (tsb > -10)
-    return 'Slightly negative Form Score is ideal for training blocks. You\'re building fitness without excessive fatigue.';
+    return 'A slightly negative Form Score (fitness minus fatigue) is ideal for training blocks. You\'re building fitness without excessive fatigue.';
   if (tsb > -20)
-    return 'Working hard. This is where training happens — but recovery soon will unlock the adaptation.';
+    return 'Your Form Score (fitness minus fatigue) shows you\'re working hard. This is where training happens — but recovery soon will unlock the adaptation.';
   return 'Form Score = yesterday\'s Fitness (TFI) minus yesterday\'s Fatigue (AFI). You\'re deep in a fatigue hole — hard efforts will feel tough and results won\'t reflect your fitness.';
 }
 

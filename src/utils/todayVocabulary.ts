@@ -69,7 +69,7 @@ const formBandColors: Record<string, ZoneColor> = {
 };
 
 export const formZones: ZoneStop[] = [
-  { min: -Infinity, max: -30, word: 'Overreached',  color: todayColors.coral },
+  { min: -Infinity, max: -30, word: 'Overloaded',   color: todayColors.coral },
   { min: -30,       max: -5,  word: 'Optimal load', color: todayColors.teal },
   { min: -5,        max: 10,  word: 'Coasting',     color: todayColors.gray },
   { min: 10,        max: 21,  word: 'Fresh',        color: todayColors.gold },
@@ -120,9 +120,9 @@ const formPhrases: Record<string, string> = {
 
 const formVerdictSentences: Record<string, string> = {
   transition: 'too fresh — add load',
-  fresh: 'fresh — cleared for quality',
-  grey: 'coasting — cleared for quality work',
-  optimal: 'productive load — steady aerobic',
+  fresh: 'fresh — cleared for hard work',
+  grey: 'coasting — cleared for hard work',
+  optimal: 'productive load — steady endurance riding',
   overreached: 'deep in a heavy block — absorbing a lot of load',
 };
 
@@ -164,6 +164,45 @@ export function formVerdictSentence(fs: number | null | undefined, ctx?: FormCop
 export function formStateColor(fs: number | null | undefined): ZoneColor {
   const band = formBandForScore(fs);
   return band ? (formBandColors[band.key] ?? todayColors.gray) : todayColors.gray;
+}
+
+// ────────────────────────────────────────────────────────────────────────────
+// WORKOUT TYPES — names stay product vocabulary; SENTENCES never lean on them.
+// `phrase` composes into prose ("1h30 of hard, steady effort (threshold)"),
+// `chip` is the tiny effort tag on the Spine node (replaces the old Z1–Z4),
+// `label` is the prettified display name.
+// Server-side twin: workoutTypePhrase() in api/utils/pushNotification.js —
+// keep the phrases in sync (notifications can never carry a gloss).
+// ────────────────────────────────────────────────────────────────────────────
+
+export interface WorkoutTypeCopy {
+  label: string;
+  phrase: string;
+  chip: string;
+}
+
+const WORKOUT_TYPE_COPY: Record<string, WorkoutTypeCopy> = {
+  rest:        { label: 'Rest',        phrase: 'a day off the bike',            chip: 'REST' },
+  recovery:    { label: 'Recovery',    phrase: 'easy spinning',                 chip: 'EASY' },
+  endurance:   { label: 'Endurance',   phrase: 'steady riding',                 chip: 'STEADY' },
+  tempo:       { label: 'Tempo',       phrase: 'brisk, controlled effort',      chip: 'BRISK' },
+  sweet_spot:  { label: 'Sweet Spot',  phrase: 'hard-but-sustainable effort',   chip: 'HARD' },
+  threshold:   { label: 'Threshold',   phrase: 'hard, steady effort',           chip: 'HARD' },
+  vo2max:      { label: 'VO2 Max',     phrase: 'very hard, punchy efforts',     chip: 'V.HARD' },
+  anaerobic:   { label: 'Anaerobic',   phrase: 'all-out short efforts',         chip: 'MAX' },
+  race:        { label: 'Race',        phrase: 'race effort',                   chip: 'RACE' },
+};
+
+function prettifyType(type: string): string {
+  return type.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
+}
+
+export function workoutTypeCopy(type: string | null | undefined): WorkoutTypeCopy {
+  const key = (type ?? '').toLowerCase().trim();
+  const hit = WORKOUT_TYPE_COPY[key];
+  if (hit) return hit;
+  const label = key ? prettifyType(key) : 'Workout';
+  return { label, phrase: `a ${label.toLowerCase()} session`, chip: 'RIDE' };
 }
 
 // ────────────────────────────────────────────────────────────────────────────

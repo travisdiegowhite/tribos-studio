@@ -184,7 +184,7 @@ const ZoneDistributionChart = ({ activities, ftp, timeRange = '7' }) => {
       distributionType = {
         type: 'Polarized',
         color: 'green',
-        description: '80/20 distribution - optimal for endurance building'
+        description: 'Mostly easy riding with a small dose of hard days — the classic endurance recipe'
       };
     } else if (z2Pct >= 50 && highIntensityPct >= 20) {
       distributionType = {
@@ -302,7 +302,7 @@ const ZoneDistributionChart = ({ activities, ftp, timeRange = '7' }) => {
         <Paper p="xs" style={{ backgroundColor: 'var(--color-bg-secondary)' }}>
           <Group gap="xs">
             <Box w={8} h={8} style={{ backgroundColor: tokens.colors.zone2, borderRadius: '50%' }} />
-            <Text size="xs" c="dimmed">Zone 2</Text>
+            <Text size="xs" c="dimmed">Zone 2 (steady endurance)</Text>
           </Group>
           <Text size="sm" fw={600}>{Math.round(zoneData.polarizedRatio)}%</Text>
         </Paper>
@@ -419,7 +419,7 @@ const ZoneDistributionChart = ({ activities, ftp, timeRange = '7' }) => {
       )}
 
       <Text size="xs" style={{ color: 'var(--color-text-muted)' }} mt="md">
-        Zone distribution estimated from average power/HR. 80/20 polarized training is optimal for most athletes.
+        Zone distribution estimated from average power/HR. Mostly-easy training with a small dose of hard days suits most riders.
       </Text>
     </Card>
   );

@@ -576,8 +576,8 @@ export function getIntensityDisplayName(intensity: IntensityLevel): string {
     recovery: 'Recovery',
     easy: 'Easy/Endurance',
     moderate: 'Moderate',
-    tempo: 'Tempo/Threshold',
-    threshold: 'Threshold/VO2',
+    tempo: 'Hard',
+    threshold: 'Very hard',
     race: 'Race Pace',
   };
   return names[intensity];

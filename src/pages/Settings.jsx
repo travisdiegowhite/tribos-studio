@@ -44,6 +44,7 @@ import { stravaService } from '../utils/stravaService';
 import { garminService } from '../utils/garminService';
 import { wahooService } from '../utils/wahooService';
 import { TIMEZONE_OPTIONS, getBrowserTimezone, getTimezoneOffset } from '../utils/timezoneUtils';
+import { TRAINING_ZONES } from '../utils/trainingPlans';
 import { formatSpeed } from '../utils/units';
 import PageHeader from '../components/PageHeader.jsx';
 import RoadPreferencesCard from '../components/settings/RoadPreferencesCard.jsx';
@@ -1778,7 +1779,7 @@ function Settings() {
                 />
                 <NumberInput
                   label="Age"
-                  description="Enables adaptive fitness & fatigue windows. Optional — leave blank to use the 42/7-day defaults."
+                  description="Optional — tunes how fast fitness builds and fatigue fades for your age. Leave blank for the standard settings."
                   placeholder="e.g., 42"
                   value={metricsAge || ''}
                   onChange={(val) => setMetricsAge(val || null)}
@@ -1846,7 +1847,7 @@ function Settings() {
                         tokens.colors.zone7,
                       ];
                       return (
-                        <Group key={zoneKey} gap="sm" wrap="nowrap">
+                        <Group key={zoneKey} gap="sm" wrap="nowrap" align="flex-start">
                           <Badge
                             size="sm"
                             style={{ backgroundColor: zoneColors[index], minWidth: 35 }}
@@ -1856,9 +1857,14 @@ function Settings() {
                           <Text size="sm" style={{ color: 'var(--color-text-primary)', minWidth: 100 }}>
                             {zone.name}
                           </Text>
-                          <Text size="sm" style={{ color: 'var(--color-text-secondary)' }}>
+                          <Text size="sm" style={{ color: 'var(--color-text-secondary)', minWidth: 90 }}>
                             {zone.min}{zone.max ? `-${zone.max}` : '+'} W
                           </Text>
+                          {TRAINING_ZONES[index + 1]?.description && (
+                            <Text size="xs" style={{ color: 'var(--color-text-muted)' }}>
+                              {TRAINING_ZONES[index + 1].description}
+                            </Text>
+                          )}
                         </Group>
                       );
                     })}
