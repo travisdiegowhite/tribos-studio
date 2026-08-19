@@ -9,7 +9,7 @@
  * and the node's FS chip are its citations (thesis P4).
  */
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { Suspense, lazy, useCallback, useEffect, useMemo, useState } from 'react';
 import { Box, Skeleton, Stack, Text } from '@mantine/core';
 import { useMediaQuery } from '@mantine/hooks';
 import AppShell from '../../components/AppShell.jsx';
@@ -19,15 +19,28 @@ import { useUserPreferences } from '../../contexts/UserPreferencesContext.jsx';
 import { useTodaySpine } from './useTodaySpine';
 import { SpinePanel } from './SpinePanel';
 import { FitnessNode } from './FitnessNode';
-import { RidesMap } from './RidesMap';
 import { CoachPanel } from './CoachPanel';
 import { SpineEmptyState } from './SpineEmptyState';
+import { BeatsColumn } from './beats/BeatsColumn';
 import { buildNodeVM } from './nodeView';
 import { C, FONT } from './tokens';
 import type { UnitsPreference } from './units';
 import type { SpineData } from './types';
 
-function PageHeader({ data }: { data: SpineData }) {
+/**
+ * The map is the only thing on this page that pulls mapbox-gl (the `vendor-map`
+ * chunk). Lazy so it is fetched when it is actually rendered — on mobile that
+ * is only once the rider opens the numbers door, which keeps the chunk off the
+ * phone's initial load entirely.
+ */
+const RidesMap = lazy(() => import('./RidesMap').then((m) => ({ default: m.RidesMap })));
+
+/**
+ * `compact` drops the summary sentence: on the beats page Beat 1 and Beat 3
+ * already carry the page's prose, and a third standing sentence above them
+ * would be the information overload the redesign exists to remove.
+ */
+function PageHeader({ data, compact = false }: { data: SpineData; compact?: boolean }) {
   const today = data.days[data.todayIndex];
   const [weekday, ...rest] = today.dateLabel.split(' ');
   const datePortion = `${weekday} ${rest.join(' ')}`;
@@ -43,7 +56,7 @@ function PageHeader({ data }: { data: SpineData }) {
         TODAY <span style={{ fontWeight: 600 }}>— {datePortion}</span>
       </Text>
       {/* The page hero: the sentence, full-width. The chart below is its citation. */}
-      {data.summaryLine && (
+      {!compact && data.summaryLine && (
         <Text
           style={{
             fontFamily: FONT.body,
@@ -178,26 +191,47 @@ export default function TodaySpine() {
 
     const bottomRow = (
       <Box style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1.32fr 1fr', gap: 20, alignItems: 'stretch' }}>
-        <RidesMap rides={data.recentRides} weekRollup={data.weekRollup} units={units} />
+        <Suspense fallback={<Skeleton height={260} radius={0} />}>
+          <RidesMap rides={data.recentRides} weekRollup={data.weekRollup} units={units} />
+        </Suspense>
         {/* A successful coach schedule adjustment refetches the spine so the
             projected bars reflect the new calendar without a reload. */}
         <CoachPanel data={data} onScheduleChanged={retry} />
       </Box>
     );
 
-    // Mobile: node as a normal top card; tap a day on the spine below to
-    // select it (per the design handoff's mobile parity note).
     const nodeCard = <FitnessNode vm={vm} flipped={false} compact onSnapToday={snapToday} />;
 
     if (isMobile) {
-      // 01 → 02 → 03 → 04 stacked single-column.
+      // The four-beat page (docs/today-mobile-beats-spec.md). The instrument
+      // view — node, spine, map — moves behind the numbers door; the coach
+      // stays in the open, because burying a working chat behind a link
+      // labelled "see the numbers" would lose it.
       return (
         <Stack gap={16}>
-          <PageHeader data={data} />
+          <PageHeader data={data} compact />
           <GetStartedGuide />
-          {nodeCard}
-          {spine}
-          {bottomRow}
+          <BeatsColumn
+            data={data}
+            units={units}
+            numbers={
+              <>
+                {nodeCard}
+                <SpinePanel
+                  data={data}
+                  selectedIndex={Math.min(selected, data.days.length - 1)}
+                  onSelect={handleSelect}
+                  vm={vm}
+                  showNode={false}
+                  flipped={false}
+                  onToggleFlip={() => {}}
+                  onSnapToday={snapToday}
+                />
+                <RidesMap rides={data.recentRides} weekRollup={data.weekRollup} units={units} />
+              </>
+            }
+          />
+          <CoachPanel data={data} onScheduleChanged={retry} />
         </Stack>
       );
     }

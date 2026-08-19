@@ -7,6 +7,7 @@ import {
   looksLikeAnonEmpty,
   type AssembleInput,
   type PlannedRow,
+  type RideStat,
 } from './getTodaySpine';
 import type { ServerLoadRow } from '../today/athleteMetrics';
 
@@ -470,5 +471,115 @@ describe('form score timing (spec §3.6 — readiness going INTO the day)', () =
     // Fixture rows carry form_score 4 on every day.
     expect(data.days[42].fs).toBe(4);
     expect(data.days[20].fs).toBe(4);
+  });
+});
+
+describe('assembleSpine — beat inputs', () => {
+  /** 09:00 local, `daysAgo` before NOW. */
+  const at = (daysAgo: number) => {
+    const d = addDays(NOW, -daysAgo);
+    d.setHours(9, 0, 0, 0);
+    return d;
+  };
+  const ride = (daysAgo: number, rss: number, minutes: number) =>
+    ({
+      start_date: at(daysAgo).toISOString(),
+      name: 'Morning ride',
+      rss,
+      moving_time: minutes * 60,
+    }) as unknown as AssembleInput['activities'][number];
+  const stat = (daysAgo: number, over: Partial<RideStat> = {}): RideStat => ({
+    date: fmt(at(daysAgo)),
+    durationSec: 60 * 60,
+    distanceKm: 30,
+    elevationM: 150,
+    polyline: 'geo',
+    ...over,
+  });
+
+  it('carries the plan row id through so the route link can deep-link it', () => {
+    const data = assembleSpine(
+      baseInput({
+        todaysWorkout: { name: 'Session', type: 'tempo', durationMin: 60, targetRss: 55, workoutId: 'plan-42' },
+      }),
+    );
+    expect(data.todaysWorkout?.workoutId).toBe('plan-42');
+  });
+
+  it('defaults the workout id to null rather than undefined', () => {
+    const data = assembleSpine(
+      baseInput({ todaysWorkout: { name: 'Session', type: 'tempo', durationMin: 60, targetRss: 55 } }),
+    );
+    expect(data.todaysWorkout?.workoutId).toBeNull();
+  });
+
+  it('finds the most recent ride and how long ago it was', () => {
+    const data = assembleSpine(
+      baseInput({
+        activities: [ride(9, 50, 60), ride(3, 82, 105)],
+        rideStats: [stat(9), stat(3, { durationSec: 105 * 60, distanceKm: 52, polyline: 'recent-geo' })],
+      }),
+    );
+    expect(data.lastRide).toMatchObject({
+      daysAgo: 3,
+      durationMin: 105,
+      rss: 82,
+      distanceKm: 52,
+      polyline: 'recent-geo',
+      rideCountOnDate: 1,
+    });
+  });
+
+  it('keeps an indoor ride as the last ride instead of an older outdoor one', () => {
+    // The classic mis-attribution: recentRides is polyline-filtered, so the
+    // newest ride with geometry is not always the newest ride.
+    const data = assembleSpine(
+      baseInput({
+        activities: [ride(4, 60, 90), ride(0, 45, 45)],
+        rideStats: [stat(4), stat(0, { durationSec: 45 * 60, distanceKm: 20, polyline: null })],
+      }),
+    );
+    expect(data.lastRide?.daysAgo).toBe(0);
+    expect(data.lastRide?.polyline).toBeNull();
+    expect(data.lastRide?.durationMin).toBe(45);
+  });
+
+  it('reports the largest ride of a multi-ride day and says how many there were', () => {
+    const data = assembleSpine(
+      baseInput({
+        activities: [ride(0, 70, 140), ride(0, 15, 20)],
+        rideStats: [
+          stat(0, { durationSec: 140 * 60, distanceKm: 58, polyline: 'long' }),
+          stat(0, { durationSec: 20 * 60, distanceKm: 7, polyline: 'short' }),
+        ],
+      }),
+    );
+    expect(data.lastRide?.polyline).toBe('long');
+    expect(data.lastRide?.rideCountOnDate).toBe(2);
+  });
+
+  it('has no last ride when nothing has been ridden', () => {
+    expect(assembleSpine(baseInput()).lastRide).toBeNull();
+  });
+
+  it('takes the typical ride length from the trailing four weeks', () => {
+    const data = assembleSpine(
+      baseInput({
+        rideStats: [
+          stat(2, { durationSec: 45 * 60 }),
+          stat(6, { durationSec: 75 * 60 }),
+          stat(30, { durationSec: 300 * 60 }), // outside the window
+        ],
+      }),
+    );
+    expect(data.typicalRideMin).toBe(60); // median of 45 and 75
+  });
+
+  it('passes the newest activity identity through for the felt-response deferral', () => {
+    const data = assembleSpine(
+      baseInput({ latestActivity: { id: 'act-1', startDate: '2026-06-30T09:00:00Z' } }),
+    );
+    expect(data.latestActivity).toEqual({ id: 'act-1', startDate: '2026-06-30T09:00:00Z' });
+    expect(assembleSpine(baseInput()).latestActivity).toBeNull();
   });
 });

@@ -90,6 +90,23 @@ fetched only if the rider opens the numbers door. Beat 1's route trace needs no
 map library — it decodes the polyline with the existing
 `src/views/today/shared/decodePolyline.ts` and draws an SVG path.
 
+> **Blocked by a pre-existing build bug — verified 2026-08-19.** The lazy
+> boundary is in place and `RidesMap` now emits its own chunk, but the payload
+> win does not land yet. Rollup has parked Vite's `__vitePreload` helper
+> *inside* the `vendor-map` manual chunk, and the app entry imports it — so
+> every chunk that contains any dynamic `import()`, including `index-*.js`
+> itself, statically imports `vendor-map`. `dist/index.html` therefore
+> `modulepreload`s all 1.69 MB (469 kB gzip) of it on **every page load of the
+> whole app**, and has done since before this work: on a `main` build,
+> `index-*.js` already carries `import{_ as an}from"./vendor-map-*.js"` and
+> nothing else from that chunk.
+>
+> The fix is in `vite.config.js` — switch `manualChunks` to function form and
+> let the preload helper stay in the entry instead of falling into a vendor
+> chunk. That re-chunks every route in the app, so it belongs in its own change
+> with its own before/after measurement, not inside a Today-page PR. Until it
+> lands, treat D8 as "correctly wired, not yet paying".
+
 **D9 — Light-mode only, same as today.** The spine's tokens are hardcoded light
 hexes (`src/views/today-glance/tokens.ts`). The beats use the same tokens and
 inherit the same limitation. Dark mode for Today is pre-existing debt; do not
