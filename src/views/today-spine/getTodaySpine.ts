@@ -24,7 +24,17 @@ import { formPhrase, workoutTypeCopy } from '../../utils/todayVocabulary';
 import { fmtDate } from '../today/athleteMetrics';
 import type { AthleteActivityRow, ServerLoadRow } from '../today/athleteMetrics';
 import { mapRowToRecentRide, type RecentRide } from '../today/shared/recentRides';
-import type { DayActivity, DayNode, SpineData, SpineEvent, WeekRollup, CoachSeed } from './types';
+import type {
+  DayActivity,
+  DayNode,
+  LastRide,
+  LatestActivity,
+  SpineData,
+  SpineEvent,
+  TodaysWorkout,
+  WeekRollup,
+  CoachSeed,
+} from './types';
 
 const PAST_SPAN = 42; // 43-day history incl. today (indices 0..42)
 const DEFAULT_FUTURE_SPAN = 21; // 3-week projection when there's no goal event
@@ -232,13 +242,82 @@ export interface AssembleInput {
   tfiTau?: number;
   afiTau?: number;
   planned: PlannedRow[];
-  todaysWorkout: { name: string; type: string; durationMin: number; targetRss: number } | null;
+  todaysWorkout: (Omit<TodaysWorkout, 'workoutId'> & { workoutId?: string | null }) | null;
   event: SpineEvent | null;
   persona: { id: string; name: string };
   recentRides: RecentRide[];
   weekRollup: WeekRollup;
   /** Active plan's current block is a recovery phase (template-driven). */
   planRecoveryPhase?: boolean;
+  /**
+   * Per-ride stats from the last-50 activities read, keyed by local date.
+   * UNFILTERED — indoor rides included — so the Beat 1 recap can never
+   * attribute one ride's distance to a different ride that happened to be the
+   * most recent one carrying a polyline.
+   */
+  rideStats?: RideStat[];
+  /** Newest known activity, for Beat 2's next-ride deferral. */
+  latestActivity?: LatestActivity | null;
+}
+
+/** One ride, reduced to what the Beat 1 recap and the route pre-fill need. */
+export interface RideStat {
+  /** Local date of the ride start. */
+  date: string;
+  durationSec: number;
+  distanceKm: number;
+  elevationM: number;
+  polyline: string | null;
+}
+
+/**
+ * The most recent ride at or before today, assembled from the day walk (which
+ * owns "was there a ride, and how much load") plus the per-ride stats (which
+ * own distance/elevation/geometry). Picking the largest ride on the date keeps
+ * a commute from being reported as the day's ride.
+ */
+export function buildLastRide(
+  days: DayNode[],
+  todayIndex: number,
+  dailySec: Record<string, number>,
+  dailyName: Record<string, string>,
+  rideStats: RideStat[],
+): LastRide | null {
+  for (let i = todayIndex; i >= 0; i--) {
+    const day = days[i];
+    if (day.rss <= 0) continue;
+    const onDate = rideStats.filter((r) => r.date === day.date);
+    const largest = onDate.reduce<RideStat | null>(
+      (best, r) => (best == null || r.durationSec > best.durationSec ? r : best),
+      null,
+    );
+    const durationSec = largest?.durationSec || dailySec[day.date] || 0;
+    return {
+      date: day.date,
+      daysAgo: todayIndex - i,
+      name: dailyName[day.date] ?? null,
+      durationMin: Math.round(durationSec / 60),
+      rss: day.rss,
+      distanceKm: largest ? largest.distanceKm : null,
+      elevationM: largest ? largest.elevationM : null,
+      polyline: largest?.polyline ?? null,
+      rideCountOnDate: onDate.length,
+    };
+  }
+  return null;
+}
+
+/** Median ride duration over the trailing `days` days, in whole minutes. */
+export function medianRideMinutes(rideStats: RideStat[], todayKey: string, windowDays = 28): number | null {
+  const cutoff = fmtDate(addDays(new Date(`${todayKey}T00:00:00`), -windowDays));
+  const mins = rideStats
+    .filter((r) => r.date >= cutoff && r.durationSec > 0)
+    .map((r) => r.durationSec / 60)
+    .sort((a, b) => a - b);
+  if (!mins.length) return null;
+  const mid = Math.floor(mins.length / 2);
+  const median = mins.length % 2 === 0 ? (mins[mid - 1] + mins[mid]) / 2 : mins[mid];
+  return Math.round(median);
 }
 
 /** Same ISO week (Mon-anchored) — used to scope recovery-week copy. */
@@ -259,6 +338,7 @@ export function assembleSpine(input: AssembleInput): SpineData {
     input;
   const tfiTau = input.tfiTau ?? 42;
   const afiTau = input.afiTau ?? 7;
+  const rideStats = input.rideStats ?? [];
 
   const today = startOfDay(now);
   const start90 = addDays(today, -90);
@@ -516,6 +596,12 @@ export function assembleSpine(input: AssembleInput): SpineData {
     summaryLine,
     hasHistory,
     recoveryWeek,
+    todaysWorkout: todaysWorkout
+      ? { ...todaysWorkout, workoutId: todaysWorkout.workoutId ?? null }
+      : null,
+    lastRide: buildLastRide(days, PAST_SPAN, dailySec, dailyName, rideStats),
+    typicalRideMin: medianRideMinutes(rideStats, todayKey),
+    latestActivity: input.latestActivity ?? null,
   };
 }
 
@@ -573,7 +659,9 @@ export async function getTodaySpine(userId: string): Promise<SpineData> {
         .order('date', { ascending: true }),
       supabase
         .from('planned_workouts')
-        .select('scheduled_date, name, workout_type, duration_minutes, target_duration, target_rss, target_tss')
+        .select(
+          'id, scheduled_date, name, workout_type, duration_minutes, target_duration, target_rss, target_tss',
+        )
         .eq('user_id', userId)
         .gte('scheduled_date', todayKey)
         .order('scheduled_date', { ascending: true })
@@ -688,6 +776,8 @@ export async function getTodaySpine(userId: string): Promise<SpineData> {
         // The plan's own target load (0 for rest types) — the PLAN card's
         // meta shows this, never the day's actual RSS.
         targetRss: plannedRowRSS(todayPlan as PlannedRow),
+        // Deep-links the Beat 4 route button at this exact plan row.
+        workoutId: (todayPlan as { id?: string | null }).id ?? null,
       }
     : null;
 
@@ -709,10 +799,25 @@ export async function getTodaySpine(userId: string): Promise<SpineData> {
   const mapSource = (mapRes.data ?? []) as Array<
     Record<string, unknown> & { id: string; name: string | null; start_date: string; provider: string | null }
   >;
-  const recentRides = mapSource
-    .map(mapRowToRecentRide)
-    .filter((r) => r.polyline)
-    .slice(0, 4);
+  const mappedRides = mapSource.map(mapRowToRecentRide);
+  const recentRides = mappedRides.filter((r) => r.polyline).slice(0, 4);
+
+  // Beat inputs. rideStats is deliberately NOT polyline-filtered: an indoor
+  // ride is still the rider's last ride, and the recap must not silently
+  // report an older outdoor ride's distance in its place.
+  const rideStats: RideStat[] = mappedRides
+    .filter((r) => r.startDate)
+    .map((r) => ({
+      date: fmtDate(new Date(r.startDate)),
+      durationSec: r.durationSec,
+      distanceKm: r.distanceKm,
+      elevationM: r.elevationM,
+      polyline: r.polyline,
+    }));
+  const newest = mapSource[0];
+  const latestActivity: LatestActivity | null = newest
+    ? { id: newest.id, startDate: newest.start_date }
+    : null;
 
   // This-week rollup for the map chips, derived from the same read (the last
   // 50 rides always cover the trailing week).
@@ -759,5 +864,7 @@ export async function getTodaySpine(userId: string): Promise<SpineData> {
     recentRides,
     weekRollup,
     planRecoveryPhase,
+    rideStats,
+    latestActivity,
   });
 }

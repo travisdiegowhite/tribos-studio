@@ -69,6 +69,52 @@ export interface WeekRollup {
   rideCount: number;
 }
 
+/**
+ * Today's prescribed session. Carries `workoutId` so the Beat 4 route link can
+ * deep-link the planner's row into RouteBuilder2 (which reads `workoutId` /
+ * `duration` / `distance` from the query string).
+ */
+export interface TodaysWorkout {
+  name: string;
+  type: string;
+  durationMin: number;
+  targetRss: number;
+  /** planned_workouts.id. Null when the row predates the id being selected. */
+  workoutId: string | null;
+}
+
+/**
+ * The most recent ride, for the Beat 1 recap. Duration/distance/geometry come
+ * from the single largest ride on that date; `rss` and `tier` are the day's
+ * total. On a multi-ride day the tier can therefore read a touch high — see
+ * the multi-ride-days question in docs/today-mobile-beats-spec.md §11.
+ */
+export interface LastRide {
+  date: string; // YYYY-MM-DD (local)
+  /** 0 = today. */
+  daysAgo: number;
+  name: string | null;
+  durationMin: number;
+  rss: number;
+  /** Null when the ride carried no usable geometry row (indoor/virtual). */
+  distanceKm: number | null;
+  elevationM: number | null;
+  polyline: string | null;
+  /** Rides recorded on `date`. >1 means the recap is the largest of several. */
+  rideCountOnDate: number;
+}
+
+/**
+ * Identity of the newest known activity. Beat 2's "ask me after my next ride"
+ * deferral fires when this id changes — ids, not timestamps, because a ride
+ * that starts at 08:00 and syncs at 10:00 is invisible to a timestamp check
+ * made at 09:00.
+ */
+export interface LatestActivity {
+  id: string;
+  startDate: string;
+}
+
 /** Persona + the recommendation block seed for the coach zone. */
 export interface CoachSeed {
   personaId: string;
@@ -98,4 +144,14 @@ export interface SpineData {
   /** True on a planned rest/recovery week — flips neutral-band copy from
    * "coasting" to "recovery week" (the plan working as intended). */
   recoveryWeek: boolean;
+
+  // ── Beat surfaces (src/views/today-spine/beats) ───────────────────────────
+  /** Today's plan row, or null when nothing is scheduled. */
+  todaysWorkout: TodaysWorkout | null;
+  /** Most recent ride at or before today. Null when there is none in window. */
+  lastRide: LastRide | null;
+  /** Median ride duration over the last 28 days — the no-plan route pre-fill. */
+  typicalRideMin: number | null;
+  /** Newest known activity, for Beat 2's next-ride deferral. */
+  latestActivity: LatestActivity | null;
 }
