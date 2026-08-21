@@ -12,24 +12,11 @@
  * can show "you'll be at km 40 in ~1h 35m" in the future.
  */
 
-// ── Default flat-ground speeds (km/h) when no Strava data ────────────
-const DEFAULT_SPEEDS = {
-  road: 25,
-  gravel: 20,
-  mountain: 16,
-  commuting: 20,
-  walking: 5,
-};
-
-// ── Training goal speed multipliers ──────────────────────────────────
-const GOAL_MULTIPLIERS = {
-  recovery: 0.82,
-  endurance: 0.95,
-  tempo: 1.05,
-  intervals: 0.90, // includes rest intervals
-  hills: 0.92,
-  race: 1.10,
-};
+// ── Flat-ground speed + goal intensity ───────────────────────────────
+// Shared with target-distance calculation (aiRouteGenerator) via
+// routeTargets.js, so a requested ride time and the time shown here cannot
+// disagree on flat ground. See routeTargets.js for the goal vocabulary.
+import { flatProfileSpeedKmh, rideGoalIntensity } from './routeTargets.js';
 
 // ── Surface speed multipliers (relative to paved) ────────────────────
 const SURFACE_MULTIPLIERS = {
@@ -93,7 +80,7 @@ export function calculatePersonalizedETA({
   const baseSpeed = getBaseSpeed(speedProfile, routeProfile);
 
   // 2. Training goal modifier
-  const goalMult = GOAL_MULTIPLIERS[trainingGoal] ?? 1.0;
+  const goalMult = rideGoalIntensity(trainingGoal);
 
   // 3. Weighted surface multiplier from distribution
   const surfaceMult = getSurfaceMultiplier(surfaceDistribution);
@@ -186,25 +173,7 @@ export function calculatePersonalizedETA({
 // ── Helpers ──────────────────────────────────────────────────────────
 
 function getBaseSpeed(speedProfile, routeProfile) {
-  if (!speedProfile) return DEFAULT_SPEEDS[routeProfile] || DEFAULT_SPEEDS.road;
-
-  switch (routeProfile) {
-    case 'road':
-      return speedProfile.road_speed || speedProfile.average_speed || DEFAULT_SPEEDS.road;
-    case 'gravel':
-      return speedProfile.gravel_speed
-        || (speedProfile.average_speed ? speedProfile.average_speed * 0.85 : DEFAULT_SPEEDS.gravel);
-    case 'mountain':
-      return speedProfile.mtb_speed
-        || (speedProfile.average_speed ? speedProfile.average_speed * 0.70 : DEFAULT_SPEEDS.mountain);
-    case 'commuting':
-      return speedProfile.easy_speed
-        || (speedProfile.average_speed ? speedProfile.average_speed * 0.90 : DEFAULT_SPEEDS.commuting);
-    case 'walking':
-      return DEFAULT_SPEEDS.walking;
-    default:
-      return speedProfile.average_speed || DEFAULT_SPEEDS.road;
-  }
+  return flatProfileSpeedKmh({ routeProfile, speedProfile });
 }
 
 function getSurfaceMultiplier(surfaceDistribution) {

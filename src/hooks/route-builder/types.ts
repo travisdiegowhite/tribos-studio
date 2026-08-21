@@ -43,6 +43,12 @@ export interface RouteSnapshot {
   elevations_m?: number[];
   /** Provider turn cues (RouteCue[]) when the router supplied them. */
   cues?: unknown[] | null;
+  /**
+   * Concrete shape this suggestion was built as. Kept per-suggestion because a
+   * `round_trip` request can come back as a mix of loops and out-and-backs,
+   * and the shape that gets persisted must be the one the rider picked.
+   */
+  shape?: ResolvedRouteShape;
 }
 
 /**
@@ -50,7 +56,15 @@ export interface RouteSnapshot {
  */
 export type RoutingProfile = 'road' | 'gravel' | 'mtb' | 'commute';
 
-export type RouteShape = 'loop' | 'out_and_back' | 'point_to_point';
+/**
+ * Route shape, in the generator's and database's vocabulary.
+ * `round_trip` is a rider intent resolved to a concrete shape during
+ * generation; it is never persisted (see routes.route_type's CHECK).
+ */
+export type RouteShape = 'round_trip' | 'loop' | 'out_back' | 'point_to_point';
+
+/** The concrete shapes a route can actually be, and be saved as. */
+export type ResolvedRouteShape = 'loop' | 'out_back' | 'point_to_point';
 
 export interface SurfaceMix {
   road?: number;

@@ -7,7 +7,7 @@
  * of resampled control points that keep the route drag-editable.
  */
 import { resamplePositionsFromGeometry } from './waypointResample';
-import type { Coordinate, RouteSnapshot } from './types';
+import type { Coordinate, ResolvedRouteShape, RouteSnapshot } from './types';
 
 /** How many control points to seed along a generated route for editability. */
 const GENERATED_WAYPOINT_SAMPLES = 6;
@@ -38,6 +38,8 @@ export interface GeneratedRouteStatsInput {
   duration_s: number;
   /** Provider turn cues, passed through to the snapshot when present. */
   cues?: unknown[] | null;
+  /** Concrete shape the generator built, when known. */
+  shape?: ResolvedRouteShape;
 }
 
 /**
@@ -60,5 +62,6 @@ export function snapshotFromGeneratedRoute(input: GeneratedRouteStatsInput): Rou
       duration_s: finiteOrZero(input.duration_s),
     },
     cues: Array.isArray(input.cues) && input.cues.length > 0 ? input.cues : null,
+    ...(input.shape ? { shape: input.shape } : {}),
   };
 }

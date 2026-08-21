@@ -23,6 +23,7 @@ import {
   useRouteWeather,
   useDraftAutosave,
   useUserLocation,
+  useSpeedProfile,
 } from '../hooks/route-builder';
 import { useRouteBuilderStore } from '../stores/routeBuilderStore';
 import { useAuth } from '../contexts/AuthContext.jsx';
@@ -107,7 +108,6 @@ import {
 } from '../features/route-builder-v2/arrival/arrivalSession';
 import { rankPastRidesByFit } from '../features/route-builder-v2/arrival/rankPastRides';
 import { calculatePersonalizedETA } from '../utils/personalizedETA';
-import { stravaService } from '../utils/stravaService';
 import RoadPreferencesCard from '../components/settings/RoadPreferencesCard.jsx';
 import BikeInfrastructureLegend from '../components/BikeInfrastructureLegend.jsx';
 import RaceDayGuide from '../components/fueling/RaceDayGuide';
@@ -1477,21 +1477,10 @@ export default function RouteBuilder2() {
     </Map>
   );
 
-  // The rider's Strava speed profile personalizes the ETA (v1 parity). Fetched
-  // once; null until loaded (ETA then falls back to a profile-based pace).
-  const [speedProfile, setSpeedProfile] = useState<unknown>(null);
-  useEffect(() => {
-    let cancelled = false;
-    (stravaService as { getSpeedProfile?: () => Promise<unknown> })
-      .getSpeedProfile?.()
-      .then((p) => {
-        if (!cancelled) setSpeedProfile(p ?? null);
-      })
-      .catch(() => {});
-    return () => {
-      cancelled = true;
-    };
-  }, []);
+  // The rider's Strava speed profile personalizes the ETA (v1 parity). Shared
+  // with AI generation's target-distance model via useSpeedProfile, so both
+  // reason about the same pace; null until loaded.
+  const speedProfile = useSpeedProfile();
 
   // Terrain-, surface- and (when available) rider-speed-adjusted ride time
   // (v1 parity) — better than the router's raw duration. Falls back to the raw

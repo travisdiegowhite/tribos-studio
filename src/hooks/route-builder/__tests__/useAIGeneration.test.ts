@@ -7,6 +7,10 @@ vi.mock('../../../utils/aiRouteGenerator.js', () => ({
   generateAIRoutes: vi.fn(),
 }));
 
+vi.mock('../useSpeedProfile', () => ({
+  loadSpeedProfile: vi.fn().mockResolvedValue({ road_speed: 28, average_speed: 27 }),
+}));
+
 vi.mock('../elevationEnrichment', () => ({
   enrichRouteElevation: vi.fn(async (snap) => snap),
 }));
@@ -181,5 +185,137 @@ describe('useAIGeneration', () => {
 
     expect(result.current.lastError).toBeNull();
     expect(result.current.suggestions).toEqual([]);
+  });
+});
+
+describe('route shape', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    useRouteBuilderStore.getState().resetAll();
+  });
+
+  it('passes out_back through to the generator unchanged', async () => {
+    // The bug this locks down: RB2 used to send 'out_and_back', which no
+    // generator branch matched, so every out-and-back request built a loop.
+    mockGenerate.mockResolvedValue([{ ...makeRb1Route(), routeType: 'out_back' }]);
+    const { result } = renderHook(() => useAIGeneration());
+
+    await act(async () => {
+      await result.current.generate({
+        goal: 'endurance',
+        duration_minutes: 60,
+        start_coord: [-105, 40],
+        route_shape: 'out_back',
+      });
+    });
+
+    expect(mockGenerate.mock.calls[0][0].routeType).toBe('out_back');
+    expect(useRouteBuilderStore.getState().routeType).toBe('out_back');
+  });
+
+  it('defaults to a round trip when no shape is given', async () => {
+    mockGenerate.mockResolvedValue([makeRb1Route()]);
+    const { result } = renderHook(() => useAIGeneration());
+
+    await act(async () => {
+      await result.current.generate({
+        goal: 'endurance',
+        duration_minutes: 60,
+        start_coord: [-105, 40],
+      });
+    });
+
+    expect(mockGenerate.mock.calls[0][0].routeType).toBe('round_trip');
+  });
+
+  it('stores the concrete shape the generator built for a round trip', async () => {
+    mockGenerate.mockResolvedValue([{ ...makeRb1Route(), routeType: 'out_back' }]);
+    const { result } = renderHook(() => useAIGeneration());
+
+    await act(async () => {
+      await result.current.generate({
+        goal: 'endurance',
+        duration_minutes: 60,
+        start_coord: [-105, 40],
+        route_shape: 'round_trip',
+      });
+    });
+
+    // `routes.route_type` is CHECK-constrained — persisting 'round_trip'
+    // would fail the save outright.
+    expect(useRouteBuilderStore.getState().routeType).toBe('out_back');
+  });
+
+  it('falls back to a loop when the generator reports no shape', async () => {
+    mockGenerate.mockResolvedValue([makeRb1Route()]);
+    const { result } = renderHook(() => useAIGeneration());
+
+    await act(async () => {
+      await result.current.generate({
+        goal: 'endurance',
+        duration_minutes: 60,
+        start_coord: [-105, 40],
+        route_shape: 'round_trip',
+      });
+    });
+
+    expect(useRouteBuilderStore.getState().routeType).toBe('loop');
+  });
+
+  it('passes the rider speed profile into generation', async () => {
+    // Was hardcoded to null, leaving the learned-speed branch of
+    // calculateTargetDistance dead for every RB2 rider.
+    mockGenerate.mockResolvedValue([makeRb1Route()]);
+    const { result } = renderHook(() => useAIGeneration());
+
+    await act(async () => {
+      await result.current.generate({
+        goal: 'endurance',
+        duration_minutes: 60,
+        start_coord: [-105, 40],
+      });
+    });
+
+    expect(mockGenerate.mock.calls[0][0].speedProfile).toEqual({
+      road_speed: 28,
+      average_speed: 27,
+    });
+  });
+});
+
+describe('selecting a suggestion commits its own shape', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    useRouteBuilderStore.getState().resetAll();
+  });
+
+  it('persists the shape of the picked suggestion, not the first one', async () => {
+    // A round-trip request can come back as a mix, so the shape that lands in
+    // routes.route_type must be the one the rider actually chose.
+    mockGenerate.mockResolvedValue([
+      { ...makeRb1Route(20), routeType: 'loop' },
+      { ...makeRb1Route(22), routeType: 'out_back' },
+    ]);
+    const { result } = renderHook(() => useAIGeneration());
+
+    await act(async () => {
+      await result.current.generate(
+        {
+          goal: 'endurance',
+          duration_minutes: 60,
+          start_coord: [-105, 40],
+          route_shape: 'round_trip',
+        },
+        3,
+      );
+    });
+
+    expect(useRouteBuilderStore.getState().routeType).toBe('loop');
+
+    act(() => {
+      result.current.selectSuggestion(1);
+    });
+
+    expect(useRouteBuilderStore.getState().routeType).toBe('out_back');
   });
 });
