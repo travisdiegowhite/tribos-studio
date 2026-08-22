@@ -14,8 +14,11 @@ import { supabase } from '../../lib/supabase';
 import { trackRb2 } from '../../features/route-builder-v2/telemetry/trackRb2';
 import { enrichRouteElevation } from './elevationEnrichment';
 import { snapshotFromGeneratedRoute } from './routeSnapshot';
+import { loadSpeedProfile } from './useSpeedProfile';
+import { flatSpeedKmh } from '../../utils/routeTargets.js';
 import type {
   GenerationFormInput,
+  ResolvedRouteShape,
   RouteShape,
   RouteSnapshot,
 } from './types';
@@ -30,11 +33,34 @@ interface Rb1RouteResult {
   coordinates?: Array<[number, number]>;
   description?: string;
   cues?: unknown[] | null;
+  /** Concrete shape the generator actually built (loop / out_back / …). */
+  routeType?: string | null;
 }
 
-function mapShape(shape: RouteShape | undefined): 'loop' | 'out_and_back' | 'point_to_point' {
-  if (shape === 'out_and_back') return 'out_and_back';
-  if (shape === 'point_to_point') return 'point_to_point';
+/**
+ * The shape string handed to the generator. Shapes now share one vocabulary
+ * with the generator and the database, so this only fills in the default.
+ * `round_trip` is passed through — the generator resolves it to a concrete
+ * shape and reports back which one it built.
+ */
+function mapShape(shape: RouteShape | undefined): RouteShape {
+  return shape ?? 'round_trip';
+}
+
+/**
+ * Concrete shape of a generated route, for persistence and for the chat
+ * coach's loop-vs-point-to-point edit strategy. A round trip resolves to
+ * whatever the generator actually built; `routes.route_type` has no
+ * `round_trip` value and would reject one.
+ */
+function resolveShape(
+  requested: RouteShape | undefined,
+  built: string | null | undefined,
+): ResolvedRouteShape {
+  if (built === 'loop' || built === 'out_back' || built === 'point_to_point') return built;
+  if (requested === 'loop' || requested === 'out_back' || requested === 'point_to_point') {
+    return requested;
+  }
   return 'loop';
 }
 
@@ -43,7 +69,14 @@ function deriveTimeMinutes(input: GenerationFormInput): number {
     return input.duration_minutes;
   }
   if (typeof input.distance_km === 'number' && input.distance_km > 0) {
-    return Math.round((input.distance_km / 28) * 60);
+    // Via the shared speed model rather than a local constant — this used to
+    // assume a flat 28 km/h, a fourth number in a codebase that already had
+    // too many.
+    const kmh = flatSpeedKmh({
+      goal: input.goal,
+      routeProfile: input.route_profile ?? 'road',
+    });
+    return Math.round((input.distance_km / kmh) * 60);
   }
   return 60;
 }
@@ -60,6 +93,7 @@ async function getCurrentUserId(): Promise<string | undefined> {
 function toRouteSnapshot(
   route: Rb1RouteResult,
   durationMinutes: number,
+  requestedShape: RouteShape | undefined,
 ): RouteSnapshot | null {
   if (!route?.coordinates || route.coordinates.length < 2) return null;
   // Snapshot construction (geometry + resampled control points so generated
@@ -71,6 +105,7 @@ function toRouteSnapshot(
     elevation_loss_m: route.elevationLoss ?? 0,
     duration_s: durationMinutes * 60,
     cues: route.cues ?? null,
+    shape: resolveShape(requestedShape, route.routeType),
   });
 }
 
@@ -101,6 +136,7 @@ export function useAIGeneration(): UseAIGenerationReturn {
   const setWaypoints = useRouteBuilderStore((s) => s.setWaypoints);
   const setRouteCues = useRouteBuilderStore((s) => s.setRouteCues);
   const setBuilderMode = useRouteBuilderStore((s) => s.setBuilderMode);
+  const setRouteType = useRouteBuilderStore((s) => s.setRouteType);
 
   const suggestions = (Array.isArray(aiSuggestions) ? aiSuggestions : []) as RouteSnapshot[];
 
@@ -117,14 +153,21 @@ export function useAIGeneration(): UseAIGenerationReturn {
       trackRb2('generation_started', { count });
 
       const durationMinutes = deriveTimeMinutes(input);
-      const userId = await getCurrentUserId();
+      const [userId, speedProfile] = await Promise.all([
+        getCurrentUserId(),
+        loadSpeedProfile(),
+      ]);
       const params = {
         startLocation: input.start_coord,
         timeAvailable: durationMinutes,
         trainingGoal: input.goal && input.goal.length > 0 ? input.goal : 'endurance',
         routeType: mapShape(input.route_shape),
         userId,
-        speedProfile: null,
+        // The rider's measured pace, so the time→distance target is built from
+        // how fast they actually ride rather than a table of guesses. This was
+        // hardcoded to null, which left the learned-speed branch of
+        // calculateTargetDistance dead for every RB2 rider.
+        speedProfile,
         speedModifier: 1.0,
         // Explicit rider targets — previously collected by the form but
         // dropped here, which made "40 km / 600 m" advisory at best.
@@ -144,7 +187,7 @@ export function useAIGeneration(): UseAIGenerationReturn {
       try {
         const rb1Routes = (await generateAIRoutes(params, null)) as Rb1RouteResult[];
         const snapshots = (rb1Routes ?? [])
-          .map((r) => toRouteSnapshot(r, durationMinutes))
+          .map((r) => toRouteSnapshot(r, durationMinutes, input.route_shape))
           .filter((s): s is RouteSnapshot => s !== null);
 
         if (snapshots.length === 0) {
@@ -173,6 +216,13 @@ export function useAIGeneration(): UseAIGenerationReturn {
             input.route_profile === 'mtb' ? 'mountain' : input.route_profile,
           );
         }
+        // …and the shape. RB2 never wrote this, so every saved route recorded
+        // the store's stale default and the chat coach's loop-vs-point-to-point
+        // edit strategy read the wrong value. A `round_trip` request resolves
+        // to whatever was actually built.
+        useRouteBuilderStore
+          .getState()
+          .setRouteType(resolveShape(input.route_shape, rb1Routes?.[0]?.routeType));
         trackRb2('generation_completed', {
           count,
           duration_ms: Date.now() - startedAt,
@@ -226,10 +276,11 @@ export function useAIGeneration(): UseAIGenerationReturn {
         })),
       );
       setRouteCues(chosen.cues ?? null);
+      if (chosen.shape) setRouteType(chosen.shape);
       setBuilderMode('editing');
       return chosen;
     },
-    [suggestions, setRouteGeometry, setRouteStats, setWaypoints, setRouteCues, setBuilderMode],
+    [suggestions, setRouteGeometry, setRouteStats, setWaypoints, setRouteCues, setRouteType, setBuilderMode],
   );
 
   const clearSuggestions = useCallback(() => {

@@ -35,3 +35,5 @@ export type {
   UseUserLocationOptions,
   UserLocationStatus,
 } from './useUserLocation';
+export { useSpeedProfile, loadSpeedProfile, resetSpeedProfileCache } from './useSpeedProfile';
+export type { SpeedProfile } from './useSpeedProfile';

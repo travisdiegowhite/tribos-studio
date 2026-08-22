@@ -330,7 +330,7 @@ LOCATION & DISTANCE:
 - Start coordinates: ${latitude}, ${longitude}
 - Target distance: ${targetDistanceKm.toFixed(1)}km
 ${elevationGainTargetM ? `- Target elevation gain: ${Math.round(elevationGainTargetM)}m — routes should come close to this climbing figure\n` : ''}- Time available: ${timeAvailable} minutes
-- Route type: ${routeType}
+- Route type: ${describeRouteType(routeType)}
 
 TRAINING GOAL: ${trainingGoal}
 ${getTrainingGoalDescription(trainingGoal)}
@@ -441,6 +441,7 @@ Please provide 3-4 route suggestions in the following JSON format:
       "difficulty": "easy|moderate|hard",
       "keyDirections": ["turn by turn directions as array of strings"],
       "keyRoads": ["2-4 real, well-known road or landmark names the route follows, in ride order"],
+      "routeType": "loop|out_back|point_to_point",
       "trainingFocus": "what makes this route good for the specified training goal",
       "weatherConsiderations": "how this route works with current weather",
       "estimatedTime": time_in_minutes
@@ -468,6 +469,10 @@ IMPORTANT:
 - Account for weather impact on route choice
 - Provide specific turn-by-turn guidance
 - Keep routes within 20% of target distance
+- "routeType" must state the shape you actually planned. When the requested
+  route type is a round trip, pick "loop" or "out_back" per route on its
+  merits — vary it across the suggestions where both work. Never answer
+  "point_to_point" for a round trip; it must finish where it started.
 - CRITICAL: Each route MUST have a descriptive "name" and accurate "estimatedDistance" matching the target
 - Respond with raw JSON only - do NOT wrap in markdown code blocks`;
 
@@ -501,6 +506,27 @@ function calculateRealisticTime(distanceKm, difficulty) {
 /**
  * Get detailed description for training goals
  */
+/**
+ * Human-readable route type for the prompt. `round_trip` is a rider intent
+ * ("start and finish here") rather than a shape, so it is spelled out — the
+ * model picks the actual shape per suggestion and echoes it back in
+ * `routeType`.
+ */
+function describeRouteType(routeType) {
+  switch (routeType) {
+    case 'round_trip':
+      return 'round trip — must start and finish at the same point; choose a loop or an out-and-back for each suggestion, whichever suits the roads';
+    case 'out_back':
+      return 'out-and-back — ride out and return the same way, finishing at the start';
+    case 'loop':
+      return 'loop — a circuit finishing at the start without retracing';
+    case 'point_to_point':
+      return 'point-to-point — may finish somewhere other than the start';
+    default:
+      return String(routeType ?? 'loop');
+  }
+}
+
 function getTrainingGoalDescription(goal) {
   const descriptions = {
     endurance: `
@@ -688,6 +714,10 @@ function parseClaudeResponse(responseText) {
       source: 'claude',
       keyDirections: route.keyDirections || [],
       keyRoads: Array.isArray(route.keyRoads) ? route.keyRoads.filter((r) => typeof r === 'string') : [],
+      // The shape the model says it planned. Only used to resolve a
+      // `round_trip` request into a concrete loop or out-and-back; the
+      // generator validates it (aiRouteGenerator.resolveRouteShape).
+      routeType: typeof route.routeType === 'string' ? route.routeType : null,
       weatherConsiderations: route.weatherConsiderations || '',
       estimatedTime: calculateRealisticTime(route.estimatedDistance || 25, route.difficulty || 'moderate'),
       elevationProfile: [],

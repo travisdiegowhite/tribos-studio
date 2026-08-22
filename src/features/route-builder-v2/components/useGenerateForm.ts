@@ -25,7 +25,19 @@ export type Goal =
   | 'long_ride'
   | 'commute';
 export type Surface = 'road' | 'gravel' | 'mountain' | 'mixed';
-export type Shape = 'loop' | 'out_and_back' | 'point_to_point';
+/**
+ * Route shape.
+ *
+ * These strings are the generator's and the database's vocabulary
+ * (`routes.route_type` is CHECK-constrained to loop/out_back/point_to_point) —
+ * RB2 previously used its own `'out_and_back'` spelling, which no generator
+ * branch matched, so every "Out & Back" request silently produced a loop.
+ *
+ * `round_trip` is the exception: a rider intent ("start and finish here"),
+ * resolved during generation to a concrete loop or out_back. It is never
+ * persisted.
+ */
+export type Shape = 'round_trip' | 'loop' | 'out_back' | 'point_to_point';
 
 export const GOAL_OPTIONS: Array<{ value: Goal; label: string }> = [
   { value: 'endurance', label: 'Endurance' },
@@ -44,8 +56,11 @@ export const SURFACE_OPTIONS: Array<{ value: Surface; label: string }> = [
 ];
 
 export const SHAPE_OPTIONS: Array<{ value: Shape; label: string }> = [
+  // Most riders start and finish at the same place and don't care which
+  // shape gets them there — so that's the default, and the generator picks.
+  { value: 'round_trip', label: 'Start & Finish Here' },
   { value: 'loop', label: 'Loop' },
-  { value: 'out_and_back', label: 'Out & Back' },
+  { value: 'out_back', label: 'Out & Back' },
   { value: 'point_to_point', label: 'Point to Point' },
 ];
 
@@ -113,7 +128,7 @@ export function useGenerateForm({
   const [goal, setGoal] = useState<Goal>(initialGoal ?? 'endurance');
   const [duration, setDuration] = useState<number>(initialDurationMinutes ?? 60);
   const [surface, setSurface] = useState<Surface>('road');
-  const [shape, setShape] = useState<Shape>('loop');
+  const [shape, setShape] = useState<Shape>('round_trip');
   const [startLocation, setStartLocation] = useState<string>(initialStartLocation ?? '');
   const [distanceKm, setDistanceKm] = useState<number | ''>(initialDistanceKm ?? '');
   const [elevationGainM, setElevationGainM] = useState<number | ''>(initialElevationGainM ?? '');
@@ -204,7 +219,7 @@ export function useGenerateForm({
     setGoal('endurance');
     setDuration(60);
     setSurface('road');
-    setShape('loop');
+    setShape('round_trip');
     setStartLocation('');
     setDistanceKm('');
     setElevationGainM('');

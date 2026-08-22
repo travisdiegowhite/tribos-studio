@@ -9,6 +9,7 @@ import {
   hillsBiasForTarget,
   getTargetProximityScore,
   geocodeKeyRoads,
+  resolveRouteShape,
 } from '../aiRouteGenerator';
 
 const mockGeocode = vi.mocked(geocodeWaypoint as (n: string, p: [number, number]) => Promise<unknown>);
@@ -90,5 +91,35 @@ describe('geocodeKeyRoads', () => {
   it('swallows geocoder throws', async () => {
     mockGeocode.mockRejectedValue(new Error('rate limited'));
     expect(await geocodeKeyRoads(['Anything'], START, 40)).toEqual([]);
+  });
+});
+
+describe('resolveRouteShape', () => {
+  it('passes concrete shapes through', () => {
+    expect(resolveRouteShape('loop')).toBe('loop');
+    expect(resolveRouteShape('out_back')).toBe('out_back');
+    expect(resolveRouteShape('point_to_point')).toBe('point_to_point');
+  });
+
+  it('resolves a round trip to the shape the model actually planned', () => {
+    expect(resolveRouteShape('round_trip', 'out_back')).toBe('out_back');
+    expect(resolveRouteShape('round_trip', 'loop')).toBe('loop');
+  });
+
+  it('never resolves a round trip to point_to_point', () => {
+    // A round trip has to finish where it started, whatever the model says.
+    expect(resolveRouteShape('round_trip', 'point_to_point')).toBe('loop');
+  });
+
+  it('defaults a round trip to a loop with no suggestion', () => {
+    expect(resolveRouteShape('round_trip')).toBe('loop');
+    expect(resolveRouteShape('round_trip', null)).toBe('loop');
+  });
+
+  it('treats anything unrecognised as a loop', () => {
+    // Including RB2's old spelling, which used to reach the dispatcher and
+    // fall through its if/else chain to a loop without anyone noticing.
+    expect(resolveRouteShape('out_and_back')).toBe('loop');
+    expect(resolveRouteShape(undefined)).toBe('loop');
   });
 });

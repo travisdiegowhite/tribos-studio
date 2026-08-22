@@ -56,7 +56,11 @@ function normalizeStartLocation(location) {
 // service, which must not import this module's heavy dependency graph).
 // Re-exported here for existing callers and tests.
 export { getTargetProximityScore, hillsBiasForTarget } from './routeTargets.js';
-import { getTargetProximityScore, hillsBiasForTarget } from './routeTargets.js';
+import {
+  getTargetProximityScore,
+  hillsBiasForTarget,
+  targetDistanceKmForTime,
+} from './routeTargets.js';
 
 /**
  * Geocode Claude's named roads/landmarks into routing via-points near the
@@ -149,7 +153,7 @@ export async function generateAIRoutes(params, onProgress = null) {
       ridingPatterns = analyzeRidingPatterns(pastRides);
       patternBasedSuggestions = generateRouteFromPatterns(ridingPatterns, {
         startLocation,
-        targetDistanceKm: calculateTargetDistance(timeAvailable, trainingGoal, ridingPatterns?.performanceMetrics, speedProfile, speedModifier),
+        targetDistanceKm: calculateTargetDistance(timeAvailable, trainingGoal, ridingPatterns?.performanceMetrics, speedProfile, speedModifier, routeProfile || 'road'),
         trainingGoal
       });
 
@@ -157,7 +161,7 @@ export async function generateAIRoutes(params, onProgress = null) {
       claudeAnalysis = await analyzeRidingPatternsWithClaude(ridingPatterns, {
         trainingGoal,
         timeAvailable,
-        targetDistanceKm: calculateTargetDistance(timeAvailable, trainingGoal, ridingPatterns?.performanceMetrics, speedProfile, speedModifier)
+        targetDistanceKm: calculateTargetDistance(timeAvailable, trainingGoal, ridingPatterns?.performanceMetrics, speedProfile, speedModifier, routeProfile || 'road')
       });
       
       console.log('Found riding patterns:', ridingPatterns);
@@ -170,11 +174,17 @@ export async function generateAIRoutes(params, onProgress = null) {
 
   // Calculate target distance, enhanced with Strava performance data.
   // An explicit rider-entered distance always wins over the time estimate.
-  const baseTargetDistance = calculateTargetDistance(timeAvailable, trainingGoal, null, speedProfile, speedModifier);
   let targetDistanceKm =
     explicitTargetDistanceKm && explicitTargetDistanceKm > 0
       ? explicitTargetDistanceKm
-      : calculateTargetDistance(timeAvailable, trainingGoal, ridingPatterns?.performanceMetrics, speedProfile, speedModifier);
+      : calculateTargetDistance(
+          timeAvailable,
+          trainingGoal,
+          ridingPatterns?.performanceMetrics,
+          speedProfile,
+          speedModifier,
+          routeProfile || 'road',
+        );
 
   console.log(`📏 Distance calculation: ${timeAvailable}min × ${(targetDistanceKm / (timeAvailable / 60)).toFixed(1)}km/h = ${targetDistanceKm.toFixed(1)}km (${(targetDistanceKm * 0.621371).toFixed(1)} miles)`);
   console.log(`🔍 DEBUG INPUT - Speed Profile:`, speedProfile);
@@ -298,6 +308,10 @@ export async function generateAIRoutes(params, onProgress = null) {
           console.log('Converting Claude route:', claudeRoute.name);
           const routeWithContext = {
             ...claudeRoute,
+            // The shape the rider asked for. `claudeShape` keeps the model's
+            // own pick alongside it, which is what resolves a `round_trip`
+            // request into a concrete loop or out-and-back.
+            claudeShape: claudeRoute.routeType || null,
             routeType,
             pastRidePatterns: ridingPatterns
           };
@@ -360,7 +374,10 @@ export async function generateAIRoutes(params, onProgress = null) {
         startLocation,
         targetDistanceKm: targetDistanceKm,
         trainingGoal,
-        routeProfile: routeType,
+        // The routing surface, not the route shape. This was passing
+        // `routeType`, so the fallback router received "loop" where it
+        // expected "road"/"gravel" and silently fell back to road.
+        routeProfile: routeProfile || 'road',
         userId,
         reason: claudeFailureReason,
       });
@@ -529,129 +546,29 @@ export async function generateAIRoutes(params, onProgress = null) {
   return optimizedRoutes.slice(0, 4);
 }
 
-// Calculate target distance based on time, training goal, and performance metrics
-function calculateTargetDistance(timeMinutes, trainingGoal, performanceMetrics = null, speedProfile = null, speedModifier = 1.0) {
-  // Check if user has sufficient speed profile data (at least 5 rides analyzed)
-  const hasSufficientData = speedProfile?.has_sufficient_data || (speedProfile?.rides_analyzed >= 5);
-  const hasSpeedData = speedProfile?.road_speed || speedProfile?.average_speed;
-
-  // If user has a speed profile with sufficient data, use their actual speed
-  if (hasSpeedData && hasSufficientData) {
-    // Use training-specific speeds if available, otherwise fall back to road_speed or average_speed
-    let userSpeed;
-
-    // Try to use the most appropriate speed for the training goal
-    switch (trainingGoal) {
-      case 'recovery':
-        userSpeed = speedProfile.easy_speed || speedProfile.road_speed || speedProfile.average_speed;
-        break;
-      case 'endurance':
-        userSpeed = speedProfile.endurance_speed || speedProfile.road_speed || speedProfile.average_speed;
-        break;
-      case 'intervals':
-      case 'tempo':
-        userSpeed = speedProfile.tempo_speed || speedProfile.road_speed || speedProfile.average_speed;
-        break;
-      case 'hills':
-        // For hills, use a reduced speed based on road speed
-        userSpeed = (speedProfile.road_speed || speedProfile.average_speed) * 0.75;
-        break;
-      default:
-        userSpeed = speedProfile.road_speed || speedProfile.average_speed;
-    }
-
-    // If we still don't have a specific training speed, apply multipliers to base speed
-    if (!userSpeed && (speedProfile.road_speed || speedProfile.average_speed)) {
-      const baseSpeed = speedProfile.road_speed || speedProfile.average_speed;
-      const speedMultipliers = {
-        recovery: 0.8,   // 20% slower for recovery
-        endurance: 1.0,  // Normal pace for endurance
-        intervals: 0.9,  // 10% slower due to rest periods
-        hills: 0.75      // 25% slower for hills
-      };
-      userSpeed = baseSpeed * (speedMultipliers[trainingGoal] || 1.0);
-    }
-
-    const adjustedSpeed = userSpeed * speedModifier;
-    const hours = timeMinutes / 60;
-    const targetDistanceKm = hours * adjustedSpeed;
-
-    console.log(`🚴 Using user's speed profile:`, {
-      userSpeed,
-      trainingGoal,
-      speedModifier,
-      adjustedSpeed,
-      targetDistanceKm,
-      ridesAnalyzed: speedProfile.rides_analyzed,
-      availableSpeeds: {
-        road: speedProfile.road_speed,
-        average: speedProfile.average_speed,
-        easy: speedProfile.easy_speed,
-        endurance: speedProfile.endurance_speed,
-        tempo: speedProfile.tempo_speed
-      }
-    });
-
-    return targetDistanceKm;
-  }
-
-  // Default average speeds by training type (km/h) - LOWERED to more realistic values
-  const defaultSpeedMap = {
-    recovery: 16,    // 10 mph - easy recovery pace
-    endurance: 20,   // 12.4 mph - sustainable endurance pace
-    intervals: 18,   // 11.2 mph - lower due to rest periods
-    hills: 15        // 9.3 mph - slower due to climbing
-  };
-
-  let baseSpeed = defaultSpeedMap[trainingGoal] || 19;
-
-  // Enhance with Strava performance data if available
-  if (performanceMetrics && performanceMetrics.averageSpeed && performanceMetrics.confidence > 0.5) {
-    const userSpeed = performanceMetrics.averageSpeed;
-    
-    // Adjust base speed based on training goal and user's actual performance
-    const speedMultipliers = {
-      recovery: 0.8,   // 20% slower for recovery
-      endurance: 1.0,  // Normal pace for endurance
-      intervals: 0.9,  // 10% slower due to rest periods
-      hills: 0.75      // 25% slower for hills
-    };
-    
-    const adjustedUserSpeed = userSpeed * (speedMultipliers[trainingGoal] || 1.0);
-    
-    // Blend user's speed with default (70% user data, 30% default)
-    const confidence = Math.min(performanceMetrics.confidence, 0.8); // Max 80% influence
-    baseSpeed = adjustedUserSpeed * confidence + baseSpeed * (1 - confidence);
-    
-    console.log(`🚴 Speed calculation enhanced with Strava data:`, {
-      userAverageSpeed: userSpeed,
-      trainingGoal,
-      adjustedSpeed: adjustedUserSpeed,
-      finalSpeed: baseSpeed,
-      confidence: performanceMetrics.confidence
-    });
-  }
-
-  const hours = timeMinutes / 60;
-  let targetDistanceKm = hours * baseSpeed;
-
-  // Apply fitness level adjustments if available
-  if (performanceMetrics?.fitnessLevel) {
-    const fitnessMultipliers = {
-      'excellent': 1.1,
-      'good': 1.0,
-      'moderate': 0.9,
-      'developing': 0.8
-    };
-
-    const multiplier = fitnessMultipliers[performanceMetrics.fitnessLevel] || 1.0;
-    targetDistanceKm *= multiplier;
-  }
-
-  // Apply speed modifier
-  targetDistanceKm *= speedModifier;
-
-  return targetDistanceKm;
+/**
+ * Calculate target distance from a requested ride time.
+ *
+ * Delegates to the canonical speed model in routeTargets.js, which the
+ * displayed ETA (personalizedETA.js) also uses — so the time a rider asks for
+ * and the time the UI shows them agree on flat ground instead of being
+ * computed from two unrelated tables of speeds.
+ */
+function calculateTargetDistance(
+  timeMinutes,
+  trainingGoal,
+  performanceMetrics = null,
+  speedProfile = null,
+  speedModifier = 1.0,
+  routeProfile = 'road',
+) {
+  return targetDistanceKmForTime(timeMinutes, {
+    goal: trainingGoal,
+    routeProfile,
+    speedProfile,
+    performanceMetrics,
+    speedModifier,
+  });
 }
 
 // Generate routes using Mapbox Directions API (NO geometric patterns)
@@ -672,7 +589,9 @@ async function generateMapboxBasedRoutes(params) {
   }
   
   try {
-    // Generate different route types using Mapbox
+    // Generate different route types using Mapbox. A `round_trip` request is
+    // the one case where we deliberately build both and let scoring pick —
+    // the rider said they don't mind which, so offer the best of either.
     if (routeType === 'loop') {
       const loopRoutes = await generateMapboxLoops(startLocation, targetDistanceKm, trainingGoal, weatherData, patternBasedSuggestions, userPreferences, userSpeed);
       routes.push(...loopRoutes);
@@ -1223,7 +1142,7 @@ async function convertClaudeToFullRoute(claudeRoute, startLocation, targetDistan
     // can geocode near the start, route through them instead of synthesizing
     // geometry. A via route may miss the distance target by more (roads are
     // where they are), so it gets a looser tolerance before we abandon it.
-    const routeType = claudeRoute.routeType || 'loop';
+    const routeType = resolveRouteShape(claudeRoute.routeType, claudeRoute.claudeShape);
     let route = null;
     let usedNamedRoads = false;
     if (routeType === 'loop' && Array.isArray(claudeRoute.keyRoads) && claudeRoute.keyRoads.length > 0) {
@@ -1295,7 +1214,10 @@ async function convertClaudeToFullRoute(claudeRoute, startLocation, targetDistan
         // dropped here previously, which left generated routes cue-less
         // until their first manual re-snap.
         cues: Array.isArray(route.cues) && route.cues.length > 0 ? route.cues : null,
-        source: usedNamedRoads ? 'claude_roads' : 'claude_mapbox'
+        source: usedNamedRoads ? 'claude_roads' : 'claude_mapbox',
+        // The shape actually built, never `round_trip` — `routes.route_type`
+        // is CHECK-constrained to the three concrete values.
+        routeType,
       };
 
       // Pass through maneuver data if available (from Valhalla/Stadia Maps)
@@ -1356,21 +1278,48 @@ async function convertClaudeToFullRoute(claudeRoute, startLocation, targetDistan
 }
 
 // Generate waypoints from Claude's turn-by-turn directions with route type awareness
+/** The concrete shapes a route can be built as, and saved as. */
+const CONCRETE_ROUTE_SHAPES = new Set(['loop', 'out_back', 'point_to_point']);
+
+/**
+ * Resolve a requested shape to a concrete one.
+ *
+ * `round_trip` means "start and finish in the same place, you pick how" — the
+ * rider doesn't care whether that's a loop or an out-and-back. Claude picks
+ * per suggestion (it echoes `routeType` back), so a batch of round-trip
+ * suggestions naturally comes back as a mix. Falls back to a loop.
+ *
+ * Anything unrecognised also becomes a loop, which is what the old if/else
+ * chain did by accident — the difference is that it now happens once, here,
+ * instead of silently at three separate dispatch sites.
+ *
+ * @param {string|null|undefined} requested - the shape the rider asked for
+ * @param {string|null} [claudeSuggested] - the shape the model says it planned
+ * @returns {'loop'|'out_back'|'point_to_point'}
+ */
+export function resolveRouteShape(requested, claudeSuggested = null) {
+  if (CONCRETE_ROUTE_SHAPES.has(requested)) return requested;
+  if (requested === 'round_trip') {
+    // A round trip must return to the start, so point_to_point is not a
+    // legal resolution even if the model suggests it.
+    if (claudeSuggested === 'loop' || claudeSuggested === 'out_back') return claudeSuggested;
+    return 'loop';
+  }
+  return 'loop';
+}
+
 async function generateWaypointsFromDirections(directions, startLocation, targetDistanceKm, routeType = 'loop', pastRidePatterns = null) {
   console.log('🧭 Generating waypoints:', {directions, startLocation, targetDistanceKm, routeType});
-  const waypoints = [startLocation];
-  
-  // Use different strategies based on route type
-  if (routeType === 'loop') {
-    return generateLoopWaypoints(startLocation, targetDistanceKm, directions, pastRidePatterns);
-  } else if (routeType === 'out_back') {
-    return generateOutAndBackWaypoints(startLocation, targetDistanceKm, directions, pastRidePatterns);
-  } else if (routeType === 'point_to_point') {
-    return generatePointToPointWaypoints(startLocation, targetDistanceKm, directions, pastRidePatterns);
+  const shape = resolveRouteShape(routeType);
+  switch (shape) {
+    case 'out_back':
+      return generateOutAndBackWaypoints(startLocation, targetDistanceKm, directions, pastRidePatterns);
+    case 'point_to_point':
+      return generatePointToPointWaypoints(startLocation, targetDistanceKm, directions, pastRidePatterns);
+    case 'loop':
+    default:
+      return generateLoopWaypoints(startLocation, targetDistanceKm, directions, pastRidePatterns);
   }
-  
-  // Fallback to loop if route type not recognized
-  return generateLoopWaypoints(startLocation, targetDistanceKm, directions, pastRidePatterns);
 }
 
 // Generate realistic loop route waypoints
@@ -3198,7 +3147,8 @@ export function generateSmartWaypoints(startLocation, durationMinutes, routeType
   console.log(`🎯 Generating smart waypoints: ${durationMinutes}min → ${targetDistanceKm.toFixed(1)}km ${routeType}`);
 
   // Generate waypoints based on route type
-  if (routeType === 'out_back') {
+  const shape = resolveRouteShape(routeType);
+  if (shape === 'out_back') {
     return generateOutAndBackWaypointsSimple(startLocation, targetDistanceKm, direction);
   }
 
