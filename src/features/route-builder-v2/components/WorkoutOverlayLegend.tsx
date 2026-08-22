@@ -4,6 +4,10 @@
  * Shows the attached workout's name and a swatch per distinct training zone
  * present in the route's interval cues, so the colored bands (elevation) and
  * colored line (map) are readable. Hidden when no workout is attached.
+ *
+ * When the session's shape is a stand-in — the plan prescribed a type and a
+ * length but named no library workout — the shape is named alongside, so the
+ * bands never claim to be a prescription the plan didn't make.
  */
 
 import { Box, Text } from '@mantine/core';
@@ -15,9 +19,16 @@ export interface WorkoutOverlayLegendProps {
   workoutName: string | null;
   cues: WorkoutCue[] | null;
   isMobile?: boolean;
+  /** Name of the library workout the bands were shaped from, when it isn't the prescription itself. */
+  shapedAs?: string | null;
 }
 
-export function WorkoutOverlayLegend({ workoutName, cues, isMobile = false }: WorkoutOverlayLegendProps) {
+export function WorkoutOverlayLegend({
+  workoutName,
+  cues,
+  isMobile = false,
+  shapedAs = null,
+}: WorkoutOverlayLegendProps) {
   if (!workoutName) return null;
 
   // Distinct zones present, in ascending order.
@@ -48,6 +59,7 @@ export function WorkoutOverlayLegend({ workoutName, cues, isMobile = false }: Wo
         }}
       >
         Workout · {workoutName}
+        {shapedAs && shapedAs !== workoutName ? ` · shaped as ${shapedAs}` : ''}
       </Text>
       {zones.length > 0 && (
         <Box style={{ display: 'flex', flexWrap: 'wrap', gap: '6px 12px' }}>

@@ -71,7 +71,7 @@ export interface WeekRollup {
 
 /**
  * Today's prescribed session. Carries `workoutId` so the Beat 4 route link can
- * deep-link the planner's row into RouteBuilder2 (which reads `workoutId` /
+ * deep-link the prescribed workout into RouteBuilder2 (which reads `workoutId` /
  * `duration` / `distance` from the query string).
  */
 export interface TodaysWorkout {
@@ -79,7 +79,12 @@ export interface TodaysWorkout {
   type: string;
   durationMin: number;
   targetRss: number;
-  /** planned_workouts.id. Null when the row predates the id being selected. */
+  /**
+   * `planned_workouts.workout_id` — the workout-library key RouteBuilder2
+   * resolves, NOT the plan row's own uuid (which resolves to nothing). Null
+   * for the arc-generated rows that name only a type and a length; the
+   * builder infers a shape from `goal`/`duration` in that case.
+   */
   workoutId: string | null;
 }
 

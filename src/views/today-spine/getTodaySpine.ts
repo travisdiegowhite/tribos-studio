@@ -660,7 +660,7 @@ export async function getTodaySpine(userId: string): Promise<SpineData> {
       supabase
         .from('planned_workouts')
         .select(
-          'id, scheduled_date, name, workout_type, duration_minutes, target_duration, target_rss, target_tss',
+          'id, scheduled_date, name, workout_type, workout_id, duration_minutes, target_duration, target_rss, target_tss',
         )
         .eq('user_id', userId)
         .gte('scheduled_date', todayKey)
@@ -776,8 +776,10 @@ export async function getTodaySpine(userId: string): Promise<SpineData> {
         // The plan's own target load (0 for rest types) — the PLAN card's
         // meta shows this, never the day's actual RSS.
         targetRss: plannedRowRSS(todayPlan as PlannedRow),
-        // Deep-links the Beat 4 route button at this exact plan row.
-        workoutId: (todayPlan as { id?: string | null }).id ?? null,
+        // Deep-links the Beat 4 route button at the prescribed workout. This
+        // is `workout_id` — the library key the route builder resolves — not
+        // the plan row's own uuid, which resolves to nothing.
+        workoutId: (todayPlan as { workout_id?: string | null }).workout_id ?? null,
       }
     : null;
 

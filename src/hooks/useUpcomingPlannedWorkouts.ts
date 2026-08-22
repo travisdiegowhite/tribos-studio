@@ -4,14 +4,16 @@
  * workout picker.
  *
  * One-shot fetch on mount (no Realtime) via the frontend Supabase singleton.
- * Rows whose `workout_id` doesn't resolve in either library are dropped —
- * without a structure there's nothing to overlay.
+ * Rows are resolved through `resolvePlannedWorkout`, so an arc-generated row
+ * that names no library workout still contributes the closest stand-in for
+ * its type and length (flagged `inferred`). Only rows with nothing paintable
+ * at all — rest days, off-bike work — are dropped.
  */
 
 import { useEffect, useState } from 'react';
 import { supabase } from '../lib/supabase';
 import { getTodayString } from '../utils/dateUtils';
-import { getAnyWorkoutById } from '../data/workoutLookup';
+import { resolvePlannedWorkout } from '../data/workoutResolution';
 import type { WorkoutDefinition } from '../types/training';
 
 export interface UpcomingPlannedWorkout {
@@ -19,6 +21,8 @@ export interface UpcomingPlannedWorkout {
   scheduledDate: string;
   name: string;
   workout: WorkoutDefinition;
+  /** True when `workout` is a stand-in matched by type + length, not the row's own prescription. */
+  inferred: boolean;
   targetDurationMinutes: number | null;
   targetDistanceKm: number | null;
 }
@@ -54,15 +58,15 @@ export function useUpcomingPlannedWorkouts(userId: string | null | undefined) {
 
       const enriched: UpcomingPlannedWorkout[] = [];
       for (const row of data ?? []) {
-        if (!row.workout_id) continue;
-        const workout = getAnyWorkoutById(row.workout_id);
-        if (!workout) continue;
+        const resolved = resolvePlannedWorkout(row);
+        if (!resolved) continue;
         enriched.push({
           id: row.id,
           scheduledDate: row.scheduled_date,
-          name: row.name ?? workout.name,
-          workout,
-          targetDurationMinutes: row.target_duration ?? null,
+          name: row.name ?? resolved.workout.name,
+          workout: resolved.workout,
+          inferred: resolved.inferred,
+          targetDurationMinutes: row.target_duration ?? row.duration_minutes ?? null,
           targetDistanceKm: row.target_distance_km ?? null,
         });
       }

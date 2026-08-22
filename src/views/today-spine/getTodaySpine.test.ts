@@ -497,13 +497,19 @@ describe('assembleSpine — beat inputs', () => {
     ...over,
   });
 
-  it('carries the plan row id through so the route link can deep-link it', () => {
+  it('carries the library workout id through so the route link can deep-link it', () => {
     const data = assembleSpine(
       baseInput({
-        todaysWorkout: { name: 'Session', type: 'tempo', durationMin: 60, targetRss: 55, workoutId: 'plan-42' },
+        todaysWorkout: {
+          name: 'Session',
+          type: 'tempo',
+          durationMin: 60,
+          targetRss: 55,
+          workoutId: 'two_by_twenty_tempo',
+        },
       }),
     );
-    expect(data.todaysWorkout?.workoutId).toBe('plan-42');
+    expect(data.todaysWorkout?.workoutId).toBe('two_by_twenty_tempo');
   });
 
   it('defaults the workout id to null rather than undefined', () => {

@@ -10,7 +10,7 @@ function vm(over: Partial<Beat4VM> = {}): Beat4VM {
     state: 'route',
     prompt: 'Want a route for that?',
     ctaLabel: 'Build my route',
-    href: '/ride/new?workoutId=plan-7&duration=75',
+    href: '/ride/new?workoutId=four_by_eight_vo2&duration=75',
     ...over,
   };
 }
@@ -30,7 +30,7 @@ describe('Beat4Route', () => {
     renderBeat(vm());
     expect(screen.getByText('Want a route for that?')).toBeTruthy();
     const cta = screen.getByText('Build my route');
-    expect(cta.getAttribute('href')).toBe('/ride/new?workoutId=plan-7&duration=75');
+    expect(cta.getAttribute('href')).toBe('/ride/new?workoutId=four_by_eight_vo2&duration=75');
   });
 
   it('offers the library instead on a day with nothing to build for', () => {
