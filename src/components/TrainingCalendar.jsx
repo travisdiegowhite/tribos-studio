@@ -43,6 +43,7 @@ import { useRouteBuilderStore } from '../stores/routeBuilderStore';
 import { getWeatherSeverity, formatTemperature } from '../utils/weather';
 import { buildWorkoutRouteHref } from '../utils/workoutRouteHref';
 import { buildLibraryWorkoutRow, computeWeekNumber } from '../utils/plannedWorkoutFromLibrary';
+import { workoutDefinitionFromRow } from '../utils/customWorkoutRow';
 import { useActivityAutoLink } from '../hooks/useActivityAutoLink';
 import { useUserAvailability } from '../hooks/useUserAvailability';
 import { useTrainingPlan } from '../hooks/useTrainingPlan';
@@ -268,9 +269,11 @@ const TrainingCalendar = ({ activePlan, rides = [], formatDistance: formatDistan
       // User-scoped read: every planned workout in range, across all of the athlete's
       // plans. The grid places each by scheduled_date, so plan membership doesn't affect
       // rendering. (RLS still restricts to the athlete's own rows via user_id.)
+      // The embed carries a coach-authored workout's structure through the
+      // template_id FK; library-backed rows simply have no template.
       const { data } = await supabase
         .from('planned_workouts')
-        .select('*')
+        .select('*, workout_templates(*)')
         .eq('user_id', user.id)
         .gte('scheduled_date', startDateStr)
         .lte('scheduled_date', endDateStr);
@@ -563,7 +566,12 @@ const TrainingCalendar = ({ activePlan, rides = [], formatDistance: formatDistan
   // Map a raw Supabase workout row to PlannerWorkout shape for WorkoutModal
   const mapToModalWorkout = (raw) => {
     if (!raw) return null;
-    const libraryDef = raw.workout_id ? getWorkoutById(raw.workout_id) : undefined;
+    const libraryDef =
+    (raw.workout_id ? getWorkoutById(raw.workout_id) : undefined) ||
+    // A coach-authored workout resolves from its embedded template rather than
+    // the library, so the modal shows its real structure instead of a stub.
+    workoutDefinitionFromRow(raw) ||
+    undefined;
     // Fall back to a minimal definition synthesized from the row so the modal
     // still opens (and stays editable) for rest days / coach / custom workouts
     // whose workout_id doesn't resolve to the library. WorkoutModal returns null
@@ -1592,7 +1600,10 @@ const TrainingCalendar = ({ activePlan, rides = [], formatDistance: formatDistan
                             mb={2}
                             style={{ color: workout.completed ? 'var(--color-text-secondary)' : 'var(--color-text-primary)' }}
                           >
-                            {getWorkoutById(workout.workout_id)?.name || WORKOUT_TYPES[workout.workout_type]?.name || 'Workout'}
+                            {/* The row's own name first: a coach-authored workout has
+                                no library entry, so resolving library-first left it
+                                showing a generic type label. */}
+                            {workout.name || getWorkoutById(workout.workout_id)?.name || WORKOUT_TYPES[workout.workout_type]?.name || 'Workout'}
                           </Text>
                           {/* Duration and TSS - prominent */}
                           <Group gap={8}>

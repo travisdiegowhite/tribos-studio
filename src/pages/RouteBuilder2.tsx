@@ -108,6 +108,8 @@ import {
 } from '../features/route-builder-v2/arrival/arrivalSession';
 import { rankPastRidesByFit } from '../features/route-builder-v2/arrival/rankPastRides';
 import { calculatePersonalizedETA } from '../utils/personalizedETA';
+import { parseWorkoutDescription, saveCustomWorkout } from '../utils/customWorkoutService';
+import { getTodayString } from '../utils/dateUtils';
 import { buildTargetAccuracy, describeTargetMiss } from '../utils/routeTargets.js';
 import RoadPreferencesCard from '../components/settings/RoadPreferencesCard.jsx';
 import BikeInfrastructureLegend from '../components/BikeInfrastructureLegend.jsx';
@@ -228,12 +230,24 @@ export default function RouteBuilder2() {
         Number.isFinite(dist) && dist > 0 ? dist : arrivalCtx?.distanceKm ?? undefined,
     };
   });
-  const attachedWorkout = useMemo(
-    () => (pickedWorkoutId ? getAnyWorkoutById(pickedWorkoutId) : null),
-    [pickedWorkoutId],
-  );
-  const hasWorkout = !!attachedWorkout;
+  // A workout the rider's coach gave them, just saved this session.
+  const [customWorkout, setCustomWorkout] = useState<WorkoutDefinition | null>(null);
+  const [customPlannedId, setCustomPlannedId] = useState<string | null>(null);
   const upcomingPlanned = useUpcomingPlannedWorkouts(user?.id ?? null);
+
+  const attachedWorkout = useMemo(() => {
+    if (!pickedWorkoutId) return null;
+    // A coach-authored workout resolves from what was just saved or from the
+    // upcoming list (both carry the embedded template); the library covers
+    // everything else.
+    if (customWorkout?.id === pickedWorkoutId) return customWorkout;
+    return (
+      getAnyWorkoutById(pickedWorkoutId) ??
+      upcomingPlanned.workouts.find((p) => p.workout.id === pickedWorkoutId)?.workout ??
+      null
+    );
+  }, [pickedWorkoutId, customWorkout, upcomingPlanned.workouts]);
+  const hasWorkout = !!attachedWorkout;
 
   const workoutName = attachedWorkout?.name ?? arrivalCtx?.workoutName ?? null;
   // Start-location preference typed into the arrival card; seeds the generate
@@ -252,11 +266,15 @@ export default function RouteBuilder2() {
   // which the calendar and Today page already populate.
   const workoutRef = useMemo(
     () => ({
-      plannedWorkoutId: searchParams.get('plannedWorkoutId') ?? arrivalCtx?.plannedWorkoutId ?? null,
+      plannedWorkoutId:
+        customPlannedId ??
+        searchParams.get('plannedWorkoutId') ??
+        arrivalCtx?.plannedWorkoutId ??
+        null,
       scheduledDate: searchParams.get('scheduledDate') ?? arrivalCtx?.scheduledDate ?? null,
       workoutId: pickedWorkoutId,
     }),
-    [searchParams, arrivalCtx, pickedWorkoutId],
+    [searchParams, arrivalCtx, pickedWorkoutId, customPlannedId],
   );
 
   const formSeed = useMemo<GenerateFormSeed | undefined>(() => {
@@ -1339,6 +1357,41 @@ export default function RouteBuilder2() {
     trackRb2('workout_attached', { workout_id: workout.id, source: planned ? 'planned' : 'library' });
   };
 
+  // A workout the rider's coach gave them: read it, save it as a template they
+  // own, schedule it, and attach it to this build. Saving is what makes it
+  // reusable — the same session next week is one more dated row, not a
+  // re-typed description.
+  const handleDescribeWorkout = useCallback(
+    async ({ description, name }: { description: string; name: string | null }) => {
+      if (!user?.id) return { ok: false, message: 'Sign in to add a workout.' };
+      trackRb2('custom_workout_described', {});
+      const parsed = await parseWorkoutDescription({ description, name });
+      if (!parsed.ok) {
+        trackRb2('custom_workout_parse_failed', { needs_detail: parsed.needsDetail });
+        return { ok: false, message: parsed.message };
+      }
+      const saved = await saveCustomWorkout({
+        userId: user.id,
+        workout: parsed.workout,
+        description: parsed.description,
+        scheduledDate: getTodayString(),
+      });
+      if (!saved.ok || !saved.workout) {
+        return { ok: false, message: saved.message ?? 'Could not save that workout.' };
+      }
+      trackRb2('custom_workout_saved', { category: parsed.workout.category });
+      setCustomWorkout(saved.workout);
+      setCustomPlannedId(saved.plannedWorkoutId ?? null);
+      upcomingPlanned.refresh?.();
+      handleSelectWorkout(saved.workout, {
+        targetDurationMinutes: saved.workout.duration ?? null,
+        targetDistanceKm: null,
+      });
+      return { ok: true };
+    },
+    [user?.id, upcomingPlanned],
+  );
+
   const handleClearWorkout = () => {
     setPickedWorkoutId(null);
     setSeedOverride({});
@@ -1713,6 +1766,7 @@ export default function RouteBuilder2() {
             selectedWorkoutId={pickedWorkoutId}
             onSelect={handleSelectWorkout}
             onClear={handleClearWorkout}
+            onDescribeWorkout={handleDescribeWorkout}
           />
         ),
       },
@@ -2014,6 +2068,7 @@ export default function RouteBuilder2() {
               selectedWorkoutId={pickedWorkoutId}
               onSelect={handleSelectWorkout}
               onClear={handleClearWorkout}
+              onDescribeWorkout={handleDescribeWorkout}
               isMobile
             />
           </Box>

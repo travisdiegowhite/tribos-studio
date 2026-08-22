@@ -13,7 +13,7 @@
  * empty "Planned" tab.
  */
 
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { supabase } from '../lib/supabase';
 import { getTodayString } from '../utils/dateUtils';
 import { getAnyWorkoutById } from '../data/workoutLookup';
@@ -32,6 +32,10 @@ export interface UpcomingPlannedWorkout {
 export function useUpcomingPlannedWorkouts(userId: string | null | undefined) {
   const [workouts, setWorkouts] = useState<UpcomingPlannedWorkout[]>([]);
   const [loading, setLoading] = useState(false);
+  // Bumped to re-run the fetch after a workout is added, so a session the
+  // rider just described shows up in the Planned tab without a reload.
+  const [reloadToken, setReloadToken] = useState(0);
+  const refresh = useCallback(() => setReloadToken((n) => n + 1), []);
 
   useEffect(() => {
     if (!userId) {
@@ -79,7 +83,7 @@ export function useUpcomingPlannedWorkouts(userId: string | null | undefined) {
     return () => {
       cancelled = true;
     };
-  }, [userId]);
+  }, [userId, reloadToken]);
 
-  return { workouts, loading };
+  return { workouts, loading, refresh };
 }

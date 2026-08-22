@@ -7,11 +7,22 @@
  * up the interval overlay and seeds the generate form (handled by the page).
  *
  * Presentational only — planned workouts are passed in (fetched by the page via
- * useUpcomingPlannedWorkouts); the libraries are enumerated locally.
+ * useUpcomingPlannedWorkouts); the libraries are enumerated locally. The
+ * "Coach" tab is the same: it collects a description and hands it to
+ * `onDescribeWorkout`, which the page owns (parse + persist).
  */
 
 import { useMemo, useState } from 'react';
-import { Box, Text, TextInput, SegmentedControl, ScrollArea, UnstyledButton } from '@mantine/core';
+import {
+  Box,
+  Button,
+  Text,
+  TextInput,
+  Textarea,
+  SegmentedControl,
+  ScrollArea,
+  UnstyledButton,
+} from '@mantine/core';
 import { MagnifyingGlass, X, Bicycle, PersonSimpleRun } from '@phosphor-icons/react';
 import { RB2, RB2_FONT } from './brand';
 import { getCyclingWorkouts, getRunningWorkouts } from '../../../data/workoutLookup';
@@ -27,10 +38,19 @@ export interface WorkoutPickerPanelProps {
     planned?: { targetDurationMinutes: number | null; targetDistanceKm: number | null },
   ) => void;
   onClear: () => void;
+  /**
+   * Read a workout the rider's coach gave them and attach it. Resolves with a
+   * message when the description was too vague to structure — worth showing
+   * verbatim rather than a generic failure, since it says what's missing.
+   */
+  onDescribeWorkout?: (input: {
+    description: string;
+    name: string | null;
+  }) => Promise<{ ok: boolean; message?: string }>;
   isMobile?: boolean;
 }
 
-type Tab = 'planned' | 'bike' | 'run';
+type Tab = 'planned' | 'bike' | 'run' | 'describe';
 
 // Render order for category groups; anything unlisted falls to the end.
 const CATEGORY_ORDER = [
@@ -116,10 +136,36 @@ export function WorkoutPickerPanel({
   selectedWorkoutId,
   onSelect,
   onClear,
+  onDescribeWorkout,
   isMobile = false,
 }: WorkoutPickerPanelProps) {
   const [tab, setTab] = useState<Tab>(plannedWorkouts.length > 0 ? 'planned' : 'bike');
   const [query, setQuery] = useState('');
+  const [describeName, setDescribeName] = useState('');
+  const [describeText, setDescribeText] = useState('');
+  const [describeError, setDescribeError] = useState<string | null>(null);
+  const [isReading, setIsReading] = useState(false);
+
+  const handleDescribe = async () => {
+    const description = describeText.trim();
+    if (!description || !onDescribeWorkout) return;
+    setIsReading(true);
+    setDescribeError(null);
+    try {
+      const result = await onDescribeWorkout({
+        description,
+        name: describeName.trim() || null,
+      });
+      if (result.ok) {
+        setDescribeText('');
+        setDescribeName('');
+      } else {
+        setDescribeError(result.message ?? "That workout couldn't be read.");
+      }
+    } finally {
+      setIsReading(false);
+    }
+  };
 
   const library = tab === 'run' ? RUNNING_LIBRARY : CYCLING_LIBRARY;
   const groups = useMemo(() => {
@@ -152,6 +198,7 @@ export function WorkoutPickerPanel({
           { label: `Planned${plannedWorkouts.length ? ` (${plannedWorkouts.length})` : ''}`, value: 'planned' },
           { label: 'Bike', value: 'bike' },
           { label: 'Run', value: 'run' },
+          ...(onDescribeWorkout ? [{ label: 'Coach', value: 'describe' }] : []),
         ]}
         styles={{ root: { borderRadius: 0 }, indicator: { borderRadius: 0 } }}
       />
@@ -176,11 +223,74 @@ export function WorkoutPickerPanel({
         </UnstyledButton>
       )}
 
-      {tab === 'planned' ? (
+      {tab === 'describe' ? (
+        <Box style={{ marginTop: 8 }}>
+          <Text
+            style={{
+              fontFamily: RB2_FONT.body,
+              fontSize: 12,
+              color: RB2.textTertiary,
+              marginBottom: 8,
+            }}
+          >
+            Describe the session your coach gave you. It gets saved so you can ride
+            it again.
+          </Text>
+          <TextInput
+            data-testid="rb2-describe-name"
+            value={describeName}
+            onChange={(e) => setDescribeName(e.currentTarget.value)}
+            placeholder="Name (optional)"
+            size="xs"
+            disabled={isReading}
+            styles={{ input: { borderRadius: 0 } }}
+          />
+          <Textarea
+            data-testid="rb2-describe-text"
+            value={describeText}
+            onChange={(e) => {
+              setDescribeText(e.currentTarget.value);
+              if (describeError) setDescribeError(null);
+            }}
+            placeholder={'e.g. 15min warmup, 4x8min @ threshold with 5min easy between, 10min cooldown'}
+            autosize
+            minRows={3}
+            maxRows={7}
+            size="xs"
+            disabled={isReading}
+            styles={{ input: { borderRadius: 0, marginTop: 6 } }}
+          />
+          {describeError && (
+            <Text
+              data-testid="rb2-describe-error"
+              style={{
+                fontFamily: RB2_FONT.body,
+                fontSize: 11,
+                color: RB2.coral,
+                marginTop: 6,
+              }}
+            >
+              {describeError}
+            </Text>
+          )}
+          <Button
+            data-testid="rb2-describe-submit"
+            onClick={() => void handleDescribe()}
+            disabled={!describeText.trim() || isReading}
+            loading={isReading}
+            size="xs"
+            fullWidth
+            styles={{ root: { borderRadius: 0, marginTop: 8 } }}
+          >
+            {isReading ? 'Reading…' : 'Use this workout'}
+          </Button>
+        </Box>
+      ) : tab === 'planned' ? (
         <Box style={{ marginTop: 8 }}>
           {plannedWorkouts.length === 0 ? (
             <Text style={{ fontFamily: RB2_FONT.body, fontSize: 12, color: RB2.textTertiary, padding: '8px 0' }}>
-              No upcoming planned workouts. Browse the Bike or Run library to ride any workout.
+              No upcoming planned workouts. Browse the Bike or Run library, or use
+              Coach to describe one you were given.
             </Text>
           ) : (
             listBody(

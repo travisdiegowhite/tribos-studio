@@ -149,7 +149,80 @@ These are the first `shorter` tests in the repo.
    whose reported delta isn't the delivered one — which is why iterating in chat
    never lands on the number.
 
-## Phase 3 — route for the workout the rider actually has (not yet built)
+## Phase 3 — route for the workout the rider actually has (shipped)
+
+**The prescription lookup was wrong twice.** It asked for "today's first
+incomplete workout" regardless of which workout the rider clicked, so building a
+route for Saturday's threshold session described today's recovery spin. And
+"today" came from `new Date().toISOString().slice(0,10)` — a UTC date — so a
+rider west of UTC got tomorrow's workout from early afternoon onward.
+`getPrescriptionFor` now resolves most-specific-first (exact row → date +
+workout → date → today) and takes the rider's own date; the coach endpoint
+receives it too, so generation and chat agree.
+
+**The Today page's ROUTE card never attached anything.** It passed the
+`planned_workouts` row id in the `workoutId` param — the *library* key — so the
+builder looked a UUID up in the workout library and missed every time. It
+travels as `plannedWorkoutId` now. The existing test had encoded the bug.
+
+**Coach workouts were dropped entirely.** `useUpcomingPlannedWorkouts` skipped
+any row whose `workout_id` didn't resolve in the library, so they never appeared
+in the builder's Planned tab; and the prescription returned `terrainType: null,
+structure: null`, so `deriveRoutingImplications` never fired for exactly the
+riders who needed it.
+
+### No migration — production already had the schema
+
+Querying production before writing one turned up substantial drift from what
+migrations 009/010 describe:
+
+| Assumed | Reality |
+|---|---|
+| no `description` column | already exists (0 populated) |
+| needs a new `structure JSONB` | a spare `intervals JSONB` already exists |
+| `plan_id NOT NULL` | **nullable** (`ON DELETE SET NULL`) |
+| — | `template_id` already FKs to a live `workout_templates` table |
+
+`workout_templates` has RLS enabled with a `"Users manage own templates"` policy
+(`FOR ALL`, `auth.uid() = user_id`) that already permits exactly these writes.
+So a coach's workout is a template the rider owns, scheduled by a
+`planned_workouts` row pointing at it — the session a coach repeats weekly is
+one template scheduled many times, not a structure copied onto every date. And
+because `plan_id` is nullable and Postgres treats NULLs as distinct in
+`unique_plan_scheduled_date`, a rider with no active plan is not a special case.
+
+### The parser
+
+`api/parse-workout-text.js` reads coach shorthand ("4x8 @ SS, 5' RBI") into a
+`WorkoutStructure`. Runs once at save time, never on the route-building path.
+Tool use rather than `output_config` — the pinned SDK predates structured
+outputs — with `normalizeWorkoutParse` as the server-side gate. It rejects a
+half-built structure rather than storing one: a partial parse produces a
+confidently wrong route, which is worse than an honest failure. When the model
+declines to call the tool at all, its explanation of what's missing is shown
+verbatim so the rider can add it.
+
+### Two doors
+
+The **Coach tab** in the builder's workout picker, and the calendar (which now
+prefers the row's own name and embeds the template so custom rows render
+properly). Both write the same template + dated row. `workoutDefinitionFromRow`
+resolves a custom workout from the embedded template at three points; the other
+21 synchronous library call sites are library-only paths and stay untouched.
+
+Terrain reaches the router via `elevationSeedFor`, which turns a workout's
+`terrainType` into an elevation target — the form's `Goal` enum has no climbing
+value, so hilliness would otherwise be lost between a hill session and a tempo
+ride.
+
+### Still held back
+
+Anchoring routes on real `training_segments` that fit the workout's main block.
+`extractWorkoutRequirements` and the `get_matches` action already exist for it.
+Until that lands, a sustained-interval requirement is something the prompt
+*asks* for, not something the geometry guarantees.
+
+## Phase 3 — original scope (for reference)
 
 1. `getTodaysPrescription` is date-locked to `today` and ignores the
    `workoutId`/`scheduledDate` the builder was handed, so building a route for
