@@ -26,22 +26,39 @@ export const ZONE_COLORS = {
 };
 
 /**
- * Route-specific zone colors — vivid off-palette colors for map route lines.
- * These intentionally break the Parchment to Bone palette so they pop
- * against the muted geological basemap. The route is data, not brand.
+ * Route-specific zone colors — vivid off-palette colors for map route lines
+ * and the workout-overlay elevation bands. These intentionally break the
+ * Parchment to Bone palette so they pop against the muted geological
+ * basemap. The route is data, not brand.
+ *
+ * One distinct hue per zone, ramped cool → hot with effort. Earlier versions
+ * bucketed neighbours onto a shared color (Z1 with Z2, Z3 with Z3.5, Z6 with
+ * Z7), which read as a bug the moment the overlay legend listed those zones
+ * as separate rows with identical swatches. Keep every value distinct.
+ *
+ * The bands paint at ~18% opacity over the elevation chart, which crushes
+ * lightness differences, so separation has to come from HUE — entries are
+ * spaced around the wheel rather than shaded. The spacing is tuned against
+ * the zone pairs the workout library actually puts in one session (Z1+Z2 is
+ * far and away the most common, in 26 workouts); every such pair clears
+ * ΔE ≈ 13 at band opacity, which the zoneColors test enforces.
  */
 export const ROUTE_ZONE_COLORS = {
-  1: '#4ECDC4', // Z1–Z2 Recovery — teal
-  2: '#4ECDC4', // Z1–Z2 Recovery — teal
-  3: '#FF6B4A', // Z3 Endurance — coral (default/primary route color)
-  3.5: '#FF6B4A', // Sweet Spot — same as endurance
-  4: '#FFBE2E', // Z4 Tempo — amber
-  5: '#FF4E8E', // Z5 VO2max — hot pink
-  6: '#B44EFF', // Z6+ Sprint — purple
-  7: '#B44EFF', // Z6+ Sprint — purple
+  1: '#3E9BE8', // Z1 Recovery — blue
+  2: '#21C46A', // Z2 Endurance — green
+  3: '#D9D22B', // Z3 Tempo — yellow
+  3.5: '#F2871B', // Z3.5 Sweet Spot — orange
+  4: '#FF6B4A', // Z4 Threshold — coral
+  5: '#F5259B', // Z5 VO2max — magenta
+  6: '#A93FFF', // Z6 Anaerobic — purple
+  7: '#6A35D9', // Z7 Neuromuscular — violet
 };
 
-/** Default route color when no workout zone is active (Z3 Endurance) */
+/**
+ * Default route color when no workout zone is active. Shares its value with
+ * Z4 Threshold — the two never appear together (the plain route line is
+ * hidden while the interval overlay paints).
+ */
 export const DEFAULT_ROUTE_COLOR = '#FF6B4A';
 
 /**
@@ -77,7 +94,7 @@ export function getZoneColor(zone) {
  * @returns {string} Hex color
  */
 export function getRouteZoneColor(zone) {
-  return ROUTE_ZONE_COLORS[zone] || ROUTE_ZONE_COLORS[3];
+  return ROUTE_ZONE_COLORS[zone] || DEFAULT_ROUTE_COLOR;
 }
 
 /**
