@@ -113,6 +113,9 @@ export default async function handler(req, res) {
     const { persona, prescription, fitnessState, familiarRoads, weather } =
       await collectRouteCoachContext(supabase, userId, routeSnapshot, {
         planAware: isPlanAware,
+        // The rider's own date, so the prescription lookup agrees with the
+        // generation-side one instead of both guessing at UTC.
+        userLocalDate,
       });
 
     const systemPrompt = buildRouteCoachSystemPrompt({

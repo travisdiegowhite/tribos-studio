@@ -4,14 +4,20 @@
  * workout picker.
  *
  * One-shot fetch on mount (no Realtime) via the frontend Supabase singleton.
- * Rows whose `workout_id` doesn't resolve in either library are dropped —
- * without a structure there's nothing to overlay.
+ *
+ * A row resolves either from the workout library or, for a coach-authored
+ * session, from its embedded `workout_templates` row. Only rows that resolve
+ * to neither are dropped — without a structure there is nothing to overlay.
+ * Coach workouts used to fall into that gap and vanish from the picker
+ * entirely, which is why riders whose training comes from a human coach saw an
+ * empty "Planned" tab.
  */
 
 import { useEffect, useState } from 'react';
 import { supabase } from '../lib/supabase';
 import { getTodayString } from '../utils/dateUtils';
 import { getAnyWorkoutById } from '../data/workoutLookup';
+import { workoutDefinitionFromRow } from '../utils/customWorkoutRow';
 import type { WorkoutDefinition } from '../types/training';
 
 export interface UpcomingPlannedWorkout {
@@ -37,7 +43,7 @@ export function useUpcomingPlannedWorkouts(userId: string | null | undefined) {
     void (async () => {
       const { data, error } = await supabase
         .from('planned_workouts')
-        .select('*')
+        .select('*, workout_templates(*)')
         .eq('user_id', userId)
         .gte('scheduled_date', getTodayString())
         .eq('completed', false)
@@ -54,8 +60,9 @@ export function useUpcomingPlannedWorkouts(userId: string | null | undefined) {
 
       const enriched: UpcomingPlannedWorkout[] = [];
       for (const row of data ?? []) {
-        if (!row.workout_id) continue;
-        const workout = getAnyWorkoutById(row.workout_id);
+        const workout =
+          (row.workout_id ? getAnyWorkoutById(row.workout_id) : null) ??
+          workoutDefinitionFromRow(row);
         if (!workout) continue;
         enriched.push({
           id: row.id,

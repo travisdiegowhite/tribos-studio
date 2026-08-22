@@ -90,6 +90,13 @@ export interface GenerateFormSeed {
   elevationGainM?: number | '';
   /** Free-text start preference (address/place) — geocoded on submit. */
   startLocation?: string;
+  /**
+   * Identity of the planned workout this build is for, carried through to the
+   * prompt so it describes *that* session rather than today's.
+   */
+  plannedWorkoutId?: string | null;
+  scheduledDate?: string | null;
+  workoutId?: string | null;
 }
 
 export interface UseGenerateFormArgs {
@@ -102,6 +109,12 @@ export interface UseGenerateFormArgs {
   initialDistanceKm?: number | '';
   initialElevationGainM?: number | '';
   initialStartLocation?: string;
+  /** Planned-workout identity, forwarded verbatim to generation. */
+  workoutRef?: {
+    plannedWorkoutId?: string | null;
+    scheduledDate?: string | null;
+    workoutId?: string | null;
+  } | null;
   /**
    * The active route's routing profile (store `routeProfile`). When set, the
    * read-only summary chip reflects it — so a chat-generated gravel route
@@ -141,6 +154,7 @@ export function useGenerateForm({
   initialDistanceKm,
   initialElevationGainM,
   initialStartLocation,
+  workoutRef = null,
   activeRouteProfile = null,
 }: UseGenerateFormArgs) {
   // Seeding a distance (e.g. from a planned workout that specifies one) is
@@ -270,6 +284,9 @@ export function useGenerateForm({
           ? undefined
           : distanceKm,
       elevation_gain_m: elevationGainM === '' ? undefined : elevationGainM,
+      planned_workout_id: workoutRef?.plannedWorkoutId ?? null,
+      scheduled_date: workoutRef?.scheduledDate ?? null,
+      workout_id: workoutRef?.workoutId ?? null,
     });
   }, [
     generation,
@@ -284,6 +301,7 @@ export function useGenerateForm({
     elevationGainM,
     resolveStartCoord,
     startLocation,
+    workoutRef,
   ]);
 
   const onReset = useCallback(() => {

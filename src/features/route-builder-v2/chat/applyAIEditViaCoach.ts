@@ -17,6 +17,7 @@
  * `routeChanged` so `submitChatMessage` knows whether to suffix stats.
  */
 import { useRouteBuilderStore } from '../../../stores/routeBuilderStore';
+import { getTodayString } from '../../../utils/dateUtils';
 import { supabase } from '../../../lib/supabase';
 import { applyRouteEdit } from '../../../utils/aiRouteEditService';
 import { trackRb2 } from '../telemetry/trackRb2';
@@ -110,6 +111,10 @@ export async function applyAIEditViaCoach(
     dateString: now.toLocaleDateString('en-US', {
       weekday: 'long', year: 'numeric', month: 'long', day: 'numeric',
     }),
+    // The rider's own calendar date. The server used to derive this from a UTC
+    // timestamp, so anyone west of UTC had their prescription looked up against
+    // tomorrow from early afternoon onward.
+    isoDate: getTodayString(),
   };
 
   let data: {

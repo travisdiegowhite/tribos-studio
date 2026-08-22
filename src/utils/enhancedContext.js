@@ -18,6 +18,8 @@ import {
   formatDateHuman,
 } from './promptBuilders';
 import { computeBboxAround, computeDirectionalBias } from './geo';
+import { parseStoredStructure, templateOf } from './customWorkoutRow';
+import { getTodayString } from './dateUtils';
 import { haversineMeters, M_TO_KM } from './distanceUnits';
 import WORKOUT_LIBRARY from '../data/workoutLibrary';
 import { RUNNING_WORKOUT_LIBRARY } from '../data/runningWorkoutLibrary';
@@ -75,9 +77,17 @@ export class EnhancedContextCollector {
       // Unit 1: today's prescribed workout from planned_workouts +
       // workoutLibrary hydration. Unit 1.5: caller may suppress for the
       // current generation (user picked "Generate something else").
+      // The workout the rider actually clicked, when the builder passed its
+      // identity through — otherwise today's. See getPrescriptionFor.
       prescription: baseParams?.suppressPrescription
         ? null
-        : await this.getTodaysPrescription(userId),
+        : await this.getPrescriptionFor({
+            userId,
+            plannedWorkoutId: baseParams?.plannedWorkoutId ?? null,
+            scheduledDate: baseParams?.scheduledDate ?? null,
+            workoutId: baseParams?.workoutId ?? null,
+            localDate: baseParams?.localDate ?? null,
+          }),
       // Unit 2: coaching persona for prompt voice. Null when the user
       // hasn't completed onboarding (coaching_persona='pending') — the
       // prompt builder drops the COACH VOICE block entirely in that case.
@@ -679,31 +689,96 @@ export class EnhancedContextCollector {
    * legacy fallback per CLAUDE.md.
    */
   static async getTodaysPrescription(userId) {
-    const today = new Date().toISOString().slice(0, 10);
+    return this.getPrescriptionFor({ userId });
+  }
 
-    let data, error;
-    try {
-      const res = await supabase
-        .from('planned_workouts')
-        .select(
-          'id, scheduled_date, workout_id, workout_type, name, ' +
-          'target_rss, target_tss, target_duration, duration_minutes, ' +
-          'target_distance_km, completed, notes'
-        )
-        .eq('user_id', userId)
-        .eq('scheduled_date', today)
+  /**
+   * The prescribed workout a route is being built for.
+   *
+   * Resolves most-specific-first, because "today's first incomplete workout"
+   * is usually the wrong answer: the rider clicked a specific workout, often
+   * scheduled days out, and the builder carries its identity all the way here.
+   * Before this existed, building a route for Saturday's threshold session
+   * described today's recovery spin instead — or nothing at all.
+   *
+   *   1. the exact planned_workouts row the rider clicked
+   *   2. that date's row for the same library workout
+   *   3. that date's first incomplete row
+   *   4. today's first incomplete row (the legacy behaviour)
+   *
+   * `localDate` is the rider's own date. The previous implementation used
+   * `new Date().toISOString().slice(0,10)` — a UTC date — so a rider west of
+   * UTC got *tomorrow's* workout from early afternoon onward.
+   *
+   * @param {{
+   *   userId: string,
+   *   plannedWorkoutId?: string|null,
+   *   scheduledDate?: string|null,
+   *   workoutId?: string|null,
+   *   localDate?: string|null,
+   * }} params
+   */
+  static async getPrescriptionFor({
+    userId,
+    plannedWorkoutId = null,
+    scheduledDate = null,
+    workoutId = null,
+    localDate = null,
+  }) {
+    if (!userId) return null;
+    // The embed pulls a coach-authored workout's structure through the
+    // template_id FK. Library-backed rows simply have no template.
+    const COLUMNS =
+      'id, scheduled_date, workout_id, workout_type, name, ' +
+      'target_rss, target_tss, target_duration, duration_minutes, ' +
+      'target_distance_km, completed, notes, description, template_id, ' +
+      'workout_templates(id, name, description, workout_type, ' +
+      'duration_minutes, expected_tss, expected_if, intervals)';
+    const today = localDate || getTodayString();
+
+    const attempt = async (build) => {
+      try {
+        const res = await build(
+          supabase.from('planned_workouts').select(COLUMNS).eq('user_id', userId),
+        );
+        if (res.error) return null;
+        return res.data ?? null;
+      } catch (err) {
+        console.warn('getPrescriptionFor query failed:', err?.message);
+        return null;
+      }
+    };
+
+    const byDate = (date) => (q) =>
+      q
+        .eq('scheduled_date', date)
         .eq('completed', false)
         .order('id', { ascending: true })
         .limit(1)
         .maybeSingle();
-      data = res.data;
-      error = res.error;
-    } catch (err) {
-      console.warn('getTodaysPrescription query failed:', err?.message);
-      return null;
+
+    let data = null;
+    if (plannedWorkoutId) {
+      data = await attempt((q) => q.eq('id', plannedWorkoutId).maybeSingle());
+    }
+    if (!data && scheduledDate && workoutId) {
+      data = await attempt((q) =>
+        q
+          .eq('scheduled_date', scheduledDate)
+          .eq('workout_id', workoutId)
+          .order('id', { ascending: true })
+          .limit(1)
+          .maybeSingle(),
+      );
+    }
+    if (!data && scheduledDate) {
+      data = await attempt(byDate(scheduledDate));
+    }
+    if (!data) {
+      data = await attempt(byDate(today));
     }
 
-    if (error || !data) return null;
+    if (!data) return null;
 
     const libraryEntry =
       (data.workout_id && WORKOUT_LIBRARY[data.workout_id]) ||
@@ -711,6 +786,12 @@ export class EnhancedContextCollector {
       null;
 
     if (!libraryEntry) {
+      // Not in our library — i.e. a workout a human coach prescribed, which is
+      // the common case for riders who already have one. This branch used to
+      // return `terrainType: null, structure: null`, so the routing-implications
+      // machinery downstream never fired and the route request degraded to a
+      // bare duration. A parsed structure stored on the row now carries it.
+      const stored = parseStoredStructure(templateOf(data)?.intervals);
       const computedDuration =
         data.duration_minutes ??
         (data.target_duration != null ? Math.round(Number(data.target_duration) / 60) : null);
@@ -722,11 +803,11 @@ export class EnhancedContextCollector {
         difficulty: null,
         durationMin: computedDuration,
         targetRSS: data.target_rss ?? data.target_tss ?? null,
-        intensityRI: null,
-        description: null,
-        focusArea: null,
-        terrainType: null,
-        structure: null,
+        intensityRI: stored?.intensityFactor ?? null,
+        description: data.description ?? null,
+        focusArea: stored?.focusArea ?? null,
+        terrainType: stored?.terrainType ?? null,
+        structure: stored?.structure ?? null,
         cyclingStructure: null,
         coachNotes: data.notes ?? null,
         libraryEntryFound: false,

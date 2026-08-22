@@ -336,7 +336,11 @@ describe('Beat 4 — need a route for that?', () => {
   it('deep-links the planned workout through the shared arrival contract', () => {
     const { beat4 } = beats(planToday('threshold', 75, 'plan-row-7'));
     expect(beat4.state).toBe('route');
-    expect(beat4.href).toContain('workoutId=plan-row-7');
+    // TodaysWorkout.workoutId is the planned_workouts *row* id, so it travels
+    // as plannedWorkoutId. It used to be sent as `workoutId` — the library key
+    // — so the builder looked a row UUID up in the workout library and
+    // attached nothing.
+    expect(beat4.href).toContain('plannedWorkoutId=plan-row-7');
     expect(beat4.href).toContain('duration=75');
     expect(beat4.href).toContain('goal=threshold');
     // from=calendar is what opens the builder's pre-filled arrival form.
@@ -345,6 +349,7 @@ describe('Beat 4 — need a route for that?', () => {
 
   it('drops the workout id and name once the session has been traded down', () => {
     const { beat4 } = beats(planToday('threshold', 75, 'plan-row-7'), 'flat');
+    expect(beat4.href).not.toContain('plannedWorkoutId');
     expect(beat4.href).not.toContain('workoutId');
     expect(beat4.href).not.toContain('workoutName');
     expect(beat4.href).toContain('duration=75');

@@ -116,6 +116,15 @@ export interface GenerationFormInput {
   route_shape?: RouteShape;
   surface_mix?: SurfaceMix;
   like_ride_id?: string;
+  /**
+   * Identity of the planned workout this route is for. Without it the prompt
+   * falls back to "today's first incomplete workout", which is the wrong
+   * session whenever the rider planned ahead — and, before the local-date fix,
+   * often the wrong day too.
+   */
+  planned_workout_id?: string | null;
+  scheduled_date?: string | null;
+  workout_id?: string | null;
 }
 
 /**

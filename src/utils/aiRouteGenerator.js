@@ -130,6 +130,13 @@ export async function generateAIRoutes(params, onProgress = null) {
     // guess that produced it, and hills break that guess.
     targetMode = 'distance',
     targetDurationMinutes = null,
+    // Identity of the workout this route is being built for. Without these the
+    // prompt falls back to "today's first incomplete workout", which is the
+    // wrong session whenever the rider planned ahead.
+    plannedWorkoutId = null,
+    scheduledDate = null,
+    workoutId = null,
+    localDate = null,
   } = params;
 
   // T1.4 — wall-clock anchor for `generation_context_built.duration_ms`.
@@ -274,6 +281,10 @@ export async function generateAIRoutes(params, onProgress = null) {
       trainingContext,
       suppressPrescription,
       elevationGainTargetM,
+      plannedWorkoutId,
+      scheduledDate,
+      workoutId,
+      localDate,
     });
 
     trackRouteBuilder('generation_claude_responded', {

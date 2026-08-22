@@ -107,6 +107,13 @@ export function GenerateBar({
     initialDistanceKm: formSeed?.distanceKm,
     initialElevationGainM: formSeed?.elevationGainM,
     initialStartLocation: formSeed?.startLocation,
+    workoutRef: formSeed
+      ? {
+          plannedWorkoutId: formSeed.plannedWorkoutId,
+          scheduledDate: formSeed.scheduledDate,
+          workoutId: formSeed.workoutId,
+        }
+      : null,
     activeRouteProfile,
   });
 

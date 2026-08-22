@@ -244,7 +244,12 @@ function buildBeat4(data: SpineData, beat3: Beat3VM): Beat4VM {
       href: buildWorkoutRouteHref(
         {
           workout_type: beat3.session.type,
-          workout_id: beat3.downgraded ? null : data.todaysWorkout?.workoutId ?? null,
+          // `TodaysWorkout.workoutId` is the planned_workouts *row* id (see
+          // getTodaySpine.ts:780), so it belongs in `id`. It used to be passed
+          // as `workout_id` — the library key — which meant the builder looked
+          // a row UUID up in the workout library, always missed, and attached
+          // nothing.
+          id: beat3.downgraded ? null : data.todaysWorkout?.workoutId ?? null,
           name: beat3.downgraded ? null : data.todaysWorkout?.name ?? null,
           target_duration: Math.round(beat3.session.durationMin),
         },

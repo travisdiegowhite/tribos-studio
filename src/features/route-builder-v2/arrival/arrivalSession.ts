@@ -13,6 +13,8 @@
  */
 
 export interface ArrivalContext {
+  /** planned_workouts row id — the unambiguous handle on the session. */
+  plannedWorkoutId: string | null;
   workoutId: string | null;
   workoutName: string | null;
   /** Raw `planned_workouts.workout_type` from the calendar URL. */
@@ -50,6 +52,7 @@ function positiveNumber(raw: string | null): number | null {
 
 export function captureArrivalFromParams(params: URLSearchParams): ArrivalContext {
   return {
+    plannedWorkoutId: params.get('plannedWorkoutId'),
     workoutId: params.get('workoutId'),
     workoutName: params.get('workoutName'),
     goal: params.get('goal'),

@@ -16,6 +16,7 @@ import {
   DEFAULT_ROUTE_COLOR,
 } from '../../../components/ui/zoneColors';
 import { haversineKm } from '../../../utils/distanceUnits';
+import { flatSpeedKmh } from '../../../utils/routeTargets.js';
 import type { Coordinate } from '../../../types/geo';
 import type { Goal } from '../components/useGenerateForm';
 
@@ -90,6 +91,41 @@ export function categoryToGoal(category: string | null | undefined): Goal {
     default:
       return 'endurance';
   }
+}
+
+/**
+ * Climbing per km implied by a workout's terrain type.
+ *
+ * Bands line up with `hillsBiasForTarget` (routeTargets.js), which turns a
+ * gain-per-km into the router's `use_hills` cost.
+ */
+const TERRAIN_GAIN_M_PER_KM: Record<string, number> = {
+  flat: 4,
+  rolling: 12,
+  hilly: 24,
+};
+
+/**
+ * An elevation target for a workout, from its terrain type.
+ *
+ * `categoryToGoal` collapses `climbing` onto `tempo` because the form's Goal
+ * enum has no climbing value — so hilliness has to travel separately or a hill
+ * session and a tempo session produce an identical route request. This is how
+ * it travels.
+ *
+ * Returns '' (no target) for a workout with no terrain hint, so the form's
+ * elevation field stays empty rather than showing an invented number.
+ */
+export function elevationSeedFor(
+  workout: { terrainType?: string | null; duration?: number | null } | null | undefined,
+  overrideDurationMinutes?: number | null,
+): number | '' {
+  const gainPerKm = TERRAIN_GAIN_M_PER_KM[(workout?.terrainType ?? '').toLowerCase()];
+  if (!gainPerKm) return '';
+  const minutes = overrideDurationMinutes ?? workout?.duration ?? 0;
+  if (!(minutes > 0)) return '';
+  const km = (minutes / 60) * (flatSpeedKmh({ goal: 'endurance' }) as number);
+  return Math.round((km * gainPerKm) / 10) * 10;
 }
 
 const GOAL_VALUES: ReadonlySet<string> = new Set([

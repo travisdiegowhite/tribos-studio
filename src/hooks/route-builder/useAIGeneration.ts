@@ -16,6 +16,7 @@ import { enrichRouteElevation } from './elevationEnrichment';
 import { snapshotFromGeneratedRoute } from './routeSnapshot';
 import { loadSpeedProfile } from './useSpeedProfile';
 import { flatSpeedKmh } from '../../utils/routeTargets.js';
+import { getTodayString } from '../../utils/dateUtils';
 import type {
   GenerationFormInput,
   ResolvedRouteShape,
@@ -190,6 +191,15 @@ export function useAIGeneration(): UseAIGenerationReturn {
         // distance the time was converted into.
         targetMode: input.target_mode ?? 'time',
         targetDurationMinutes: durationMinutes,
+        // Which workout this route is for. The prompt builder resolves the
+        // prescription from these; without them it guesses at today's.
+        plannedWorkoutId: input.planned_workout_id ?? null,
+        scheduledDate: input.scheduled_date ?? null,
+        workoutId: input.workout_id ?? null,
+        // The rider's own date. The prescription lookup used to derive this
+        // from a UTC timestamp, so anyone west of UTC got tomorrow's workout
+        // from early afternoon onward.
+        localDate: getTodayString(),
       };
 
       try {

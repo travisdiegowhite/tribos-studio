@@ -7,6 +7,8 @@
  */
 
 export interface WorkoutRouteSource {
+  /** The planned_workouts row id — the only unambiguous handle on a session. */
+  id?: string | null;
   workout_type?: string | null;
   workout_id?: string | null;
   name?: string | null;
@@ -27,6 +29,11 @@ export function buildWorkoutRouteHref(
     duration,
     scheduledDate,
   });
+  // The row id resolves the exact session. `workoutId` alone is ambiguous (a
+  // library workout can be scheduled more than once) and was previously the
+  // only handle carried, which is part of why the prompt described the wrong
+  // day's workout.
+  if (workout.id) params.set('plannedWorkoutId', workout.id);
   if (workout.workout_id) params.set('workoutId', workout.workout_id);
   if (workout.target_distance_km) params.set('distance', String(workout.target_distance_km));
   if (workout.name) params.set('workoutName', workout.name);

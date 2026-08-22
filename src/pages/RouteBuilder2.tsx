@@ -136,6 +136,7 @@ import type { GenerateOutcome, RouteOptionSummary } from '../features/route-buil
 import { generateCuesFromWorkoutStructure } from '../utils/intervalCues.js';
 import {
   categoryToGoal,
+  elevationSeedFor,
   workoutTypeToGoal,
   type WorkoutCue,
 } from '../features/route-builder-v2/overlay/intervalOverlay';
@@ -246,13 +247,28 @@ export default function RouteBuilder2() {
   const [arrivalChoseNew, setArrivalChoseNew] = useState(arrivalInit.pendingNew);
   const showArrivalCard = arrivalStatus === 'open' && !!arrivalCtx;
 
+  // Identity of the workout being built for, forwarded to generation so the
+  // prompt describes *that* session. Sourced from the URL/arrival context,
+  // which the calendar and Today page already populate.
+  const workoutRef = useMemo(
+    () => ({
+      plannedWorkoutId: searchParams.get('plannedWorkoutId') ?? arrivalCtx?.plannedWorkoutId ?? null,
+      scheduledDate: searchParams.get('scheduledDate') ?? arrivalCtx?.scheduledDate ?? null,
+      workoutId: pickedWorkoutId,
+    }),
+    [searchParams, arrivalCtx, pickedWorkoutId],
+  );
+
   const formSeed = useMemo<GenerateFormSeed | undefined>(() => {
     if (attachedWorkout) {
       return {
         goal: categoryToGoal(attachedWorkout.category),
         durationMinutes: seedOverride.durationMinutes ?? attachedWorkout.duration,
         distanceKm: seedOverride.distanceKm ?? '',
+        // A hill session should ask for climbing, not just a duration.
+        elevationGainM: elevationSeedFor(attachedWorkout, seedOverride.durationMinutes),
         startLocation: arrivalStartLocation || undefined,
+        ...workoutRef,
       };
     }
     if (arrivalCtx) {
@@ -261,10 +277,11 @@ export default function RouteBuilder2() {
         durationMinutes: seedOverride.durationMinutes,
         distanceKm: seedOverride.distanceKm ?? '',
         startLocation: arrivalStartLocation || undefined,
+        ...workoutRef,
       };
     }
     return undefined;
-  }, [attachedWorkout, seedOverride, arrivalCtx, arrivalStartLocation]);
+  }, [attachedWorkout, seedOverride, arrivalCtx, arrivalStartLocation, workoutRef]);
 
   const generation = useAIGeneration();
   const editing = useRouteEditing();

@@ -235,8 +235,12 @@ export async function getFitnessState(supabase, userId) {
  *
  * targetRSS is read canonical-first with legacy fallback per CLAUDE.md.
  */
-export async function getTodaysPrescription(supabase, userId) {
-  const today = new Date().toISOString().slice(0, 10);
+export async function getTodaysPrescription(supabase, userId, localDate = null) {
+  // The rider's own date when the client sent one. Deriving it from a UTC
+  // timestamp meant anyone west of UTC got tomorrow's workout from early
+  // afternoon onward — and the generation-side lookup disagreeing with this
+  // one is worse than either being wrong alone.
+  const today = localDate || new Date().toISOString().slice(0, 10);
   try {
     const { data, error } = await supabase
       .from('planned_workouts')
@@ -376,7 +380,9 @@ export async function collectRouteCoachContext(supabase, userId, routeSnapshot, 
   const [persona, fitnessState, prescription, familiarRoads, weather] = await Promise.all([
     getCoachPersona(supabase, userId),
     planAware ? getFitnessState(supabase, userId) : Promise.resolve(null),
-    planAware ? getTodaysPrescription(supabase, userId) : Promise.resolve(null),
+    planAware
+      ? getTodaysPrescription(supabase, userId, options?.userLocalDate?.isoDate ?? null)
+      : Promise.resolve(null),
     getFamiliarRoads(supabase, userId, startLocation, targetDistanceKm),
     getRouteWeather(startLocation, coordinates),
   ]);

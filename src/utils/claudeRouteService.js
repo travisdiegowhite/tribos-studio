@@ -68,7 +68,9 @@ export async function generateClaudeRoutes(params) {
     let prompt;
     if (userId) {
       try {
-        // Pass trainingContext to the enhanced context collector
+        // `...params` also carries the workout identity (plannedWorkoutId /
+        // scheduledDate / workoutId / localDate) through to
+        // gatherDetailedPreferences, which resolves the prescription from it.
         const paramsWithContext = { ...params, trainingContext };
         const enhancedContext = await EnhancedContextCollector.gatherDetailedPreferences(userId, paramsWithContext);
         console.log('Using enhanced context for route generation');
