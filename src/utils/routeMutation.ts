@@ -23,9 +23,14 @@ export function computeDistanceKm(coordinates: ReadonlyArray<Coordinate>): numbe
 }
 
 /**
- * Re-snap a trimmed coordinate list to roads. Used for intents that
- * return `needsReroute: true` (currently `shorter`) — the raw trim
- * produces a straight chord that needs routing back onto the network.
+ * Re-snap a trimmed coordinate list to roads, for any intent that returns
+ * `needsReroute: true`.
+ *
+ * `shorter` used to be that intent, but it now reroutes and measures inside
+ * `aiRouteEditService` — the reported distance has to be the delivered one,
+ * and re-snapping here afterwards changed the length again. This stays as the
+ * generic path for future intents that hand back a raw trim; note it has no
+ * loop awareness, so a caller reusing it for a loop must close the geometry.
  */
 export async function rerouteShortened(
   trimmed: ReadonlyArray<Coordinate>,

@@ -82,7 +82,58 @@ also asserts the old arithmetic produced <70 minutes, so the bug can't quietly
 return. Shape coverage lives in `aiRouteGenerator.targets.test.ts`,
 `useAIGeneration.test.ts` and `useGenerateForm.test.tsx`.
 
-## Phase 2 — length as a promise (not yet built)
+## Phase 2 — length as a promise (shipped)
+
+**A Phase 1 gap closed first.** `setTrainingGoal` was never called from RB2 —
+the same class of bug as the `setRouteType` gap Phase 1 fixed — so
+`personalizedETA` always received a store goal of `'endurance'`. A tempo route
+was priced at the endurance pace on screen while generation had targeted tempo,
+reopening the disagreement at ~10%. The shared speed model was correct; the
+integration wasn't.
+
+**The rider says which number binds.** A `Target: Time | Distance` toggle
+(default time). The selected field is the hard constraint; the other renders
+read-only, derived through `flatSpeedKmh` from the rider's own speed profile.
+Only the binding one is sent as a target, so "90 minutes" and "40 km" can no
+longer silently fight.
+
+**Duration is a real target.** A distance derived from minutes is only as good
+as the pace guess behind it, and hills invalidate that guess. In time mode the
+generator now measures the ride time its route actually implies and rebuilds
+once against a corrected distance, keeping whichever attempt is closer *in
+time*. Budget: one extra routing call plus one elevation fetch. Skipped when
+Claude's named roads were used — rebuilding would discard real road
+intelligence for a length nudge, and the chip below keeps that case honest.
+
+Watch the units here: `directions.js fetchElevationProfile` reports per-point
+`distance` in **metres** while `personalizedETA` reads that field as
+**kilometres**. `estimateRideMinutes` converts at the seam and asserts it
+(T1.1); `aiRouteGenerator.eta.test.ts` is the guard.
+
+**Misses are reported, not hidden.** Tolerance tightened to 10%, and
+`buildTargetAccuracy` records target-versus-achieved on the route. The rider's
+request is stored as `routeTarget`, so `StatsOverlay` recomputes the gap from
+*live* stats — the target keeps tracking while the route is hand-edited rather
+than being a one-shot check. The chip reads "16 min under 90" and taps through
+to the route coach. `generation_completed` now carries the error, so the field
+miss-rate is visible.
+
+**Chat repair converges.** `applyShorterEdit` was a point-count trim whose
+reported delta was measured on the trimmed chord — before the caller snapped it
+back to roads, which changed the length again. It now trims, reroutes, measures
+and corrects once, inside the service, returning `needsReroute: false` and an
+accurate number (which fixes RB1's panel too). `applyLongerEdit`'s loop branch
+had no convergence at all and got the same treatment. The absolute
+`targetDistanceKm` now crosses from `routeEditTools` alongside the legacy
+delta, and direction comes from target-versus-current rather than the intent
+label — a `longer` edit with a target below the current distance used to extend
+the route. Finally, the coach writes its prose before any geometry runs, so
+when the delivered distance misses a distance the rider named, the reply says
+so instead of letting the claim stand next to a contradicting stat line.
+
+These are the first `shorter` tests in the repo.
+
+## Phase 2 — original scope (for reference)
 
 1. A `targetMode: 'time' | 'distance'` toggle, so the rider says which one
    binds; the other renders as a derived estimate.

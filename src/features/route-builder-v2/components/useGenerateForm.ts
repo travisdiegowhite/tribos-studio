@@ -11,11 +11,13 @@
  * Owns the form field state, the resolve→generate submit, and reset.
  */
 
-import { useCallback, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import type { UseAIGenerationReturn, UserLocationStatus } from '../../../hooks/route-builder';
 import type { Coordinate } from '../../../types/geo';
 import { trackRb2 } from '../telemetry/trackRb2';
 import { geocodeWaypoint } from '../../../utils/geocoding.js';
+import { useSpeedProfile } from '../../../hooks/route-builder';
+import { flatSpeedKmh } from '../../../utils/routeTargets.js';
 
 export type Goal =
   | 'endurance'
@@ -38,6 +40,22 @@ export type Surface = 'road' | 'gravel' | 'mountain' | 'mixed';
  * persisted.
  */
 export type Shape = 'round_trip' | 'loop' | 'out_back' | 'point_to_point';
+
+/**
+ * Which number the rider is actually asking for.
+ *
+ * The form used to collect both a duration (always populated) and an optional
+ * distance and send both, leaving the generator to decide — so a rider could
+ * never say "I have 90 minutes" without also implying a distance, or vice
+ * versa. The selected mode is the hard constraint; the other field is shown
+ * derived and read-only, so the two can't silently disagree.
+ */
+export type TargetMode = 'time' | 'distance';
+
+export const TARGET_MODE_OPTIONS: Array<{ value: TargetMode; label: string }> = [
+  { value: 'time', label: 'Time' },
+  { value: 'distance', label: 'Distance' },
+];
 
 export const GOAL_OPTIONS: Array<{ value: Goal; label: string }> = [
   { value: 'endurance', label: 'Endurance' },
@@ -125,6 +143,11 @@ export function useGenerateForm({
   initialStartLocation,
   activeRouteProfile = null,
 }: UseGenerateFormArgs) {
+  // Seeding a distance (e.g. from a planned workout that specifies one) is
+  // the rider asking for that distance; otherwise time binds.
+  const [targetMode, setTargetMode] = useState<TargetMode>(
+    typeof initialDistanceKm === 'number' && initialDistanceKm > 0 ? 'distance' : 'time',
+  );
   const [goal, setGoal] = useState<Goal>(initialGoal ?? 'endurance');
   const [duration, setDuration] = useState<number>(initialDurationMinutes ?? 60);
   const [surface, setSurface] = useState<Surface>('road');
@@ -134,6 +157,42 @@ export function useGenerateForm({
   const [elevationGainM, setElevationGainM] = useState<number | ''>(initialElevationGainM ?? '');
   const [localError, setLocalError] = useState<string | null>(null);
   const [isResolving, setIsResolving] = useState(false);
+
+  // The rider's own pace, so the derived field below is their estimate and
+  // not a generic one. Cached at module scope, shared with the ETA.
+  const speedProfile = useSpeedProfile();
+
+  const surfaceProfile = surface === 'mountain' ? 'mtb' : surface === 'mixed' ? 'gravel' : surface;
+
+  /**
+   * Flat-ground pace for the current goal/surface, from the same model that
+   * targets the route and prices the ETA — so the derived value the rider
+   * reads is the one generation will actually use.
+   */
+  const paceKmh = useMemo(
+    () =>
+      flatSpeedKmh({
+        goal,
+        routeProfile: surfaceProfile,
+        speedProfile: speedProfile ?? undefined,
+      }) as number,
+    [goal, surfaceProfile, speedProfile],
+  );
+
+  /** Distance implied by the requested time — shown when time binds. */
+  const derivedDistanceKm = useMemo(
+    () => (duration > 0 ? (duration / 60) * paceKmh : 0),
+    [duration, paceKmh],
+  );
+
+  /** Time implied by the requested distance — shown when distance binds. */
+  const derivedDurationMinutes = useMemo(
+    () =>
+      typeof distanceKm === 'number' && distanceKm > 0 && paceKmh > 0
+        ? Math.round((distanceKm / paceKmh) * 60)
+        : 0,
+    [distanceKm, paceKmh],
+  );
 
   const resolveStartCoord = useCallback(async (): Promise<Coordinate | null> => {
     // Priority chain mirrors RB1 (RouteBuilder.jsx:2238-2255):
@@ -170,6 +229,7 @@ export function useGenerateForm({
     setLocalError(null);
     trackRb2('form_submitted', {
       goal,
+      target_mode: targetMode,
       duration_minutes: duration,
       surface,
       shape,
@@ -193,21 +253,32 @@ export function useGenerateForm({
       );
       return;
     }
+    // Exactly one of the two binds. The other is sent as the derived estimate
+    // so the generator can seed from it, but only the binding one is treated
+    // as a target (see target_mode).
+    const bindsOnTime = targetMode === 'time';
     await generation.generate({
       goal,
-      duration_minutes: duration,
-      route_profile:
-        surface === 'mountain' ? 'mtb' : surface === 'mixed' ? 'gravel' : (surface as 'road' | 'gravel'),
+      target_mode: targetMode,
+      duration_minutes: bindsOnTime ? duration : derivedDurationMinutes || undefined,
+      route_profile: surfaceProfile as 'road' | 'gravel' | 'mtb',
       route_shape: shape,
       start_coord: start,
-      distance_km: distanceKm === '' ? undefined : distanceKm,
+      distance_km: bindsOnTime
+        ? undefined
+        : distanceKm === ''
+          ? undefined
+          : distanceKm,
       elevation_gain_m: elevationGainM === '' ? undefined : elevationGainM,
     });
   }, [
     generation,
     goal,
+    targetMode,
     duration,
+    derivedDurationMinutes,
     surface,
+    surfaceProfile,
     shape,
     distanceKm,
     elevationGainM,
@@ -216,6 +287,7 @@ export function useGenerateForm({
   ]);
 
   const onReset = useCallback(() => {
+    setTargetMode('time');
     setGoal('endurance');
     setDuration(60);
     setSurface('road');
@@ -237,6 +309,8 @@ export function useGenerateForm({
 
   return {
     // field state
+    targetMode,
+    setTargetMode,
     goal,
     setGoal,
     duration,
@@ -252,6 +326,9 @@ export function useGenerateForm({
     elevationGainM,
     setElevationGainM,
     // derived + status
+    paceKmh,
+    derivedDistanceKm,
+    derivedDurationMinutes,
     localError,
     setLocalError,
     isResolving,

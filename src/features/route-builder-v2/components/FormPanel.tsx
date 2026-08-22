@@ -7,7 +7,7 @@
  */
 
 import { forwardRef, useCallback, useImperativeHandle, useState } from 'react';
-import { Box, Text, UnstyledButton, Select, NumberInput, TextInput, Button, Loader } from '@mantine/core';
+import { Box, Text, UnstyledButton, Select, NumberInput, TextInput, Button, Loader, SegmentedControl } from '@mantine/core';
 import { CaretDown, CaretRight, X } from '@phosphor-icons/react';
 import { RB2, RB2_FONT } from './brand';
 import type { UseAIGenerationReturn, UserLocationStatus } from '../../../hooks/route-builder';
@@ -18,9 +18,11 @@ import {
   GOAL_OPTIONS,
   SURFACE_OPTIONS,
   SHAPE_OPTIONS,
+  TARGET_MODE_OPTIONS,
   type Goal,
   type Surface,
   type Shape,
+  type TargetMode,
   type GenerateFormSeed,
 } from './useGenerateForm';
 import {
@@ -55,6 +57,22 @@ export interface FormPanelProps {
   activeRouteProfile?: string | null;
 }
 
+/** A derived field reads as an estimate, not something to type into. */
+function derivedInputStyle(isDerived: boolean): React.CSSProperties {
+  return isDerived
+    ? { borderRadius: 0, color: RB2.textTertiary, cursor: 'default' }
+    : { borderRadius: 0 };
+}
+
+const hintStyle: React.CSSProperties = {
+  fontFamily: RB2_FONT.mono,
+  fontSize: 9,
+  lineHeight: 1.4,
+  letterSpacing: '0.04em',
+  color: RB2.textTertiary,
+  marginTop: 4,
+};
+
 const labelStyle: React.CSSProperties = {
   fontFamily: RB2_FONT.mono,
   fontSize: 10,
@@ -70,6 +88,8 @@ export const FormPanel = forwardRef<FormPanelHandle, FormPanelProps>(function Fo
 ) {
   const [expanded, setExpanded] = useState(defaultExpanded);
   const {
+    targetMode,
+    setTargetMode,
     goal,
     setGoal,
     duration,
@@ -84,6 +104,8 @@ export const FormPanel = forwardRef<FormPanelHandle, FormPanelProps>(function Fo
     setDistanceKm,
     elevationGainM,
     setElevationGainM,
+    derivedDistanceKm,
+    derivedDurationMinutes,
     localError,
     setLocalError,
     isResolving,
@@ -207,9 +229,32 @@ export const FormPanel = forwardRef<FormPanelHandle, FormPanelProps>(function Fo
             />
           </Box>
           <Box style={{ marginTop: 10 }}>
-            <Text style={labelStyle}>Duration (min)</Text>
+            <Text style={labelStyle}>Target</Text>
+            <SegmentedControl
+              data={TARGET_MODE_OPTIONS}
+              value={targetMode}
+              onChange={(v) => {
+                setTargetMode(v as TargetMode);
+                trackRb2('form_field_changed', { field: 'target_mode' });
+              }}
+              disabled={generation.isGenerating}
+              fullWidth
+              size="xs"
+              styles={{ root: { borderRadius: 0 }, indicator: { borderRadius: 0 } }}
+            />
+            <Text style={hintStyle}>
+              {targetMode === 'time'
+                ? 'Route is built to your time. Distance is an estimate at your pace.'
+                : 'Route is built to your distance. Time is an estimate at your pace.'}
+            </Text>
+          </Box>
+          <Box style={{ marginTop: 10 }}>
+            <Text style={labelStyle}>
+              Duration (min){targetMode === 'distance' ? ' · estimated' : ''}
+            </Text>
             <NumberInput
-              value={duration}
+              data-testid="rb2-duration-input"
+              value={targetMode === 'time' ? duration : derivedDurationMinutes}
               onChange={(v) => {
                 const n = typeof v === 'number' ? v : Number(v);
                 setDuration(Number.isFinite(n) ? n : 60);
@@ -218,8 +263,9 @@ export const FormPanel = forwardRef<FormPanelHandle, FormPanelProps>(function Fo
               min={10}
               max={600}
               step={15}
+              readOnly={targetMode !== 'time'}
               disabled={generation.isGenerating}
-              styles={{ input: { borderRadius: 0 } }}
+              styles={{ input: derivedInputStyle(targetMode !== 'time') }}
             />
           </Box>
           <Box style={{ marginTop: 10 }}>
@@ -254,18 +300,25 @@ export const FormPanel = forwardRef<FormPanelHandle, FormPanelProps>(function Fo
           </Box>
           <Box style={{ marginTop: 10, display: 'flex', gap: 8 }}>
             <Box style={{ flex: 1 }}>
-              <Text style={labelStyle}>Distance ({distanceUnit(isImperial)})</Text>
+              <Text style={labelStyle}>
+                Distance ({distanceUnit(isImperial)})
+                {targetMode === 'time' ? ' · estimated' : ''}
+              </Text>
               <NumberInput
                 data-testid="rb2-distance-input"
-                value={toDisplayDistance(distanceKm, isImperial)}
+                value={
+                  targetMode === 'distance'
+                    ? toDisplayDistance(distanceKm, isImperial)
+                    : toDisplayDistance(Math.round(derivedDistanceKm * 10) / 10, isImperial)
+                }
                 onChange={(v) => {
                   setDistanceKm(fromDisplayDistance(v, isImperial));
                   trackRb2('form_field_changed', { field: 'distance_km' });
                 }}
                 {...distanceBounds(isImperial)}
-                placeholder="auto"
+                readOnly={targetMode !== 'distance'}
                 disabled={generation.isGenerating}
-                styles={{ input: { borderRadius: 0 } }}
+                styles={{ input: derivedInputStyle(targetMode !== 'distance') }}
               />
             </Box>
             <Box style={{ flex: 1 }}>

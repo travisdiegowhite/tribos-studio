@@ -45,6 +45,13 @@ const initialState = {
   routeProfile: 'road',
   explicitDistanceKm: null, // When user specifies distance directly (e.g., "100km loop")
 
+  // What the rider actually asked for on the last generation:
+  //   { mode: 'time'|'distance', durationMinutes, distanceKm }
+  // Kept as a live budget rather than a one-shot check — the stats card keeps
+  // comparing against it while the route is hand-edited, so a rider shaping a
+  // route toward "90 minutes" can watch it converge. Cleared with the route.
+  routeTarget: null,
+
   // Race-specific fields (when trainingGoal === 'race')
   raceType: null,             // 'road_race', 'criterium', 'time_trial', etc.
   raceDate: null,             // ISO date string for race day
@@ -133,6 +140,11 @@ export const useRouteBuilderStore = create(
         lastSaved: Date.now()
       }),
 
+      setRouteTarget: (target) => set({
+        routeTarget: target,
+        lastSaved: Date.now()
+      }),
+
       setRouteProfile: (profile) => set({
         routeProfile: profile,
         lastSaved: Date.now()
@@ -209,6 +221,7 @@ export const useRouteBuilderStore = create(
         aiSuggestions: [],
         routingSource: null,
         explicitDistanceKm: null,
+        routeTarget: null,
         selectedWorkoutId: null,
         raceType: null,
         raceDate: null,
@@ -287,6 +300,7 @@ export const useRouteBuilderStore = create(
         routeType: state.routeType,
         routeProfile: state.routeProfile,
         explicitDistanceKm: state.explicitDistanceKm,
+        routeTarget: state.routeTarget,
         raceType: state.raceType,
         raceDate: state.raceDate,
         targetFinishMinutes: state.targetFinishMinutes,

@@ -223,9 +223,14 @@ export async function applyRouteEdit(params) {
       case 'faster':
         return await applyFasterEdit(coords, routeProfile, routeStats, isLoop);
       case 'shorter':
-        return applyShorterEdit(coords, routeStats, editIntent.distanceModifier, isLoop);
       case 'longer':
-        return await applyLongerEdit(coords, routeProfile, routeStats, editIntent.distanceModifier, isLoop);
+        return await (intent === 'shorter' ? applyShorterEdit : applyLongerEdit)(
+          coords,
+          routeProfile,
+          routeStats,
+          resolveDistanceGoalKm(intent, totalDistKm, editIntent),
+          isLoop,
+        );
       case 'reverse':
         return applyReverseEdit(coords, routeStats);
       case 'avoid':
@@ -533,53 +538,127 @@ async function applyFasterEdit(coords, profile, stats, isLoop) {
   };
 }
 
-function applyShorterEdit(coords, stats, targetReduction, isLoop) {
+/**
+ * How close a distance edit has to land before it stops correcting. Matches
+ * the generator's target tolerance so "make it 40 km" and "generate 40 km"
+ * mean the same thing to the rider.
+ */
+const DISTANCE_EDIT_TOLERANCE = 0.10;
+
+/**
+ * Resolve what the finished route should measure.
+ *
+ * The coach tool sends an absolute `targetDistanceKm` when the rider named one
+ * ("make it 40 km"); `distanceModifier` is the legacy delta. Working from the
+ * absolute target where we have it means the edit can be *measured* against
+ * what was asked for rather than hoping a delta lands.
+ */
+function resolveDistanceGoalKm(intent, totalDistKm, editIntent) {
+  const explicit = Number(editIntent?.targetDistanceKm);
+  if (Number.isFinite(explicit) && explicit > 0) return explicit;
+  const delta = Number(editIntent?.distanceModifier);
+  const step = Number.isFinite(delta) && delta > 0 ? delta : totalDistKm * 0.2;
+  return intent === 'shorter'
+    ? Math.max(totalDistKm * 0.4, totalDistKm - step)
+    : totalDistKm + step;
+}
+
+/**
+ * Trim a route toward a target distance.
+ *
+ * Trimming happens by *point count*, but router output is denser through
+ * turns — so cutting N% of the points does not cut N% of the kilometres, and
+ * the trimmed chord then has to be snapped back onto roads, which changes the
+ * length again. Both effects made the old single-shot version report a delta
+ * it hadn't delivered. So: trim, reroute, measure, and correct once.
+ */
+async function applyShorterEdit(coords, profile, stats, goalKm, isLoop) {
   const totalDist = (stats.distance_km ?? stats.distance) || estimateDistanceKm(coords);
+  const target = goalKm > 0 ? goalKm : totalDist * 0.8;
 
-  // Default: cut ~20%, or user-specified amount
-  const cutKm = targetReduction || totalDist * 0.2;
-  const keepRatio = Math.max(0.4, 1 - cutKm / totalDist);
+  const trimTo = (keepRatio) => {
+    const ratio = Math.max(0.25, Math.min(0.99, keepRatio));
+    let next;
+    if (isLoop) {
+      // For loops, trim from the farthest point (cut the "bulge")
+      const midIdx = Math.floor(coords.length / 2);
+      const trimCount = Math.floor(coords.length * (1 - ratio));
+      const trimStart = Math.max(1, midIdx - Math.floor(trimCount / 2));
+      const trimEnd = Math.min(coords.length - 2, midIdx + Math.floor(trimCount / 2));
+      next = [...coords.slice(0, trimStart), ...coords.slice(trimEnd)];
+    } else {
+      // For point-to-point, trim proportionally from both ends toward center
+      const keepCount = Math.floor(coords.length * ratio);
+      const startTrim = Math.floor((coords.length - keepCount) * 0.3); // Trim less from start
+      next = coords.slice(startTrim, startTrim + keepCount);
+    }
+    return next.length >= 2 ? next : [coords[0], coords[coords.length - 1]];
+  };
 
-  let newCoords;
-  if (isLoop) {
-    // For loops, trim from the farthest point (cut the "bulge")
-    const midIdx = Math.floor(coords.length / 2);
-    const trimCount = Math.floor(coords.length * (1 - keepRatio));
-    const trimStart = Math.max(1, midIdx - Math.floor(trimCount / 2));
-    const trimEnd = Math.min(coords.length - 2, midIdx + Math.floor(trimCount / 2));
-    newCoords = [...coords.slice(0, trimStart), ...coords.slice(trimEnd)];
-  } else {
-    // For point-to-point, trim proportionally from both ends toward center
-    const keepCount = Math.floor(coords.length * keepRatio);
-    const startTrim = Math.floor((coords.length - keepCount) * 0.3); // Trim less from start
-    newCoords = coords.slice(startTrim, startTrim + keepCount);
+  // Aim straight at the requested ratio; `trimTo` clamps the degenerate ends,
+  // so there's no need for a second floor here to hold big cuts back.
+  let keepRatio = target / totalDist;
+  let best = null;
+
+  for (let attempt = 0; attempt < 2; attempt++) {
+    const trimmed = trimTo(keepRatio);
+    // Snap the trimmed chord back onto roads before measuring — the raw trim
+    // jumps straight across the cut, so its length is not the ride's length.
+    const routed = await rerouteTrimmed(trimmed, profile, isLoop);
+    const measuredKm = estimateDistanceKm(routed);
+    if (measuredKm <= 0) break;
+    if (!best || Math.abs(measuredKm - target) < Math.abs(best.measuredKm - target)) {
+      best = { coords: routed, measuredKm };
+    }
+    if (Math.abs(measuredKm - target) / target <= DISTANCE_EDIT_TOLERANCE) break;
+    if (attempt === 0) {
+      // Rerouting reliably returns more than the trimmed chord, so correct
+      // the keep-ratio by how far the measured result actually landed.
+      keepRatio = Math.max(0.25, Math.min(0.99, keepRatio * (target / measuredKm)));
+    }
   }
 
-  if (newCoords.length < 2) newCoords = [coords[0], coords[coords.length - 1]];
+  if (!best) {
+    return { success: false, message: 'Could not shorten the route. Try a specific detour instead.' };
+  }
 
-  const newDist = estimateDistanceKm(newCoords);
-  const distDelta = newDist - totalDist;
-
+  const comparison = await buildComparison(coords, best.coords, stats);
   return {
     success: true,
     editedRoute: {
-      coordinates: newCoords,
+      coordinates: best.coords,
       source: 'trimmed',
-      needsReroute: true, // Caller should re-route this through proper routing
+      // Already rerouted and measured here, so callers must not re-snap:
+      // doing so would change the length again after we reported it.
+      needsReroute: false,
     },
-    comparison: {
-      distanceDelta: parseFloat(distDelta.toFixed(1)),
-      newDistance: parseFloat(newDist.toFixed(1)),
-      originalDistance: parseFloat(totalDist.toFixed(1)),
-      elevationDelta: null, // Unknown until re-routed
-    },
-    message: `Shortened route by ~${Math.abs(distDelta).toFixed(1)}km. Route will be re-routed for road connectivity.`,
+    comparison,
+    message: `Shortened to ${best.measuredKm.toFixed(1)}km`,
   };
 }
 
-async function applyLongerEdit(coords, profile, stats, targetExtension, isLoop) {
+/**
+ * Snap a trimmed coordinate list back onto roads. Mirrors
+ * `routeMutation.rerouteShortened`, which the chat callers used to run *after*
+ * this edit reported its numbers; doing it here is what lets the reported
+ * distance be the delivered one.
+ */
+async function rerouteTrimmed(trimmed, profile, isLoop) {
+  if (trimmed.length < 2) return trimmed;
+  const waypoints = buildRerouteWaypoints(trimmed, isLoop, 5);
+  try {
+    const routed = await getSmartCyclingRoute(waypoints, { profile });
+    if (routed?.coordinates?.length > 1) return routed.coordinates;
+  } catch (e) {
+    console.warn('[AI Edit] Reroute after trim failed:', e.message);
+  }
+  return trimmed;
+}
+
+async function applyLongerEdit(coords, profile, stats, goalKm, isLoop) {
   const totalDist = (stats.distance_km ?? stats.distance) || estimateDistanceKm(coords);
-  const addKm = targetExtension || totalDist * 0.2;
+  const target = goalKm > 0 ? goalKm : totalDist * 1.2;
+  const addKm = Math.max(0.1, target - totalDist);
   const start = coords[0];
   const end = coords[coords.length - 1];
 
@@ -587,39 +666,58 @@ async function applyLongerEdit(coords, profile, stats, targetExtension, isLoop) 
     return await extendPointToPoint(coords, profile, stats, totalDist, addKm, start, end);
   }
 
-  // For loops: push the farthest point outward to extend the loop
+  // For loops: push the farthest point outward to extend the loop. How far
+  // that actually lengthens the ride depends on the road network, so measure
+  // and correct once — this branch was the only distance edit with no
+  // convergence at all, which is why "make it 40 km" used to drift.
   const midCoord = coordAtDistanceFraction(coords, 0.5);
   const bearing = calculateBearing(start, midCoord);
+  let extraKm = addKm / 2; // Extending both legs
+  let best = null;
 
-  // Push the midpoint further out
-  const extraKm = addKm / 2; // Extending both legs
-  const newMidpoint = projectPoint(midCoord, bearing, extraKm);
+  for (let attempt = 0; attempt < 2; attempt++) {
+    const newMidpoint = projectPoint(midCoord, bearing, extraKm);
+    // Anchors by cumulative distance, closing the loop at the exact start.
+    const waypoints = [
+      start,
+      coordAtDistanceFraction(coords, 0.25),
+      newMidpoint,
+      coordAtDistanceFraction(coords, 0.75),
+      start,
+    ];
 
-  // Create extended waypoints (anchors by cumulative distance, close the loop)
-  const waypoints = [
-    start,
-    coordAtDistanceFraction(coords, 0.25),
-    newMidpoint,
-    coordAtDistanceFraction(coords, 0.75),
-    start, // Close loop
-  ];
-
-  try {
-    const route = await getSmartCyclingRoute(waypoints, { profile });
-    if (route?.coordinates?.length > 1) {
-      const comparison = await buildComparison(coords, route.coordinates, stats);
-      return {
-        success: true,
-        editedRoute: {
-          coordinates: route.coordinates,
-          source: route.source,
-        },
-        comparison,
-        message: `Extended loop by ~${Math.abs(comparison.distanceDelta).toFixed(1)}km`,
-      };
+    try {
+      const route = await getSmartCyclingRoute(waypoints, { profile });
+      if (route?.coordinates?.length > 1) {
+        const measuredKm = estimateDistanceKm(route.coordinates);
+        if (!best || Math.abs(measuredKm - target) < Math.abs(best.measuredKm - target)) {
+          best = { route, measuredKm };
+        }
+        if (measuredKm > 0 && Math.abs(measuredKm - target) / target <= DISTANCE_EDIT_TOLERANCE) break;
+        if (attempt === 0 && measuredKm > 0) {
+          const achievedDelta = measuredKm - totalDist;
+          extraKm =
+            achievedDelta > 0
+              ? Math.min(Math.max(extraKm * (addKm / achievedDelta), extraKm * 0.4), extraKm * 2.5)
+              : extraKm * 2;
+        }
+      }
+    } catch (e) {
+      console.warn('[AI Edit] Extend route failed:', e.message);
     }
-  } catch (e) {
-    console.warn('[AI Edit] Extend route failed:', e.message);
+  }
+
+  if (best?.route) {
+    const comparison = await buildComparison(coords, best.route.coordinates, stats);
+    return {
+      success: true,
+      editedRoute: {
+        coordinates: best.route.coordinates,
+        source: best.route.source,
+      },
+      comparison,
+      message: `Extended loop to ${best.measuredKm.toFixed(1)}km`,
+    };
   }
 
   return { success: false, message: 'Could not extend the route. Try a specific detour instead.' };

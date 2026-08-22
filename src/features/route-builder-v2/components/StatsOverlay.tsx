@@ -6,7 +6,7 @@
  */
 
 import { Box, Text, UnstyledButton } from '@mantine/core';
-import { Check, FloppyDisk, X } from '@phosphor-icons/react';
+import { Check, FloppyDisk, Warning, X } from '@phosphor-icons/react';
 import { RB2, RB2_FONT } from './brand';
 import { convertDistance } from '../../../utils/units.jsx';
 import {
@@ -21,6 +21,15 @@ export interface RouteStats {
   duration_s: number;
 }
 
+export interface TargetStatus {
+  /** Which number the rider asked for. */
+  mode: 'time' | 'distance';
+  /** Signed miss as a fraction of target — negative means under. */
+  error: number;
+  /** Human-readable gap, e.g. "6 min under 90" or "4.2 km over 40". */
+  label: string;
+}
+
 export interface StatsOverlayProps {
   stats: RouteStats | null;
   routeName?: string;
@@ -31,6 +40,14 @@ export interface StatsOverlayProps {
   /** Quick-save action; renders a Save affordance next to Clear when set. */
   onSave?: () => void;
   saveState?: 'saved' | 'unsaved' | 'saving';
+  /**
+   * How far the route is from what the rider asked for, when that's worth
+   * saying. Recomputed by the page as the route changes, so it keeps tracking
+   * while the route is hand-edited rather than being a one-shot check.
+   */
+  targetStatus?: TargetStatus | null;
+  /** Ask the route coach to close the gap. Renders the chip as a button. */
+  onFixTarget?: () => void;
 }
 
 const SURFACE_ORDER = ['paved', 'gravel', 'unpaved', 'mixed'] as const;
@@ -80,6 +97,8 @@ export function StatsOverlay({
   surfaceSegments,
   onSave,
   saveState = 'unsaved',
+  targetStatus = null,
+  onFixTarget,
 }: StatsOverlayProps) {
   if (!stats || stats.distance_km <= 0) return null;
 
@@ -185,6 +204,57 @@ export function StatsOverlay({
         <StatCell label="Elevation" value={formatElevationCompact(stats.elevation_gain_m, isImperial)} />
         <StatCell label="Duration" value={formatDuration(stats.duration_s)} />
       </Box>
+      {targetStatus && (
+        <Box style={{ marginTop: 8 }}>
+          <UnstyledButton
+            data-testid="rb2-stats-target"
+            component={onFixTarget ? 'button' : 'div'}
+            onClick={onFixTarget}
+            aria-label={
+              onFixTarget
+                ? `${targetStatus.label}. Ask the coach to fix it.`
+                : targetStatus.label
+            }
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 6,
+              width: '100%',
+              padding: '5px 7px',
+              border: `1px solid ${RB2.border}`,
+              backgroundColor: 'transparent',
+              cursor: onFixTarget ? 'pointer' : 'default',
+              textAlign: 'left',
+            }}
+          >
+            <Warning size={12} color={RB2.textTertiary} weight="bold" />
+            <Text
+              style={{
+                flex: 1,
+                fontFamily: RB2_FONT.mono,
+                fontSize: 10,
+                letterSpacing: '0.04em',
+                color: RB2.textSecondary,
+              }}
+            >
+              {targetStatus.label}
+            </Text>
+            {onFixTarget && (
+              <Text
+                style={{
+                  fontFamily: RB2_FONT.mono,
+                  fontSize: 10,
+                  letterSpacing: '0.12em',
+                  textTransform: 'uppercase',
+                  color: RB2.textTertiary,
+                }}
+              >
+                Fix
+              </Text>
+            )}
+          </UnstyledButton>
+        </Box>
+      )}
       {surfaces.length > 0 && (
         <Box
           data-testid="rb2-stats-surface"

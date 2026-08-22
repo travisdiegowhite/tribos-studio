@@ -76,8 +76,38 @@ export interface SurfaceMix {
 /**
  * The form input the FormPanel collects and feeds to `useAIGeneration.generate`.
  */
+/**
+ * Which of duration/distance the rider is actually asking for. The other is
+ * a derived estimate and must not be treated as a target — sending both as
+ * hard constraints is how "90 minutes" and "40 km" used to silently fight.
+ */
+export type TargetMode = 'time' | 'distance';
+
+/**
+ * What the rider asked for, kept alongside the route so the stats card can
+ * keep comparing against it as the route is hand-edited.
+ */
+export interface RouteTarget {
+  mode: TargetMode;
+  durationMinutes?: number | null;
+  distanceKm?: number | null;
+}
+
+/** How close a built route landed to its target. `error` is signed. */
+export interface TargetAccuracy {
+  mode: TargetMode;
+  targetKm: number | null;
+  achievedKm: number | null;
+  targetMinutes: number | null;
+  achievedMinutes: number | null;
+  error: number | null;
+  withinTolerance: boolean;
+}
+
 export interface GenerationFormInput {
   goal?: string;
+  /** Defaults to 'time' when absent, matching the form's default. */
+  target_mode?: TargetMode;
   duration_minutes?: number;
   distance_km?: number;
   elevation_gain_m?: number;

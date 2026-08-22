@@ -21,6 +21,7 @@ import type {
   ResolvedRouteShape,
   RouteShape,
   RouteSnapshot,
+  TargetAccuracy,
 } from './types';
 
 export type { GenerationFormInput };
@@ -35,6 +36,8 @@ interface Rb1RouteResult {
   cues?: unknown[] | null;
   /** Concrete shape the generator actually built (loop / out_back / …). */
   routeType?: string | null;
+  /** How close it landed to the requested time or distance. */
+  targetAccuracy?: TargetAccuracy | null;
 }
 
 /**
@@ -182,6 +185,11 @@ export function useAIGeneration(): UseAIGenerationReturn {
         // The form's surface selection — also previously dropped, which left
         // the routing profile to be inferred from saved preferences.
         routeProfile: input.route_profile,
+        // Which number is the actual promise. In time mode the generator runs
+        // a corrective pass against the estimated ride time, not just the
+        // distance the time was converted into.
+        targetMode: input.target_mode ?? 'time',
+        targetDurationMinutes: durationMinutes,
       };
 
       try {
@@ -223,6 +231,22 @@ export function useAIGeneration(): UseAIGenerationReturn {
         useRouteBuilderStore
           .getState()
           .setRouteType(resolveShape(input.route_shape, rb1Routes?.[0]?.routeType));
+        // …and the goal. Same gap: RouteBuilder2 feeds the store's goal to
+        // personalizedETA, so without this a tempo route was priced at the
+        // endurance pace on screen while generation had targeted tempo —
+        // reopening, at ~10%, the very disagreement the shared speed model
+        // exists to close.
+        if (params.trainingGoal) {
+          useRouteBuilderStore.getState().setTrainingGoal(params.trainingGoal);
+        }
+        // Remember what was asked for, so the stats card can keep comparing
+        // against it while the rider hand-edits the route.
+        useRouteBuilderStore.getState().setRouteTarget({
+          mode: params.targetMode,
+          durationMinutes: params.targetDurationMinutes,
+          distanceKm: params.targetDistanceKm ?? null,
+        });
+        const accuracy = rb1Routes?.[0]?.targetAccuracy ?? null;
         trackRb2('generation_completed', {
           count,
           duration_ms: Date.now() - startedAt,
@@ -230,6 +254,12 @@ export function useAIGeneration(): UseAIGenerationReturn {
           successes: enriched.length,
           failures: 0,
           is_guest: !userId,
+          // How close the route landed to what was asked for. The builder
+          // keeps its best attempt whether or not it converged, so without
+          // this the miss rate is invisible in the field.
+          target_mode: accuracy?.mode ?? params.targetMode,
+          target_error: accuracy?.error ?? null,
+          target_within_tolerance: accuracy?.withinTolerance ?? null,
         });
       } catch (e) {
         const message = e instanceof Error ? e.message : String(e);

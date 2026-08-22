@@ -21,6 +21,7 @@ import {
   TextInput,
   Button,
   Loader,
+  SegmentedControl,
 } from '@mantine/core';
 import { CaretDown, CaretRight, X, Sparkle } from '@phosphor-icons/react';
 import { RB2, RB2_FONT } from './brand';
@@ -31,9 +32,11 @@ import {
   GOAL_OPTIONS,
   SURFACE_OPTIONS,
   SHAPE_OPTIONS,
+  TARGET_MODE_OPTIONS,
   type Goal,
   type Surface,
   type Shape,
+  type TargetMode,
   type GenerateFormSeed,
 } from './useGenerateForm';
 import {
@@ -75,6 +78,13 @@ const labelStyle: React.CSSProperties = {
 };
 
 const inputStyles = { input: { borderRadius: 0, fontSize: 13 } } as const;
+
+/** A derived field reads as an estimate, not something to type into. */
+function derivedInputStyles(isDerived: boolean) {
+  return isDerived
+    ? { input: { borderRadius: 0, fontSize: 13, color: RB2.textTertiary, cursor: 'default' } }
+    : inputStyles;
+}
 
 export function GenerateBar({
   generation,
@@ -157,6 +167,19 @@ export function GenerateBar({
 
       {expanded && (
         <Box style={{ padding: '0 12px 12px' }}>
+          <Box style={{ marginBottom: 8 }}>
+            <Text style={labelStyle}>Target</Text>
+            <SegmentedControl
+              data={TARGET_MODE_OPTIONS}
+              value={f.targetMode}
+              onChange={(v) => f.setTargetMode(v as TargetMode)}
+              disabled={generation.isGenerating}
+              fullWidth
+              size="xs"
+              styles={{ root: { borderRadius: 0 }, indicator: { borderRadius: 0 } }}
+            />
+          </Box>
+
           <Box style={{ display: 'flex', gap: 8 }}>
             <Box style={{ flex: 1 }}>
               <Text style={labelStyle}>Goal</Text>
@@ -171,9 +194,10 @@ export function GenerateBar({
               />
             </Box>
             <Box style={{ width: 96 }}>
-              <Text style={labelStyle}>Min</Text>
+              <Text style={labelStyle}>{f.targetMode === 'time' ? 'Min' : 'Min ·  est'}</Text>
               <NumberInput
-                value={f.duration}
+                data-testid="rb2-duration-input"
+                value={f.targetMode === 'time' ? f.duration : f.derivedDurationMinutes}
                 onChange={(v) => {
                   const n = typeof v === 'number' ? v : Number(v);
                   f.setDuration(Number.isFinite(n) ? n : 60);
@@ -181,8 +205,9 @@ export function GenerateBar({
                 min={10}
                 max={600}
                 step={15}
+                readOnly={f.targetMode !== 'time'}
                 disabled={generation.isGenerating}
-                styles={inputStyles}
+                styles={derivedInputStyles(f.targetMode !== 'time')}
               />
             </Box>
           </Box>
@@ -216,15 +241,21 @@ export function GenerateBar({
 
           <Box style={{ display: 'flex', gap: 8, marginTop: 8 }}>
             <Box style={{ flex: 1 }}>
-              <Text style={labelStyle}>Distance ({distanceUnit(isImperial)})</Text>
+              <Text style={labelStyle}>
+                Distance ({distanceUnit(isImperial)}){f.targetMode === 'time' ? ' · est' : ''}
+              </Text>
               <NumberInput
                 data-testid="rb2-distance-input"
-                value={toDisplayDistance(f.distanceKm, isImperial)}
+                value={
+                  f.targetMode === 'distance'
+                    ? toDisplayDistance(f.distanceKm, isImperial)
+                    : toDisplayDistance(Math.round(f.derivedDistanceKm * 10) / 10, isImperial)
+                }
                 onChange={(v) => f.setDistanceKm(fromDisplayDistance(v, isImperial))}
                 {...distanceBounds(isImperial)}
-                placeholder="auto"
+                readOnly={f.targetMode !== 'distance'}
                 disabled={generation.isGenerating}
-                styles={inputStyles}
+                styles={derivedInputStyles(f.targetMode !== 'distance')}
               />
             </Box>
             <Box style={{ flex: 1 }}>

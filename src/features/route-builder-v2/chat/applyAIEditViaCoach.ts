@@ -58,6 +58,21 @@ const MAPBOX_TOKEN: string =
   ((import.meta as unknown as { env?: Record<string, string | undefined> }).env
     ?.VITE_MAPBOX_TOKEN as string | undefined) ?? '';
 
+/** How far a distance edit may land before we correct the coach's prose. */
+const TARGET_MISS_TOLERANCE = 0.10;
+
+/**
+ * The absolute distance the rider named, if any, across the applied edits.
+ * `targetDistanceKm` is set server-side only when they gave a real number.
+ */
+function requestedTargetKm(edits: Array<{ editIntent?: unknown }>): number | null {
+  for (const edit of edits) {
+    const km = (edit?.editIntent as { targetDistanceKm?: unknown } | undefined)?.targetDistanceKm;
+    if (typeof km === 'number' && Number.isFinite(km) && km > 0) return km;
+  }
+  return null;
+}
+
 export async function applyAIEditViaCoach(
   text: string,
   conversationHistory: ConversationTurn[],
@@ -308,9 +323,19 @@ export async function applyAIEditViaCoach(
     ? ` (Applied ${applied} of ${edits.length} changes — ${lastFailure ?? 'the rest failed'}. Say "revert" to go back.)`
     : '';
 
+  // The coach writes its prose before any geometry runs, so it can confidently
+  // promise a number the roads wouldn't give ("shortened it to 40 km"). When
+  // the delivered distance misses a distance the rider named, say so rather
+  // than letting that claim stand next to a contradicting stat line.
+  const requestedKm = requestedTargetKm(edits);
+  const shortfall =
+    requestedKm && Math.abs(curDistance - requestedKm) / requestedKm > TARGET_MISS_TOLERANCE
+      ? ` The roads here wouldn't give exactly ${Math.round(requestedKm)} km — this is the closest it got.`
+      : '';
+
   return {
     ok: true,
-    assistantText: `${message}${partial}`,
+    assistantText: `${message}${partial}${shortfall}`,
     distance_km: Math.round(curDistance),
     elevation_gain_m: Math.round(elevation_gain_m),
     routeChanged: true,

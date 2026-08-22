@@ -319,3 +319,42 @@ describe('selecting a suggestion commits its own shape', () => {
     expect(useRouteBuilderStore.getState().routeType).toBe('out_back');
   });
 });
+
+describe('store sync for the displayed ETA', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    useRouteBuilderStore.getState().resetAll();
+  });
+
+  it('writes the requested goal to the store', async () => {
+    // RouteBuilder2 feeds the store's goal to personalizedETA. Without this
+    // write it stays 'endurance', so a tempo route is priced at the endurance
+    // pace on screen while generation targeted tempo.
+    mockGenerate.mockResolvedValue([makeRb1Route()]);
+    const { result } = renderHook(() => useAIGeneration());
+
+    await act(async () => {
+      await result.current.generate({
+        goal: 'tempo',
+        duration_minutes: 90,
+        start_coord: [-105, 40],
+      });
+    });
+
+    expect(useRouteBuilderStore.getState().trainingGoal).toBe('tempo');
+  });
+
+  it('falls back to endurance when no goal is given', async () => {
+    mockGenerate.mockResolvedValue([makeRb1Route()]);
+    const { result } = renderHook(() => useAIGeneration());
+
+    await act(async () => {
+      await result.current.generate({
+        duration_minutes: 60,
+        start_coord: [-105, 40],
+      });
+    });
+
+    expect(useRouteBuilderStore.getState().trainingGoal).toBe('endurance');
+  });
+});

@@ -108,6 +108,7 @@ import {
 } from '../features/route-builder-v2/arrival/arrivalSession';
 import { rankPastRidesByFit } from '../features/route-builder-v2/arrival/rankPastRides';
 import { calculatePersonalizedETA } from '../utils/personalizedETA';
+import { buildTargetAccuracy, describeTargetMiss } from '../utils/routeTargets.js';
 import RoadPreferencesCard from '../components/settings/RoadPreferencesCard.jsx';
 import BikeInfrastructureLegend from '../components/BikeInfrastructureLegend.jsx';
 import RaceDayGuide from '../components/fueling/RaceDayGuide';
@@ -286,6 +287,7 @@ export default function RouteBuilder2() {
   const routeProfile = useRouteBuilderStore((s) => s.routeProfile);
   const trainingGoal = useRouteBuilderStore((s) => s.trainingGoal);
   const routeTypeFromStore = useRouteBuilderStore((s) => s.routeType);
+  const routeTarget = useRouteBuilderStore((s) => s.routeTarget);
   const raceType = useRouteBuilderStore((s) => s.raceType);
   const raceDate = useRouteBuilderStore((s) => s.raceDate);
   const targetFinishMinutes = useRouteBuilderStore((s) => s.targetFinishMinutes);
@@ -1503,6 +1505,49 @@ export default function RouteBuilder2() {
     }
   }, [routeStats?.distance_km, analysis.elevationProfile, surfaceSegments, speedProfile, routeProfile, trainingGoal]);
 
+  // How far the current route sits from what the rider asked for. Recomputed
+  // from live stats rather than captured at generation, so the chip keeps
+  // tracking while the route is reshaped by hand — the target is a budget,
+  // not a one-shot check.
+  const targetStatus = useMemo(() => {
+    if (!routeTarget || !routeStats || routeStats.distance_km <= 0) return null;
+    const achievedMinutes = personalizedEta?.totalSeconds
+      ? personalizedEta.totalSeconds / 60
+      : routeStats.duration_s
+        ? routeStats.duration_s / 60
+        : null;
+    return describeTargetMiss(
+      buildTargetAccuracy({
+        targetMode: routeTarget.mode,
+        targetDistanceKm: routeTarget.distanceKm,
+        targetDurationMinutes: routeTarget.durationMinutes,
+        achievedKm: routeStats.distance_km,
+        achievedMinutes,
+      }),
+      { isImperial },
+    );
+  }, [routeTarget, routeStats, personalizedEta, isImperial]);
+
+  // One-tap repair: hand the gap to the route coach as a normal chat edit,
+  // so it goes through the same converging longer/shorter path.
+  const handleFixTarget = useCallback(() => {
+    if (!routeTarget) return;
+    const onTime =
+      routeTarget.mode === 'time' && typeof routeTarget.durationMinutes === 'number';
+    const ask = onTime
+      ? `Make this ride about ${Math.round(routeTarget.durationMinutes as number)} minutes.`
+      : typeof routeTarget.distanceKm === 'number'
+        ? `Make this route ${Math.round(routeTarget.distanceKm)} km.`
+        : null;
+    if (!ask) return;
+    trackRb2('target_fix_requested', { mode: routeTarget.mode });
+    // Make sure the rider can see the coach answering: the mobile chat is a
+    // sheet tab, the desktop one a collapsible dock.
+    if (isMobile) setMobileTab('chat');
+    else setChatCollapsed(false);
+    handleChatSubmit(ask);
+  }, [routeTarget, isMobile, handleChatSubmit]);
+
   // Reusable v1 widgets surfaced in RB2 (after personalizedEta is computed).
   const roadPrefsNode = <RoadPreferencesCard />;
   const raceDayGuideNode = raceType ? (
@@ -1546,6 +1591,8 @@ export default function RouteBuilder2() {
         saveState={
           persistence.isSaving ? 'saving' : hasUnsavedChanges ? 'unsaved' : 'saved'
         }
+        targetStatus={targetStatus}
+        onFixTarget={targetStatus ? handleFixTarget : undefined}
       />
     ) : null;
 

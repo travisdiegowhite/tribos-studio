@@ -1,6 +1,6 @@
 import { renderHook, act } from '@testing-library/react';
 import { describe, it, expect, vi } from 'vitest';
-import { useGenerateForm, SHAPE_OPTIONS } from '../useGenerateForm';
+import { useGenerateForm, SHAPE_OPTIONS, TARGET_MODE_OPTIONS } from '../useGenerateForm';
 import type { UseAIGenerationReturn } from '../../../../hooks/route-builder';
 
 const generation = {
@@ -76,5 +76,66 @@ describe('useGenerateForm shape', () => {
     act(() => result.current.setShape('point_to_point'));
     act(() => result.current.onReset());
     expect(result.current.shape).toBe('round_trip');
+  });
+});
+
+describe('useGenerateForm target mode', () => {
+  it('binds on time by default', () => {
+    const { result } = renderHook(() => useGenerateForm({ generation }));
+    expect(result.current.targetMode).toBe('time');
+    expect(TARGET_MODE_OPTIONS.map((o) => o.value)).toEqual(['time', 'distance']);
+  });
+
+  it('binds on distance when one is seeded', () => {
+    // A planned workout that names a distance is the rider asking for it.
+    const { result } = renderHook(() =>
+      useGenerateForm({ generation, initialDistanceKm: 40 }),
+    );
+    expect(result.current.targetMode).toBe('distance');
+  });
+
+  it('derives the counterpart from the same pace the generator will use', () => {
+    const { result } = renderHook(() =>
+      useGenerateForm({ generation, initialDurationMinutes: 60 }),
+    );
+    // 60 min at the endurance pace, and the round trip back through it.
+    expect(result.current.derivedDistanceKm).toBeCloseTo(result.current.paceKmh, 5);
+    act(() => result.current.setDistanceKm(result.current.paceKmh));
+    expect(result.current.derivedDurationMinutes).toBe(60);
+  });
+
+  it('sends only the binding target', async () => {
+    const generate = vi.fn();
+    const gen = { ...generation, generate } as unknown as UseAIGenerationReturn;
+    const { result } = renderHook(() =>
+      useGenerateForm({ generation: gen, defaultStart: [-105, 40] }),
+    );
+
+    await act(async () => {
+      await result.current.onSubmit();
+    });
+    expect(generate).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        target_mode: 'time',
+        duration_minutes: 60,
+        distance_km: undefined,
+      }),
+    );
+
+    act(() => result.current.setTargetMode('distance'));
+    act(() => result.current.setDistanceKm(40));
+    await act(async () => {
+      await result.current.onSubmit();
+    });
+    expect(generate).toHaveBeenLastCalledWith(
+      expect.objectContaining({ target_mode: 'distance', distance_km: 40 }),
+    );
+  });
+
+  it('resets back to time', () => {
+    const { result } = renderHook(() => useGenerateForm({ generation }));
+    act(() => result.current.setTargetMode('distance'));
+    act(() => result.current.onReset());
+    expect(result.current.targetMode).toBe('time');
   });
 });
