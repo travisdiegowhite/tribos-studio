@@ -118,6 +118,7 @@ import { trackRb2 } from '../features/route-builder-v2/telemetry/trackRb2';
 import { ElevationHoverMarker } from '../features/route-builder-v2/components/ElevationHoverMarker';
 import { setElevationHoverKm } from '../features/route-builder-v2/state/elevationHoverStore';
 import { getAnyWorkoutById } from '../data/workoutLookup';
+import { inferWorkoutForType } from '../data/workoutResolution';
 import { formatDistance, formatElevation } from '../utils/units';
 import { EditGhostLayer } from '../features/route-builder-v2/layers/EditGhostLayer';
 import {
@@ -227,14 +228,35 @@ export default function RouteBuilder2() {
         Number.isFinite(dist) && dist > 0 ? dist : arrivalCtx?.distanceKm ?? undefined,
     };
   });
-  const attachedWorkout = useMemo(
-    () => (pickedWorkoutId ? getAnyWorkoutById(pickedWorkoutId) : null),
-    [pickedWorkoutId],
+  // Explicitly detached via the picker's "clear" — suppresses the arrival
+  // context's workout as well, which otherwise outlives the URL params.
+  const [workoutDetached, setWorkoutDetached] = useState(false);
+  // The workout whose structure gets painted. A row from a static template
+  // plan names a library workout; an arc-generated row names only a type and
+  // a length (`workout_id` is null — see `data/workoutResolution.ts`), so fall
+  // back to the closest library workout for that prescription rather than
+  // dropping the overlay entirely.
+  const namedWorkout = useMemo(
+    () => (workoutDetached ? null : getAnyWorkoutById(pickedWorkoutId)),
+    [workoutDetached, pickedWorkoutId],
   );
+  const attachedWorkout = useMemo(() => {
+    if (workoutDetached) return null;
+    if (namedWorkout) return namedWorkout;
+    const planType = arrivalCtx?.goal ?? searchParams.get('goal');
+    return inferWorkoutForType(planType, seedOverride.durationMinutes ?? null);
+  }, [workoutDetached, namedWorkout, arrivalCtx, searchParams, seedOverride.durationMinutes]);
+  /** True when `attachedWorkout` is a stand-in, not a workout the plan named. */
+  const workoutIsInferred = !!attachedWorkout && !namedWorkout;
   const hasWorkout = !!attachedWorkout;
   const upcomingPlanned = useUpcomingPlannedWorkouts(user?.id ?? null);
 
-  const workoutName = attachedWorkout?.name ?? arrivalCtx?.workoutName ?? null;
+  // A workout the rider actually chose names itself; otherwise the calendar's
+  // own wording wins (that's what they came here from), and a stand-in only
+  // names itself when there is nothing else to call the session.
+  const workoutName = workoutDetached
+    ? null
+    : namedWorkout?.name ?? arrivalCtx?.workoutName ?? attachedWorkout?.name ?? null;
   // Start-location preference typed into the arrival card; seeds the generate
   // form. The nonce remounts GenerateBar/FormPanel so a new seed applies.
   const [arrivalStartLocation, setArrivalStartLocation] = useState(arrivalInit.startLocation);
@@ -1312,6 +1334,7 @@ export default function RouteBuilder2() {
     planned?: { targetDurationMinutes: number | null; targetDistanceKm: number | null },
   ) => {
     setPickedWorkoutId(workout.id);
+    setWorkoutDetached(false);
     setSeedOverride({
       durationMinutes: planned?.targetDurationMinutes ?? undefined,
       distanceKm: planned?.targetDistanceKm ?? undefined,
@@ -1325,6 +1348,7 @@ export default function RouteBuilder2() {
   const handleClearWorkout = () => {
     setPickedWorkoutId(null);
     setSeedOverride({});
+    setWorkoutDetached(true);
   };
 
   const hasRoute = !!routeGeometry?.coordinates && routeGeometry.coordinates.length > 0;
@@ -1895,7 +1919,11 @@ export default function RouteBuilder2() {
                 <>
                   {hasWorkout && (
                     <Box style={{ padding: '8px 12px 0' }}>
-                      <WorkoutOverlayLegend workoutName={workoutName} cues={visibleCues} />
+                      <WorkoutOverlayLegend
+                        workoutName={workoutName}
+                        cues={visibleCues}
+                        shapedAs={workoutIsInferred ? attachedWorkout?.name ?? null : null}
+                      />
                     </Box>
                   )}
                   {hasRoute && (
@@ -2021,7 +2049,12 @@ export default function RouteBuilder2() {
             hasWorkout={hasWorkout}
           />
           {hasWorkout && (
-            <WorkoutOverlayLegend workoutName={workoutName} cues={visibleCues} isMobile />
+            <WorkoutOverlayLegend
+              workoutName={workoutName}
+              cues={visibleCues}
+              shapedAs={workoutIsInferred ? attachedWorkout?.name ?? null : null}
+              isMobile
+            />
           )}
           {visibility.gradient && hasRoute && <GradientLegend isMobile />}
           {visibility.surface && hasRoute && (

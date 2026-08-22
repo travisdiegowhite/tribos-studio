@@ -80,7 +80,7 @@ function beats(overrides: Partial<AssembleInput> = {}, feel: Feel | null = null)
 }
 
 /** A workout row for today, plus the matching todaysWorkout. */
-function planToday(type: string, durationMin = 75, workoutId: string | null = 'w-1') {
+function planToday(type: string, durationMin = 75, workoutId: string | null = 'two_by_twenty_ftp') {
   return {
     planned: [
       {
@@ -334,9 +334,10 @@ describe('Beat 3 — what to do', () => {
 
 describe('Beat 4 — need a route for that?', () => {
   it('deep-links the planned workout through the shared arrival contract', () => {
-    const { beat4 } = beats(planToday('threshold', 75, 'plan-row-7'));
+    const { beat4 } = beats(planToday('threshold', 75, 'over_under_intervals'));
     expect(beat4.state).toBe('route');
-    expect(beat4.href).toContain('workoutId=plan-row-7');
+    // The library key the builder resolves — never the plan row's own uuid.
+    expect(beat4.href).toContain('workoutId=over_under_intervals');
     expect(beat4.href).toContain('duration=75');
     expect(beat4.href).toContain('goal=threshold');
     // from=calendar is what opens the builder's pre-filled arrival form.
@@ -344,7 +345,7 @@ describe('Beat 4 — need a route for that?', () => {
   });
 
   it('drops the workout id and name once the session has been traded down', () => {
-    const { beat4 } = beats(planToday('threshold', 75, 'plan-row-7'), 'flat');
+    const { beat4 } = beats(planToday('threshold', 75, 'over_under_intervals'), 'flat');
     expect(beat4.href).not.toContain('workoutId');
     expect(beat4.href).not.toContain('workoutName');
     expect(beat4.href).toContain('duration=75');

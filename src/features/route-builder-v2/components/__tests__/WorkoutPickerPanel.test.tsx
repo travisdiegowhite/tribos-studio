@@ -19,6 +19,7 @@ const planned: UpcomingPlannedWorkout[] = [
     scheduledDate: '2026-06-10',
     name: 'Recovery Spin',
     workout: plannedWorkout,
+    inferred: false,
     targetDurationMinutes: 45,
     targetDistanceKm: 25,
   },
@@ -71,6 +72,30 @@ describe('WorkoutPickerPanel', () => {
     });
     expect(container.querySelectorAll('[data-testid^="rb2-workout-library-"]').length).toBe(0);
     expect(screen.getByText(/No workouts match/)).toBeInTheDocument();
+  });
+
+  it('labels an inferred planned row with the calendar name and its stand-in shape', () => {
+    const inferredRow: UpcomingPlannedWorkout = {
+      id: 'p2',
+      scheduledDate: '2026-06-11',
+      // What the arc plan calls the session...
+      name: 'VO2 Max Intervals',
+      // ...and the library workout its shape was borrowed from.
+      workout: {
+        id: 'four_by_eight_vo2',
+        name: '4x8min VO2 Max',
+        category: 'vo2max',
+        duration: 75,
+        targetTSS: 105,
+      } as unknown as WorkoutDefinition,
+      inferred: true,
+      targetDurationMinutes: 75,
+      targetDistanceKm: null,
+    };
+    renderPicker({ plannedWorkouts: [inferredRow] });
+    const row = screen.getByTestId('rb2-workout-planned-four_by_eight_vo2');
+    expect(row).toHaveTextContent('VO2 Max Intervals');
+    expect(row).toHaveTextContent('shaped as 4x8min VO2 Max');
   });
 
   it('shows planned workouts (default tab) and passes the planned override on select', () => {

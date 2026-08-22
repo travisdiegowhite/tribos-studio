@@ -8,6 +8,10 @@
  *
  * Presentational only — planned workouts are passed in (fetched by the page via
  * useUpcomingPlannedWorkouts); the libraries are enumerated locally.
+ *
+ * A planned row is labelled with the calendar's own wording. When the plan
+ * named no library workout, the row still offers the closest stand-in for its
+ * type and length and says which shape that is.
  */
 
 import { useMemo, useState } from 'react';
@@ -190,6 +194,8 @@ export function WorkoutPickerPanel({
                   testid={`rb2-workout-planned-${p.workout.id}`}
                   workout={p.workout}
                   prefix={formatShortDate(p.scheduledDate)}
+                  label={p.name}
+                  shapedAs={p.inferred ? p.workout.name : null}
                   durationMinutes={p.targetDurationMinutes ?? p.workout.duration}
                   selected={selectedWorkoutId === p.workout.id}
                   onClick={() =>
@@ -272,6 +278,8 @@ function WorkoutRow({
   workout,
   durationMinutes,
   prefix,
+  label,
+  shapedAs,
   selected,
   onClick,
   testid,
@@ -279,6 +287,10 @@ function WorkoutRow({
   workout: WorkoutDefinition;
   durationMinutes: number;
   prefix?: string;
+  /** Overrides the library name — a planned row shows what the calendar calls it. */
+  label?: string;
+  /** Library workout the row's shape came from, when it isn't the prescription itself. */
+  shapedAs?: string | null;
   selected: boolean;
   onClick: () => void;
   testid: string;
@@ -320,11 +332,12 @@ function WorkoutRow({
             textOverflow: 'ellipsis',
           }}
         >
-          {workout.name}
+          {label || workout.name}
         </Text>
         <Text style={{ fontFamily: RB2_FONT.mono, fontSize: 10, color: RB2.textTertiary }}>
           {prefix ? `${prefix} · ` : ''}
           {workout.category} · {durationMinutes}min · {workout.targetTSS} RSS
+          {shapedAs ? ` · shaped as ${shapedAs}` : ''}
         </Text>
       </Box>
     </UnstyledButton>

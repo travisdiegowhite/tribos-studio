@@ -132,6 +132,27 @@ describe('RouteBuilder2 (P1.3)', () => {
     expect(screen.queryByTestId('rb2-workout-legend')).toBeNull();
   });
 
+  it('paints an arc-planned session that names no library workout', () => {
+    // Arc-generated plan rows carry workout_type + duration and a null
+    // workout_id, so the builder arrives with `goal`/`duration` only. It
+    // shapes the overlay from the closest library workout rather than
+    // dropping it.
+    sessionStorage.clear();
+    renderPage(
+      '/route-builder-2?from=calendar&goal=sweet_spot&duration=75&workoutName=Sweet%20Spot%20Day',
+    );
+    const legend = screen.getByTestId('rb2-workout-legend');
+    // The calendar's wording leads; the stand-in shape is named, not hidden.
+    expect(legend).toHaveTextContent('Sweet Spot Day');
+    expect(legend).toHaveTextContent('shaped as Sweet Spot 3x12');
+  });
+
+  it('does not invent a workout for a plan type with nothing to paint', () => {
+    sessionStorage.clear();
+    renderPage('/route-builder-2?from=calendar&goal=rest&duration=0&workoutName=Rest%20Day');
+    expect(screen.queryByTestId('rb2-workout-legend')).toBeNull();
+  });
+
   describe('calendar arrival (?from=calendar)', () => {
     const CALENDAR_PATH =
       '/route-builder-2?from=calendar&goal=endurance&duration=90&scheduledDate=2026-07-08&workoutName=Endurance%20Ride';
