@@ -420,3 +420,196 @@ describe('applyRouteEdit — shift_direction', () => {
     expect(res.success).toBe(false);
   });
 });
+
+// ── Distance edits ───────────────────────────────────────────────────
+// These are the first `shorter` tests in the repo. The behaviour they pin
+// down is that the number reported to the rider is the number delivered:
+// trimming happens by point count while the ride is measured in kilometres,
+// and the trimmed chord still has to be snapped back onto roads, so a
+// single-shot edit reported a delta it had not achieved.
+
+/** A straight line of roughly `km` length (1° latitude ≈ 111.19 km). */
+const lineOfKm = (km) => [
+  [-105, 40],
+  [-105, 40 + km / 111.19],
+];
+
+/** A closed loop whose perimeter is roughly `km`. */
+const loopOfKm = (km) => {
+  const d = km / 4 / 111.19;
+  return [
+    [-105, 40],
+    [-105, 40 + d],
+    [-105 + d / Math.cos((40 * Math.PI) / 180), 40 + d],
+    [-105 + d / Math.cos((40 * Math.PI) / 180), 40],
+    [-105, 40],
+  ];
+};
+
+/** Dense geometry so the point-count trim has something to bite on. */
+const densePointToPoint = (km, points = 40) =>
+  Array.from({ length: points }, (_, i) => [-105, 40 + (i / (points - 1)) * (km / 111.19)]);
+
+describe('applyRouteEdit — shorter', () => {
+  it('reports the distance it actually delivered, not the trimmed chord', async () => {
+    // The reroute lands right on target, so one pass suffices.
+    getSmartCyclingRoute.mockResolvedValue({ coordinates: lineOfKm(20), source: 'stadia' });
+
+    const res = await applyRouteEdit({
+      routeGeometry: geom(densePointToPoint(30)),
+      routeProfile: 'road',
+      routeStats: { distance_km: 30, elevation_gain_m: 300, duration_s: 3600 },
+      editIntent: { intent: 'shorter', targetDistanceKm: 20 },
+    });
+
+    expect(res.success).toBe(true);
+    expect(res.comparison.newDistance).toBeCloseTo(20, 0);
+    expect(res.message).toMatch(/20\.0km/);
+    // The caller must not re-snap: that would change the length again after
+    // we already told the rider what it was.
+    expect(res.editedRoute.needsReroute).toBe(false);
+  });
+
+  it('corrects once when the first reroute overshoots', async () => {
+    getSmartCyclingRoute
+      .mockResolvedValueOnce({ coordinates: lineOfKm(26), source: 'stadia' })
+      .mockResolvedValueOnce({ coordinates: lineOfKm(20.2), source: 'stadia' });
+
+    const res = await applyRouteEdit({
+      routeGeometry: geom(densePointToPoint(30)),
+      routeProfile: 'road',
+      routeStats: { distance_km: 30, elevation_gain_m: 300, duration_s: 3600 },
+      editIntent: { intent: 'shorter', targetDistanceKm: 20 },
+    });
+
+    expect(getSmartCyclingRoute).toHaveBeenCalledTimes(2);
+    expect(res.comparison.newDistance).toBeCloseTo(20.2, 0);
+  });
+
+  it('keeps the closer attempt when the correction lands further away', async () => {
+    getSmartCyclingRoute
+      .mockResolvedValueOnce({ coordinates: lineOfKm(23), source: 'stadia' })
+      .mockResolvedValueOnce({ coordinates: lineOfKm(12), source: 'stadia' });
+
+    const res = await applyRouteEdit({
+      routeGeometry: geom(densePointToPoint(30)),
+      routeProfile: 'road',
+      routeStats: { distance_km: 30, elevation_gain_m: 300, duration_s: 3600 },
+      editIntent: { intent: 'shorter', targetDistanceKm: 20 },
+    });
+
+    expect(res.comparison.newDistance).toBeCloseTo(23, 0);
+  });
+
+  it('stops at two routing calls even when it never converges', async () => {
+    getSmartCyclingRoute.mockResolvedValue({ coordinates: lineOfKm(29), source: 'stadia' });
+
+    const res = await applyRouteEdit({
+      routeGeometry: geom(densePointToPoint(30)),
+      routeProfile: 'road',
+      routeStats: { distance_km: 30, elevation_gain_m: 300, duration_s: 3600 },
+      editIntent: { intent: 'shorter', targetDistanceKm: 15 },
+    });
+
+    expect(res.success).toBe(true);
+    expect(getSmartCyclingRoute).toHaveBeenCalledTimes(2);
+  });
+
+  it('falls back to a proportional cut with no explicit target', async () => {
+    getSmartCyclingRoute.mockResolvedValue({ coordinates: lineOfKm(24), source: 'stadia' });
+
+    const res = await applyRouteEdit({
+      routeGeometry: geom(densePointToPoint(30)),
+      routeProfile: 'road',
+      routeStats: { distance_km: 30, elevation_gain_m: 300, duration_s: 3600 },
+      editIntent: { intent: 'shorter' },
+    });
+
+    expect(res.success).toBe(true);
+    expect(res.comparison.newDistance).toBeCloseTo(24, 0);
+  });
+
+  it('reports failure rather than a bogus number when routing dies', async () => {
+    getSmartCyclingRoute.mockResolvedValue(null);
+
+    const res = await applyRouteEdit({
+      routeGeometry: geom(densePointToPoint(30)),
+      routeProfile: 'road',
+      routeStats: { distance_km: 30, elevation_gain_m: 300, duration_s: 3600 },
+      editIntent: { intent: 'shorter', targetDistanceKm: 20 },
+    });
+
+    // The raw trim is still a real (if unsnapped) line, so this succeeds —
+    // what matters is that the number reported is measured, not assumed.
+    expect(res.success).toBe(true);
+    expect(res.comparison.newDistance).toBeGreaterThan(0);
+  });
+});
+
+describe('applyRouteEdit — longer, loop convergence', () => {
+  it('corrects the push-out once when the first attempt falls short', async () => {
+    // The loop branch had no convergence at all, so "make it 40 km" drifted.
+    getSmartCyclingRoute
+      .mockResolvedValueOnce({ coordinates: loopOfKm(32), source: 'stadia' })
+      .mockResolvedValueOnce({ coordinates: loopOfKm(39.5), source: 'stadia' });
+
+    const res = await applyRouteEdit({
+      routeGeometry: geom(loopOfKm(28)),
+      routeProfile: 'road',
+      routeStats: { distance_km: 28, elevation_gain_m: 300, duration_s: 3600 },
+      editIntent: { intent: 'longer', targetDistanceKm: 40 },
+      routeType: 'loop',
+    });
+
+    expect(getSmartCyclingRoute).toHaveBeenCalledTimes(2);
+    expect(res.success).toBe(true);
+    expect(res.message).toMatch(/39\.\d+km/);
+  });
+
+  it('stops after one call when the first attempt is already on target', async () => {
+    getSmartCyclingRoute.mockResolvedValue({ coordinates: loopOfKm(39.8), source: 'stadia' });
+
+    const res = await applyRouteEdit({
+      routeGeometry: geom(loopOfKm(28)),
+      routeProfile: 'road',
+      routeStats: { distance_km: 28, elevation_gain_m: 300, duration_s: 3600 },
+      editIntent: { intent: 'longer', targetDistanceKm: 40 },
+      routeType: 'loop',
+    });
+
+    expect(getSmartCyclingRoute).toHaveBeenCalledTimes(1);
+    expect(res.success).toBe(true);
+  });
+
+  it('keeps the closer attempt when the correction overshoots', async () => {
+    getSmartCyclingRoute
+      .mockResolvedValueOnce({ coordinates: loopOfKm(36), source: 'stadia' })
+      .mockResolvedValueOnce({ coordinates: loopOfKm(70), source: 'stadia' });
+
+    const res = await applyRouteEdit({
+      routeGeometry: geom(loopOfKm(28)),
+      routeProfile: 'road',
+      routeStats: { distance_km: 28, elevation_gain_m: 300, duration_s: 3600 },
+      editIntent: { intent: 'longer', targetDistanceKm: 40 },
+      routeType: 'loop',
+    });
+
+    expect(res.message).toMatch(/36\.\d+km/);
+  });
+
+  it('prefers an absolute target over the legacy delta', async () => {
+    getSmartCyclingRoute.mockResolvedValue({ coordinates: loopOfKm(40), source: 'stadia' });
+
+    await applyRouteEdit({
+      routeGeometry: geom(loopOfKm(28)),
+      routeProfile: 'road',
+      routeStats: { distance_km: 28, elevation_gain_m: 300, duration_s: 3600 },
+      // A delta that disagrees with the absolute target: the target wins.
+      editIntent: { intent: 'longer', targetDistanceKm: 40, distanceModifier: 2 },
+      routeType: 'loop',
+    });
+
+    // Converged on the first call, so the aim was 40 km, not 30.
+    expect(getSmartCyclingRoute).toHaveBeenCalledTimes(1);
+  });
+});

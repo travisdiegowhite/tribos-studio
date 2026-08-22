@@ -308,10 +308,15 @@ export function normalizeRouteEdit(input, routeSnapshot) {
     case 'longer': {
       const currentKm = Number(routeSnapshot?.stats?.distance_km);
       const targetKm = Number(input.target_distance_km);
-      const editIntent = { intent };
-      let summary = `Make the route ${intent}`;
+      let resolvedIntent = intent;
+      const editIntent = { intent: resolvedIntent };
+      let summary = `Make the route ${resolvedIntent}`;
 
       if (Number.isFinite(targetKm) && targetKm > 0) {
+        // The absolute target is what the rider actually said. The client
+        // converges on it and reports what it delivered; the delta below is
+        // kept for older clients that only understand distanceModifier.
+        editIntent.targetDistanceKm = Number(targetKm.toFixed(1));
         if (Number.isFinite(currentKm) && currentKm > 0) {
           const delta = Math.abs(targetKm - currentKm);
           if (delta > 0) {
@@ -319,13 +324,20 @@ export function normalizeRouteEdit(input, routeSnapshot) {
             // delta in km (amount to cut / add), not an absolute total.
             editIntent.distanceModifier = Number(delta.toFixed(1));
           }
+          // Trust the numbers over the label: asking to go "longer" with a
+          // target below the current distance means shorten, and vice versa.
+          // The delta is an absolute value, so previously the label alone
+          // decided direction and a mislabelled edit extended a route that
+          // should have shrunk.
+          resolvedIntent = targetKm < currentKm ? 'shorter' : 'longer';
+          editIntent.intent = resolvedIntent;
         }
         summary =
-          `${intent === 'longer' ? 'Extend' : 'Shorten'} the route to ` +
+          `${resolvedIntent === 'longer' ? 'Extend' : 'Shorten'} the route to ` +
           `~${targetKm.toFixed(0)} km`;
       }
 
-      return { ok: true, intent, editIntent, reasoning, summary };
+      return { ok: true, intent: resolvedIntent, editIntent, reasoning, summary };
     }
 
     case 'avoid':

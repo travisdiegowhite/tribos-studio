@@ -1,7 +1,8 @@
-import { render, screen } from '@testing-library/react';
+import { render, screen, fireEvent } from '@testing-library/react';
 import { MantineProvider } from '@mantine/core';
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { StatsOverlay } from '../StatsOverlay';
+import type { StatsOverlayProps } from '../StatsOverlay';
 
 function renderOverlay(stats: { distance_km: number; elevation_gain_m: number; duration_s: number } | null) {
   return render(
@@ -100,5 +101,51 @@ describe('StatsOverlay', () => {
     expect(card).toHaveTextContent('50mi'); // 80.47 km ≈ 50 mi
     expect(card).toHaveTextContent('3281ft'); // 1000 m ≈ 3281 ft
     expect(card).not.toHaveTextContent('km');
+  });
+});
+
+function renderWithProps(props: Partial<StatsOverlayProps>) {
+  return render(
+    <MantineProvider>
+      <StatsOverlay stats={null} {...props} />
+    </MantineProvider>,
+  );
+}
+
+describe('StatsOverlay target chip', () => {
+  const stats = { distance_km: 32, elevation_gain_m: 300, duration_s: 4400 };
+
+  it('stays quiet when the route is on target', () => {
+    renderWithProps({ stats, targetStatus: null });
+    expect(screen.queryByTestId('rb2-stats-target')).not.toBeInTheDocument();
+  });
+
+  it('says how far off the route is, in the units asked for', () => {
+    renderWithProps({
+      stats,
+      targetStatus: { mode: 'time', error: -0.18, label: '16 min under 90' },
+    });
+    expect(screen.getByTestId('rb2-stats-target')).toHaveTextContent('16 min under 90');
+  });
+
+  it('offers a one-tap fix that hands the gap to the coach', () => {
+    const onFixTarget = vi.fn();
+    renderWithProps({
+      stats,
+      targetStatus: { mode: 'time', error: -0.18, label: '16 min under 90' },
+      onFixTarget,
+    });
+    fireEvent.click(screen.getByTestId('rb2-stats-target'));
+    expect(onFixTarget).toHaveBeenCalledTimes(1);
+  });
+
+  it('still reports the gap when no fix action is wired', () => {
+    renderWithProps({
+      stats,
+      targetStatus: { mode: 'distance', error: 0.2, label: '8.0 km over 40' },
+    });
+    const chip = screen.getByTestId('rb2-stats-target');
+    expect(chip).toHaveTextContent('8.0 km over 40');
+    expect(chip).not.toHaveTextContent('Fix');
   });
 });

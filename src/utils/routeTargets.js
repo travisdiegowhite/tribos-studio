@@ -96,10 +96,11 @@ export function rideGoalIntensity(goal) {
  * grade, surface or fatigue adjustment. Prefers their measured speed
  * profile, then Strava-derived performance metrics, then the profile default.
  *
- * @param {object}  params
- * @param {string}  [params.routeProfile='road']
- * @param {object}  [params.speedProfile]        rider speed profile row
- * @param {object}  [params.performanceMetrics]  { averageSpeed, confidence }
+ * @param {{
+ *   routeProfile?: string,
+ *   speedProfile?: Record<string, any> | null,
+ *   performanceMetrics?: Record<string, any> | null,
+ * }} [params]
  * @returns {number} km/h
  */
 export function flatProfileSpeedKmh({
@@ -160,6 +161,13 @@ export function flatProfileSpeedKmh({
  * distance should be derived from, and the same number personalizedETA
  * reaches before grade/surface/fatigue.
  *
+ * @param {{
+ *   goal?: string,
+ *   routeProfile?: string,
+ *   speedProfile?: Record<string, any> | null,
+ *   performanceMetrics?: Record<string, any> | null,
+ *   speedModifier?: number,
+ * }} [params]
  * @returns {number} km/h
  */
 export function flatSpeedKmh({
@@ -179,10 +187,113 @@ export function flatSpeedKmh({
  * flat ground, so "90 minutes" and the duration the UI shows agree by
  * construction on a flat route (hills are corrected for separately).
  *
+ * @param {number|null|undefined} timeMinutes
+ * @param {{
+ *   goal?: string,
+ *   routeProfile?: string,
+ *   speedProfile?: Record<string, any> | null,
+ *   performanceMetrics?: Record<string, any> | null,
+ *   speedModifier?: number,
+ * }} [opts]
  * @returns {number} km
  */
 export function targetDistanceKmForTime(timeMinutes, opts = {}) {
   const minutes = Number(timeMinutes);
   if (!Number.isFinite(minutes) || minutes <= 0) return 0;
   return (minutes / 60) * flatSpeedKmh(opts);
+}
+
+/**
+ * Describe how close a built route landed to what the rider asked for.
+ *
+ * The builder keeps its best attempt whether or not it converged, so without
+ * this the miss is invisible — which is how riders ended up with routes well
+ * short of the time they asked for and no indication why. `error` is signed:
+ * negative means under target.
+ *
+ * @param {{
+ *   targetMode?: 'time'|'distance',
+ *   targetDistanceKm?: number|null,
+ *   targetDurationMinutes?: number|null,
+ *   achievedKm?: number|null,
+ *   achievedMinutes?: number|null,
+ * }} input
+ * @returns {{
+ *   mode: 'time'|'distance',
+ *   targetKm: number|null, achievedKm: number|null,
+ *   targetMinutes: number|null, achievedMinutes: number|null,
+ *   error: number|null, withinTolerance: boolean,
+ * }|null}
+ */
+export function buildTargetAccuracy({
+  targetMode = 'distance',
+  targetDistanceKm = null,
+  targetDurationMinutes = null,
+  achievedKm = null,
+  achievedMinutes = null,
+} = {}) {
+  const num = (v) => (Number.isFinite(v) && v > 0 ? v : null);
+  const targetKm = num(targetDistanceKm);
+  const targetMinutes = num(targetDurationMinutes);
+  const gotKm = num(achievedKm);
+  const gotMinutes = num(achievedMinutes);
+
+  const onTime = targetMode === 'time';
+  const target = onTime ? targetMinutes : targetKm;
+  const achieved = onTime ? gotMinutes : gotKm;
+  const error = target && achieved ? (achieved - target) / target : null;
+
+  return {
+    mode: onTime ? 'time' : 'distance',
+    targetKm,
+    achievedKm: gotKm,
+    targetMinutes,
+    achievedMinutes: gotMinutes,
+    error,
+    withinTolerance: error === null ? true : Math.abs(error) <= TARGET_ACCURACY_TOLERANCE,
+  };
+}
+
+/** Miss fraction a route may carry before it is worth telling the rider. */
+export const TARGET_ACCURACY_TOLERANCE = 0.10;
+
+/**
+ * Phrase a target miss for the rider, or return null when it isn't worth
+ * saying. Deliberately concrete ("6 min under 90") rather than a percentage —
+ * the rider asked for a number, so the gap is reported in that number's units.
+ *
+ * @param {{mode: 'time'|'distance', error: number|null, targetMinutes: number|null,
+ *   achievedMinutes: number|null, targetKm: number|null, achievedKm: number|null}|null} accuracy
+ * @param {{isImperial?: boolean}} [opts]
+ * @returns {{mode: 'time'|'distance', error: number, label: string}|null}
+ */
+export function describeTargetMiss(accuracy, { isImperial = false } = {}) {
+  if (!accuracy || accuracy.error === null || !Number.isFinite(accuracy.error)) return null;
+  if (Math.abs(accuracy.error) <= TARGET_ACCURACY_TOLERANCE) return null;
+
+  const over = accuracy.error > 0;
+  const direction = over ? 'over' : 'under';
+
+  if (accuracy.mode === 'time') {
+    const target = accuracy.targetMinutes;
+    const got = accuracy.achievedMinutes;
+    if (!target || !got) return null;
+    const gap = Math.round(Math.abs(got - target));
+    if (gap < 1) return null;
+    return { mode: 'time', error: accuracy.error, label: `${gap} min ${direction} ${Math.round(target)}` };
+  }
+
+  const target = accuracy.targetKm;
+  const got = accuracy.achievedKm;
+  if (!target || !got) return null;
+  const toUnit = (km) => (isImperial ? km * 0.621371 : km);
+  const unit = isImperial ? 'mi' : 'km';
+  const gap = Math.abs(toUnit(got) - toUnit(target));
+  if (gap < 0.1) return null;
+  const gapText = gap < 10 ? gap.toFixed(1) : String(Math.round(gap));
+  return {
+    mode: 'distance',
+    error: accuracy.error,
+    label: `${gapText} ${unit} ${direction} ${Math.round(toUnit(target))}`,
+  };
 }

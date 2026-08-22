@@ -55,12 +55,15 @@ function normalizeStartLocation(location) {
 // Target-scoring helpers moved to routeTargets.js (shared with the edit
 // service, which must not import this module's heavy dependency graph).
 // Re-exported here for existing callers and tests.
-export { getTargetProximityScore, hillsBiasForTarget } from './routeTargets.js';
+export { getTargetProximityScore, hillsBiasForTarget, buildTargetAccuracy } from './routeTargets.js';
 import {
+  buildTargetAccuracy,
   getTargetProximityScore,
   hillsBiasForTarget,
   targetDistanceKmForTime,
 } from './routeTargets.js';
+import { calculatePersonalizedETA } from './personalizedETA.js';
+import { M_TO_KM, assertKm } from './distanceUnits';
 
 /**
  * Geocode Claude's named roads/landmarks into routing via-points near the
@@ -121,6 +124,12 @@ export async function generateAIRoutes(params, onProgress = null) {
     // Explicit surface selection from the form ('road' | 'gravel' | 'mtb' |
     // 'commute'); wins over the preference-inferred profile.
     routeProfile = null,
+    // Which number the rider is actually asking for. In 'time' mode the
+    // route gets a corrective pass against its estimated ride time — a
+    // target distance derived from minutes is only as good as the pace
+    // guess that produced it, and hills break that guess.
+    targetMode = 'distance',
+    targetDurationMinutes = null,
   } = params;
 
   // T1.4 — wall-clock anchor for `generation_context_built.duration_ms`.
@@ -315,7 +324,14 @@ export async function generateAIRoutes(params, onProgress = null) {
             routeType,
             pastRidePatterns: ridingPatterns
           };
-          return convertClaudeToFullRoute(routeWithContext, startLocation, targetDistanceKm, userPreferences, userSpeed, { elevationGainTargetM, routeProfile });
+          return convertClaudeToFullRoute(routeWithContext, startLocation, targetDistanceKm, userPreferences, userSpeed, {
+            elevationGainTargetM,
+            routeProfile,
+            targetMode,
+            targetDurationMinutes,
+            speedProfile,
+            trainingGoal,
+          });
         })
       );
       for (const result of conversionResults) {
@@ -1067,7 +1083,14 @@ function calculateDestinationPoint(start, distanceKm, bearingDegrees) {
 
 // Convert Claude route suggestion to full route with coordinates
 async function convertClaudeToFullRoute(claudeRoute, startLocation, targetDistanceKm, preferences = null, userSpeed = null, targets = {}) {
-  const { elevationGainTargetM = null, routeProfile: explicitProfile = null } = targets;
+  const {
+    elevationGainTargetM = null,
+    routeProfile: explicitProfile = null,
+    targetMode = 'distance',
+    targetDurationMinutes = null,
+    speedProfile = null,
+    trainingGoal: riderGoal = null,
+  } = targets;
   const mapboxToken = import.meta.env.VITE_MAPBOX_TOKEN;
   if (!mapboxToken) {
     console.warn('Mapbox token not available for Claude route conversion');
@@ -1162,34 +1185,36 @@ async function convertClaudeToFullRoute(claudeRoute, startLocation, targetDistan
       }
     }
 
-    // Geometric build with closed-loop distance correction: snap, measure,
-    // scale the synthetic radius by target/actual, retry. Keeps the best
-    // attempt; the pre-P3 behavior was a single uncorrected attempt.
-    if (!route) {
-      const MAX_ATTEMPTS = 3;
-      const TOLERANCE = 0.15;
+    // Build a route aimed at a given distance, correcting the synthetic
+    // radius against what the router actually returns: snap, measure, scale
+    // by target/actual, retry. Keeps the best attempt.
+    const buildToDistanceKm = async (aimKm) => {
       let scale = 1.0;
       let best = null;
-      for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
+      for (let attempt = 0; attempt < MAX_DISTANCE_ATTEMPTS; attempt++) {
         const waypoints = await generateWaypointsFromDirections(
           claudeRoute.keyDirections,
           startLocation,
-          effectiveDistance * scale,
+          aimKm * scale,
           routeType,
           claudeRoute.pastRidePatterns
         );
         const candidate = await getSmartCyclingRoute(waypoints, routerOptions);
         const actualKm = candidate ? (candidate.distance_m ?? candidate.distance ?? 0) / 1000 : 0;
         if (!candidate?.coordinates || candidate.coordinates.length <= 10 || actualKm <= 0) break;
-        const error = Math.abs(actualKm - targetDistanceKm) / targetDistanceKm;
-        console.log(`📐 Distance attempt ${attempt + 1}: ${actualKm.toFixed(1)}km vs target ${targetDistanceKm.toFixed(1)}km (error ${(error * 100).toFixed(0)}%, scale ${scale.toFixed(2)})`);
+        const error = Math.abs(actualKm - aimKm) / aimKm;
+        console.log(`📐 Distance attempt ${attempt + 1}: ${actualKm.toFixed(1)}km vs aim ${aimKm.toFixed(1)}km (error ${(error * 100).toFixed(0)}%, scale ${scale.toFixed(2)})`);
         if (!best || error < best.error) best = { candidate, error };
-        if (error <= TOLERANCE) break;
+        if (error <= TARGET_TOLERANCE) break;
         // Routed distance responds roughly linearly to the synthetic radius;
         // clamp the correction so one weird snap can't run the scale away.
-        scale *= Math.min(1.8, Math.max(0.55, targetDistanceKm / actualKm));
+        scale *= Math.min(1.8, Math.max(0.55, aimKm / actualKm));
       }
-      route = best?.candidate ?? null;
+      return best?.candidate ?? null;
+    };
+
+    if (!route) {
+      route = await buildToDistanceKm(effectiveDistance);
     }
 
     if (route) {
@@ -1198,8 +1223,61 @@ async function convertClaudeToFullRoute(claudeRoute, startLocation, targetDistan
 
     if (route && route.coordinates && route.coordinates.length > 10) {
       // Get elevation profile
-      const elevationProfile = await fetchElevationProfile(route.coordinates, mapboxToken);
-      const elevationStats = calculateElevationStats(elevationProfile);
+      let elevationProfile = await fetchElevationProfile(route.coordinates, mapboxToken);
+      let elevationStats = calculateElevationStats(elevationProfile);
+
+      // Time correction. A target distance derived from minutes is only as
+      // good as the pace guess behind it, and hills invalidate that guess —
+      // so when the rider asked for a *time*, measure the ride time the route
+      // actually implies and rebuild once against the corrected distance.
+      // Skipped when Claude's named roads were used: rebuilding would throw
+      // away real road intelligence for a length nudge. The reported accuracy
+      // below keeps that case honest instead.
+      const etaContext = {
+        speedProfile,
+        routeProfile: explicitProfile,
+        trainingGoal: riderGoal || claudeRoute.trainingGoal,
+      };
+      let achievedKm = (route.distance_m ?? route.distance ?? 0) / 1000;
+      let achievedMinutes = estimateRideMinutes(achievedKm, elevationProfile, etaContext);
+
+      if (
+        targetMode === 'time' &&
+        targetDurationMinutes > 0 &&
+        !usedNamedRoads &&
+        achievedMinutes > 0
+      ) {
+        const timeError = Math.abs(achievedMinutes - targetDurationMinutes) / targetDurationMinutes;
+        if (timeError > TARGET_TOLERANCE) {
+          const correctedKm = achievedKm * clampCorrection(targetDurationMinutes / achievedMinutes);
+          console.log(
+            `⏱️ Time correction: ${achievedMinutes.toFixed(0)}min vs target ${targetDurationMinutes}min ` +
+            `(error ${(timeError * 100).toFixed(0)}%) — rebuilding at ${correctedKm.toFixed(1)}km`,
+          );
+          const candidate = await buildToDistanceKm(correctedKm);
+          if (candidate?.coordinates?.length > 10) {
+            const candidateProfile = await fetchElevationProfile(candidate.coordinates, mapboxToken);
+            const candidateKm = (candidate.distance_m ?? candidate.distance ?? 0) / 1000;
+            const candidateMinutes = estimateRideMinutes(candidateKm, candidateProfile, etaContext);
+            // Only keep the rebuild if it is genuinely closer in time — a
+            // second roll of the synthetic geometry can land further away.
+            if (
+              candidateMinutes > 0 &&
+              Math.abs(candidateMinutes - targetDurationMinutes) <
+                Math.abs(achievedMinutes - targetDurationMinutes)
+            ) {
+              console.log(`⏱️ Time correction kept: ${candidateMinutes.toFixed(0)}min`);
+              route = candidate;
+              elevationProfile = candidateProfile;
+              elevationStats = calculateElevationStats(candidateProfile);
+              achievedKm = candidateKm;
+              achievedMinutes = candidateMinutes;
+            } else {
+              console.log('⏱️ Time correction discarded — the rebuild was no closer');
+            }
+          }
+        }
+      }
 
       // Build the route object with actual data
       const fullRoute = {
@@ -1218,6 +1296,17 @@ async function convertClaudeToFullRoute(claudeRoute, startLocation, targetDistan
         // The shape actually built, never `round_trip` — `routes.route_type`
         // is CHECK-constrained to the three concrete values.
         routeType,
+        // What was asked for vs what was delivered. The builder keeps its best
+        // attempt whether or not it converged, so without this the miss is
+        // invisible — which is exactly how riders ended up with routes 25%
+        // short of the time they asked for and no indication why.
+        targetAccuracy: buildTargetAccuracy({
+          targetMode,
+          targetDistanceKm,
+          targetDurationMinutes,
+          achievedKm,
+          achievedMinutes,
+        }),
       };
 
       // Pass through maneuver data if available (from Valhalla/Stadia Maps)
@@ -1278,6 +1367,61 @@ async function convertClaudeToFullRoute(claudeRoute, startLocation, targetDistan
 }
 
 // Generate waypoints from Claude's turn-by-turn directions with route type awareness
+/**
+ * How close a route has to land before we stop correcting it — on distance
+ * and, in time mode, on estimated ride time. Was 0.15 for distance only.
+ */
+const TARGET_TOLERANCE = 0.10;
+
+/** Attempts inside a single distance-aimed build. */
+const MAX_DISTANCE_ATTEMPTS = 3;
+
+/**
+ * Clamp a proportional correction so one bad measurement can't send the next
+ * attempt somewhere absurd. Mirrors the distance loop's own clamp.
+ */
+function clampCorrection(ratio) {
+  if (!Number.isFinite(ratio) || ratio <= 0) return 1;
+  return Math.min(1.8, Math.max(0.55, ratio));
+}
+
+/**
+ * Estimated ride time for a built route, in minutes.
+ *
+ * `fetchElevationProfile` (directions.js) reports per-point `distance` in
+ * **metres**, while `calculatePersonalizedETA` reads that same field as
+ * **kilometres** — handing one to the other unconverted is a 1000× error, so
+ * the conversion happens here and is asserted (T1.1).
+ *
+ * @param {number} distanceKm
+ * @param {Array<{distance: number, elevation: number}>} elevationProfileM
+ * @returns {number|null} minutes, or null when it can't be estimated
+ */
+export function estimateRideMinutes(distanceKm, elevationProfileM, { speedProfile, routeProfile, trainingGoal } = {}) {
+  if (!(distanceKm > 0)) return null;
+  const profileKm = Array.isArray(elevationProfileM)
+    ? elevationProfileM
+        .filter((p) => p && Number.isFinite(p.distance) && Number.isFinite(p.elevation))
+        .map((p) => ({ distance: M_TO_KM(p.distance), elevation: p.elevation }))
+    : [];
+  if (profileKm.length >= 2) {
+    assertKm(profileKm[profileKm.length - 1].distance, 'elevationProfile.distance');
+  }
+  try {
+    const eta = calculatePersonalizedETA({
+      distanceKm,
+      elevationProfile: profileKm.length >= 2 ? profileKm : null,
+      speedProfile: speedProfile ?? undefined,
+      routeProfile: routeProfile === 'mtb' ? 'mountain' : routeProfile || 'road',
+      trainingGoal: trainingGoal || 'endurance',
+    });
+    return eta?.totalSeconds > 0 ? eta.totalSeconds / 60 : null;
+  } catch (err) {
+    console.warn('ETA estimation failed:', err?.message);
+    return null;
+  }
+}
+
 /** The concrete shapes a route can be built as, and saved as. */
 const CONCRETE_ROUTE_SHAPES = new Set(['loop', 'out_back', 'point_to_point']);
 
