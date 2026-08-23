@@ -6,9 +6,9 @@
  *
  * BACKGROUND
  * ----------
- * Until supersedePriorPlans landed, activating a new plan flipped the old
- * plan's `status` to 'completed' and then attempted an UNCHECKED delete of its
- * future rows. On 2026-08-22 that delete silently did nothing, leaving the
+ * Activating a new plan used to flip the old plan's `status` to 'completed'
+ * and then attempt an UNCHECKED delete of its future rows. On 2026-08-22 that
+ * delete silently did nothing, leaving the
  * athlete with two plans' sessions stacked on every day from Aug 21 to Sep 25 —
  * which is why the training header read "11 sessions this week".
  *
