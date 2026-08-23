@@ -1,4 +1,5 @@
 import { redistributeWorkouts } from './trainingPlans';
+import { supersedePriorPlans } from '../../api/utils/supersedePlans.js';
 
 /**
  * Activate a coach-generated training plan preview: complete any existing active plans,
@@ -31,12 +32,19 @@ export async function activateTrainingPlan(supabase, { userId, plan, availabilit
   }
 
   try {
-    // Mark existing active plans as completed so only the new one is active.
-    await supabase
-      .from('training_plans')
-      .update({ status: 'completed', ended_at: new Date().toISOString() })
-      .eq('user_id', userId)
-      .eq('status', 'active');
+    // Retire existing active plans so only the new one is active. This used to
+    // flip `status` and stop there — leaving every future row of the old plan
+    // stacked underneath the new one on the calendar, and not even checking
+    // whether the flip succeeded. supersedePriorPlans removes untouched machine
+    // fill and DETACHES anything the athlete touched onto the plan-free
+    // calendar, so nothing they arranged by hand is lost.
+    const superseded = await supersedePriorPlans(supabase, {
+      userId,
+      fromDate: plan.start_date,
+    });
+    if (!superseded.success) {
+      return { success: false, error: `Could not retire the previous plan: ${superseded.error}` };
+    }
 
     const actualWorkouts = plan.workouts.filter(
       (w) => w.workout_type !== 'rest' && w.workout_id

@@ -8,6 +8,7 @@ import { VOCABULARY_RULES, TRANSLATION_RULES, DATA_CORRECTION_NOTICE } from './u
 import { rateLimitByUser } from './utils/rateLimit.js';
 import { enforceAiQuota } from './utils/aiQuota.js';
 import { WORKOUT_LIBRARY_FOR_AI, ALL_COACH_TOOLS } from './utils/workoutLibrary.js';
+import { supersedePriorPlans } from './utils/supersedePlans.js';
 import { handleFitnessHistoryQuery } from './utils/fitnessHistoryTool.js';
 import { handleTrainingDataQuery } from './utils/trainingDataTool.js';
 import { generateTrainingPlan, getWorkoutMeta } from './utils/planGenerator.js';
@@ -451,24 +452,12 @@ async function handleActivatePlan(userId, plan) {
   try {
     const startDate = plan.start_date;
 
-    // Complete prior active plans and clear their FUTURE workouts (keep past/history).
-    const { data: priorPlans } = await supabase
-      .from('training_plans')
-      .select('id')
-      .eq('user_id', userId)
-      .eq('status', 'active');
-    const priorIds = (priorPlans || []).map((p) => p.id);
-    if (priorIds.length > 0) {
-      await supabase
-        .from('training_plans')
-        .update({ status: 'completed', ended_at: new Date().toISOString() })
-        .in('id', priorIds);
-      await supabase
-        .from('planned_workouts')
-        .delete()
-        .in('plan_id', priorIds)
-        .gte('scheduled_date', startDate);
-    }
+    // Retire prior active plans. Untouched machine fill is removed; anything the
+    // athlete or coach touched is DETACHED (plan_id -> NULL) and stays on the
+    // calendar. Never fire-and-forget: an unchecked delete here is what put two
+    // plans' sessions on every day of the athlete's calendar on 2026-08-22.
+    const superseded = await supersedePriorPlans(supabase, { userId, fromDate: startDate });
+    if (!superseded.success) throw new Error(`Could not retire the previous plan: ${superseded.error}`);
 
     const actualWorkouts = plan.workouts.filter((w) => w.workout_type !== 'rest' && w.workout_id);
 
@@ -525,8 +514,9 @@ async function handleActivatePlan(userId, plan) {
 // The arc IS a training_plans row (template_id='ai_arc') carrying its phase bands
 // (`tier` + `blocks` JSONB, migration 101); the workouts are deterministic arc
 // fill, already shaped by generateArcWorkouts (source='arc', phase set, dual-write
-// load). Mirrors handleActivatePlan's "set/replace active plan" semantics: complete
-// prior active plans and clear their FUTURE workouts (keep past/history).
+// load). Mirrors handleActivatePlan's "set/replace active plan" semantics via
+// supersedePriorPlans: prior plans are retired, their untouched fill removed and
+// everything the athlete touched detached onto the plan-free calendar.
 async function handleActivateArc(userId, { race, blocks, workouts }) {
   if (!userId) return { success: false, error: 'Not signed in' };
   if (!Array.isArray(workouts) || workouts.length === 0) {
@@ -538,24 +528,12 @@ async function handleActivateArc(userId, { race, blocks, workouts }) {
     const raceDate = race?.race_date || null;
     const tier = race?.priority || 'A';
 
-    // Complete prior active plans and clear their FUTURE workouts (keep past/history).
-    const { data: priorPlans } = await supabase
-      .from('training_plans')
-      .select('id')
-      .eq('user_id', userId)
-      .eq('status', 'active');
-    const priorIds = (priorPlans || []).map((p) => p.id);
-    if (priorIds.length > 0) {
-      await supabase
-        .from('training_plans')
-        .update({ status: 'completed', ended_at: new Date().toISOString() })
-        .in('id', priorIds);
-      await supabase
-        .from('planned_workouts')
-        .delete()
-        .in('plan_id', priorIds)
-        .gte('scheduled_date', startDate);
-    }
+    // Retire prior active plans. Untouched machine fill is removed; anything the
+    // athlete or coach touched is DETACHED (plan_id -> NULL) and stays on the
+    // calendar. Never fire-and-forget: an unchecked delete here is what put two
+    // plans' sessions on every day of the athlete's calendar on 2026-08-22.
+    const superseded = await supersedePriorPlans(supabase, { userId, fromDate: startDate });
+    if (!superseded.success) throw new Error(`Could not retire the previous plan: ${superseded.error}`);
 
     // A "real" (countable) workout is any non-rest day.
     const actualCount = workouts.filter((w) => w.workout_type !== 'rest').length;
