@@ -277,7 +277,7 @@ export function toDateKey(value) {
  *   • `start_date` is genuine UTC — render it in local time.
  * Wahoo sends no `start_date_local`, hence the fallback.
  *
- * @param {{start_date_local?: string, start_date?: string}} activity
+ * @param {{start_date_local?: string|null, start_date?: string|null}|null|undefined} activity
  * @returns {string|null} YYYY-MM-DD, or null when the activity has neither
  */
 export function activityDateKey(activity) {
