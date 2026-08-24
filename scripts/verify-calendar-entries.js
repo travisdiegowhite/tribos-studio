@@ -169,12 +169,19 @@ async function main() {
     const slots = list.map((e) => e.slot).sort((a, b) => a - b);
     if (new Set(slots).size !== slots.length) dupSlots.push(`${k}  slots=[${slots}]`);
     if (slots.some((s, i) => s !== i)) sparse.push(`${k}  slots=[${slots}]`);
-    const race = list.find((e) => e.type === 'race');
-    if (race && race.slot !== 0) raceNotFirst.push(`${k}  race at slot ${race.slot}`);
+    // Races take the LOWEST slots, but a day can hold more than one race (an
+    // athlete raced a gravel event and a run on 2026-06-20), so the invariant
+    // is "if there is a race, slot 0 is a race" — not "every race is slot 0".
+    if (list.some((e) => e.type === 'race')) {
+      const slotZero = list.find((e) => e.slot === 0);
+      if (slotZero && slotZero.type !== 'race') {
+        raceNotFirst.push(`${k}  slot 0 is ${slotZero.type}, but the day has a race`);
+      }
+    }
   }
   check(`(user_id, date, slot) unique across ${perDay.size} athlete-days`, dupSlots.length === 0, dupSlots.slice(0, SAMPLE).join('\n'));
   check('slots are dense from 0 on every day', sparse.length === 0, sparse.slice(0, SAMPLE).join('\n'));
-  check('a race always occupies slot 0 on its day', raceNotFirst.length === 0, raceNotFirst.slice(0, SAMPLE).join('\n'));
+  check('slot 0 is a race on every day that has one', raceNotFirst.length === 0, raceNotFirst.slice(0, SAMPLE).join('\n'));
 
   // 5 — status parity
   console.log('\n5. Status parity');
