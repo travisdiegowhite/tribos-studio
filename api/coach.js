@@ -526,7 +526,7 @@ async function handleActivatePlan(userId, plan) {
 // (`tier` + `blocks` JSONB, migration 101); the workouts are deterministic arc
 // fill, already shaped by generateArcWorkouts (source='arc', phase set, dual-write
 // load). Mirrors handleActivatePlan's "set/replace active plan" semantics:
-// prior plans are marked superseded and their calendar rows are left in place.
+// prior plans are marked 'completed' and their calendar rows are left in place.
 async function handleActivateArc(userId, { race, blocks, workouts }) {
   if (!userId) return { success: false, error: 'Not signed in' };
   if (!Array.isArray(workouts) || workouts.length === 0) {
