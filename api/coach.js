@@ -458,9 +458,14 @@ async function handleActivatePlan(userId, plan) {
     // 2026-08-21) and, when it did fire, destroyed sessions the athlete had
     // moved by hand. Duplicate-day cleanup belongs to the calendar, not to
     // plan activation.
+    //
+    // 'completed' is the only retirement value the schema permits —
+    // training_plans_status_check allows draft|active|paused|completed|archived.
+    // Writing 'superseded' here to distinguish "we replaced it" from "the
+    // athlete finished it" violates that CHECK and makes activation throw.
     const { error: retireError } = await supabase
       .from('training_plans')
-      .update({ status: 'superseded', ended_at: new Date().toISOString() })
+      .update({ status: 'completed', ended_at: new Date().toISOString() })
       .eq('user_id', userId)
       .eq('status', 'active');
     if (retireError) throw new Error(`Could not retire the previous plan: ${retireError.message}`);
@@ -540,9 +545,14 @@ async function handleActivateArc(userId, { race, blocks, workouts }) {
     // 2026-08-21) and, when it did fire, destroyed sessions the athlete had
     // moved by hand. Duplicate-day cleanup belongs to the calendar, not to
     // plan activation.
+    //
+    // 'completed' is the only retirement value the schema permits —
+    // training_plans_status_check allows draft|active|paused|completed|archived.
+    // Writing 'superseded' here to distinguish "we replaced it" from "the
+    // athlete finished it" violates that CHECK and makes activation throw.
     const { error: retireError } = await supabase
       .from('training_plans')
-      .update({ status: 'superseded', ended_at: new Date().toISOString() })
+      .update({ status: 'completed', ended_at: new Date().toISOString() })
       .eq('user_id', userId)
       .eq('status', 'active');
     if (retireError) throw new Error(`Could not retire the previous plan: ${retireError.message}`);

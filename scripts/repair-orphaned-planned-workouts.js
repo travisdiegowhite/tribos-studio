@@ -100,13 +100,28 @@ function activityKey(row) {
 }
 
 async function restore(file) {
-  const rows = JSON.parse(fs.readFileSync(file, 'utf8'));
-  console.log(`Restoring ${rows.length} row(s) from ${file}…`);
-  for (const row of rows) {
-    const { error } = await supabase.from('planned_workouts').upsert(row, { onConflict: 'id' });
-    if (error) {
-      console.error(`  ✗ ${row.id}: ${error.message}`);
-      process.exitCode = 1;
+  const parsed = JSON.parse(fs.readFileSync(file, 'utf8'));
+  // Backups written before the activity_efi fix are a flat array of
+  // planned_workouts rows; newer ones are keyed by table. Accept both.
+  const backup = Array.isArray(parsed)
+    ? { planned_workouts: parsed, activity_efi: [] }
+    : { planned_workouts: parsed.planned_workouts || [], activity_efi: parsed.activity_efi || [] };
+
+  // Workouts first: activity_efi.workout_id references them, so restoring the
+  // dependents before their parents would fail the same FK that made the
+  // original delete abort.
+  for (const [table, rows] of [
+    ['planned_workouts', backup.planned_workouts],
+    ['activity_efi', backup.activity_efi],
+  ]) {
+    if (rows.length === 0) continue;
+    console.log(`Restoring ${rows.length} ${table} row(s) from ${file}…`);
+    for (const row of rows) {
+      const { error } = await supabase.from(table).upsert(row, { onConflict: 'id' });
+      if (error) {
+        console.error(`  ✗ ${table} ${row.id}: ${error.message}`);
+        process.exitCode = 1;
+      }
     }
   }
   console.log('Restore complete.');
@@ -215,6 +230,30 @@ async function main() {
 
   console.log(`\nTOTAL: delete ${deletable.length} (${dupes.length} duplicated completion(s)), detach ${detachable.length}`);
 
+  // activity_efi is the ONLY foreign key into planned_workouts that is neither
+  // CASCADE nor SET NULL — it is NO ACTION, so a single referencing row aborts
+  // the whole DELETE and nothing at all is removed. (That is exactly what
+  // happened on the first --apply run: one efi row for a duplicated completion
+  // blocked all 35 deletions.) Clear the dependents in the same operation, and
+  // back them up so --restore is still a complete reversal.
+  let dependentEfi = [];
+  if (deletable.length > 0) {
+    const { data, error } = await supabase
+      .from('activity_efi')
+      .select('*')
+      .in('workout_id', deletable.map((r) => r.id));
+    if (error) throw new Error(`Could not read activity_efi dependents: ${error.message}`);
+    dependentEfi = data || [];
+  }
+  if (dependentEfi.length > 0) {
+    console.log(
+      `\n${dependentEfi.length} activity_efi row(s) reference rows being deleted and will be removed too.`,
+    );
+    console.log(
+      '  Safe: EFI is derived per activity + planned workout, and the surviving row for the same ride keeps its own.',
+    );
+  }
+
   if (!APPLY) {
     console.log('\nDry run — nothing written. Re-run with --apply to commit.');
     return;
@@ -223,8 +262,20 @@ async function main() {
   fs.mkdirSync(BACKUP_DIR, { recursive: true });
   const stamp = new Date().toISOString().replace(/[:.]/g, '-');
   const backupFile = path.join(BACKUP_DIR, `orphaned-planned-workouts-${stamp}.json`);
-  fs.writeFileSync(backupFile, JSON.stringify([...rows, ...dupes], null, 2));
+  fs.writeFileSync(
+    backupFile,
+    JSON.stringify({ planned_workouts: [...rows, ...dupes], activity_efi: dependentEfi }, null, 2),
+  );
   console.log(`\nBackup written to ${backupFile}`);
+
+  if (dependentEfi.length > 0) {
+    const { error } = await supabase
+      .from('activity_efi')
+      .delete()
+      .in('id', dependentEfi.map((r) => r.id));
+    if (error) throw new Error(`activity_efi cleanup failed: ${error.message}`);
+    console.log(`Removed ${dependentEfi.length} dependent activity_efi row(s).`);
+  }
 
   if (deletable.length > 0) {
     const { error } = await supabase
@@ -244,15 +295,11 @@ async function main() {
     console.log(`Detached ${detachable.length} athlete-touched row(s) onto the plan-free calendar.`);
   }
 
-  // Retired plans that lost rows here were 'completed'; relabel them so the
-  // distinction between "athlete finished it" and "we replaced it" survives.
-  const touchedPlans = [...new Set([...rows, ...dupes].map((r) => r.plan_id))];
-  const { error: planUpdErr } = await supabase
-    .from('training_plans')
-    .update({ status: 'superseded' })
-    .in('id', touchedPlans)
-    .eq('status', 'completed');
-  if (planUpdErr) throw new Error(`Plan relabel failed: ${planUpdErr.message}`);
+  // No relabel. Retired plans stay 'completed' — training_plans_status_check
+  // restricts status to draft|active|paused|completed|archived, so the
+  // 'superseded' label this used to write violated the constraint and aborted
+  // the run *after* the deletes had already committed. Distinguishing
+  // "replaced" from "finished" needs a migration to widen that CHECK first.
 
   console.log(`\nDone. Roll back with:\n  node scripts/repair-orphaned-planned-workouts.js --restore ${backupFile}`);
 }

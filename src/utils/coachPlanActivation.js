@@ -34,9 +34,10 @@ export async function activateTrainingPlan(supabase, { userId, plan, availabilit
     // Retire existing active plans so only the new one is active. Their
     // calendar rows are deliberately left alone — see the note in
     // api/coach.js. The one thing that WAS missing here is an error check.
+    // 'completed' is constraint-mandated — see the note in api/coach.js.
     const { error: retireError } = await supabase
       .from('training_plans')
-      .update({ status: 'superseded', ended_at: new Date().toISOString() })
+      .update({ status: 'completed', ended_at: new Date().toISOString() })
       .eq('user_id', userId)
       .eq('status', 'active');
     if (retireError) {
