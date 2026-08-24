@@ -7,7 +7,8 @@
 
 import { useMemo } from 'react';
 import { Paper, Text, Group, Box, SimpleGrid, Stack } from '@mantine/core';
-import { calculateTSS, estimateTSS } from '../../utils/trainingPlans';
+import { estimateActivityTSS } from '../../utils/computeFitnessSnapshots';
+import { activityDateKey } from '../../utils/dateUtils';
 
 interface CheckInWeekBarProps {
   plannedWorkouts?: any[];
@@ -45,21 +46,15 @@ function toDateKey(d: Date): string {
   return `${year}-${month}-${day}`;
 }
 
+/**
+ * Delegates to the canonical 5-tier ladder so this chart and the WeekSummaryGrid
+ * above it score the same ride identically. The local reimplementation this
+ * replaced read only the LEGACY `tss` column, which is NULL for most activities
+ * since the B9 cut-over — so a ride with `rss` set scored 0 here while the
+ * header counted it in full.
+ */
 function getActivityTSS(activity: any, ftp: number | null): number {
-  if (activity.tss != null && activity.tss > 0) return Math.min(activity.tss, 500);
-  if (activity.average_watts && ftp) {
-    const tss = calculateTSS(activity.moving_time, activity.average_watts, ftp);
-    return Math.min(tss || 0, 500);
-  }
-  return Math.min(
-    estimateTSS(
-      (activity.moving_time || 0) / 60,
-      (activity.distance || 0) / 1000,
-      activity.total_elevation_gain || 0,
-      'endurance'
-    ),
-    500
-  );
+  return Math.min(estimateActivityTSS(activity, ftp) || 0, 500);
 }
 
 export interface DayData {
@@ -120,9 +115,8 @@ export default function CheckInWeekBar({
     const actualByDate: Record<string, number> = {};
     for (const a of activities) {
       if (!a.start_date && !a.start_date_local) continue;
-      const key = a.start_date_local
-        ? String(a.start_date_local).split('T')[0]
-        : toDateKey(new Date(a.start_date));
+      const key = activityDateKey(a);
+      if (!key) continue;
       // Only count activities within this week
       if (weekKeys.has(key)) {
         actualByDate[key] = (actualByDate[key] || 0) + getActivityTSS(a, ftp);

@@ -153,7 +153,9 @@ export default function ActivityLinkingModal({
             activity_id: activityId,
             completed: true,
             completed_at: activity.date,
+            // Dual-write canonical + legacy per CLAUDE.md's metrics freeze.
             actual_rss: activity.rss ?? activity.tss,
+            actual_tss: activity.rss ?? activity.tss,
             actual_duration: activity.duration,
             actual_distance_km: activity.distance,
           })

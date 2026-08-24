@@ -10,6 +10,7 @@
  */
 
 import { getSupabaseAdmin } from './utils/supabaseAdmin.js';
+import { isQualityWorkout } from './utils/qualitySession.js';
 import { setupCors } from './utils/cors.js';
 
 const supabase = getSupabaseAdmin();
@@ -141,7 +142,7 @@ async function applyMutation(userId, mutation) {
   // Fetch upcoming unfinished workouts
   const { data: upcoming } = await supabase
     .from('planned_workouts')
-    .select('id, scheduled_date, name, workout_type, target_tss, target_duration, is_quality')
+    .select('id, scheduled_date, name, workout_type, target_tss, target_rss, target_duration')
     .eq('plan_id', plan.id)
     .eq('user_id', userId)
     .gte('scheduled_date', today)
@@ -299,7 +300,7 @@ function resolveTarget(upcoming, target, tomorrowStr) {
     case 'tomorrow':
       return upcoming.find(w => w.scheduled_date === tomorrowStr) || null;
     case 'next_quality':
-      return upcoming.find(w => w.is_quality === true) || upcoming[0] || null;
+      return upcoming.find(isQualityWorkout) || upcoming[0] || null;
     case 'next':
       return upcoming[0] || null;
     default:

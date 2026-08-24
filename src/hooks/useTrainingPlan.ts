@@ -929,7 +929,12 @@ export function useTrainingPlan({
             activity_id: activityId,
             completed: true,
             completed_at: activity.start_date,
+            // Dual-write canonical + legacy per CLAUDE.md's metrics freeze.
+            // Writing actual_rss alone left every legacy-only reader
+            // (FitnessProgressChart, checkInContext, assembleFitnessContext,
+            // admin analytics) blind to manually linked sessions.
             actual_rss: activity.rss ?? activity.tss,
+            actual_tss: activity.rss ?? activity.tss,
             actual_duration: Math.round(activity.moving_time / 60),
             actual_distance_km: activity.distance ? activity.distance / 1000 : null,
           })

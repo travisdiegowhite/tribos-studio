@@ -29,7 +29,7 @@ import { WORKOUT_TYPES, TRAINING_PHASES, calculateTSS, estimateTSS } from '../ut
 import { isPowerSport } from '../utils/sportType';
 import { getWorkoutById } from '../data/workoutLibrary';
 import { tokens } from '../theme';
-import { formatLocalDate, addDays, parsePlanStartDate } from '../utils/dateUtils';
+import { formatLocalDate, addDays, parsePlanStartDate, getTodayString, toDateKey, weekStartKey, activityDateKey } from '../utils/dateUtils';
 import RaceGoalModal from './RaceGoalModal';
 import { StravaLogo, STRAVA_ORANGE } from './StravaBranding';
 import { FuelBadge } from './fueling';
@@ -412,20 +412,20 @@ const TrainingCalendar = ({ activePlan, rides = [], formatDistance: formatDistan
     }
   };
 
-  // Calculate weekly summary stats
+  // Calculate weekly summary stats, keyed by the MONDAY DATE of each week.
+  //
+  // Previously this bucketed planned workouts by `workout.week_number` while
+  // bucketing rides by weeks-since-activePlan-start — two different axes in one
+  // map. `plannedWorkouts` is user-scoped (loaded across all of the athlete's
+  // plans), and `week_number` is measured from each row's OWN plan start, so
+  // three plans' "Week 4" all landed in bucket 4 and summed together. A date key
+  // is the only axis every row actually shares.
   const weeklyStats = useMemo(() => {
-    if (!activePlan) return {};
-
-    // Use parsePlanStartDate for timezone-safe parsing
-    const planStartDate = parsePlanStartDate(getPlanStartDate(activePlan));
-    if (!planStartDate) return {};
-
     const stats = {};
-
-    // Group workouts by week
-    plannedWorkouts.forEach(workout => {
-      if (!stats[workout.week_number]) {
-        stats[workout.week_number] = {
+    const bucket = (key) => {
+      if (!key) return null;
+      if (!stats[key]) {
+        stats[key] = {
           plannedTSS: 0,
           actualTSS: 0,
           completedCount: 0,
@@ -434,61 +434,55 @@ const TrainingCalendar = ({ activePlan, rides = [], formatDistance: formatDistan
           actualDuration: 0,
         };
       }
-      if (workout.workout_type !== 'rest') {
-        stats[workout.week_number].totalCount++;
-        stats[workout.week_number].plannedTSS += workout.target_tss || 0;
-        stats[workout.week_number].plannedDuration += workout.target_duration || 0;
-        if (workout.completed) {
-          stats[workout.week_number].completedCount++;
-          stats[workout.week_number].actualTSS += workout.actual_tss || workout.target_tss || 0;
-          stats[workout.week_number].actualDuration += workout.actual_duration || workout.target_duration || 0;
-        }
+      return stats[key];
+    };
+
+    // Group planned workouts by the Monday of their scheduled week.
+    plannedWorkouts.forEach(workout => {
+      if (workout.workout_type === 'rest') return;
+      const week = bucket(weekStartKey(toDateKey(workout.scheduled_date)));
+      if (!week) return;
+      week.totalCount++;
+      // Canonical target_rss first, legacy target_tss fallback (CLAUDE.md).
+      week.plannedTSS += workout.target_rss ?? workout.target_tss ?? 0;
+      week.plannedDuration += workout.target_duration || 0;
+      if (workout.completed) {
+        week.completedCount++;
+        week.actualTSS +=
+          workout.actual_rss ?? workout.actual_tss ?? workout.target_rss ?? workout.target_tss ?? 0;
+        week.actualDuration += workout.actual_duration || workout.target_duration || 0;
       }
     });
 
-    // Add actual ride TSS from activities
+    // Add actual ride TSS from activities, keyed by the athlete's local day.
     rides.forEach(ride => {
-      const rideDate = new Date(ride.start_date);
-      const daysSinceStart = Math.floor((rideDate - planStartDate) / (24 * 60 * 60 * 1000));
-      const weekNumber = Math.floor(daysSinceStart / 7) + 1;
-
-      if (weekNumber > 0 && weekNumber <= activePlan.duration_weeks) {
-        if (!stats[weekNumber]) {
-          stats[weekNumber] = {
-            plannedTSS: 0,
-            actualTSS: 0,
-            completedCount: 0,
-            totalCount: 0,
-            plannedDuration: 0,
-            actualDuration: 0,
-          };
-        }
-        // Prefer stored canonical load (rss, fallback to legacy tss). For
-        // runs we never apply the cycling power→TSS formula because watts
-        // from a footpod would be misread against cycling FTP. Phase 2 will
-        // replace the duration-based fallback with HR-TRIMP / rTSS.
-        const storedLoad = ride.rss ?? ride.tss;
-        let rideTSS;
-        if (storedLoad != null && storedLoad > 0) {
-          rideTSS = storedLoad;
-        } else if (isPowerSport(ride) && ride.average_watts && ftp) {
-          rideTSS = calculateTSS(ride.moving_time, ride.average_watts, ftp);
-        } else {
-          rideTSS = estimateTSS(
-            (ride.moving_time || 0) / 60,
-            (ride.distance || 0) / 1000,
-            ride.total_elevation_gain || 0,
-            'endurance'
-          );
-        }
-        rideTSS = Math.min(rideTSS || 0, 500);
-        stats[weekNumber].actualTSS += rideTSS;
-        stats[weekNumber].actualDuration += (ride.moving_time || 0) / 60;
+      const week = bucket(weekStartKey(activityDateKey(ride)));
+      if (!week) return;
+      // Prefer stored canonical load (rss, fallback to legacy tss). For
+      // runs we never apply the cycling power→TSS formula because watts
+      // from a footpod would be misread against cycling FTP. Phase 2 will
+      // replace the duration-based fallback with HR-TRIMP / rTSS.
+      const storedLoad = ride.rss ?? ride.tss;
+      let rideTSS;
+      if (storedLoad != null && storedLoad > 0) {
+        rideTSS = storedLoad;
+      } else if (isPowerSport(ride) && ride.average_watts && ftp) {
+        rideTSS = calculateTSS(ride.moving_time, ride.average_watts, ftp);
+      } else {
+        rideTSS = estimateTSS(
+          (ride.moving_time || 0) / 60,
+          (ride.distance || 0) / 1000,
+          ride.total_elevation_gain || 0,
+          'endurance'
+        );
       }
+      rideTSS = Math.min(rideTSS || 0, 500);
+      week.actualTSS += rideTSS;
+      week.actualDuration += (ride.moving_time || 0) / 60;
     });
 
     return stats;
-  }, [plannedWorkouts, rides, activePlan, ftp]);
+  }, [plannedWorkouts, rides, ftp]);
 
   // Get current week number
   const getCurrentWeekNumber = () => {
@@ -1144,6 +1138,8 @@ const TrainingCalendar = ({ activePlan, rides = [], formatDistance: formatDistan
   const rangeLabel = `${anchorDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} – ${addDays(anchorDate, 27).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`;
   const currentWeek = getCurrentWeekNumber();
   const currentPhase = getCurrentPhase();
+  // weeklyStats is keyed by Monday date; the plan-relative number is label only.
+  const currentWeekStats = weeklyStats[weekStartKey(getTodayString())];
 
   // Workout library sidebar (shared by the desktop rail and the mobile drawer).
   const librarySidebar = (
@@ -1203,7 +1199,7 @@ const TrainingCalendar = ({ activePlan, rides = [], formatDistance: formatDistan
       )}
 
       {/* Weekly Summary */}
-      {activePlan && weeklyStats[currentWeek] && (
+      {activePlan && currentWeekStats && (
         <Paper p="md" withBorder>
           <Group justify="space-between" mb="sm">
             <Text fw={600} size="sm">Week {currentWeek} Summary</Text>
@@ -1218,7 +1214,7 @@ const TrainingCalendar = ({ activePlan, rides = [], formatDistance: formatDistan
                 <Text size="xs" c="dimmed">RSS</Text>
               </Group>
               <Text fw={600}>
-                {Math.round(weeklyStats[currentWeek].actualTSS)} / {weeklyStats[currentWeek].plannedTSS}
+                {Math.round(currentWeekStats.actualTSS)} / {currentWeekStats.plannedTSS}
               </Text>
             </Box>
             <Box>
@@ -1229,7 +1225,7 @@ const TrainingCalendar = ({ activePlan, rides = [], formatDistance: formatDistan
                 <Text size="xs" c="dimmed">Duration</Text>
               </Group>
               <Text fw={600}>
-                {Math.round(weeklyStats[currentWeek].actualDuration)} / {weeklyStats[currentWeek].plannedDuration} min
+                {Math.round(currentWeekStats.actualDuration)} / {currentWeekStats.plannedDuration} min
               </Text>
             </Box>
             <Box>
@@ -1240,7 +1236,7 @@ const TrainingCalendar = ({ activePlan, rides = [], formatDistance: formatDistan
                 <Text size="xs" c="dimmed">Completed</Text>
               </Group>
               <Text fw={600}>
-                {weeklyStats[currentWeek].completedCount} / {weeklyStats[currentWeek].totalCount} workouts
+                {currentWeekStats.completedCount} / {currentWeekStats.totalCount} workouts
               </Text>
             </Box>
             <Box>
@@ -1251,8 +1247,8 @@ const TrainingCalendar = ({ activePlan, rides = [], formatDistance: formatDistan
                 <Text size="xs" c="dimmed">Compliance</Text>
               </Group>
               <Text fw={600}>
-                {weeklyStats[currentWeek].totalCount > 0
-                  ? Math.round((weeklyStats[currentWeek].completedCount / weeklyStats[currentWeek].totalCount) * 100)
+                {currentWeekStats.totalCount > 0
+                  ? Math.round((currentWeekStats.completedCount / currentWeekStats.totalCount) * 100)
                   : 0}%
               </Text>
             </Box>

@@ -1,8 +1,23 @@
 import { Box, SimpleGrid, Skeleton } from '@mantine/core';
 import { useMediaQuery } from '@mantine/hooks';
 import { MetricCitation } from '../ui/MetricCitation';
+import { getTodayString, toDateKey, weekRangeKeys } from '../../utils/dateUtils';
 
-function WeekSummaryGrid({ weeklyStats, actualWeeklyStats, plannedWorkouts, formatDist, formatTime, loading }) {
+/**
+ * The week's plan-vs-actual citation row.
+ *
+ * Every figure here is scoped to the SAME Monday–Sunday week, compared as
+ * date KEYS. Three separate mismatches used to live in this component:
+ *   • the window was built from local `Date` bounds but compared against
+ *     `new Date('YYYY-MM-DD')` (UTC midnight), which admitted an 8th day;
+ *   • the RSS numerator came from `weeklyStats`, which is scoped to the
+ *     dashboard's 30-day timeRange selector, not to the week;
+ *   • the "X of Y" counted activities over planned rows, so three rides
+ *     against two planned sessions read 150%.
+ * Keep all four metrics on one window — this row sits directly above
+ * CheckInWeekBar, and any divergence between them is visible to the athlete.
+ */
+function WeekSummaryGrid({ actualWeeklyStats, plannedWorkouts, formatTime, loading }) {
   const isMobile = useMediaQuery('(max-width: 768px)');
 
   if (loading) {
@@ -25,38 +40,33 @@ function WeekSummaryGrid({ weeklyStats, actualWeeklyStats, plannedWorkouts, form
     );
   }
 
-  // Calculate weekly TSS from weeklyStats
-  const weeklyTSS = weeklyStats?.totalTSS || 0;
+  // Monday–Sunday of the current week, as date keys.
+  const week = weekRangeKeys(getTodayString());
+  const inWeek = (dateish) => {
+    const key = toDateKey(dateish);
+    return !!(week && key && key >= week.startKey && key <= week.endKeyInclusive);
+  };
 
-  // Calculate planned TSS for current week
-  const now = new Date();
-  const dayOfWeek = now.getDay();
-  const mondayOffset = dayOfWeek === 0 ? -6 : 1 - dayOfWeek;
-  const thisMonday = new Date(now);
-  thisMonday.setDate(thisMonday.getDate() + mondayOffset);
-  thisMonday.setHours(0, 0, 0, 0);
-  const thisSunday = new Date(thisMonday);
-  thisSunday.setDate(thisSunday.getDate() + 6);
-  thisSunday.setHours(23, 59, 59, 999);
-
-  const weekPlanned = (plannedWorkouts || []).filter(w => {
-    const d = new Date(w.scheduled_date);
-    return d >= thisMonday && d <= thisSunday;
-  });
+  // A rest day is not a session — the plan's own `workouts_total` excludes
+  // them too (api/coach.js handleActivateArc), so the counts agree.
+  const weekSessions = (plannedWorkouts || []).filter(
+    (w) => inWeek(w.scheduled_date) && w.workout_type !== 'rest'
+  );
 
   // Canonical target_rss first, legacy target_tss fallback (planned_workouts
   // has no `tss` column — reading it made plannedTSS silently always 0).
-  const plannedTSS = weekPlanned.reduce(
+  const plannedTSS = weekSessions.reduce(
     (sum, w) => sum + (Number(w.target_rss ?? w.target_tss) || 0),
     0
   );
-  const plannedCount = weekPlanned.length;
-  const completedCount = actualWeeklyStats?.activityCount || 0;
+  const plannedCount = weekSessions.length;
+  const completedCount = weekSessions.filter((w) => w.completed === true).length;
   const compliance = plannedCount > 0
     ? Math.round((completedCount / plannedCount) * 100)
     : 0;
 
-  // Total duration this week
+  // Actual load and time for THIS week (not the timeRange selector's window).
+  const weeklyTSS = actualWeeklyStats?.totalTSS || 0;
   const totalTime = actualWeeklyStats?.totalTime || 0;
   const formattedTime = formatTime ? formatTime(totalTime) : `${Math.round(totalTime / 3600)}h`;
 

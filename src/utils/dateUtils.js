@@ -204,3 +204,85 @@ export function parsePlanStartDate(timestampStr) {
   // Create a local date at midnight with the extracted components
   return new Date(year, month, day);
 }
+
+/**
+ * Get the Monday of the week containing a given date, as a YYYY-MM-DD string.
+ *
+ * String in, string out — never round-trip through `new Date(dateStr)`, which
+ * parses a bare YYYY-MM-DD as UTC midnight and then compares wrong against a
+ * locally-constructed week boundary. That mismatch is what made the training
+ * header count an 8-day week in any negative-UTC-offset timezone.
+ *
+ * @param {string} dateKey - Date string in YYYY-MM-DD format
+ * @returns {string|null} Monday of that week in YYYY-MM-DD format
+ */
+export function weekStartKey(dateKey) {
+  const date = parseLocalDate(dateKey);
+  if (!date) return null;
+  const day = date.getDay(); // 0=Sun
+  const mondayOffset = day === 0 ? -6 : 1 - day;
+  date.setDate(date.getDate() + mondayOffset);
+  return formatLocalDate(date);
+}
+
+/**
+ * Get the Monday-to-Sunday range containing a given date, as YYYY-MM-DD strings.
+ *
+ * BOTH end bounds are returned deliberately. The codebase has two incompatible
+ * conventions in live use — exclusive next-Monday (`weekBoundsInTz` in
+ * api/utils/contextHelpers.js, and its consumers) and inclusive Sunday
+ * (coachContextEnrichment, the training header). Collapsing them onto one form
+ * silently shifts every caller that assumed the other, so callers pick.
+ *
+ * Compare date KEYS against these, not Date objects:
+ *   key >= startKey && key <= endKeyInclusive
+ *
+ * @param {string} dateKey - Date string in YYYY-MM-DD format
+ * @returns {{startKey: string, endKeyInclusive: string, endKeyExclusive: string}|null}
+ */
+export function weekRangeKeys(dateKey) {
+  const startKey = weekStartKey(dateKey);
+  if (!startKey) return null;
+  const monday = parseLocalDate(startKey);
+  return {
+    startKey,
+    endKeyInclusive: formatLocalDate(addDays(monday, 6)),
+    endKeyExclusive: formatLocalDate(addDays(monday, 7)),
+  };
+}
+
+/**
+ * Normalise any date-ish value to a YYYY-MM-DD key for week bucketing.
+ * Accepts a bare date string, an ISO timestamp, or a Date. Date strings are
+ * split rather than parsed so a `2026-08-24` never becomes Aug 23 locally.
+ *
+ * @param {string|Date} value
+ * @returns {string|null} YYYY-MM-DD, or null when unparseable
+ */
+export function toDateKey(value) {
+  if (!value) return null;
+  if (value instanceof Date) return formatLocalDate(value);
+  if (typeof value !== 'string') return null;
+  if (/^\d{4}-\d{2}-\d{2}/.test(value)) return value.slice(0, 10);
+  return formatLocalDate(new Date(value));
+}
+
+/**
+ * The athlete's local calendar day for an activity, as a YYYY-MM-DD key.
+ *
+ * The two timestamp columns need OPPOSITE treatment and getting it wrong
+ * moves evening rides onto the next day:
+ *   • `start_date_local` is a fake-UTC timestamp carrying local wall time —
+ *     string-slice it, never `new Date()` it.
+ *   • `start_date` is genuine UTC — render it in local time.
+ * Wahoo sends no `start_date_local`, hence the fallback.
+ *
+ * @param {{start_date_local?: string, start_date?: string}} activity
+ * @returns {string|null} YYYY-MM-DD, or null when the activity has neither
+ */
+export function activityDateKey(activity) {
+  if (!activity) return null;
+  if (activity.start_date_local) return String(activity.start_date_local).slice(0, 10);
+  if (activity.start_date) return formatLocalDate(new Date(activity.start_date));
+  return null;
+}

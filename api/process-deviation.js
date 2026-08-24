@@ -10,6 +10,7 @@
  */
 
 import { getSupabaseAdmin } from './utils/supabaseAdmin.js';
+import { isQualityWorkout } from './utils/qualitySession.js';
 import { setupCors } from './utils/cors.js';
 import { estimateTSSWithSource } from './utils/fitnessSnapshots.js';
 import {
@@ -173,14 +174,14 @@ export default async function handler(req, res) {
       date: todaysPlanned.scheduled_date,
       tss: (todaysPlanned.target_rss ?? todaysPlanned.target_tss) || 0,
       type: todaysPlanned.workout_type || 'endurance',
-      is_quality: todaysPlanned.is_quality || false,
+      is_quality: isQualityWorkout(todaysPlanned),
       label: todaysPlanned.name || 'Planned workout',
     };
 
     const schedule = upcoming.map(w => ({
       date: w.scheduled_date,
       rss: (w.target_rss ?? w.target_tss) || 0,
-      is_quality: w.is_quality || false,
+      is_quality: isQualityWorkout(w),
       session_type: w.session_type || w.workout_type,
     }));
 

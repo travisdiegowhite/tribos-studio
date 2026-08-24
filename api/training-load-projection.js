@@ -9,6 +9,7 @@
  */
 
 import { getSupabaseAdmin } from './utils/supabaseAdmin.js';
+import { isQualityWorkout } from './utils/qualitySession.js';
 import { setupCors } from './utils/cors.js';
 
 const supabase = getSupabaseAdmin();
@@ -63,7 +64,7 @@ export default async function handler(req, res) {
     const schedule = (upcoming ?? []).map(w => ({
       date: w.scheduled_date,
       rss: (w.target_rss ?? w.target_tss) || 0,
-      is_quality: w.is_quality || false,
+      is_quality: isQualityWorkout(w),
       session_type: w.session_type || w.workout_type,
     }));
 

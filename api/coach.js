@@ -451,24 +451,19 @@ async function handleActivatePlan(userId, plan) {
   try {
     const startDate = plan.start_date;
 
-    // Complete prior active plans and clear their FUTURE workouts (keep past/history).
-    const { data: priorPlans } = await supabase
+    // Retire prior active plans. Their calendar rows are deliberately LEFT
+    // ALONE: a session does not stop being true because the plan that seeded
+    // it retired, and the previous "delete the old plan's future rows" step
+    // both silently no-opped (leaving two plans stacked on every day from
+    // 2026-08-21) and, when it did fire, destroyed sessions the athlete had
+    // moved by hand. Duplicate-day cleanup belongs to the calendar, not to
+    // plan activation.
+    const { error: retireError } = await supabase
       .from('training_plans')
-      .select('id')
+      .update({ status: 'superseded', ended_at: new Date().toISOString() })
       .eq('user_id', userId)
       .eq('status', 'active');
-    const priorIds = (priorPlans || []).map((p) => p.id);
-    if (priorIds.length > 0) {
-      await supabase
-        .from('training_plans')
-        .update({ status: 'completed', ended_at: new Date().toISOString() })
-        .in('id', priorIds);
-      await supabase
-        .from('planned_workouts')
-        .delete()
-        .in('plan_id', priorIds)
-        .gte('scheduled_date', startDate);
-    }
+    if (retireError) throw new Error(`Could not retire the previous plan: ${retireError.message}`);
 
     const actualWorkouts = plan.workouts.filter((w) => w.workout_type !== 'rest' && w.workout_id);
 
@@ -525,8 +520,8 @@ async function handleActivatePlan(userId, plan) {
 // The arc IS a training_plans row (template_id='ai_arc') carrying its phase bands
 // (`tier` + `blocks` JSONB, migration 101); the workouts are deterministic arc
 // fill, already shaped by generateArcWorkouts (source='arc', phase set, dual-write
-// load). Mirrors handleActivatePlan's "set/replace active plan" semantics: complete
-// prior active plans and clear their FUTURE workouts (keep past/history).
+// load). Mirrors handleActivatePlan's "set/replace active plan" semantics:
+// prior plans are marked superseded and their calendar rows are left in place.
 async function handleActivateArc(userId, { race, blocks, workouts }) {
   if (!userId) return { success: false, error: 'Not signed in' };
   if (!Array.isArray(workouts) || workouts.length === 0) {
@@ -538,24 +533,19 @@ async function handleActivateArc(userId, { race, blocks, workouts }) {
     const raceDate = race?.race_date || null;
     const tier = race?.priority || 'A';
 
-    // Complete prior active plans and clear their FUTURE workouts (keep past/history).
-    const { data: priorPlans } = await supabase
+    // Retire prior active plans. Their calendar rows are deliberately LEFT
+    // ALONE: a session does not stop being true because the plan that seeded
+    // it retired, and the previous "delete the old plan's future rows" step
+    // both silently no-opped (leaving two plans stacked on every day from
+    // 2026-08-21) and, when it did fire, destroyed sessions the athlete had
+    // moved by hand. Duplicate-day cleanup belongs to the calendar, not to
+    // plan activation.
+    const { error: retireError } = await supabase
       .from('training_plans')
-      .select('id')
+      .update({ status: 'superseded', ended_at: new Date().toISOString() })
       .eq('user_id', userId)
       .eq('status', 'active');
-    const priorIds = (priorPlans || []).map((p) => p.id);
-    if (priorIds.length > 0) {
-      await supabase
-        .from('training_plans')
-        .update({ status: 'completed', ended_at: new Date().toISOString() })
-        .in('id', priorIds);
-      await supabase
-        .from('planned_workouts')
-        .delete()
-        .in('plan_id', priorIds)
-        .gte('scheduled_date', startDate);
-    }
+    if (retireError) throw new Error(`Could not retire the previous plan: ${retireError.message}`);
 
     // A "real" (countable) workout is any non-rest day.
     const actualCount = workouts.filter((w) => w.workout_type !== 'rest').length;

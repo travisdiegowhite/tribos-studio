@@ -9,6 +9,7 @@
  */
 
 import { getSupabaseAdmin } from './utils/supabaseAdmin.js';
+import { isQualityWorkout } from './utils/qualitySession.js';
 import { setupCors } from './utils/cors.js';
 
 const supabase = getSupabaseAdmin();
@@ -136,7 +137,7 @@ async function applyPlanMutation(supabase, userId, deviation, option) {
     return { applied: false, reason: 'no_upcoming_workouts' };
   }
 
-  const nextQuality = upcoming.find(w => w.is_quality === true);
+  const nextQuality = upcoming.find(isQualityWorkout);
   const tomorrowWorkout = upcoming.find(w => w.scheduled_date === tomorrowStr);
 
   switch (option) {

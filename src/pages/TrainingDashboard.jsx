@@ -35,7 +35,7 @@ import { tokens, depth } from '../theme';
 import AppShell from '../components/AppShell.jsx';
 import { useAuth } from '../contexts/AuthContext.jsx';
 import { useActivation } from '../hooks/useActivation';
-import { parsePlanStartDate, formatLocalDate, getTodayString } from '../utils/dateUtils';
+import { parsePlanStartDate, formatLocalDate, getTodayString, activityDateKey, weekRangeKeys } from '../utils/dateUtils';
 import { supabase } from '../lib/supabase';
 import { resolveActivePlan } from '../utils/activePlan';
 import { CoachCard, CheckInPage } from '../components/coach';
@@ -640,16 +640,19 @@ function TrainingDashboard() {
     return stats;
   }, [visibleActivities, timeRange, ftp]);
 
-  // Calculate true weekly stats (Monday-Sunday of current week)
+  // Calculate true weekly stats (Monday-Sunday of current week).
+  // Bounded at BOTH ends against date keys — the old `>= thisMonday` form had
+  // no upper bound, so a future-dated activity counted toward this week, and
+  // it compared Date objects built two different ways. `totalTSS` lives here
+  // (not on `weeklyStats`, which follows the 30-day timeRange selector) so the
+  // header's RSS numerator and denominator describe the same seven days.
   const actualWeeklyStats = useMemo(() => {
-    const today = new Date();
-    const dayOfWeek = today.getDay(); // 0=Sun, 1=Mon, ...
-    const mondayOffset = dayOfWeek === 0 ? -6 : 1 - dayOfWeek;
-    const thisMonday = new Date(today);
-    thisMonday.setDate(thisMonday.getDate() + mondayOffset);
-    thisMonday.setHours(0, 0, 0, 0);
+    const week = weekRangeKeys(getTodayString());
 
-    const weeklyActivities = visibleActivities.filter(a => new Date(a.start_date) >= thisMonday);
+    const weeklyActivities = visibleActivities.filter((a) => {
+      const key = activityDateKey(a);
+      return !!(week && key && key >= week.startKey && key <= week.endKeyInclusive);
+    });
 
     return weeklyActivities.reduce(
       (acc, a) => {
@@ -657,15 +660,16 @@ function TrainingDashboard() {
         return {
           totalDistance: acc.totalDistance + (a.distance || 0),
           totalTime: acc.totalTime + (a.moving_time || 0),
+          totalTSS: acc.totalTSS + Math.min(estimateActivityTSS(a, ftp) || 0, 500),
           rideCount: acc.rideCount + (sport === 'cycling' ? 1 : 0),
           runCount: acc.runCount + (sport === 'running' ? 1 : 0),
           otherCount: acc.otherCount + (sport === 'other' ? 1 : 0),
           activityCount: acc.activityCount + 1,
         };
       },
-      { totalDistance: 0, totalTime: 0, rideCount: 0, runCount: 0, otherCount: 0, activityCount: 0 }
+      { totalDistance: 0, totalTime: 0, totalTSS: 0, rideCount: 0, runCount: 0, otherCount: 0, activityCount: 0 }
     );
-  }, [visibleActivities]);
+  }, [visibleActivities, ftp]);
 
   // Format helpers
   const formatTime = (seconds) => {
@@ -1004,10 +1008,8 @@ function TrainingDashboard() {
 
           {/* Week Summary Grid */}
           <WeekSummaryGrid
-            weeklyStats={weeklyStats}
             actualWeeklyStats={actualWeeklyStats}
             plannedWorkouts={plannedWorkouts}
-            formatDist={formatDist}
             formatTime={formatTime}
             loading={loading}
           />
