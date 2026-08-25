@@ -94,6 +94,13 @@ FROM (
     CASE
       WHEN p.completed IS TRUE               THEN 'done'
       WHEN p.skipped_reason IS NOT NULL      THEN 'skipped'
+      -- A rest day in the past is a rest day TAKEN, not a session missed.
+      -- Doing nothing is how you complete one, so there is no evidence of
+      -- non-compliance to record. Without this branch the date test below
+      -- swept up every historical rest day (354 rows on the first run,
+      -- corrected in place afterwards); keep it ahead of that test so a
+      -- re-run for Phase E's reconciling upsert cannot reintroduce them.
+      WHEN p.workout_type = 'rest'           THEN 'done'
       WHEN p.scheduled_date < CURRENT_DATE   THEN 'missed'
       ELSE 'planned'
     END                                                 AS status,
