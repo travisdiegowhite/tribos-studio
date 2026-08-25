@@ -1667,10 +1667,26 @@ export default async function handler(req, res) {
     }
     const calendarV2 = !!calendarV2Context;
 
-    // Tools are per-request now, not a module constant, because calendar_change
-    // is conditional. Everything else is unchanged for every athlete.
+    // Tools are per-request now, not a module constant.
+    //
+    // For a gated athlete the three legacy calendar writers are REMOVED, not
+    // merely discouraged. Leaving them available was not a small mistake: on
+    // 2026-08-25 the athlete asked the coach to plan a cyclocross season, and
+    // it built another "Plan: The Rad" in planned_workouts — 32 sessions, zero
+    // races — retiring the real plan on the way past. Their calendar reads
+    // calendar_entries, so the write succeeded and showed them nothing. That is
+    // the exact failure this rebuild exists to remove, reproduced by the change
+    // meant to fix it.
+    //
+    // Prompt instructions were never going to hold this line. The forced-tool
+    // pass below calls the model with tool_choice:{type:'tool', name} — it
+    // COMPELS a named tool, and no amount of system-prompt precedence outranks
+    // that. The only durable fix is that the wrong tool is not on the menu.
+    const LEGACY_CALENDAR_WRITERS = new Set([
+      'recommend_workout', 'create_training_plan', 'adjust_schedule',
+    ]);
     const coachTools = calendarV2
-      ? [...ALL_COACH_TOOLS, CALENDAR_CHANGE_TOOL]
+      ? [...ALL_COACH_TOOLS.filter((t) => !LEGACY_CALENDAR_WRITERS.has(t.name)), CALENDAR_CHANGE_TOOL]
       : ALL_COACH_TOOLS;
 
     // Determine persona
@@ -1926,9 +1942,11 @@ them would report success and change nothing they can see.
 
 - Adding a workout, adding a race, moving, editing, completing or removing
   anything → \`calendar_change\`.
-- Building a multi-week block → create the sessions with \`calendar_change\`.
-  You may still call create_training_plan to record the GOAL and methodology,
-  but the calendar entries come from \`calendar_change\`.
+- Building a multi-week block → create the sessions with \`calendar_change\`,
+  one operation per session. create_training_plan is NOT available to you for
+  this athlete; there is no separate step that loads a plan onto their
+  calendar. If you cannot express something as calendar operations, say so
+  rather than implying it happened.
 - You can finally schedule races. If the athlete plans a race season, put every
   race on the calendar as type "race". A name and a date is enough to create one.
 
@@ -2066,13 +2084,21 @@ ${conversationSummary}
     // input regex. Input intent wins when present.
     const firstPassText = response.content.find(block => block.type === 'text')?.text || '';
     let coachIntent = detectCoachIntent(message) || detectIntentFromResponse(firstPassText);
-    // On the rebuilt calendar every write intent resolves to the one tool that
-    // can actually write it. Without this remap the reliability pass would force
-    // recommend_workout/adjust_schedule — tools that succeed against a table this
-    // athlete's calendar does not read, which is precisely the silent-failure
-    // mode this rebuild exists to remove.
-    if (calendarV2 && (coachIntent === 'recommend_workout' || coachIntent === 'adjust_schedule')) {
+    // On the rebuilt calendar EVERY write intent resolves to the one tool that
+    // can actually write. This must cover all three legacy writers, not two:
+    // "plan my cross season" matches detectCoachIntent's create_training_plan
+    // branch, so an earlier version of this remap that handled only
+    // recommend_workout and adjust_schedule left the season-planning case —
+    // the exact case that motivated the tool — forcing the old writer.
+    if (calendarV2 && LEGACY_CALENDAR_WRITERS.has(coachIntent)) {
       coachIntent = 'calendar_change';
+    }
+    // Never force a tool that is not on this request's menu. tool_choice with an
+    // unlisted name is an API error, and silently swallowing it (below) would
+    // degrade to prose with no tool call at all.
+    if (coachIntent && !coachTools.some((t) => t.name === coachIntent)) {
+      console.warn(`Intent "${coachIntent}" is not an available tool this request; not forcing.`);
+      coachIntent = null;
     }
     const producedIntentTool = !!coachIntent && toolUses.some(t => t.name === coachIntent);
     let forcedToolPass = false;
