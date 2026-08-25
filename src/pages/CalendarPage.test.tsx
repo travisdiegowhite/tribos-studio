@@ -19,7 +19,7 @@ import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MantineProvider } from '@mantine/core';
 import CalendarPage from './CalendarPage';
-import type { CalendarRange } from '../lib/calendar/getCalendarRange';
+import type { CalendarDay, CalendarEntry, CalendarRange } from '../lib/calendar/getCalendarRange';
 
 const USER = '11111111-1111-1111-1111-111111111111';
 
@@ -54,14 +54,17 @@ vi.mock('../lib/calendar/calendarMutations', () => ({
 /** A 28-day range of empty days, matching the page's 4-week window. */
 function emptyRange(fromKey: string): CalendarRange {
   const start = Date.parse(`${fromKey}T00:00:00Z`);
-  return {
+  const days: CalendarDay[] = Array.from({ length: 28 }, (_, i) => ({
+    dateKey: new Date(start + i * 86_400_000).toISOString().slice(0, 10),
     entries: [],
-    activities: [],
-    days: Array.from({ length: 28 }, (_, i) => ({
-      dateKey: new Date(start + i * 86_400_000).toISOString().slice(0, 10),
-      entries: [],
-      unplannedActivities: [],
-    })),
+    unplannedActivities: [],
+  }));
+  return {
+    from: days[0].dateKey,
+    to: days[days.length - 1].dateKey,
+    entries: [],
+    byDate: new Map(days.map((d) => [d.dateKey, d])),
+    days,
   };
 }
 
@@ -126,7 +129,7 @@ describe('CalendarPage with no training plan', () => {
     const user = userEvent.setup();
     getCalendarRange.mockImplementation(async (_userId: string, from: string) => {
       const range = emptyRange(from);
-      const entry = {
+      const entry: CalendarEntry = {
         id: 'entry-1',
         user_id: USER,
         date: range.days[3].dateKey,
@@ -137,11 +140,15 @@ describe('CalendarPage with no training plan', () => {
         workout_type: 'sweet_spot',
         target_load: 78,
         target_duration_min: 75,
+        target_distance_km: null,
         actual_load: null,
         actual_duration_min: null,
+        actual_distance_km: null,
         status: 'planned' as const,
         completed_at: null,
+        skipped_reason: null,
         activity_id: null,
+        activity: null,
         notes: null,
         coach_rationale: null,
         details: null,
@@ -150,8 +157,6 @@ describe('CalendarPage with no training plan', () => {
         plan_id: null,
         generation_id: null,
         pinned: true,
-        created_at: '2026-08-25T00:00:00Z',
-        updated_at: '2026-08-25T00:00:00Z',
       };
       range.entries = [entry];
       range.days[3].entries = [entry];

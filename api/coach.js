@@ -8,6 +8,9 @@ import { VOCABULARY_RULES, TRANSLATION_RULES, DATA_CORRECTION_NOTICE } from './u
 import { rateLimitByUser } from './utils/rateLimit.js';
 import { enforceAiQuota } from './utils/aiQuota.js';
 import { WORKOUT_LIBRARY_FOR_AI, ALL_COACH_TOOLS } from './utils/workoutLibrary.js';
+import { CALENDAR_CHANGE_TOOL, validateOps, adjudicateOps, describeVerdict } from './utils/calendarChangeTool.js';
+import { applyCalendarOps, persistProposal } from './utils/calendarChangeApply.js';
+import { buildCalendarContext } from './utils/calendarCoachContext.js';
 import { handleFitnessHistoryQuery } from './utils/fitnessHistoryTool.js';
 import { handleTrainingDataQuery } from './utils/trainingDataTool.js';
 import { generateTrainingPlan, getWorkoutMeta } from './utils/planGenerator.js';
@@ -650,6 +653,93 @@ Respond with ONLY a JSON object: {"leadIn": "...", "signOff": "..."}`;
     console.error('generateArcPersonaWrapper failed (using deterministic message):', err.message);
     return null;
   }
+}
+
+/**
+ * Handle a `calendar_change` tool call.
+ *
+ * The whole point of this function is that THE MODEL DOES NOT DECIDE ANYTHING
+ * consequential here. It supplies operations; the server resolves the handles
+ * against rows it fetched itself, validates the list, adjudicates whether it
+ * applies or needs the athlete, and reports back what actually happened.
+ *
+ * The tool result is written for the model to READ: it has to tell the athlete
+ * either "I've added those" or "I've put that up for you to approve", and the
+ * only way it can say the true one is if this result says which.
+ *
+ * @param {string} userId  Verified from the auth token, never from the body.
+ * @param {object} input   Raw tool input.
+ * @param {object|null} calendarContext  From buildCalendarContext — the handle
+ *   map is built from THIS athlete's rows, so a handle for someone else's entry
+ *   simply does not resolve.
+ */
+export async function handleCalendarChange(userId, input, calendarContext, conversationId = null) {
+  // Belt and braces on the gate. The tool is only offered to gated athletes,
+  // but a tool call can arrive from replayed conversation history, so refuse
+  // here too rather than trusting registration alone.
+  if (!calendarContext) {
+    return {
+      success: false,
+      error: 'The calendar is not available for this athlete. Do not claim any change was made.',
+    };
+  }
+  if (!calendarContext.ok) {
+    return {
+      success: false,
+      error: 'The calendar could not be read this turn, so no change was made. Tell the athlete to try again.',
+    };
+  }
+
+  const { operations, summary } = input || {};
+
+  const { valid, errors, resolved } = validateOps(
+    operations,
+    calendarContext.byHandle,
+    calendarContext.ambiguous
+  );
+  if (!valid) {
+    // Specific enough for the model to correct itself on the retry round.
+    return {
+      success: false,
+      applied: 0,
+      errors,
+      error: `No changes were made. Fix these and call the tool again: ${errors.join(' ')}`,
+    };
+  }
+
+  const verdict = adjudicateOps(resolved);
+  const createCount = resolved.filter((op) => op.op === 'create').length;
+
+  if (!verdict.apply) {
+    const proposal = await persistProposal(userId, resolved, verdict, summary);
+    if (!proposal.success) {
+      return {
+        success: false,
+        applied: 0,
+        error: `Could not save the proposal (${proposal.error}). Nothing changed; do not tell the athlete otherwise.`,
+      };
+    }
+    return {
+      success: true,
+      applied: 0,
+      proposed: resolved.length,
+      proposal_id: proposal.proposalId,
+      outcome: 'awaiting_approval',
+      guidance: describeVerdict(verdict, createCount),
+    };
+  }
+
+  const applyResult = await applyCalendarOps(userId, resolved, { source: 'coach' });
+  return {
+    success: applyResult.success,
+    applied: applyResult.applied,
+    failed: applyResult.failed,
+    outcome: applyResult.failed === 0 ? 'applied' : 'partially_applied',
+    results: applyResult.results,
+    guidance: applyResult.failed === 0
+      ? describeVerdict(verdict, createCount)
+      : `${applyResult.applied} of ${applyResult.results.length} changes went through. Tell the athlete exactly which did not, and why — do not report the whole change as done.`,
+  };
 }
 
 // Handle schedule adjustment tool calls — modifies existing active plan workouts
@@ -1551,6 +1641,38 @@ export default async function handler(req, res) {
       { selectedRaceGoalId }
     );
 
+    // ── The rebuilt calendar, for athletes who are on it ────────────────────
+    //
+    // GATED, and the gate is load-bearing rather than cosmetic. If the coach
+    // could write `calendar_entries` for an athlete whose calendar still reads
+    // `planned_workouts`, the write would succeed and the athlete would see
+    // nothing — which is EXACTLY the failure that started this rebuild: a
+    // coach turn that reported scheduling ten races and scheduled none. So the
+    // tool is only offered to users whose calendar actually reads that table.
+    let calendarV2Context = null;
+    try {
+      const { data: gateRow } = await supabase
+        .from('user_profiles')
+        .select('calendar_v2_enabled')
+        .eq('id', verifiedUserId)
+        .maybeSingle();
+      if (gateRow?.calendar_v2_enabled === true) {
+        calendarV2Context = await buildCalendarContext(verifiedUserId, resolvedTimezone);
+      }
+    } catch (calErr) {
+      // Non-blocking: without the context the tool is simply not offered, and
+      // the coach falls back to the legacy plan tools.
+      console.error('Calendar context failed (non-blocking):', calErr.message);
+      calendarV2Context = null;
+    }
+    const calendarV2 = !!calendarV2Context;
+
+    // Tools are per-request now, not a module constant, because calendar_change
+    // is conditional. Everything else is unchanged for every athlete.
+    const coachTools = calendarV2
+      ? [...ALL_COACH_TOOLS, CALENDAR_CHANGE_TOOL]
+      : ALL_COACH_TOOLS;
+
     // Determine persona
     const personaId = coachSettings?.coaching_persona && coachSettings.coaching_persona !== 'pending'
       ? coachSettings.coaching_persona
@@ -1561,6 +1683,7 @@ export default async function handler(req, res) {
     // Build the full system prompt — temporal anchor is the foundation
     let systemPrompt = `=== TEMPORAL ANCHOR (pre-resolved dates — do not compute new ones) ===
 ${temporalAnchorBlock}
+${calendarV2 ? '\n' + calendarV2Context.block + '\n' : ''}
 
 CRITICAL: Conversation-history messages that occurred on a PREVIOUS day are prefixed
 with their date, e.g. "[Mon Jul 21]". Inside a prefixed message, words like "today",
@@ -1793,6 +1916,28 @@ IMPORTANT: You also generate coaching check-ins on the athlete's training dashbo
 When the athlete references a check-in, respond as the same coach — maintain continuity.`;
     }
 
+    if (calendarV2) {
+      systemPrompt += `\n\n=== CALENDAR TOOL — THIS SUPERSEDES THE TOOL RULES BELOW ===
+This athlete is on the rebuilt calendar. \`calendar_change\` is the ONLY tool that
+writes to it. Everything earlier in this prompt that tells you to call
+recommend_workout or adjust_schedule applies to other athletes, NOT this one:
+those tools write to a table this athlete's calendar no longer reads, so calling
+them would report success and change nothing they can see.
+
+- Adding a workout, adding a race, moving, editing, completing or removing
+  anything → \`calendar_change\`.
+- Building a multi-week block → create the sessions with \`calendar_change\`.
+  You may still call create_training_plan to record the GOAL and methodology,
+  but the calendar entries come from \`calendar_change\`.
+- You can finally schedule races. If the athlete plans a race season, put every
+  race on the calendar as type "race". A name and a date is enough to create one.
+
+Do not state an outcome before you have the tool result. It tells you whether
+the change APPLIED or is AWAITING THE ATHLETE'S APPROVAL, and your reply must
+say the true one. If it says awaiting approval, say you have put it up for them
+to accept — not that you have made the change.`;
+    }
+
     systemPrompt += `\n\n=== INSTRUCTIONS ===
 Use the current date context and athlete data above to provide personalized, time-appropriate coaching advice.
 When races are listed above, use their exact names, dates, and details in your response — you have full visibility into their calendar.
@@ -1900,7 +2045,7 @@ ${conversationSummary}
       temperature: 0.7,
       system: systemPrompt,
       messages: messages,
-      tools: ALL_COACH_TOOLS
+      tools: coachTools
     });
 
     // Check if we need to handle tool calls
@@ -1920,7 +2065,15 @@ ${conversationSummary}
     // reading the response catches those even when the user's phrasing matched no
     // input regex. Input intent wins when present.
     const firstPassText = response.content.find(block => block.type === 'text')?.text || '';
-    const coachIntent = detectCoachIntent(message) || detectIntentFromResponse(firstPassText);
+    let coachIntent = detectCoachIntent(message) || detectIntentFromResponse(firstPassText);
+    // On the rebuilt calendar every write intent resolves to the one tool that
+    // can actually write it. Without this remap the reliability pass would force
+    // recommend_workout/adjust_schedule — tools that succeed against a table this
+    // athlete's calendar does not read, which is precisely the silent-failure
+    // mode this rebuild exists to remove.
+    if (calendarV2 && (coachIntent === 'recommend_workout' || coachIntent === 'adjust_schedule')) {
+      coachIntent = 'calendar_change';
+    }
     const producedIntentTool = !!coachIntent && toolUses.some(t => t.name === coachIntent);
     let forcedToolPass = false;
     if (coachIntent && !producedIntentTool) {
@@ -1932,7 +2085,7 @@ ${conversationSummary}
           temperature: 0.7,
           system: systemPrompt,
           messages: messages,
-          tools: ALL_COACH_TOOLS,
+          tools: coachTools,
           tool_choice: { type: 'tool', name: coachIntent },
         });
         const forcedToolUses = forcedResponse.content.filter(block => block.type === 'tool_use');
@@ -1985,7 +2138,13 @@ ${conversationSummary}
     // ANOTHER tool call (e.g. retrying a swap with corrected dates) — the old
     // single-shot continuation silently dropped those, so the coach would
     // confirm changes that never executed.
-    const serverSideToolNames = new Set(['query_fitness_history', 'query_training_data', 'save_coach_memory', 'adjust_schedule']);
+    const serverSideToolNames = new Set([
+      'query_fitness_history', 'query_training_data', 'save_coach_memory', 'adjust_schedule',
+      // Executes server-side so the model reads back whether its change
+      // APPLIED or is awaiting approval — it must not guess, because its reply
+      // to the athlete has to say which.
+      'calendar_change',
+    ]);
 
     // Client-side tool calls (recommend_workout, create_training_plan,
     // generate_fuel_plan) are processed AFTER this loop, so collect them from
@@ -2027,6 +2186,10 @@ ${conversationSummary}
         } else {
           result = { success: true, saved: tool.input.content };
         }
+      } else if (tool.name === 'calendar_change') {
+        console.log(`🗓️  calendar_change requested:`, JSON.stringify(tool.input, null, 2));
+        result = await handleCalendarChange(verifiedUserId, tool.input, calendarV2Context);
+        console.log(`🗓️  calendar_change result:`, JSON.stringify(result));
       } else if (tool.name === 'adjust_schedule') {
         console.log(`📅 Schedule adjustment requested:`, JSON.stringify(tool.input, null, 2));
         result = await handleScheduleAdjustment(verifiedUserId, tool.input, planId, resolvedTimezone);
@@ -2090,7 +2253,7 @@ ${conversationSummary}
         temperature: 0.7,
         system: systemPrompt,
         messages: convoMessages,
-        tools: ALL_COACH_TOOLS
+        tools: coachTools
       });
 
       const roundToolUses = response.content.filter(block => block.type === 'tool_use');
