@@ -29,17 +29,26 @@ import { supabase } from '../lib/supabase';
 import LifecycleOverlays from './LifecycleOverlays.jsx';
 import { useGear } from '../hooks/useGear.ts';
 import { useActivation } from '../hooks/useActivation.ts';
+import { useCalendarV2Access } from '../hooks/useCalendarV2Access';
 import { formatDistance } from '../utils/units';
 import { ListChecks } from '@phosphor-icons/react';
 
-// Four-tab primary navigation: TODAY · RIDE · TRAIN · PROGRESS.
+// Primary navigation: TODAY · RIDE · TRAIN · [CALENDAR] · PROGRESS.
 // RIDE opens the route builder directly (/ride redirects to /ride/new; the
 // tab stays active anywhere under /ride). The old route-library hub is kept
 // as a fallback at /ride/library.
-const navItems = [
+//
+// CALENDAR is conditional, so this is built per-render rather than being a
+// module constant — the tab has to appear as soon as the gate resolves,
+// without a reload. Its visibility must stay in lockstep with CalendarV2Guard
+// in App.jsx: both read useCalendarV2Access, so a link is never shown that
+// would redirect straight back to /train.
+const BASE_NAV_ITEMS = [
   { path: '/today', label: 'TODAY' },
   { path: '/ride', label: 'RIDE' },
   { path: '/train', label: 'TRAIN' },
+];
+const TAIL_NAV_ITEMS = [
   { path: '/progress', label: 'PROGRESS' },
 ];
 
@@ -56,6 +65,14 @@ function AppShell({ children, fullWidth = false, hideNav = false }) {
 
   // Activation guide — undismiss support
   const { isDismissed: guideIsDismissed, isComplete: guideIsComplete, undismissGuide } = useActivation(user?.id);
+
+  // The rebuilt calendar's nav tab, gated exactly as its route is.
+  const { hasAccess: calendarV2Enabled } = useCalendarV2Access(user?.id);
+  const navItems = [
+    ...BASE_NAV_ITEMS,
+    ...(calendarV2Enabled ? [{ path: '/calendar', label: 'CALENDAR' }] : []),
+    ...TAIL_NAV_ITEMS,
+  ];
 
   // Persist pending consent from signup flow to user_profiles
   useEffect(() => {
