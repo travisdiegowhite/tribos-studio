@@ -18,6 +18,13 @@
 --      an untouched generated one;
 --   3. then oldest first, stable by id.
 --
+-- DANGLING ACTIVITY LINKS. `planned_workouts.activity_id` has NO foreign key,
+-- so it can and does point at deleted activities — 5 of 124 links at the time
+-- of writing. calendar_entries.activity_id IS a real FK, so those are nulled on
+-- the way across. Nothing meaningful is lost: the activity is already gone.
+-- `pinned` and `status='done'` both derive from the SOURCE row, so the fact the
+-- session was completed survives; only the pointer to a deleted ride does not.
+--
 -- PINNED derives from the old touch markers — an activity link, a manual move,
 -- a workout swap, or a coach adjustment reason. Those are the columns
 -- supersedePlans used to distinguish "the athlete touched this" from "untouched
@@ -92,7 +99,7 @@ FROM (
     END                                                 AS status,
     p.completed_at,
     p.skipped_reason,
-    p.activity_id,
+    act.id                                              AS activity_id,
     -- `notes` did three jobs; the coach's own rationale is prefixed "Coach:"
     CASE WHEN p.notes LIKE 'Coach:%' OR p.notes LIKE 'Coach recommendation:%'
          THEN NULL ELSE p.notes END                     AS notes,
@@ -116,6 +123,7 @@ FROM (
     p.created_at,
     p.updated_at
   FROM planned_workouts p
+  LEFT JOIN activities act ON act.id = p.activity_id
   WHERE p.scheduled_date IS NOT NULL
 
   UNION ALL
