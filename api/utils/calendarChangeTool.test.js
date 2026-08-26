@@ -23,6 +23,7 @@ import {
   adjudicateOps,
   describeVerdict,
   CALENDAR_CHANGE_TOOL,
+  WEEKDAYS,
 } from './calendarChangeTool.js';
 
 const UUID_A = '1af3bc12-0000-4000-8000-000000000001';
@@ -198,5 +199,83 @@ describe('CALENDAR_CHANGE_TOOL schema', () => {
   it('exposes race as a first-class entry type', () => {
     expect(CALENDAR_CHANGE_TOOL.input_schema.properties.operations.items.properties.type.enum)
       .toContain('race');
+  });
+});
+
+describe('generate_block validation and adjudication', () => {
+  const { byHandle, ambiguous } = buildHandleMap([entry()]);
+
+  const BLOCK = {
+    op: 'generate_block',
+    from: '2026-08-31',
+    to: '2026-12-05',
+    weekly_pattern: [
+      { day: 'tue', title: 'Threshold Intervals', target_load: 90 },
+      { day: 'sat', title: 'Long Endurance', target_load: 146 },
+    ],
+    reason: 'Cross-specific block through the season.',
+  };
+
+  it('accepts a well-formed season block', () => {
+    const r = validateOps([BLOCK], byHandle, ambiguous);
+    expect(r.valid).toBe(true);
+  });
+
+  it('rejects a missing or inverted range', () => {
+    expect(validateOps([{ ...BLOCK, to: undefined }], byHandle).valid).toBe(false);
+    const inverted = validateOps([{ ...BLOCK, from: '2026-12-05', to: '2026-08-31' }], byHandle);
+    expect(inverted.valid).toBe(false);
+    expect(inverted.errors.join(' ')).toContain('is before');
+  });
+
+  it('rejects an empty pattern and an unknown weekday', () => {
+    expect(validateOps([{ ...BLOCK, weekly_pattern: [] }], byHandle).valid).toBe(false);
+    const badDay = validateOps(
+      [{ ...BLOCK, weekly_pattern: [{ day: 'funday', title: 'x' }] }], byHandle
+    );
+    expect(badDay.valid).toBe(false);
+    expect(badDay.errors.join(' ')).toContain('unknown day');
+  });
+
+  it('refuses a block large enough to be a misread of intent', () => {
+    const huge = validateOps([{
+      ...BLOCK, from: '2026-01-01', to: '2027-12-31',
+      weekly_pattern: Array.from({ length: 7 }, (_, i) => ({ day: WEEKDAYS[i], title: 'Ride' })),
+    }], byHandle);
+    expect(huge.valid).toBe(false);
+    expect(huge.errors.join(' ')).toMatch(/over the \d+ limit/);
+    expect(huge.errors.join(' ')).toContain('Split it into shorter blocks');
+  });
+
+  it('APPLIES rather than proposes — a block only ever creates', () => {
+    const { resolved } = validateOps([BLOCK], byHandle, ambiguous);
+    expect(adjudicateOps(resolved).apply).toBe(true);
+  });
+
+  it('applies alongside race creates, which is the whole season in one turn', () => {
+    const { resolved } = validateOps([
+      { op: 'create', date: '2026-09-19', title: 'CycloX - Harlow Platts', type: 'race', reason: 'Season opener.' },
+      BLOCK,
+    ], byHandle, ambiguous);
+    expect(adjudicateOps(resolved).apply).toBe(true);
+  });
+
+  it('still proposes if the same turn also touches a pinned entry', () => {
+    const pinnedMap = buildHandleMap([entry({ pinned: true })]);
+    const { resolved } = validateOps([
+      BLOCK,
+      { op: 'delete', handle: 'sess_1af3bc12', reason: 'Superseded by the block.' },
+    ], pinnedMap.byHandle, pinnedMap.ambiguous);
+    expect(adjudicateOps(resolved).apply).toBe(false);
+  });
+});
+
+describe('the tool tells the model to use the generator for long blocks', () => {
+  it('names generate_block and warns about silently delivering a fraction', () => {
+    const d = CALENDAR_CHANGE_TOOL.description;
+    expect(d).toContain('generate_block');
+    expect(d).toMatch(/will not fit in one reply/);
+    // The half-answer that actually happened on 2026-08-25.
+    expect(d).toMatch(/Delivering only the races is a half-answer/);
   });
 });

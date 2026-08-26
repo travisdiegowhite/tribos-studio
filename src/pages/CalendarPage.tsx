@@ -20,7 +20,10 @@ import AppShell from '../components/AppShell.jsx';
 import CalendarGrid from '../components/calendar/CalendarGrid';
 import EntryEditor from '../components/calendar/EntryEditor';
 import { useAuth } from '../contexts/AuthContext.jsx';
-import { getCalendarRange, type CalendarEntry, type CalendarRange } from '../lib/calendar/getCalendarRange';
+import {
+  getCalendarRange, getCalendarHorizon,
+  type CalendarEntry, type CalendarRange, type CalendarHorizon,
+} from '../lib/calendar/getCalendarRange';
 import {
   createEntry, updateEntry, moveEntry, deleteEntry, setEntryStatus,
   type EntryDraft,
@@ -45,6 +48,7 @@ export default function CalendarPage() {
   // "what is next" are both on screen without navigating.
   const [anchorKey, setAnchorKey] = useState(() => shiftKey(weekStartKey(getTodayString()) ?? getTodayString(), -7));
   const [range, setRange] = useState<CalendarRange | null>(null);
+  const [horizon, setHorizon] = useState<CalendarHorizon | null>(null);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
 
@@ -59,7 +63,15 @@ export default function CalendarPage() {
     if (!userId) return;
     setLoading(true);
     try {
-      setRange(await getCalendarRange(userId, fromKey, toKey));
+      // The horizon is fetched alongside the window, never instead of it: the
+      // banner it feeds is the only thing telling the athlete that entries
+      // exist past the last row on screen.
+      const [nextRange, nextHorizon] = await Promise.all([
+        getCalendarRange(userId, fromKey, toKey),
+        getCalendarHorizon(userId, toKey),
+      ]);
+      setRange(nextRange);
+      setHorizon(nextHorizon);
     } finally {
       setLoading(false);
     }
@@ -112,6 +124,11 @@ export default function CalendarPage() {
     if (!userId || !editorEntry) return;
     const next = editorEntry.status === 'done' ? 'planned' : 'done';
     if (await run('update that entry', () => setEntryStatus(userId, editorEntry.id, next))) setEditorOpen(false);
+  };
+
+  /** Put the window on the week containing `dateKey`, one week of lead-in. */
+  const jumpTo = (dateKey: string) => {
+    setAnchorKey(shiftKey(weekStartKey(dateKey) ?? dateKey, -7));
   };
 
   const handleMove = async (entryId: string, toDateKey: string) => {
@@ -167,6 +184,51 @@ export default function CalendarPage() {
               onOpenEntry={openEntry}
               onMoveEntry={handleMove}
             />
+          )}
+
+          {/*
+            The edge indicator. Without it the four-week window is a trap:
+            nine cyclocross races landed correctly on 2026-09-19 → 2026-12-05
+            and were invisible behind a window ending 2026-09-13, so the
+            calendar looked empty and the coach looked broken.
+          */}
+          {horizon && horizon.countAfter > 0 && (
+            <Box
+              style={{
+                padding: '10px 14px',
+                border: '0.5px solid var(--color-border)',
+                backgroundColor: 'var(--color-card)',
+              }}
+            >
+              <Group justify="space-between" align="center" wrap="wrap" gap="xs">
+                <Text size="sm">
+                  {horizon.nextRaces.length > 0 ? (
+                    <>
+                      <strong>{horizon.nextRaces[0].title}</strong> on {horizon.nextRaces[0].date}
+                      {horizon.countAfter > 1 && (
+                        <Text span c="dimmed"> · {horizon.countAfter - 1} more after this window</Text>
+                      )}
+                    </>
+                  ) : (
+                    <>
+                      <strong>{horizon.countAfter}</strong> more{' '}
+                      {horizon.countAfter === 1 ? 'entry' : 'entries'} after {toKey}
+                      {horizon.next[0] && (
+                        <Text span c="dimmed"> · next: {horizon.next[0].title} on {horizon.next[0].date}</Text>
+                      )}
+                    </>
+                  )}
+                </Text>
+                <Button
+                  size="xs"
+                  variant="default"
+                  radius={0}
+                  onClick={() => jumpTo((horizon.nextRaces[0] ?? horizon.next[0]).date)}
+                >
+                  Jump there →
+                </Button>
+              </Group>
+            </Box>
           )}
 
           <Text size="xs" c="dimmed">
