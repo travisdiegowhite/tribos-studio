@@ -56,7 +56,7 @@ vi.mock('./supabaseAdmin.js', () => ({
   getSupabaseAdmin: () => ({ from: (table) => makeBuilder(table) }),
 }));
 
-const { applyCalendarOps, snapshot } = await import('./calendarChangeApply.js');
+const { applyCalendarOps, snapshot, expandBlock } = await import('./calendarChangeApply.js');
 
 const USER = 'aaaaaaaa-0000-4000-8000-00000000000a';
 const OTHER = 'bbbbbbbb-0000-4000-8000-00000000000b';
@@ -190,5 +190,102 @@ describe('snapshot', () => {
 
   it('is null for a create, which has no before', () => {
     expect(snapshot(null)).toBeNull();
+  });
+});
+
+/**
+ * REGRESSION: the season that came back as races only.
+ *
+ * On 2026-08-25 the athlete asked for "my cyclocross season, planned out with
+ * training". The coach created the nine races correctly and delivered no
+ * training whatsoever. Nothing errored — it simply ran out of room.
+ *
+ * The coach's reply is capped at 4096 tokens (1024 by default). Nine races as
+ * individual operations is ~550 tokens and fits. A season of training is ~70
+ * operations at ~80 tokens each — roughly 5,600 tokens — and does not. The
+ * previous change had removed create_training_plan, which was one compact call
+ * the SERVER expanded into many rows, and left only one-operation-per-session
+ * behind: a generator replaced by a typewriter.
+ *
+ * generate_block restores the property that matters — the size of a training
+ * block is bounded by the calendar, not by the model's output budget.
+ */
+describe('expandBlock', () => {
+  const SEASON = {
+    op: 'generate_block',
+    from: '2026-08-31',
+    to: '2026-12-05',
+    weekly_pattern: [
+      { day: 'tue', title: 'Threshold Intervals', workout_type: 'threshold', target_load: 90, target_duration_min: 75 },
+      { day: 'thu', title: 'VO2 Max', workout_type: 'vo2max', target_load: 95, target_duration_min: 70 },
+      { day: 'sat', title: 'Long Endurance', workout_type: 'endurance', target_load: 146, target_duration_min: 180 },
+    ],
+  };
+
+  const RACE_DAYS = new Set([
+    '2026-09-19', '2026-10-03', '2026-10-17', '2026-10-24', '2026-10-31',
+    '2026-11-07', '2026-11-14', '2026-11-15', '2026-12-05',
+  ]);
+
+  it('expands a whole season from one compact spec', () => {
+    const { entries } = expandBlock({ ...SEASON }, new Set());
+    // 14 weeks x 3 sessions, minus nothing — the point is that it is dozens of
+    // rows from a spec the model could actually afford to emit.
+    expect(entries.length).toBeGreaterThan(35);
+    expect(entries[0].date).toBe('2026-09-01');
+  });
+
+  it('SKIPS race days instead of burying them', () => {
+    const { entries, skipped } = expandBlock({ ...SEASON }, new Set(RACE_DAYS));
+    const generatedDates = new Set(entries.map((e) => e.date));
+    for (const race of RACE_DAYS) {
+      expect(generatedDates.has(race)).toBe(false);
+    }
+    // Only the race days that fall on a pattern weekday are reported.
+    expect(skipped.length).toBeGreaterThan(0);
+    for (const s of skipped) expect(RACE_DAYS.has(s.date)).toBe(true);
+  });
+
+  it('is safe to re-run — a second pass over the same range adds nothing', () => {
+    const occupied = new Set();
+    const first = expandBlock({ ...SEASON }, occupied);
+    expect(first.entries.length).toBeGreaterThan(0);
+    // occupied has been mutated to include everything the first pass wrote.
+    const second = expandBlock({ ...SEASON }, occupied);
+    expect(second.entries).toHaveLength(0);
+  });
+
+  it('applies load progression cumulatively per week, not per day', () => {
+    const { entries } = expandBlock(
+      { ...SEASON, from: '2026-08-31', to: '2026-09-20', load_progression: 0.1 },
+      new Set()
+    );
+    const thresholds = entries.filter((e) => e.title === 'Threshold Intervals');
+    expect(thresholds.map((e) => e.target_load)).toEqual([90, 99, 108]);
+  });
+
+  it('leaves load null when the pattern gives none, rather than inventing one', () => {
+    const { entries } = expandBlock(
+      { op: 'generate_block', from: '2026-09-01', to: '2026-09-07',
+        weekly_pattern: [{ day: 'tue', title: 'Ride' }], load_progression: 0.1 },
+      new Set()
+    );
+    expect(entries).toHaveLength(1);
+    expect(entries[0].target_load).toBeNull();
+  });
+
+  it('steps in UTC so a DST boundary neither duplicates nor drops a day', () => {
+    // US DST ends 2026-11-01. A local-time loop would produce a 25-hour day.
+    const { entries } = expandBlock(
+      { op: 'generate_block', from: '2026-10-26', to: '2026-11-08',
+        weekly_pattern: [{ day: 'sun', title: 'Long Ride' }] },
+      new Set()
+    );
+    expect(entries.map((e) => e.date)).toEqual(['2026-11-01', '2026-11-08']);
+  });
+
+  it('returns nothing for an inverted range instead of looping', () => {
+    const { entries } = expandBlock({ ...SEASON, from: '2026-12-05', to: '2026-08-31' }, new Set());
+    expect(entries).toHaveLength(0);
   });
 });

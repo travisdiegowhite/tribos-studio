@@ -66,13 +66,17 @@ export function buildHandleMap(entries = []) {
 
 // ─── Tool definition ──────────────────────────────────────────────────────────
 
-const OPS = ['create', 'update', 'move', 'delete', 'set_status'];
+const OPS = ['create', 'generate_block', 'update', 'move', 'delete', 'set_status'];
 
 export const CALENDAR_CHANGE_TOOL = {
   name: 'calendar_change',
   description: `Read-write access to the athlete's training calendar. Use this for ANY change to what is on their calendar: adding a session or a race, moving something, changing its details, marking it done, or removing it.
 
 This is the ONLY tool that can put a race on the calendar. When the athlete plans a race season — "I want to do these cyclocross races this fall", "add the state championship" — create one entry per race with type "race". A race with only a name and a date is worth creating; missing details can be filled in later, and an entry on the calendar is far more useful to the athlete than a promise in prose.
+
+FOR TRAINING SPANNING MORE THAN ABOUT TWO WEEKS, USE "generate_block", NOT ONE "create" PER SESSION. A season of training is 60-80 sessions; writing them out individually will not fit in one reply, and you will silently deliver a fraction of what was asked for. generate_block takes a weekly pattern and a date range and the server expands it. Use several blocks to shape a season — base, build, peak, taper — one call each.
+
+When an athlete asks for races AND training ("plan my cross season with training"), you must do BOTH: create the races, then generate the training blocks around them. Delivering only the races is a half-answer.
 
 Address existing entries by their handle from the CALENDAR block (e.g. "sess_1af3bc12"). Never reference an entry by date or day name, and never invent a handle.
 
@@ -94,7 +98,7 @@ So do NOT promise a specific outcome in your reply. After calling this, describe
             op: {
               type: 'string',
               enum: OPS,
-              description: 'create: add a new entry on a date. update: change an existing entry\'s details. move: change its date. delete: remove it. set_status: mark it done, skipped or back to planned.',
+              description: 'create: add ONE new entry on a date. generate_block: add many sessions across a date range from a weekly pattern — use this for anything longer than about two weeks. update: change an existing entry\'s details. move: change its date. delete: remove it. set_status: mark it done, skipped or back to planned.',
             },
             handle: {
               type: 'string',
@@ -138,6 +142,39 @@ So do NOT promise a specific outcome in your reply. After calling this, describe
               enum: ['planned', 'done', 'skipped'],
               description: 'For set_status only.',
             },
+            from: {
+              type: 'string',
+              description: 'For generate_block: first date of the block (YYYY-MM-DD).',
+            },
+            to: {
+              type: 'string',
+              description: 'For generate_block: last date of the block (YYYY-MM-DD), inclusive.',
+            },
+            weekly_pattern: {
+              type: 'array',
+              description: 'For generate_block: what a typical week looks like. The server repeats it across every week in [from, to], skipping any day that already has a session or a race so existing entries are never overwritten. Omit days that should stay empty rather than adding rest entries for them.',
+              items: {
+                type: 'object',
+                properties: {
+                  day: {
+                    type: 'string',
+                    enum: ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'],
+                    description: 'Day of the week for this session.',
+                  },
+                  title: { type: 'string', description: 'e.g. "Threshold Intervals", "Long Endurance Ride".' },
+                  workout_type: { type: 'string', description: 'e.g. "endurance", "sweet_spot", "threshold", "vo2max", "recovery", "openers".' },
+                  workout_id: { type: 'string', description: 'Optional id from the workout library.' },
+                  target_load: { type: 'number', description: 'Planned RSS for this session.' },
+                  target_duration_min: { type: 'integer', description: 'Planned duration in minutes.' },
+                  notes: { type: 'string', description: 'Execution detail for the athlete.' },
+                },
+                required: ['day', 'title'],
+              },
+            },
+            load_progression: {
+              type: 'number',
+              description: 'For generate_block: fraction to change target_load by per week across the block, e.g. 0.05 for a 5%/week build, -0.1 for a taper, 0 or omitted for steady. Applied cumulatively from the first week.',
+            },
             notes: {
               type: 'string',
               description: 'Detail the athlete should see on the entry — course notes, race priority, execution cues.',
@@ -162,6 +199,17 @@ So do NOT promise a specific outcome in your reply. After calling this, describe
 // ─── Validation ───────────────────────────────────────────────────────────────
 
 const DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
+export const WEEKDAYS = ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'];
+/** Ceiling on one generate_block expansion. A season is ~80; 400 is a misread. */
+export const MAX_GENERATED_ENTRIES = 400;
+
+/** Whole weeks spanned by an inclusive date range, at least 1. */
+export function spanWeeks(fromKey, toKey) {
+  const a = Date.parse(`${fromKey}T00:00:00Z`);
+  const b = Date.parse(`${toKey}T00:00:00Z`);
+  if (Number.isNaN(a) || Number.isNaN(b) || b < a) return 1;
+  return Math.max(1, Math.ceil((b - a) / 86400000 / 7));
+}
 const ENTRY_TYPES = new Set(['workout', 'race', 'rest', 'note']);
 const SETTABLE_STATUSES = new Set(['planned', 'done', 'skipped']);
 
@@ -195,6 +243,42 @@ export function validateOps(operations, byHandle, ambiguous = new Set()) {
     }
     if (!op.reason || !String(op.reason).trim()) {
       errors.push(`${at}: every operation needs a one-sentence reason.`);
+    }
+
+    if (op.op === 'generate_block') {
+      if (!DATE_PATTERN.test(op.from || '')) {
+        errors.push(`${at}: generate_block needs \`from\` as YYYY-MM-DD (got ${JSON.stringify(op.from)}).`);
+      }
+      if (!DATE_PATTERN.test(op.to || '')) {
+        errors.push(`${at}: generate_block needs \`to\` as YYYY-MM-DD (got ${JSON.stringify(op.to)}).`);
+      }
+      if (DATE_PATTERN.test(op.from || '') && DATE_PATTERN.test(op.to || '') && op.to < op.from) {
+        errors.push(`${at}: generate_block \`to\` (${op.to}) is before \`from\` (${op.from}).`);
+      }
+      if (!Array.isArray(op.weekly_pattern) || op.weekly_pattern.length === 0) {
+        errors.push(`${at}: generate_block needs a weekly_pattern with at least one day.`);
+      } else {
+        op.weekly_pattern.forEach((d, j) => {
+          if (!WEEKDAYS.includes(d?.day)) {
+            errors.push(`${at}, pattern day ${j + 1}: unknown day "${d?.day}". Expected one of ${WEEKDAYS.join(', ')}.`);
+          }
+          if (!d?.title || !String(d.title).trim()) {
+            errors.push(`${at}, pattern day ${j + 1}: needs a title.`);
+          }
+        });
+        // A block bigger than this is almost certainly a misread of intent, and
+        // it is cheaper to say so than to write hundreds of rows and undo them.
+        const span = spanWeeks(op.from, op.to);
+        const projected = span * op.weekly_pattern.length;
+        if (projected > MAX_GENERATED_ENTRIES) {
+          errors.push(
+            `${at}: that block would create about ${projected} sessions (${span} weeks x ${op.weekly_pattern.length}/week), ` +
+            `over the ${MAX_GENERATED_ENTRIES} limit. Split it into shorter blocks.`
+          );
+        }
+      }
+      resolved.push({ ...op, entry: null });
+      return;
     }
 
     if (op.op === 'create') {
@@ -274,7 +358,11 @@ export function validateOps(operations, byHandle, ambiguous = new Set()) {
  * @returns {{ apply: boolean, reasonCode: string|null, reasons: string[] }}
  */
 export function adjudicateOps(resolved = []) {
-  const existing = resolved.filter((op) => op.op !== 'create' && op.entry);
+  // generate_block expands into creates only — it never touches an existing
+  // entry (the expander skips occupied days). So it adjudicates as a create.
+  const existing = resolved.filter(
+    (op) => op.op !== 'create' && op.op !== 'generate_block' && op.entry
+  );
 
   const pinned = existing.filter((op) => op.entry.pinned === true);
   const completed = existing.filter((op) => op.entry.status === 'done');

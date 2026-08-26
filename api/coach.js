@@ -1414,7 +1414,11 @@ export default async function handler(req, res) {
       trainingContext = null,
       userLocalDate = null,
       userId = null,
-      maxTokens = 1024,
+      // 1024 was the default when the calendar-writing tools took a whole plan
+      // in one compact call. calendar_change is per-operation, so nine races
+      // plus prose already crowds it; generate_block keeps a season affordable
+      // but the floor still needs headroom for a multi-block reply.
+      maxTokens = 2048,
       quickMode = false,
       userAvailability = null,
       checkInId = null,
