@@ -34,8 +34,10 @@ vi.mock('../components/AppShell.jsx', () => ({
 }));
 
 const getCalendarRange = vi.fn();
+const getCalendarHorizon = vi.fn();
 vi.mock('../lib/calendar/getCalendarRange', () => ({
   getCalendarRange: (...args: unknown[]) => getCalendarRange(...args),
+  getCalendarHorizon: (...args: unknown[]) => getCalendarHorizon(...args),
 }));
 
 const createEntry = vi.fn();
@@ -80,6 +82,7 @@ describe('CalendarPage with no training plan', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     getCalendarRange.mockImplementation(async (_userId: string, from: string) => emptyRange(from));
+    getCalendarHorizon.mockResolvedValue({ countAfter: 0, next: [], nextRaces: [] });
     createEntry.mockResolvedValue({ success: true });
     setEntryStatus.mockResolvedValue({ success: true });
     deleteEntry.mockResolvedValue({ success: true });
@@ -194,5 +197,81 @@ describe('CalendarPage with no training plan', () => {
     expect(screen.getByRole('dialog')).toBeInTheDocument();
     // No refetch on a failed write.
     expect(getCalendarRange).toHaveBeenCalledTimes(1);
+  });
+});
+
+/**
+ * REGRESSION: the season that was there and could not be seen.
+ *
+ * On 2026-08-25 the coach correctly created nine cyclocross races running
+ * 2026-09-19 → 2026-12-05. The page renders four weeks; the window that day
+ * ended 2026-09-13. Every race was six days or more past the edge, so the
+ * athlete opened their calendar, saw nothing, and reasonably reported that the
+ * coach had failed again. The write was perfect. The page simply gave no sign
+ * anything existed beyond the last row.
+ *
+ * That is the failure mode a fixed window has by construction: absence of
+ * content and absence of view look identical to the person looking. These
+ * tests cover the edge indicator, not the window.
+ */
+describe('the horizon banner', () => {
+  const RACES = [
+    { id: 'r1', date: '2026-09-19', type: 'race' as const, title: 'CycloX - Harlow Platts' },
+    { id: 'r2', date: '2026-10-03', type: 'race' as const, title: 'Schoolyard CX' },
+  ];
+
+  it('says nothing when the window really is the whole story', async () => {
+    renderPage();
+    await waitFor(() => expect(getCalendarHorizon).toHaveBeenCalled());
+    expect(screen.queryByRole('button', { name: /Jump there/ })).not.toBeInTheDocument();
+  });
+
+  it('names the next race and its date when the season is past the edge', async () => {
+    getCalendarHorizon.mockResolvedValue({ countAfter: 9, next: RACES, nextRaces: RACES });
+    renderPage();
+
+    expect(await screen.findByText('CycloX - Harlow Platts')).toBeInTheDocument();
+    expect(screen.getByText(/2026-09-19/)).toBeInTheDocument();
+    // The other eight are accounted for, so the athlete knows the scale of what
+    // is off-screen rather than just that *something* is.
+    expect(screen.getByText(/8 more after this window/)).toBeInTheDocument();
+  });
+
+  it('jumps the window onto the week containing that race', async () => {
+    const user = userEvent.setup();
+    getCalendarHorizon.mockResolvedValue({ countAfter: 9, next: RACES, nextRaces: RACES });
+    renderPage();
+
+    await user.click(await screen.findByRole('button', { name: /Jump there/ }));
+
+    await waitFor(() => {
+      // Re-read with a window that actually contains 2026-09-19. The anchor is
+      // the Monday a week before, so the race sits in the second row.
+      const { calls } = getCalendarRange.mock;
+      const lastCall = calls[calls.length - 1];
+      const [, from, to] = lastCall as [string, string, string];
+      expect(from <= '2026-09-19' && '2026-09-19' <= to).toBe(true);
+    });
+  });
+
+  it('falls back to a plain count when nothing past the edge is a race', async () => {
+    getCalendarHorizon.mockResolvedValue({
+      countAfter: 4,
+      next: [{ id: 'w1', date: '2026-09-20', type: 'workout' as const, title: 'Long Ride' }],
+      nextRaces: [],
+    });
+    renderPage();
+
+    // Assert on the banner's own phrasing, not a bare digit — every date cell
+    // on the grid contains digits too.
+    expect(await screen.findByText(/more entries after/)).toBeInTheDocument();
+    expect(screen.getByText(/next: Long Ride on 2026-09-20/)).toBeInTheDocument();
+  });
+
+  it('degrades quietly if the horizon query fails', async () => {
+    getCalendarHorizon.mockResolvedValue({ countAfter: 0, next: [], nextRaces: [] });
+    renderPage();
+    // The calendar itself still renders; the banner is an enhancement.
+    expect(await screen.findByText('Calendar')).toBeInTheDocument();
   });
 });

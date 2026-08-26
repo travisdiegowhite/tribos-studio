@@ -207,3 +207,64 @@ function shiftKey(dateKey: string, days: number): string {
   if (Number.isNaN(t)) return dateKey;
   return new Date(t + days * 86_400_000).toISOString().slice(0, 10);
 }
+
+/** A dated thing sitting outside the window currently on screen. */
+export interface HorizonEntry {
+  id: string;
+  date: string;
+  type: CalendarEntryType;
+  title: string;
+}
+
+export interface CalendarHorizon {
+  /** How many entries exist after the visible window. */
+  countAfter: number;
+  /** The next few, soonest first — enough to name one in a banner. */
+  next: HorizonEntry[];
+  /** Races after the window, which are the thing worth surfacing by name. */
+  nextRaces: HorizonEntry[];
+}
+
+/**
+ * What exists BEYOND the visible window.
+ *
+ * The calendar shows four weeks, which is the right working view and the wrong
+ * horizon for a race season. On 2026-08-25 the coach correctly created nine
+ * cyclocross races running Sep 19 → Dec 5; every one of them fell outside the
+ * Aug 17 → Sep 13 window, so the athlete looked at their calendar, saw nothing,
+ * and reasonably concluded the coach had failed again. The data was perfect and
+ * the page gave no sign it existed.
+ *
+ * A window with no edge indicator is a trap: absence of content and absence of
+ * view are indistinguishable to the person looking. This is the edge indicator.
+ */
+export async function getCalendarHorizon(
+  userId: string,
+  afterDateKey: string,
+  limit = 24,
+): Promise<CalendarHorizon> {
+  const empty: CalendarHorizon = { countAfter: 0, next: [], nextRaces: [] };
+  const afterKey = toDateKey(afterDateKey);
+  if (!userId || !afterKey) return empty;
+
+  const { data, error } = await supabase
+    .from('calendar_entries')
+    .select('id, date, type, title')
+    .eq('user_id', userId)
+    .gt('date', afterKey)
+    .neq('status', 'skipped')
+    .order('date', { ascending: true })
+    .limit(limit);
+
+  if (error) {
+    console.warn('getCalendarHorizon failed:', error.message);
+    return empty;
+  }
+
+  const rows = (data ?? []) as HorizonEntry[];
+  return {
+    countAfter: rows.length,
+    next: rows.slice(0, 3),
+    nextRaces: rows.filter((r) => r.type === 'race').slice(0, 3),
+  };
+}
