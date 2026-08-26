@@ -198,3 +198,94 @@ describe('contract with the real coach.js', () => {
     expect(src).not.toContain('tools: ALL_COACH_TOOLS');
   });
 });
+
+/**
+ * REGRESSION: the season-planning path.
+ *
+ * On 2026-08-25, with calendar_change deployed and the gate open, the athlete
+ * asked the coach to plan a cyclocross season. It wrote 32 sessions and one
+ * new training plan into planned_workouts — zero races, zero calendar_entries
+ * — and retired the athlete's real plan on the way past. The tool worked; it
+ * was never reached.
+ *
+ * The athlete's real message is pinned below. It detects as
+ * create_training_plan, so what happened is not in doubt: the first remap
+ * covered recommend_workout and adjust_schedule but not create_training_plan,
+ * so the reliability pass ran
+ * tool_choice:{type:'tool', name:'create_training_plan'} and COMPELLED the
+ * legacy writer. Nothing in a system prompt outranks tool_choice. And because
+ * the forced pass replaces toolUses wholesale, a correct first-pass
+ * calendar_change call would have been discarded on the way past.
+ *
+ * A second route was open too, for wordings that detect no intent at all: no
+ * forcing happens, and the model simply had create_training_plan on its menu.
+ *
+ * Hence the fix is not a better remap or a firmer instruction — either alone
+ * leaves the other route open. The legacy writers are not on a gated
+ * athlete's menu at all. These tests assert the WIRING, because every unit
+ * test for the tool itself was green while production did the wrong thing.
+ */
+describe('REGRESSION: the coach cannot reach the legacy calendar writers', () => {
+  /** The message that actually caused the 2026-08-25 failure, verbatim. */
+  const REAL_MESSAGE =
+    "I want this to be my cyclocross season. Let's plan it out with training " +
+    'and get it on the calendar 09/19/2026  CycloX - Harlow Platts    ' +
+    '10/03/2026  Cyclocross State Championship Series Race - Schoolyard CX  ' +
+    '10/17/2026  Cyclocross State Championship Series Race - CycloX - Louisville  ' +
+    '10/24/2026  The Hustle CX  10/31/2026  Cyclocross State Championship Series ' +
+    'Race - CycloX - Boulder Reservoir  11/07/2026  Cyclocross State Championship ' +
+    'Series Race - Wild West CX  11/14/2026  UCI Boulder Cup - Day 1  11/15/2026  ' +
+    'UCI Boulder Cup - Day 2  12/05/2026  CycloX - Longmont';
+
+  it('the real message detects as create_training_plan — the tool that must not be reachable', async () => {
+    const { detectCoachIntent } = await import('./intentProbe.js');
+    expect(detectCoachIntent(REAL_MESSAGE)).toBe('create_training_plan');
+  });
+
+  it('remaps that intent to calendar_change for a gated athlete', async () => {
+    const { detectCoachIntent } = await import('./intentProbe.js');
+    const LEGACY = new Set(['recommend_workout', 'create_training_plan', 'adjust_schedule']);
+    let intent = detectCoachIntent(REAL_MESSAGE);
+    if (LEGACY.has(intent)) intent = 'calendar_change';
+    expect(intent).toBe('calendar_change');
+  });
+
+  it('other season-planning phrasings route the same way', async () => {
+    const { detectCoachIntent, detectIntentFromResponse } = await import('./intentProbe.js');
+    expect(detectCoachIntent('lets plan out my cross season')).toBe('create_training_plan');
+    expect(detectCoachIntent('build me a plan for cross season')).toBe('create_training_plan');
+    // The coach's own prose promising to map out a season fires it too, which
+    // is how the intent triggers even when the athlete's wording matches nothing.
+    expect(detectIntentFromResponse('Let me map out the rest of your season with those races.'))
+      .toBe('create_training_plan');
+  });
+
+  it('some race phrasings detect NO intent — so removal, not remapping, is the fix', async () => {
+    const { detectCoachIntent } = await import('./intentProbe.js');
+    // No forced pass fires for these. The only thing that stopped the model
+    // reaching for create_training_plan here is that it is no longer offered.
+    expect(detectCoachIntent('schedule my cyclocross races this fall')).toBeNull();
+    expect(detectCoachIntent('I want to do these cyclocross races this fall, add them')).toBeNull();
+  });
+
+  it('removes all three legacy writers for a gated athlete, and adds calendar_change', async () => {
+    const src = await readCoachSource();
+    expect(src).toMatch(/LEGACY_CALENDAR_WRITERS\s*=\s*new Set\(\[/);
+    for (const tool of ['recommend_workout', 'create_training_plan', 'adjust_schedule']) {
+      expect(src).toContain(`'${tool}'`);
+    }
+    expect(src).toMatch(/ALL_COACH_TOOLS\.filter\(\(t\) => !LEGACY_CALENDAR_WRITERS\.has\(t\.name\)\), CALENDAR_CHANGE_TOOL/);
+  });
+
+  it('remaps every legacy write intent, not just two of them', async () => {
+    const src = await readCoachSource();
+    expect(src).toMatch(/if \(calendarV2 && LEGACY_CALENDAR_WRITERS\.has\(coachIntent\)\)/);
+    // The bug was an explicit two-name disjunction. It must not come back.
+    expect(src).not.toMatch(/coachIntent === 'recommend_workout' \|\| coachIntent === 'adjust_schedule'/);
+  });
+
+  it("never forces a tool that is absent from this request's menu", async () => {
+    const src = await readCoachSource();
+    expect(src).toMatch(/!coachTools\.some\(\(t\) => t\.name === coachIntent\)/);
+  });
+});
