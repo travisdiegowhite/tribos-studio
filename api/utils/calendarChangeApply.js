@@ -226,6 +226,34 @@ export async function applyCalendarOps(userId, resolved, opts = {}) {
       }
 
       if (op.op === 'create') {
+        // DEDUPE. Slot allocation makes a second entry on a day legitimate —
+        // that is how doubles and bricks work — but it also means a repeated
+        // create silently stacks. On 2026-08-27 the athlete asked for their
+        // cyclocross season three times, the coach truncated and retried each
+        // time, and they ended up with three copies of all nine races at slots
+        // 0, 1 and 2. The calendar should be idempotent for the same thing on
+        // the same day: same date, same type, same title is the SAME entry.
+        const { data: dupes, error: dupeError } = await supabase
+          .from('calendar_entries')
+          .select('id, title')
+          .eq('user_id', userId)
+          .eq('date', op.date)
+          .eq('type', op.type || 'workout');
+        if (dupeError) throw dupeError;
+
+        const wanted = String(op.title).trim().toLowerCase();
+        const existing = (dupes || []).find(
+          (d) => String(d.title || '').trim().toLowerCase() === wanted
+        );
+        if (existing) {
+          results.push({
+            op: 'create', handle: null, id: existing.id, date: op.date, ok: true,
+            deduped: true,
+            note: `"${op.title}" was already on ${op.date}; kept the existing entry.`,
+          });
+          continue;
+        }
+
         const slot = await nextFreeSlot(supabase, userId, op.date);
         const id = randomUUID();
         const { error } = await supabase.from('calendar_entries').insert({

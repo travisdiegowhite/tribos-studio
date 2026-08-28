@@ -289,3 +289,85 @@ describe('expandBlock', () => {
     expect(entries).toHaveLength(0);
   });
 });
+
+/**
+ * REGRESSION: three copies of a cyclocross season.
+ *
+ * On 2026-08-27 the athlete asked for their season three times, because the
+ * first two attempts appeared to do nothing. Each attempt truncated at
+ * max_tokens mid-tool-call, retried, and successfully re-created all nine
+ * races. They ended up with three of everything at slots 0, 1 and 2 — and
+ * still no training.
+ *
+ * Slot allocation makes a second entry on a day legitimate: that is how a
+ * double day or a brick works. But it also means a repeated create silently
+ * stacks. The calendar has to be idempotent for the same thing on the same
+ * day, or every retry — by the model, by the athlete, by a redeploy — is a
+ * duplicate.
+ */
+describe('create dedupe', () => {
+  const RACE = {
+    op: 'create', date: '2026-09-19', type: 'race',
+    title: 'CycloX - Harlow Platts', reason: 'Season opener.',
+  };
+
+  it('keeps the existing entry when the same race is created twice', async () => {
+    state.rows.push({
+      id: 'existing-1', user_id: USER, date: '2026-09-19',
+      type: 'race', title: 'CycloX - Harlow Platts', slot: 0,
+    });
+
+    const r = await applyCalendarOps(USER, [{ ...RACE }]);
+
+    expect(r.success).toBe(true);
+    expect(r.results[0]).toMatchObject({ deduped: true, id: 'existing-1' });
+    expect(calls.some((c) => c.op === 'insert')).toBe(false);
+  });
+
+  it('matches case- and whitespace-insensitively', async () => {
+    state.rows.push({
+      id: 'existing-1', user_id: USER, date: '2026-09-19',
+      type: 'race', title: '  cyclox - HARLOW platts ', slot: 0,
+    });
+    const r = await applyCalendarOps(USER, [{ ...RACE }]);
+    expect(r.results[0].deduped).toBe(true);
+  });
+
+  it('still allows a genuine second entry of a DIFFERENT thing that day', async () => {
+    state.rows.push({
+      id: 'existing-1', user_id: USER, date: '2026-09-19',
+      type: 'race', title: 'CycloX - Harlow Platts', slot: 0,
+    });
+
+    const r = await applyCalendarOps(USER, [
+      { ...RACE, title: 'Masters 45+ second race' },
+    ]);
+
+    expect(r.results[0].deduped).toBeUndefined();
+    const insert = calls.find((c) => c.op === 'insert');
+    expect(insert.payload.slot).toBe(1);
+  });
+
+  it('does not confuse a race with a workout of the same name', async () => {
+    state.rows.push({
+      id: 'existing-1', user_id: USER, date: '2026-09-19',
+      type: 'workout', title: 'CycloX - Harlow Platts', slot: 0,
+    });
+    const r = await applyCalendarOps(USER, [{ ...RACE }]);
+    expect(r.results[0].deduped).toBeUndefined();
+  });
+
+  it('makes re-running the whole season a no-op', async () => {
+    const season = ['2026-09-19', '2026-10-03', '2026-10-17'].map((d, i) => ({
+      op: 'create', date: d, type: 'race', title: `Race ${i}`, reason: 'r',
+    }));
+
+    const first = await applyCalendarOps(USER, season);
+    expect(first.results.every((r) => !r.deduped)).toBe(true);
+
+    calls = [];
+    const second = await applyCalendarOps(USER, season);
+    expect(second.results.every((r) => r.deduped)).toBe(true);
+    expect(calls.some((c) => c.op === 'insert')).toBe(false);
+  });
+});

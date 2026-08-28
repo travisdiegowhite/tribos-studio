@@ -289,3 +289,75 @@ describe('REGRESSION: the coach cannot reach the legacy calendar writers', () =>
     expect(src).toMatch(/!coachTools\.some\(\(t\) => t\.name === coachIntent\)/);
   });
 });
+
+/**
+ * REGRESSION: the truncated tool call, and the empty reply that followed.
+ *
+ * The 2026-08-27 logs show the same shape in every turn:
+ *
+ *   calendar_change requested: {}            <- truncated at max_tokens
+ *     -> "No operations supplied."
+ *   calendar_change requested: { 9 races }   <- succeeded
+ *   calendar_change requested: {}            <- truncated again
+ *     -> "No operations supplied."
+ *   Tool-round cap (3) reached with unexecuted server-side tool calls
+ *   messageLength: 0
+ *
+ * Three failures compounding:
+ *
+ *   1. Every coach surface hard-codes maxTokens in the request body — 1024 for
+ *      the command bar and Today panel. A server-side *default* never applies,
+ *      because the client value always wins. Nine races with notes and reasons
+ *      is ~1,200 tokens on its own, so the reply truncated MID TOOL CALL.
+ *   2. A truncated tool_use arrives with input `{}`. Treating that as an
+ *      ordinary validation failure burned two of the three tool rounds on
+ *      "No operations supplied" instead of telling the model to send less.
+ *   3. The athlete then got a COMPLETELY EMPTY reply while nine races were
+ *      written — so from their side the coach had done nothing, and they asked
+ *      again, and again, duplicating the season each time.
+ *
+ * The wiring assertions below are deliberately source-level: this is a
+ * request-shaping bug, and none of it is reachable from a unit test of the
+ * tool.
+ */
+describe('REGRESSION: truncation must not read as an empty request', () => {
+  it('raises the output ceiling with a FLOOR, since every client sends its own value', async () => {
+    const src = await readCoachSource();
+    expect(src).toMatch(/effectiveMaxTokens\s*=\s*calendarV2\s*\?\s*Math\.max\(maxTokens,\s*8192\)/);
+    // A default would be silently overridden by the client's 1024.
+    expect(src).not.toContain('max_tokens: Math.min(maxTokens, 4096)');
+  });
+
+  it('every Claude call uses the raised ceiling, not the raw client value', async () => {
+    const src = await readCoachSource();
+    const raised = src.match(/max_tokens: Math\.min\(effectiveMaxTokens, 16384\)/g) || [];
+    expect(raised.length).toBe(3);
+  });
+
+  it('names an empty tool input as truncation and asks for FEWER operations', async () => {
+    const src = await readCoachSource();
+    expect(src).toMatch(/const truncated = !tool\.input \|\| Object\.keys\(tool\.input\)\.length === 0/);
+    expect(src).toContain('was cut off before this tool call finished');
+    expect(src).toContain('Send FEWER operations');
+    // It must steer toward the generator rather than a same-size retry.
+    expect(src).toContain('use generate_block for training');
+    expect(src).toContain('Do not repeat operations that already succeeded');
+  });
+
+  it('always reports the outcome of a write, even with no model prose', async () => {
+    const src = await readCoachSource();
+    expect(src).toMatch(/if \(!responseText && calendarChangeResults\.length > 0\)/);
+    expect(src).toContain('Updated your calendar');
+    expect(src).toContain('waiting for you to approve');
+  });
+
+  it('the clients that caused this still exist, so the floor stays load-bearing', async () => {
+    const fs = await import('node:fs/promises');
+    const path = await import('node:path');
+    const bar = await fs.readFile(
+      path.resolve(process.cwd(), 'src/components/coach/CoachCommandBar.jsx'), 'utf8');
+    // If this ever stops being true the floor is harmless, but the comment
+    // explaining why it exists would be stale.
+    expect(bar).toMatch(/maxTokens:\s*1024/);
+  });
+});
