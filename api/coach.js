@@ -730,7 +730,9 @@ export async function handleCalendarChange(userId, input, calendarContext, conve
   }
 
   const applyResult = await applyCalendarOps(userId, resolved, { source: 'coach' });
+  const deduped = applyResult.results.filter((r) => r.deduped).length;
   return {
+    deduped,
     success: applyResult.success,
     applied: applyResult.applied,
     failed: applyResult.failed,
@@ -1414,10 +1416,6 @@ export default async function handler(req, res) {
       trainingContext = null,
       userLocalDate = null,
       userId = null,
-      // 1024 was the default when the calendar-writing tools took a whole plan
-      // in one compact call. calendar_change is per-operation, so nine races
-      // plus prose already crowds it; generate_block keeps a season affordable
-      // but the floor still needs headroom for a multi-block reply.
       maxTokens = 2048,
       quickMode = false,
       userAvailability = null,
@@ -1670,6 +1668,18 @@ export default async function handler(req, res) {
       calendarV2Context = null;
     }
     const calendarV2 = !!calendarV2Context;
+
+    // OUTPUT BUDGET. Every coach surface hard-codes maxTokens in its request
+    // body (1024 for the command bar and Today panel, 2048 for the race tab),
+    // so a server-side *default* never applies — the client value always wins.
+    // Those numbers were set when the calendar tools took a whole plan in one
+    // compact call. calendar_change is per-operation: nine races with notes and
+    // reasons is ~1,200 tokens on its own, which means a season-planning turn
+    // truncated MID TOOL CALL. A truncated tool_use arrives with input `{}`,
+    // so the server saw "No operations supplied", the retry truncated the same
+    // way, the 3-round cap fired, and the athlete got an empty reply with three
+    // copies of their races and no training. Hence a floor, not a default.
+    const effectiveMaxTokens = calendarV2 ? Math.max(maxTokens, 8192) : maxTokens;
 
     // Tools are per-request now, not a module constant.
     //
@@ -2063,7 +2073,7 @@ ${conversationSummary}
 
     let response = await claude.messages.create({
       model: model,
-      max_tokens: Math.min(maxTokens, 4096),
+      max_tokens: Math.min(effectiveMaxTokens, 16384),
       temperature: 0.7,
       system: systemPrompt,
       messages: messages,
@@ -2111,7 +2121,7 @@ ${conversationSummary}
       try {
         const forcedResponse = await claude.messages.create({
           model: model,
-          max_tokens: Math.min(maxTokens, 4096),
+          max_tokens: Math.min(effectiveMaxTokens, 16384),
           temperature: 0.7,
           system: systemPrompt,
           messages: messages,
@@ -2145,6 +2155,9 @@ ${conversationSummary}
     // adjust_schedule tool executes — the payload must reflect what really
     // changed, not merely that the tool was called.
     const scheduleAdjustResults = [];
+    // Same idea for calendar_change: the outcome has to reach the athlete even
+    // when the model spends its last tokens on a tool call and emits no prose.
+    const calendarChangeResults = [];
     const recommendWorkoutUses = toolUses.filter(tool => tool.name === 'recommend_workout');
 
     // Detailed logging for debugging
@@ -2218,8 +2231,28 @@ ${conversationSummary}
         }
       } else if (tool.name === 'calendar_change') {
         console.log(`🗓️  calendar_change requested:`, JSON.stringify(tool.input, null, 2));
-        result = await handleCalendarChange(verifiedUserId, tool.input, calendarV2Context);
+        // A tool_use block truncated by max_tokens arrives with input `{}`. It
+        // is NOT a request to do nothing — it is half a request whose other
+        // half was cut off. Treating it as a normal validation failure burned
+        // two of the three tool rounds on 2026-08-27 and left the athlete with
+        // an empty reply. Name it for what it is so the model shortens rather
+        // than retrying the same oversized call.
+        const truncated = !tool.input || Object.keys(tool.input).length === 0;
+        if (truncated) {
+          console.warn('🗓️  calendar_change arrived EMPTY — response truncated at max_tokens.');
+          result = {
+            success: false,
+            applied: 0,
+            error: 'Your previous reply was cut off before this tool call finished, so nothing was written. '
+              + 'Send FEWER operations this time: use generate_block for training instead of one create per '
+              + 'session, keep `reason` to a short clause, and drop `notes` unless it matters. '
+              + 'Do not repeat operations that already succeeded earlier in this turn.',
+          };
+        } else {
+          result = await handleCalendarChange(verifiedUserId, tool.input, calendarV2Context);
+        }
         console.log(`🗓️  calendar_change result:`, JSON.stringify(result));
+        calendarChangeResults.push(result);
       } else if (tool.name === 'adjust_schedule') {
         console.log(`📅 Schedule adjustment requested:`, JSON.stringify(tool.input, null, 2));
         result = await handleScheduleAdjustment(verifiedUserId, tool.input, planId, resolvedTimezone);
@@ -2279,7 +2312,7 @@ ${conversationSummary}
 
       response = await claude.messages.create({
         model: model,
-        max_tokens: Math.min(maxTokens, 4096),
+        max_tokens: Math.min(effectiveMaxTokens, 16384),
         temperature: 0.7,
         system: systemPrompt,
         messages: convoMessages,
@@ -2366,6 +2399,34 @@ ${conversationSummary}
           .find(a => a.error)?.error;
         responseText = `I wasn't able to complete that schedule change${firstError ? ` (${firstError})` : ''}. Want me to try again?`;
       }
+    }
+
+    // calendar_change ran but the model produced no prose. On 2026-08-27 this
+    // sent the athlete a COMPLETELY EMPTY reply (messageLength: 0) after
+    // writing nine races — so from their side the coach had silently done
+    // nothing, twice, while duplicating their season. Never let the outcome of
+    // a write go unreported.
+    if (!responseText && calendarChangeResults.length > 0) {
+      const applied = calendarChangeResults.reduce((n, r) => n + (r.applied || 0), 0);
+      const created = calendarChangeResults.reduce(
+        (n, r) => n + (r.results || []).reduce((m, x) => m + (x.created || 0), 0), 0);
+      const deduped = calendarChangeResults.reduce((n, r) => n + (r.deduped || 0), 0);
+      const proposed = calendarChangeResults.reduce((n, r) => n + (r.proposed || 0), 0);
+      const failed = calendarChangeResults.filter((r) => r.success === false);
+
+      const parts = [];
+      if (applied > 0 || created > 0) {
+        const total = applied + created;
+        parts.push(`Updated your calendar — ${total} ${total === 1 ? 'entry' : 'entries'}.`);
+      }
+      if (deduped > 0) parts.push(`${deduped} were already there, so I left them alone.`);
+      if (proposed > 0) parts.push(`${proposed} ${proposed === 1 ? 'change is' : 'changes are'} waiting for you to approve.`);
+      if (failed.length > 0 && parts.length === 0) {
+        parts.push(`I couldn't finish that — ${failed[0].error || 'the change did not go through'}.`);
+      } else if (failed.length > 0) {
+        parts.push("Some of it didn't go through — ask me to check and I'll finish it.");
+      }
+      responseText = parts.join(' ') || 'Nothing needed changing on your calendar.';
     }
 
     // Guard: no text and no tools at all — nothing downstream will fill this in.
