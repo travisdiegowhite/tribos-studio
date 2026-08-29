@@ -208,6 +208,84 @@ export async function moveEntry(
   }
 }
 
+/**
+ * Exchange two entries' dates.
+ *
+ * THE GESTURE THIS REBUILD EXISTS FOR. "Move the long ride to Sunday and the
+ * threshold session to Saturday" is the single most common thing an athlete
+ * does to a training week, and until now it was the one thing the calendar
+ * could not do:
+ *
+ *   - On `planned_workouts`, `UNIQUE (plan_id, scheduled_date)` makes a direct
+ *     two-row swap collide with itself, so it needed a three-write
+ *     park/move/restore with rollback (api/coach.js:229, mirrored in
+ *     check-in-apply.js and deviation-resolve.js).
+ *   - Through the coach it counted as two edits, tripped the multi-entry rule,
+ *     and landed in an approval queue that had no accept button.
+ *
+ * Here it is two plain updates. The key is `(user_id, date, slot)`, so the two
+ * rows never contend for the same identity: A takes B's (date, slot) and B
+ * takes A's, and neither slot is ever occupied twice.
+ *
+ * Both entries are pinned afterwards — a swap is a decision about both days,
+ * and a generator must not undo either half of it.
+ */
+export async function swapEntries(
+  userId: string,
+  entryIdA: string,
+  entryIdB: string,
+): Promise<MutationResult> {
+  if (!userId) return fail('Not signed in');
+  if (!entryIdA || !entryIdB) return fail('Two entries are required to swap');
+  if (entryIdA === entryIdB) return fail('Cannot swap an entry with itself');
+
+  try {
+    const { data: rows, error: readError } = await supabase
+      .from('calendar_entries')
+      .select('id, date, slot, provenance')
+      .in('id', [entryIdA, entryIdB])
+      .eq('user_id', userId);
+
+    if (readError) throw readError;
+    const a = (rows ?? []).find((r) => r.id === entryIdA);
+    const b = (rows ?? []).find((r) => r.id === entryIdB);
+    if (!a || !b) return fail('One of those entries no longer exists');
+
+    const keepOrigin = (row: { date: string; provenance: unknown }) => ({
+      ...((row.provenance as Record<string, unknown>) ?? {}),
+      original_date:
+        (row.provenance as { original_date?: string })?.original_date ?? row.date,
+    });
+
+    // A leaves first, so its (date, slot) is free before B claims it. Without
+    // the park the second update would collide with the first on the way past.
+    const PARK = -1;
+    const park = await supabase
+      .from('calendar_entries')
+      .update({ slot: PARK })
+      .eq('id', a.id).eq('user_id', userId);
+    if (park.error) throw park.error;
+
+    const moveB = await supabase
+      .from('calendar_entries')
+      .update({ date: a.date, slot: a.slot, provenance: keepOrigin(b), pinned: true })
+      .eq('id', b.id).eq('user_id', userId);
+    if (moveB.error) throw moveB.error;
+
+    const moveA = await supabase
+      .from('calendar_entries')
+      .update({ date: b.date, slot: b.slot, provenance: keepOrigin(a), pinned: true })
+      .eq('id', a.id).eq('user_id', userId);
+    if (moveA.error) throw moveA.error;
+
+    return { success: true };
+  } catch (err) {
+    const message = (err as Error)?.message ?? 'Could not swap those entries';
+    console.error('swapEntries failed', message);
+    return fail(message);
+  }
+}
+
 /** Remove an entry outright. */
 export async function deleteEntry(userId: string, entryId: string): Promise<MutationResult<null>> {
   if (!userId) return { success: false, error: 'Not signed in' };
