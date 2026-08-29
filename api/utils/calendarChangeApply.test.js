@@ -110,13 +110,36 @@ describe('applyCalendarOps', () => {
     expect(insert.payload.slot).toBe(1);
   });
 
-  it('PINS an entry it updates — an approved coach edit is a human decision', async () => {
+  it('does NOT pin an entry the coach changed on its own authority', async () => {
+    // The regression: this used to write pinned:true on every update, so the
+    // coach pinned whatever it touched and its OWN next edit to that entry hit
+    // adjudicateOps' `pinned` branch and was queued for approval. One
+    // unremarkable change was enough to make every later one need a tap.
     await applyCalendarOps(USER, [
       { op: 'update', handle: 'sess_1af3bc12', entry: entry(), title: 'Renamed', reason: 'Clearer name.' },
     ]);
     const update = calls.find((c) => c.op === 'update');
-    expect(update.payload.pinned).toBe(true);
     expect(update.payload.title).toBe('Renamed');
+    // Not false — ABSENT. Writing false would clear a pin the athlete set,
+    // and an unpin is a decision too.
+    expect(update.payload).not.toHaveProperty('pinned');
+  });
+
+  it("leaves an athlete's existing pin alone rather than clearing it", async () => {
+    await applyCalendarOps(USER, [
+      { op: 'move', handle: 'sess_1af3bc12', entry: entry({ pinned: true }), date: '2026-09-05', reason: 'r' },
+    ]);
+    const update = calls.find((c) => c.op === 'update');
+    expect(update.payload).not.toHaveProperty('pinned');
+  });
+
+  it('PINS when the athlete approved the change (pin: true)', async () => {
+    await applyCalendarOps(
+      USER,
+      [{ op: 'update', handle: 'sess_1af3bc12', entry: entry(), title: 'Renamed', reason: 'Clearer name.' }],
+      { pin: true }
+    );
+    expect(calls.find((c) => c.op === 'update').payload.pinned).toBe(true);
   });
 
   it('scopes EVERY write to the athlete', async () => {
@@ -144,7 +167,9 @@ describe('applyCalendarOps', () => {
     expect(update.payload.id).toBeUndefined();
     // status is only settable through set_status, not a blanket update.
     expect(update.payload.status).toBeUndefined();
-    expect(update.payload.pinned).toBe(true);
+    // And the model cannot pin or unpin: pinning is the athlete's act, driven
+    // by opts.pin, never by a field in the op.
+    expect(update.payload).not.toHaveProperty('pinned');
   });
 
   it('sets completed_at when marking done, and clears it when un-marking', async () => {
