@@ -25,6 +25,8 @@ vi.mock('../supabase', () => {
       if (op.op === 'select') {
         const date = op.filters.find((f) => f[0] === 'eq' && f[1] === 'date')?.[2];
         const id = op.filters.find((f) => f[0] === 'eq' && f[1] === 'id')?.[2];
+        const ids = op.filters.find((f) => f[0] === 'in' && f[1] === 'id')?.[2] as string[] | undefined;
+        if (ids) return { data: state.rows.filter((r) => ids.includes(r.id as string)), error: null };
         if (id) return { data: state.rows.find((r) => r.id === id) ?? null, error: null };
         return { data: state.rows.filter((r) => r.date === date), error: null };
       }
@@ -36,6 +38,7 @@ vi.mock('../supabase', () => {
       update: (payload: unknown) => { op.op = 'update'; op.payload = payload; state.ops.push(op); return builder; },
       delete: () => { op.op = 'delete'; state.ops.push(op); return builder; },
       eq: (...a: unknown[]) => push('eq', ...a),
+      in: (...a: unknown[]) => push('in', ...a),
       order: () => builder,
       maybeSingle: () => Promise.resolve(settle()),
       single: () => Promise.resolve(settle()),
@@ -49,7 +52,7 @@ vi.mock('../supabase', () => {
   return { supabase: { from: (table: string) => makeBuilder(table) } };
 });
 
-const { createEntry, updateEntry, moveEntry, deleteEntry, setEntryStatus, nextFreeSlot } =
+const { createEntry, updateEntry, moveEntry, deleteEntry, setEntryStatus, nextFreeSlot, swapEntries } =
   await import('./calendarMutations');
 
 beforeEach(() => {
@@ -195,5 +198,112 @@ describe('ownership scoping', () => {
     // "permission denied" would not say whether the read or the insert broke.
     expect(r.error).toContain('permission denied');
     expect(r.error).toContain('Could not read slots');
+  });
+});
+
+/**
+ * THE GESTURE THIS REBUILD EXISTS FOR.
+ *
+ * "Long ride to Sunday, threshold to Saturday" is the most common edit an
+ * athlete makes to a week, and until now the calendar could not do it. On
+ * `planned_workouts`, `UNIQUE (plan_id, scheduled_date)` made a two-row swap
+ * collide with itself, so it needed a three-write park/move/restore with
+ * rollback — 80 lines in the drop handler, mirrored in api/coach.js and two
+ * other call sites. Through the coach it counted as two edits, tripped the
+ * multi-entry rule, and landed in an approval queue with no accept button;
+ * that is the request that sat unresolvable while the athlete's weekend stayed
+ * wrong.
+ *
+ * On `(user_id, date, slot)` it is two updates plus a park, and the park is
+ * needed only because a row briefly holds a slot the other one wants.
+ */
+describe('swapEntries', () => {
+  const A = { id: 'a', date: '2026-08-29', slot: 0, provenance: null };
+  const B = { id: 'b', date: '2026-08-30', slot: 0, provenance: null };
+
+  it('exchanges the two dates', async () => {
+    state.rows = [{ ...A }, { ...B }];
+    const r = await swapEntries('u1', 'a', 'b');
+    expect(r.success).toBe(true);
+
+    const updates = state.ops.filter((o) => o.op === 'update');
+    const bMove = updates.find((o) => o.filters.some((f) => f[1] === 'id' && f[2] === 'b'));
+    const aMove = updates.filter((o) => o.filters.some((f) => f[1] === 'id' && f[2] === 'a')).pop();
+    expect(bMove!.payload).toMatchObject({ date: '2026-08-29', slot: 0 });
+    expect(aMove!.payload).toMatchObject({ date: '2026-08-30', slot: 0 });
+  });
+
+  it('parks one row first so the two never contend for the same slot', async () => {
+    state.rows = [{ ...A }, { ...B }];
+    await swapEntries('u1', 'a', 'b');
+    const first = state.ops.filter((o) => o.op === 'update')[0];
+    expect(first.payload).toEqual({ slot: -1 });
+  });
+
+  it('pins both — a swap is a decision about both days', async () => {
+    state.rows = [{ ...A }, { ...B }];
+    await swapEntries('u1', 'a', 'b');
+    const moves = state.ops.filter(
+      (o) => o.op === 'update' && (o.payload as { date?: string }).date
+    );
+    expect(moves).toHaveLength(2);
+    for (const m of moves) expect((m.payload as { pinned: boolean }).pinned).toBe(true);
+  });
+
+  it('records where each entry began, and keeps the FIRST origin across repeats', async () => {
+    state.rows = [
+      { ...A, provenance: { original_date: '2026-08-24' } },
+      { ...B },
+    ];
+    await swapEntries('u1', 'a', 'b');
+    const aMove = state.ops
+      .filter((o) => o.op === 'update' && o.filters.some((f) => f[2] === 'a'))
+      .pop();
+    expect((aMove!.payload as { provenance: { original_date: string } }).provenance.original_date)
+      .toBe('2026-08-24');
+  });
+
+  it('swaps two entries on the SAME day by exchanging slots', async () => {
+    state.rows = [
+      { id: 'a', date: '2026-08-29', slot: 0, provenance: null },
+      { id: 'b', date: '2026-08-29', slot: 1, provenance: null },
+    ];
+    const r = await swapEntries('u1', 'a', 'b');
+    expect(r.success).toBe(true);
+    const aMove = state.ops
+      .filter((o) => o.op === 'update' && o.filters.some((f) => f[2] === 'a'))
+      .pop();
+    expect(aMove!.payload).toMatchObject({ date: '2026-08-29', slot: 1 });
+  });
+
+  it('never requires a plan — no call site passes one', async () => {
+    state.rows = [{ ...A }, { ...B }];
+    await swapEntries('u1', 'a', 'b');
+    for (const op of state.ops) {
+      expect(JSON.stringify(op.payload ?? {})).not.toContain('plan_id');
+    }
+  });
+
+  it('scopes every write to the athlete', async () => {
+    state.rows = [{ ...A }, { ...B }];
+    await swapEntries('u1', 'a', 'b');
+    for (const op of state.ops.filter((o) => o.op === 'update')) {
+      expect(op.filters.some((f) => f[1] === 'user_id' && f[2] === 'u1')).toBe(true);
+    }
+  });
+
+  it('refuses the degenerate cases instead of writing', async () => {
+    expect((await swapEntries('', 'a', 'b')).success).toBe(false);
+    expect((await swapEntries('u1', 'a', 'a')).success).toBe(false);
+    expect((await swapEntries('u1', 'a', '')).success).toBe(false);
+    expect(state.ops.filter((o) => o.op === 'update')).toHaveLength(0);
+  });
+
+  it('reports a missing entry rather than half-swapping', async () => {
+    state.rows = [{ ...A }];
+    const r = await swapEntries('u1', 'a', 'b');
+    expect(r.success).toBe(false);
+    expect(r.error).toContain('no longer exists');
+    expect(state.ops.filter((o) => o.op === 'update')).toHaveLength(0);
   });
 });

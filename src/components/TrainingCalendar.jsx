@@ -29,7 +29,10 @@ import { WORKOUT_TYPES, TRAINING_PHASES, calculateTSS, estimateTSS } from '../ut
 import { isPowerSport } from '../utils/sportType';
 import { getWorkoutById } from '../data/workoutLibrary';
 import { tokens } from '../theme';
-import { formatLocalDate, addDays, parsePlanStartDate, getTodayString, toDateKey, weekStartKey, activityDateKey } from '../utils/dateUtils';
+import { formatLocalDate, addDays, parsePlanStartDate, parseLocalDate, getTodayString, toDateKey, weekStartKey, activityDateKey } from '../utils/dateUtils';
+import { getCalendarRange } from '../lib/calendar/getCalendarRange';
+import { moveEntry, swapEntries, createEntry, deleteEntry } from '../lib/calendar/calendarMutations';
+import { toPlannedWorkoutShapes } from '../lib/calendar/plannedWorkoutAdapter';
 import RaceGoalModal from './RaceGoalModal';
 import { StravaLogo, STRAVA_ORANGE } from './StravaBranding';
 import { FuelBadge } from './fueling';
@@ -111,6 +114,12 @@ const TrainingCalendar = ({ activePlan, rides = [], formatDistance: formatDistan
 
   // Race goals state
   const [raceGoals, setRaceGoals] = useState([]);
+  // Tap-to-lift / tap-to-place. This is the primary gesture, not an alternative
+  // to drag: HTML5 drag-and-drop does not fire on touch at all, so on a phone
+  // or iPad dragging a session has never once worked.
+  const [heldEntryId, setHeldEntryId] = useState(null);
+  // Set when a placement lands on an occupied day — swap, or stack both?
+  const [placePrompt, setPlacePrompt] = useState(null);
   const [raceGoalModalOpen, setRaceGoalModalOpen] = useState(false);
   const [selectedRaceGoal, setSelectedRaceGoal] = useState(null);
 
@@ -265,19 +274,21 @@ const TrainingCalendar = ({ activePlan, rides = [], formatDistance: formatDistan
       const startDateStr = formatLocalDate(anchorDate);
       const endDateStr = formatLocalDate(addDays(anchorDate, 28));
 
-      // User-scoped read: every planned workout in range, across all of the athlete's
-      // plans. The grid places each by scheduled_date, so plan membership doesn't affect
-      // rendering. (RLS still restricts to the athlete's own rows via user_id.)
-      const { data } = await supabase
-        .from('planned_workouts')
-        .select('*')
-        .eq('user_id', user.id)
-        .gte('scheduled_date', startDateStr)
-        .lte('scheduled_date', endDateStr);
-
-      if (data) {
-        setPlannedWorkouts(data);
-      }
+      // Reads come from calendar_entries now, translated into the field names
+      // this component already renders (see plannedWorkoutAdapter).
+      //
+      // WHY: a row in planned_workouts belongs to a PLAN, so anything outside
+      // the plan's duration_weeks window cannot exist there. This athlete's
+      // plan ends 2026-10-01 and their cyclocross season runs to 2026-12-05 —
+      // eight of nine races, and all 32 sessions the coach generated around
+      // them, fall outside it. In calendar_entries a row belongs to the
+      // ATHLETE, keyed (user_id, date, slot), so a December race is just a row.
+      //
+      // This also un-splits the writers: the coach already writes
+      // calendar_entries, so what it schedules now appears here rather than
+      // succeeding invisibly in a table this surface never read.
+      const range = await getCalendarRange(user.id, startDateStr, endDateStr);
+      setPlannedWorkouts(toPlannedWorkoutShapes(range.entries, getPlanStartDate(activePlan)));
     } catch (error) {
       console.error('Failed to load planned workouts:', error);
     }
@@ -319,10 +330,27 @@ const TrainingCalendar = ({ activePlan, rides = [], formatDistance: formatDistan
     }
   };
 
-  // Get race goal for a specific date
+  // Races for a date, from calendar_entries first.
+  //
+  // Migration 115 copied every race_goals row into calendar_entries, so a
+  // calendar reading BOTH tables renders each race twice — The Rad is in both
+  // under different ids. calendar_entries is the calendar's source because it
+  // is the only one that holds the nine cyclocross races the coach created;
+  // race_goals is consulted only for a date calendar_entries doesn't cover, so
+  // nothing that used to show up disappears.
+  //
+  // race_goals itself stays: the Race tab still owns priority, goal time,
+  // target TFI and results. It just isn't a second calendar.
   const getRaceGoalForDate = (date) => {
     if (!date) return null;
     const dateStr = formatLocalDate(date);
+    const entryRace = plannedWorkouts.find(
+      (w) => w.entry_type === 'race' && w.scheduled_date === dateStr
+    );
+    if (entryRace) {
+      return { id: entryRace.id, name: entryRace.name, race_date: dateStr,
+               race_type: entryRace.workout_type };
+    }
     return raceGoals.find(r => r.race_date === dateStr);
   };
 
@@ -376,7 +404,11 @@ const TrainingCalendar = ({ activePlan, rides = [], formatDistance: formatDistan
   const getWorkoutForDate = (date) => {
     if (!date) return null;
     const dateStr = formatLocalDate(date);
-    return plannedWorkouts.find(w => w.scheduled_date === dateStr);
+    // Races render through getRaceGoalForDate, so exclude them here or a race
+    // day draws twice — once as the race banner and once as a session chip.
+    return plannedWorkouts.find(
+      (w) => w.scheduled_date === dateStr && w.entry_type !== 'race'
+    );
   };
 
   // Get rides for a specific date
@@ -781,66 +813,56 @@ const TrainingCalendar = ({ activePlan, rides = [], formatDistance: formatDistan
   // Add a workout from the library onto a day (drag-drop or mobile tap).
   // Replaces any existing workout on that day (matches prior planner behavior).
   const handleAddFromLibrary = async (workoutId, targetDate, overrides = null) => {
-    if (!activePlan || !user || !targetDate) return;
+    // No plan required and no window to fall outside of. The two guards that
+    // used to be here — `!activePlan` and the `duration_weeks` clamp — are why
+    // a race in December could not be added: the athlete's plan ends
+    // 2026-10-01 and their cyclocross season runs to 2026-12-05.
+    if (!user || !targetDate) return;
 
     try {
       const workout = getWorkoutById(workoutId);
       if (!workout) return;
 
-      const planStartDate = parsePlanStartDate(getPlanStartDate(activePlan));
-      if (!planStartDate) {
-        notifications.show({ title: 'Error', message: 'Unable to parse plan start date', color: 'red' });
-        return;
-      }
+      const scheduledDate = formatLocalDate(targetDate);
 
-      const weekNumber = computeWeekNumber(planStartDate, targetDate);
-      if (activePlan.duration_weeks && (weekNumber < 1 || weekNumber > activePlan.duration_weeks)) {
+      // ADDS, never REPLACES. The old code deleted whatever was on that day
+      // first, because `UNIQUE (plan_id, scheduled_date)` made a second row
+      // impossible — so adding a session silently destroyed the one already
+      // there. Slots make a double day legitimate, so a second entry just
+      // takes the next slot.
+      const created = await createEntry(user.id, scheduledDate, {
+        title: workout.name,
+        workout_id: workoutId,
+        workout_type: workout.category || null,
+        target_load: overrides?.targetTSS ?? workout.targetTSS ?? null,
+        target_duration_min: overrides?.duration ?? workout.duration ?? null,
+        source: 'manual',
+      });
+
+      if (!created.success) {
         notifications.show({
-          title: 'Cannot Add Workout',
-          message: 'That date is outside the plan duration',
-          color: 'yellow',
+          title: 'Could not add that workout',
+          message: created.error || 'The change did not go through.',
+          color: 'red',
         });
         return;
       }
-
-      const scheduledDate = formatLocalDate(targetDate);
-
-      // Replace any existing workout on that day (the table has a unique
-      // (plan_id, scheduled_date) constraint, so an insert would otherwise fail).
-      const existing = plannedWorkouts.find((w) => w.scheduled_date === scheduledDate);
-      let replacedName = null;
-      if (existing) {
-        replacedName = getWorkoutById(existing.workout_id)?.name || existing.name || 'workout';
-        const { error: delError } = await supabase
-          .from('planned_workouts')
-          .delete()
-          .eq('id', existing.id);
-        if (delError) throw delError;
-      }
-
-      const { error: insertError } = await supabase
-        .from('planned_workouts')
-        .insert(buildLibraryWorkoutRow({
-          workout,
-          workoutId,
-          planId: activePlan.id,
-          userId: user.id,
-          planStartDate,
-          targetDate,
-          overrides: overrides || undefined,
-        }));
-
-      if (insertError) throw insertError;
 
       await loadPlannedWorkouts();
       if (onPlanUpdated) onPlanUpdated();
 
       notifications.show({
-        title: replacedName ? 'Workout Replaced' : 'Workout Added',
-        message: replacedName
-          ? `Replaced ${replacedName} with ${workout.name}`
-          : `Added ${workout.name} to ${targetDate.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}`,
-        color: 'terracotta',
+        title: `Added ${workout.name}`,
+        message: `${formatDayLabel(scheduledDate)} · tap to undo`,
+        color: 'teal',
+        autoClose: 6000,
+        onClick: async () => {
+          const back = await deleteEntry(user.id, created.data.id);
+          if (back?.success) {
+            await loadPlannedWorkouts();
+            if (onPlanUpdated) onPlanUpdated();
+          }
+        },
       });
     } catch (error) {
       console.error('Failed to add workout from library:', error);
@@ -897,12 +919,98 @@ const TrainingCalendar = ({ activePlan, rides = [], formatDistance: formatDistan
     }
   };
 
+  /**
+   * Place the held (or dragged) entry on a day.
+   *
+   * This replaces 227 lines, most of which were the three-write
+   * park/move/restore dance with rollback that `UNIQUE (plan_id,
+   * scheduled_date)` forced on the old table: park the occupant on 1900-01-01,
+   * move the dragged row in, move the occupant to the source date, and unwind
+   * by hand if any step failed. On `calendar_entries` the key is
+   * `(user_id, date, slot)`, so a swap is two plain updates and lives in
+   * `swapEntries`.
+   *
+   * Also gone: the `!activePlan` return and the `duration_weeks` clamp. Those
+   * are why a December race could not be placed — the athlete's plan ends
+   * 2026-10-01 and their cyclocross season runs to 2026-12-05, so the calendar
+   * refused every date past the plan's edge, silently for a tap and with a
+   * "outside the plan duration" warning for a drag.
+   */
+  const placeEntry = async (entryId, targetDate, { sourceDate } = {}) => {
+    if (!user?.id || !entryId || !targetDate) return;
+
+    const targetKey = formatLocalDate(targetDate);
+    const moving = plannedWorkouts.find((w) => w.id === entryId);
+    if (!moving) return;
+    if (moving.scheduled_date === targetKey) {
+      setHeldEntryId(null);
+      setDraggedWorkout(null);
+      return;
+    }
+
+    // A day that already holds something is a question, not an error: did they
+    // mean to swap the two, or to stack both on that day? Guessing either way
+    // is how a weekend ends up wrong.
+    const occupant = plannedWorkouts.find(
+      (w) => w.scheduled_date === targetKey && w.entry_type !== 'race' && w.id !== entryId
+    );
+    if (occupant) {
+      setPlacePrompt({ moving, occupant, targetKey, sourceDate });
+      return;
+    }
+
+    await runCalendarChange(
+      () => moveEntry(user.id, entryId, targetKey),
+      `Moved ${moving.name} to ${formatDayLabel(targetKey)}`,
+      () => moveEntry(user.id, entryId, moving.scheduled_date),
+    );
+    setHeldEntryId(null);
+    setDraggedWorkout(null);
+  };
+
+  /** Run a mutation, report it, and offer an undo. Never silent either way. */
+  const runCalendarChange = async (apply, successMessage, undo) => {
+    const result = await apply();
+    if (!result?.success) {
+      notifications.show({
+        title: 'Could not update the calendar',
+        message: result?.error || 'The change did not go through.',
+        color: 'red',
+      });
+      return false;
+    }
+    await loadPlannedWorkouts();
+    if (onPlanUpdated) onPlanUpdated();
+    notifications.show({
+      title: successMessage,
+      message: undo ? 'Tap to undo' : undefined,
+      color: 'teal',
+      autoClose: 6000,
+      onClick: undo
+        ? async () => {
+            const back = await undo();
+            if (back?.success) {
+              await loadPlannedWorkouts();
+              if (onPlanUpdated) onPlanUpdated();
+            }
+          }
+        : undefined,
+    });
+    return true;
+  };
+
+  const formatDayLabel = (dateKey) => {
+    const d = parseLocalDate(dateKey);
+    return d
+      ? d.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })
+      : dateKey;
+  };
+
   const handleDrop = async (e, targetDate) => {
     e.preventDefault();
     setDragOverDate(null);
 
-    // Library drag-to-add: the library WorkoutCard tags its payload with
-    // application/json {source:'library'}; reschedule drags set only text/plain.
+    // Library drag-to-add tags its payload; a reschedule drag sets only text/plain.
     let libraryPayload = null;
     try {
       const raw = e.dataTransfer.getData('application/json');
@@ -916,213 +1024,13 @@ const TrainingCalendar = ({ activePlan, rides = [], formatDistance: formatDistan
       return;
     }
 
-    console.log('handleDrop called:', { draggedWorkout, targetDate, activePlan: activePlan?.id });
-
-    if (!draggedWorkout || !targetDate || !activePlan) {
-      console.log('handleDrop early return - missing data');
+    if (!draggedWorkout || !targetDate) {
       setDraggedWorkout(null);
       return;
     }
-
-    const { workout, sourceDate } = draggedWorkout;
-    console.log('Moving workout:', workout?.id, workout?.name, 'from', sourceDate, 'to', targetDate);
-
-    // Don't drop on same day
-    if (sourceDate.toDateString() === targetDate.toDateString()) {
-      setDraggedWorkout(null);
-      return;
-    }
-
-    try {
-      // Use parsePlanStartDate for timezone-safe parsing
-      const planStartDate = parsePlanStartDate(getPlanStartDate(activePlan));
-      if (!planStartDate) {
-        notifications.show({
-          title: 'Error',
-          message: 'Unable to parse plan start date',
-          color: 'red',
-        });
-        setDraggedWorkout(null);
-        return;
-      }
-
-      // Normalize targetDate to midnight for accurate comparison
-      const normalizedTargetDate = new Date(targetDate);
-      normalizedTargetDate.setHours(0, 0, 0, 0);
-
-      // Calculate new week number and day of week for target date
-      const daysSinceStart = Math.floor((normalizedTargetDate - planStartDate) / (24 * 60 * 60 * 1000));
-      const newWeekNumber = Math.floor(daysSinceStart / 7) + 1;
-      const newDayOfWeek = targetDate.getDay();
-
-      // Check if target date is within plan duration
-      if (newWeekNumber < 1 || newWeekNumber > activePlan.duration_weeks) {
-        notifications.show({
-          title: 'Cannot Move Workout',
-          message: 'Target date is outside the plan duration',
-          color: 'yellow',
-        });
-        setDraggedWorkout(null);
-        return;
-      }
-
-      // Calculate new scheduled_date using formatLocalDate to avoid timezone issues
-      const newScheduledDate = formatLocalDate(targetDate);
-      const sourceScheduledDate = formatLocalDate(sourceDate);
-
-      // Calculate source date info for potential swap
-      const sourceDateObj = new Date(sourceDate);
-      sourceDateObj.setHours(0, 0, 0, 0);
-      const sourceDaysSinceStart = Math.floor((sourceDateObj - planStartDate) / (24 * 60 * 60 * 1000));
-      const sourceWeekNumber = workout.week_number ?? (Math.floor(sourceDaysSinceStart / 7) + 1);
-      const sourceDayOfWeek = workout.day_of_week ?? sourceDateObj.getDay();
-
-      // Helper function to perform the swap
-      const performSwap = async (existingWorkoutId) => {
-        console.log('Performing swap:', workout.id, 'with', existingWorkoutId);
-
-        // First, move existing workout to source date (freeing target date)
-        // Use a temp date first to avoid constraint on source if dragged workout is still there
-        const tempDate = '1900-01-01';
-
-        // Step 1: Move existing workout to temp
-        const { error: tempError } = await supabase
-          .from('planned_workouts')
-          .update({ scheduled_date: tempDate })
-          .eq('id', existingWorkoutId);
-
-        if (tempError) {
-          console.error('Swap step 1 failed:', tempError);
-          throw tempError;
-        }
-
-        // Step 2: Move dragged workout to target date
-        const { error: moveError } = await supabase
-          .from('planned_workouts')
-          .update({
-            week_number: newWeekNumber,
-            day_of_week: newDayOfWeek,
-            scheduled_date: newScheduledDate,
-          })
-          .eq('id', workout.id);
-
-        if (moveError) {
-          console.error('Swap step 2 failed:', moveError);
-          // Restore existing workout
-          await supabase
-            .from('planned_workouts')
-            .update({ scheduled_date: newScheduledDate })
-            .eq('id', existingWorkoutId);
-          throw moveError;
-        }
-
-        // Step 3: Move existing workout to source date
-        const { error: swapError } = await supabase
-          .from('planned_workouts')
-          .update({
-            week_number: sourceWeekNumber,
-            day_of_week: sourceDayOfWeek,
-            scheduled_date: sourceScheduledDate,
-          })
-          .eq('id', existingWorkoutId);
-
-        if (swapError) {
-          console.error('Swap step 3 failed:', swapError);
-          throw swapError;
-        }
-
-        console.log('Swap successful');
-        notifications.show({
-          title: 'Workouts Swapped',
-          message: 'Workouts have been swapped between days',
-          color: 'terracotta',
-        });
-      };
-
-      // Try the simple move first
-      console.log('Attempting to move workout:', workout.id, '->', newScheduledDate);
-      const { error } = await supabase
-        .from('planned_workouts')
-        .update({
-          week_number: newWeekNumber,
-          day_of_week: newDayOfWeek,
-          scheduled_date: newScheduledDate,
-        })
-        .eq('id', workout.id);
-
-      if (error) {
-        // Check if it's a unique constraint violation (another workout exists on target date)
-        if (error.code === '23505') {
-          console.log('Unique constraint violation - need to swap with existing workout');
-
-          // Find the existing workout on the target date
-          const { data: existingWorkout, error: findError } = await supabase
-            .from('planned_workouts')
-            .select('id, workout_type')
-            .eq('plan_id', activePlan.id)
-            .eq('scheduled_date', newScheduledDate)
-            .neq('id', workout.id)
-            .limit(1)
-            .single();
-
-          if (findError || !existingWorkout) {
-            console.error('Could not find existing workout for swap:', findError);
-            throw error; // Throw original error
-          }
-
-          if (existingWorkout.workout_type === 'rest') {
-            // Delete the rest day and retry the move
-            await supabase
-              .from('planned_workouts')
-              .delete()
-              .eq('id', existingWorkout.id);
-
-            // Retry the move
-            const { error: retryError } = await supabase
-              .from('planned_workouts')
-              .update({
-                week_number: newWeekNumber,
-                day_of_week: newDayOfWeek,
-                scheduled_date: newScheduledDate,
-              })
-              .eq('id', workout.id);
-
-            if (retryError) throw retryError;
-
-            notifications.show({
-              title: 'Workout Moved',
-              message: `Moved to ${targetDate.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}`,
-              color: 'terracotta',
-            });
-          } else {
-            // Perform the swap
-            await performSwap(existingWorkout.id);
-          }
-        } else {
-          console.error('Failed to move workout:', error);
-          throw error;
-        }
-      } else {
-        console.log('Move successful');
-        notifications.show({
-          title: 'Workout Moved',
-          message: `Moved to ${targetDate.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}`,
-          color: 'terracotta',
-        });
-      }
-
-      await loadPlannedWorkouts();
-      if (onPlanUpdated) onPlanUpdated();
-    } catch (error) {
-      console.error('Failed to move workout:', error);
-      notifications.show({
-        title: 'Error',
-        message: 'Failed to move workout',
-        color: 'red',
-      });
-    } finally {
-      setDraggedWorkout(null);
-    }
+    await placeEntry(draggedWorkout.workout.id, targetDate, {
+      sourceDate: draggedWorkout.sourceDate,
+    });
   };
 
   // Format distance - use prop if provided, otherwise use isImperial to format
@@ -1388,6 +1296,37 @@ const TrainingCalendar = ({ activePlan, rides = [], formatDistance: formatDistan
           </Group>
         </Group>
 
+        {/* Held bar — the whole tap-to-place model is invisible without it.
+            Nothing else on screen tells the athlete a session is "picked up". */}
+        {heldEntryId && (() => {
+          const heldWorkout = plannedWorkouts.find((w) => w.id === heldEntryId);
+          if (!heldWorkout) return null;
+          return (
+            <Group
+              justify="space-between"
+              wrap="nowrap"
+              p="xs"
+              mb="xs"
+              style={{
+                border: '1.5px solid var(--color-warning, #D4600A)',
+                backgroundColor: 'rgba(212, 96, 10, 0.08)',
+              }}
+            >
+              <Text size="sm" style={{ minWidth: 0 }}>
+                <Text span fw={700} tt="uppercase" size="xs"
+                  style={{ fontFamily: 'var(--font-mono, monospace)', letterSpacing: '0.08em' }}>
+                  Moving{' '}
+                </Text>
+                <Text span fw={600}>{heldWorkout.name}</Text>
+                <Text span c="dimmed"> — tap any day to place it</Text>
+              </Text>
+              <Button variant="subtle" size="compact-xs" onClick={() => setHeldEntryId(null)}>
+                Cancel
+              </Button>
+            </Group>
+          );
+        })()}
+
         {/* Show info about no content yet */}
         {!activePlan && rides.length === 0 && plannedWorkouts.length === 0 && (
           <Text style={{ color: 'var(--color-text-muted)' }} ta="center" py="xl">
@@ -1511,17 +1450,35 @@ const TrainingCalendar = ({ activePlan, rides = [], formatDistance: formatDistan
                       transition: 'background-color 0.2s, border 0.2s',
                     }}
                     onClick={() => {
-                      // Mobile tap-to-assign: a library workout is selected → drop it here.
+                      // Tap-to-assign from the library.
                       if (selectedWorkoutId) {
                         handleAddFromLibrary(selectedWorkoutId, date);
                         setSelectedWorkoutId(null);
                         return;
                       }
-                      if (!activePlan) return;
+                      // TAP TO LIFT, TAP TO PLACE — the primary gesture, and
+                      // the only one that works on touch. HTML5 drag-and-drop
+                      // does not fire there, so on a phone or iPad dragging a
+                      // session has never once worked. Drag still works on
+                      // desktop for anyone who prefers it.
+                      if (heldEntryId) {
+                        // Tapping the held session again opens it instead of
+                        // placing it on itself.
+                        if (workout && workout.id === heldEntryId) {
+                          setHeldEntryId(null);
+                          openEditModal(workout, date);
+                        } else {
+                          placeEntry(heldEntryId, date);
+                        }
+                        return;
+                      }
+                      // `if (!activePlan) return` used to sit here. It made a
+                      // tap do NOTHING — no modal, no error, no explanation —
+                      // whenever no plan was active, which is indistinguishable
+                      // from a broken app.
                       if (workout) {
-                        openEditModal(workout, date);
+                        setHeldEntryId(workout.id);
                       } else {
-                        // Empty day → open the detail modal in "add" mode.
                         openAddModal(date);
                       }
                     }}
@@ -2077,6 +2034,89 @@ const TrainingCalendar = ({ activePlan, rides = [], formatDistance: formatDistan
       />
 
       {/* Clear planned sessions confirm */}
+      {/* Placing onto an occupied day is a QUESTION, not an error.
+          This is the case that broke the athlete's weekend: through the coach
+          a swap counted as two edits, tripped the multi-entry rule, and landed
+          in an approval queue with no accept button. Asked directly, it is one
+          tap. */}
+      <Modal
+        opened={!!placePrompt}
+        onClose={() => { setPlacePrompt(null); setHeldEntryId(null); setDraggedWorkout(null); }}
+        title={placePrompt ? `${formatDayLabel(placePrompt.targetKey)} already has something` : ''}
+        centered
+        radius={0}
+      >
+        {placePrompt && (
+          <Stack gap="sm">
+            <Text size="sm" c="dimmed">
+              {placePrompt.occupant.name} is on that day. What did you mean?
+            </Text>
+
+            <Button
+              variant="default"
+              radius={0}
+              onClick={async () => {
+                const { moving, occupant } = placePrompt;
+                setPlacePrompt(null);
+                await runCalendarChange(
+                  () => swapEntries(user.id, moving.id, occupant.id),
+                  `Swapped ${moving.name} and ${occupant.name}`,
+                  () => swapEntries(user.id, moving.id, occupant.id),
+                );
+                setHeldEntryId(null);
+                setDraggedWorkout(null);
+              }}
+              styles={{ inner: { justifyContent: 'flex-start' }, root: { height: 'auto', padding: 12 } }}
+            >
+              <Stack gap={2} align="flex-start">
+                <Text fw={600} size="sm">Swap them</Text>
+                <Text size="xs" c="dimmed">
+                  {placePrompt.moving.name} to {formatDayLabel(placePrompt.targetKey)}, and{' '}
+                  {placePrompt.occupant.name} to {formatDayLabel(placePrompt.moving.scheduled_date)}
+                </Text>
+              </Stack>
+            </Button>
+
+            <Button
+              variant="default"
+              radius={0}
+              onClick={async () => {
+                const { moving, targetKey } = placePrompt;
+                const from = moving.scheduled_date;
+                setPlacePrompt(null);
+                await runCalendarChange(
+                  () => moveEntry(user.id, moving.id, targetKey),
+                  `Moved ${moving.name} to ${formatDayLabel(targetKey)}`,
+                  () => moveEntry(user.id, moving.id, from),
+                );
+                setHeldEntryId(null);
+                setDraggedWorkout(null);
+              }}
+              styles={{ inner: { justifyContent: 'flex-start' }, root: { height: 'auto', padding: 12 } }}
+            >
+              <Stack gap={2} align="flex-start">
+                <Text fw={600} size="sm">
+                  Put both on {formatDayLabel(placePrompt.targetKey)}
+                </Text>
+                <Text size="xs" c="dimmed">
+                  A double day — {formatDayLabel(placePrompt.moving.scheduled_date)} becomes empty
+                </Text>
+              </Stack>
+            </Button>
+
+            <Button
+              variant="subtle"
+              color="gray"
+              radius={0}
+              onClick={() => { setPlacePrompt(null); setHeldEntryId(null); setDraggedWorkout(null); }}
+            >
+              Cancel
+            </Button>
+          </Stack>
+        )}
+      </Modal>
+
+
       <Modal
         opened={clearModalOpen}
         onClose={() => setClearModalOpen(false)}
