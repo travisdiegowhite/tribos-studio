@@ -20,6 +20,7 @@ import { tokens } from '../theme';
 import { getWorkoutById } from '../data/workoutLibrary';
 import { useAuth } from '../contexts/AuthContext.jsx';
 import { supabase } from '../lib/supabase';
+import { upsertSessionOnDate } from '../lib/calendar/calendarMutations';
 import { CalendarPlus, CaretDown, CaretUp, ChartLine, Clock, ClockCounterClockwise, PaperPlaneRight, Plus, Trash, User } from '@phosphor-icons/react';
 
 // Training Strategist theme colors
@@ -533,52 +534,29 @@ function TrainingStrategist({ trainingContext, onAddWorkout, activePlan, onThrea
         weekNumber = Math.max(1, Math.floor(daysSinceStart / 7) + 1);
       }
 
-      // Check if there's an existing workout on this date (for notification message)
-      let replacedWorkoutName = null;
-      const { data: existingWorkout } = await supabase
-        .from('planned_workouts')
-        .select('id, name')
-        .eq('plan_id', planId)
-        .eq('scheduled_date', scheduledDate)
-        .maybeSingle();
-
-      if (existingWorkout) {
-        replacedWorkoutName = existingWorkout.name;
-        console.log(`Will replace existing workout: ${existingWorkout.id} (${existingWorkout.name})`);
-      }
-
-      // Use UPSERT - insert or update if (plan_id, scheduled_date) already exists
-      // This is atomic and avoids race conditions with DELETE + INSERT
-      const workoutData = {
-        plan_id: planId,
-        user_id: user.id,
-        scheduled_date: scheduledDate,
-        week_number: weekNumber,
-        day_of_week: dayOfWeek,
-        workout_type: dbWorkoutType,
+      // Replace whatever session holds that day. The old `onConflict:
+      // 'plan_id,scheduled_date'` target no longer exists — an entry's identity
+      // is (user_id, date, slot) and it need not belong to a plan — so the
+      // read-then-write is explicit rather than implied by an index. A RACE on
+      // the day is never replaced.
+      const saved = await upsertSessionOnDate(user.id, scheduledDate, {
+        type: 'workout',
+        title: workout.name,
         workout_id: recommendation.workout_id,
-        name: workout.name,
-        duration_minutes: workout.duration || 60,
-        target_duration: workout.duration || 60,
-        target_tss: workout.targetTSS || 0,
+        workout_type: dbWorkoutType,
+        target_load: workout.targetTSS || 0,
+        target_duration_min: workout.duration || 60,
         notes: recommendation.reason ? `Coach: ${recommendation.reason}` : '',
-        completed: false
-      };
+        source: 'coach',
+      }, { planId });
 
-      const { data: workoutRecord, error: dbError } = await supabase
-        .from('planned_workouts')
-        .upsert(workoutData, {
-          onConflict: 'plan_id,scheduled_date',
-          ignoreDuplicates: false  // Update existing record
-        })
-        .select()
-        .single();
-
-      if (dbError) {
-        console.error('Upsert failed:', dbError);
-        throw new Error(`Failed to save workout: ${dbError.message}`);
+      if (!saved.success) {
+        console.error('Upsert failed:', saved.error);
+        throw new Error(`Failed to save workout: ${saved.error}`);
       }
 
+      const workoutRecord = saved.data;
+      const replacedWorkoutName = saved.replacedName;
       console.log('Successfully upserted workout:', workoutRecord?.id, 'for date:', scheduledDate);
 
       notifications.update({

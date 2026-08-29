@@ -22,6 +22,7 @@ import { tokens } from '../theme';
 import { getWorkoutById } from '../data/workoutLibrary';
 import { useAuth } from '../contexts/AuthContext.jsx';
 import { supabase } from '../lib/supabase';
+import { insertSessions, upsertSessionOnDate } from '../lib/calendar/calendarMutations';
 import { useUserAvailability } from '../hooks/useUserAvailability';
 import { redistributeWorkouts } from '../utils/trainingPlans';
 import { trackFeature, EventType } from '../utils/activityTracking';
@@ -428,34 +429,25 @@ function AICoach({ trainingContext, onAddWorkout, activePlan }) {
         weekNumber = Math.max(1, Math.floor(daysSinceStart / 7) + 1);
       }
 
-      // Save workout directly to planned_workouts table (Tribos calendar)
-      // Match the format used by TrainingPlanBrowser
-      const { data: workoutRecord, error: dbError } = await supabase
-        .from('planned_workouts')
-        .insert({
-          plan_id: planId,
-          user_id: user.id,
-          scheduled_date: scheduledDate,
-          week_number: weekNumber,
-          day_of_week: dayOfWeek,
-          workout_type: dbWorkoutType,
-          workout_id: recommendation.workout_id,
-          name: workout.name,
-          duration_minutes: workout.duration || 60,
-          target_duration: workout.duration || 60,
-          // Dual-write canonical + legacy per the freeze policy (CLAUDE.md).
-          target_tss: workout.targetTSS || 0,
-          target_rss: workout.targetTSS || 0,
-          notes: recommendation.reason ? `Coach recommendation: ${recommendation.reason}` : '',
-          completed: false
-        })
-        .select()
-        .single();
+      // Straight onto the calendar. week_number and day_of_week are gone —
+      // both were derived from a plan's start date, and the calendar derives
+      // them from the date itself.
+      const saved = await upsertSessionOnDate(user.id, scheduledDate, {
+        type: 'workout',
+        title: workout.name,
+        workout_id: recommendation.workout_id,
+        workout_type: dbWorkoutType,
+        target_load: workout.targetTSS || 0,
+        target_duration_min: workout.duration || 60,
+        notes: recommendation.reason ? `Coach recommendation: ${recommendation.reason}` : '',
+        source: 'coach',
+      }, { planId });
 
-      if (dbError) {
-        console.error('Database error saving workout:', dbError);
-        throw new Error(`Failed to save workout: ${dbError.message}`);
+      if (!saved.success) {
+        console.error('Database error saving workout:', saved.error);
+        throw new Error(`Failed to save workout: ${saved.error}`);
       }
+      const workoutRecord = saved.data;
 
       trackFeature(EventType.COACH_WORKOUT_ADD, {
         workoutName: workout.name,
@@ -568,24 +560,20 @@ function AICoach({ trainingContext, onAddWorkout, activePlan }) {
       console.log(`✅ Plan created: ${newPlan.id}`);
 
       // Prepare all workouts for batch insert
+      // Calendar entry drafts. week_number and day_of_week are dropped: both
+      // were derived from the plan's start date, and the calendar derives them
+      // from the date itself. The plan id rides along as provenance.
       let workoutsToInsert = planPreview.workouts
         .filter(w => w.workout_type !== 'rest') // Don't insert rest days
         .map(w => ({
-          plan_id: newPlan.id,
-          user_id: user.id,
-          scheduled_date: w.scheduled_date,
-          week_number: w.week_number,
-          day_of_week: w.day_of_week,
-          workout_type: w.workout_type,
+          date: w.scheduled_date,
+          type: 'workout',
+          title: w.name,
           workout_id: w.workout_id,
-          name: w.name,
-          duration_minutes: w.duration_minutes,
-          target_duration: w.duration_minutes,
-          // Dual-write canonical + legacy per the freeze policy (CLAUDE.md).
-          target_tss: w.target_tss,
-          target_rss: w.target_tss,
+          workout_type: w.workout_type,
+          target_load: w.target_tss,
+          target_duration_min: w.duration_minutes,
           notes: `Coach: ${planPreview.methodology} training - ${w.phase} phase`,
-          completed: false
         }));
 
       // Apply schedule-aware redistribution if user has blocked days
@@ -624,57 +612,33 @@ function AICoach({ trainingContext, onAddWorkout, activePlan }) {
 
         if (movedDates.size > 0) {
           workoutsToInsert = workoutsToInsert.map((w) => {
-            const key = w.scheduled_date + '|' + w.workout_id;
-            const newDate = movedDates.get(key);
-            if (newDate) {
-              const newDateObj = new Date(newDate + 'T12:00:00');
-              return {
-                ...w,
-                scheduled_date: newDate,
-                day_of_week: newDateObj.getDay(),
-              };
-            }
-            return w;
+            const newDate = movedDates.get(w.date + '|' + w.workout_id);
+            return newDate ? { ...w, date: newDate } : w;
           });
 
           console.log(`📅 Redistributed ${redistributionCount} workouts to fit user schedule`);
         }
       }
 
-      console.log(`📝 Inserting ${workoutsToInsert.length} workouts...`);
+      console.log(`📝 Writing ${workoutsToInsert.length} sessions to the calendar...`);
 
-      // Batch insert all workouts
-      const { error: workoutsError } = await supabase
-        .from('planned_workouts')
-        .insert(workoutsToInsert);
+      // Days the athlete has already filled are skipped, not overwritten, so
+      // activating a plan cannot bury a race or a session they scheduled.
+      const written = await insertSessions(user.id, workoutsToInsert, {
+        source: 'coach',
+        planId: newPlan.id,
+      });
 
-      if (workoutsError) {
-        console.error('Workouts insert error:', workoutsError);
-        // Try smaller batches if bulk insert fails
-        const batchSize = 20;
-        let successCount = 0;
-
-        for (let i = 0; i < workoutsToInsert.length; i += batchSize) {
-          const batch = workoutsToInsert.slice(i, i + batchSize);
-          const { error: batchError } = await supabase
-            .from('planned_workouts')
-            .insert(batch);
-
-          if (!batchError) {
-            successCount += batch.length;
-          } else {
-            console.error(`Batch ${i / batchSize + 1} failed:`, batchError);
-          }
-        }
-
-        if (successCount === 0) {
-          throw new Error('Failed to create workouts');
-        }
-
-        console.log(`⚠️ Created ${successCount} of ${workoutsToInsert.length} workouts via batch insert`);
-      } else {
-        console.log(`✅ All ${workoutsToInsert.length} workouts created successfully`);
+      if (!written.success) {
+        console.error('Calendar write failed:', written.error);
+        throw new Error('Failed to create workouts');
       }
+
+      const { inserted, skipped } = written.data;
+      console.log(
+        `✅ ${inserted} session(s) on the calendar` +
+        (skipped > 0 ? `; ${skipped} day(s) already had something and were left alone` : ''),
+      );
 
       const scheduleNote = redistributionCount > 0
         ? ` — ${redistributionCount} workout${redistributionCount > 1 ? 's' : ''} adjusted to fit your schedule`
@@ -684,7 +648,7 @@ function AICoach({ trainingContext, onAddWorkout, activePlan }) {
       notifications.update({
         id: notificationId,
         title: 'Training Plan Activated!',
-        message: `${planPreview.name} is now active with ${workoutsToInsert.length} workouts scheduled through ${planPreview.end_date}${scheduleNote}`,
+        message: `${planPreview.name} is now active with ${inserted} workouts scheduled through ${planPreview.end_date}${scheduleNote}`,
         color: 'terracotta',
         icon: <CalendarPlus size={18} />,
         loading: false,

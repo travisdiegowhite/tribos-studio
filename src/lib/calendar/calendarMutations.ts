@@ -398,6 +398,65 @@ export async function deleteEntry(userId: string, entryId: string): Promise<Muta
 }
 
 /**
+ * Put one session on a day, replacing whatever session is already there.
+ *
+ * The successor to `.upsert(..., { onConflict: 'plan_id,scheduled_date' })`,
+ * which several coach paths used to mean "this day now holds this workout".
+ * That conflict target no longer exists — an entry's identity is
+ * `(user_id, date, slot)` and it need not belong to a plan at all — so the
+ * read-then-write is explicit here instead of implied by an index.
+ *
+ * A RACE on the day is never touched or replaced. Races and training coexist,
+ * which is exactly what generate_block relies on when it fills a season in
+ * around a race calendar.
+ *
+ * @returns the entry, plus the name of the session it displaced if any, so the
+ *   caller can say "replaced X" rather than guessing.
+ */
+export async function upsertSessionOnDate(
+  userId: string,
+  date: string,
+  draft: EntryDraft,
+  options: { planId?: string | null; generationId?: string | null } = {},
+): Promise<MutationResult & { replacedName?: string | null }> {
+  const dateKey = toDateKey(date);
+  if (!userId) return fail('Not signed in');
+  if (!dateKey) return fail('A valid date is required');
+  if (!draft?.title?.trim()) return fail('A title is required');
+
+  try {
+    const { data: onDay, error: readError } = await supabase
+      .from('calendar_entries')
+      .select('id, title, type, pinned')
+      .eq('user_id', userId)
+      .eq('date', dateKey)
+      .neq('type', 'race')
+      .order('slot', { ascending: true });
+    if (readError) throw readError;
+
+    const existing = (onDay ?? [])[0] ?? null;
+    if (existing) {
+      const result = await updateEntry(userId, existing.id as string, {
+        ...draft,
+        plan_id: options.planId ?? draft.plan_id ?? null,
+      });
+      return { ...result, replacedName: (existing.title as string) ?? null };
+    }
+
+    const created = await createEntry(userId, dateKey, {
+      ...draft,
+      plan_id: options.planId ?? draft.plan_id ?? null,
+      generation_id: options.generationId ?? draft.generation_id ?? null,
+    });
+    return { ...created, replacedName: null };
+  } catch (err) {
+    const message = (err as Error)?.message ?? 'Could not schedule that session';
+    console.error('upsertSessionOnDate failed', message);
+    return fail(message);
+  }
+}
+
+/**
  * Link a completed activity to the entry it satisfies.
  *
  * One call rather than setEntryStatus plus an update, because the four things

@@ -26,9 +26,28 @@ vi.mock('../supabase', () => {
         const date = op.filters.find((f) => f[0] === 'eq' && f[1] === 'date')?.[2];
         const id = op.filters.find((f) => f[0] === 'eq' && f[1] === 'id')?.[2];
         const ids = op.filters.find((f) => f[0] === 'in' && f[1] === 'id')?.[2] as string[] | undefined;
+        const from = op.filters.find((f) => f[0] === 'gte' && f[1] === 'date')?.[2] as string | undefined;
+        const to = op.filters.find((f) => f[0] === 'lte' && f[1] === 'date')?.[2] as string | undefined;
+        const notType = op.filters.find((f) => f[0] === 'neq' && f[1] === 'type')?.[2];
         if (ids) return { data: state.rows.filter((r) => ids.includes(r.id as string)), error: null };
         if (id) return { data: state.rows.find((r) => r.id === id) ?? null, error: null };
-        return { data: state.rows.filter((r) => r.date === date), error: null };
+        if (from || to) {
+          return {
+            data: state.rows.filter(
+              (r) =>
+                (!from || (r.date as string) >= from) &&
+                (!to || (r.date as string) <= to) &&
+                (notType === undefined || r.type !== notType),
+            ),
+            error: null,
+          };
+        }
+        return {
+          data: state.rows.filter(
+            (r) => r.date === date && (notType === undefined || r.type !== notType),
+          ),
+          error: null,
+        };
       }
       return { data: { ...(op.payload as object ?? {}) }, error: null };
     };
@@ -38,6 +57,9 @@ vi.mock('../supabase', () => {
       update: (payload: unknown) => { op.op = 'update'; op.payload = payload; state.ops.push(op); return builder; },
       delete: () => { op.op = 'delete'; state.ops.push(op); return builder; },
       eq: (...a: unknown[]) => push('eq', ...a),
+      neq: (...a: unknown[]) => push('neq', ...a),
+      gte: (...a: unknown[]) => push('gte', ...a),
+      lte: (...a: unknown[]) => push('lte', ...a),
       in: (...a: unknown[]) => push('in', ...a),
       order: () => builder,
       maybeSingle: () => Promise.resolve(settle()),
@@ -52,14 +74,18 @@ vi.mock('../supabase', () => {
   return { supabase: { from: (table: string) => makeBuilder(table) } };
 });
 
-const { createEntry, updateEntry, moveEntry, deleteEntry, setEntryStatus, nextFreeSlot, swapEntries } =
-  await import('./calendarMutations');
+const {
+  createEntry, updateEntry, moveEntry, deleteEntry, setEntryStatus, nextFreeSlot, swapEntries,
+  insertSessions, upsertSessionOnDate, linkEntryToActivity,
+  countUpcomingClearable, clearUpcomingEntries,
+} = await import('./calendarMutations');
 
 beforeEach(() => {
   state.rows = [];
   state.ops = [];
   state.failNext = undefined;
-  vi.stubGlobal('crypto', { randomUUID: () => 'new-id' });
+  let n = 0;
+  vi.stubGlobal('crypto', { randomUUID: () => (n === 0 ? (n++, 'new-id') : `new-id-${n++}`) });
 });
 
 const lastOp = (op: string) => [...state.ops].reverse().find((o) => o.op === op)!;
@@ -305,5 +331,158 @@ describe('swapEntries', () => {
     expect(r.success).toBe(false);
     expect(r.error).toContain('no longer exists');
     expect(state.ops.filter((o) => o.op === 'update')).toHaveLength(0);
+  });
+});
+
+/**
+ * The bulk writers, which replaced six hand-rolled `planned_workouts` insert
+ * arrays across the activation paths. What matters about them is not that they
+ * write, but WHAT THEY REFUSE TO WRITE OVER: activating a plan must never bury
+ * a race or a session the athlete put there themselves.
+ */
+describe('insertSessions', () => {
+  const draft = (date: string, title = 'Endurance') => ({ date, title, target_load: 70 });
+
+  it('writes a whole block in one insert, unpinned and stamped with the plan', async () => {
+    const r = await insertSessions('u1', [draft('2026-10-01'), draft('2026-10-02')], {
+      source: 'plan',
+      planId: 'plan-1',
+    });
+    expect(r.success).toBe(true);
+    expect(r.data).toEqual({ inserted: 2, skipped: 0 });
+
+    const rows = lastOp('insert').payload as Array<Record<string, unknown>>;
+    expect(rows).toHaveLength(2);
+    // A generator wrote these, so the athlete has not decided about them.
+    expect(rows.every((row) => row.pinned === false)).toBe(true);
+    // The plan is provenance on the row, not ownership of it.
+    expect(rows.every((row) => row.plan_id === 'plan-1')).toBe(true);
+    expect(rows.every((row) => row.user_id === 'u1')).toBe(true);
+  });
+
+  it('SKIPS a day that already holds something rather than overwriting it', async () => {
+    // The athlete's cyclocross race. Activating a plan over it must not bury it.
+    state.rows = [{ id: 'race', date: '2026-10-02', slot: 0, type: 'race', title: 'CycloX' }];
+
+    const r = await insertSessions('u1', [draft('2026-10-01'), draft('2026-10-02')], {});
+
+    expect(r.data).toEqual({ inserted: 1, skipped: 1 });
+    const rows = lastOp('insert').payload as Array<Record<string, unknown>>;
+    expect(rows).toHaveLength(1);
+    expect(rows[0].date).toBe('2026-10-01');
+  });
+
+  it('does not let two drafts on one date collide on slot 0', async () => {
+    const r = await insertSessions('u1', [draft('2026-10-01', 'A'), draft('2026-10-01', 'B')], {});
+    expect(r.data).toEqual({ inserted: 1, skipped: 1 });
+  });
+
+  it('writes nothing at all when every day is taken', async () => {
+    state.rows = [{ id: 'x', date: '2026-10-01', slot: 0 }];
+    const r = await insertSessions('u1', [draft('2026-10-01')], {});
+    expect(r.success).toBe(true);
+    expect(r.data).toEqual({ inserted: 0, skipped: 1 });
+    expect(state.ops.some((o) => o.op === 'insert')).toBe(false);
+  });
+
+  it('drops drafts with no title or no usable date instead of failing the batch', async () => {
+    const r = await insertSessions('u1', [
+      draft('2026-10-01'),
+      { date: '2026-10-02', title: '   ' },
+      { date: 'not-a-date', title: 'Nope' },
+    ], {});
+    expect(r.data?.inserted).toBe(1);
+  });
+
+  it('is a no-op without a user', async () => {
+    expect((await insertSessions('', [draft('2026-10-01')], {})).success).toBe(false);
+    expect(state.ops).toHaveLength(0);
+  });
+});
+
+describe('upsertSessionOnDate', () => {
+  const draft = { title: 'Sweet Spot', workout_id: 'sst', target_load: 80 };
+
+  it('creates when the day is empty, and reports nothing replaced', async () => {
+    const r = await upsertSessionOnDate('u1', '2026-10-01', draft, { planId: 'plan-1' });
+    expect(r.success).toBe(true);
+    expect(r.replacedName).toBeNull();
+    expect(lastOp('insert').payload).toMatchObject({ title: 'Sweet Spot', plan_id: 'plan-1' });
+  });
+
+  it('replaces the session already there, and names it', async () => {
+    state.rows = [{ id: 'old', date: '2026-10-01', slot: 0, type: 'workout', title: 'Recovery Spin' }];
+    const r = await upsertSessionOnDate('u1', '2026-10-01', draft, {});
+    expect(r.replacedName).toBe('Recovery Spin');
+    expect(lastOp('update').payload).toMatchObject({ title: 'Sweet Spot' });
+    expect(lastOp('update').filters).toContainEqual(['eq', 'id', 'old']);
+  });
+
+  it('NEVER replaces a race — training fills in around a race season', async () => {
+    state.rows = [{ id: 'race', date: '2026-10-01', slot: 0, type: 'race', title: 'CycloX' }];
+    const r = await upsertSessionOnDate('u1', '2026-10-01', draft, {});
+    expect(r.replacedName).toBeNull();
+    // It created alongside the race rather than writing over it.
+    expect(lastOp('insert').payload).toMatchObject({ title: 'Sweet Spot' });
+  });
+});
+
+describe('linkEntryToActivity', () => {
+  it('writes the ride, the status and the actuals as one fact, and pins', async () => {
+    const r = await linkEntryToActivity('u1', 'w1', {
+      activityId: 'act-1',
+      actualLoad: 92,
+      actualDurationMin: 110,
+      actualDistanceKm: 48,
+      completedAt: '2026-08-30T15:00:00Z',
+    });
+    expect(r.success).toBe(true);
+    const payload = lastOp('update').payload as Record<string, unknown>;
+    expect(payload).toMatchObject({
+      activity_id: 'act-1',
+      status: 'done',
+      completed_at: '2026-08-30T15:00:00Z',
+      actual_load: 92,
+      actual_duration_min: 110,
+      actual_distance_km: 48,
+      // A session backed by a real ride is not something a generator may reshape.
+      pinned: true,
+    });
+    // A ride cannot leave a stale "you skipped this" behind it.
+    expect(payload.skipped_reason).toBeNull();
+    expect(lastOp('update').filters).toContainEqual(['eq', 'user_id', 'u1']);
+  });
+
+  it('refuses without an activity', async () => {
+    const r = await linkEntryToActivity('u1', 'w1', { activityId: '' });
+    expect(r.success).toBe(false);
+    expect(state.ops).toHaveLength(0);
+  });
+});
+
+describe('clearing the upcoming calendar', () => {
+  it('never touches history or a completed session', async () => {
+    await clearUpcomingEntries('u1', '2026-08-30');
+    const del = lastOp('delete');
+    expect(del.filters).toContainEqual(['eq', 'user_id', 'u1']);
+    expect(del.filters).toContainEqual(['gte', 'date', '2026-08-30']);
+    expect(del.filters).toContainEqual(['neq', 'status', 'done']);
+  });
+
+  it('counts with the same predicate it deletes with', async () => {
+    state.rows = [
+      { id: 'a', date: '2026-08-31', slot: 0, status: 'planned' },
+      { id: 'b', date: '2026-09-01', slot: 0, status: 'planned' },
+    ];
+    await countUpcomingClearable('u1', '2026-08-30');
+    const sel = state.ops.find((o) => o.op === 'select')!;
+    expect(sel.filters).toContainEqual(['gte', 'date', '2026-08-30']);
+    expect(sel.filters).toContainEqual(['neq', 'status', 'done']);
+  });
+
+  it('refuses a bad date rather than deleting an unbounded range', async () => {
+    const r = await clearUpcomingEntries('u1', 'whenever');
+    expect(r.success).toBe(false);
+    expect(state.ops.some((o) => o.op === 'delete')).toBe(false);
   });
 });
