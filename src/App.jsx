@@ -7,7 +7,6 @@ import { Notifications } from '@mantine/notifications';
 import { Analytics } from '@vercel/analytics/react';
 import { SpeedInsights } from '@vercel/speed-insights/react';
 import { AuthProvider, useAuth } from './contexts/AuthContext.jsx';
-import { useCalendarV2Access } from './hooks/useCalendarV2Access';
 import { UserPreferencesProvider } from './contexts/UserPreferencesContext.jsx';
 import { theme } from './theme';
 
@@ -30,9 +29,6 @@ const TodaySpine = lazy(() => import('./views/today-spine/TodaySpine.tsx'));
 const RouteBuilder = lazy(() => import('./pages/RouteBuilder.jsx'));
 const TrainingDashboard = lazy(() => import('./pages/TrainingDashboard.jsx'));
 const PlannerPage = lazy(() => import('./pages/PlannerPage.tsx'));
-// The rebuilt, plan-independent calendar (calendar_entries). Gated by
-// CalendarV2Guard below until the Phase E cutover.
-const CalendarPage = lazy(() => import('./pages/CalendarPage.tsx'));
 const Settings = lazy(() => import('./pages/Settings.jsx'));
 const CommunityPage = lazy(() => import('./pages/CommunityPage.jsx'));
 const GearPage = lazy(() => import('./pages/GearPage.jsx'));
@@ -101,29 +97,6 @@ function OpenRoute({ children }) {
         <div className="loading-spinner" />
       </div>
     );
-  }
-
-  return children;
-}
-
-// Calendar 2.0 gate — the two-layer pattern RB2 used (env kill switch AND a
-// per-user column), applied to /calendar. Denied users are redirected to
-// /train, the plan-owned calendar that stays live until the Phase E cutover.
-// Fails closed: useCalendarV2Access denies on any read error.
-function CalendarV2Guard({ children }) {
-  const { user } = useAuth();
-  const { hasAccess, isLoading } = useCalendarV2Access(user?.id);
-
-  if (isLoading) {
-    return (
-      <div className="loading-screen">
-        <div className="loading-spinner" />
-      </div>
-    );
-  }
-
-  if (!hasAccess) {
-    return <Navigate to="/train" replace />;
   }
 
   return children;
@@ -358,18 +331,6 @@ function AppRoutes() {
         element={
           <ProtectedRoute>
             <PlannerPage />
-          </ProtectedRoute>
-        }
-      />
-
-      {/* CALENDAR — the rebuilt calendar_entries surface, gated per-user */}
-      <Route
-        path="/calendar"
-        element={
-          <ProtectedRoute>
-            <CalendarV2Guard>
-              <CalendarPage />
-            </CalendarV2Guard>
           </ProtectedRoute>
         }
       />
