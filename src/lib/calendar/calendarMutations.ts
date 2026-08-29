@@ -308,6 +308,64 @@ export async function deleteEntry(userId: string, entryId: string): Promise<Muta
 }
 
 /**
+ * Count, then remove, every not-yet-done entry from a date forward.
+ *
+ * The "clear my calendar" escape hatch. Deliberately two functions rather than
+ * a delete that reports its own count: the athlete is shown the number BEFORE
+ * confirming, and a count computed by a different query than the delete would
+ * be a lie waiting to happen — so `countUpcomingClearable` and
+ * `clearUpcomingEntries` share one predicate, defined once below.
+ *
+ * Completed sessions and past days are never touched: they are history, and
+ * the load distribution TFI/AFI derive from is built on them.
+ */
+function clearableFrom(fromDate: string) {
+  return supabase
+    .from('calendar_entries')
+    .select('id', { count: 'exact', head: true })
+    .gte('date', fromDate)
+    .neq('status', 'done');
+}
+
+export async function countUpcomingClearable(
+  userId: string,
+  fromDate: string,
+): Promise<number> {
+  if (!userId) return 0;
+  const { count, error } = await clearableFrom(fromDate).eq('user_id', userId);
+  if (error) {
+    console.error('countUpcomingClearable failed', error.message);
+    return 0;
+  }
+  return count ?? 0;
+}
+
+export async function clearUpcomingEntries(
+  userId: string,
+  fromDate: string,
+): Promise<MutationResult<null>> {
+  if (!userId) return { success: false, error: 'Not signed in' };
+  const dateKey = toDateKey(fromDate);
+  if (!dateKey) return { success: false, error: 'A valid date is required' };
+
+  try {
+    const { error } = await supabase
+      .from('calendar_entries')
+      .delete()
+      .eq('user_id', userId)
+      .gte('date', dateKey)
+      .neq('status', 'done');
+
+    if (error) throw error;
+    return { success: true, data: null };
+  } catch (err) {
+    const message = (err as Error)?.message ?? 'Could not clear the calendar';
+    console.error('clearUpcomingEntries failed', message);
+    return { success: false, error: message };
+  }
+}
+
+/**
  * Mark an entry done / skipped / planned.
  *
  * `completed_at` is kept consistent with `status` here rather than left to

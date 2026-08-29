@@ -31,7 +31,10 @@ import { getWorkoutById } from '../data/workoutLibrary';
 import { tokens } from '../theme';
 import { formatLocalDate, addDays, parsePlanStartDate, parseLocalDate, getTodayString, toDateKey, weekStartKey, activityDateKey } from '../utils/dateUtils';
 import { getCalendarRange } from '../lib/calendar/getCalendarRange';
-import { moveEntry, swapEntries, createEntry, deleteEntry } from '../lib/calendar/calendarMutations';
+import {
+  moveEntry, swapEntries, createEntry, deleteEntry, updateEntry, setEntryStatus,
+  countUpcomingClearable, clearUpcomingEntries,
+} from '../lib/calendar/calendarMutations';
 import { toPlannedWorkoutShapes } from '../lib/calendar/plannedWorkoutAdapter';
 import RaceGoalModal from './RaceGoalModal';
 import { StravaLogo, STRAVA_ORANGE } from './StravaBranding';
@@ -564,26 +567,13 @@ const TrainingCalendar = ({ activePlan, rides = [], formatDistance: formatDistan
 
   // Toggle workout completion
   const toggleWorkoutCompletion = async (workout) => {
-    try {
-      const newCompletedStatus = !workout.completed;
-
-      const updates = {
-        completed: newCompletedStatus,
-        completed_at: newCompletedStatus ? new Date().toISOString() : null,
-      };
-
-      const { error } = await supabase
-        .from('planned_workouts')
-        .update(updates)
-        .eq('id', workout.id);
-
-      if (error) throw error;
-
-      // Reload workouts to reflect changes
-      await loadPlannedWorkouts();
-    } catch (error) {
-      console.error('Failed to toggle workout completion:', error);
-    }
+    if (!user?.id || !workout?.id) return;
+    const next = workout.completed ? 'planned' : 'done';
+    await runCalendarChange(
+      () => setEntryStatus(user.id, workout.id, next),
+      next === 'done' ? `Marked ${workout.name} done` : `${workout.name} is planned again`,
+      () => setEntryStatus(user.id, workout.id, workout.completed ? 'done' : 'planned'),
+    );
   };
 
   // Map a raw Supabase workout row to PlannerWorkout shape for WorkoutModal
@@ -648,72 +638,54 @@ const TrainingCalendar = ({ activePlan, rides = [], formatDistance: formatDistan
     setEditModalOpen(true);
   };
 
-  // Save workout changes from WorkoutModal (receives camelCase updates)
+  // Save workout changes from WorkoutModal (receives camelCase updates).
+  // No activePlan guard: an entry belongs to the athlete, not to a plan, so a
+  // December session with no plan around it is as editable as tomorrow's.
   const handleModalSave = async (updates) => {
-    if (!activePlan || !selectedWorkout?.id) return;
+    if (!user?.id || !selectedWorkout?.id) return;
 
-    try {
-      const workoutData = {
-        target_tss: updates.targetTSS,
-        target_duration: updates.targetDuration,
-        notes: updates.notes,
-      };
+    const before = {
+      target_load: selectedWorkout.target_rss ?? selectedWorkout.target_tss ?? null,
+      target_duration_min: selectedWorkout.target_duration ?? null,
+      notes: selectedWorkout.notes ?? null,
+    };
+    const patch = {
+      target_load: updates.targetTSS ?? null,
+      target_duration_min: updates.targetDuration ?? null,
+      notes: updates.notes ?? null,
+    };
 
-      const { error } = await supabase
-        .from('planned_workouts')
-        .update(workoutData)
-        .eq('id', selectedWorkout.id);
-
-      if (error) throw error;
-
-      notifications.show({
-        title: 'Workout Saved',
-        message: 'Your workout has been updated',
-        color: 'terracotta',
-      });
-
-      setEditModalOpen(false);
-      await loadPlannedWorkouts();
-      if (onPlanUpdated) onPlanUpdated();
-    } catch (error) {
-      console.error('Failed to save workout:', error);
-      notifications.show({
-        title: 'Error',
-        message: 'Failed to save workout',
-        color: 'red',
-      });
-    }
+    const ok = await runCalendarChange(
+      () => updateEntry(user.id, selectedWorkout.id, patch),
+      `Saved ${selectedWorkout.name}`,
+      () => updateEntry(user.id, selectedWorkout.id, before),
+    );
+    if (ok) setEditModalOpen(false);
   };
 
-  // Delete workout
+  // Delete workout. This is the one destructive gesture on the calendar, so it
+  // is also the one that most needs an undo — recreated on the same day from
+  // the row as it was. The new row gets a new id; nothing on the calendar
+  // addresses an entry by id across a delete, so that is invisible.
   const deleteWorkout = async () => {
-    if (!selectedWorkout?.id) return;
+    if (!user?.id || !selectedWorkout?.id) return;
+    const gone = selectedWorkout;
     setSaving(true);
-
     try {
-      const { error } = await supabase
-        .from('planned_workouts')
-        .delete()
-        .eq('id', selectedWorkout.id);
-
-      if (error) throw error;
-
-      notifications.show({
-        title: 'Workout Removed',
-        message: 'Workout has been removed from your plan',
-        color: 'gray',
-      });
-
-      setEditModalOpen(false);
-      await loadPlannedWorkouts();
-      if (onPlanUpdated) onPlanUpdated();
-    } catch (error) {
-      console.error('Failed to delete workout:', error);
-      notifications.show({
-        title: 'Error',
-        message: 'Failed to remove workout',
-        color: 'red',
-      });
+      const ok = await runCalendarChange(
+        () => deleteEntry(user.id, gone.id),
+        `Removed ${gone.name}`,
+        () => createEntry(user.id, gone.scheduled_date, {
+          type: gone.entry_type || 'workout',
+          title: gone.name,
+          workout_id: gone.workout_id,
+          workout_type: gone.workout_type,
+          target_load: gone.target_rss ?? gone.target_tss ?? null,
+          target_duration_min: gone.target_duration ?? null,
+          notes: gone.notes ?? null,
+        }),
+      );
+      if (ok) setEditModalOpen(false);
     } finally {
       setSaving(false);
     }
@@ -727,14 +699,7 @@ const TrainingCalendar = ({ activePlan, rides = [], formatDistance: formatDistan
     setClearCount(null);
     setClearModalOpen(true);
     try {
-      const todayStr = formatLocalDate(new Date());
-      const { count } = await supabase
-        .from('planned_workouts')
-        .select('id', { count: 'exact', head: true })
-        .eq('user_id', user.id)
-        .eq('completed', false)
-        .gte('scheduled_date', todayStr);
-      setClearCount(count ?? 0);
+      setClearCount(await countUpcomingClearable(user.id, formatLocalDate(new Date())));
     } catch (error) {
       console.error('Failed to count planned workouts:', error);
       setClearCount(0);
@@ -747,34 +712,18 @@ const TrainingCalendar = ({ activePlan, rides = [], formatDistance: formatDistan
     if (!user?.id) return;
     setClearing(true);
     try {
-      const todayStr = formatLocalDate(new Date());
-      const { error } = await supabase
-        .from('planned_workouts')
-        .delete()
-        .eq('user_id', user.id)
-        .eq('completed', false)
-        .gte('scheduled_date', todayStr);
-
-      if (error) throw error;
-
-      notifications.show({
-        title: 'Calendar cleared',
-        message: 'Upcoming planned sessions have been removed.',
-        color: 'gray',
-      });
-
-      setClearModalOpen(false);
-      await loadPlannedWorkouts();
-      if (onPlanUpdated) onPlanUpdated();
-      // Let other surfaces (dashboard, Today) refresh.
-      window.dispatchEvent(new CustomEvent('training-plan-updated'));
-    } catch (error) {
-      console.error('Failed to clear planned workouts:', error);
-      notifications.show({
-        title: 'Error',
-        message: 'Failed to clear the calendar. Please try again.',
-        color: 'red',
-      });
+      // No undo offered here, and deliberately: this is a bulk delete behind a
+      // confirmation modal that names the count, and an undo toast that can
+      // only restore rows it captured would be a worse promise than none.
+      const ok = await runCalendarChange(
+        () => clearUpcomingEntries(user.id, formatLocalDate(new Date())),
+        'Calendar cleared',
+      );
+      if (ok) {
+        setClearModalOpen(false);
+        // Let other surfaces (dashboard, Today) refresh.
+        window.dispatchEvent(new CustomEvent('training-plan-updated'));
+      }
     } finally {
       setClearing(false);
     }
@@ -884,39 +833,35 @@ const TrainingCalendar = ({ activePlan, rides = [], formatDistance: formatDistan
     const def = getWorkoutById(workoutId);
     if (!def) return;
 
-    try {
-      const targetRss = def.targetTSS || 0;
-      const { error } = await supabase
-        .from('planned_workouts')
-        .update({
-          workout_id: workoutId,
-          workout_type: def.category,
-          name: def.name,
-          duration_minutes: def.duration || 0,
-          target_duration: def.duration || 0,
-          // Dual-write canonical + legacy per CLAUDE.md.
-          target_rss: targetRss,
-          target_tss: targetRss,
-        })
-        .eq('id', selectedWorkout.id);
+    if (!user?.id) return;
+    const targetRss = def.targetTSS || 0;
+    const before = {
+      workout_id: selectedWorkout.workout_id,
+      workout_type: selectedWorkout.workout_type,
+      title: selectedWorkout.name,
+      target_load: selectedWorkout.target_rss ?? selectedWorkout.target_tss ?? null,
+      target_duration_min: selectedWorkout.target_duration ?? null,
+    };
 
-      if (error) throw error;
+    const ok = await runCalendarChange(
+      () => updateEntry(user.id, selectedWorkout.id, {
+        workout_id: workoutId,
+        workout_type: def.category,
+        title: def.name,
+        target_load: targetRss,
+        target_duration_min: def.duration || 0,
+      }),
+      `Changed to ${def.name}`,
+      () => updateEntry(user.id, selectedWorkout.id, before),
+    );
+    if (!ok) return;
 
-      // Reflect the swap in the open modal so the profile/timeline update in place.
-      const updatedRow = { ...selectedWorkout, workout_id: workoutId, workout_type: def.category, name: def.name, target_duration: def.duration || 0, target_tss: targetRss, target_rss: targetRss };
-      setSelectedWorkout(updatedRow);
-      const mapped = mapToModalWorkout(updatedRow);
-      setModalPlannedWorkout(mapped);
-      setModalWorkoutDef(mapped?.workout || null);
-
-      await loadPlannedWorkouts();
-      if (onPlanUpdated) onPlanUpdated();
-
-      notifications.show({ title: 'Workout Changed', message: `Changed to ${def.name}`, color: 'terracotta' });
-    } catch (error) {
-      console.error('Failed to change workout:', error);
-      notifications.show({ title: 'Error', message: 'Failed to change workout', color: 'red' });
-    }
+    // Reflect the swap in the open modal so the profile/timeline update in place.
+    const updatedRow = { ...selectedWorkout, workout_id: workoutId, workout_type: def.category, name: def.name, target_duration: def.duration || 0, target_tss: targetRss, target_rss: targetRss };
+    setSelectedWorkout(updatedRow);
+    const mapped = mapToModalWorkout(updatedRow);
+    setModalPlannedWorkout(mapped);
+    setModalWorkoutDef(mapped?.workout || null);
   };
 
   /**
