@@ -1,14 +1,16 @@
 /**
  * handleCalendarChange's refusal behaviour.
  *
- * The gate is tested at the HANDLER, not only at tool registration, because
- * those are different moments. Registration decides what the model is offered
- * this turn; a tool call can still arrive from replayed conversation history,
- * from a forced-tool pass, or from a model that saw the tool in an earlier
- * turn. Trusting registration alone is how a write reaches a table the
- * athlete's calendar does not read — which is the exact silent failure that
- * started this rebuild: the coach reported scheduling ten races and scheduled
- * none, because its write went somewhere nothing displayed.
+ * The per-user gate is GONE as of 2026-08-29 — calendar_change is the only
+ * calendar writer every athlete's coach is offered. What survives it is the
+ * handler's own refusal, which is tested here rather than at registration
+ * because those are different moments: registration decides what the model is
+ * offered this turn, but a tool call can still arrive from replayed
+ * conversation history, from a forced-tool pass, or from a model that saw the
+ * tool in an earlier turn. The context can also be DEGRADED — a failed
+ * calendar read — and planning into a gap you cannot see is the same silent
+ * failure that started this rebuild: the coach reported scheduling ten races
+ * and scheduled none, because its write went somewhere nothing displayed.
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
@@ -80,8 +82,8 @@ beforeEach(() => {
   persistProposal.mockResolvedValue({ success: true, proposalId: 'prop-1' });
 });
 
-describe('the calendar_v2 gate', () => {
-  it('refuses outright when the athlete is not on the rebuilt calendar', async () => {
+describe('the handler refuses rather than guessing', () => {
+  it('refuses outright when it was handed no calendar context at all', async () => {
     const r = await handleCalendarChange(USER, { operations: [CREATE] }, null);
     expect(r.success).toBe(false);
     expect(r.error).toMatch(/not available/);
@@ -190,12 +192,30 @@ describe('contract with the real coach.js', () => {
     expect(handlerBody).toContain('adjudicateOps');
   });
 
-  it('coach.js offers the tool ONLY to gated athletes', async () => {
+  it('coach.js offers the tool to EVERY athlete, with no gate left', async () => {
     const src = await readCoachSource();
-    expect(src).toContain('calendar_v2_enabled');
-    expect(src).toMatch(/coachTools\s*=\s*calendarV2/);
+    // The gate inverted once /train read calendar_entries for everyone: it was
+    // the LEGACY writers that then wrote where nobody looks. A gated coach
+    // would report scheduling a workout and show an unchanged calendar — the
+    // very failure the gate was added to prevent. So its absence is the
+    // assertion, not an implementation detail.
+    // Assert on CODE, not prose — the comment above the ungating explains what
+    // the flag was, and naming it there is not a regression.
+    expect(src).not.toMatch(/\.select\('calendar_v2_enabled'\)/);
+    expect(src).not.toMatch(/\bcalendarV2\b\s*[=?&]/);
+    expect(src).not.toMatch(/coachTools\s*=\s*\w+\s*\?/);
     // And no call site still hard-codes the unconditional list.
     expect(src).not.toContain('tools: ALL_COACH_TOOLS');
+  });
+
+  it('degrades a failed calendar read to an explicit unavailable context, never to null', async () => {
+    const src = await readCoachSource();
+    // null would hit the handler's first refusal, which is correct but mute:
+    // the model would never see WHY. formatCalendarBlock's !ok branch tells it
+    // in the prompt that it cannot see the calendar and must not call the tool.
+    expect(src).toContain('formatCalendarBlock(failed)');
+    expect(src).toMatch(/const failed = \{ ok: false/);
+    expect(src).not.toMatch(/trainingCalendarContext = null/);
   });
 });
 
@@ -221,9 +241,9 @@ describe('contract with the real coach.js', () => {
  * forcing happens, and the model simply had create_training_plan on its menu.
  *
  * Hence the fix is not a better remap or a firmer instruction — either alone
- * leaves the other route open. The legacy writers are not on a gated
- * athlete's menu at all. These tests assert the WIRING, because every unit
- * test for the tool itself was green while production did the wrong thing.
+ * leaves the other route open. The legacy writers are not on ANY athlete's
+ * menu at all. These tests assert the WIRING, because every unit test for the
+ * tool itself was green while production did the wrong thing.
  */
 describe('REGRESSION: the coach cannot reach the legacy calendar writers', () => {
   /** The message that actually caused the 2026-08-25 failure, verbatim. */
@@ -242,7 +262,7 @@ describe('REGRESSION: the coach cannot reach the legacy calendar writers', () =>
     expect(detectCoachIntent(REAL_MESSAGE)).toBe('create_training_plan');
   });
 
-  it('remaps that intent to calendar_change for a gated athlete', async () => {
+  it('remaps that intent to calendar_change', async () => {
     const { detectCoachIntent } = await import('./intentProbe.js');
     const LEGACY = new Set(['recommend_workout', 'create_training_plan', 'adjust_schedule']);
     let intent = detectCoachIntent(REAL_MESSAGE);
@@ -268,18 +288,21 @@ describe('REGRESSION: the coach cannot reach the legacy calendar writers', () =>
     expect(detectCoachIntent('I want to do these cyclocross races this fall, add them')).toBeNull();
   });
 
-  it('removes all three legacy writers for a gated athlete, and adds calendar_change', async () => {
+  it('removes all three legacy writers for every athlete, and adds calendar_change', async () => {
     const src = await readCoachSource();
     expect(src).toMatch(/LEGACY_CALENDAR_WRITERS\s*=\s*new Set\(\[/);
     for (const tool of ['recommend_workout', 'create_training_plan', 'adjust_schedule']) {
       expect(src).toContain(`'${tool}'`);
     }
-    expect(src).toMatch(/ALL_COACH_TOOLS\.filter\(\(t\) => !LEGACY_CALENDAR_WRITERS\.has\(t\.name\)\), CALENDAR_CHANGE_TOOL/);
+    // Unconditional: no ternary, no flag, no per-user branch.
+    expect(src).toMatch(
+      /const coachTools = \[\s*\.\.\.ALL_COACH_TOOLS\.filter\(\(t\) => !LEGACY_CALENDAR_WRITERS\.has\(t\.name\)\),\s*CALENDAR_CHANGE_TOOL,\s*\];/
+    );
   });
 
-  it('remaps every legacy write intent, not just two of them', async () => {
+  it('remaps every legacy write intent, for every athlete', async () => {
     const src = await readCoachSource();
-    expect(src).toMatch(/if \(calendarV2 && LEGACY_CALENDAR_WRITERS\.has\(coachIntent\)\)/);
+    expect(src).toMatch(/if \(LEGACY_CALENDAR_WRITERS\.has\(coachIntent\)\)/);
     // The bug was an explicit two-name disjunction. It must not come back.
     expect(src).not.toMatch(/coachIntent === 'recommend_workout' \|\| coachIntent === 'adjust_schedule'/);
   });
@@ -323,7 +346,7 @@ describe('REGRESSION: the coach cannot reach the legacy calendar writers', () =>
 describe('REGRESSION: truncation must not read as an empty request', () => {
   it('raises the output ceiling with a FLOOR, since every client sends its own value', async () => {
     const src = await readCoachSource();
-    expect(src).toMatch(/effectiveMaxTokens\s*=\s*calendarV2\s*\?\s*Math\.max\(maxTokens,\s*8192\)/);
+    expect(src).toMatch(/effectiveMaxTokens\s*=\s*Math\.max\(maxTokens,\s*8192\)/);
     // A default would be silently overridden by the client's 1024.
     expect(src).not.toContain('max_tokens: Math.min(maxTokens, 4096)');
   });

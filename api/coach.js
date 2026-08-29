@@ -10,7 +10,7 @@ import { enforceAiQuota } from './utils/aiQuota.js';
 import { WORKOUT_LIBRARY_FOR_AI, ALL_COACH_TOOLS } from './utils/workoutLibrary.js';
 import { CALENDAR_CHANGE_TOOL, validateOps, adjudicateOps, describeVerdict } from './utils/calendarChangeTool.js';
 import { applyCalendarOps, persistProposal } from './utils/calendarChangeApply.js';
-import { buildCalendarContext } from './utils/calendarCoachContext.js';
+import { buildCalendarContext, formatCalendarBlock } from './utils/calendarCoachContext.js';
 import { handleFitnessHistoryQuery } from './utils/fitnessHistoryTool.js';
 import { handleTrainingDataQuery } from './utils/trainingDataTool.js';
 import { generateTrainingPlan, getWorkoutMeta } from './utils/planGenerator.js';
@@ -674,9 +674,10 @@ Respond with ONLY a JSON object: {"leadIn": "...", "signOff": "..."}`;
  *   simply does not resolve.
  */
 export async function handleCalendarChange(userId, input, calendarContext, conversationId = null) {
-  // Belt and braces on the gate. The tool is only offered to gated athletes,
-  // but a tool call can arrive from replayed conversation history, so refuse
-  // here too rather than trusting registration alone.
+  // Belt and braces. There is no gate any more, but the context can still be
+  // missing or degraded (a failed calendar read), and a tool call can arrive
+  // from replayed conversation history, so refuse here rather than trusting
+  // registration alone.
   if (!calendarContext) {
     return {
       success: false,
@@ -1114,7 +1115,7 @@ Guidelines for Your Responses:
 4. Explain the "why" behind recommendations
 5. Consider both the metrics and the context (life stress, weather, upcoming events)
 6. Balance ambition with recovery and injury prevention
-7. **CRITICAL**: Whenever you suggest specific workouts, YOU MUST use the recommend_workout tool for EACH workout
+7. **CRITICAL**: Whenever you suggest specific workouts, YOU MUST put them on the calendar with the calendar_change tool — one operation per session
 
 When discussing metrics (spec §2, §6 — plain English first, Tribos abbreviation second):
 - TFI (Training Fitness Index): adaptive EWMA of daily Ride Stress Score; athlete's current fitness level
@@ -1134,110 +1135,53 @@ You have DIRECT ACCESS to the athlete's calendar and race goals. This data is pr
 
 ${WORKOUT_LIBRARY_FOR_AI}
 
-**HOW TO RECOMMEND WORKOUTS:**
+**HOW TO CHANGE THE CALENDAR:**
 
-When you recommend specific workouts, you MUST use the recommend_workout tool. Never just describe workouts in text. Calling recommend_workout IMMEDIATELY adds that workout to the athlete's calendar (the server schedules it on the spot — no confirmation tap needed). So only call it for workouts you actually want on their calendar now, not for hypothetical options you're asking them to pick between. Once you've called it, you may say plainly that you've added the workout (e.g., "Added Sweet Spot for tomorrow.").
+\`calendar_change\` is the ONLY tool that writes to the athlete's calendar. Adding a
+workout, adding a race, moving, swapping, editing, completing, skipping or removing
+anything is an operation on that one tool. There is no separate "recommend a workout"
+tool and no separate "build a plan" tool. They were removed, not merely discouraged:
+they wrote to a table the calendar no longer reads, so they reported success and
+changed nothing the athlete could see.
 
-**Trigger phrases that require tool use:**
-- "what should I ride" / "what should I run"
-- "plan my week"
-- "add workouts"
-- "schedule training"
-- "recommend a workout" / "recommend a run"
-- Any question asking for specific workout suggestions
+**Trigger phrases that REQUIRE calling calendar_change:**
+- "what should I ride" / "what should I run" / "plan my week" / "add workouts" / "schedule training"
+- "move my workout", "swap Monday and Wednesday", "I can't train on Thursday"
+- "replace intervals with a recovery spin", "I need a rest day on Friday"
+- "create a training plan", "build me a plan", "prepare me for [race]", "I need a 12-week plan"
+- "add my races", "plan my cross season"
+- Any request to add, change, move, swap, complete or remove anything on the calendar
 
-**Correct approach (ALWAYS DO THIS):**
-1. Give brief explanation (1-2 sentences about reasoning)
-2. Use recommend_workout tool for EACH specific workout
-3. The athlete sees clickable cards to add to calendar
+**Addressing an existing entry:** by its \`sess_\` handle from the CALENDAR block above —
+never by date or day name. Entries you are creating do not have a handle yet.
 
-**Key points:**
-- ALWAYS call the tool when recommending specific workouts
-- Use actual workout_ids from the library (recovery_spin, three_by_ten_sst, etc.)
-- One tool call = one workout
-- Multiple workouts = multiple tool calls
-- scheduled_date format: "today", "tomorrow", "this_monday", "next_tuesday", or "YYYY-MM-DD"
+**A single session** is one \`create\` operation. Use \`workout_id\` values from the library
+above (recovery_spin, three_by_ten_sst, …) so the session carries real structure.
 
-Remember: The tool is how athletes get workouts onto their calendar. Calling it adds the workout immediately — without it, nothing lands on their calendar!
+**A multi-week block** is \`generate_block\`, NOT dozens of \`create\` operations. It takes a
+weekly pattern, a date range and a load progression, and the server expands it — skipping
+days that are already occupied, race days included. One operation per session across a
+12-week block overruns the reply budget and the tool call gets cut off mid-write, so
+nothing is written at all.
+
+**A race** is type \`"race"\`. A name and a date is enough to create one. When an athlete
+plans a season, put every race on the calendar first, then build the training around them.
+
+**There is no plan window.** The calendar belongs to the athlete, not to a plan, so a date
+in December is as writable as tomorrow. Never tell an athlete you cannot schedule
+something because it falls outside a plan.
 
 **NEVER PROMISE AN ACTION WITHOUT PERFORMING IT:**
-This is critical. If your reply says or implies that you are doing something — "let me get that on the calendar", "I'll add that workout", "I'll move that to Saturday" — you MUST emit the matching tool call (recommend_workout / adjust_schedule) in that SAME response. recommend_workout and adjust_schedule take effect immediately, so after calling them you can state the outcome as done ("Added Sweet Spot for tomorrow.", "Moved Tuesday's ride to Saturday.").
+If your reply says or implies you are doing something — "let me get that on the calendar",
+"I'll add that workout", "I'll move that to Saturday" — you MUST emit the \`calendar_change\`
+call in that SAME response. Narrating it in prose and skipping the call leaves the athlete
+with an empty promise and nothing on their calendar.
 
-Full training plans work the same way now: create_training_plan builds the plan AND loads it onto the athlete's calendar immediately (no tap required). When there's a target race it's a block-periodized arc (aerobic base → threshold → VO2 → taper, sized to the race); with no race it's a methodology plan for general fitness. So after calling create_training_plan you CAN state it as done — "Built and loaded your plan to The Rad" — and the workouts will be on the calendar. As always, never claim you built a plan without actually calling the tool: narrating it in prose and skipping the tool call leaves the athlete with an empty promise and nothing on their calendar.
-
-**CREATING FULL TRAINING PLANS:**
-
-When an athlete asks for a complete training plan (not just a single workout), you MUST use the create_training_plan tool. DO NOT just describe a plan in text - you MUST call the tool.
-
-**CRITICAL: If the athlete asks for a training plan, you MUST call create_training_plan. Never describe a plan without calling the tool.**
-
-**Trigger phrases that REQUIRE calling create_training_plan:**
-- "create a training plan"
-- "build me a plan"
-- "make a plan for my race"
-- "set up my training for [event]"
-- "I need a [X] week plan"
-- "plan my training"
-- "prepare me for [race/event]"
-- "load the plan to my calendar"
-- "add the workouts to my calendar"
-- Any request for multiple weeks of structured training
-
-**How to use create_training_plan:**
-1. Analyze the athlete's goals, target events, and available time
-2. Choose appropriate methodology based on their needs:
-   - polarized: Best for time-crunched athletes, research-backed 80/20 approach
-   - sweet_spot: Efficient fitness gains, good for intermediate riders
-   - threshold: FTP-focused for time trial or sustained power goals
-   - pyramidal: Balanced approach with emphasis on tempo/endurance
-   - endurance: Pure aerobic base building, good for beginners or off-season
-3. Set duration based on time until target event (ideally 8-16 weeks)
-4. Call the create_training_plan tool with appropriate parameters
-5. Calling the tool IMMEDIATELY builds a race-aware periodized plan and loads ALL its
-   workouts onto the athlete's calendar — there is no confirm/tap step. The plan is
-   sized and tapered to the target race automatically, and any interim (B/C) race
-   between now and the target gets a short sharpen + light taper without derailing the
-   build. So after calling it you may state plainly that it's done (e.g., "Built and
-   loaded your 12-week plan to The Rad — Ned Gravel sits inside it as a tune-up.").
-
-**Important:**
-- Use create_training_plan for multi-week structured plans (4+ weeks)
-- Use recommend_workout for single workouts or short-term suggestions
-- When the athlete references their A race, next race, or any event ("plan for my race", "prepare me for X"), you MUST set target_event_date to the NEXT_A_RACE (or NEXT_RACE) date in the TEMPORAL ANCHOR above. The server sizes the plan to that date and handles interim races — never ask the athlete for the race date.
-- Always set start_date to 'next_monday' unless they specify otherwise
-- NEVER just describe a training plan - ALWAYS call the tool; calling it is what puts the plan on their calendar
-
-**ADJUSTING THE EXISTING SCHEDULE:**
-
-When an athlete wants to modify their CURRENT active training plan (not create a new one), you MUST use the adjust_schedule tool. This tool makes real changes to their calendar immediately.
-
-**Trigger phrases that REQUIRE calling adjust_schedule:**
-- "move my workout", "swap workouts", "change my schedule"
-- "I can't train on [day]", "move [day]'s workout to [day]"
-- "replace [workout] with [workout]"
-- "I need a rest day on [day]"
-- "adjust my plan", "modify my schedule"
-- "shift this week's workouts"
-- Any request to change, move, swap, or remove workouts from the current plan
-
-**Available adjustment actions:**
-- move: Change a workout's date (e.g., move Thursday's workout to Friday)
-- swap: Exchange two workouts' dates (e.g., swap Monday and Wednesday)
-- replace: Change the workout itself (e.g., replace intervals with recovery spin)
-- remove: Convert the workout to a rest day (non-destructive — the day shows as Rest Day on the calendar)
-- add_rest: Convert a workout day to a rest day
-
-**How to use adjust_schedule:**
-1. Identify which workouts need to change based on the athlete's request
-2. Call adjust_schedule with an array of adjustments
-3. The changes are applied IMMEDIATELY to their active plan
-4. Confirm what was changed in your response text
-
-**Important:**
-- Use adjust_schedule for modifying existing plans — NOT create_training_plan
-- Multiple adjustments can be made in a single tool call
-- Only incomplete (not yet done) workouts can be modified
-- NEVER just describe schedule changes in text — ALWAYS call the tool so changes actually happen
+**NEVER STATE AN OUTCOME BEFORE YOU HAVE THE TOOL RESULT.** The result tells you whether
+the change APPLIED or is AWAITING THE ATHLETE'S APPROVAL, and your reply must say the true
+one. If it says awaiting approval, say you have put it up for them to accept — not that you
+have made the change. If it reports \`success: false\` or \`applied: 0\`, the change did NOT
+happen: say plainly what failed, using the result's own message.
 
 **HISTORICAL FITNESS ANALYSIS:**
 
@@ -1643,31 +1587,42 @@ export default async function handler(req, res) {
       { selectedRaceGoalId }
     );
 
-    // ── The rebuilt calendar, for athletes who are on it ────────────────────
+    // ── The calendar the coach reads and writes ─────────────────────────────
     //
-    // GATED, and the gate is load-bearing rather than cosmetic. If the coach
-    // could write `calendar_entries` for an athlete whose calendar still reads
-    // `planned_workouts`, the write would succeed and the athlete would see
-    // nothing — which is EXACTLY the failure that started this rebuild: a
-    // coach turn that reported scheduling ten races and scheduled none. So the
-    // tool is only offered to users whose calendar actually reads that table.
-    let calendarV2Context = null;
+    // UNGATED as of 2026-08-29. This used to sit behind
+    // user_profiles.calendar_v2_enabled, true for exactly one account, because
+    // writing calendar_entries for an athlete whose calendar still read
+    // planned_workouts would have succeeded silently and shown them nothing.
+    //
+    // /train now reads calendar_entries for EVERY athlete, which inverted the
+    // gate: it became the LEGACY writers that wrote where nobody looks. A gated
+    // coach would report scheduling a workout and show the athlete an unchanged
+    // calendar — the exact failure this rebuild exists to remove, preserved
+    // inside the flag meant to fix it.
+    //
+    // Note the name: `calendarContext` is already taken further down by the
+    // Google Calendar block, which is an unrelated thing.
+    let trainingCalendarContext;
     try {
-      const { data: gateRow } = await supabase
-        .from('user_profiles')
-        .select('calendar_v2_enabled')
-        .eq('id', verifiedUserId)
-        .maybeSingle();
-      if (gateRow?.calendar_v2_enabled === true) {
-        calendarV2Context = await buildCalendarContext(verifiedUserId, resolvedTimezone);
-      }
+      trainingCalendarContext = await buildCalendarContext(verifiedUserId, resolvedTimezone);
     } catch (calErr) {
-      // Non-blocking: without the context the tool is simply not offered, and
-      // the coach falls back to the legacy plan tools.
-      console.error('Calendar context failed (non-blocking):', calErr.message);
-      calendarV2Context = null;
+      // Degrade to an explicit 'unavailable' context — never to null, and never
+      // to an empty calendar, which is indistinguishable from a failed read and
+      // which the model will confidently plan into. formatCalendarBlock renders
+      // !ok as a block telling it that it cannot see the calendar and must not
+      // call the tool, and handleCalendarChange refuses on !ok. There is no
+      // legacy writer left to fall back to, so the honest failure is the only
+      // safe one.
+      console.error('Calendar context failed (degraded, non-blocking):', calErr.message);
+      const failed = { ok: false, entries: [], error: calErr.message };
+      trainingCalendarContext = {
+        block: formatCalendarBlock(failed),
+        byHandle: new Map(),
+        ambiguous: new Set(),
+        ok: false,
+        entries: [],
+      };
     }
-    const calendarV2 = !!calendarV2Context;
 
     // OUTPUT BUDGET. Every coach surface hard-codes maxTokens in its request
     // body (1024 for the command bar and Today panel, 2048 for the race tab),
@@ -1679,12 +1634,12 @@ export default async function handler(req, res) {
     // so the server saw "No operations supplied", the retry truncated the same
     // way, the 3-round cap fired, and the athlete got an empty reply with three
     // copies of their races and no training. Hence a floor, not a default.
-    const effectiveMaxTokens = calendarV2 ? Math.max(maxTokens, 8192) : maxTokens;
+    const effectiveMaxTokens = Math.max(maxTokens, 8192);
 
     // Tools are per-request now, not a module constant.
     //
-    // For a gated athlete the three legacy calendar writers are REMOVED, not
-    // merely discouraged. Leaving them available was not a small mistake: on
+    // The three legacy calendar writers are REMOVED for everyone, not merely
+    // discouraged. Leaving them available was not a small mistake: on
     // 2026-08-25 the athlete asked the coach to plan a cyclocross season, and
     // it built another "Plan: The Rad" in planned_workouts — 32 sessions, zero
     // races — retiring the real plan on the way past. Their calendar reads
@@ -1699,9 +1654,10 @@ export default async function handler(req, res) {
     const LEGACY_CALENDAR_WRITERS = new Set([
       'recommend_workout', 'create_training_plan', 'adjust_schedule',
     ]);
-    const coachTools = calendarV2
-      ? [...ALL_COACH_TOOLS.filter((t) => !LEGACY_CALENDAR_WRITERS.has(t.name)), CALENDAR_CHANGE_TOOL]
-      : ALL_COACH_TOOLS;
+    const coachTools = [
+      ...ALL_COACH_TOOLS.filter((t) => !LEGACY_CALENDAR_WRITERS.has(t.name)),
+      CALENDAR_CHANGE_TOOL,
+    ];
 
     // Determine persona
     const personaId = coachSettings?.coaching_persona && coachSettings.coaching_persona !== 'pending'
@@ -1713,7 +1669,7 @@ export default async function handler(req, res) {
     // Build the full system prompt — temporal anchor is the foundation
     let systemPrompt = `=== TEMPORAL ANCHOR (pre-resolved dates — do not compute new ones) ===
 ${temporalAnchorBlock}
-${calendarV2 ? '\n' + calendarV2Context.block + '\n' : ''}
+\n${trainingCalendarContext.block}\n
 
 CRITICAL: Conversation-history messages that occurred on a PREVIOUS day are prefixed
 with their date, e.g. "[Mon Jul 21]". Inside a prefixed message, words like "today",
@@ -1882,7 +1838,7 @@ IMPORTANT: When creating training plans or recommending workouts:
 - NEVER schedule workouts on blocked days
 - Place key workouts (intervals, long rides) on preferred days when possible
 - Respect the athlete's weekly workout limits
-- The create_training_plan tool will automatically adjust the schedule, but you should acknowledge the athlete's availability in your response`;
+- generate_block skips days that are already occupied, but it does NOT know about blocked days — set its weekly pattern to avoid them yourself, and acknowledge the athlete's availability in your response`;
     }
 
     // Add real-time calendar context if Google Calendar is connected
@@ -1927,7 +1883,7 @@ The athlete has recent deviations from their training plan that haven't been res
 ${unresolvedDeviations.map(d => `- ${d.deviation_date}: ${d.deviation_type} | Planned RSS: ${d.planned_tss} → Actual RSS: ${d.actual_tss} (delta: ${d.tss_delta > 0 ? '+' : ''}${d.tss_delta}) | Severity: ${d.severity_score}/10${d.options_json ? ` | Available adjustments: ${Object.keys(d.options_json).filter(k => k !== 'planned').join(', ')}` : ''}`).join('\n')}
 
 When discussing deviations, you may suggest specific adjustment options (modify next quality session, swap workout dates, insert a rest day, or drop a session) based on the options available above.
-To ACT on a deviation the athlete asks you to fix (e.g. "adjust my week after I missed Tuesday"), call the adjust_schedule tool directly using the available options above — do not just describe the change in text.`;
+To ACT on a deviation the athlete asks you to fix (e.g. "adjust my week after I missed Tuesday"), call calendar_change with the moves, edits or removals that carry out the option — do not just describe the change in text.`;
     }
 
     // Persona voice is injected last so it is the freshest instruction and overrides generic tendencies
@@ -1946,29 +1902,20 @@ IMPORTANT: You also generate coaching check-ins on the athlete's training dashbo
 When the athlete references a check-in, respond as the same coach — maintain continuity.`;
     }
 
-    if (calendarV2) {
-      systemPrompt += `\n\n=== CALENDAR TOOL — THIS SUPERSEDES THE TOOL RULES BELOW ===
-This athlete is on the rebuilt calendar. \`calendar_change\` is the ONLY tool that
-writes to it. Everything earlier in this prompt that tells you to call
-recommend_workout or adjust_schedule applies to other athletes, NOT this one:
-those tools write to a table this athlete's calendar no longer reads, so calling
-them would report success and change nothing they can see.
+    // Last word on the calendar, because it is the rule the coach has broken
+    // most often and recency wins in a prompt this long. The detail lives in
+    // COACHING_KNOWLEDGE above; this is the part that must survive.
+    systemPrompt += `\n\n=== CALENDAR TOOL — READ THIS LAST ===
+\`calendar_change\` is the ONLY tool that writes to the athlete's calendar. Adding,
+moving, swapping, editing, completing, skipping or removing anything is an operation
+on it. Multi-week blocks use its \`generate_block\` operation, not one create per
+session. Races are type "race" and need only a name and a date.
 
-- Adding a workout, adding a race, moving, editing, completing or removing
-  anything → \`calendar_change\`.
-- Building a multi-week block → create the sessions with \`calendar_change\`,
-  one operation per session. create_training_plan is NOT available to you for
-  this athlete; there is no separate step that loads a plan onto their
-  calendar. If you cannot express something as calendar operations, say so
-  rather than implying it happened.
-- You can finally schedule races. If the athlete plans a race season, put every
-  race on the calendar as type "race". A name and a date is enough to create one.
-
-Do not state an outcome before you have the tool result. It tells you whether
-the change APPLIED or is AWAITING THE ATHLETE'S APPROVAL, and your reply must
-say the true one. If it says awaiting approval, say you have put it up for them
-to accept — not that you have made the change.`;
-    }
+Do not state an outcome before you have the tool result. It tells you whether the
+change APPLIED or is AWAITING THE ATHLETE'S APPROVAL, and your reply must say the
+true one. If it says awaiting approval, say you have put it up for them to accept —
+not that you have made the change. If it reports \`success: false\` or \`applied: 0\`,
+nothing was written: say what failed, using the result's own message.`;
 
     systemPrompt += `\n\n=== INSTRUCTIONS ===
 Use the current date context and athlete data above to provide personalized, time-appropriate coaching advice.
@@ -1984,7 +1931,7 @@ Default: 2–4 sentences. Use bullet lists only when the athlete explicitly asks
 The athlete's upcoming planned sessions are already loaded in the SESSIONS block of the TEMPORAL ANCHOR above. You have their full schedule for the next 14 days: every day appears in CALENDAR_ANCHOR, and days marked "(nothing planned)" are free. Do not ask the athlete what their schedule is — look it up there. When advising around a key day (a race or big ride), reason about EVERY day between now and it, including the free ones — e.g. moving intervals to tomorrow matters differently if the day before the race is free vs loaded. "(nothing planned)" means no scheduled-and-not-yet-completed session on that day; a day can carry the marker because its session was already done — completion status for this week is in the SERVER TRAINING SNAPSHOT.
 
 === TOOL RESULTS ===
-When you use a server-side tool (adjust_schedule, query_fitness_history, query_training_data, save_coach_memory), the result is returned to you internally. Do not narrate the JSON output or describe what the tool returned. Confirm the outcome in one plain sentence (e.g., "Moved Tuesday's Sweet Spot to Wednesday.") and move on. Never say "Looks like X is marked complete" or "It appears the tool shows Y" — just state the outcome directly.
+When you use a server-side tool (calendar_change, query_fitness_history, query_training_data, save_coach_memory), the result is returned to you internally. Do not narrate the JSON output or describe what the tool returned. Confirm the outcome in one plain sentence (e.g., "Moved Tuesday's Sweet Spot to Wednesday.") and move on. Never say "Looks like X is marked complete" or "It appears the tool shows Y" — just state the outcome directly.
 CRITICAL: if a tool result reports success:false or workouts_affected:0, the change did NOT happen — NEVER claim it did. Tell the athlete plainly what failed using the result's error message (e.g., "I couldn't find a planned workout on Saturday to change") and offer the next step.
 
 === CRITICAL: TODAY'S WORKOUT CONSISTENCY ===
@@ -2001,7 +1948,7 @@ The athlete is using the quick command bar. Provide CONCISE responses:
 - Keep responses to 2-4 sentences maximum
 - Focus on the most actionable advice
 - Be direct and specific
-- Brevity NEVER excuses skipping a tool call: if your reply says or implies you are adding a workout, scheduling, building/mapping out a plan or block, or adjusting the calendar, you MUST emit the matching tool call (recommend_workout / create_training_plan / adjust_schedule) in that same response. Never promise an action in prose without performing it.
+- Brevity NEVER excuses skipping a tool call: if your reply says or implies you are adding a workout, scheduling, building/mapping out a plan or block, or adjusting the calendar, you MUST emit the calendar_change call in that same response. Never promise an action in prose without performing it.
 - Prioritize immediate, practical guidance over detailed explanations`;
     }
 
@@ -2104,7 +2051,7 @@ ${conversationSummary}
     // branch, so an earlier version of this remap that handled only
     // recommend_workout and adjust_schedule left the season-planning case —
     // the exact case that motivated the tool — forcing the old writer.
-    if (calendarV2 && LEGACY_CALENDAR_WRITERS.has(coachIntent)) {
+    if (LEGACY_CALENDAR_WRITERS.has(coachIntent)) {
       coachIntent = 'calendar_change';
     }
     // Never force a tool that is not on this request's menu. tool_choice with an
@@ -2249,7 +2196,7 @@ ${conversationSummary}
               + 'Do not repeat operations that already succeeded earlier in this turn.',
           };
         } else {
-          result = await handleCalendarChange(verifiedUserId, tool.input, calendarV2Context);
+          result = await handleCalendarChange(verifiedUserId, tool.input, trainingCalendarContext);
         }
         console.log(`🗓️  calendar_change result:`, JSON.stringify(result));
         calendarChangeResults.push(result);

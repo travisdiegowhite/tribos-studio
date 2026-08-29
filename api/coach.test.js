@@ -39,6 +39,12 @@ vi.mock('./utils/coachContextEnrichment.js', () => ({
   fetchCoachEnrichmentData: vi.fn().mockResolvedValue(null),
   buildCoachEnrichmentBlock: (...args) => buildEnrichmentBlock(...args),
 }));
+const applyCalendarOps = vi.fn();
+const persistProposal = vi.fn();
+vi.mock('./utils/calendarChangeApply.js', () => ({
+  applyCalendarOps: (...a) => applyCalendarOps(...a),
+  persistProposal: (...a) => persistProposal(...a),
+}));
 vi.mock('./utils/personaData.js', () => ({
   PERSONA_DATA: { hammer: { name: 'The Hammer', voice: 'Direct, brief, no filler.' } },
 }));
@@ -143,6 +149,29 @@ const workoutToolResponse = (text) => ({
   usage: { input_tokens: 10, output_tokens: 20 },
 });
 
+const calendarToolResponse = (text, operations) => ({
+  content: [
+    ...(text ? [{ type: 'text', text }] : []),
+    {
+      type: 'tool_use',
+      id: 'tc1',
+      name: 'calendar_change',
+      input: {
+        operations: operations || [{
+          op: 'create',
+          date: '2026-09-15',
+          title: 'Recovery Spin',
+          type: 'workout',
+          workout_id: 'recovery_spin',
+          reason: 'Easy day.',
+        }],
+        summary: 'One easy spin.',
+      },
+    },
+  ],
+  usage: { input_tokens: 10, output_tokens: 20 },
+});
+
 const planToolResponse = (text) => ({
   content: [
     ...(text ? [{ type: 'text', text }] : []),
@@ -171,6 +200,13 @@ beforeEach(() => {
   buildEnrichmentBlock.mockReturnValue(null);
   fetchAnchorMock.mockReset();
   fetchAnchorMock.mockResolvedValue({ plannedWorkouts: [], raceGoals: [] });
+  applyCalendarOps.mockReset();
+  persistProposal.mockReset();
+  applyCalendarOps.mockResolvedValue({
+    success: true, applied: 1, failed: 0, deduped: 0,
+    results: [{ ok: true, op: 'create', created: 1 }], undo: [],
+  });
+  persistProposal.mockResolvedValue({ success: true, proposalId: 'prop-1' });
   process.env.ANTHROPIC_API_KEY = 'sk-test';
   getUser.mockResolvedValue({ data: { user: { id: 'user-1' } }, error: null });
 });
@@ -224,57 +260,103 @@ describe('detectIntentFromResponse', () => {
   });
 });
 
+/**
+ * The forced tool pass, after the 2026-08-29 ungating.
+ *
+ * calendar_change is the ONLY calendar writer now, for every athlete — the
+ * three legacy writers (recommend_workout, create_training_plan,
+ * adjust_schedule) are off the menu, so the model cannot emit them and every
+ * legacy write INTENT is remapped onto calendar_change before the forced pass
+ * names a tool. That remap is the load-bearing part: tool_choice COMPELS a
+ * named tool, so forcing a legacy name would write planned_workouts, which no
+ * calendar reads, and report success.
+ */
 describe('coach handler — forced tool pass', () => {
   it('does not re-call when Claude already used the right tool', async () => {
-    messagesCreate.mockResolvedValueOnce(workoutToolResponse('Here is an easy spin.'));
+    messagesCreate
+      .mockResolvedValueOnce(calendarToolResponse('Here is an easy spin.'))
+      .mockResolvedValueOnce(textResponse('Added a recovery spin on the 15th.'));
     const res = makeRes();
     await handler(makeReq({ message: 'what should I ride today' }), res);
 
     expect(res.statusCode).toBe(200);
-    expect(messagesCreate).toHaveBeenCalledTimes(1);
-    expect(res.body.workoutRecommendations).toHaveLength(1);
+    // Two calls: the first pass, then the continuation that reports the result.
+    // No FORCED pass — no tool_choice on either.
+    expect(messagesCreate).toHaveBeenCalledTimes(2);
+    expect(messagesCreate.mock.calls[0][0].tool_choice).toBeUndefined();
+    expect(messagesCreate.mock.calls[1][0].tool_choice).toBeUndefined();
+    expect(applyCalendarOps).toHaveBeenCalledTimes(1);
   });
 
-  it('persists a recommended workout server-side and returns it as added', async () => {
-    // Simulate an existing active plan so the workout resolves a plan and writes.
+  it('writes a recommended workout to the CALENDAR, not to planned_workouts', async () => {
+    // The regression this replaces: the coach used to answer "what should I
+    // ride today" by writing planned_workouts, a table /train no longer reads
+    // for anyone. It reported "Added Sweet Spot for tomorrow" and the athlete
+    // saw an unchanged calendar.
+    const writes = [];
     fromOverride = (table) => {
       const c = chain();
-      if (table === 'training_plans') {
-        c.maybeSingle = () => Promise.resolve({ data: { id: 'plan-1' }, error: null });
+      for (const m of ['insert', 'update', 'upsert']) {
+        c[m] = (payload) => {
+          writes.push([table, m, payload]);
+          return c;
+        };
       }
       return c;
     };
-    messagesCreate.mockResolvedValueOnce(workoutToolResponse('Easy spin coming up.'));
+    messagesCreate
+      .mockResolvedValueOnce(calendarToolResponse('Easy spin coming up.'))
+      .mockResolvedValueOnce(textResponse('Added a recovery spin on the 15th.'));
 
     const res = makeRes();
     await handler(makeReq({ message: 'what should I ride today' }), res);
 
     expect(res.statusCode).toBe(200);
-    // No continuation turn — recommend_workout persists without a second Claude call.
-    expect(messagesCreate).toHaveBeenCalledTimes(1);
-    expect(res.body.workoutRecommendations).toHaveLength(1);
-    const rec = res.body.workoutRecommendations[0];
-    expect(rec.added).toBe(true);
-    expect(rec.workout_id).toBe('recovery_spin');
-    expect(rec.name).toBeTruthy();
-    expect(rec.scheduledDate).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+    expect(applyCalendarOps).toHaveBeenCalledTimes(1);
+    const [userId, ops, opts] = applyCalendarOps.mock.calls[0];
+    expect(userId).toBe('user-1');
+    expect(ops[0].op).toBe('create');
+    expect(opts.source).toBe('coach');
+    // Nothing was written through the legacy plan path. training_plans is still
+    // READ for context every turn, so the assertion is about writes.
+    expect(res.body.workoutRecommendations).toBeNull();
+    expect(writes.filter(([t]) => t === 'planned_workouts')).toHaveLength(0);
+    expect(writes.filter(([t]) => t === 'training_plans')).toHaveLength(0);
   });
 
-  it('re-calls forcing the matched tool when the first pass was prose-only', async () => {
+  it('re-calls forcing calendar_change when the first pass was prose-only', async () => {
     messagesCreate
       .mockResolvedValueOnce(textResponse('You should do an easy spin tomorrow.'))
-      .mockResolvedValueOnce(workoutToolResponse(null));
+      .mockResolvedValueOnce(calendarToolResponse(null))
+      .mockResolvedValueOnce(textResponse('Done.'));
 
     const res = makeRes();
     await handler(makeReq({ message: 'what should I ride today' }), res);
 
     expect(res.statusCode).toBe(200);
-    expect(messagesCreate).toHaveBeenCalledTimes(2);
-    // Second call forces the recommend_workout tool.
-    expect(messagesCreate.mock.calls[1][0].tool_choice).toEqual({ type: 'tool', name: 'recommend_workout' });
-    // The card is surfaced, and the first pass's prose is kept as the message.
-    expect(res.body.workoutRecommendations).toHaveLength(1);
-    expect(res.body.message).toMatch(/easy spin/i);
+    expect(messagesCreate).toHaveBeenCalledTimes(3);
+    // The intent detects as recommend_workout and MUST be remapped before it
+    // reaches tool_choice — forcing the legacy name would compel a write to a
+    // table nothing displays.
+    expect(messagesCreate.mock.calls[1][0].tool_choice).toEqual({ type: 'tool', name: 'calendar_change' });
+    expect(applyCalendarOps).toHaveBeenCalledTimes(1);
+    // The CONTINUATION's prose is the reply, not the first pass's — it is the
+    // only turn written with the tool result in hand, so it is the only one
+    // that can honestly say what happened.
+    expect(res.body.message).toBe('Done.');
+  });
+
+  it('never offers the legacy calendar writers on any request', async () => {
+    messagesCreate.mockResolvedValueOnce(textResponse('Your fitness is trending up nicely.'));
+    const res = makeRes();
+    await handler(makeReq({ message: 'how is my fitness trending?' }), res);
+
+    expect(res.statusCode).toBe(200);
+    const names = messagesCreate.mock.calls[0][0].tools.map((t) => t.name);
+    expect(names).toContain('calendar_change');
+    expect(names).not.toContain('recommend_workout');
+    expect(names).not.toContain('create_training_plan');
+    expect(names).not.toContain('adjust_schedule');
   });
 
   it('does not force a tool for a general question', async () => {
@@ -287,46 +369,57 @@ describe('coach handler — forced tool pass', () => {
     expect(res.body.workoutRecommendations).toBeNull();
   });
 
-  it('forces create_training_plan when the coach promised a plan in prose only', async () => {
-    // User message has no plan keyword; the coach's PROSE promises to build a block but
-    // calls no tool. Response-based intent must drive the forced create_training_plan pass.
+  it('forces calendar_change when the coach promised a PLAN in prose only', async () => {
+    // The 2026-08-25 failure in miniature. The user message has no plan
+    // keyword; the coach's PROSE promises to build a block but calls no tool,
+    // so response-based intent fires — and it detects as create_training_plan.
+    // Forcing that name is what wrote 32 sessions and zero races into
+    // planned_workouts and retired the athlete's real plan on the way past.
     messagesCreate
       .mockResolvedValueOnce(textResponse("18 days out — let's build the final block into Summer Vibes right now."))
-      .mockResolvedValueOnce(planToolResponse(null));
+      .mockResolvedValueOnce(calendarToolResponse(null))
+      .mockResolvedValueOnce(textResponse('Block is on your calendar.'));
 
     const res = makeRes();
     await handler(makeReq({ message: 'looking forward to Summer Vibes' }), res);
 
     expect(res.statusCode).toBe(200);
-    expect(messagesCreate).toHaveBeenCalledTimes(2);
-    expect(messagesCreate.mock.calls[1][0].tool_choice).toEqual({ type: 'tool', name: 'create_training_plan' });
-    expect(res.body.trainingPlanPreview).toBeTruthy();
-    expect(res.body.trainingPlanPreview.error).toBeFalsy();
+    expect(messagesCreate).toHaveBeenCalledTimes(3);
+    expect(messagesCreate.mock.calls[1][0].tool_choice).toEqual({ type: 'tool', name: 'calendar_change' });
+    expect(applyCalendarOps).toHaveBeenCalledTimes(1);
+    expect(res.body.trainingPlanPreview).toBeNull();
   });
 
-  it('auto-activates a static plan (no race) and returns autoActivatedPlan (no tap needed)', async () => {
-    // No race resolves ⇒ the static generator path. Simulate a successful
-    // training_plans insert so handleActivatePlan resolves a plan id.
-    fromOverride = (table) => {
-      const c = chain();
-      if (table === 'training_plans') {
-        c.single = () => Promise.resolve({ data: { id: 'newplan-1' }, error: null });
-      }
-      return c;
-    };
-    messagesCreate.mockResolvedValueOnce(planToolResponse('Building your general-fitness block.'));
+  it('builds a multi-week block on the calendar, activating no plan', async () => {
+    // "build me a training plan" used to auto-activate a training_plans row and
+    // fan its workouts into planned_workouts. The calendar no longer belongs to
+    // a plan, so a block is just entries — and generate_block is how the coach
+    // expresses one without truncating on a create-per-session list.
+    applyCalendarOps.mockResolvedValue({
+      success: true, applied: 0, failed: 0, deduped: 0,
+      results: [{ ok: true, op: 'generate_block', created: 32 }], undo: [],
+    });
+    messagesCreate
+      .mockResolvedValueOnce(calendarToolResponse(
+        'Building your general-fitness block.',
+        [{
+          op: 'generate_block',
+          from: '2026-10-01',
+          to: '2026-12-03',
+          weekly_pattern: [{ day: 'tue', title: 'Threshold', type: 'workout', target_load: 80 }],
+          reason: 'General fitness block.',
+        }]
+      ))
+      .mockResolvedValueOnce(textResponse('32 sessions from October to December.'));
 
     const res = makeRes();
     await handler(makeReq({ message: 'build me a training plan' }), res);
 
     expect(res.statusCode).toBe(200);
-    expect(messagesCreate).toHaveBeenCalledTimes(1);
-    expect(res.body.trainingPlanPreview).toBeTruthy();
-    expect(res.body.trainingPlanPreview.error).toBeFalsy();
-    expect(res.body.autoActivatedPlan).toBeTruthy();
-    expect(res.body.autoActivatedPlan.planId).toBe('newplan-1');
-    expect(res.body.autoActivatedPlan.raceName).toBeNull();
-    expect(res.body.autoActivatedPlan.workoutCount).toBeGreaterThan(0);
+    expect(applyCalendarOps).toHaveBeenCalledTimes(1);
+    expect(applyCalendarOps.mock.calls[0][1][0].op).toBe('generate_block');
+    expect(res.body.trainingPlanPreview).toBeNull();
+    expect(res.body.autoActivatedPlan).toBeNull();
   });
 
   it('auto-activates a LIVING ARC when a target race resolves', async () => {
@@ -839,32 +932,53 @@ describe('swapWorkoutDates — rollback on partial failure', () => {
   });
 });
 
-describe('coach handler — schedule adjustment payload honesty', () => {
-  it('returns scheduleAdjusted:false and the failing adjustment when nothing changed', async () => {
-    const rec = recordingPlannedWorkouts([]);
-    fromOverride = (table) => (table === 'planned_workouts' ? rec.make() : chain());
+/**
+ * Payload honesty, on the tool that now does the adjusting.
+ *
+ * This used to exercise adjust_schedule. That tool is no longer on any
+ * athlete's menu, so the model cannot emit it and the path is unreachable —
+ * "give me a rest day tomorrow" detects as adjust_schedule and is remapped to
+ * calendar_change before anything is forced. What has to survive the swap is
+ * the property: a failed write must never reach the athlete as a success, and
+ * must never reach them as SILENCE either.
+ */
+describe('coach handler — calendar change payload honesty', () => {
+  it('reports a failed change in the reply rather than an empty bubble', async () => {
+    applyCalendarOps.mockResolvedValue({
+      success: false, applied: 0, failed: 1, deduped: 0,
+      results: [{ ok: false, error: 'row not found' }], undo: [],
+    });
 
     messagesCreate
-      .mockResolvedValueOnce({
-        content: [
-          {
-            type: 'tool_use',
-            id: 'ta1',
-            name: 'adjust_schedule',
-            input: { adjustments: [{ action: 'add_rest', source_date: 'today' }], summary: 'rest today' },
-          },
-        ],
-        usage: { input_tokens: 5, output_tokens: 8 },
-      })
-      .mockResolvedValueOnce(textResponse("I couldn't find a planned workout today, so nothing was changed."));
+      .mockResolvedValueOnce(calendarToolResponse(null, [
+        { op: 'set_status', handle: 'sess_deadbeef', status: 'skipped', reason: 'rest today' },
+      ]))
+      // The model says nothing on the continuation turn. On 2026-08-27 that
+      // sent the athlete a completely empty reply while writes had happened.
+      .mockResolvedValueOnce(textResponse(''));
 
     const res = makeRes();
     await handler(makeReq({ message: 'give me a rest day tomorrow' }), res);
 
     expect(res.statusCode).toBe(200);
+    // The handle does not resolve against an empty calendar, so nothing is
+    // written — and the athlete is told, not left with a blank bubble.
+    expect(applyCalendarOps).not.toHaveBeenCalled();
+    expect(res.body.message).toBeTruthy();
+    expect(res.body.message).toMatch(/couldn't finish/i);
+  });
+
+  it('remaps a rest-day request onto calendar_change, never adjust_schedule', async () => {
+    messagesCreate
+      .mockResolvedValueOnce(textResponse('Sure, take tomorrow off.'))
+      .mockResolvedValueOnce(calendarToolResponse(null))
+      .mockResolvedValueOnce(textResponse('Tomorrow is a rest day now.'));
+
+    const res = makeRes();
+    await handler(makeReq({ message: 'give me a rest day tomorrow' }), res);
+
+    expect(res.statusCode).toBe(200);
+    expect(messagesCreate.mock.calls[1][0].tool_choice).toEqual({ type: 'tool', name: 'calendar_change' });
     expect(res.body.scheduleAdjusted).toBe(false);
-    expect(res.body.scheduleAdjustments).toHaveLength(1);
-    expect(res.body.scheduleAdjustments[0].success).toBe(false);
-    expect(res.body.scheduleAdjustments[0].workouts_affected).toBe(0);
   });
 });
