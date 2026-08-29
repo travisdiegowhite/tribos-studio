@@ -6,6 +6,10 @@
  * Non-blocking — metric failures never fail the webhook.
  */
 
+import {
+  fetchPlannedSessions, fetchEntryById, fetchEntryByActivityId,
+} from './calendarRead.js';
+
 // Inline computation to avoid TS import issues in serverless
 // These mirror the formulas in src/lib/metrics/*.ts exactly
 
@@ -208,14 +212,10 @@ export async function computeAndStoreMetrics(supabase, userId, activityId) {
   // --- EFI (only if activity matched a planned workout) ---
   let workoutId = activity.matched_planned_workout_id;
 
-  // Check reverse link: planner sets planned_workouts.activity_id but not
-  // activities.matched_planned_workout_id — look it up from the workout side
+  // Check reverse link: the calendar sets the entry's activity_id but not
+  // activities.matched_planned_workout_id — look it up from the entry side
   if (!workoutId) {
-    const { data: linkedWorkout } = await supabase
-      .from('planned_workouts')
-      .select('id')
-      .eq('activity_id', activityId)
-      .maybeSingle();
+    const linkedWorkout = await fetchEntryByActivityId(userId, activityId);
 
     if (linkedWorkout) {
       workoutId = linkedWorkout.id;
@@ -250,22 +250,15 @@ export async function computeAndStoreMetrics(supabase, userId, activityId) {
 }
 
 async function computeAndStoreEFI(supabase, userId, activityId, activity, workoutId) {
-  // Fetch the planned workout
-  const { data: workout, error: wErr } = await supabase
-    .from('planned_workouts')
-    .select('target_tss')
-    .eq('id', workoutId)
-    .single();
+  // Fetch the calendar entry this ride fulfilled.
+  const workout = await fetchEntryById(userId, workoutId);
 
-  if (wErr || !workout?.target_tss) {
-    if (wErr) console.error('[metrics] EFI: failed to fetch workout:', wErr.message);
-    return;
-  }
+  if (!workout?.target_rss) return;
 
-  const plannedTSS = workout.target_tss;
+  const plannedTSS = workout.target_rss;
   const actualTSS = activity.rss || 0;
 
-  // Zone distributions — planned_workouts doesn't store zone data,
+  // Zone distributions — the calendar doesn't store zone data,
   // so use defaults based on workout type (endurance-heavy distribution)
   const plannedZones = { Z1: 0.4, Z2: 0.3, Z3: 0.1, Z4: 0.1, Z5: 0.1 };
 
@@ -279,12 +272,13 @@ async function computeAndStoreEFI(supabase, userId, activityId, activity, workou
   const twentyEightDaysAgo = new Date();
   twentyEightDaysAgo.setDate(twentyEightDaysAgo.getDate() - 28);
 
-  const { data: recentWorkouts } = await supabase
-    .from('planned_workouts')
-    .select('id, target_tss, scheduled_date')
-    .eq('plan_id', (await supabase.from('planned_workouts').select('plan_id').eq('id', workoutId).single()).data?.plan_id)
-    .gte('scheduled_date', twentyEightDaysAgo.toISOString().split('T')[0])
-    .order('scheduled_date', { ascending: true });
+  // The athlete's last 28 days, not one plan's. The old query looked up the
+  // entry's plan_id with an extra round trip and then scoped to it — which
+  // returned NOTHING for a session with no plan, so EFI's consistency factor
+  // silently fell back to a default for every coach- or calendar-created ride.
+  const recentWorkouts = await fetchPlannedSessions(userId, {
+    from: twentyEightDaysAgo.toISOString().split('T')[0],
+  });
 
   const rollingSessions = [];
   if (recentWorkouts) {
@@ -373,27 +367,19 @@ export async function tryAutoMatchWorkout(supabase, userId, activity) {
   const dayAfter = new Date(activityDate);
   dayAfter.setDate(dayAfter.getDate() + 1);
 
-  // planned_workouts has no user_id column — join through training_plans
-  const { data: activePlans } = await supabase
-    .from('training_plans')
-    .select('id')
-    .eq('user_id', userId)
-    .eq('status', 'active');
-  const planIds = (activePlans || []).map(p => p.id);
+  // Athlete-scoped. The comment this replaces said planned_workouts had no
+  // user_id column and the join through training_plans was therefore forced;
+  // calendar_entries is keyed on the athlete, so the join — and the "no active
+  // plan means no auto-match at all" behaviour it caused — both go away.
+  const candidates = (
+    await fetchPlannedSessions(userId, {
+      from: dayBefore.toISOString().split('T')[0],
+      to: dayAfter.toISOString().split('T')[0],
+      types: ['workout'],
+    })
+  ).filter((w) => !w.activity_id && w.workout_type !== 'rest');
 
-  if (planIds.length === 0) return null;
-
-  const { data: candidates } = await supabase
-    .from('planned_workouts')
-    .select('id, scheduled_date, target_rss, target_tss, target_duration, workout_type')
-    .in('plan_id', planIds)
-    .gte('scheduled_date', dayBefore.toISOString().split('T')[0])
-    .lte('scheduled_date', dayAfter.toISOString().split('T')[0])
-    .is('activity_id', null)
-    .neq('workout_type', 'rest')
-    .order('scheduled_date', { ascending: true });
-
-  if (!candidates || candidates.length === 0) return null;
+  if (candidates.length === 0) return null;
 
   // Score each candidate
   let bestMatch = null;

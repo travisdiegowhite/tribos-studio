@@ -18,6 +18,7 @@
 
 import Anthropic from '@anthropic-ai/sdk';
 import { getSupabaseAdmin } from './utils/supabaseAdmin.js';
+import { fetchEntryById } from './utils/calendarRead.js';
 import { setupCors } from './utils/cors.js';
 import { rateLimitByUser } from './utils/rateLimit.js';
 import { enforceAiQuota } from './utils/aiQuota.js';
@@ -204,12 +205,10 @@ async function loadAthleteContext(userId) {
 
 async function loadIntent(activity) {
   if (!activity.matched_planned_workout_id) return null;
-  const { data: planned, error } = await supabase
-    .from('planned_workouts')
-    .select('id, name, workout_type, target_tss, target_duration')
-    .eq('id', activity.matched_planned_workout_id)
-    .maybeSingle();
-  if (error || !planned) return null;
+  // Scoped to the athlete as well as the id — this runs on the service-role
+  // client, where an unscoped id would happily return someone else's row.
+  const planned = await fetchEntryById(activity.user_id, activity.matched_planned_workout_id);
+  if (!planned) return null;
   return {
     name: planned.name,
     workout_type: planned.workout_type,

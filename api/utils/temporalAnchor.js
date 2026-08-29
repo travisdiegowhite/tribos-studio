@@ -10,6 +10,8 @@
  * changes which calendar day we land on.
  */
 
+import { fetchPlannedSessions } from './calendarRead.js';
+
 const SHORT_DAY = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'];
 const FULL_DAY = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 
@@ -340,17 +342,15 @@ export async function fetchTemporalAnchorData(userId, supabase, timezone) {
   const cutoffMs = todayNoon.getTime() + 14 * 24 * 60 * 60 * 1000;
   const cutoffStr = toLocalDateStr(new Date(cutoffMs), safeTz);
 
-  const [workoutsResult, goalsResult] = await Promise.all([
-    supabase
-      .from('planned_workouts')
-      .select('id, scheduled_date, workout_type, name, target_duration, target_rss')
-      .eq('user_id', userId)
-      // `completed` is nullable — a bare .eq('completed', false) silently
-      // skips rows inserted with NULL (same fix as coach.js notCompleted).
-      .or('completed.eq.false,completed.is.null')
-      .gte('scheduled_date', todayStr)
-      .lte('scheduled_date', cutoffStr)
-      .order('scheduled_date', { ascending: true }),
+  const [plannedWorkouts, goalsResult] = await Promise.all([
+    // The CALENDAR, not planned_workouts. The nullable-`completed` dance this
+    // replaced is gone with the column: calendar_entries.status is NOT NULL
+    // with a default, so "not yet done" is one unambiguous predicate.
+    fetchPlannedSessions(userId, {
+      from: todayStr,
+      to: cutoffStr,
+      includeCompleted: false,
+    }),
     supabase
       .from('race_goals')
       // Detail columns feed the coach's SERVER TRAINING SNAPSHOT block
@@ -364,7 +364,7 @@ export async function fetchTemporalAnchorData(userId, supabase, timezone) {
   ]);
 
   return {
-    plannedWorkouts: workoutsResult.data || [],
+    plannedWorkouts,
     raceGoals: goalsResult.data || [],
   };
 }
