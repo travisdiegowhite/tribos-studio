@@ -36,6 +36,9 @@ import {
   countUpcomingClearable, clearUpcomingEntries,
 } from '../lib/calendar/calendarMutations';
 import { toPlannedWorkoutShapes } from '../lib/calendar/plannedWorkoutAdapter';
+import {
+  listPendingProposals, acceptProposal, rejectProposal, describeOp, explainReason,
+} from '../lib/calendar/calendarProposals';
 import RaceGoalModal from './RaceGoalModal';
 import { StravaLogo, STRAVA_ORANGE } from './StravaBranding';
 import { FuelBadge } from './fueling';
@@ -123,6 +126,12 @@ const TrainingCalendar = ({ activePlan, rides = [], formatDistance: formatDistan
   const [heldEntryId, setHeldEntryId] = useState(null);
   // Set when a placement lands on an occupied day — swap, or stack both?
   const [placePrompt, setPlacePrompt] = useState(null);
+  // Coach changes the server withheld for the athlete to accept. Without this
+  // the coach says "I've put that up for you to accept" and there is nothing
+  // to accept it with — which is where the weekend swap went.
+  const [proposals, setProposals] = useState([]);
+  const [reviewing, setReviewing] = useState(null);
+  const [deciding, setDeciding] = useState(false);
   const [raceGoalModalOpen, setRaceGoalModalOpen] = useState(false);
   const [selectedRaceGoal, setSelectedRaceGoal] = useState(null);
 
@@ -168,6 +177,60 @@ const TrainingCalendar = ({ activePlan, rides = [], formatDistance: formatDistan
     if (!user?.id) return;
     loadPlannedWorkouts();
   }, [user?.id, activePlan?.id, anchorDate, refreshKey]);
+
+  // Pending coach proposals. Polled on the same triggers as the calendar
+  // rather than subscribed to: Realtime costs ~13 Postgres connections just
+  // for being active (see CLAUDE.md), and a proposal appears in response to a
+  // coach turn the athlete just took, not out of nowhere.
+  const loadProposals = async () => {
+    if (!user?.id) return;
+    setProposals(await listPendingProposals(user.id));
+  };
+
+  useEffect(() => {
+    if (!user?.id) return;
+    loadProposals();
+    // A coach turn on another surface (the command bar, Today) can create one,
+    // and both already fire this event when they change the calendar.
+    const onUpdate = () => loadProposals();
+    window.addEventListener('training-plan-updated', onUpdate);
+    return () => window.removeEventListener('training-plan-updated', onUpdate);
+  }, [user?.id, refreshKey]);
+
+  /** Accept a proposal, then say exactly what landed and what did not. */
+  const decideProposal = async (proposal, accept) => {
+    if (!user?.id) return;
+    setDeciding(true);
+    try {
+      if (!accept) {
+        const ok = await rejectProposal(user.id, proposal.id);
+        notifications.show({
+          title: ok ? 'Dismissed' : 'Could not dismiss that',
+          message: ok ? 'Nothing on your calendar changed.' : 'Try again in a moment.',
+          color: ok ? 'gray' : 'red',
+        });
+      } else {
+        const result = await acceptProposal(user.id, proposal);
+        const parts = [];
+        if (result.applied > 0) parts.push(`${result.applied} change${result.applied === 1 ? '' : 's'} made`);
+        // A skip is not a failure and not a success — the session was gone.
+        if (result.skipped > 0) parts.push(`${result.skipped} skipped (no longer on your calendar)`);
+        if (result.failed > 0) parts.push(`${result.failed} didn't go through`);
+        notifications.show({
+          title: result.failed > 0 ? 'Partly applied' : 'Applied',
+          message: parts.join(' · ') || 'Nothing needed changing.',
+          color: result.failed > 0 ? 'yellow' : 'teal',
+          autoClose: 8000,
+        });
+        await loadPlannedWorkouts();
+        if (onPlanUpdated) onPlanUpdated();
+      }
+      setReviewing(null);
+      await loadProposals();
+    } finally {
+      setDeciding(false);
+    }
+  };
 
   // Auto-link completed cycling rides to planned workouts on the same day.
   useActivityAutoLink({
@@ -1241,6 +1304,48 @@ const TrainingCalendar = ({ activePlan, rides = [], formatDistance: formatDistan
           </Group>
         </Group>
 
+        {/* Coach changes waiting on the athlete.
+            The server withholds a coach change when it touches more than one
+            session, one the athlete already adjusted, or one already done —
+            and the coach then tells them "I've put that up for you to accept".
+            Until this banner existed that sentence was false: the proposal
+            went into a table nothing read. */}
+        {proposals.length > 0 && (
+          <Group
+            justify="space-between"
+            wrap="nowrap"
+            p="xs"
+            mb="xs"
+            style={{
+              border: '1.5px solid var(--color-accent, #2F6F62)',
+              backgroundColor: 'rgba(47, 111, 98, 0.08)',
+            }}
+          >
+            <Text size="sm" style={{ minWidth: 0 }}>
+              <Text span fw={700} tt="uppercase" size="xs"
+                style={{ fontFamily: 'var(--font-mono, monospace)', letterSpacing: '0.08em' }}>
+                Coach{' '}
+              </Text>
+              <Text span fw={600}>
+                {proposals.length === 1
+                  ? '1 change is waiting for you'
+                  : `${proposals.length} changes are waiting for you`}
+              </Text>
+              {proposals[0].summary && (
+                <Text span c="dimmed"> — {proposals[0].summary}</Text>
+              )}
+            </Text>
+            <Button
+              variant="light"
+              color="teal"
+              size="compact-xs"
+              onClick={() => setReviewing(proposals[0])}
+            >
+              Review
+            </Button>
+          </Group>
+        )}
+
         {/* Held bar — the whole tap-to-place model is invisible without it.
             Nothing else on screen tells the athlete a session is "picked up". */}
         {heldEntryId && (() => {
@@ -1948,6 +2053,81 @@ const TrainingCalendar = ({ activePlan, rides = [], formatDistance: formatDistan
         isAdd={isAddMode}
         scheduledDate={selectedDate ? formatLocalDate(selectedDate) : undefined}
       />
+
+      {/* Review a coach proposal.
+          Shows the change BEFORE → AFTER per operation, because "accept" is
+          only a real decision if the athlete can see what they are accepting.
+          Accepting pins every session it touches: an accepted change is a
+          decision they made, so the coach's next edit to the same session has
+          to ask again. */}
+      <Modal
+        opened={!!reviewing}
+        onClose={() => setReviewing(null)}
+        title="Your coach suggests"
+        centered
+        radius={0}
+        size="lg"
+      >
+        {reviewing && (
+          <Stack gap="sm">
+            {reviewing.summary && <Text size="sm">{reviewing.summary}</Text>}
+            <Text size="xs" c="dimmed">
+              Waiting on you because it {explainReason(reviewing.reason_code)}.
+            </Text>
+
+            <Stack gap={6}>
+              {(reviewing.ops ?? []).map((op, i) => (
+                <Group
+                  key={op.entry_id ? `${op.entry_id}-${i}` : `new-${i}`}
+                  align="flex-start"
+                  wrap="nowrap"
+                  gap="sm"
+                  p="xs"
+                  style={{ border: '1px solid var(--color-border, #D9D2C5)' }}
+                >
+                  <Text
+                    size="xs"
+                    fw={700}
+                    tt="uppercase"
+                    style={{
+                      fontFamily: 'var(--font-mono, monospace)',
+                      letterSpacing: '0.08em',
+                      minWidth: 64,
+                      color: 'var(--color-text-muted)',
+                    }}
+                  >
+                    {op.op === 'set_status' ? 'status' : op.op}
+                  </Text>
+                  <Stack gap={2} style={{ minWidth: 0 }}>
+                    <Text size="sm" fw={600}>{describeOp(op)}</Text>
+                    {op.reason && <Text size="xs" c="dimmed">{op.reason}</Text>}
+                  </Stack>
+                </Group>
+              ))}
+            </Stack>
+
+            <Group justify="flex-end" gap="xs" mt="xs">
+              <Button
+                variant="subtle"
+                color="gray"
+                radius={0}
+                disabled={deciding}
+                onClick={() => decideProposal(reviewing, false)}
+              >
+                Dismiss
+              </Button>
+              <Button
+                color="teal"
+                radius={0}
+                loading={deciding}
+                onClick={() => decideProposal(reviewing, true)}
+              >
+                Apply {(reviewing.ops ?? []).length === 1 ? 'it' : `all ${(reviewing.ops ?? []).length}`}
+              </Button>
+            </Group>
+          </Stack>
+        )}
+      </Modal>
 
       {/* Race Goal Modal */}
       <RaceGoalModal
