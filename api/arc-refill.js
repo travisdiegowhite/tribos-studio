@@ -262,6 +262,43 @@ export default async function handler(req, res) {
         ),
     );
 
+    // 6a. MIRROR the easing onto calendar_entries — the table /train reads.
+    //
+    // Until now arc-refill wrote only planned_workouts. Since /train was
+    // repointed at calendar_entries for every athlete, an easing that fired was
+    // INVISIBLE: the athlete got the "Plan adapted to your readiness" toast and
+    // an unchanged calendar. Migration 070's backfill preserved ids, so the id
+    // is the join, and every future planned_workouts row has a twin.
+    //
+    // Only the readiness numbers cross over. Titles and notes are regenerated
+    // by the arc generator on every run, so copying them would quietly undo an
+    // athlete's rename. And a PINNED entry is one the athlete decided about, so
+    // it is skipped outright — the same contract the coach obeys.
+    const mirrored = upserts.filter((u) => u.id);
+    if (mirrored.length > 0) {
+      const mirrorResults = await Promise.all(
+        mirrored.map((u) =>
+          supabase
+            .from('calendar_entries')
+            .update({
+              target_load: u.target_rss,
+              target_duration_min: u.target_duration,
+              workout_type: u.workout_type,
+            })
+            .eq('id', u.id)
+            .eq('user_id', userId)
+            .eq('pinned', false),
+        ),
+      );
+      const mirrorErr = mirrorResults.find((r) => r?.error);
+      if (mirrorErr) {
+        // Non-fatal: planned_workouts already carries the change, and the next
+        // run recomputes from scratch. But it must not be silent — an invisible
+        // easing is the bug this block exists to close.
+        console.error('arc-refill: calendar_entries mirror failed:', mirrorErr.error.message);
+      }
+    }
+
     // 6b. Full mode only: insert rows for dates that had none. The unique
     //     (plan_id, scheduled_date) constraint + ignoreDuplicates makes a race
     //     with a concurrent insert harmless (we never overwrite).
@@ -274,6 +311,16 @@ export default async function handler(req, res) {
         .upsert(inserts, { onConflict: 'plan_id,scheduled_date', ignoreDuplicates: true });
       if (insertErr) {
         console.error('arc-refill: insert of missing arc days failed:', insertErr.message);
+      } else {
+        // These rows get no calendar_entries twin, so they land in a table
+        // /train does not read. Nothing invokes full mode today — the dashboard
+        // posts only { userLocalDate } — and mirroring inserts means reading
+        // back generated ids, so this is a warning rather than a half-built
+        // path. If full mode is ever wired up, mirror them before shipping it.
+        console.warn(
+          `arc-refill: full mode inserted ${inserts.length} planned_workouts row(s) with no ` +
+          'calendar_entries twin — they will NOT appear on /train.'
+        );
       }
     }
 
