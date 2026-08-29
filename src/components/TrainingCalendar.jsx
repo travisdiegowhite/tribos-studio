@@ -30,6 +30,8 @@ import { isPowerSport } from '../utils/sportType';
 import { getWorkoutById } from '../data/workoutLibrary';
 import { tokens } from '../theme';
 import { formatLocalDate, addDays, parsePlanStartDate, getTodayString, toDateKey, weekStartKey, activityDateKey } from '../utils/dateUtils';
+import { getCalendarRange } from '../lib/calendar/getCalendarRange';
+import { toPlannedWorkoutShapes } from '../lib/calendar/plannedWorkoutAdapter';
 import RaceGoalModal from './RaceGoalModal';
 import { StravaLogo, STRAVA_ORANGE } from './StravaBranding';
 import { FuelBadge } from './fueling';
@@ -265,19 +267,21 @@ const TrainingCalendar = ({ activePlan, rides = [], formatDistance: formatDistan
       const startDateStr = formatLocalDate(anchorDate);
       const endDateStr = formatLocalDate(addDays(anchorDate, 28));
 
-      // User-scoped read: every planned workout in range, across all of the athlete's
-      // plans. The grid places each by scheduled_date, so plan membership doesn't affect
-      // rendering. (RLS still restricts to the athlete's own rows via user_id.)
-      const { data } = await supabase
-        .from('planned_workouts')
-        .select('*')
-        .eq('user_id', user.id)
-        .gte('scheduled_date', startDateStr)
-        .lte('scheduled_date', endDateStr);
-
-      if (data) {
-        setPlannedWorkouts(data);
-      }
+      // Reads come from calendar_entries now, translated into the field names
+      // this component already renders (see plannedWorkoutAdapter).
+      //
+      // WHY: a row in planned_workouts belongs to a PLAN, so anything outside
+      // the plan's duration_weeks window cannot exist there. This athlete's
+      // plan ends 2026-10-01 and their cyclocross season runs to 2026-12-05 —
+      // eight of nine races, and all 32 sessions the coach generated around
+      // them, fall outside it. In calendar_entries a row belongs to the
+      // ATHLETE, keyed (user_id, date, slot), so a December race is just a row.
+      //
+      // This also un-splits the writers: the coach already writes
+      // calendar_entries, so what it schedules now appears here rather than
+      // succeeding invisibly in a table this surface never read.
+      const range = await getCalendarRange(user.id, startDateStr, endDateStr);
+      setPlannedWorkouts(toPlannedWorkoutShapes(range.entries, getPlanStartDate(activePlan)));
     } catch (error) {
       console.error('Failed to load planned workouts:', error);
     }
@@ -319,10 +323,27 @@ const TrainingCalendar = ({ activePlan, rides = [], formatDistance: formatDistan
     }
   };
 
-  // Get race goal for a specific date
+  // Races for a date, from calendar_entries first.
+  //
+  // Migration 115 copied every race_goals row into calendar_entries, so a
+  // calendar reading BOTH tables renders each race twice — The Rad is in both
+  // under different ids. calendar_entries is the calendar's source because it
+  // is the only one that holds the nine cyclocross races the coach created;
+  // race_goals is consulted only for a date calendar_entries doesn't cover, so
+  // nothing that used to show up disappears.
+  //
+  // race_goals itself stays: the Race tab still owns priority, goal time,
+  // target TFI and results. It just isn't a second calendar.
   const getRaceGoalForDate = (date) => {
     if (!date) return null;
     const dateStr = formatLocalDate(date);
+    const entryRace = plannedWorkouts.find(
+      (w) => w.entry_type === 'race' && w.scheduled_date === dateStr
+    );
+    if (entryRace) {
+      return { id: entryRace.id, name: entryRace.name, race_date: dateStr,
+               race_type: entryRace.workout_type };
+    }
     return raceGoals.find(r => r.race_date === dateStr);
   };
 
@@ -376,7 +397,11 @@ const TrainingCalendar = ({ activePlan, rides = [], formatDistance: formatDistan
   const getWorkoutForDate = (date) => {
     if (!date) return null;
     const dateStr = formatLocalDate(date);
-    return plannedWorkouts.find(w => w.scheduled_date === dateStr);
+    // Races render through getRaceGoalForDate, so exclude them here or a race
+    // day draws twice — once as the race banner and once as a session chip.
+    return plannedWorkouts.find(
+      (w) => w.scheduled_date === dateStr && w.entry_type !== 'race'
+    );
   };
 
   // Get rides for a specific date
