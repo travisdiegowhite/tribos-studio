@@ -20,6 +20,7 @@
  *   title                -> name
  *   target_load          -> target_rss / target_tss   (dual, per CLAUDE.md)
  *   target_duration_min  -> target_duration
+ *   target_distance_km   -> target_distance_km  (same name, same unit, passthrough)
  *   actual_load          -> actual_rss / actual_tss
  *   actual_duration_min  -> actual_duration
  *   status === 'done'    -> completed
@@ -51,10 +52,19 @@ export interface PlannedWorkoutShape {
   target_rss: number | null;
   target_tss: number | null;
   target_duration: number | null;
+  /**
+   * Both tables call this the same thing and both mean kilometres, so it
+   * passes straight through. Distance-suffixed per the unit convention.
+   */
+  target_distance_km: number | null;
   actual_rss: number | null;
   actual_tss: number | null;
   actual_duration: number | null;
+  actual_distance_km: number | null;
   completed: boolean;
+  completed_at: string | null;
+  skipped_reason: string | null;
+  plan_id: string | null;
   activity_id: string | null;
   notes: string | null;
   week_number: number | null;
@@ -113,10 +123,15 @@ export function toPlannedWorkoutShape(
     target_rss: entry.target_load,
     target_tss: entry.target_load,
     target_duration: entry.target_duration_min,
+    target_distance_km: entry.target_distance_km,
     actual_rss: entry.actual_load,
     actual_tss: entry.actual_load,
     actual_duration: entry.actual_duration_min,
+    actual_distance_km: entry.actual_distance_km,
     completed: entry.status === 'done',
+    completed_at: entry.completed_at,
+    skipped_reason: entry.skipped_reason,
+    plan_id: entry.plan_id,
     activity_id: entry.activity_id,
     notes: entry.notes,
     week_number: weekNumber(entry.date, planStart),

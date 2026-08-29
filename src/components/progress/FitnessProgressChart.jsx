@@ -22,6 +22,7 @@ import {
 import { ArrowsClockwise } from '@phosphor-icons/react';
 import { useAuth } from '../../contexts/AuthContext.jsx';
 import { supabase } from '../../lib/supabase';
+import { fetchPlannedSessions } from '../../lib/calendar/readPlannedSessions';
 import { getTodayString, formatLocalDate, parseLocalDate } from '../../utils/dateUtils.js';
 import { workoutTypeCopy } from '../../utils/todayVocabulary';
 
@@ -240,19 +241,13 @@ export default function FitnessProgressChart() {
       setRaces(goals);
       setNextRace(goals.find(g => g.priority === 'A') ?? goals[0] ?? null);
 
-      // Step 2: fetch planned workouts if there are active plans
-      const planIds = (plansResult.data ?? []).map(p => p.id);
-      if (planIds.length > 0) {
-        const { data: pwData } = await supabase
-          .from('planned_workouts')
-          .select('scheduled_date, workout_type, target_tss, actual_tss, completed, activity_id')
-          .in('plan_id', planIds)
-          .gte('scheduled_date', windowStart)
-          .lte('scheduled_date', TODAY);
-        setPlannedWorkouts(pwData ?? []);
-      } else {
-        setPlannedWorkouts([]);
-      }
+      // Step 2: the calendar over the window. Athlete-scoped, and no longer
+      // conditional on an active plan existing — the chart used to go blank for
+      // anyone without one, and to miss every coach- or calendar-created entry
+      // for everyone else, since those carry no plan_id.
+      setPlannedWorkouts(
+        await fetchPlannedSessions(user.id, { from: windowStart, to: TODAY }),
+      );
     } catch (err) {
       console.error('[FitnessProgressChart] fetch error:', err);
     } finally {

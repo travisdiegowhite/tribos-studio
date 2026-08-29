@@ -10,6 +10,13 @@
  *   training_load_daily.tfi ?? .ctl, .afi ?? .atl, .form_score ?? .tsb
  *   activities.rss ?? .tss   ·   planned_workouts.target_rss ?? .target_tss
  * The page is read-only, so no dual-write is required.
+ *
+ * Planned sessions come from `calendar_entries` through fetchPlannedSessions,
+ * not from `planned_workouts`. Before that swap this page showed a schedule
+ * missing everything the coach or the calendar had written since the calendar
+ * was repointed — 45 recent entries in production, including a whole
+ * cyclocross season. The reader hands back the legacy field names, so the
+ * canonical-first fallbacks above still read the same way.
  */
 
 import { supabase } from '../../lib/supabase';
@@ -19,6 +26,7 @@ import { TYPE_TSS_PER_HOUR } from '../../lib/training/constants';
 import { PERSONAS } from '../../data/coachingPersonas';
 import { getPlanTemplate } from '../../data/trainingPlanTemplates';
 import { resolveActivePlan } from '../../utils/activePlan';
+import { fetchPlannedSessions } from '../../lib/calendar/readPlannedSessions';
 import { getISOWeek, getISOWeekYear } from '../../utils/isoWeek';
 import { formPhrase, workoutTypeCopy } from '../../utils/todayVocabulary';
 import { fmtDate } from '../today/athleteMetrics';
@@ -657,15 +665,14 @@ export async function getTodaySpine(userId: string): Promise<SpineData> {
         .eq('user_id', userId)
         .gte('date', ninetyKey)
         .order('date', { ascending: true }),
-      supabase
-        .from('planned_workouts')
-        .select(
-          'id, scheduled_date, name, workout_type, workout_id, duration_minutes, target_duration, target_rss, target_tss',
-        )
-        .eq('user_id', userId)
-        .gte('scheduled_date', todayKey)
-        .order('scheduled_date', { ascending: true })
-        .limit(120),
+      // The calendar, via the shared reader. Wrapped back into the { data,
+      // error } shape the batch and its row-count logging expect. Races are
+      // excluded because race_goals is read separately two entries down — a
+      // race lives in BOTH tables since migration 115, and counting it twice
+      // would put it on the spine twice and add its load to a training total.
+      fetchPlannedSessions(userId, { from: todayKey, limit: 120 }).then(
+        (rows) => ({ data: rows, error: null as { message?: string } | null }),
+      ),
       supabase
         .from('race_goals')
         .select('id, name, race_date, priority, status')
@@ -726,7 +733,7 @@ export async function getTodaySpine(userId: string): Promise<SpineData> {
     ['user_profiles', profileRes],
     ['activities', activitiesRes],
     ['training_load_daily', serverLoadRes],
-    ['planned_workouts', plannedRes],
+    ['calendar_entries', plannedRes],
     ['race_goals', raceRes],
     ['activities (map)', mapRes],
   ];
@@ -772,7 +779,9 @@ export async function getTodaySpine(userId: string): Promise<SpineData> {
     ? {
         name: todayPlan.name || todayPlan.workout_type || 'Workout',
         type: (todayPlan.workout_type || 'endurance') as string,
-        durationMin: Number(todayPlan.duration_minutes ?? todayPlan.target_duration ?? 0),
+        // `duration_minutes` was the old table's second duration column;
+        // calendar_entries carries one, surfaced as target_duration.
+        durationMin: Number(todayPlan.target_duration ?? 0),
         // The plan's own target load (0 for rest types) — the PLAN card's
         // meta shows this, never the day's actual RSS.
         targetRss: plannedRowRSS(todayPlan as PlannedRow),

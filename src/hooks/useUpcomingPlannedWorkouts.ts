@@ -11,8 +11,8 @@
  */
 
 import { useEffect, useState } from 'react';
-import { supabase } from '../lib/supabase';
 import { getTodayString } from '../utils/dateUtils';
+import { fetchPlannedSessions } from '../lib/calendar/readPlannedSessions';
 import { resolvePlannedWorkout } from '../data/workoutResolution';
 import type { WorkoutDefinition } from '../types/training';
 
@@ -39,25 +39,16 @@ export function useUpcomingPlannedWorkouts(userId: string | null | undefined) {
     let cancelled = false;
     setLoading(true);
     void (async () => {
-      const { data, error } = await supabase
-        .from('planned_workouts')
-        .select('*')
-        .eq('user_id', userId)
-        .gte('scheduled_date', getTodayString())
-        .eq('completed', false)
-        .order('scheduled_date', { ascending: true })
-        .limit(20);
+      const data = await fetchPlannedSessions(userId, {
+        from: getTodayString(),
+        includeCompleted: false,
+        limit: 20,
+      });
 
       if (cancelled) return;
-      if (error) {
-        console.error('Error loading upcoming planned workouts:', error);
-        setWorkouts([]);
-        setLoading(false);
-        return;
-      }
 
       const enriched: UpcomingPlannedWorkout[] = [];
-      for (const row of data ?? []) {
+      for (const row of data) {
         const resolved = resolvePlannedWorkout(row);
         if (!resolved) continue;
         enriched.push({
@@ -66,7 +57,7 @@ export function useUpcomingPlannedWorkouts(userId: string | null | undefined) {
           name: row.name ?? resolved.workout.name,
           workout: resolved.workout,
           inferred: resolved.inferred,
-          targetDurationMinutes: row.target_duration ?? row.duration_minutes ?? null,
+          targetDurationMinutes: row.target_duration ?? null,
           targetDistanceKm: row.target_distance_km ?? null,
         });
       }

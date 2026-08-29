@@ -260,11 +260,12 @@ export function useCommunity({
           .gte('start_date', weekStart.toISOString())
           .lte('start_date', weekEnd.toISOString()),
         supabase
-          .from('planned_workouts')
+          .from('calendar_entries')
           .select('id')
           .eq('user_id', userId)
-          .gte('scheduled_date', currentWeekStart)
-          .lt('scheduled_date', weekEnd.toISOString().split('T')[0]),
+          .neq('type', 'race')
+          .gte('date', currentWeekStart)
+          .lt('date', weekEnd.toISOString().split('T')[0]),
       ]);
 
       if (activitiesResult.error) {

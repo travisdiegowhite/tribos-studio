@@ -1,18 +1,20 @@
 /**
  * useActivityAutoLink
  *
- * Auto-links completed cycling activities to planned workouts scheduled on the
- * same local date. Extracted from the (now-retired) TrainingPlanner so the
- * monthly calendar can own this behavior. Operates on raw snake_case
- * `planned_workouts` rows (the shape TrainingCalendar already loads).
+ * Auto-links completed cycling activities to the calendar entry scheduled on
+ * the same local date. Extracted from the (now-retired) TrainingPlanner so the
+ * monthly calendar can own this behavior. Operates on rows in the legacy
+ * snake_case shape, which is what `fetchPlannedSessions` hands back and what
+ * TrainingCalendar already loads.
  *
- * On each match it marks the planned workout completed, writes the actual load
- * (dual-writing canonical `actual_rss` + legacy `actual_tss` per the CLAUDE.md
- * metrics-freeze policy) and fires adaptation detection.
+ * The write goes to `calendar_entries` through linkEntryToActivity. It used to
+ * go to `planned_workouts`, which no surface reads any more — so a ride would
+ * be matched and the session would still show as not-done on /train.
  */
 
 import { useEffect, useRef } from 'react';
 import { supabase } from '../lib/supabase';
+import { linkEntryToActivity } from '../lib/calendar/calendarMutations';
 import { calculateTSS, estimateTSS } from '../utils/trainingPlans';
 import { isPowerSport } from '../utils/sportType';
 import { triggerAdaptationDetection } from '../utils/adaptationTrigger';
@@ -132,21 +134,14 @@ export function useActivityAutoLink({
             ? Math.round(activity.moving_time / 60)
             : null;
 
-          const { error } = await supabase
-            .from('planned_workouts')
-            .update({
-              activity_id: activityId,
-              completed: true,
-              completed_at: new Date().toISOString(),
-              // Dual-write canonical + legacy per CLAUDE.md.
-              actual_rss: actualLoad,
-              actual_tss: actualLoad,
-              actual_duration: actualDuration,
-            })
-            .eq('id', workoutId);
+          const result = await linkEntryToActivity(userId, workoutId, {
+            activityId,
+            actualLoad,
+            actualDurationMin: actualDuration,
+          });
 
-          if (error) {
-            console.error('[useActivityAutoLink] link failed:', error.message, error.code);
+          if (!result.success) {
+            console.error('[useActivityAutoLink] link failed:', result.error);
             continue;
           }
 

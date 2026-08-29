@@ -7,6 +7,8 @@
  */
 
 import { supabase } from '../lib/supabase';
+import { fetchEntryById } from '../lib/calendar/readPlannedSessions';
+import type { PlannedWorkoutShape } from '../lib/calendar/readPlannedSessions';
 import {
   detectAdaptation,
   inferWorkoutCategory,
@@ -174,6 +176,44 @@ function toWorkoutAdaptation(db: WorkoutAdaptationDB): WorkoutAdaptation {
  *
  * This is the main entry point called from linkActivityToWorkout
  */
+/**
+ * A calendar entry in the shape adaptation detection expects.
+ *
+ * Spelled out rather than cast through `unknown`, so the three fields
+ * calendar_entries genuinely does not have are visible instead of hidden:
+ * `difficulty_rating` has no column at all, and created_at/updated_at are not
+ * selected. Nothing downstream reads any of them — detectAdaptation touches
+ * target_duration, target_rss/tss, workout_type, id and week_number, and
+ * prefers the trainingContext's week number over the row's.
+ */
+function asPlannedWorkoutDB(entry: PlannedWorkoutShape): PlannedWorkoutDB {
+  return {
+    id: entry.id,
+    plan_id: entry.plan_id ?? '',
+    week_number: entry.week_number ?? 0,
+    day_of_week: entry.day_of_week,
+    scheduled_date: entry.scheduled_date,
+    workout_type: entry.workout_type,
+    workout_id: entry.workout_id,
+    target_tss: entry.target_tss,
+    target_rss: entry.target_rss,
+    target_duration: entry.target_duration,
+    target_distance_km: entry.target_distance_km,
+    completed: entry.completed,
+    completed_at: entry.completed_at,
+    activity_id: entry.activity_id,
+    actual_tss: entry.actual_tss,
+    actual_rss: entry.actual_rss,
+    actual_duration: entry.actual_duration,
+    actual_distance_km: entry.actual_distance_km,
+    difficulty_rating: null,
+    notes: entry.notes,
+    skipped_reason: entry.skipped_reason,
+    created_at: '',
+    updated_at: '',
+  };
+}
+
 export async function triggerAdaptationDetection(
   userId: string,
   workoutId: string,
@@ -181,15 +221,14 @@ export async function triggerAdaptationDetection(
   context?: TrainingContext
 ): Promise<AdaptationTriggerResult> {
   try {
-    // Fetch the planned workout
-    const { data: workout, error: workoutError } = await supabase
-      .from('planned_workouts')
-      .select('*')
-      .eq('id', workoutId)
-      .single();
+    // Fetch the calendar entry being adapted. Scoped to the athlete as well as
+    // the id: this runs on the browser client under RLS, but the id arrives
+    // from a caller rather than from a query we made, so scoping it is the
+    // difference between "not found" and "someone else's row".
+    const workout = await fetchEntryById(userId, workoutId);
 
-    if (workoutError) {
-      throw new Error(`Failed to fetch workout: ${workoutError.message}`);
+    if (!workout) {
+      throw new Error(`Failed to fetch workout: ${workoutId} is not on this athlete's calendar`);
     }
 
     // Fetch the activity
@@ -215,7 +254,7 @@ export async function triggerAdaptationDetection(
       return await updateExistingAdaptation(
         userId,
         existingAdaptation.id,
-        workout as PlannedWorkoutDB,
+        asPlannedWorkoutDB(workout),
         activity as Activity,
         context
       );
@@ -223,7 +262,7 @@ export async function triggerAdaptationDetection(
 
     // Detect the adaptation
     const adaptationData = detectAdaptation({
-      plannedWorkout: workout as PlannedWorkoutDB,
+      plannedWorkout: asPlannedWorkoutDB(workout),
       activity: activityToSummary(activity as Activity),
       userFtp: context?.userFtp,
       trainingContext: context,

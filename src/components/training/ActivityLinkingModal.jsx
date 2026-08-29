@@ -25,6 +25,7 @@ import {
 } from '@mantine/core';
 import { notifications } from '@mantine/notifications';
 import { supabase } from '../../lib/supabase';
+import { linkEntryToActivity } from '../../lib/calendar/calendarMutations';
 import { useAuth } from '../../contexts/AuthContext';
 import {
   suggestActivityLinks,
@@ -144,24 +145,18 @@ export default function ActivityLinkingModal({
         const activity = getActivity(activityId);
         if (!activity) continue;
 
-        // Write canonical spec §2 column (actual_rss) only; matches the
-        // useTrainingPlan.linkActivityToWorkout writer flipped in §3b-2.
-        // Unlocks the §1d DROP of planned_workouts.actual_tss after backfill.
-        const { error } = await supabase
-          .from('planned_workouts')
-          .update({
-            activity_id: activityId,
-            completed: true,
-            completed_at: activity.date,
-            // Dual-write canonical + legacy per CLAUDE.md's metrics freeze.
-            actual_rss: activity.rss ?? activity.tss,
-            actual_tss: activity.rss ?? activity.tss,
-            actual_duration: activity.duration,
-            actual_distance_km: activity.distance,
-          })
-          .eq('id', workoutId);
+        // Writes calendar_entries, the table every surface now reads. The old
+        // planned_workouts update succeeded and showed the athlete nothing:
+        // they linked a ride and the session stayed un-ticked.
+        const result = await linkEntryToActivity(user.id, workoutId, {
+          activityId,
+          actualLoad: activity.rss ?? activity.tss,
+          actualDurationMin: activity.duration,
+          actualDistanceKm: activity.distance,
+          completedAt: activity.date,
+        });
 
-        if (error) throw error;
+        if (!result.success) throw new Error(result.error);
       }
 
       notifications.show({
