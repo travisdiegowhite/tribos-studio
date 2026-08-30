@@ -279,6 +279,7 @@ export default function CheckInThread({ checkInId, trainingContext = null }: Che
         autosize
         minRows={3}
         maxRows={12}
+        className="tribos-chat-input"
         rightSection={
           <ActionIcon
             size="sm"
@@ -298,8 +299,7 @@ export default function CheckInThread({ checkInId, trainingContext = null }: Che
           input: {
             borderRadius: 0,
             borderColor: 'var(--tribos-border-default)',
-            // 16px avoids iOS Safari's focus zoom on small inputs
-            fontSize: 16,
+            fontSize: 'var(--mantine-font-size-sm)',
             lineHeight: 1.5,
             paddingTop: 8,
             paddingBottom: 8,

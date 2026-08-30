@@ -8,7 +8,7 @@
  */
 
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Anchor, Box, Group, Text, TextInput } from '@mantine/core';
+import { Anchor, Box, Group, Text, Textarea } from '@mantine/core';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext.jsx';
 import { supabase } from '../../lib/supabase';
@@ -394,8 +394,9 @@ export function CoachPanel({ data, onScheduleChanged }: CoachPanelProps) {
                 </Box>
               ))}
             </Group>
-            <Group gap={8} wrap="nowrap">
-              <TextInput
+            <Group gap={8} wrap="nowrap" align="flex-end">
+              <Textarea
+                className="tribos-chat-input"
                 placeholder="Ask your coach…"
                 value={draft}
                 onChange={(e) => setDraft(e.currentTarget.value)}
@@ -406,8 +407,11 @@ export function CoachPanel({ data, onScheduleChanged }: CoachPanelProps) {
                   }
                 }}
                 disabled={typing}
+                autosize
+                minRows={2}
+                maxRows={10}
                 style={{ flex: 1 }}
-                styles={{ input: { borderRadius: 0, border: `1.5px solid ${C.border}`, fontFamily: FONT.body, fontSize: 13 } }}
+                styles={{ input: { borderRadius: 0, border: `1.5px solid ${C.border}`, fontFamily: FONT.body, fontSize: 13, lineHeight: 1.5 } }}
               />
               <Box
                 component="button"
