@@ -180,9 +180,30 @@ Single-page app with client-side routing. `ProtectedRoute` redirects unauthentic
 Vercel serverless functions in `/api`. Each file exports a default handler. Backend uses `SUPABASE_SERVICE_KEY` (service role, server-only). Frontend uses `VITE_SUPABASE_ANON_KEY` (anon role, exposed to browser).
 
 ### Cron Jobs (vercel.json)
-- `/api/garmin-token-maintenance` — every 6 hours (token refresh)
-- `/api/garmin-webhook-process` — every minute (process queued events)
-- `/api/proactive-insights-process` — every minute (generate user insights)
+
+`vercel.json` is the source of truth; this table is kept in step with it. It
+listed three of them with two wrong cadences until 2026-08-30 — both claimed
+"every minute", which also contradicted the connection-hygiene rule below that
+no cron may run more often than every 5 minutes. Nothing runs every minute.
+
+| Schedule | Path | What it does |
+|---|---|---|
+| `*/5 * * * *` | `garmin-webhook-process` | drain queued Garmin events |
+| `*/5 * * * *` | `coros-webhook-process` | drain queued COROS events |
+| `*/5 * * * *` | `cron/welcome-email` | send queued welcome emails |
+| `*/10 * * * *` | `proactive-insights-process` | generate user insights |
+| `30 * * * *` | `garmin-health-monitor` | Garmin SLI/SLO checks |
+| `45 * * * *` | `strava-health-monitor` | Strava SLI/SLO checks |
+| `0 * * * *` | `workout-preview-cron` | tomorrow's session push |
+| `0 */6 * * *` | `garmin-token-maintenance` | refresh Garmin tokens |
+| `0 */6 * * *` | `coros-token-maintenance` | refresh COROS tokens |
+| `0 2 * * *` | `recompute-user-tau?action=recompute-all` | adaptive EWMA taus |
+| `30 2 * * *` | `training-load-daily?action=rollforward` | daily load rollforward |
+| `0 3 * * *` | `database-cleanup` | prune stale rows |
+| `0 10 * * *` | `cron/activation-nudge` | onboarding nudges |
+| `0 12 * * *` | `coach-correction-trigger` | coach correction sweep |
+| `0 3 * * 1` | `fitness-snapshots?action=compute-weekly` | weekly snapshots |
+| `0 4 * * 1` | `evidence-weekly?action=compute-weekly` | weekly evidence rollup |
 
 ### TypeScript Migration
 The codebase is **gradually migrating from JavaScript to TypeScript**. New code should prefer TypeScript (`.ts`/`.tsx`) but JS files are accepted. `allowJs: true` and `checkJs: false` are set in tsconfig. Path aliases available: `@/*`, `@/types/*`, `@/components/*`, `@/utils/*`, `@/data/*`.
