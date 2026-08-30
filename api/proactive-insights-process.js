@@ -202,7 +202,12 @@ Analyze the activity data and give one specific, actionable insight in 2-3 sente
 ${buildCoachVoiceRules()}`;
 
   const response = await claude.messages.create({
-    model: 'claude-sonnet-4-5-20241022',
+    // Current model IDs are complete as-is and take NO date suffix. The ID
+    // that stood here — 'claude-sonnet-4-5-20241022' — paired a 4-5 name with
+    // a Claude 3.5-era date and never existed, so every call 404'd from the
+    // day it landed: 215 of 215 insights failed across 45 athletes, none ever
+    // produced any text. A dated suffix is the tell; don't reintroduce one.
+    model: 'claude-opus-5',
     max_tokens: 300,
     system: systemPrompt,
     messages: [{ role: 'user', content: prompt }]
