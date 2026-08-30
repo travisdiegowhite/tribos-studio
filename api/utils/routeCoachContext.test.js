@@ -1,4 +1,16 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+
+/**
+ * Today's prescription comes from calendarRead, which binds the SERVICE-ROLE
+ * singleton rather than the client collectRouteCoachContext is handed. That
+ * split is deliberate — it is why the call is mocked here rather than driven
+ * through the fake client the other reads use.
+ */
+const sessionMock = vi.hoisted(() => vi.fn());
+vi.mock('./calendarRead.js', () => ({
+  fetchSessionOn: (...a) => sessionMock(...a),
+}));
+
 import {
   buildRouteCoachSystemPrompt,
   collectRouteCoachContext,
@@ -8,6 +20,8 @@ import {
 // the collect tests never hit the network.
 beforeEach(() => {
   vi.stubEnv('OPENWEATHER_API_KEY', '');
+  sessionMock.mockReset();
+  sessionMock.mockResolvedValue(null);
 });
 afterEach(() => {
   vi.unstubAllEnvs();
@@ -178,7 +192,7 @@ describe('collectRouteCoachContext — planAware: false', () => {
     expect(ctx.fitnessState).toBeNull();
   });
 
-  it('queries both plan tables when planAware is true (default)', async () => {
+  it('reads the calendar and the load table when planAware is true (default)', async () => {
     const queriedTables = [];
     const fakeSupabase = {
       from(table) {
@@ -198,7 +212,14 @@ describe('collectRouteCoachContext — planAware: false', () => {
 
     await collectRouteCoachContext(fakeSupabase, 'user-1', ROUTE_SNAPSHOT);
 
-    expect(queriedTables).toContain('planned_workouts');
+    // The prescription comes from the calendar, and only for sessions not yet
+    // done — a ride already logged is not what to build a route around.
+    expect(sessionMock).toHaveBeenCalledWith(
+      'user-1',
+      expect.stringMatching(/^\d{4}-\d{2}-\d{2}$/),
+      { includeCompleted: false },
+    );
+    expect(queriedTables).not.toContain('planned_workouts');
     expect(queriedTables).toContain('training_load_daily');
   });
 });

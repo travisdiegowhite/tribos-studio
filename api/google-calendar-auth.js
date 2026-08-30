@@ -1,6 +1,7 @@
 // Vercel API Route: Secure Google Calendar Authentication
 // Handles OAuth token exchange, refresh, and calendar operations
 
+import { randomUUID } from 'node:crypto';
 import { getSupabaseAdmin } from './utils/supabaseAdmin.js';
 import { rateLimitMiddleware, RATE_LIMITS } from './utils/rateLimit.js';
 import { setupCors } from './utils/cors.js';
@@ -680,39 +681,31 @@ async function createCalendarEvent(req, res, { userId, workout }) {
       ? normalizedWorkoutType
       : 'endurance'; // Default to endurance if type doesn't match
 
-    // Calculate week_number and day_of_week from scheduled date
-    const schedDate = new Date(scheduledDate);
-    const dayOfWeek = schedDate.getDay(); // 0=Sunday, 6=Saturday
+    // The week_number / day_of_week computation that stood here — plus the
+    // extra training_plans round trip it needed for the plan's start date — is
+    // gone. Both were derived values stored on the row; the calendar derives
+    // them from the date, so there is nothing to keep in step.
 
-    // Get plan start date to calculate week number
-    const { data: planData } = await supabase
-      .from('training_plans')
-      .select('started_at')
-      .eq('id', activePlanId)
-      .single();
-
-    let weekNumber = 1;
-    if (planData?.started_at) {
-      const planStart = new Date(planData.started_at);
-      const daysSinceStart = Math.floor((schedDate - planStart) / (24 * 60 * 60 * 1000));
-      weekNumber = Math.max(1, Math.floor(daysSinceStart / 7) + 1);
-    }
-
-    // Save workout to planned_workouts table (this is what TrainingCalendar reads)
+    // Save to the CALENDAR — the table /train and every other surface read.
+    // week_number and day_of_week are gone with the plan ownership they
+    // encoded; the calendar derives both from the date.
     const { data: workoutRecord, error: dbError } = await supabase
-      .from('planned_workouts')
+      .from('calendar_entries')
       .insert({
-        plan_id: activePlanId,
+        id: randomUUID(),
         user_id: userId,
-        scheduled_date: scheduledDate,
-        week_number: weekNumber,
-        day_of_week: dayOfWeek,
+        plan_id: activePlanId,
+        date: scheduledDate,
+        slot: 0,
+        type: 'workout',
+        title: name,
         workout_type: dbWorkoutType,
-        target_duration: duration || 60,
-        target_tss: targetTss || null,
-        name: name,
-        notes: reason ? `Coach recommendation: ${reason}` : null,
-        completed: false
+        target_duration_min: duration || 60,
+        target_load: targetTss || null,
+        coach_rationale: reason ? `Coach recommendation: ${reason}` : null,
+        status: 'planned',
+        source: 'coach',
+        pinned: false,
       })
       .select()
       .single();

@@ -19,6 +19,7 @@ import {
   formatDateInTz,
   getDayOfWeekInTz,
 } from './contextHelpers.js';
+import { fetchPlannedSessions } from './calendarRead.js';
 
 // Re-export for fitness-summary.js's cache-key date dimension (the helper now
 // lives in contextHelpers.js so checkInContext.js can share it).
@@ -79,14 +80,18 @@ export async function assembleFitnessContext(userId, supabase, clientMetrics, op
   const computedWeek = primaryPlan ? deriveCurrentWeek(primaryPlan, today) : null;
 
   // Run all queries in parallel
+  // Three of these used to be plan-scoped (`plan_id IN (...)`), which meant a
+  // coach- or calendar-created session was invisible to the coach's own fitness
+  // context, and an athlete with no active plan had an empty week and no
+  // upcoming sessions at all. They are athlete-scoped now, and unconditional.
   const [
     activitiesResult,
     weekActivitiesResult,
-    weekPlannedResult,
+    weekPlanned,
     coachResult,
-    upcomingWorkoutsResult,
+    upcomingWorkouts,
     profileResult,
-    weekScheduleResult,
+    weekScheduleRawRows,
     raceGoalResult,
     healthResult,
   ] = await Promise.all([
@@ -107,16 +112,11 @@ export async function assembleFitnessContext(userId, supabase, clientMetrics, op
       .is('duplicate_of', null)
       .gte('start_date', weekStart.toISOString()),
 
-    // 3. This week's planned workouts (full Mon-Sun, excl. rest days — matches Dashboard)
-    planIds.length > 0
-      ? supabase
-          .from('planned_workouts')
-          .select('id, scheduled_date, completed')
-          .in('plan_id', planIds)
-          .gte('scheduled_date', weekStartStr)
-          .lt('scheduled_date', weekEndStr)
-          .gt('target_tss', 0)
-      : Promise.resolve({ data: [] }),
+    // 3. This week's planned sessions (full Mon-Sun, load-bearing ones only —
+    //    matches the Dashboard's count). weekEndStr stays EXCLUSIVE.
+    fetchPlannedSessions(userId, { from: weekStartStr, to: weekEndStr }).then((rows) =>
+      rows.filter((w) => w.scheduled_date < weekEndStr && (w.target_rss ?? 0) > 0),
+    ),
 
     // 4. Last 6 coach messages (3 exchanges)
     supabase
@@ -126,18 +126,16 @@ export async function assembleFitnessContext(userId, supabase, clientMetrics, op
       .order('timestamp', { ascending: false })
       .limit(6),
 
-    // 5. Upcoming key workouts (next 7 days, high TSS or specific types)
-    planIds.length > 0
-      ? supabase
-          .from('planned_workouts')
-          .select('scheduled_date, workout_type, target_tss')
-          .in('plan_id', planIds)
-          .gte('scheduled_date', today)
-          .lte('scheduled_date', sevenDaysOutStr)
-          .eq('completed', false)
-          .order('target_tss', { ascending: false })
-          .limit(3)
-      : Promise.resolve({ data: [] }),
+    // 5. Upcoming key sessions (next 7 days). Ordered by load in JS rather than
+    //    SQL because the reader's own ordering is by date, and "key" means the
+    //    three biggest days regardless of when they fall.
+    fetchPlannedSessions(userId, {
+      from: today,
+      to: sevenDaysOutStr,
+      includeCompleted: false,
+    }).then((rows) =>
+      [...rows].sort((a, b) => (b.target_rss ?? 0) - (a.target_rss ?? 0)).slice(0, 3),
+    ),
 
     // 6. Athlete profile
     supabase
@@ -146,17 +144,15 @@ export async function assembleFitnessContext(userId, supabase, clientMetrics, op
       .eq('id', userId)
       .single(),
 
-    // 7. Full week schedule with workout names (for the primary plan's current
-    // calendar week). Filter by scheduled_date, NOT week_number — week_number
-    // stamps are unreliable (coach-inserted rows are stamped 1 regardless of date).
-    primaryPlan
-      ? supabase
-          .from('planned_workouts')
-          .select('id, day_of_week, scheduled_date, name, workout_type, target_tss, actual_tss, completed, activity_id')
-          .eq('plan_id', primaryPlan.id)
-          .gte('scheduled_date', weekStartStr)
-          .lt('scheduled_date', weekEndStr)
-      : Promise.resolve({ data: [] }),
+    // 7. The full current week with session names. Filtered by date, never by
+    //    week_number — those stamps were unreliable (coach-inserted rows were
+    //    stamped 1 regardless of date), which is why the calendar derives the
+    //    week from the date instead of storing it.
+    fetchPlannedSessions(userId, {
+      from: weekStartStr,
+      to: weekEndStr,
+      planStart: primaryPlan?.start_date ?? primaryPlan?.started_at ?? null,
+    }).then((rows) => rows.filter((w) => w.scheduled_date < weekEndStr)),
 
     // 8. Upcoming race goal (highest priority)
     supabase
@@ -181,11 +177,11 @@ export async function assembleFitnessContext(userId, supabase, clientMetrics, op
 
   const activities = activitiesResult.data || [];
   const weekActivities = weekActivitiesResult.data || [];
-  const weekPlanned = weekPlannedResult.data || [];
+  // Already filtered to load-bearing sessions in this week above.
   const coachMsgs = coachResult.data || [];
-  const upcomingWorkouts = upcomingWorkoutsResult.data || [];
+  // Already narrowed to the three biggest days above.
   const profile = profileResult.data || {};
-  const weekScheduleRaw = weekScheduleResult.data || [];
+  const weekScheduleRaw = weekScheduleRawRows || [];
   const raceGoal = raceGoalResult.data || null;
   const healthData = healthResult.data || null;
 

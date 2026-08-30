@@ -15,6 +15,7 @@
 
 import { supabase } from '../../lib/supabase';
 import { resolveActivePlan } from '../../utils/activePlan';
+import { fetchSessionOn } from '../../lib/calendar/readPlannedSessions';
 import { getPlanTemplate } from '../../data/trainingPlanTemplates';
 import { PERSONAS } from '../../data/coachingPersonas';
 import { decodePolyline } from '../today/shared/decodePolyline';
@@ -133,22 +134,16 @@ export async function getTodayShell(userId: string): Promise<Today> {
   const activePlan = planRes;
   let prescription: TodayPrescription | null = null;
   {
-    // User-scoped: today's workout from any plan/source, not just the active plan.
-    const { data: workoutRow } = await supabase
-      .from('planned_workouts')
-      .select('id, name, workout_type, duration_minutes, target_duration, target_rss, target_tss')
-      .eq('user_id', userId)
-      .eq('scheduled_date', today)
-      .order('plan_id', { ascending: true, nullsFirst: false })
-      .limit(1)
-      .maybeSingle();
+    // User-scoped: today's session from the calendar, not from a plan. Races
+    // are excluded — this block is the training prescription, and a race day
+    // is handled by the goal section rather than prescribed as a workout.
+    const workoutRow = await fetchSessionOn(userId, today);
     if (workoutRow) {
       const type = (workoutRow.workout_type as string) || 'endurance';
       prescription = {
         type,
         title: (workoutRow.name as string) || (workoutRow.workout_type as string) || 'Workout',
         durationMin:
-          (workoutRow.duration_minutes as number) ||
           (workoutRow.target_duration as number) ||
           0,
         // Canonical-first: target_rss ?? target_tss.

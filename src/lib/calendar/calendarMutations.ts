@@ -125,6 +125,96 @@ export async function createEntry(
   }
 }
 
+/**
+ * Write a whole plan's worth of sessions in one round trip.
+ *
+ * Every plan-activation path used to build a `planned_workouts` row array by
+ * hand — plan_id, week_number, day_of_week, duration_minutes, target_tss,
+ * completed — and insert it. Six copies of the same mapping, each with its own
+ * drift. This is the one place a template becomes calendar entries.
+ *
+ * NON-DESTRUCTIVE, like the coach's generate_block: a day that already holds an
+ * entry is SKIPPED, not stacked on and not overwritten. Activating a plan over
+ * a calendar the athlete has already shaped therefore fills the gaps rather
+ * than burying their work, and re-running an activation is safe. Skips are
+ * counted so the caller can say what it did.
+ *
+ * UNPINNED, because a generator wrote them. Pinning is the athlete's act; see
+ * updateEntry and the note at the top of this file.
+ *
+ * The plan lands in `plan_id` as PROVENANCE. Nothing reads an entry through its
+ * plan any more, and nothing should: that ownership is what made a December
+ * race unschedulable.
+ */
+export async function insertSessions(
+  userId: string,
+  drafts: Array<EntryDraft & { date: string }>,
+  options: { source?: string; planId?: string | null; generationId?: string | null } = {},
+): Promise<MutationResult<{ inserted: number; skipped: number }>> {
+  if (!userId) return { success: false, error: 'Not signed in' };
+  const usable = (drafts ?? []).filter((d) => d?.title?.trim() && toDateKey(d.date));
+  if (usable.length === 0) return { success: true, data: { inserted: 0, skipped: 0 } };
+
+  const dateKeys = usable.map((d) => toDateKey(d.date) as string);
+  const from = dateKeys.reduce((a, b) => (b < a ? b : a));
+  const to = dateKeys.reduce((a, b) => (b > a ? b : a));
+
+  try {
+    const { data: existing, error: readError } = await supabase
+      .from('calendar_entries')
+      .select('date')
+      .eq('user_id', userId)
+      .gte('date', from)
+      .lte('date', to);
+    if (readError) throw readError;
+
+    const occupied = new Set((existing ?? []).map((r) => r.date as string));
+    const rows: Array<Record<string, unknown>> = [];
+    let skipped = 0;
+
+    for (const draft of usable) {
+      const dateKey = toDateKey(draft.date) as string;
+      if (occupied.has(dateKey)) {
+        skipped += 1;
+        continue;
+      }
+      // Claim the day so two drafts on the same date cannot collide on slot 0.
+      occupied.add(dateKey);
+      rows.push({
+        id: crypto.randomUUID(),
+        user_id: userId,
+        date: dateKey,
+        slot: 0,
+        type: draft.type ?? 'workout',
+        title: draft.title.trim(),
+        workout_id: draft.workout_id ?? null,
+        workout_type: draft.workout_type ?? null,
+        target_load: draft.target_load ?? null,
+        target_duration_min: draft.target_duration_min ?? null,
+        target_distance_km: draft.target_distance_km ?? null,
+        notes: draft.notes ?? null,
+        coach_rationale: draft.coach_rationale ?? null,
+        details: draft.details ?? null,
+        status: 'planned',
+        source: options.source ?? draft.source ?? 'plan',
+        plan_id: options.planId ?? draft.plan_id ?? null,
+        generation_id: options.generationId ?? draft.generation_id ?? null,
+        pinned: false,
+      });
+    }
+
+    if (rows.length > 0) {
+      const { error } = await supabase.from('calendar_entries').insert(rows);
+      if (error) throw error;
+    }
+    return { success: true, data: { inserted: rows.length, skipped } };
+  } catch (err) {
+    const message = (err as Error)?.message ?? 'Could not write the plan to the calendar';
+    console.error('insertSessions failed', message);
+    return { success: false, error: message };
+  }
+}
+
 /** Edit an entry in place. Any athlete edit pins it. */
 export async function updateEntry(
   userId: string,
@@ -303,6 +393,178 @@ export async function deleteEntry(userId: string, entryId: string): Promise<Muta
   } catch (err) {
     const message = (err as Error)?.message ?? 'Could not remove the entry';
     console.error('deleteEntry failed', message);
+    return { success: false, error: message };
+  }
+}
+
+/**
+ * Put one session on a day, replacing whatever session is already there.
+ *
+ * The successor to `.upsert(..., { onConflict: 'plan_id,scheduled_date' })`,
+ * which several coach paths used to mean "this day now holds this workout".
+ * That conflict target no longer exists — an entry's identity is
+ * `(user_id, date, slot)` and it need not belong to a plan at all — so the
+ * read-then-write is explicit here instead of implied by an index.
+ *
+ * A RACE on the day is never touched or replaced. Races and training coexist,
+ * which is exactly what generate_block relies on when it fills a season in
+ * around a race calendar.
+ *
+ * @returns the entry, plus the name of the session it displaced if any, so the
+ *   caller can say "replaced X" rather than guessing.
+ */
+export async function upsertSessionOnDate(
+  userId: string,
+  date: string,
+  draft: EntryDraft,
+  options: { planId?: string | null; generationId?: string | null } = {},
+): Promise<MutationResult & { replacedName?: string | null }> {
+  const dateKey = toDateKey(date);
+  if (!userId) return fail('Not signed in');
+  if (!dateKey) return fail('A valid date is required');
+  if (!draft?.title?.trim()) return fail('A title is required');
+
+  try {
+    const { data: onDay, error: readError } = await supabase
+      .from('calendar_entries')
+      .select('id, title, type, pinned')
+      .eq('user_id', userId)
+      .eq('date', dateKey)
+      .neq('type', 'race')
+      .order('slot', { ascending: true });
+    if (readError) throw readError;
+
+    const existing = (onDay ?? [])[0] ?? null;
+    if (existing) {
+      const result = await updateEntry(userId, existing.id as string, {
+        ...draft,
+        plan_id: options.planId ?? draft.plan_id ?? null,
+      });
+      return { ...result, replacedName: (existing.title as string) ?? null };
+    }
+
+    const created = await createEntry(userId, dateKey, {
+      ...draft,
+      plan_id: options.planId ?? draft.plan_id ?? null,
+      generation_id: options.generationId ?? draft.generation_id ?? null,
+    });
+    return { ...created, replacedName: null };
+  } catch (err) {
+    const message = (err as Error)?.message ?? 'Could not schedule that session';
+    console.error('upsertSessionOnDate failed', message);
+    return fail(message);
+  }
+}
+
+/**
+ * Link a completed activity to the entry it satisfies.
+ *
+ * One call rather than setEntryStatus plus an update, because the four things
+ * it writes are one fact: this ride happened, it was this session, and here is
+ * what it actually cost. Splitting them is how `completed`, `status` and
+ * `completed_at` drifted apart on the old table.
+ *
+ * PINS the entry. A session backed by a real ride is not something a generator
+ * or the coach may silently reshape — and adjudicateOps already treats a done
+ * entry as needing the athlete.
+ */
+export async function linkEntryToActivity(
+  userId: string,
+  entryId: string,
+  link: {
+    activityId: string;
+    actualLoad?: number | null;
+    actualDurationMin?: number | null;
+    actualDistanceKm?: number | null;
+    /** When the ride happened. Defaults to now. */
+    completedAt?: string | null;
+  },
+): Promise<MutationResult> {
+  if (!userId) return fail('Not signed in');
+  if (!entryId) return fail('Missing entry');
+  if (!link?.activityId) return fail('Missing activity');
+
+  try {
+    const { data, error } = await supabase
+      .from('calendar_entries')
+      .update({
+        activity_id: link.activityId,
+        status: 'done',
+        completed_at: link.completedAt ?? new Date().toISOString(),
+        actual_load: link.actualLoad ?? null,
+        actual_duration_min: link.actualDurationMin ?? null,
+        actual_distance_km: link.actualDistanceKm ?? null,
+        skipped_reason: null,
+        pinned: true,
+      })
+      .eq('id', entryId)
+      .eq('user_id', userId)
+      .select()
+      .single();
+
+    if (error) throw error;
+    return { success: true, data: data as CalendarEntryRow };
+  } catch (err) {
+    const message = (err as Error)?.message ?? 'Could not link the activity';
+    console.error('linkEntryToActivity failed', message);
+    return fail(message);
+  }
+}
+
+/**
+ * Count, then remove, every not-yet-done entry from a date forward.
+ *
+ * The "clear my calendar" escape hatch. Deliberately two functions rather than
+ * a delete that reports its own count: the athlete is shown the number BEFORE
+ * confirming, and a count computed by a different query than the delete would
+ * be a lie waiting to happen — so `countUpcomingClearable` and
+ * `clearUpcomingEntries` share one predicate, defined once below.
+ *
+ * Completed sessions and past days are never touched: they are history, and
+ * the load distribution TFI/AFI derive from is built on them.
+ */
+function clearableFrom(fromDate: string) {
+  return supabase
+    .from('calendar_entries')
+    .select('id', { count: 'exact', head: true })
+    .gte('date', fromDate)
+    .neq('status', 'done');
+}
+
+export async function countUpcomingClearable(
+  userId: string,
+  fromDate: string,
+): Promise<number> {
+  if (!userId) return 0;
+  const { count, error } = await clearableFrom(fromDate).eq('user_id', userId);
+  if (error) {
+    console.error('countUpcomingClearable failed', error.message);
+    return 0;
+  }
+  return count ?? 0;
+}
+
+export async function clearUpcomingEntries(
+  userId: string,
+  fromDate: string,
+): Promise<MutationResult<null>> {
+  if (!userId) return { success: false, error: 'Not signed in' };
+  const dateKey = toDateKey(fromDate);
+  if (!dateKey) return { success: false, error: 'A valid date is required' };
+
+  try {
+    const { error } = await supabase
+      .from('calendar_entries')
+      .delete()
+      .eq('user_id', userId)
+      .gte('date', dateKey)
+      .neq('status', 'done');
+
+    if (error) throw error;
+    return { success: true, data: null };
+  } catch (err) {
+    const message = (err as Error)?.message ?? 'Could not clear the calendar';
+    console.error('clearUpcomingEntries failed', message);
     return { success: false, error: message };
   }
 }

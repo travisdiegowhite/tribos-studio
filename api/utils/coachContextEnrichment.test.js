@@ -1,5 +1,24 @@
-import { describe, it, expect, vi } from 'vitest';
-import { fetchCoachEnrichmentData, buildCoachEnrichmentBlock } from './coachContextEnrichment.js';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
+
+/**
+ * The week's sessions come from calendarRead, which binds the SERVICE-ROLE
+ * singleton rather than the client fetchCoachEnrichmentData is handed. The
+ * activities and load reads still go through that client, so both halves are
+ * exercised: the stub for those, this mock for the calendar.
+ */
+const sessionsMock = vi.hoisted(() => vi.fn());
+vi.mock('./calendarRead.js', () => ({
+  fetchPlannedSessions: (...a) => sessionsMock(...a),
+}));
+
+const { fetchCoachEnrichmentData, buildCoachEnrichmentBlock } = await import(
+  './coachContextEnrichment.js'
+);
+
+beforeEach(() => {
+  sessionsMock.mockReset();
+  sessionsMock.mockResolvedValue([]);
+});
 
 // Wednesday 2026-07-22 18:00 UTC = Wed Jul 22 12:00 in America/Denver.
 // The local Mon–Sun week is Jul 20 – Jul 26.
@@ -322,14 +341,25 @@ describe('fetchCoachEnrichmentData', () => {
     return { stub, queried };
   }
 
-  it('queries activities, training_load_daily, and planned_workouts', async () => {
+  it('reads activities and load from the passed client, and the week from the CALENDAR', async () => {
     const { stub, queried } = makeStub({
       activities: { data: [ride()], error: null },
       training_load_daily: { data: { date: '2026-07-21', tfi: 62 }, error: null },
-      planned_workouts: { data: [workout()], error: null },
     });
+    sessionsMock.mockResolvedValue([workout()]);
+
     const result = await fetchCoachEnrichmentData(stub, 'user-1');
-    expect(queried).toEqual(expect.arrayContaining(['activities', 'training_load_daily', 'planned_workouts']));
+
+    expect(queried).toEqual(expect.arrayContaining(['activities', 'training_load_daily']));
+    // This block has been broken twice: once selecting a planned_workouts
+    // column that did not exist (silently losing the athlete's schedule on
+    // every coach call), and once reading a table the calendar no longer is.
+    expect(queried).not.toContain('planned_workouts');
+    expect(sessionsMock).toHaveBeenCalledWith('user-1', expect.objectContaining({
+      from: expect.stringMatching(/^\d{4}-\d{2}-\d{2}$/),
+      to: expect.stringMatching(/^\d{4}-\d{2}-\d{2}$/),
+    }));
+
     expect(result.recentActivities).toHaveLength(1);
     expect(result.latestLoad.tfi).toBe(62);
     expect(result.weekPlanned).toHaveLength(1);

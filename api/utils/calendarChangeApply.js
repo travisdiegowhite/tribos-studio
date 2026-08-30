@@ -175,6 +175,10 @@ async function occupiedDatesIn(supabase, userId, fromKey, toKey) {
  * @param {Array}  resolved  From validateOps: ops with `.entry` attached.
  * @param {object} [opts]
  * @param {string} [opts.source='coach']  Provenance stamp on created rows.
+ * @param {boolean} [opts.pin=false]  Whether this run represents a HUMAN
+ *   decision about the entries it changes, and should therefore pin them.
+ *   False for a coach change the server applied on its own authority; true
+ *   only when the athlete approved a proposal.
  * @returns {Promise<{success: boolean, applied: number, failed: number,
  *                    results: Array, undo: Array, error?: string}>}
  */
@@ -183,6 +187,7 @@ export async function applyCalendarOps(userId, resolved, opts = {}) {
 
   const supabase = getSupabaseAdmin();
   const source = opts.source || 'coach';
+  const pin = opts.pin === true;
   const results = [];
   const undo = [];
 
@@ -312,12 +317,25 @@ export async function applyCalendarOps(userId, resolved, opts = {}) {
         patch = draftFrom(op);
       }
 
-      // An approved coach change is a human decision about this entry, so it
-      // pins — same contract as an athlete edit. Creates above deliberately
-      // do not.
+      // PINNING IS A HUMAN ACT. This used to set pinned:true on every write,
+      // which made the coach pin whatever it touched — so its own next edit to
+      // the same entry hit adjudicateOps' `pinned` branch and was queued for
+      // approval. One unremarkable coach change was enough to make every
+      // subsequent one need a tap. That is how the weekend swap ended up in a
+      // proposal queue.
+      //
+      // `pinned` means the ATHLETE decided about this entry: they edited it on
+      // /train, or they approved a proposal that changed it. A change the
+      // server applied on the coach's own authority is neither, so it leaves
+      // the flag exactly as it found it — including leaving an athlete's
+      // existing pin intact, since an unpin is a decision too.
       const { error } = await supabase
         .from('calendar_entries')
-        .update({ ...patch, coach_rationale: op.reason ?? entry.coach_rationale ?? null, pinned: true })
+        .update({
+          ...patch,
+          coach_rationale: op.reason ?? entry.coach_rationale ?? null,
+          ...(pin ? { pinned: true } : {}),
+        })
         .eq('user_id', userId)
         .eq('id', entry.id);
       if (error) throw error;

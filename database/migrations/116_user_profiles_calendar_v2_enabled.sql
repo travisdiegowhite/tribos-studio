@@ -1,4 +1,23 @@
 -- ============================================================================
+-- SUPERSEDED 2026-08-29 — THE GATE THIS COLUMN SERVED NO LONGER EXISTS.
+--
+-- /train IS the calendar_entries calendar now, for every athlete, and the
+-- parallel /calendar surface, its route, its guard, `useCalendarV2Access` and
+-- the VITE_CALENDAR_V2_ENABLED env flag are all deleted. Nothing reads this
+-- column: `grep -rn "calendar_v2_enabled" src/ api/` returns only the comment
+-- in api/coach.js explaining what the flag used to be.
+--
+-- The column is KEPT under the same "wait and watch" policy that governs
+-- user_profiles.route_builder_v2_enabled (see CLAUDE.md). Do not add new
+-- readers or writers, and do not drop it without explicit approval.
+--
+-- The gate was not a mistake — it is what made the rebuild survivable. It
+-- became wrong the moment /train's reads were repointed for everyone without
+-- being gated too: from then on it was the LEGACY writers that wrote where
+-- nobody looks, so the flag protected exactly the wrong side.
+-- ============================================================================
+
+-- ============================================================================
 -- Migration 116: user_profiles.calendar_v2_enabled
 --
 -- Per-user gate for the rebuilt calendar at /calendar, which reads and writes

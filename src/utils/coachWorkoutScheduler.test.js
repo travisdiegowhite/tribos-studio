@@ -1,4 +1,4 @@
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 // getWorkoutById returns a known workout for one id, null otherwise (so we can
 // exercise both the library-backed and recommendation-fallback paths).
@@ -9,7 +9,29 @@ vi.mock('../data/workoutLibrary', () => ({
       : null,
 }));
 
+/**
+ * The calendar write goes through upsertSessionOnDate now, which binds the
+ * browser Supabase singleton rather than the client this function is handed.
+ * That split is deliberate — plan resolution is still done with the passed
+ * client, so both are exercised: the stub for the plan lookup, this mock for
+ * the write.
+ */
+const upsertMock = vi.hoisted(() => vi.fn());
+vi.mock('../lib/calendar/calendarMutations', () => ({
+  upsertSessionOnDate: (...a) => upsertMock(...a),
+}));
+
 import { scheduleCoachWorkout } from './coachWorkoutScheduler';
+
+beforeEach(() => {
+  upsertMock.mockReset();
+  upsertMock.mockResolvedValue({ success: true, data: { id: 'entry-1' }, replacedName: null });
+});
+
+/** The draft handed to the calendar on the Nth write. */
+const written = (n = 0) => upsertMock.mock.calls[n][2];
+/** The options (planId) handed to the calendar on the Nth write. */
+const writeOpts = (n = 0) => upsertMock.mock.calls[n][3];
 
 // Minimal controllable Supabase stub. `activePlan` decides whether the
 // training_plans lookup finds a plan; inserts/upserts are captured for asserts.
@@ -66,14 +88,12 @@ describe('scheduleCoachWorkout', () => {
     expect(planInsert).toBeTruthy();
     expect(planInsert.payload.template_id).toBe('coach_recommended');
 
-    // The workout upsert dual-writes both load columns from the library targetTSS.
-    expect(calls.upserts).toHaveLength(1);
-    const w = calls.upserts[0].payload;
-    expect(w.target_rss).toBe(75);
-    expect(w.target_tss).toBe(75);
-    expect(w.workout_type).toBe('sweet_spot');
-    expect(w.plan_id).toBe('plan-created');
-    expect(w.scheduled_date).toBe('2026-07-01');
+    // The calendar has ONE load column, so the dual-write the old table needed
+    // does not arise; readers still see both names via the adapter.
+    expect(upsertMock).toHaveBeenCalledTimes(1);
+    expect(written()).toMatchObject({ target_load: 75, workout_type: 'sweet_spot' });
+    expect(upsertMock.mock.calls[0][1]).toBe('2026-07-01');
+    expect(writeOpts()).toMatchObject({ planId: 'plan-created' });
   });
 
   it('uses the existing active plan without creating a new one', async () => {
@@ -86,7 +106,7 @@ describe('scheduleCoachWorkout', () => {
 
     expect(result.success).toBe(true);
     expect(calls.inserts.find((c) => c.table === 'training_plans')).toBeUndefined();
-    expect(calls.upserts[0].payload.plan_id).toBe('plan-1');
+    expect(writeOpts()).toMatchObject({ planId: 'plan-1' });
   });
 
   it('resolves the active plan by the canonical sort (started_at, then created_at)', async () => {
@@ -113,10 +133,7 @@ describe('scheduleCoachWorkout', () => {
     });
 
     expect(result.success).toBe(true);
-    const w = calls.upserts[0].payload;
-    expect(w.target_rss).toBe(50);
-    expect(w.target_tss).toBe(50);
-    expect(w.workout_type).toBe('endurance');
+    expect(written()).toMatchObject({ target_load: 50, workout_type: 'endurance' });
   });
 
   it('returns a failure result instead of throwing on missing input', async () => {

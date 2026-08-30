@@ -16,6 +16,8 @@
  */
 
 import { getSupabaseAdmin } from './utils/supabaseAdmin.js';
+import { fetchEntryById } from './utils/calendarRead.js';
+import { updateEntry, createEntry } from './utils/calendarWrite.js';
 import { setupCors } from './utils/cors.js';
 
 const supabase = getSupabaseAdmin();
@@ -124,89 +126,73 @@ export default async function handler(req, res) {
 async function applyModification(mod, userId) {
   const { planned_workout_id, op, delta_minutes, new_type, new_rss } = mod;
 
-  // Verify the workout belongs to this user and is not yet completed
-  const { data: workout, error: fetchError } = await supabase
-    .from('planned_workouts')
-    .select('id, plan_id, scheduled_date, workout_type, name, target_duration, target_tss, target_rss, completed')
-    .eq('id', planned_workout_id)
-    .eq('user_id', userId)
-    .maybeSingle();
+  // Verify the entry belongs to this athlete and is not yet completed.
+  // fetchEntryById scopes to the user, which on the service-role client is the
+  // whole check rather than a second one.
+  const workout = await fetchEntryById(userId, planned_workout_id);
 
-  if (fetchError || !workout) {
-    return { success: false, error: 'Workout not found or already belongs to another user' };
+  if (!workout) {
+    return { success: false, error: 'Session not found on this athlete\'s calendar' };
   }
   if (workout.completed) {
     return { success: false, error: 'Workout already completed — cannot modify' };
   }
 
-  const now = new Date().toISOString();
-  let updates = { updated_at: now };
+  // The calendar has ONE load column and ONE duration column, so the
+  // canonical/legacy pairs the old table needed collapse to a single field
+  // each. `updated_at` is maintained by a trigger, not written here.
+  const updates = {};
 
   switch (op) {
     case 'skip': {
+      updates.type = 'rest';
       updates.workout_type = 'rest';
-      updates.name = 'Rest Day (coach adjustment)';
-      updates.target_rss = 0;
-      updates.target_tss = 0;
-      updates.target_duration = 0;
+      updates.title = 'Rest Day (coach adjustment)';
+      updates.target_load = 0;
+      updates.target_duration_min = 0;
       break;
     }
     case 'extend': {
       const addMinutes = Math.abs(delta_minutes || 0);
-      updates.target_duration = (workout.target_duration || workout.duration_minutes || 60) + addMinutes;
-      if (new_rss != null) {
-        updates.target_rss = new_rss;
-        updates.target_tss = new_rss;
-      }
+      updates.target_duration_min = (workout.target_duration || 60) + addMinutes;
+      if (new_rss != null) updates.target_load = new_rss;
       break;
     }
     case 'reduce': {
       const removeMinutes = Math.abs(delta_minutes || 0);
-      updates.target_duration = Math.max(
-        15,
-        (workout.target_duration || workout.duration_minutes || 60) - removeMinutes
-      );
-      if (new_rss != null) {
-        updates.target_rss = new_rss;
-        updates.target_tss = new_rss;
-      }
+      updates.target_duration_min = Math.max(15, (workout.target_duration || 60) - removeMinutes);
+      if (new_rss != null) updates.target_load = new_rss;
       break;
     }
     case 'swap': {
       if (new_type) updates.workout_type = new_type;
-      if (new_rss != null) {
-        updates.target_rss = new_rss;
-        updates.target_tss = new_rss;
-      }
+      if (new_rss != null) updates.target_load = new_rss;
       break;
     }
     case 'add': {
-      // 'add' inserts a new workout; the modification must have new_type and scheduled_date
-      // We insert rather than update the existing row
+      // 'add' creates a new entry rather than changing the one addressed.
+      // createEntry allocates the slot, so an added session stacks onto an
+      // occupied day instead of colliding with it — which is what a double day
+      // is, and the only sensible reading of "add a session on that date".
       const insertedRss = new_rss || 50;
-      const { error: insertError } = await supabase
-        .from('planned_workouts')
-        .insert({
-          user_id: userId,
-          plan_id: workout.plan_id,
-          scheduled_date: mod.scheduled_date || workout.scheduled_date,
+      const created = await createEntry(
+        userId,
+        mod.scheduled_date || workout.scheduled_date,
+        {
+          type: 'workout',
+          title: new_type ? `Coach Added — ${new_type}` : 'Coach Added Session',
           workout_type: new_type || 'endurance',
-          name: new_type ? `Coach Added — ${new_type}` : 'Coach Added Session',
-          target_rss: insertedRss,
-          target_tss: insertedRss,
-          target_duration: delta_minutes || 60,
-          completed: false,
-        });
-      return { success: !insertError, error: insertError?.message };
+          target_load: insertedRss,
+          target_duration_min: delta_minutes || 60,
+        },
+        { source: 'coach', planId: workout.plan_id },
+      );
+      return { success: created.success, error: created.error };
     }
     default:
       return { success: false, error: `Unknown op: ${op}` };
   }
 
-  const { error: updateError } = await supabase
-    .from('planned_workouts')
-    .update(updates)
-    .eq('id', planned_workout_id);
-
-  return { success: !updateError, error: updateError?.message };
+  const result = await updateEntry(userId, planned_workout_id, updates);
+  return { success: result.success, error: result.error };
 }

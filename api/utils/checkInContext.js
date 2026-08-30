@@ -17,6 +17,7 @@ import {
   formatHealth,
   fetchProprietaryMetrics,
 } from './contextHelpers.js';
+import { fetchPlannedSessions, fetchEntryById, fetchEntryByActivityId } from './calendarRead.js';
 
 /**
  * Build a map of workout_id → annotation string from recent accepted decisions.
@@ -142,35 +143,27 @@ function getActivityLocalDate(activity, userTimezone) {
  */
 export async function resolvePlannedWorkoutForActivity(supabase, userId, activity, userTimezone) {
   if (!activity) return null;
-  const workoutSelect = 'id, name, workout_type, target_rss, target_tss, target_duration';
 
   if (activity.matched_planned_workout_id) {
-    const { data } = await supabase
-      .from('planned_workouts')
-      .select(workoutSelect)
-      .eq('id', activity.matched_planned_workout_id)
-      .maybeSingle();
-    if (data) return data;
+    const entry = await fetchEntryById(userId, activity.matched_planned_workout_id);
+    if (entry) return entry;
   }
 
   if (activity.id) {
-    const { data } = await supabase
-      .from('planned_workouts')
-      .select(workoutSelect)
-      .eq('activity_id', activity.id)
-      .limit(1);
-    if (data && data.length > 0) return data[0];
+    const entry = await fetchEntryByActivityId(userId, activity.id);
+    if (entry) return entry;
   }
 
   const localDate = getActivityLocalDate(activity, userTimezone);
   if (localDate) {
-    const { data: sameDay } = await supabase
-      .from('planned_workouts')
-      .select(workoutSelect + ', completed, activity_id, scheduled_date')
-      .eq('user_id', userId)
-      .eq('scheduled_date', localDate)
-      .neq('workout_type', 'rest');
-    if (sameDay && sameDay.length > 0) {
+    // Rest days and races are both excluded: neither is a session a ride
+    // fulfils, and a race day is handled by the race path.
+    const sameDay = await fetchPlannedSessions(userId, {
+      from: localDate,
+      to: localDate,
+      types: ['workout'],
+    });
+    if (sameDay.length > 0) {
       return (
         sameDay.find((w) => w.activity_id === activity.id) ||
         sameDay.find((w) => w.completed || w.activity_id) ||
@@ -315,21 +308,17 @@ export async function assembleCheckInContext(supabase, userId, activityId) {
   // Get week schedule (planned workouts for the current calendar week).
   // Filter by scheduled_date, NOT week_number — week_number stamps are
   // unreliable (coach-inserted rows are stamped 1 regardless of date).
-  let weekScheduleRaw = [];
-  if (plan) {
-    const { weekStartStr, weekEndStr } = weekBoundsInTz(new Date(), userTimezone);
-    const { data: weekWorkouts } = await supabase
-      .from('planned_workouts')
-      .select(`
-        id, day_of_week, scheduled_date, name, workout_type,
-        target_tss, actual_tss, completed, activity_id
-      `)
-      .eq('plan_id', plan.id)
-      .gte('scheduled_date', weekStartStr)
-      .lt('scheduled_date', weekEndStr);
-
-    weekScheduleRaw = weekWorkouts || [];
-  }
+  //
+  // ATHLETE-scoped and no longer conditional on a plan. It used to require one
+  // and filter on `plan_id = plan.id`, so a coach- or calendar-created session
+  // — which carries no plan_id — was missing from the week the coach describes
+  // back to the athlete, and an athlete with no plan got an empty week.
+  //
+  // weekEndStr stays EXCLUSIVE, matching the old .lt().
+  const { weekStartStr, weekEndStr } = weekBoundsInTz(new Date(), userTimezone);
+  const weekScheduleRaw = (
+    await fetchPlannedSessions(userId, { from: weekStartStr, to: weekEndStr })
+  ).filter((w) => w.scheduled_date < weekEndStr);
 
   // Derive phase — blocks-first for arc plans, week-ratio heuristic as fallback.
   const phase = plan

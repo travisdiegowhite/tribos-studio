@@ -40,6 +40,7 @@ import { formatDistance, formatElevation, formatSpeed } from '../utils/units';
 import { createGradientRoute, GRADE_COLORS } from '../utils/routeGradient';
 import { fetchRouteSurfaceData, createSurfaceRoute, computeSurfaceDistribution, SURFACE_COLORS, SURFACE_LABELS } from '../utils/surfaceOverlay';
 import { supabase } from '../lib/supabase';
+import { fetchPlannedSessions } from '../lib/calendar/readPlannedSessions';
 import { decodePolyline } from '../utils/activityRouteAnalyzer';
 import { useRouteBuilderStore, useRouteBuilderHydrated } from '../stores/routeBuilderStore';
 import { M_TO_KM, KM_TO_M, assertKm, haversineMeters } from '../utils/distanceUnits';
@@ -834,22 +835,15 @@ function RouteBuilder() {
         weekLater.setDate(weekLater.getDate() + 7);
         const weekLaterStr = weekLater.toISOString().split('T')[0];
 
-        // Query planned workouts for the next 7 days
-        const { data, error } = await supabase
-          .from('planned_workouts')
-          .select('*, training_plans!inner(user_id)')
-          .eq('training_plans.user_id', user.id)
-          .gte('scheduled_date', todayStr)
-          .lte('scheduled_date', weekLaterStr)
-          .neq('workout_type', 'rest')
-          .order('scheduled_date', { ascending: true });
+        // The next 7 days from the calendar. The old query joined
+        // training_plans!inner to scope by user, which also silently required a
+        // plan row to exist — so an athlete without one got no suggestions at
+        // all, and coach- or calendar-created sessions never appeared.
+        const data = (
+          await fetchPlannedSessions(user.id, { from: todayStr, to: weekLaterStr })
+        ).filter((w) => w.workout_type !== 'rest' && w.entry_type !== 'rest');
 
-        if (error) {
-          console.error('Error loading upcoming workouts:', error);
-          return;
-        }
-
-        if (data && data.length > 0) {
+        if (data.length > 0) {
           // Find today's workout
           const todayWorkout = data.find(w => w.scheduled_date === todayStr);
           if (todayWorkout) {

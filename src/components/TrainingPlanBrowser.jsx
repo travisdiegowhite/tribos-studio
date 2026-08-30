@@ -31,6 +31,7 @@ import { TRAINING_PHASES, GOAL_TYPES, FITNESS_LEVELS, WORKOUT_TYPES, PLAN_CATEGO
 import { WORKOUT_LIBRARY } from '../data/workoutLibrary';
 import { RUNNING_WORKOUT_LIBRARY } from '../data/runningWorkoutLibrary';
 import { supabase } from '../lib/supabase';
+import { insertSessions } from '../lib/calendar/calendarMutations';
 import { useAuth } from '../contexts/AuthContext';
 import { trackFeature, EventType } from '../utils/activityTracking';
 import { ArrowsClockwise, Bicycle, Calendar, CaretRight, Check, Clock, DotsThreeVertical, Info, Pause, PersonSimpleRun, Play, Target, Trash, TrendUp, X } from '@phosphor-icons/react';
@@ -153,10 +154,15 @@ const TrainingPlanBrowser = ({ activePlan, onPlanActivated, compact = false }) =
     setManagingPlan(true);
 
     try {
-      // Delete planned workouts first
+      // Detach the plan's entries rather than deleting them. This used to
+      // delete every row with that plan_id — which, on a calendar the athlete
+      // owns, means deleting sessions they may have moved, edited or already
+      // ridden because a plan they no longer want once created them. A plan is
+      // provenance; cancelling it clears the provenance, not the calendar.
       await supabase
-        .from('planned_workouts')
-        .delete()
+        .from('calendar_entries')
+        .update({ plan_id: null })
+        .eq('user_id', user.id)
         .eq('plan_id', activePlan.id);
 
       // Delete the plan
@@ -201,11 +207,19 @@ const TrainingPlanBrowser = ({ activePlan, onPlanActivated, compact = false }) =
     setManagingPlan(true);
 
     try {
-      // Delete existing planned workouts
+      // Clear the plan's own generated future entries so the regeneration can
+      // land. Scoped hard: only rows still carrying this plan_id, only ones the
+      // athlete has NOT pinned, only ones not already done, and only from today
+      // forward. Regenerating a plan is not licence to rewrite what the athlete
+      // did or decided.
       await supabase
-        .from('planned_workouts')
+        .from('calendar_entries')
         .delete()
-        .eq('plan_id', activePlan.id);
+        .eq('user_id', user.id)
+        .eq('plan_id', activePlan.id)
+        .eq('pinned', false)
+        .neq('status', 'done')
+        .gte('date', formatLocalDate(new Date()));
 
       // Get the template for this plan
       const template = allPlans.find(p => p.id === activePlan.template_id);
@@ -352,19 +366,14 @@ const TrainingPlanBrowser = ({ activePlan, onPlanActivated, compact = false }) =
               if (dayPlan) {
                 const workoutInfo = dayPlan.workout ? getWorkoutFromLibrary(dayPlan.workout, activePlan?.sportType || template?.sportType) : null;
                 workouts.push({
-                  plan_id: activePlan.id,
-                  user_id: user.id, // Required by database schema
-                  week_number: week,
-                  day_of_week: dayIndex,
-                  scheduled_date: calculateScheduledDate(week, dayIndex),
-                  workout_type: dayPlan.workout ? (workoutInfo?.category || 'endurance') : 'rest',
+                  date: calculateScheduledDate(week, dayIndex),
+                  type: dayPlan.workout ? 'workout' : 'rest',
+                  title: workoutInfo?.name || (dayPlan.workout ? 'Workout' : 'Rest Day'),
                   workout_id: dayPlan.workout || null,
-                  name: workoutInfo?.name || (dayPlan.workout ? 'Workout' : 'Rest Day'), // Required NOT NULL
-                  duration_minutes: workoutInfo?.duration || 0, // Required NOT NULL
+                  workout_type: dayPlan.workout ? (workoutInfo?.category || 'endurance') : 'rest',
+                  target_load: workoutInfo?.targetTSS || 0,
+                  target_duration_min: workoutInfo?.duration || 0,
                   notes: dayPlan.notes || '',
-                  target_tss: workoutInfo?.targetTSS || 0,
-                  target_duration: workoutInfo?.duration || 0,
-                  completed: false,
                 });
               }
             });
@@ -377,35 +386,31 @@ const TrainingPlanBrowser = ({ activePlan, onPlanActivated, compact = false }) =
             const dayWorkout = getWorkoutForDay(methodology, dayOfWeek, week, totalWeeks);
             const workoutInfo = dayWorkout.workout ? getWorkoutFromLibrary(dayWorkout.workout, activePlan?.sportType || template?.sportType) : null;
             workouts.push({
-              plan_id: activePlan.id,
-              user_id: user.id, // Required by database schema
-              week_number: week,
-              day_of_week: dayOfWeek,
-              scheduled_date: calculateScheduledDate(week, dayOfWeek),
-              workout_type: dayWorkout.type || 'rest',
+              date: calculateScheduledDate(week, dayOfWeek),
+              type: (dayWorkout.type || 'rest') === 'rest' ? 'rest' : 'workout',
+              title: workoutInfo?.name || (dayWorkout.type === 'rest' ? 'Rest Day' : `${dayWorkout.type || 'Workout'}`),
               workout_id: dayWorkout.workout || null,
-              name: workoutInfo?.name || (dayWorkout.type === 'rest' ? 'Rest Day' : `${dayWorkout.type || 'Workout'}`), // Required NOT NULL
-              duration_minutes: workoutInfo?.duration || 0, // Required NOT NULL
-              notes: '',
-              target_tss: workoutInfo?.targetTSS || 0,
-              target_duration: workoutInfo?.duration || 0,
-              completed: false,
+              workout_type: dayWorkout.type || 'rest',
+              target_load: workoutInfo?.targetTSS || 0,
+              target_duration_min: workoutInfo?.duration || 0,
             });
           }
         }
       }
 
+      let inserted = 0;
       if (workouts.length > 0) {
-        const { error: workoutError } = await supabase
-          .from('planned_workouts')
-          .insert(workouts);
-
-        if (workoutError) throw workoutError;
+        const written = await insertSessions(user.id, workouts, {
+          source: 'plan',
+          planId: activePlan.id,
+        });
+        if (!written.success) throw new Error(written.error);
+        inserted = written.data.inserted;
       }
 
       notifications.show({
         title: 'Workouts Generated',
-        message: `Created ${workouts.length} workouts for your plan`,
+        message: `Created ${inserted} workouts for your plan`,
         color: 'terracotta',
         icon: <Check size={16} />,
       });
@@ -731,19 +736,16 @@ const TrainingPlanBrowser = ({ activePlan, onPlanActivated, compact = false }) =
                 const workoutInfo = dayPlan.workout ? getWorkoutFromLibrary(dayPlan.workout, plan.sportType) : null;
 
                 workouts.push({
-                  plan_id: newPlan.id,
-                  user_id: user.id, // Required by database schema
-                  week_number: week,
-                  day_of_week: dayIndex,
-                  scheduled_date: calculateScheduledDate(week, dayIndex),
-                  workout_type: dayPlan.workout ? (workoutInfo?.category || 'endurance') : 'rest',
+                  date: calculateScheduledDate(week, dayIndex),
+                  type: dayPlan.workout ? 'workout' : 'rest',
+                  title: workoutInfo?.name || (dayPlan.workout ? 'Workout' : 'Rest Day'),
                   workout_id: dayPlan.workout || null,
-                  name: workoutInfo?.name || (dayPlan.workout ? 'Workout' : 'Rest Day'), // Required NOT NULL
-                  duration_minutes: workoutInfo?.duration || 0, // Required NOT NULL
+                  workout_type: dayPlan.workout ? (workoutInfo?.category || 'endurance') : 'rest',
+                  target_load: workoutInfo?.targetTSS || 0,
+                  target_duration_min: workoutInfo?.duration || 0,
                   notes: dayPlan.notes || '',
-                  target_tss: workoutInfo?.targetTSS || 0,
-                  target_duration: workoutInfo?.duration || 0,
-                  completed: false,
+                  _weekNumber: week,
+                  _dayOfWeek: dayIndex,
                 });
               }
             });
@@ -764,19 +766,15 @@ const TrainingPlanBrowser = ({ activePlan, onPlanActivated, compact = false }) =
             const workoutInfo = dayWorkout.workout ? getWorkoutFromLibrary(dayWorkout.workout, plan.sportType) : null;
 
             workouts.push({
-              plan_id: newPlan.id,
-              user_id: user.id, // Required by database schema
-              week_number: week,
-              day_of_week: dayOfWeek,
-              scheduled_date: calculateScheduledDate(week, dayOfWeek),
-              workout_type: dayWorkout.type || 'rest',
+              date: calculateScheduledDate(week, dayOfWeek),
+              type: (dayWorkout.type || 'rest') === 'rest' ? 'rest' : 'workout',
+              title: workoutInfo?.name || (dayWorkout.type === 'rest' ? 'Rest Day' : `${dayWorkout.type || 'Workout'}`),
               workout_id: dayWorkout.workout || null,
-              name: workoutInfo?.name || (dayWorkout.type === 'rest' ? 'Rest Day' : `${dayWorkout.type || 'Workout'}`), // Required NOT NULL
-              duration_minutes: workoutInfo?.duration || 0, // Required NOT NULL
-              notes: '',
-              target_tss: workoutInfo?.targetTSS || 0,
-              target_duration: workoutInfo?.duration || 0,
-              completed: false,
+              workout_type: dayWorkout.type || 'rest',
+              target_load: workoutInfo?.targetTSS || 0,
+              target_duration_min: workoutInfo?.duration || 0,
+              _weekNumber: week,
+              _dayOfWeek: dayOfWeek,
             });
           }
         }
@@ -844,13 +842,13 @@ const TrainingPlanBrowser = ({ activePlan, onPlanActivated, compact = false }) =
         const workoutsForRedistribution = workouts
           .filter(w => w.workout_id)
           .map(w => ({
-            originalDate: w.scheduled_date,
-            dayOfWeek: w.day_of_week,
-            weekNumber: w.week_number,
+            originalDate: w.date,
+            dayOfWeek: w._dayOfWeek,
+            weekNumber: w._weekNumber,
             workoutId: w.workout_id,
             workoutType: w.workout_type,
-            targetTSS: w.target_tss || null,
-            targetDuration: w.target_duration || null,
+            targetTSS: w.target_load || null,
+            targetDuration: w.target_duration_min || null,
           }));
 
         const redistributions = redistributeWorkouts(
@@ -860,113 +858,65 @@ const TrainingPlanBrowser = ({ activePlan, onPlanActivated, compact = false }) =
           fetchedPreferences
         );
 
-        // Apply redistributions: swap dates between moved workouts and displaced entries
-        // This prevents UNIQUE(plan_id, scheduled_date) violations by ensuring
-        // rest days on the target date get moved to the blocked day's slot
+        // Swap dates between a moved workout and whatever the move displaces.
+        // The swap is still needed — two drafts on one date would collide on
+        // slot 0 — but day_of_week no longer travels with it: the calendar
+        // derives that from the date, so there is one field to keep straight
+        // instead of two that could disagree.
         for (const r of redistributions) {
           if (r.originalDate !== r.newDate) {
             const movedWorkout = workouts.find(
-              w => w.scheduled_date === r.originalDate && w.workout_id === r.workoutId
+              w => w.date === r.originalDate && w.workout_id === r.workoutId
             );
             const displacedEntry = workouts.find(
-              w => w.scheduled_date === r.newDate && w !== movedWorkout
+              w => w.date === r.newDate && w !== movedWorkout
             );
-            if (movedWorkout) {
-              movedWorkout.scheduled_date = r.newDate;
-              movedWorkout.day_of_week = new Date(r.newDate + 'T12:00:00').getDay();
-            }
-            if (displacedEntry) {
-              displacedEntry.scheduled_date = r.originalDate;
-              displacedEntry.day_of_week = new Date(r.originalDate + 'T12:00:00').getDay();
-            }
+            if (movedWorkout) movedWorkout.date = r.newDate;
+            if (displacedEntry) displacedEntry.date = r.originalDate;
           }
         }
       }
 
+      let activatedCount = 0;
       if (workouts.length > 0) {
-        console.log(`Inserting ${workouts.length} workouts for plan ${newPlan.id}`);
-        console.log('Sample workout:', workouts[0]);
-        console.log('Current user ID:', user.id);
+        // Strip the scratch fields the redistributor needed; they are not columns.
+        const drafts = workouts.map(({ _weekNumber, _dayOfWeek, ...draft }) => draft);
 
-        // Verify the plan was created and is accessible
-        const { data: verifyPlan, error: verifyError } = await supabase
-          .from('training_plans')
-          .select('id, user_id')
-          .eq('id', newPlan.id)
-          .single();
+        // Days the athlete has already filled are skipped, not overwritten, so
+        // activating a plan cannot bury a race or a session they scheduled.
+        const written = await insertSessions(user.id, drafts, {
+          source: 'plan',
+          planId: newPlan.id,
+        });
 
-        if (verifyError || !verifyPlan) {
-          console.error('Plan verification failed:', verifyError);
-          throw new Error('Failed to verify plan was created');
-        }
-
-        console.log('Plan verified:', verifyPlan);
-
-        // Insert workouts - try bulk first, then fall back to individual inserts
-        const { error: workoutError } = await supabase
-          .from('planned_workouts')
-          .insert(workouts);
-
-        if (workoutError) {
-          console.error('Failed to create workouts (bulk):', workoutError);
-          console.error('Error details:', JSON.stringify(workoutError, null, 2));
-
-          // Try inserting in smaller batches
-          console.log('Attempting batch insert...');
-          const batchSize = 10;
-          let successCount = 0;
-
-          for (let i = 0; i < workouts.length; i += batchSize) {
-            const batch = workouts.slice(i, i + batchSize);
-            const { error: batchError } = await supabase
-              .from('planned_workouts')
-              .insert(batch);
-
-            if (batchError) {
-              console.error(`Batch ${i / batchSize + 1} failed:`, batchError);
-            } else {
-              successCount += batch.length;
-            }
-          }
-
-          if (successCount > 0) {
-            console.log(`Created ${successCount} of ${workouts.length} workouts via batch insert`);
-            notifications.show({
-              title: 'Partial Success',
-              message: `Created ${successCount} of ${workouts.length} workouts.`,
-              color: 'yellow',
-            });
-          } else {
-            // Try using the database function as last resort
-            console.log('Attempting database function fallback...');
-            try {
-              const { data: funcResult, error: funcError } = await supabase
-                .rpc('create_planned_workouts', {
-                  p_plan_id: newPlan.id,
-                  p_workouts: workouts,
-                });
-
-              if (funcError) {
-                console.error('Database function failed:', funcError);
-                notifications.show({
-                  title: 'Warning',
-                  message: 'Plan activated but workouts could not be created. Please run the database migration.',
-                  color: 'red',
-                });
-              } else {
-                console.log(`Created ${funcResult} workouts via database function`);
-              }
-            } catch (funcErr) {
-              console.error('Database function not available:', funcErr);
-              notifications.show({
-                title: 'Warning',
-                message: 'Plan activated but workouts could not be created. Please run database migration 011.',
-                color: 'red',
-              });
-            }
-          }
+        // The bulk → batch → RPC fallback chain that used to live here is gone
+        // with the table it worked around. It existed because a plan insert hit
+        // NOT NULL columns and a UNIQUE (plan_id, scheduled_date) index that a
+        // redistribution could violate; none of those apply to an entry keyed
+        // (user_id, date, slot) whose only required fields are a date and a
+        // title. A failure now is a real failure and is reported as one.
+        if (!written.success) {
+          console.error('Failed to write the plan to the calendar:', written.error);
+          notifications.show({
+            title: 'Warning',
+            message: `Plan activated, but its workouts could not be scheduled: ${written.error}`,
+            color: 'red',
+          });
         } else {
-          console.log(`Successfully created ${workouts.length} workouts for plan`);
+          activatedCount = written.data.inserted;
+          const { skipped } = written.data;
+          console.log(
+            `Scheduled ${activatedCount} session(s) for plan ${newPlan.id}` +
+            (skipped > 0 ? `; ${skipped} day(s) already had something and were left alone` : ''),
+          );
+          if (skipped > 0) {
+            notifications.show({
+              title: 'Plan Activated',
+              message: `${activatedCount} sessions scheduled. ${skipped} day${skipped === 1 ? '' : 's'} already had something on your calendar and ${skipped === 1 ? 'was' : 'were'} left alone.`,
+              color: 'yellow',
+              autoClose: 8000,
+            });
+          }
         }
       } else {
         console.warn('No workouts generated for plan - check template structure');
@@ -979,7 +929,8 @@ const TrainingPlanBrowser = ({ activePlan, onPlanActivated, compact = false }) =
         methodology: plan.methodology,
         goal: plan.goal,
         fitnessLevel: plan.fitnessLevel,
-        workoutCount: workouts.length
+        // What landed, not what was attempted.
+        workoutCount: activatedCount
       });
 
       const formattedDate = planStartDate.toLocaleDateString('en-US', {
