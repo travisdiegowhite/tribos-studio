@@ -10,7 +10,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import {
   Stack,
   Text,
-  TextInput,
+  Textarea,
   Paper,
   Box,
   Group,
@@ -44,7 +44,7 @@ export default function CheckInThread({ checkInId, trainingContext = null }: Che
   const [loading, setLoading] = useState(false);
   const [loadingHistory, setLoadingHistory] = useState(true);
   const scrollRef = useRef<HTMLDivElement>(null);
-  const inputRef = useRef<HTMLInputElement>(null);
+  const inputRef = useRef<HTMLTextAreaElement>(null);
 
   // Load existing thread messages for this check-in
   const loadMessages = useCallback(async () => {
@@ -263,8 +263,8 @@ export default function CheckInThread({ checkInId, trainingContext = null }: Che
         </ScrollArea.Autosize>
       ) : null}
 
-      {/* Input */}
-      <TextInput
+      {/* Input — autosizing textarea so long questions stay fully visible */}
+      <Textarea
         ref={inputRef}
         placeholder={hasMessages ? 'Ask a follow-up...' : 'Why did you recommend this? What if I skip today?'}
         value={input}
@@ -276,6 +276,10 @@ export default function CheckInThread({ checkInId, trainingContext = null }: Che
           }
         }}
         disabled={loading}
+        autosize
+        minRows={3}
+        maxRows={12}
+        className="tribos-chat-input"
         rightSection={
           <ActionIcon
             size="sm"
@@ -283,18 +287,29 @@ export default function CheckInThread({ checkInId, trainingContext = null }: Che
             color="teal"
             onClick={handleSubmit}
             disabled={!input.trim() || loading}
+            aria-label="Send message"
           >
             <PaperPlaneRight size={14} />
           </ActionIcon>
         }
+        rightSectionProps={{
+          style: { alignItems: 'flex-end', paddingBottom: 6, pointerEvents: 'auto' },
+        }}
         styles={{
           input: {
             borderRadius: 0,
             borderColor: 'var(--tribos-border-default)',
             fontSize: 'var(--mantine-font-size-sm)',
+            lineHeight: 1.5,
+            paddingTop: 8,
+            paddingBottom: 8,
+            paddingInlineEnd: 36,
           },
         }}
       />
+      <Text size="xs" c="dimmed" mt={4}>
+        Enter to send &middot; Shift + Enter for a new line
+      </Text>
     </Paper>
   );
 }

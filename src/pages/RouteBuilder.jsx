@@ -2701,8 +2701,10 @@ function RouteBuilder() {
           placeholder="e.g., '40 mile gravel loop' or '2 hour recovery ride'"
           value={naturalLanguageInput}
           onChange={(e) => setNaturalLanguageInput(e.target.value)}
+          className="tribos-chat-input"
+          autosize
           minRows={2}
-          maxRows={3}
+          maxRows={10}
           size="sm"
           variant="filled"
           onKeyDown={(e) => {
@@ -4336,8 +4338,10 @@ function RouteBuilder() {
                     placeholder="e.g., '40 mile gravel loop' or '2 hour recovery ride on bike paths'"
                     value={naturalLanguageInput}
                     onChange={(e) => setNaturalLanguageInput(e.target.value)}
+                    className="tribos-chat-input"
+                    autosize
                     minRows={2}
-                    maxRows={3}
+                    maxRows={10}
                     size="sm"
                     variant="filled"
                     onKeyDown={(e) => {

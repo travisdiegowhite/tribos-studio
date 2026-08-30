@@ -8,7 +8,7 @@
  */
 
 import { useEffect, useRef, useState } from 'react';
-import { Box, Text, TextInput, UnstyledButton } from '@mantine/core';
+import { Box, Text, Textarea, UnstyledButton } from '@mantine/core';
 import { PaperPlaneRight } from '@phosphor-icons/react';
 import { RB2, RB2_FONT } from './brand';
 import { CoachMarkdown } from '../../../components/coach/CoachMarkdown';
@@ -76,7 +76,7 @@ export function ChatBody({
 }: ChatBodyProps) {
   const [draft, setDraft] = useState('');
   const scrollRef = useRef<HTMLDivElement>(null);
-  const inputRef = useRef<HTMLInputElement>(null);
+  const inputRef = useRef<HTMLTextAreaElement>(null);
 
   // Keep the newest message (or the typing bubble) in view.
   useEffect(() => {
@@ -282,9 +282,10 @@ export function ChatBody({
             ))}
           </Box>
         )}
-        <Box style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-          <TextInput
+        <Box style={{ display: 'flex', alignItems: 'flex-end', gap: 6 }}>
+          <Textarea
             ref={inputRef}
+            className="tribos-chat-input"
             data-testid="rb2-chat-input"
             value={draft}
             onChange={(e) => setDraft(e.currentTarget.value)}
@@ -296,11 +297,15 @@ export function ChatBody({
             }}
             placeholder="Type a request…"
             readOnly={isProcessing}
+            autosize
+            minRows={2}
+            maxRows={10}
             styles={{
               root: { flex: 1 },
               input: {
                 borderRadius: 0,
                 fontFamily: RB2_FONT.body,
+                lineHeight: 1.5,
                 opacity: isProcessing ? 0.6 : 1,
               },
             }}

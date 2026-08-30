@@ -110,7 +110,7 @@ export default function CheckInPage({ plannedWorkouts = [], activities = [], ftp
   // No check-in available
   if (!currentCheckIn) {
     return (
-      <Stack gap="lg">
+      <Stack gap="lg" pb={{ base: 64, sm: 0 }}>
         {/* Morning readiness check-in */}
         <FatigueCheckinCard />
 
@@ -174,7 +174,7 @@ export default function CheckInPage({ plannedWorkouts = [], activities = [], ftp
   // Week bar now uses live data from TrainingDashboard instead of stale check-in snapshot
 
   return (
-    <Stack gap="lg">
+    <Stack gap="lg" pb={{ base: 64, sm: 0 }}>
       {/* Header */}
       <Group justify="space-between">
         <Text size="xs" fw={700} tt="uppercase" ff="monospace" c="dimmed">

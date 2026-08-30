@@ -8,7 +8,7 @@
 
 import { useState, useRef, useEffect } from 'react';
 import {
-  Box, Text, TextInput, Button, Group, Stack, ActionIcon, Badge,
+  Box, Text, Textarea, Button, Group, Stack, ActionIcon, Badge,
   Tooltip, Loader, Paper, Divider, SimpleGrid,
 } from '@mantine/core';
 import { tokens } from '../../theme';
@@ -143,21 +143,26 @@ export default function AIEditPanel({
 
         {/* Text input */}
         {!showPreview && (
-          <Group gap={4}>
-            <TextInput
+          <Group gap={4} align="flex-end">
+            <Textarea
               ref={inputRef}
+              className="tribos-chat-input"
               placeholder="e.g. &quot;make it flatter&quot; or &quot;avoid downtown&quot;"
               value={inputText}
               onChange={(e) => setInputText(e.target.value)}
               onKeyDown={handleKeyDown}
               disabled={loading}
               size="sm"
+              autosize
+              minRows={2}
+              maxRows={10}
               style={{ flex: 1 }}
               styles={{
                 input: {
                   backgroundColor: 'var(--color-bg)',
                   borderColor: 'var(--color-bg-secondary)',
                   fontSize: 13,
+                  lineHeight: 1.5,
                 },
               }}
             />
