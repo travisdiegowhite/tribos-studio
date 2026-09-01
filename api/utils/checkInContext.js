@@ -241,9 +241,9 @@ export async function assembleCheckInContext(supabase, userId, activityId) {
 
     supabase
       .from('health_metrics')
-      .select('resting_hr, hrv_ms, sleep_hours, sleep_quality, energy_level, recorded_date')
+      .select('resting_hr, hrv_ms, sleep_hours, sleep_quality, energy_level, metric_date')
       .eq('user_id', userId)
-      .order('recorded_date', { ascending: false })
+      .order('metric_date', { ascending: false })
       .limit(1)
       .maybeSingle(),
 

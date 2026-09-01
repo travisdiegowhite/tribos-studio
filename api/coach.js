@@ -24,6 +24,8 @@ import { formatHealth, fetchProprietaryMetrics } from './utils/contextHelpers.js
 import { buildTemporalAnchor, fetchTemporalAnchorData, buildSessionLabelMap, sanitizeSessionIds } from './utils/temporalAnchor.js';
 import { fetchCoachEnrichmentData, buildCoachEnrichmentBlock } from './utils/coachContextEnrichment.js';
 import { buildCoachingBibleBlock, buildRiderContext, ageFromDob, pickGoalRace } from './utils/coachingBible.js';
+import { fetchRiderStateData, toRiderState } from './utils/toRiderState.js';
+import { evaluateRules, selectInjectedRules, droppedRuleIds } from './utils/rulesEngine.js';
 
 // Initialize Supabase for auth validation
 const supabase = getSupabaseAdmin();
@@ -752,11 +754,15 @@ export default async function handler(req, res) {
         .order('priority', { ascending: true, nullsFirst: false })
         .order('created_at', { ascending: false }),
       // Fetch latest health metrics for coaching context
+      // metric_date, NOT recorded_date. health_metrics has never had a
+      // recorded_date column, so this select errored on every request and the
+      // HEALTH STATUS block silently never rendered. formatHealth reads no
+      // date field, so only the query changes.
       supabase
         .from('health_metrics')
-        .select('resting_hr, hrv_ms, sleep_hours, sleep_quality, energy_level, recorded_date')
+        .select('resting_hr, hrv_ms, sleep_hours, sleep_quality, energy_level, metric_date')
         .eq('user_id', verifiedUserId)
-        .order('recorded_date', { ascending: false })
+        .order('metric_date', { ascending: false })
         .limit(1)
         .maybeSingle(),
       // Fetch weekly availability (blocked/preferred days) so plans honour it
@@ -845,6 +851,13 @@ export default async function handler(req, res) {
 
     // Fetch proprietary metrics (EFI/TWL/TCAS) — non-blocking
     const proprietaryMetrics = await fetchProprietaryMetrics(supabase, verifiedUserId);
+
+    // Coaching-bible rules engine inputs. Self-catching: a coach that loses
+    // its rules is yesterday's coach, a coach that throws is an outage.
+    const riderStateData = await fetchRiderStateData(supabase, verifiedUserId).catch((err) => {
+      console.error('Rider state fetch failed (non-blocking):', err.message);
+      return null;
+    });
 
     // Resolve the user's timezone: prefer browser-supplied, then DB, then UTC
     const resolvedTimezone = userLocalDate?.timezone || userDbTimezone || 'UTC';
@@ -1208,26 +1221,52 @@ When the athlete references a check-in, respond as the same coach — maintain c
         ? Math.floor((Date.now() - Date.parse(lastRide.start_date)) / 86400000)
         : null;
 
+      const todayStr = formatDateInTimezone(new Date(), resolvedTimezone);
+      const evidenceSignals = evidenceResult?.data?.[0]?.signals || null;
+
       const riderContext = buildRiderContext({
         riderName,
         age: ageFromDob(userProfileResult?.data?.date_of_birth || null),
         goalRace: pickGoalRace(anchorData.raceGoals),
-        todayStr: formatDateInTimezone(new Date(), resolvedTimezone),
+        todayStr,
         weeklyHours4wkMean,
         daysSinceLastRide,
         load: enrichmentData?.latestLoad || null,
-        evidenceSignals: evidenceResult?.data?.[0]?.signals || null,
+        evidenceSignals,
         lastActivity: lastRide,
       });
 
+      // ── The rules engine decides; the model voices ─────────────────────
+      //
+      // evaluateRules is pure: same RiderState, same rules, every time. A
+      // rule whose inputs are missing is skipped, never approximated — the
+      // skip reasons are logged so an absent rule can be explained without
+      // guessing at it.
+      let injectedRules = [];
+      const riderState = toRiderState(riderStateData, {
+        raceGoals: anchorData.raceGoals,
+        evidenceSignals,
+        todayStr,
+      });
+      const { fired, skipped } = evaluateRules(riderState);
+      injectedRules = selectInjectedRules(fired);
+
+      const dropped = droppedRuleIds(fired);
+      if (fired.length > 0) {
+        console.log('[coaching-bible] fired:', fired.map((r) => r.id).join(', '),
+          dropped.length > 0 ? `| dropped for budget: ${dropped.join(', ')}` : '');
+      }
+      const brokenRules = skipped.filter((sk) => sk.reason === 'trigger_error');
+      if (brokenRules.length > 0) {
+        console.error('[coaching-bible] unevaluable rules:', JSON.stringify(brokenRules));
+      }
+
       systemPrompt += `\n\n${buildCoachingBibleBlock({
         riderContext,
-        // Phase 2 supplies these; Phase 1 fires nothing.
-        firedRules: [],
+        firedRules: injectedRules,
         // No intake question captures fear of failure today, so CB-9's clause
-        // is always absent. See the Phase 1 report — this is a skipped input,
-        // not an approximated one.
-        fearOfFailure: false,
+        // is always absent. A skipped input, not an approximated one.
+        fearOfFailure: riderState.fearOfFailureFlag === true,
       })}`;
     } catch (bibleErr) {
       // The floor is an improvement, never a dependency. A coach without it is

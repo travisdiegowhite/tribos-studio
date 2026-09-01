@@ -168,9 +168,9 @@ export async function assembleFitnessContext(userId, supabase, clientMetrics, op
     // 9. Latest health metrics
     supabase
       .from('health_metrics')
-      .select('resting_hr, hrv_ms, sleep_hours, energy_level, recorded_date')
+      .select('resting_hr, hrv_ms, sleep_hours, energy_level, metric_date')
       .eq('user_id', userId)
-      .order('recorded_date', { ascending: false })
+      .order('metric_date', { ascending: false })
       .limit(1)
       .maybeSingle(),
   ]);
