@@ -21,6 +21,7 @@ import { SpinePanel } from './SpinePanel';
 import { FitnessNode } from './FitnessNode';
 import { CoachPanel } from './CoachPanel';
 import { SpineEmptyState } from './SpineEmptyState';
+import { ReadinessCall, useReadinessVerdict } from './ReadinessCall';
 import { BeatsColumn } from './beats/BeatsColumn';
 import { buildNodeVM } from './nodeView';
 import { C, FONT } from './tokens';
@@ -82,6 +83,10 @@ export default function TodaySpine() {
   const units: UnitsPreference = unitsPreference === 'metric' ? 'metric' : 'imperial';
 
   const { loading, data, error, retry } = useTodaySpine(user?.id ?? null);
+  // "Am I cleared today?" — answered by a readiness rule when one fires, and
+  // by nothing at all when none does. Independent of the spine fetch so a slow
+  // or failed verdict never delays the page.
+  const readiness = useReadinessVerdict();
 
   const [selected, setSelected] = useState(0);
   const [flipped, setFlipped] = useState(false);
@@ -211,6 +216,7 @@ export default function TodaySpine() {
         <Stack gap={16}>
           <PageHeader data={data} compact />
           <GetStartedGuide />
+          <ReadinessCall verdict={readiness} />
           <BeatsColumn
             data={data}
             units={units}
@@ -240,6 +246,7 @@ export default function TodaySpine() {
       <Stack gap={20}>
         <PageHeader data={data} />
         <GetStartedGuide />
+        <ReadinessCall verdict={readiness} />
         {spine}
         {bottomRow}
       </Stack>

@@ -448,6 +448,25 @@ describe('coach handler — forced tool pass', () => {
     expect(messagesCreate.mock.calls[0][0].system).toContain('FTP: 285W');
   });
 
+  it('injects the coaching-bible behavior floor into the system prompt', async () => {
+    messagesCreate.mockResolvedValueOnce(textResponse('Ride easy today.'));
+
+    const res = makeRes();
+    await handler(makeReq({ message: 'what should I do today?' }), res);
+
+    expect(res.statusCode).toBe(200);
+    const system = messagesCreate.mock.calls[0][0].system;
+    expect(system).toContain("=== WHO YOU'RE COACHING ===");
+    expect(system).toContain('=== WHAT APPLIES TODAY ===');
+    expect(system).toContain('=== BEHAVIOR FLOOR — APPLIES ALWAYS, IN EVERY PERSONA ===');
+    // Phase 1 fires no rules, and says so rather than leaving a gap.
+    expect(system).toContain('No specific rule fires today');
+    // The calendar block keeps the last word (see the comment at its site).
+    expect(system.lastIndexOf('=== CALENDAR TOOL — READ THIS LAST ===')).toBeGreaterThan(
+      system.lastIndexOf('=== BEHAVIOR FLOOR — APPLIES ALWAYS, IN EVERY PERSONA ===')
+    );
+  });
+
   it('scopes the prompt to the race the athlete is viewing (raceGoalId)', async () => {
     fetchAnchorMock.mockResolvedValue({
       plannedWorkouts: [],

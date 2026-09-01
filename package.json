@@ -13,7 +13,8 @@
     "test:run": "vitest run",
     "test:coverage": "vitest run --coverage",
     "test:ui": "vitest --ui",
-    "type-check": "tsc --noEmit"
+    "type-check": "tsc --noEmit",
+    "build:rules": "node scripts/build-coaching-rules.mjs"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.71.0",
@@ -62,6 +63,7 @@
     "eslint-plugin-react": "^7.37.5",
     "eslint-plugin-react-hooks": "^7.1.1",
     "globals": "^17.6.0",
+    "js-yaml": "^5.4.1",
     "jsdom": "^27.3.0",
     "typescript": "^5.9.3",
     "typescript-eslint": "^8.59.4",

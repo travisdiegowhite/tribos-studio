@@ -1,18 +1,32 @@
 /**
  * FatigueCheckinCard — Morning readiness survey.
  *
- * Simple form for recording subjective fatigue markers (leg feel, energy,
- * motivation) on a 1-5 scale. Shown on the Coach tab as a morning check-in.
+ * Simple form for recording subjective markers (sleep, leg feel, energy,
+ * motivation) on a 1-5 scale, plus a "feeling ill" toggle. Shown on the Coach
+ * tab as a morning check-in.
+ *
+ * Sleep and illness feed the coaching readiness rules (Phase 3 of
+ * docs/coaching-bible/). Self-report is the signal the evidence actually backs
+ * — better than HRV — which is why sleep is asked here rather than read off
+ * the device's sleep score.
  */
 
 import { useState } from 'react';
-import { Paper, Text, Group, Button, Stack, Slider, Textarea } from '@mantine/core';
+import { Paper, Text, Group, Button, Stack, Slider, Textarea, Switch } from '@mantine/core';
 import { supabase } from '../../lib/supabase';
-import { Barbell, Lightning, Heart } from '@phosphor-icons/react';
+import { Barbell, Lightning, Heart, Moon, Thermometer } from '@phosphor-icons/react';
 
 interface FatigueCheckinCardProps {
   onComplete?: () => void;
 }
+
+const SLEEP_LABELS: Record<number, string> = {
+  1: 'Awful',
+  2: 'Poor',
+  3: 'OK',
+  4: 'Good',
+  5: 'Great',
+};
 
 const LABELS: Record<number, string> = {
   1: 'Very heavy',
@@ -39,9 +53,11 @@ const MOTIVATION_LABELS: Record<number, string> = {
 };
 
 export default function FatigueCheckinCard({ onComplete }: FatigueCheckinCardProps) {
+  const [sleep, setSleep] = useState(3);
   const [legFeel, setLegFeel] = useState(3);
   const [energy, setEnergy] = useState(3);
   const [motivation, setMotivation] = useState(3);
+  const [illness, setIllness] = useState(false);
   const [notes, setNotes] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
@@ -65,9 +81,11 @@ export default function FatigueCheckinCard({ onComplete }: FatigueCheckinCardPro
           'Authorization': `Bearer ${session.access_token}`,
         },
         body: JSON.stringify({
+          sleep,
           leg_feel: legFeel,
           energy,
           motivation,
+          illness,
           notes: notes.trim() || undefined,
         }),
       });
@@ -99,7 +117,7 @@ export default function FatigueCheckinCard({ onComplete }: FatigueCheckinCardPro
       >
         <Text size="sm" c="teal" fw={600}>Morning check-in recorded</Text>
         <Text size="xs" c="dimmed" mt={4}>
-          Legs: {LABELS[legFeel]} · Energy: {ENERGY_LABELS[energy]} · Motivation: {MOTIVATION_LABELS[motivation]}
+          Sleep: {SLEEP_LABELS[sleep]} · Legs: {LABELS[legFeel]} · Energy: {ENERGY_LABELS[energy]} · Motivation: {MOTIVATION_LABELS[motivation]}
         </Text>
       </Paper>
     );
@@ -119,6 +137,29 @@ export default function FatigueCheckinCard({ onComplete }: FatigueCheckinCardPro
       </Text>
 
       <Stack gap="md">
+        {/* Sleep */}
+        <div>
+          <Group gap="xs" mb={4}>
+            <Moon size={14} />
+            <Text size="xs" fw={600}>Sleep</Text>
+            <Text size="xs" c="dimmed" ml="auto">{SLEEP_LABELS[sleep]}</Text>
+          </Group>
+          <Slider
+            value={sleep}
+            onChange={setSleep}
+            min={1}
+            max={5}
+            step={1}
+            marks={[
+              { value: 1, label: '1' },
+              { value: 3, label: '3' },
+              { value: 5, label: '5' },
+            ]}
+            color="teal"
+            styles={{ markLabel: { fontSize: 10 } }}
+          />
+        </div>
+
         {/* Leg Feel */}
         <div>
           <Group gap="xs" mb={4}>
@@ -187,6 +228,20 @@ export default function FatigueCheckinCard({ onComplete }: FatigueCheckinCardPro
             styles={{ markLabel: { fontSize: 10 } }}
           />
         </div>
+
+        {/* Illness — the one answer that overrides everything else */}
+        <Group gap="xs">
+          <Thermometer size={14} />
+          <Text size="xs" fw={600}>Feeling ill today</Text>
+          <Switch
+            checked={illness}
+            onChange={(e) => setIllness(e.currentTarget.checked)}
+            size="sm"
+            color="teal"
+            ml="auto"
+            aria-label="Feeling ill today"
+          />
+        </Group>
 
         {/* Notes */}
         <Textarea

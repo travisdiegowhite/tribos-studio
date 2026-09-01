@@ -48,6 +48,9 @@ const TIER2 = /\bNP\b|\bIF\b/;
 const ALLOW: Record<string, Record<string, number>> = {
   // The voice contract must name the tokens it bans.
   'api/utils/coachVoiceRules.js': { TSS: 1, CTL: 1, ATL: 1, TSB: 1, NP: 1, IF: 1, rTSS: 1 },
+  // Same reason: the coaching-bible behavior floor's "what you never say" list
+  // spells out the jargon it forbids the coach from using.
+  'api/utils/coachingBible.js': { TSS: 1, CTL: 1, ATL: 1, TSB: 1 },
   // Route-coach prompt's own ban statement ("never use the deprecated names…").
   'api/utils/routeCoachContext.js': { TSS: 1, CTL: 1, ATL: 1, TSB: 1, NP: 1, IF: 1 },
   // The one deliberate competitor-framing line (owner decision, audit Q1).
