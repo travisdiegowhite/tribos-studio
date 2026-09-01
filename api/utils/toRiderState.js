@@ -33,6 +33,7 @@
 
 import { efTrendFrom, pdTrendFrom, ageFromDob, weeksUntil, pickGoalRace } from './coachingBible.js';
 import { isCyclingType } from './sportTypes.js';
+import { buildReadiness } from './readiness.js';
 
 const DAY_MS = 86400000;
 
@@ -105,7 +106,8 @@ export async function fetchRiderStateData(supabase, userId, now = new Date()) {
       (e) => (console.error(`toRiderState ${label}:`, e.message), null)
     );
 
-  const [profile, coachSettings, load, activities, calendar, strength, strengthHistory] = await Promise.all([
+  const [profile, coachSettings, load, activities, calendar, strength, checkins, hrv, strengthHistory] =
+    await Promise.all([
     safe(
       supabase.from('user_profiles').select('date_of_birth, ftp').eq('id', userId).maybeSingle(),
       'user_profiles'
@@ -154,6 +156,29 @@ export async function fetchRiderStateData(supabase, userId, now = new Date()) {
         .gte('activity_date', sinceDate(56)),
       'cross_training_activities'
     ),
+    // Readiness, source one: the morning check-in. 56 days covers the longest
+    // streak the rules can ask about with room to spare.
+    safe(
+      supabase
+        .from('fatigue_checkins')
+        .select('date, sleep, leg_feel, energy, motivation, illness')
+        .eq('user_id', userId)
+        .gte('date', sinceDate(56))
+        .order('date', { ascending: false }),
+      'fatigue_checkins'
+    ),
+    // Readiness, source two: HRV. 90 days so the 7-day rolling mean has a
+    // baseline band to be measured against — see readiness.js.
+    safe(
+      supabase
+        .from('health_metrics')
+        .select('metric_date, hrv_ms')
+        .eq('user_id', userId)
+        .not('hrv_ms', 'is', null)
+        .gte('metric_date', sinceDate(90))
+        .order('metric_date', { ascending: false }),
+      'health_metrics'
+    ),
     // Strength, source two: device imports (Garmin writes STRENGTH_TRAINING
     // into `activities`). A full year, because the question this answers is
     // "can this athlete's data show strength at all?" — see the file header.
@@ -171,7 +196,12 @@ export async function fetchRiderStateData(supabase, userId, now = new Date()) {
     ),
   ]);
 
-  return { profile, coachSettings, load, activities, calendar, strength, strengthHistory };
+  return {
+    profile, coachSettings, load, activities, calendar, strength, strengthHistory,
+    checkins,
+    // health_metrics names the day metric_date; readiness.js speaks `date`.
+    hrv: (hrv || []).map((r) => ({ date: r.metric_date, hrv_ms: r.hrv_ms })),
+  };
 }
 
 // ─── Pure mapping helpers ────────────────────────────────────────────────────
@@ -408,12 +438,8 @@ export function toRiderState(data, { raceGoals = [], evidenceSignals = null, tod
     freshVsFatiguedDrop5min: null,
     longRideDecoupling: null,
 
-    // readiness — Phase 3
-    wellness: null,
-    wellnessLowStreak: null,
-    hrvBelowBandDays: null,
-    hrvReadings7d: null,
-    illnessFlag: null,
+    // readiness
+    ...buildReadiness({ checkins: d.checkins || [], hrv: d.hrv || [], todayStr }),
 
     // environment — no race-location forecast and no per-ride temperature
     eventTempDeltaC: null,
