@@ -10,6 +10,7 @@
  */
 
 import { getSupabaseAdmin } from './utils/supabaseAdmin.js';
+import { fetchSessionOn } from './utils/calendarRead.js';
 import { verifyCronAuth } from './utils/verifyCronAuth.js';
 import { sendPushToUser, buildWorkoutPreviewMessage } from './utils/pushNotification.js';
 
@@ -94,18 +95,16 @@ export default async function handler(req, res) {
         .limit(1)
         .maybeSingle();
 
-      // Check planned_workouts (training plan workouts) — only from active plans
-      const { data: plannedWorkout } = await supabase
-        .from('planned_workouts')
-        .select('name, workout_type, duration_minutes, target_tss, completed, training_plans!inner(status)')
-        .eq('user_id', user.id)
-        .eq('scheduled_date', userTomorrow)
-        .eq('completed', false)
-        .eq('training_plans.status', 'active')
-        .limit(1)
-        .maybeSingle();
+      // Tomorrow's session from the calendar. The old query joined
+      // training_plans!inner and required status 'active', which meant an
+      // athlete with no active plan never got a preview even with tomorrow
+      // scheduled, and a coach- or calendar-created session never triggered
+      // one at all.
+      const plannedWorkout = await fetchSessionOn(user.id, userTomorrow, {
+        includeCompleted: false,
+      });
 
-      // Use whichever is available (prefer planned_workouts as it has richer data)
+      // Use whichever is available (prefer the calendar as it has richer data)
       const workout = plannedWorkout || scheduledWorkout;
 
       if (!workout) {

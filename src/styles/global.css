@@ -682,6 +682,19 @@ button {
   padding: 6px 10px;
 }
 
+/* ===== Chat composers =====
+   Every coach/AI chat input is an autosizing textarea tagged with
+   .tribos-chat-input, so a long message stays visible while it is typed.
+   On small screens the text is bumped to 16px: iOS Safari zooms the whole
+   page when a focused field is smaller than that. Mantine sets the size
+   inline via `styles`, hence !important. */
+
+@media (max-width: 768px) {
+  .tribos-chat-input textarea {
+    font-size: 16px !important;
+  }
+}
+
 /* ===== Mobile Improvements ===== */
 
 @media (max-width: 768px) {

@@ -16,6 +16,7 @@
 
 import { PERSONA_DATA } from './personaData.js';
 import { getRouteWeather } from './routeWeatherContext.js';
+import { fetchSessionOn } from './calendarRead.js';
 
 // ── Inlined pure helpers (ports of src/utils/{distanceUnits,geo,formBands}) ──
 
@@ -238,24 +239,13 @@ export async function getFitnessState(supabase, userId) {
 export async function getTodaysPrescription(supabase, userId) {
   const today = new Date().toISOString().slice(0, 10);
   try {
-    const { data, error } = await supabase
-      .from('planned_workouts')
-      .select(
-        'id, scheduled_date, workout_type, name, target_rss, target_tss, ' +
-          'target_duration, duration_minutes, completed, notes'
-      )
-      .eq('user_id', userId)
-      .eq('scheduled_date', today)
-      .eq('completed', false)
-      .order('id', { ascending: true })
-      .limit(1)
-      .maybeSingle();
+    const data = await fetchSessionOn(userId, today, { includeCompleted: false });
 
-    if (error || !data) return null;
+    if (!data) return null;
 
-    const durationMin =
-      data.duration_minutes ??
-      (data.target_duration != null ? Math.round(Number(data.target_duration) / 60) : null);
+    // calendar_entries stores minutes in one column, so the seconds-to-minutes
+    // conversion the old `target_duration` needed is gone with it.
+    const durationMin = data.target_duration ?? null;
 
     return {
       name: data.name ?? data.workout_type ?? "Today's workout",

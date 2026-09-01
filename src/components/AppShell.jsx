@@ -32,11 +32,14 @@ import { useActivation } from '../hooks/useActivation.ts';
 import { formatDistance } from '../utils/units';
 import { ListChecks } from '@phosphor-icons/react';
 
-// Four-tab primary navigation: TODAY · RIDE · TRAIN · PROGRESS.
+// Primary navigation: TODAY · RIDE · TRAIN · PROGRESS.
 // RIDE opens the route builder directly (/ride redirects to /ride/new; the
 // tab stays active anywhere under /ride). The old route-library hub is kept
 // as a fallback at /ride/library.
-const navItems = [
+//
+// The conditional CALENDAR tab is gone with the parallel surface it opened:
+// /train IS the calendar_entries calendar now, for everyone.
+const NAV_ITEMS = [
   { path: '/today', label: 'TODAY' },
   { path: '/ride', label: 'RIDE' },
   { path: '/train', label: 'TRAIN' },
@@ -159,7 +162,7 @@ function AppShell({ children, fullWidth = false, hideNav = false }) {
               {/* Center: Desktop navigation tabs */}
               {!isMobile && (
                 <Group gap={0} style={{ position: 'absolute', left: '50%', transform: 'translateX(-50%)' }}>
-                  {navItems.map((item) => {
+                  {NAV_ITEMS.map((item) => {
                     const active = isActive(item);
                     return (
                       <UnstyledButton
@@ -288,7 +291,7 @@ function AppShell({ children, fullWidth = false, hideNav = false }) {
 
       {/* Mobile Bottom Tab Bar — 4 tabs */}
       {isMobile && !hideNav && (
-        <MobileBottomNav navItems={navItems} isActive={isActive} />
+        <MobileBottomNav isActive={isActive} />
       )}
     </Box>
   );
@@ -475,7 +478,7 @@ function AvatarDropdown({ initials, colorScheme, toggleColorScheme, onSignOut, n
 }
 
 // Mobile bottom nav — 4 tabs
-function MobileBottomNav({ navItems, isActive }) {
+function MobileBottomNav({ isActive }) {
   const navigate = useNavigate();
 
   return (
@@ -494,7 +497,7 @@ function MobileBottomNav({ navItems, isActive }) {
         paddingBottom: 'env(safe-area-inset-bottom, 0px)',
       }}
     >
-      {navItems.map((item) => {
+      {NAV_ITEMS.map((item) => {
         const active = isActive(item);
 
         return (

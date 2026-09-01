@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import {
   Modal,
   Button,
@@ -28,8 +28,36 @@ function BetaFeedbackWidget() {
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(false);
   const [error, setError] = useState(null);
+  const [inputFocused, setInputFocused] = useState(false);
   const { user } = useAuth();
   const isMobile = useMediaQuery('(max-width: 768px)');
+
+  // On mobile the floating button sits right where inline chat inputs (the coach
+  // check-in thread, for one) put their send control, and the on-screen keyboard
+  // shrinks the viewport around it. Step out of the way while a field is focused.
+  useEffect(() => {
+    if (!isMobile) {
+      setInputFocused(false);
+      return undefined;
+    }
+
+    const isTextEntry = (el) => {
+      if (!el) return false;
+      const tag = el.tagName;
+      return tag === 'TEXTAREA' || tag === 'INPUT' || el.isContentEditable === true;
+    };
+
+    const handleFocusIn = (e) => setInputFocused(isTextEntry(e.target));
+    const handleFocusOut = () => setInputFocused(false);
+
+    setInputFocused(isTextEntry(document.activeElement));
+    document.addEventListener('focusin', handleFocusIn);
+    document.addEventListener('focusout', handleFocusOut);
+    return () => {
+      document.removeEventListener('focusin', handleFocusIn);
+      document.removeEventListener('focusout', handleFocusOut);
+    };
+  }, [isMobile]);
 
   const feedbackTypes = [
     { value: 'bug', label: 'Bug Report' },
@@ -122,19 +150,28 @@ function BetaFeedbackWidget() {
   // Only show for authenticated users
   if (!user) return null;
 
+  const hideButton = isMobile && inputFocused;
+
   return (
     <>
-      {/* Floating feedback button — bottom right; sits above the mobile bottom nav */}
+      {/* Floating feedback button — bottom right; sits above the mobile bottom nav.
+          Hidden on mobile while a text field is focused so it can't cover a chat input. */}
       <Button
         size="xs"
         leftSection={<ChatCircle size={16} weight="bold" />}
         onClick={() => setOpened(true)}
         aria-label="Send beta feedback"
+        aria-hidden={hideButton}
+        tabIndex={hideButton ? -1 : 0}
         style={{
           position: 'fixed',
           right: 16,
           bottom: isMobile ? 76 : 20,
           zIndex: 90,
+          opacity: hideButton ? 0 : 1,
+          pointerEvents: hideButton ? 'none' : 'auto',
+          transform: hideButton ? 'translateY(8px)' : 'none',
+          transition: 'opacity 120ms ease, transform 120ms ease',
           backgroundColor: 'var(--color-teal, #2A8C82)',
           color: '#FFFFFF',
           border: 'none',

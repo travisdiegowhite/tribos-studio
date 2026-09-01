@@ -4,7 +4,7 @@ import {
   Stack,
   Group,
   Text,
-  TextInput,
+  Textarea,
   ActionIcon,
   Button,
   Box,
@@ -566,22 +566,27 @@ function CoachCard({ trainingContext, workoutRecommendation, onAddWorkout }) {
           )}
         </Box>
 
-        {/* Input - at bottom */}
-        <Group gap="xs">
-          <TextInput
+        {/* Input - at bottom; grows with the message so nothing scrolls out of view */}
+        <Group gap="xs" align="flex-end">
+          <Textarea
             ref={inputRef}
+            className="tribos-chat-input"
             placeholder="Ask your coach anything..."
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             onKeyDown={handleKeyDown}
             disabled={isLoading}
             size="sm"
+            autosize
+            minRows={2}
+            maxRows={10}
             style={{ flex: 1 }}
             styles={{
               input: {
                 backgroundColor: 'var(--tribos-input)',
                 borderColor: 'var(--tribos-border-subtle)',
                 boxShadow: 'var(--tribos-shadow-inset)',
+                lineHeight: 1.5,
                 '&:focus': {
                   borderColor: 'var(--tribos-terracotta-border)',
                 },

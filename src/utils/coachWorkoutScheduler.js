@@ -9,6 +9,7 @@
 
 import { getWorkoutById } from '../data/workoutLibrary';
 import { resolveScheduledDate } from './dateUtils';
+import { upsertSessionOnDate } from '../lib/calendar/calendarMutations';
 
 // planned_workouts.workout_type is a constrained enum; map free-form types onto it.
 const VALID_WORKOUT_TYPES = [
@@ -100,42 +101,27 @@ export async function scheduleCoachWorkout(supabase, { userId, recommendation, p
     const targetLoad = workout?.targetTSS ?? recommendation.target_rss ?? recommendation.target_tss ?? null;
     const targetDuration = workout?.duration ?? recommendation.duration_minutes ?? null;
 
-    // Detect an existing workout on the date so we can report replace vs add.
-    const { data: existingWorkout } = await supabase
-      .from('planned_workouts')
-      .select('id, name')
-      .eq('plan_id', resolvedPlanId)
-      .eq('scheduled_date', scheduledDate)
-      .maybeSingle();
+    // One call detects the displaced session AND writes, so "replaced X" comes
+    // from what actually happened rather than from a separate earlier read that
+    // could disagree with it. The calendar has one load column, so the
+    // canonical/legacy dual-write the old table needed does not arise.
+    const saved = await upsertSessionOnDate(userId, scheduledDate, {
+      type: 'workout',
+      title: workoutName,
+      workout_id: recommendation.workout_id,
+      workout_type: dbWorkoutType,
+      target_load: targetLoad,
+      target_duration_min: targetDuration,
+      notes: recommendation.reason ? `Coach recommendation: ${recommendation.reason}` : '',
+      source: 'coach',
+    }, { planId: resolvedPlanId });
 
-    const { error: dbError } = await supabase
-      .from('planned_workouts')
-      .upsert({
-        plan_id: resolvedPlanId,
-        user_id: userId,
-        scheduled_date: scheduledDate,
-        day_of_week: dayOfWeek,
-        week_number: 1,
-        workout_type: dbWorkoutType,
-        workout_id: recommendation.workout_id,
-        name: workoutName,
-        target_rss: targetLoad,
-        target_tss: targetLoad,
-        target_duration: targetDuration,
-        duration_minutes: targetDuration || 0,
-        notes: recommendation.reason ? `Coach recommendation: ${recommendation.reason}` : '',
-        completed: false,
-      }, {
-        onConflict: 'plan_id,scheduled_date',
-        ignoreDuplicates: false,
-      });
-
-    if (dbError) throw dbError;
+    if (!saved.success) throw new Error(saved.error);
 
     return {
       success: true,
-      replaced: !!existingWorkout,
-      replacedName: existingWorkout?.name || null,
+      replaced: !!saved.replacedName,
+      replacedName: saved.replacedName || null,
       workoutName,
       scheduledDate,
       planId: resolvedPlanId,

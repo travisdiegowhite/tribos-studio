@@ -25,7 +25,7 @@ import {
   Loader,
   Stack,
   Text,
-  TextInput,
+  Textarea,
   UnstyledButton,
 } from '@mantine/core';
 import { PaperPlaneRight, ShieldCheck, Sparkle } from '@phosphor-icons/react';
@@ -68,7 +68,7 @@ export function GlanceCoach({ today, maxMessages = 4 }: GlanceCoachProps) {
   const [consent, setConsent] = useState<boolean | null>(null);
   const [consentGranting, setConsentGranting] = useState(false);
 
-  const inputRef = useRef<HTMLInputElement>(null);
+  const inputRef = useRef<HTMLTextAreaElement>(null);
   const idRef = useRef(0);
   const nextId = () => `m${(idRef.current += 1)}`;
 
@@ -344,7 +344,7 @@ export function GlanceCoach({ today, maxMessages = 4 }: GlanceCoachProps) {
     [user?.id],
   );
 
-  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
       send(draft);
@@ -496,17 +496,21 @@ export function GlanceCoach({ today, maxMessages = 4 }: GlanceCoachProps) {
           </Button>
         </Box>
       ) : (
-        <Group gap={8} wrap="nowrap">
-          <TextInput
+        <Group gap={8} wrap="nowrap" align="flex-end">
+          <Textarea
             ref={inputRef}
+            className="tribos-chat-input"
             placeholder="Ask your coach anything…"
             value={draft}
             onChange={(e) => setDraft(e.currentTarget.value)}
             onKeyDown={handleKeyDown}
             disabled={submitting}
             size="sm"
+            autosize
+            minRows={2}
+            maxRows={10}
             style={{ flex: 1 }}
-            styles={{ input: { borderRadius: 0, borderColor: C.border, backgroundColor: C.card } }}
+            styles={{ input: { borderRadius: 0, borderColor: C.border, backgroundColor: C.card, lineHeight: 1.5 } }}
           />
           <ActionIcon
             size="lg"

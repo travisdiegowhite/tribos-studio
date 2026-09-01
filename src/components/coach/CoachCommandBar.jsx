@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import {
   ActionIcon,
   Box,
-  TextInput,
+  Textarea,
   Button,
   Stack,
   Group,
@@ -475,7 +475,7 @@ function CoachCommandBar({ trainingContext, onAddWorkout }) {
 
             {/* Input Section */}
             <Box p="lg" pb="md">
-              <Group gap="md" wrap="nowrap">
+              <Group gap="md" wrap="nowrap" align="flex-end">
                 <Box
                   style={{
                     width: 40,
@@ -491,20 +491,25 @@ function CoachCommandBar({ trainingContext, onAddWorkout }) {
                   <Sparkle size={20} color="#000" />
                 </Box>
 
-                <TextInput
+                <Textarea
                   ref={inputRef}
+                  className="tribos-chat-input"
                   placeholder="Ask your coach anything..."
                   value={query}
                   onChange={(e) => setQuery(e.target.value)}
                   onKeyDown={handleKeyDown}
                   disabled={isLoading}
                   size="md"
+                  autosize
+                  minRows={2}
+                  maxRows={10}
                   style={{ flex: 1 }}
                   styles={{
                     input: {
                       backgroundColor: 'transparent',
                       border: 'none',
                       fontSize: 16,
+                      lineHeight: 1.5,
                       '&:focus': {
                         border: 'none',
                         boxShadow: 'none',

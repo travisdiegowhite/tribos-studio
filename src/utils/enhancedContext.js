@@ -2,6 +2,7 @@
 // Collects and manages detailed user preferences for AI route generation
 
 import { supabase } from '../lib/supabase';
+import { fetchSessionOn } from '../lib/calendar/readPlannedSessions';
 import { getWeatherData } from './weather';
 import { getTurnDirectionGuidance } from './claudeRouteService';
 import {
@@ -681,29 +682,15 @@ export class EnhancedContextCollector {
   static async getTodaysPrescription(userId) {
     const today = new Date().toISOString().slice(0, 10);
 
-    let data, error;
+    let data;
     try {
-      const res = await supabase
-        .from('planned_workouts')
-        .select(
-          'id, scheduled_date, workout_id, workout_type, name, ' +
-          'target_rss, target_tss, target_duration, duration_minutes, ' +
-          'target_distance_km, completed, notes'
-        )
-        .eq('user_id', userId)
-        .eq('scheduled_date', today)
-        .eq('completed', false)
-        .order('id', { ascending: true })
-        .limit(1)
-        .maybeSingle();
-      data = res.data;
-      error = res.error;
+      data = await fetchSessionOn(userId, today, { includeCompleted: false });
     } catch (err) {
       console.warn('getTodaysPrescription query failed:', err?.message);
       return null;
     }
 
-    if (error || !data) return null;
+    if (!data) return null;
 
     const libraryEntry =
       (data.workout_id && WORKOUT_LIBRARY[data.workout_id]) ||
@@ -711,9 +698,9 @@ export class EnhancedContextCollector {
       null;
 
     if (!libraryEntry) {
-      const computedDuration =
-        data.duration_minutes ??
-        (data.target_duration != null ? Math.round(Number(data.target_duration) / 60) : null);
+      // calendar_entries stores minutes in one column, so the seconds-to-minutes
+      // conversion the old `target_duration` needed is gone with it.
+      const computedDuration = data.target_duration ?? null;
       return {
         plannedWorkoutId: data.id,
         workoutId: data.workout_id ?? null,

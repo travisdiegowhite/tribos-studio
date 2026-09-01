@@ -25,6 +25,7 @@ import { useAuth } from '../contexts/AuthContext.jsx';
 import { listRoutes, deleteRoute, getRoute, saveRoute } from '../utils/routesService';
 import { formatDistance, formatElevation } from '../utils/units';
 import { supabase } from '../lib/supabase';
+import { fetchSessionOn } from '../lib/calendar/readPlannedSessions';
 import { exportAndDownloadRoute } from '../utils/routeExport';
 import { garminService } from '../utils/garminService';
 import { trackFeature, EventType } from '../utils/activityTracking';
@@ -215,12 +216,10 @@ function MyRoutes() {
         if (!planData) return;
 
         const today = new Date().toISOString().split('T')[0];
-        const { data: workoutData } = await supabase
-          .from('planned_workouts')
-          .select('*')
-          .eq('plan_id', planData.id)
-          .eq('scheduled_date', today)
-          .maybeSingle();
+        // Athlete-scoped: a session the coach or the calendar added has no
+        // plan_id, so the old plan-scoped query missed exactly the days the
+        // athlete had just scheduled something on.
+        const workoutData = await fetchSessionOn(user.id, today);
 
         if (workoutData) {
           setTodayWorkout(workoutData);

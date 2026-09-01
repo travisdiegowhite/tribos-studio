@@ -46,6 +46,12 @@ import type {
 import type { PlannedWorkoutInsert, TrainingPlanInsert } from '../types/database';
 import { compressPlan, type CompressionOptions } from '../utils/planCompression';
 import { formatLocalDate, getTodayString } from '../utils/dateUtils';
+import { fetchPlannedSessions, fetchSessionOn } from '../lib/calendar/readPlannedSessions';
+import {
+  insertSessions, createEntry, moveEntry, updateEntry, deleteEntry,
+  setEntryStatus, linkEntryToActivity,
+} from '../lib/calendar/calendarMutations';
+import type { EntryDraft } from '../lib/calendar/calendarMutations';
 
 // Day mapping for workout generation
 const DAY_MAP: DayOfWeek[] = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
@@ -264,31 +270,33 @@ export function useTrainingPlan({
   // ============================================================
   const loadPlannedWorkouts = useCallback(
     async (weekNumbers?: number[]) => {
-      if (!activePlan) {
+      if (!userId) {
         setPlannedWorkouts([]);
         return;
       }
 
       try {
-        let query = supabase
-          .from('planned_workouts')
-          .select('*')
-          .eq('plan_id', activePlan.id)
-          .order('scheduled_date', { ascending: true });
-
-        if (weekNumbers && weekNumbers.length > 0) {
-          query = query.in('week_number', weekNumbers);
-        }
-
-        const { data, error: fetchError } = await query;
-
-        if (fetchError) throw fetchError;
+        // ATHLETE-scoped, not plan-scoped. The old query filtered on
+        // `plan_id = activePlan.id`, so an entry the coach or the calendar
+        // created — which carries no plan_id — was invisible to every consumer
+        // of this hook, and an athlete with no active plan got an empty list
+        // even with a full week scheduled.
+        //
+        // `week_number` is derived from the plan's start date by the adapter,
+        // so the optional weekNumbers filter is applied here rather than in SQL.
+        const rows = await fetchPlannedSessions(userId, {
+          planStart: activePlan?.started_at ?? null,
+        });
+        const scoped =
+          weekNumbers && weekNumbers.length > 0
+            ? rows.filter((r) => r.week_number != null && weekNumbers.includes(r.week_number))
+            : rows;
 
         // Enrich with workout details
-        const enrichedWorkouts: PlannedWorkoutWithDetails[] = (data || []).map((workout) => ({
+        const enrichedWorkouts = scoped.map((workout) => ({
           ...workout,
           workout: workout.workout_id ? getWorkoutById(workout.workout_id) || undefined : undefined,
-        }));
+        })) as unknown as PlannedWorkoutWithDetails[];
 
         setPlannedWorkouts(enrichedWorkouts);
       } catch (err: any) {
@@ -296,7 +304,7 @@ export function useTrainingPlan({
         setError(err.message || 'Failed to load planned workouts');
       }
     },
-    [activePlan]
+    [activePlan, userId]
   );
 
   // ============================================================
@@ -387,7 +395,7 @@ export function useTrainingPlan({
         if (planError) throw planError;
 
         // Generate planned workouts
-        const workoutsToInsert: PlannedWorkoutInsert[] = [];
+        const workoutsToInsert: Array<EntryDraft & { date: string }> = [];
 
         for (let weekNum = 1; weekNum <= template.duration; weekNum++) {
           const weekTemplate = template.weekTemplates[weekNum];
@@ -405,28 +413,26 @@ export function useTrainingPlan({
             const workout = dayPlan.workout ? getWorkoutById(dayPlan.workout) : null;
 
             workoutsToInsert.push({
-              plan_id: newPlan.id,
-              user_id: userId,
-              week_number: weekNum,
-              day_of_week: dayIndex,
-              scheduled_date: formatLocalDate(scheduledDate),
-              workout_type: workout?.category || (dayPlan.workout ? null : 'rest'),
+              date: formatLocalDate(scheduledDate),
+              type: dayPlan.workout ? 'workout' : 'rest',
+              title: workout?.name || dayPlan.workout || 'Workout',
               workout_id: dayPlan.workout || null,
-              name: workout?.name || dayPlan.workout || 'Workout',
-              target_tss: workout?.targetTSS || null,
-              target_duration: workout?.duration || null,
-              duration_minutes: workout?.duration || 0,
-              completed: false,
+              workout_type: workout?.category || (dayPlan.workout ? null : 'rest'),
+              target_load: workout?.targetTSS ?? null,
+              target_duration_min: workout?.duration ?? null,
             });
           }
         }
 
-        // Insert all workouts
-        const { error: workoutsError } = await supabase
-          .from('planned_workouts')
-          .insert(workoutsToInsert);
-
-        if (workoutsError) throw workoutsError;
+        // Write the template onto the CALENDAR. Days the athlete has already
+        // filled are skipped rather than overwritten, so activating a plan can
+        // never bury a race or a session they scheduled themselves. The plan id
+        // rides along as provenance; nothing reads an entry through it.
+        const written = await insertSessions(userId, workoutsToInsert, {
+          source: 'plan',
+          planId: newPlan.id,
+        });
+        if (!written.success) throw new Error(written.error);
 
         // Set the active plan with template
         const activePlanWithTemplate: ActivePlan = {
@@ -583,35 +589,31 @@ export function useTrainingPlan({
         if (planError) throw planError;
 
         // Generate planned workouts with redistributed dates
-        const workoutsToInsert: PlannedWorkoutInsert[] = [];
+        const workoutsToInsert: Array<EntryDraft & { date: string }> = [];
 
         for (const w of initialWorkouts) {
           // Check if this workout was redistributed
           const newDate = redistributionMap.get(w.originalDate) || w.originalDate;
-          const newDateObj = new Date(newDate + 'T12:00:00');
-
           workoutsToInsert.push({
-            plan_id: newPlan.id,
-            user_id: userId,
-            week_number: w.weekNumber,
-            day_of_week: newDateObj.getDay(),
-            scheduled_date: newDate,
-            workout_type: w.workoutType,
+            date: newDate,
+            type: w.workoutType === 'rest' ? 'rest' : 'workout',
+            title: w.workoutId || 'Workout',
             workout_id: w.workoutId,
-            name: w.workoutId || 'Workout',
-            target_tss: w.targetTSS,
-            target_duration: w.targetDuration,
-            duration_minutes: w.targetDuration || 0,
-            completed: false,
+            workout_type: w.workoutType,
+            target_load: w.targetTSS,
+            target_duration_min: w.targetDuration,
           });
         }
 
-        // Insert all workouts
-        const { error: workoutsError } = await supabase
-          .from('planned_workouts')
-          .insert(workoutsToInsert);
-
-        if (workoutsError) throw workoutsError;
+        // Write the template onto the CALENDAR. Days the athlete has already
+        // filled are skipped rather than overwritten, so activating a plan can
+        // never bury a race or a session they scheduled themselves. The plan id
+        // rides along as provenance; nothing reads an entry through it.
+        const written = await insertSessions(userId, workoutsToInsert, {
+          source: 'plan',
+          planId: newPlan.id,
+        });
+        if (!written.success) throw new Error(written.error);
 
         // Set the active plan with template
         const activePlanWithTemplate: ActivePlan = {
@@ -814,32 +816,34 @@ export function useTrainingPlan({
             );
             if (!workoutToUpdate) continue;
 
-            const newDateObj = new Date(r.newDate + 'T12:00:00');
+            // Clear the target day of the rest entry that usually sits there.
+            // Read live rather than from state, which goes stale after the
+            // first move — and athlete-scoped rather than plan-scoped, so a
+            // day held by a coach- or calendar-created entry is seen too.
+            const displaced = await fetchSessionOn(userId!, r.newDate, { includeRaces: true });
 
-            // Query DB live for any row at the target date (in-memory state goes stale after first update)
-            const { data: displacedRows } = await supabase
-              .from('planned_workouts')
-              .select('id')
-              .eq('plan_id', activePlan.id)
-              .eq('scheduled_date', r.newDate);
-
-            // Delete displaced row (typically a rest day with no meaningful data) to clear the target date
-            if (displacedRows && displacedRows.length > 0) {
-              await supabase
-                .from('planned_workouts')
-                .delete()
-                .eq('id', displacedRows[0].id);
+            // A rest day carries nothing worth keeping; anything else is the
+            // athlete's and is left alone, so the move is skipped instead.
+            if (displaced) {
+              if (displaced.entry_type === 'rest' || displaced.workout_type === 'rest') {
+                await deleteEntry(userId!, displaced.id);
+              } else {
+                console.warn(
+                  `reshuffle: ${r.newDate} already holds "${displaced.name}" — leaving it, not moving onto it.`,
+                );
+                continue;
+              }
             }
 
-            // Move the workout to the now-vacant target date
-            const { error: updateError } = await supabase
-              .from('planned_workouts')
-              .update({
-                scheduled_date: r.newDate,
-                day_of_week: newDateObj.getDay(),
+            // Move the workout to the now-vacant target date. moveEntry
+            // allocates the slot and records the origin in provenance.
+            const moved = await moveEntry(userId!, workoutToUpdate.id, r.newDate);
+            if (moved.success) {
+              await updateEntry(userId!, workoutToUpdate.id, {
                 notes: `${workoutToUpdate.notes || ''}\nMoved from ${r.originalDate} (availability change)`.trim(),
-              })
-              .eq('id', workoutToUpdate.id);
+              });
+            }
+            const updateError = moved.success ? null : { message: moved.error };
 
             if (updateError) {
               console.error('Error updating workout:', updateError);
@@ -871,15 +875,8 @@ export function useTrainingPlan({
   const toggleWorkoutCompletion = useCallback(
     async (workoutId: string, completed: boolean): Promise<boolean> => {
       try {
-        const { error: updateError } = await supabase
-          .from('planned_workouts')
-          .update({
-            completed,
-            completed_at: completed ? new Date().toISOString() : null,
-          })
-          .eq('id', workoutId);
-
-        if (updateError) throw updateError;
+        const result = await setEntryStatus(userId!, workoutId, completed ? 'done' : 'planned');
+        if (!result.success) throw new Error(result.error);
 
         // Update local state
         setPlannedWorkouts((prev) =>
@@ -918,29 +915,19 @@ export function useTrainingPlan({
 
         if (activityError) throw activityError;
 
-        // Update workout with activity data. Writes the canonical spec §2
-        // column (actual_rss) only — unlocks the partial §1d DROP of
-        // planned_workouts.actual_tss once the §1d backfill migration runs.
-        // Reads activity.rss first (B9 dual-write) with a legacy fallback
-        // for any pre-backfill rows.
-        const { error: updateError } = await supabase
-          .from('planned_workouts')
-          .update({
-            activity_id: activityId,
-            completed: true,
-            completed_at: activity.start_date,
-            // Dual-write canonical + legacy per CLAUDE.md's metrics freeze.
-            // Writing actual_rss alone left every legacy-only reader
-            // (FitnessProgressChart, checkInContext, assembleFitnessContext,
-            // admin analytics) blind to manually linked sessions.
-            actual_rss: activity.rss ?? activity.tss,
-            actual_tss: activity.rss ?? activity.tss,
-            actual_duration: Math.round(activity.moving_time / 60),
-            actual_distance_km: activity.distance ? activity.distance / 1000 : null,
-          })
-          .eq('id', workoutId);
+        // The calendar has ONE load column, so the canonical/legacy dual-write
+        // the old table needed does not arise here. Readers still see both
+        // names — the adapter emits target_rss and target_tss from it.
+        // activities.distance is METRES per the unit convention.
+        const linked = await linkEntryToActivity(userId!, workoutId, {
+          activityId,
+          actualLoad: activity.rss ?? activity.tss,
+          actualDurationMin: Math.round(activity.moving_time / 60),
+          actualDistanceKm: activity.distance ? activity.distance / 1000 : null,
+          completedAt: activity.start_date,
+        });
 
-        if (updateError) throw updateError;
+        if (!linked.success) throw new Error(linked.error);
 
         // Set reverse pointer so EFI computation can find the linked workout
         await supabase
@@ -1032,26 +1019,22 @@ export function useTrainingPlan({
           return false;
         }
 
-        // Insert the supplement workout
-        const workoutInsert: PlannedWorkoutInsert = {
-          plan_id: activePlan.id,
-          user_id: activePlan.user_id,
-          week_number: weekNumber,
-          day_of_week: dayOfWeek,
-          scheduled_date: formatLocalDate(scheduledDate),
-          workout_type: workout.category,
+        // A supplement is just another entry. createEntry rather than
+        // insertSessions, because this one SHOULD stack onto an occupied day —
+        // that is what a double day is — and it is an athlete act, so it pins.
+        const created = await createEntry(activePlan.user_id, formatLocalDate(scheduledDate), {
+          type: 'workout',
+          title: workout.name || `${workout.category} workout`,
           workout_id: workoutId,
-          target_tss: workout.targetTSS || 0,
-          target_duration: workout.duration,
-          completed: false,
+          workout_type: workout.category,
+          target_load: workout.targetTSS || 0,
+          target_duration_min: workout.duration,
           notes: notes || `Supplement: ${workout.name}`,
-        };
+          source: 'manual',
+          plan_id: activePlan.id,
+        });
 
-        const { error: insertError } = await supabase
-          .from('planned_workouts')
-          .insert(workoutInsert);
-
-        if (insertError) throw insertError;
+        if (!created.success) throw new Error(created.error);
 
         // Update workout total in the plan
         const { error: updateError } = await supabase

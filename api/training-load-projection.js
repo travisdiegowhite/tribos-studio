@@ -10,6 +10,7 @@
 
 import { getSupabaseAdmin } from './utils/supabaseAdmin.js';
 import { isQualityWorkout } from './utils/qualitySession.js';
+import { fetchPlannedSessions } from './utils/calendarRead.js';
 import { setupCors } from './utils/cors.js';
 
 const supabase = getSupabaseAdmin();
@@ -53,15 +54,17 @@ export default async function handler(req, res) {
 
     // Get upcoming planned workouts (canonical-first target per CLAUDE.md)
     const today = new Date().toISOString().split('T')[0];
-    const { data: upcoming } = await supabase
-      .from('planned_workouts')
-      .select('scheduled_date, target_rss, target_tss, is_quality, session_type, workout_type')
-      .eq('user_id', user.id)
-      .gte('scheduled_date', today)
-      .order('scheduled_date', { ascending: true })
-      .limit(days);
+    // Races are INCLUDED here, unlike most readers: a race is a load-bearing
+    // day on the projection curve even though it is not a training session,
+    // and this endpoint does not read race_goals separately, so there is
+    // nothing for it to double-count against.
+    const upcoming = await fetchPlannedSessions(user.id, {
+      from: today,
+      limit: days,
+      includeRaces: true,
+    });
 
-    const schedule = (upcoming ?? []).map(w => ({
+    const schedule = upcoming.map(w => ({
       date: w.scheduled_date,
       rss: (w.target_rss ?? w.target_tss) || 0,
       is_quality: isQualityWorkout(w),

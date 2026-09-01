@@ -180,9 +180,30 @@ Single-page app with client-side routing. `ProtectedRoute` redirects unauthentic
 Vercel serverless functions in `/api`. Each file exports a default handler. Backend uses `SUPABASE_SERVICE_KEY` (service role, server-only). Frontend uses `VITE_SUPABASE_ANON_KEY` (anon role, exposed to browser).
 
 ### Cron Jobs (vercel.json)
-- `/api/garmin-token-maintenance` — every 6 hours (token refresh)
-- `/api/garmin-webhook-process` — every minute (process queued events)
-- `/api/proactive-insights-process` — every minute (generate user insights)
+
+`vercel.json` is the source of truth; this table is kept in step with it. It
+listed three of them with two wrong cadences until 2026-08-30 — both claimed
+"every minute", which also contradicted the connection-hygiene rule below that
+no cron may run more often than every 5 minutes. Nothing runs every minute.
+
+| Schedule | Path | What it does |
+|---|---|---|
+| `*/5 * * * *` | `garmin-webhook-process` | drain queued Garmin events |
+| `*/5 * * * *` | `coros-webhook-process` | drain queued COROS events |
+| `*/5 * * * *` | `cron/welcome-email` | send queued welcome emails |
+| `*/10 * * * *` | `proactive-insights-process` | generate user insights |
+| `30 * * * *` | `garmin-health-monitor` | Garmin SLI/SLO checks |
+| `45 * * * *` | `strava-health-monitor` | Strava SLI/SLO checks |
+| `0 * * * *` | `workout-preview-cron` | tomorrow's session push |
+| `0 */6 * * *` | `garmin-token-maintenance` | refresh Garmin tokens |
+| `0 */6 * * *` | `coros-token-maintenance` | refresh COROS tokens |
+| `0 2 * * *` | `recompute-user-tau?action=recompute-all` | adaptive EWMA taus |
+| `30 2 * * *` | `training-load-daily?action=rollforward` | daily load rollforward |
+| `0 3 * * *` | `database-cleanup` | prune stale rows |
+| `0 10 * * *` | `cron/activation-nudge` | onboarding nudges |
+| `0 12 * * *` | `coach-correction-trigger` | coach correction sweep |
+| `0 3 * * 1` | `fitness-snapshots?action=compute-weekly` | weekly snapshots |
+| `0 4 * * 1` | `evidence-weekly?action=compute-weekly` | weekly evidence rollup |
 
 ### TypeScript Migration
 The codebase is **gradually migrating from JavaScript to TypeScript**. New code should prefer TypeScript (`.ts`/`.tsx`) but JS files are accepted. `allowJs: true` and `checkJs: false` are set in tsconfig. Path aliases available: `@/*`, `@/types/*`, `@/components/*`, `@/utils/*`, `@/data/*`.
@@ -315,6 +336,87 @@ route builder:
 The `route_builder_v2_enabled` column is kept in the DB (and in
 `src/types/database.ts`, since it still exists) under the "wait and watch" policy
 — **do not add new readers/writers and do not drop it without explicit approval.**
+
+### The calendar is `calendar_entries` — one table, one surface (2026-08-29)
+
+`planned_workouts` is retired as the training calendar. **`grep -rn
+"from('planned_workouts')" src/ api/` returns nothing outside
+`api/arc-refill.js`.** Do not add a reader or a writer for it.
+
+**The ownership inversion is the whole point.** A `planned_workouts` row's
+identity was `(plan_id, scheduled_date)`, so a session belonged to a PLAN.
+Anything outside that plan's `duration_weeks` could not exist, which is why an
+athlete's December cyclocross races were unschedulable and `TrainingCalendar`
+had to hard-return on `!activePlan` before adding, moving or editing anything.
+A `calendar_entries` row is keyed `(user_id, date, slot)` and belongs to the
+ATHLETE. **A plan is provenance (`plan_id`), never ownership.** Never gate a
+calendar read or write on a plan existing.
+
+| Where | Read | Write |
+|---|---|---|
+| Browser | `src/lib/calendar/readPlannedSessions.ts` · `getCalendarRange.ts` | `src/lib/calendar/calendarMutations.ts` |
+| Server (`api/`) | `api/utils/calendarRead.js` | `api/utils/calendarWrite.js` |
+| Coach tool | `api/utils/calendarCoachContext.js` | `api/utils/calendarChangeApply.js` |
+
+The browser and server modules are deliberate duplicates, not an oversight: the
+`src/` pair binds the browser client under RLS, the `api/` pair the
+service-role client where **`user_id` scoping IS the security boundary**. Every
+statement in the `api/` modules filters on it; keep it that way.
+
+Both readers hand back rows in the LEGACY field names (`scheduled_date`,
+`name`, `target_rss`, `completed`) via `plannedWorkoutAdapter` / `toLegacyShape`,
+so a caller swaps its query for one call rather than sweeping field names. Two
+things follow: `week_number` and `day_of_week` are DERIVED from the date, never
+stored — storing them is how three plans' "Week 4" collided — and the
+canonical/legacy load pairs collapse, since the calendar has ONE `target_load`
+column (the adapter still emits both names for readers that fall back).
+
+**Races are excluded from `fetchPlannedSessions` by default.** Migration 115
+copied every `race_goals` row into `calendar_entries`, so a caller that also
+reads `race_goals` would show each race twice and add its load to a training
+total. Pass `includeRaces` only if you are NOT reading `race_goals` too.
+
+#### Rules
+
+- **`pinned` means the ATHLETE decided**, not "something touched it". Athlete
+  gestures pin; an accepted proposal pins; the coach applying a change on its
+  own authority does NOT — it leaves the flag exactly as it found it, since an
+  unpin is a decision too. `adjudicateOps` proposes rather than applies
+  whenever a coach change touches a pinned entry, so a coach that pinned its
+  own work would need approval to revise it.
+- **A plan FILLS the calendar, it does not own it.** `insertSessions` skips a
+  day the athlete has already filled rather than overwriting it, so activating
+  a plan can never bury a race. Cancelling a plan DETACHES its entries
+  (`plan_id = null`); it must not delete them.
+- **`calendar_change` is the coach's only calendar tool.** `recommend_workout`,
+  `create_training_plan` and `adjust_schedule` are gone, along with their
+  handlers. Multi-week blocks are its `generate_block` operation — one
+  operation per session overruns the reply budget and truncates mid-write.
+- **Every write reports.** `runCalendarChange` on `/train` toasts and offers an
+  undo; a failed coach write says what failed. A silent write is the bug this
+  rebuild exists to remove.
+- **The `/calendar` gate is fully removed** — no `useCalendarV2Access`, no
+  `CalendarV2Guard`, no `VITE_CALENDAR_V2_ENABLED`. `user_profiles
+  .calendar_v2_enabled` is kept unread under the same "wait and watch" policy
+  as `route_builder_v2_enabled`; do not drop it without approval.
+
+#### Why the gate had to go rather than be extended
+
+The rebuild was gated exactly like RB2 — env kill switch AND a per-user column.
+That worked for RB2 because v1 and RB2 shared the `routes` table, so the gate
+only chose UI. Here it chose DATA, and the moment `/train`'s reads were
+repointed for everyone the gate inverted: it was the LEGACY writers that then
+wrote where nobody looks. A gated athlete's coach would report scheduling a
+workout and show them an unchanged calendar — the exact failure the flag was
+added to prevent.
+
+#### Still on `planned_workouts`
+
+`api/arc-refill.js` keeps its own arc bookkeeping there and MIRRORS the
+readiness numbers (`target_load`, `target_duration_min`, `workout_type`) onto
+`calendar_entries` by id, skipping pinned entries. Migration 070's backfill
+preserved ids, so the id is the join. The table itself is kept for now — do not
+drop it without approval and a soak period.
 
 ### Garmin sync — dual stack, FROZEN (2026-07-14)
 

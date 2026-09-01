@@ -10,6 +10,8 @@
 
 import { getSupabaseAdmin } from './utils/supabaseAdmin.js';
 import { isQualityWorkout } from './utils/qualitySession.js';
+import { fetchPlannedSessions } from './utils/calendarRead.js';
+import { updateEntry, deleteEntry, swapEntries } from './utils/calendarWrite.js';
 import { setupCors } from './utils/cors.js';
 
 const supabase = getSupabaseAdmin();
@@ -110,30 +112,17 @@ async function applyPlanMutation(supabase, userId, deviation, option) {
   tomorrowDate.setDate(tomorrowDate.getDate() + 1);
   const tomorrowStr = tomorrowDate.toLocaleDateString('en-CA', { timeZone: tz });
 
-  // Find the user's active plan
-  const { data: plan } = await supabase
-    .from('training_plans')
-    .select('id')
-    .eq('user_id', userId)
-    .eq('status', 'active')
-    .limit(1)
-    .single();
+  // The next two weeks from the CALENDAR. The active-plan lookup that used to
+  // gate this is gone: an entry belongs to the athlete, so a deviation can now
+  // be resolved against a session the coach scheduled without a plan — which
+  // this endpoint used to refuse outright.
+  const upcoming = await fetchPlannedSessions(userId, {
+    from: tomorrowStr,
+    limit: 14,
+    includeCompleted: false,
+  });
 
-  if (!plan) {
-    return { applied: false, reason: 'no_active_plan' };
-  }
-
-  const { data: upcoming } = await supabase
-    .from('planned_workouts')
-    .select('id, scheduled_date, name, workout_type, target_tss, target_duration, is_quality')
-    .eq('plan_id', plan.id)
-    .eq('user_id', userId)
-    .gte('scheduled_date', tomorrowStr)
-    .eq('completed', false)
-    .order('scheduled_date', { ascending: true })
-    .limit(14);
-
-  if (!upcoming || upcoming.length === 0) {
+  if (upcoming.length === 0) {
     return { applied: false, reason: 'no_upcoming_workouts' };
   }
 
@@ -148,15 +137,12 @@ async function applyPlanMutation(supabase, userId, deviation, option) {
       const newDuration = target.target_duration ? Math.round(target.target_duration * 0.7) : null;
 
       const updates = {};
-      if (newTss !== null) updates.target_tss = newTss;
-      if (newDuration !== null) updates.target_duration = newDuration;
+      if (newTss !== null) updates.target_load = newTss;
+      if (newDuration !== null) updates.target_duration_min = newDuration;
 
       if (Object.keys(updates).length > 0) {
-        await supabase
-          .from('planned_workouts')
-          .update(updates)
-          .eq('id', target.id)
-          .eq('user_id', userId);
+        const result = await updateEntry(userId, target.id, updates);
+        if (!result.success) return { applied: false, reason: result.error };
       }
 
       return {
@@ -185,19 +171,10 @@ async function applyPlanMutation(supabase, userId, deviation, option) {
         return { applied: false, reason: 'no_workout_at_swap_date' };
       }
 
-      // Swap scheduled dates
-      await Promise.all([
-        supabase
-          .from('planned_workouts')
-          .update({ scheduled_date: swapDateStr })
-          .eq('id', nextQuality.id)
-          .eq('user_id', userId),
-        supabase
-          .from('planned_workouts')
-          .update({ scheduled_date: nextQuality.scheduled_date })
-          .eq('id', swapTarget.id)
-          .eq('user_id', userId),
-      ]);
+      // Two plain date updates would collide on UNIQUE (user_id, date, slot);
+      // swapEntries parks one row on a sentinel slot first.
+      const swapped = await swapEntries(userId, nextQuality.id, swapTarget.id);
+      if (!swapped.success) return { applied: false, reason: swapped.error };
 
       return {
         applied: true,
@@ -215,15 +192,13 @@ async function applyPlanMutation(supabase, userId, deviation, option) {
         return { applied: false, reason: 'no_workout_tomorrow' };
       }
 
-      await supabase
-        .from('planned_workouts')
-        .update({
-          target_tss: 0,
-          workout_type: 'rest',
-          name: 'Rest Day (deviation adjustment)',
-        })
-        .eq('id', tomorrowWorkout.id)
-        .eq('user_id', userId);
+      const rested = await updateEntry(userId, tomorrowWorkout.id, {
+        type: 'rest',
+        workout_type: 'rest',
+        title: 'Rest Day (deviation adjustment)',
+        target_load: 0,
+      });
+      if (!rested.success) return { applied: false, reason: rested.error };
 
       return {
         applied: true,
@@ -238,11 +213,8 @@ async function applyPlanMutation(supabase, userId, deviation, option) {
       // Delete the next quality workout
       const target = nextQuality || upcoming[0];
 
-      await supabase
-        .from('planned_workouts')
-        .delete()
-        .eq('id', target.id)
-        .eq('user_id', userId);
+      const dropped = await deleteEntry(userId, target.id);
+      if (!dropped.success) return { applied: false, reason: dropped.error };
 
       return {
         applied: true,

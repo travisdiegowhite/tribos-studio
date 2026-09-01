@@ -10,6 +10,7 @@ import { useAuth } from '../contexts/AuthContext.jsx';
 import AppShell from '../components/AppShell.jsx';
 import PageHeader from '../components/PageHeader.jsx';
 import { supabase } from '../lib/supabase';
+import { fetchPlannedSessions, fetchSessionOn } from '../lib/calendar/readPlannedSessions';
 import { formatDistance, formatElevation } from '../utils/units';
 import GetStartedGuide from '../components/activation/GetStartedGuide.jsx';
 import ProactiveInsightCard from '../components/activation/ProactiveInsightCard.jsx';
@@ -145,40 +146,37 @@ function Dashboard() {
 
         if (plansData && plansData.length > 0) {
           setActivePlans(plansData);
-
-          const planIds = plansData.map(p => p.id);
-
-          // Fetch today's workout across all active plans
-          const todayDate = new Date();
-          const today = `${todayDate.getFullYear()}-${String(todayDate.getMonth() + 1).padStart(2, '0')}-${String(todayDate.getDate()).padStart(2, '0')}`;
-          const { data: workoutData } = await supabase
-            .from('planned_workouts')
-            .select('*')
-            .in('plan_id', planIds)
-            .eq('scheduled_date', today)
-            .limit(1)
-            .maybeSingle();
-
-          if (workoutData) {
-            setTodayWorkout(workoutData);
-          }
-
-          // Fetch planned workouts for this week across all active plans
-          const wsKey = `${weekStart.getFullYear()}-${String(weekStart.getMonth() + 1).padStart(2, '0')}-${String(weekStart.getDate()).padStart(2, '0')}`;
-          const weKey = `${weekEnd.getFullYear()}-${String(weekEnd.getMonth() + 1).padStart(2, '0')}-${String(weekEnd.getDate()).padStart(2, '0')}`;
-          // Prefer canonical target_rss (spec §2). The filter uses .or() to
-          // include rows written pre-§3b-2/3b-6 (legacy target_tss > 0) as
-          // well as rows written post-cut-over (target_rss > 0).
-          const { data: plannedWorkouts } = await supabase
-            .from('planned_workouts')
-            .select('id, target_rss, target_tss')
-            .in('plan_id', planIds)
-            .gte('scheduled_date', wsKey)
-            .lt('scheduled_date', weKey)
-            .or('target_rss.gt.0,target_tss.gt.0');
-
-          setWeekStats(prev => ({ ...prev, planned: plannedWorkouts?.length || 0 }));
         }
+
+        // The calendar reads sit OUTSIDE the active-plan branch on purpose.
+        // They used to be inside it and scoped to `plan_id IN (...)`, which
+        // meant two things at once: an athlete with no active plan saw an empty
+        // dashboard even with a full week scheduled, and an entry the coach or
+        // the calendar created — which carries no plan_id — was invisible even
+        // when a plan existed. An entry belongs to the athlete; a plan is
+        // provenance.
+        const todayDate = new Date();
+        const today = `${todayDate.getFullYear()}-${String(todayDate.getMonth() + 1).padStart(2, '0')}-${String(todayDate.getDate()).padStart(2, '0')}`;
+        const workoutData = await fetchSessionOn(user.id, today);
+
+        if (workoutData) {
+          setTodayWorkout(workoutData);
+        }
+
+        const wsKey = `${weekStart.getFullYear()}-${String(weekStart.getMonth() + 1).padStart(2, '0')}-${String(weekStart.getDate()).padStart(2, '0')}`;
+        const weKey = `${weekEnd.getFullYear()}-${String(weekEnd.getMonth() + 1).padStart(2, '0')}-${String(weekEnd.getDate()).padStart(2, '0')}`;
+        // calendar_entries has one load column, so the canonical/legacy .or()
+        // the old query needed is gone; the adapter still hands back both
+        // names. weKey stays EXCLUSIVE, matching the old .lt().
+        const weekSessions = await fetchPlannedSessions(user.id, {
+          from: wsKey,
+          to: weKey,
+        });
+        const planned = weekSessions.filter(
+          (w) => w.scheduled_date < weKey && (w.target_rss ?? 0) > 0,
+        ).length;
+
+        setWeekStats(prev => ({ ...prev, planned }));
       } catch (err) {
         console.error('Error fetching data:', err);
       } finally {

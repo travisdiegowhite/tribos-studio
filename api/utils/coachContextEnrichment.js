@@ -16,6 +16,7 @@
  */
 
 import { getSportType } from './sportTypes.js';
+import { fetchPlannedSessions } from './calendarRead.js';
 
 // ─── Timezone-safe date helpers (module-private, mirrors temporalAnchor.js) ──
 
@@ -118,19 +119,17 @@ export async function fetchCoachEnrichmentData(supabase, userId) {
         .maybeSingle(),
       // All completion states — the temporal anchor only fetches uncompleted
       // future sessions, so DONE/MISSED status for this week comes from here.
-      supabase
-        .from('planned_workouts')
-        .select('id, scheduled_date, name, workout_type, target_rss, target_tss, actual_rss, actual_tss, target_duration, completed, skipped_reason, activity_id')
-        .eq('user_id', userId)
-        .gte('scheduled_date', plannedStart)
-        .lte('scheduled_date', plannedEnd)
-        .order('scheduled_date', { ascending: true }),
+      // This file has been broken twice before: once selecting a column that
+      // did not exist (silently losing the athlete's schedule on every call),
+      // and once reading a table the calendar no longer is. The reader below
+      // is the same one the anchor uses, so they cannot diverge again.
+      fetchPlannedSessions(userId, { from: plannedStart, to: plannedEnd }),
     ]);
 
     return {
       recentActivities: activitiesResult?.data || [],
       latestLoad: loadResult?.data || null,
-      weekPlanned: plannedResult?.data || [],
+      weekPlanned: plannedResult || [],
     };
   } catch (err) {
     console.error('Coach enrichment fetch failed (non-blocking):', err.message);

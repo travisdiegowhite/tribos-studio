@@ -37,6 +37,8 @@ import { useAuth } from '../contexts/AuthContext.jsx';
 import { useActivation } from '../hooks/useActivation';
 import { parsePlanStartDate, formatLocalDate, getTodayString, activityDateKey, weekRangeKeys } from '../utils/dateUtils';
 import { supabase } from '../lib/supabase';
+import { fetchPlannedSessions } from '../lib/calendar/readPlannedSessions';
+import { createEntry } from '../lib/calendar/calendarMutations';
 import { resolveActivePlan } from '../utils/activePlan';
 import { CoachCard, CheckInPage } from '../components/coach';
 import TrainingLoadChart from '../components/TrainingLoadChart.jsx';
@@ -329,16 +331,9 @@ function TrainingDashboard() {
 
         // Load planned workouts USER-scoped (not plan-scoped) so dashboard widgets see
         // every workout — coach adds, manual adds, any plan — matching the calendar.
-        const { data: workoutsData } = await supabase
-          .from('planned_workouts')
-          .select('*')
-          .eq('user_id', user.id)
-          .order('scheduled_date', { ascending: true });
-
-        if (workoutsData) {
-          setPlannedWorkouts(workoutsData);
-          console.log(`Loaded ${workoutsData.length} planned workouts`);
-        }
+        const workoutsData = await fetchPlannedSessions(user.id);
+        setPlannedWorkouts(workoutsData);
+        console.log(`Loaded ${workoutsData.length} calendar sessions`);
       } catch (error) {
         console.error('Error loading training data:', error);
       } finally {
@@ -357,13 +352,8 @@ function TrainingDashboard() {
         const planData = await resolveActivePlan(supabase, user.id);
         setActivePlan(planData || null);
 
-        // User-scoped reload so newly-added workouts from any source appear.
-        const { data: workoutsData } = await supabase
-          .from('planned_workouts')
-          .select('*')
-          .eq('user_id', user.id)
-          .order('scheduled_date', { ascending: true });
-        if (workoutsData) setPlannedWorkouts(workoutsData);
+        // Athlete-scoped reload so newly-added sessions from any source appear.
+        setPlannedWorkouts(await fetchPlannedSessions(user.id));
 
         setCalendarRefreshKey((prev) => prev + 1);
       } catch (err) {
@@ -735,14 +725,9 @@ function TrainingDashboard() {
         .maybeSingle();
       if (planData) {
         setActivePlan(planData);
-        const { data: workoutsData } = await supabase
-          .from('planned_workouts')
-          .select('*')
-          .eq('plan_id', planData.id)
-          .order('scheduled_date', { ascending: true });
-        if (workoutsData) {
-          setPlannedWorkouts(workoutsData);
-        }
+        // Athlete-scoped, not plan-scoped: an entry the coach or the calendar
+        // created carries no plan_id and would be invisible to the old query.
+        setPlannedWorkouts(await fetchPlannedSessions(user.id));
       }
     }
   }, [user?.id]);
@@ -806,64 +791,45 @@ function TrainingDashboard() {
 
   // Handle adding supplement workout to plan
   const handleAddSupplementWorkout = async (workoutId, scheduledDate) => {
-    if (!activePlan || !user) return false;
+    // No activePlan requirement: a supplement session is a calendar entry, and
+    // the calendar does not need a plan to exist. week_number and day_of_week
+    // are gone with it — both were derived from a plan's start date, and the
+    // adapter derives them from the date instead.
+    if (!user) return false;
 
     try {
       const workout = getWorkoutById(workoutId);
       if (!workout) return false;
 
-      // Calculate week number based on plan start date
-      const startDate = new Date(activePlan.started_at);
-      const diffTime = scheduledDate.getTime() - startDate.getTime();
-      const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
-      const weekNumber = Math.floor(diffDays / 7) + 1;
-      const dayOfWeek = scheduledDate.getDay();
+      const result = await createEntry(user.id, formatLocalDate(scheduledDate), {
+        type: 'workout',
+        title: workout.name || `${workout.category} Workout`,
+        workout_id: workoutId,
+        workout_type: workout.category,
+        target_load: workout.targetTSS || 0,
+        target_duration_min: workout.duration || 0,
+        notes: `Supplement: ${workout.name}`,
+        source: 'manual',
+        plan_id: activePlan?.id ?? null,
+      });
+      if (!result.success) throw new Error(result.error);
 
-      // Insert the supplement workout
-      const { error: insertError } = await supabase
-        .from('planned_workouts')
-        .insert({
-          plan_id: activePlan.id,
-          user_id: user.id,
-          week_number: weekNumber,
-          day_of_week: dayOfWeek,
-          scheduled_date: formatLocalDate(scheduledDate),
-          workout_type: workout.category,
-          workout_id: workoutId,
-          name: workout.name || `${workout.category} Workout`,
-          duration_minutes: workout.duration || 0,
-          target_rss: workout.targetTSS || 0,
-          target_duration: workout.duration,
-          completed: false,
-          notes: `Supplement: ${workout.name}`,
-        });
-
-      if (insertError) throw insertError;
-
-      // Update workout total in the plan
-      await supabase
-        .from('training_plans')
-        .update({
-          workouts_total: (activePlan.workouts_total || 0) + 1,
-        })
-        .eq('id', activePlan.id);
-
-      // Reload planned workouts
-      const { data: workoutsData } = await supabase
-        .from('planned_workouts')
-        .select('*')
-        .eq('plan_id', activePlan.id)
-        .order('scheduled_date', { ascending: true });
-
-      if (workoutsData) {
-        setPlannedWorkouts(workoutsData);
+      // Keep the plan's own counter honest when there IS a plan.
+      if (activePlan?.id) {
+        await supabase
+          .from('training_plans')
+          .update({
+            workouts_total: (activePlan.workouts_total || 0) + 1,
+          })
+          .eq('id', activePlan.id);
+        setActivePlan(prev => ({
+          ...prev,
+          workouts_total: (prev.workouts_total || 0) + 1,
+        }));
       }
 
-      // Update active plan state
-      setActivePlan(prev => ({
-        ...prev,
-        workouts_total: (prev.workouts_total || 0) + 1,
-      }));
+      // Reload the calendar, athlete-scoped for the same reason as above.
+      setPlannedWorkouts(await fetchPlannedSessions(user.id));
 
       return true;
     } catch (error) {

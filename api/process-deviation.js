@@ -10,6 +10,7 @@
  */
 
 import { getSupabaseAdmin } from './utils/supabaseAdmin.js';
+import { fetchPlannedSessions } from './utils/calendarRead.js';
 import { isQualityWorkout } from './utils/qualitySession.js';
 import { setupCors } from './utils/cors.js';
 import { estimateTSSWithSource } from './utils/fitnessSnapshots.js';
@@ -94,29 +95,17 @@ export default async function handler(req, res) {
       ? { tfi: seed.tfi, afi: seed.afi, formScore: seed.tfi - seed.afi }
       : { tfi: 0, afi: 0, formScore: 0 };
 
-    // 4. Fetch planned workouts for the next 14 days.
-    // Get active plan IDs (planned_workouts has no user_id column)
-    const { data: activePlans } = await supabase
-      .from('training_plans')
-      .select('id')
-      .eq('user_id', userId)
-      .eq('status', 'active');
-    const planIds = (activePlans || []).map(p => p.id);
+    // 4. The next 14 days from the calendar.
+    //
+    // The active-plan lookup that used to gate this is gone with the join it
+    // was there to serve: calendar_entries is keyed on the athlete, so an
+    // athlete without a plan can now have a deviation analysed — which is the
+    // right behaviour, since a deviation is from what was SCHEDULED, and the
+    // coach schedules without a plan now.
+    const upcoming = await fetchPlannedSessions(userId, { from: today, limit: 14 });
 
-    if (planIds.length === 0) {
-      return res.status(200).json({ status: 'no_plan' });
-    }
-
-    const { data: upcoming } = await supabase
-      .from('planned_workouts')
-      .select('scheduled_date, target_rss, target_tss, workout_type, is_quality, session_type, name')
-      .in('plan_id', planIds)
-      .gte('scheduled_date', today)
-      .order('scheduled_date', { ascending: true })
-      .limit(14);
-
-    if (!upcoming || upcoming.length === 0) {
-      return res.status(200).json({ status: 'no_plan' });
+    if (upcoming.length === 0) {
+      return res.status(200).json({ status: 'nothing_scheduled' });
     }
 
     // The deviation compares the activity against TODAY's planned workout

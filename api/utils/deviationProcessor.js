@@ -8,6 +8,8 @@
  * in the /api/process-deviation endpoint.
  */
 
+import { fetchSessionOn } from './calendarRead.js';
+
 /**
  * Trigger deviation analysis for a synced activity.
  *
@@ -39,13 +41,11 @@ export async function enqueueDeviationAnalysis(supabase, userId, activityId) {
       .maybeSingle();
     const tz = profile?.timezone || 'America/New_York';
     const today = new Date().toLocaleDateString('en-CA', { timeZone: tz });
-    const { data: todayWorkout } = await supabase
-      .from('planned_workouts')
-      .select('id')
-      .eq('plan_id', plan.id)
-      .eq('scheduled_date', today)
-      .limit(1)
-      .single();
+    // Athlete-scoped, not plan-scoped: a coach- or calendar-created session
+    // carries no plan_id, and a deviation from one of those is still a
+    // deviation. `.single()` also used to log a PGRST116 on every empty day;
+    // an empty day is the normal case, not an error.
+    const todayWorkout = await fetchSessionOn(userId, today);
 
     if (!todayWorkout) {
       return { enqueued: false, reason: 'no_planned_workout_today' };

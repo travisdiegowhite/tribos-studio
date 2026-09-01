@@ -1,4 +1,5 @@
 import { redistributeWorkouts } from './trainingPlans';
+import { insertSessions } from '../lib/calendar/calendarMutations';
 
 /**
  * Activate a coach-generated training plan preview: complete any existing active plans,
@@ -34,9 +35,10 @@ export async function activateTrainingPlan(supabase, { userId, plan, availabilit
     // Retire existing active plans so only the new one is active. Their
     // calendar rows are deliberately left alone — see the note in
     // api/coach.js. The one thing that WAS missing here is an error check.
+    // 'completed' is constraint-mandated — see the note in api/coach.js.
     const { error: retireError } = await supabase
       .from('training_plans')
-      .update({ status: 'superseded', ended_at: new Date().toISOString() })
+      .update({ status: 'completed', ended_at: new Date().toISOString() })
       .eq('user_id', userId)
       .eq('status', 'active');
     if (retireError) {
@@ -68,21 +70,22 @@ export async function activateTrainingPlan(supabase, { userId, plan, availabilit
 
     if (planError) throw planError;
 
+    // Calendar entry drafts. The calendar has one load column, so the
+    // canonical/legacy dual-write the old table needed does not arise; readers
+    // still see both names via the adapter. week_number and day_of_week are
+    // dropped — both were derived from the plan's start date, and the calendar
+    // derives them from the date itself. `weekNumber` is kept on the
+    // redistribution input below, which is a pure function that needs it.
     let workoutsToInsert = plan.workouts.map((w) => ({
-      plan_id: newPlan.id,
-      user_id: userId,
-      week_number: w.week_number,
-      day_of_week: w.day_of_week,
-      scheduled_date: w.scheduled_date,
-      workout_type: w.workout_type || 'rest',
+      date: w.scheduled_date,
+      type: (w.workout_type || 'rest') === 'rest' ? 'rest' : 'workout',
+      title: w.name || w.workout_id || 'Workout',
       workout_id: w.workout_id || null,
-      name: w.name || w.workout_id || 'Workout',
-      // Dual-write canonical (RSS) + legacy (TSS) load columns per CLAUDE.md.
-      target_rss: w.target_rss ?? w.target_tss ?? null,
-      target_tss: w.target_rss ?? w.target_tss ?? null,
-      target_duration: w.duration_minutes || null,
-      duration_minutes: w.duration_minutes || 0,
-      completed: false,
+      workout_type: w.workout_type || 'rest',
+      target_load: w.target_rss ?? w.target_tss ?? null,
+      target_duration_min: w.duration_minutes || null,
+      _weekNumber: w.week_number,
+      _dayOfWeek: w.day_of_week,
     }));
 
     // Schedule-aware redistribution when the athlete has blocked days configured.
@@ -94,13 +97,13 @@ export async function activateTrainingPlan(supabase, { userId, plan, availabilit
       const workoutsForRedistribution = workoutsToInsert
         .filter((w) => w.workout_id && w.workout_type !== 'rest')
         .map((w) => ({
-          originalDate: w.scheduled_date,
-          dayOfWeek: w.day_of_week,
-          weekNumber: w.week_number,
+          originalDate: w.date,
+          dayOfWeek: w._dayOfWeek,
+          weekNumber: w._weekNumber,
           workoutId: w.workout_id,
           workoutType: w.workout_type,
-          targetTSS: w.target_tss,
-          targetDuration: w.target_duration,
+          targetTSS: w.target_load,
+          targetDuration: w.target_duration_min,
         }));
 
       const redistributions = redistributeWorkouts(
@@ -123,28 +126,30 @@ export async function activateTrainingPlan(supabase, { userId, plan, availabilit
 
       if (movedDates.size > 0) {
         workoutsToInsert = workoutsToInsert.map((w) => {
-          const key = w.scheduled_date + '|' + w.workout_id;
-          const newDate = movedDates.get(key);
-          if (newDate) {
-            const newDateObj = new Date(newDate + 'T12:00:00');
-            return { ...w, scheduled_date: newDate, day_of_week: newDateObj.getDay() };
-          }
-          return w;
+          const newDate = movedDates.get(w.date + '|' + w.workout_id);
+          return newDate ? { ...w, date: newDate } : w;
         });
       }
     }
 
-    const { error: workoutsError } = await supabase
-      .from('planned_workouts')
-      .insert(workoutsToInsert);
+    // Strip the scratch fields the redistributor needed; they are not columns.
+    const drafts = workoutsToInsert.map(({ _weekNumber, _dayOfWeek, ...draft }) => draft);
 
-    if (workoutsError) throw workoutsError;
+    // Days the athlete has already filled are skipped, not overwritten, so
+    // activating a plan cannot bury a race or a session they scheduled.
+    const written = await insertSessions(userId, drafts, {
+      source: 'coach',
+      planId: newPlan.id,
+    });
+    if (!written.success) throw new Error(written.error);
 
     return {
       success: true,
       planId: newPlan.id,
       planName: plan.name,
-      workoutCount: actualWorkouts.length,
+      // What actually landed, not what was attempted.
+      workoutCount: written.data.inserted,
+      skippedCount: written.data.skipped,
       redistributionCount,
     };
   } catch (err) {
