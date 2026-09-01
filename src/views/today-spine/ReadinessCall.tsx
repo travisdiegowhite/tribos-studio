@@ -10,9 +10,12 @@
  * the same pure engine that feeds the coach's prompt. Nothing is decided here
  * — this component renders a line the engine already wrote, in the athlete's
  * persona voice, and shows nothing at all when no rule fires.
+ *
+ * The same request answers "has this athlete checked in yet today?", which is
+ * what decides whether Today prompts for one — so both come from one call.
  */
 
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { Box, Text } from '@mantine/core';
 import { supabase } from '../../lib/supabase';
 import { C, FONT } from './tokens';
@@ -43,8 +46,37 @@ const CONFIDENCE_NOTE: Record<string, string> = {
   contested: 'The research is split on this one.',
 };
 
-export function useReadinessVerdict() {
+export interface TodayCheckIn {
+  date: string;
+  sleep: number | null;
+  leg_feel: number | null;
+  motivation: number | null;
+  illness: boolean | null;
+}
+
+export interface ReadinessState {
+  verdict: ReadinessVerdict | null;
+  /** Today's check-in row, or null when the athlete has not filled one in. */
+  checkin: TodayCheckIn | null;
+  /** True until the first response lands — callers render nothing meanwhile. */
+  loading: boolean;
+  /** Re-fetch, e.g. after the athlete submits a check-in. */
+  refresh: () => void;
+}
+
+/**
+ * One request behind both the readiness call and the check-in prompt.
+ *
+ * Deliberately independent of the spine fetch: a slow or failed verdict must
+ * never delay the page, and Today rendered fine before either existed.
+ */
+export function useReadiness(): ReadinessState {
   const [verdict, setVerdict] = useState<ReadinessVerdict | null>(null);
+  const [checkin, setCheckin] = useState<TodayCheckIn | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [nonce, setNonce] = useState(0);
+
+  const refresh = useCallback(() => setNonce((n) => n + 1), []);
 
   useEffect(() => {
     let cancelled = false;
@@ -58,17 +90,21 @@ export function useReadinessVerdict() {
         });
         if (!res.ok) return;
         const body = await res.json();
-        if (!cancelled) setVerdict(body?.readiness ?? null);
+        if (cancelled) return;
+        setVerdict(body?.readiness ?? null);
+        setCheckin(body?.checkin ?? null);
       } catch {
-        // A missing readiness call is the normal case — most days no rule
-        // fires. Failing quietly renders the page exactly as it did before.
+        // Most days no rule fires and this is the normal, quiet path. Failing
+        // silently renders the page exactly as it did before.
+      } finally {
+        if (!cancelled) setLoading(false);
       }
     })();
 
     return () => { cancelled = true; };
-  }, []);
+  }, [nonce]);
 
-  return verdict;
+  return { verdict, checkin, loading, refresh };
 }
 
 export function ReadinessCall({ verdict }: { verdict: ReadinessVerdict | null }) {

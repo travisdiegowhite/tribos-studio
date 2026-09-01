@@ -11,7 +11,7 @@
  * the device's sleep score.
  */
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Paper, Text, Group, Button, Stack, Slider, Textarea, Switch } from '@mantine/core';
 import { supabase } from '../../lib/supabase';
 import { Barbell, Lightning, Heart, Moon, Thermometer } from '@phosphor-icons/react';
@@ -62,6 +62,43 @@ export default function FatigueCheckinCard({ onComplete }: FatigueCheckinCardPro
   const [submitting, setSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Load today's answers if there are any.
+  //
+  // This card renders on two pages now (the Coach tab and Today), and without
+  // this it would show a second, blank form to someone who had already
+  // answered on the other one — defaulting every slider to 3. Submitting that
+  // form upserts on (user_id, date), so a stray tap would overwrite a real
+  // check-in with middling values and quietly change what the readiness rules
+  // read. Fetching first turns the duplicate into a summary instead.
+  useEffect(() => {
+    let cancelled = false;
+
+    (async () => {
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        if (!session) return;
+        const res = await fetch('/api/fatigue-checkin', {
+          headers: { Authorization: `Bearer ${session.access_token}` },
+        });
+        if (!res.ok) return;
+        const body = await res.json();
+        const existing = body?.checkin;
+        if (cancelled || !existing) return;
+        // Prefill so the summary reports what was actually answered.
+        if (typeof existing.sleep === 'number') setSleep(existing.sleep);
+        if (typeof existing.leg_feel === 'number') setLegFeel(existing.leg_feel);
+        if (typeof existing.motivation === 'number') setMotivation(existing.motivation);
+        if (typeof existing.illness === 'boolean') setIllness(existing.illness);
+        setSubmitted(true);
+      } catch {
+        // Offline or unauthenticated: fall through to the blank form, which is
+        // the behaviour this card has always had.
+      }
+    })();
+
+    return () => { cancelled = true; };
+  }, []);
 
   const handleSubmit = async () => {
     setSubmitting(true);
@@ -118,6 +155,7 @@ export default function FatigueCheckinCard({ onComplete }: FatigueCheckinCardPro
         <Text size="sm" c="teal" fw={600}>Morning check-in recorded</Text>
         <Text size="xs" c="dimmed" mt={4}>
           Sleep: {SLEEP_LABELS[sleep]} · Legs: {LABELS[legFeel]} · Energy: {ENERGY_LABELS[energy]} · Motivation: {MOTIVATION_LABELS[motivation]}
+          {illness ? ' · Reported ill' : ''}
         </Text>
       </Paper>
     );

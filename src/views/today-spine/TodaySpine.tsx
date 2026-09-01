@@ -21,7 +21,8 @@ import { SpinePanel } from './SpinePanel';
 import { FitnessNode } from './FitnessNode';
 import { CoachPanel } from './CoachPanel';
 import { SpineEmptyState } from './SpineEmptyState';
-import { ReadinessCall, useReadinessVerdict } from './ReadinessCall';
+import { ReadinessCall, useReadiness } from './ReadinessCall';
+import { TodayCheckIn } from './TodayCheckIn';
 import { BeatsColumn } from './beats/BeatsColumn';
 import { buildNodeVM } from './nodeView';
 import { C, FONT } from './tokens';
@@ -84,9 +85,10 @@ export default function TodaySpine() {
 
   const { loading, data, error, retry } = useTodaySpine(user?.id ?? null);
   // "Am I cleared today?" — answered by a readiness rule when one fires, and
-  // by nothing at all when none does. Independent of the spine fetch so a slow
-  // or failed verdict never delays the page.
-  const readiness = useReadinessVerdict();
+  // by nothing at all when none does. The same request says whether the
+  // athlete has checked in yet, which is what decides whether to ask.
+  // Independent of the spine fetch so a slow verdict never delays the page.
+  const readiness = useReadiness();
 
   const [selected, setSelected] = useState(0);
   const [flipped, setFlipped] = useState(false);
@@ -216,7 +218,12 @@ export default function TodaySpine() {
         <Stack gap={16}>
           <PageHeader data={data} compact />
           <GetStartedGuide />
-          <ReadinessCall verdict={readiness} />
+          <ReadinessCall verdict={readiness.verdict} />
+          <TodayCheckIn
+            checkin={readiness.checkin}
+            loading={readiness.loading}
+            onComplete={readiness.refresh}
+          />
           <BeatsColumn
             data={data}
             units={units}
@@ -246,7 +253,12 @@ export default function TodaySpine() {
       <Stack gap={20}>
         <PageHeader data={data} />
         <GetStartedGuide />
-        <ReadinessCall verdict={readiness} />
+        <ReadinessCall verdict={readiness.verdict} />
+        <TodayCheckIn
+          checkin={readiness.checkin}
+          loading={readiness.loading}
+          onComplete={readiness.refresh}
+        />
         {spine}
         {bottomRow}
       </Stack>
