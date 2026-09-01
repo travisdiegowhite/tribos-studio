@@ -23,6 +23,7 @@ import { PERSONA_DATA } from './utils/personaData.js';
 import { formatHealth, fetchProprietaryMetrics } from './utils/contextHelpers.js';
 import { buildTemporalAnchor, fetchTemporalAnchorData, buildSessionLabelMap, sanitizeSessionIds } from './utils/temporalAnchor.js';
 import { fetchCoachEnrichmentData, buildCoachEnrichmentBlock } from './utils/coachContextEnrichment.js';
+import { buildCoachingBibleBlock, buildRiderContext, ageFromDob, pickGoalRace } from './utils/coachingBible.js';
 
 // Initialize Supabase for auth validation
 const supabase = getSupabaseAdmin();
@@ -734,10 +735,12 @@ export default async function handler(req, res) {
         .is('resolved_at', null)
         .order('deviation_date', { ascending: false })
         .limit(5),
-      // Fetch user timezone + FTP/weight for the server training snapshot
+      // Fetch user timezone + FTP/weight for the server training snapshot.
+      // date_of_birth feeds the coaching-bible rider context, which mentions
+      // age only past 40 (masters rules key off it from Phase 2 on).
       supabase
         .from('user_profiles')
-        .select('timezone, recovery_mode, ftp, weight_kg')
+        .select('timezone, recovery_mode, ftp, weight_kg, date_of_birth')
         .eq('id', verifiedUserId)
         .maybeSingle(),
       // Fetch all active training plans for multi-plan context
@@ -780,9 +783,23 @@ export default async function handler(req, res) {
         .eq('user_id', verifiedUserId)
         .order('week', { ascending: false })
         .limit(9),
+      // 28-day activity window for the coaching-bible rider context: typical
+      // weekly hours and the most recent ride. Deliberately NOT folded into
+      // fetchCoachEnrichmentData, whose 15-day / 30-row window is tuned for
+      // the snapshot block and would start truncating if widened. Two columns
+      // plus the last ride's labels — a small payload.
+      supabase
+        .from('activities')
+        .select('name, start_date, moving_time, distance, average_watts')
+        .eq('user_id', verifiedUserId)
+        .is('duplicate_of', null)
+        .or('is_hidden.eq.false,is_hidden.is.null')
+        .gte('start_date', new Date(Date.now() - 28 * 86400000).toISOString())
+        .order('start_date', { ascending: false })
+        .limit(200),
     ];
 
-    const [coachSettingsResult, coachMemoryResult, recentCheckInsResult, calendarContextResult, checkInResult, deviationsResult, userProfileResult, allActivePlansResult, healthMetricsResult, dayAvailabilityResult, trainingPrefsResult, enrichmentData, evidenceResult] = await Promise.all(parallelFetches);
+    const [coachSettingsResult, coachMemoryResult, recentCheckInsResult, calendarContextResult, checkInResult, deviationsResult, userProfileResult, allActivePlansResult, healthMetricsResult, dayAvailabilityResult, trainingPrefsResult, enrichmentData, evidenceResult, recentRidesResult] = await Promise.all(parallelFetches);
 
     const coachSettings = coachSettingsResult.data;
     const activeCheckIn = checkInResult?.data || null;
@@ -1164,6 +1181,58 @@ ${rules}
 
 IMPORTANT: You also generate coaching check-ins on the athlete's training dashboard using this same voice.
 When the athlete references a check-in, respond as the same coach — maintain continuity.`;
+    }
+
+    // ── Coaching Bible (docs/coaching-bible/) ──────────────────────────────
+    //
+    // Phase 1: behavior floor + rider context. `{{fired_rules}}` is empty until
+    // the Phase 2 rules engine lands, and the block says so in words rather
+    // than going missing — a silent gap is an invitation to invent a rule.
+    //
+    // Placed AFTER the persona block (so the floor's drift warnings are read
+    // against the voice just established) and BEFORE the calendar-last block,
+    // which keeps its position as the final word for the reason stated there.
+    //
+    // Additive by design: this adds a decision layer on top of the existing
+    // context blocks, it does not replace any of them. Everything here is
+    // built from rows already fetched above — no extra round trips beyond the
+    // 28-day activity window added to the batch.
+    try {
+      const bibleRides = recentRidesResult?.data || [];
+      const lastRide = bibleRides[0] || null;
+      const totalRideSeconds = bibleRides.reduce((sum, a) => sum + (a.moving_time || 0), 0);
+      const weeklyHours4wkMean = bibleRides.length > 0
+        ? totalRideSeconds / 3600 / 4
+        : null;
+      const daysSinceLastRide = lastRide?.start_date
+        ? Math.floor((Date.now() - Date.parse(lastRide.start_date)) / 86400000)
+        : null;
+
+      const riderContext = buildRiderContext({
+        riderName,
+        age: ageFromDob(userProfileResult?.data?.date_of_birth || null),
+        goalRace: pickGoalRace(anchorData.raceGoals),
+        todayStr: formatDateInTimezone(new Date(), resolvedTimezone),
+        weeklyHours4wkMean,
+        daysSinceLastRide,
+        load: enrichmentData?.latestLoad || null,
+        evidenceSignals: evidenceResult?.data?.[0]?.signals || null,
+        lastActivity: lastRide,
+      });
+
+      systemPrompt += `\n\n${buildCoachingBibleBlock({
+        riderContext,
+        // Phase 2 supplies these; Phase 1 fires nothing.
+        firedRules: [],
+        // No intake question captures fear of failure today, so CB-9's clause
+        // is always absent. See the Phase 1 report — this is a skipped input,
+        // not an approximated one.
+        fearOfFailure: false,
+      })}`;
+    } catch (bibleErr) {
+      // The floor is an improvement, never a dependency. A coach without it is
+      // the coach we shipped yesterday; a coach that 500s is an outage.
+      console.error('Coaching bible block failed (non-blocking):', bibleErr.message);
     }
 
     // Last word on the calendar, because it is the rule the coach has broken
