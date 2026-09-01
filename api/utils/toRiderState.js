@@ -32,7 +32,7 @@
  */
 
 import { efTrendFrom, pdTrendFrom, ageFromDob, weeksUntil, pickGoalRace } from './coachingBible.js';
-import { isCyclingType } from './sportTypes.js';
+import { sportTypeOfActivity } from './sportTypes.js';
 import { buildReadiness } from './readiness.js';
 
 const DAY_MS = 86400000;
@@ -55,20 +55,14 @@ const ENDURANCE_RACE_TYPES = new Set(['gran_fondo', 'century', 'gravel']);
 /**
  * Is this a ride?
  *
- * Two vocabularies coexist on the row: `type` is Strava-style ("Ride",
- * "VirtualRide") and `sport_type` is Garmin-style ("ROAD_BIKING", "CYCLING").
- * getSportType() only knows the Strava names, so a Garmin ROAD_BIKING falls
- * through it as "other". Both are checked here.
- *
+ * Both column vocabularies are handled by sportTypeOfActivity (sportTypes.js).
  * This matters more than it looks: running activities carry `effective_power`
- * too (running power, 350–430W in the live data). Dividing that by a cycling
- * FTP yields RI ≈ 1.2, which would score every easy jog as a hard ride and
- * invert the mid-zone share.
+ * too (running power, 350-430W in the live data). Dividing that by a cycling
+ * FTP yields RI around 1.2, which would score every easy jog as a hard ride
+ * and invert the mid-zone share.
  */
 export function isCyclingActivity(activity) {
-  if (isCyclingType(activity?.type)) return true;
-  const sport = String(activity?.sport_type || '').toUpperCase();
-  return sport.includes('BIKING') || sport.includes('CYCLING');
+  return sportTypeOfActivity(activity) === 'cycling';
 }
 
 /** Is this a strength session, in either vocabulary? */

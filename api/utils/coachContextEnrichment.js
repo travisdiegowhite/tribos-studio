@@ -15,7 +15,7 @@
  * as temporalAnchor.js.
  */
 
-import { getSportType } from './sportTypes.js';
+import { sportTypeOfActivity } from './sportTypes.js';
 import { fetchPlannedSessions } from './calendarRead.js';
 
 // ─── Timezone-safe date helpers (module-private, mirrors temporalAnchor.js) ──
@@ -277,7 +277,10 @@ export function buildCoachEnrichmentBlock(data, { profile = null, raceGoals = []
 
     const bySport = new Map();
     for (const a of weekActivities) {
-      const sport = getSportType(a.sport_type ?? a.type);
+      // Reads BOTH columns. This line used to be getSportType(sport_type ?? type),
+      // which filed every Garmin ride ('ROAD_BIKING') under "other" — the coach
+      // was told a Garmin athlete's whole week was cross-training.
+      const sport = sportTypeOfActivity(a);
       if (!bySport.has(sport)) bySport.set(sport, []);
       bySport.get(sport).push(a);
     }
