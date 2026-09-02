@@ -289,6 +289,36 @@ SQL migrations live in `/database/`, numbered chronologically (001–044+). Key 
 - Fitness snapshots and activation tracking
 - Fueling and cross-training
 
+### Migrations are applied by hand — check before assuming a table exists
+
+Migrations in `/database/migrations` are numbered but there is no runner and no
+tracking table, so "committed" and "applied" are different states. Two
+migrations sat committed-but-unapplied for months and both failed silently:
+
+| Migration | Table | How it presented |
+|---|---|---|
+| 106 (2026-08-03) | `fitness_evidence_weekly` | the weekly `evidence-weekly` cron caught every per-athlete error and still returned 200, so it went green for a month writing nothing |
+| 054 | `fitness_summaries` | `api/fitness-summary.js` discarded the cache read error, so a broken cache looked exactly like an empty one and every request paid for a fresh Claude Haiku call |
+
+Both were applied 2026-09-02. **`npm run audit:schema`** (needs
+`SUPABASE_URL` + `SUPABASE_SERVICE_KEY`) checks every migration-created table
+against the real database and is the only thing that catches this class of
+bug — tests, types and the Vercel dashboard all miss it by construction. Run it
+when a feature mysteriously does nothing. Its CI-side companion,
+`api/utils/schemaContract.test.js`, checks the cheaper half (code referencing a
+table no migration creates) and needs no credentials.
+
+When adding a migration, apply it and confirm with `audit:schema`.
+
+### Evidence-engine history starts 2026-09-07 — the gap is deliberate
+
+`fitness_evidence_weekly` has no rows before the first cron run after its table
+was created. The backfill (`npm run backfill:evidence`) was **written and
+deliberately not run** — see the decision note in
+`scripts/backfill-evidence.mjs`. Do not treat the gap as a bug or backfill it
+to "tidy up"; every verdict derives from `activities`, so history stays
+reconstructible if it is ever actually wanted.
+
 ### Orphaned tables from rolled-back features — ignore, do not query
 
 Migrations `081` and `082` ran in production before PRs #675–#681 were reverted
