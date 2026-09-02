@@ -6,16 +6,27 @@
  *   ...                                       npm run backfill:evidence -- --weeks 12 --dry-run
  *   ...                                       npm run backfill:evidence -- --user <uuid>
  *
- * Migration 106 was committed on 2026-08-03 and never applied, so the weekly
- * cron has been failing on every athlete since. The table exists as of
- * 2026-09-02; this fills in the history the cron should already have written.
+ * NOT RUN, BY DECISION (2026-09-02). Evidence history begins with the first
+ * cron run after the table was created; there is deliberately no data before
+ * the week of 2026-08-31. If you are looking at the gap and wondering whether
+ * something is broken — it isn't, and this is the note saying so.
  *
- * WHY HISTORY MATTERS, not just the current week: buildEvidenceSection's
- * speaking cue (api/utils/evidenceCoachSection.js) classifies a week as a
- * TRANSITION when the verdict differs from the previous emitted one. With an
- * empty table every athlete's first verdict is a transition, so every coach
- * would proactively announce a fitness verdict on the same day. Backfilling
- * gives the cue real history to be quiet about.
+ * The reasoning: the only cost of skipping was that deriveSpeakingCue
+ * (api/utils/evidenceCoachSection.js) reads a first verdict with no prior
+ * history as a TRANSITION, which the coach may mention once. That lands as a
+ * brief, true, one-time line — and only for athletes whose verdict is 'ahead',
+ * since 'consistent' says nothing, 'insufficient_data' is silent, and 'behind'
+ * needs three consecutive weeks before the coach reacts at all. It self-heals
+ * after about four weeks of normal runs.
+ *
+ * The script stays because it stays USEFUL, not because it is pending. Every
+ * verdict derives from `activities`, which is intact, so history remains
+ * reconstructible indefinitely — running this in six months produces the same
+ * rows it would have produced today. Reach for it if you ever want to analyse
+ * past verdicts, or to re-seed after a schema change to the engine.
+ *
+ * Background: migration 106 was committed 2026-08-03 and never applied, so the
+ * weekly cron failed on every athlete until 2026-09-02.
  *
  * Twelve weeks is the useful default: api/coach.js reads the last 9.
  *
