@@ -150,7 +150,12 @@ export default async function handler(req, res) {
     // 2. Check cache
     if (!forceRefresh) {
       const cacheCutoff = new Date(Date.now() - SUMMARY_CACHE_TTL_MS).toISOString();
-      const { data: cached } = await supabase
+      // The error is READ, not discarded. `fitness_summaries` did not exist in
+      // production until 2026-09-02 (migration 054's table half was never
+      // applied), and because this destructure dropped the error the endpoint
+      // simply looked like a permanent cache miss — every request paid for a
+      // fresh Haiku call, silently, for months.
+      const { data: cached, error: cacheError } = await supabase
         .from('fitness_summaries')
         .select('summary, generated_at')
         .eq('user_id', userId)
@@ -158,6 +163,12 @@ export default async function handler(req, res) {
         .eq('cache_key', cacheKey)
         .gte('generated_at', cacheCutoff)
         .single();
+
+      // PGRST116 is "no rows", the ordinary cache miss. Anything else is the
+      // cache being broken rather than empty, and must not pass unnoticed.
+      if (cacheError && cacheError.code !== 'PGRST116') {
+        console.error('fitness-summary cache read failed:', cacheError.message);
+      }
 
       if (cached) {
         return res.status(200).json({
@@ -182,7 +193,7 @@ export default async function handler(req, res) {
     const summary = response.content[0].text.trim();
 
     // 4. Cache the result
-    await supabase.from('fitness_summaries').upsert({
+    const { error: cacheWriteError } = await supabase.from('fitness_summaries').upsert({
       user_id: userId,
       surface,
       cache_key: cacheKey,
@@ -190,6 +201,12 @@ export default async function handler(req, res) {
       context_snapshot: context,
       generated_at: new Date().toISOString(),
     }, { onConflict: 'user_id, surface' });
+
+    if (cacheWriteError) {
+      // Non-fatal — the athlete still gets their summary. But a write that
+      // never lands means every future request pays for Haiku again.
+      console.error('fitness-summary cache write failed:', cacheWriteError.message);
+    }
 
     return res.status(200).json({
       summary,

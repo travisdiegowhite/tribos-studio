@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { fetchEvidenceInputs, mondayOf, latestCompleteWeek } from './evidence-weekly.js';
+import { fetchEvidenceInputs, mondayOf, latestCompleteWeek, isRunFailed, FAILURE_RATE_THRESHOLD } from './evidence-weekly.js';
 
 // Recording supabase mock: every builder call is captured per table so the
 // test can assert exactly which filters the job applies.
@@ -69,5 +69,39 @@ describe('week grid (Monday-start, aligned with fitness_snapshots)', () => {
     expect(latestCompleteWeek(new Date('2026-08-03T05:00:00Z'))).toBe('2026-07-27');
     expect(latestCompleteWeek(new Date('2026-08-09T23:00:00Z'))).toBe('2026-07-27');
     expect(latestCompleteWeek(new Date('2026-08-10T05:00:00Z'))).toBe('2026-08-03');
+  });
+});
+
+describe('run failure reporting', () => {
+  // This job returned 200 { success: true } no matter how many athletes it
+  // failed on, so when fitness_evidence_weekly turned out never to have been
+  // created (migration 106, committed 2026-08-03, applied 2026-09-02) the
+  // Vercel cron went green every Monday for a month while writing nothing.
+
+  it('reports a total wipeout as a failure', () => {
+    expect(isRunFailed({ evaluated: 53, errors: 53 })).toBe(true);
+  });
+
+  it('reports a clean run as a success', () => {
+    expect(isRunFailed({ evaluated: 53, errors: 0 })).toBe(false);
+  });
+
+  it('tolerates one athlete with unparseable data', () => {
+    // A single bad row must not red the cron forever.
+    expect(isRunFailed({ evaluated: 53, errors: 1 })).toBe(false);
+  });
+
+  it('trips at the halfway mark, not before', () => {
+    const half = Math.ceil(53 * FAILURE_RATE_THRESHOLD);
+    expect(isRunFailed({ evaluated: 53, errors: half })).toBe(true);
+    expect(isRunFailed({ evaluated: 53, errors: half - 1 })).toBe(false);
+  });
+
+  it('does not divide by zero on an empty run', () => {
+    expect(isRunFailed({ evaluated: 0, errors: 0 })).toBe(false);
+  });
+
+  it('fails a single-athlete backfill that errored', () => {
+    expect(isRunFailed({ evaluated: 1, errors: 1 })).toBe(true);
   });
 });

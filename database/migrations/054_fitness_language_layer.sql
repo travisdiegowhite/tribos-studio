@@ -1,5 +1,10 @@
 -- Migration 054: Fitness Language Layer
 -- Adds experience_level to user profiles and creates fitness_summaries cache table
+--
+-- HISTORY: only part 1 (experience_level) ever reached production. The table
+-- below was missing until 2026-09-02, which made api/fitness-summary.js a
+-- permanent cache miss — it swallows the read error, so every request paid for
+-- a fresh Claude Haiku call instead of a 4-hour cached one.
 
 -- 1. Add experience level to user profiles for AI tone adaptation
 ALTER TABLE user_profiles
@@ -26,11 +31,23 @@ CREATE POLICY "Users can read own summaries"
   ON fitness_summaries FOR SELECT
   USING (auth.uid() = user_id);
 
--- Service role needs full access for upserts from API
-CREATE POLICY "Service role full access on fitness_summaries"
-  ON fitness_summaries FOR ALL
-  USING (true)
-  WITH CHECK (true);
+-- NO service-role policy here, deliberately.
+--
+-- This migration originally carried:
+--
+--   CREATE POLICY "Service role full access on fitness_summaries"
+--     ON fitness_summaries FOR ALL USING (true) WITH CHECK (true);
+--
+-- which was wrong twice over. A policy with no TO clause applies to PUBLIC,
+-- and permissive policies are OR'd together — so it granted every
+-- authenticated user read and write access to every other user's summaries,
+-- silently cancelling the own-rows SELECT policy above it. And it was never
+-- needed: the Supabase service role has BYPASSRLS, so api/fitness-summary.js
+-- upserts fine without any policy at all.
+--
+-- Corrected before the table was first created in production (2026-09-02);
+-- the bad policy never existed anywhere. Same server-only posture as
+-- migration 106.
 
 -- Index for fast cache lookups
 CREATE INDEX IF NOT EXISTS idx_fitness_summaries_lookup
