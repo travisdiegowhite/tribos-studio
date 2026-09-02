@@ -183,6 +183,23 @@ export async function computeAndUpsertWeek(client, userId, weekStart, cfg = DEFA
   return { skipped: false, verdict: v };
 }
 
+/**
+ * Above this share of failures, the run is reported as a failure.
+ *
+ * This job caught every error per user and returned 200 { success: true },
+ * so when `fitness_evidence_weekly` turned out never to have been created,
+ * the cron went green every Monday for a month while writing nothing. A
+ * schema or credential fault fails 100% of users at once; one athlete with
+ * unparseable data fails 1-in-60 and should stay quiet.
+ */
+export const FAILURE_RATE_THRESHOLD = 0.5;
+
+/** Did enough of this run fail that it should read as broken? */
+export function isRunFailed({ evaluated, errors }) {
+  if (!evaluated || errors === 0) return false;
+  return errors / evaluated >= FAILURE_RATE_THRESHOLD;
+}
+
 export default async function handler(req, res) {
   const auth = verifyCronAuth(req);
   if (!auth.authorized) return res.status(401).json({ error: 'Unauthorized' });
@@ -205,6 +222,11 @@ export default async function handler(req, res) {
           console.error(`evidence backfill ${userId} ${w}:`, err.message);
         }
       }
+      const attempted = results.computed + results.skipped + results.errors;
+      if (isRunFailed({ evaluated: attempted, errors: results.errors })) {
+        console.error('evidence backfill mostly failed:', JSON.stringify(results));
+        return res.status(500).json({ success: false, ...results });
+      }
       return res.status(200).json({ success: true, ...results });
     }
 
@@ -225,6 +247,15 @@ export default async function handler(req, res) {
         results.errors++;
         console.error(`evidence-weekly ${userId}:`, err.message);
       }
+    }
+    if (isRunFailed(results)) {
+      // Non-2xx on purpose: this is what turns the Vercel cron red. A run that
+      // wrote nothing for anybody must not report success.
+      console.error('evidence-weekly FAILED:', JSON.stringify(results));
+      return res.status(500).json({ success: false, ...results });
+    }
+    if (results.errors > 0) {
+      console.warn('evidence-weekly partial errors:', JSON.stringify(results));
     }
     console.log('evidence-weekly done:', JSON.stringify(results));
     return res.status(200).json({ success: true, ...results });

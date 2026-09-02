@@ -14,7 +14,9 @@
     "test:coverage": "vitest run --coverage",
     "test:ui": "vitest --ui",
     "type-check": "tsc --noEmit",
-    "build:rules": "node scripts/build-coaching-rules.mjs"
+    "build:rules": "node scripts/build-coaching-rules.mjs",
+    "audit:schema": "node scripts/audit-schema.mjs",
+    "backfill:evidence": "node scripts/backfill-evidence.mjs"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.71.0",
