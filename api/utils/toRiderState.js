@@ -31,7 +31,7 @@
  *    thresholds below it returns null.
  */
 
-import { efTrendFrom, pdTrendFrom, ageFromDob, weeksUntil, pickGoalRace } from './coachingBible.js';
+import { efTrendFrom, pdTrendFrom, ageFromProfile, weeksUntil, pickGoalRace } from './coachingBible.js';
 import { sportTypeOfActivity } from './sportTypes.js';
 import { buildReadiness } from './readiness.js';
 
@@ -103,7 +103,7 @@ export async function fetchRiderStateData(supabase, userId, now = new Date()) {
   const [profile, coachSettings, load, activities, calendar, strength, checkins, hrv, strengthHistory] =
     await Promise.all([
     safe(
-      supabase.from('user_profiles').select('date_of_birth, ftp').eq('id', userId).maybeSingle(),
+      supabase.from('user_profiles').select('date_of_birth, birth_year, metrics_age, ftp').eq('id', userId).maybeSingle(),
       'user_profiles'
     ),
     safe(
@@ -399,7 +399,7 @@ export function toRiderState(data, { raceGoals = [], evidenceSignals = null, tod
 
   return {
     // identity / context
-    age: ageFromDob(d.profile?.date_of_birth ?? null),
+    age: ageFromProfile(d.profile),
     persona: persona && persona !== 'pending' ? persona : null,
     goalType: goalTypeFor(goalRace),
     weeksToEvent: goalRace ? weeksUntil(goalRace.race_date, todayStr) : null,

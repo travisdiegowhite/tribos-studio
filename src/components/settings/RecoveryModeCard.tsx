@@ -25,6 +25,7 @@ import {
 import { notifications } from '@mantine/notifications';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
+import { ageFromProfile, AGE_COLUMNS } from '../../utils/athleteAge';
 
 type Mode = 'standard' | 'conservative' | 'adaptive';
 
@@ -82,15 +83,6 @@ function defaultModeForAge(age: number | null): Mode {
   return 'standard';
 }
 
-function ageFromDob(dob: string | null): number | null {
-  if (!dob) return null;
-  const dobDate = new Date(dob);
-  if (Number.isNaN(dobDate.getTime())) return null;
-  return Math.floor(
-    (Date.now() - dobDate.getTime()) / (1000 * 60 * 60 * 24 * 365.25)
-  );
-}
-
 export default function RecoveryModeCard() {
   const { user } = useAuth();
   const [mode, setMode] = useState<Mode>('standard');
@@ -105,11 +97,11 @@ export default function RecoveryModeCard() {
     (async () => {
       const { data } = await supabase
         .from('user_profiles')
-        .select('recovery_mode, date_of_birth')
+        .select(`recovery_mode, ${AGE_COLUMNS}`)
         .eq('id', user.id)
         .maybeSingle();
       if (!active) return;
-      const a = ageFromDob(data?.date_of_birth ?? null);
+      const a = ageFromProfile(data ?? null);
       setAge(a);
       if (data?.recovery_mode) {
         setMode(data.recovery_mode as Mode);

@@ -97,6 +97,7 @@ export default async function handler(req, res) {
     weekly_tss_estimate,
     preferred_terrain,
     ftp,
+    birth_year,
     units_preference,
     coaching_style_answer,
     coach_role_answer,
@@ -195,6 +196,22 @@ Maximum 3 sentences.`,
     if (target_event_date) profileUpdate.target_event_date = target_event_date;
     if (target_event_name) profileUpdate.target_event_name = target_event_name;
     if (ftp != null) profileUpdate.ftp = ftp;
+    // Year only, by design (migration 119): the coaching rules only ask which
+    // side of 40 the athlete is on. metrics_age is DERIVED rather than asked
+    // for separately — the adaptive-tau cron selects on that column and
+    // nothing else, and asking twice is how user_profiles ended up with three
+    // age columns. Bounds mirror migration 066's CHECK on metrics_age, so a
+    // junk year cannot make the upsert fail and take the whole profile with it.
+    const statedBirthYear = Number(birth_year);
+    const thisYear = new Date().getFullYear();
+    if (
+      Number.isInteger(statedBirthYear) &&
+      statedBirthYear >= thisYear - 100 &&
+      statedBirthYear <= thisYear - 13
+    ) {
+      profileUpdate.birth_year = statedBirthYear;
+      profileUpdate.metrics_age = thisYear - statedBirthYear;
+    }
     if (weekly_tss_estimate != null) {
       // Dual-write during §1f rollout; migration 080 drops the legacy column.
       profileUpdate.weekly_tss_estimate = weekly_tss_estimate;

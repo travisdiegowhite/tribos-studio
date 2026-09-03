@@ -26,7 +26,6 @@ import {
   Paper,
   SegmentedControl,
 } from '@mantine/core';
-import { DateInput } from '@mantine/dates';
 import { useMediaQuery } from '@mantine/hooks';
 import { useMantineColorScheme } from '@mantine/core';
 import { notifications } from '@mantine/notifications';
@@ -61,6 +60,12 @@ import NotificationSettings from '../components/settings/NotificationSettings.js
 import { googleCalendarService } from '../utils/googleCalendarService';
 import { trackInteraction, EventType } from '../utils/activityTracking';
 import { Barbell, Bell, Bicycle, CaretDown, CaretRight, Check, DownloadSimple, GoogleLogo, Info, Moon, Path, Plug, Plus, Sliders, Sparkle, Sun, Trash, UploadSimple, User, Warning, Wrench } from '@phosphor-icons/react';
+import {
+  ageColumnsForBirthYear,
+  yearOfDob,
+  minBirthYear,
+  maxBirthYear,
+} from '../utils/athleteAge';
 
 // Get the API base URL based on environment
 const getApiBaseUrl = () => {
@@ -163,8 +168,10 @@ function Settings() {
   const [weightKg, setWeightKg] = useState(null);
   const [powerZones, setPowerZones] = useState(null);
   const [experienceLevel, setExperienceLevel] = useState('intermediate');
-  const [metricsAge, setMetricsAge] = useState(null);
-  const [dateOfBirth, setDateOfBirth] = useState(null);
+  const [birthYear, setBirthYear] = useState(null);
+  // Not rendered. Held only so a birth year that CONTRADICTS a stored
+  // date_of_birth can retire it — see handleSaveProfile.
+  const [storedDob, setStoredDob] = useState(null);
 
   // Load profile data directly from Supabase
   useEffect(() => {
@@ -190,8 +197,19 @@ function Settings() {
           setWeightKg(data.weight_kg || null);
           setPowerZones(data.power_zones || null);
           setExperienceLevel(data.experience_level || 'intermediate');
-          setMetricsAge(data.metrics_age || null);
-          setDateOfBirth(data.date_of_birth || null);
+          // Deliberately NOT seeded from metrics_age when birth_year is
+          // unset. Deriving a year from a stored age is a +/-1 guess, and
+          // prefilling it would let the guess be saved back as a stated fact.
+          // The read chain in coachingBible.ageFromProfile already falls back
+          // to metrics_age, so those profiles lose nothing by this box being
+          // blank.
+          setStoredDob(data.date_of_birth || null);
+          // Seeded from date_of_birth where that is the only source, so the
+          // three profiles carrying one see their own answer rather than an
+          // empty box that looks like we forgot.
+          setBirthYear(
+            data.birth_year || yearOfDob(data.date_of_birth) || null
+          );
           setAiConsentEnabled(!!data.ai_consent_granted_at && !data.ai_consent_withdrawn_at);
           // Default to true when the column hasn't been migrated yet so the
           // toggle reflects the live behavior. The server-side gate also
@@ -328,24 +346,6 @@ function Settings() {
     }
   }, [searchParams, setSearchParams]);
 
-  // Mantine v8's DateInput returns either a Date instance or a YYYY-MM-DD
-  // string depending on configuration. Normalize both to a YYYY-MM-DD string
-  // (Postgres DATE) or null. Returning anything else (e.g. a Date object)
-  // makes the Supabase upsert respond with HTTP 400.
-  const serializeDob = (value) => {
-    if (!value) return null;
-    if (typeof value === 'string') {
-      return /^\d{4}-\d{2}-\d{2}$/.test(value) ? value : null;
-    }
-    if (value instanceof Date && !Number.isNaN(value.getTime())) {
-      const y = value.getFullYear();
-      const m = String(value.getMonth() + 1).padStart(2, '0');
-      const d = String(value.getDate()).padStart(2, '0');
-      return `${y}-${m}-${d}`;
-    }
-    return null;
-  };
-
   const handleSaveProfile = async () => {
     if (!user) return;
 
@@ -363,8 +363,7 @@ function Settings() {
           ftp: ftp || null,
           weight_kg: weightKg || null,
           experience_level: experienceLevel,
-          metrics_age: metricsAge || null,
-          date_of_birth: serializeDob(dateOfBirth),
+          ...ageColumnsForBirthYear(birthYear, storedDob),
         })
         .select()
         .single();
@@ -1778,23 +1777,16 @@ function Settings() {
                   decimalScale={1}
                 />
                 <NumberInput
-                  label="Age"
-                  description="Optional — tunes how fast fitness builds and fatigue fades for your age. Leave blank for the standard settings."
-                  placeholder="e.g., 42"
-                  value={metricsAge || ''}
-                  onChange={(val) => setMetricsAge(val || null)}
-                  min={13}
-                  max={100}
-                />
-                <DateInput
-                  label="Date of Birth"
-                  description="Used by the event-anchored planner to pick a recovery default. Optional."
-                  placeholder="Select date"
-                  value={dateOfBirth}
-                  onChange={setDateOfBirth}
-                  maxDate={new Date()}
-                  clearable
-                  valueFormat="MMM D, YYYY"
+                  label="Birth Year"
+                  description="Optional — tunes how fast fitness builds and fatigue fades, sets a recovery default, and unlocks the masters coaching guidance. The year is all we need; we never ask for the date."
+                  placeholder="e.g., 1984"
+                  value={birthYear || ''}
+                  onChange={(val) => setBirthYear(val || null)}
+                  min={minBirthYear()}
+                  max={maxBirthYear()}
+                  allowDecimal={false}
+                  thousandSeparator={false}
+                  hideControls
                 />
               </SimpleGrid>
 

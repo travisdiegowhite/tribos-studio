@@ -6,6 +6,8 @@ import {
   efTrendFrom,
   pdTrendFrom,
   ageFromDob,
+  ageFromBirthYear,
+  ageFromProfile,
   weeksUntil,
   pickGoalRace,
 } from './coachingBible.js';
@@ -219,6 +221,70 @@ describe('ageFromDob', () => {
     expect(ageFromDob('1974-08-31', now)).toBe(52);
     expect(ageFromDob('1974-09-01', now)).toBe(52);
     expect(ageFromDob('1974-09-02', now)).toBe(51);
+  });
+});
+
+describe('ageFromBirthYear', () => {
+  const now = new Date('2026-09-01T12:00:00Z');
+
+  it('reports the age reached this year', () => {
+    expect(ageFromBirthYear(1974, now)).toBe(52);
+    expect(ageFromBirthYear('1974', now)).toBe(52);
+  });
+
+  it('rejects anything that is not a plausible year', () => {
+    expect(ageFromBirthYear(null, now)).toBeNull();
+    expect(ageFromBirthYear('', now)).toBeNull();
+    expect(ageFromBirthYear(1899, now)).toBeNull();
+    expect(ageFromBirthYear(2101, now)).toBeNull();
+    expect(ageFromBirthYear(1974.5, now)).toBeNull();
+    expect(ageFromBirthYear('nineteen seventy four', now)).toBeNull();
+  });
+
+  it('rejects a year in the future rather than reporting a negative age', () => {
+    expect(ageFromBirthYear(2030, now)).toBeNull();
+  });
+});
+
+describe('ageFromProfile', () => {
+  const now = new Date('2026-09-01T12:00:00Z');
+
+  it('is null when the athlete answered none of the three', () => {
+    expect(ageFromProfile(null, now)).toBeNull();
+    expect(ageFromProfile({}, now)).toBeNull();
+    expect(
+      ageFromProfile({ date_of_birth: null, birth_year: null, metrics_age: null }, now)
+    ).toBeNull();
+  });
+
+  it('prefers the exact date when it is set', () => {
+    // The date says 51 (birthday not yet reached); the year alone would say 52.
+    expect(
+      ageFromProfile({ date_of_birth: '1974-09-02', birth_year: 1974, metrics_age: 30 }, now)
+    ).toBe(51);
+  });
+
+  it('falls through to birth_year, then to metrics_age', () => {
+    expect(ageFromProfile({ birth_year: 1974, metrics_age: 30 }, now)).toBe(52);
+    expect(ageFromProfile({ metrics_age: 44 }, now)).toBe(44);
+  });
+
+  it('falls past a source that is present but unusable', () => {
+    expect(ageFromProfile({ date_of_birth: 'not-a-date', birth_year: 1986 }, now)).toBe(40);
+    expect(ageFromProfile({ birth_year: 0, metrics_age: 44 }, now)).toBe(44);
+  });
+
+  it('holds metrics_age to migration 066 bounds rather than passing junk through', () => {
+    expect(ageFromProfile({ metrics_age: 12 }, now)).toBeNull();
+    expect(ageFromProfile({ metrics_age: 101 }, now)).toBeNull();
+    expect(ageFromProfile({ metrics_age: 44.5 }, now)).toBeNull();
+  });
+
+  it('answers the masters gate the rules actually ask', () => {
+    // The whole reason three columns are read: MST-2/3/4 gate on age >= 40,
+    // and before birth_year existed only 3 of 63 profiles could reach them.
+    expect(ageFromProfile({ birth_year: 1986 }, now) >= 40).toBe(true);
+    expect(ageFromProfile({ birth_year: 1987 }, now) >= 40).toBe(false);
   });
 });
 
