@@ -9,6 +9,7 @@
 import { getSupabaseAdmin } from './utils/supabaseAdmin.js';
 import { setupCors } from './utils/cors.js';
 import { checkForDuplicate, takeoverActivity, mergeActivityData } from './utils/activityDedup.js';
+import { rideIntensityFields } from './utils/rideIntensity.js';
 import { updateSnapshotForActivity } from './utils/fitnessSnapshots.js';
 import { completeActivationStep, enqueueProactiveInsight, enqueueCheckIn } from './utils/activation.js';
 import { enqueueDeviationAnalysis } from './utils/deviationProcessor.js';
@@ -65,6 +66,35 @@ async function shouldSkipStravaIngest(userId) {
   } catch (err) {
     console.warn('⚠️ shouldSkipStravaIngest check failed (falling open):', err.message);
     return false;
+  }
+}
+
+/**
+ * The athlete's FTP, for deriving Ride Intensity from Strava's power summary.
+ *
+ * Strava sends `weighted_average_watts` and nothing else power-derived, so RI
+ * (= EP ÷ FTP) has to be computed here or not at all — and until now it was
+ * not at all, leaving ~98% of stored rides without one. See
+ * api/utils/rideIntensity.js.
+ *
+ * Never throws: no FTP simply means no RI, which the rules engine already
+ * treats as "unknown" rather than guessing.
+ */
+async function fetchUserFtp(userId) {
+  try {
+    const { data, error } = await supabase
+      .from('user_profiles')
+      .select('ftp')
+      .eq('id', userId)
+      .maybeSingle();
+    if (error) {
+      console.error('FTP lookup failed (non-critical):', error.message);
+      return null;
+    }
+    return data?.ftp ?? null;
+  } catch (err) {
+    console.error('FTP lookup failed (non-critical):', err.message);
+    return null;
   }
 }
 
@@ -384,7 +414,7 @@ async function handleActivityCreate(eventId, webhookData, integration) {
         // Take over the activity - Strava becomes the source of truth
         console.log('🔄 Cross-provider duplicate: Strava taking over from', dupCheck.existingActivity.provider);
 
-        const activityData = buildActivityData(integration.user_id, activity);
+        const activityData = buildActivityData(integration.user_id, activity, await fetchUserFtp(integration.user_id));
         const result = await takeoverActivity(
           dupCheck.existingActivity.id,
           activityData,
@@ -427,7 +457,7 @@ async function handleActivityCreate(eventId, webhookData, integration) {
     }
 
     // Import the activity
-    const activityData = buildActivityData(integration.user_id, activity);
+    const activityData = buildActivityData(integration.user_id, activity, await fetchUserFtp(integration.user_id));
 
     const { data: savedActivity, error: insertError } = await supabase
       .from('activities')
@@ -608,6 +638,7 @@ async function handleActivityUpdate(eventId, webhookData, integration) {
       // B9 dual-write: normalized_power → effective_power.
       normalized_power: activity.weighted_average_watts || null,
       effective_power: activity.weighted_average_watts || null,
+      ...rideIntensityFields(activity.weighted_average_watts, await fetchUserFtp(integration.user_id)),
       average_heartrate: activity.average_heartrate || null,
       max_heartrate: activity.max_heartrate || null,
       map_summary_polyline: activity.map?.summary_polyline || null,
@@ -667,7 +698,7 @@ async function handleActivityDelete(eventId, webhookData, integration) {
 /**
  * Build activity data for insertion
  */
-function buildActivityData(userId, activity) {
+function buildActivityData(userId, activity, ftp = null) {
   return {
     user_id: userId,
     provider: 'strava',
@@ -687,6 +718,9 @@ function buildActivityData(userId, activity) {
     // B9 dual-write: normalized_power → effective_power.
     normalized_power: activity.weighted_average_watts || null,
     effective_power: activity.weighted_average_watts || null,
+    // RI = EP / FTP, the spec definition. Spreads to nothing when either side
+    // is missing or implausible, so the column stays null rather than wrong.
+    ...rideIntensityFields(activity.weighted_average_watts, ftp),
     kilojoules: activity.kilojoules || null,
     average_heartrate: activity.average_heartrate || null,
     max_heartrate: activity.max_heartrate || null,

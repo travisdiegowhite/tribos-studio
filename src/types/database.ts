@@ -273,6 +273,12 @@ export interface UserProfileDB {
   weight_kg: number | null;
   height_cm: number | null;
   date_of_birth: string | null;
+  /** Year of birth. Preferred over date_of_birth for new capture — the only
+   *  question asked of it is whether the athlete is 40+. */
+  birth_year: number | null;
+  /** Directly-entered age. Gates adaptive EWA tau; a snapshot, so it goes
+   *  stale. Settings re-derives it from birth_year on save. */
+  metrics_age: number | null;
   fitness_level: FitnessLevel | null;
   weekly_hours_available: number | null;
   preferred_units: 'metric' | 'imperial';
@@ -304,6 +310,8 @@ export interface UserProfileInsert {
   weight_kg?: number | null;
   height_cm?: number | null;
   date_of_birth?: string | null;
+  birth_year?: number | null;
+  metrics_age?: number | null;
   fitness_level?: FitnessLevel | null;
   weekly_hours_available?: number | null;
   preferred_units?: 'metric' | 'imperial';
@@ -341,6 +349,8 @@ export interface UserProfileUpdate {
   weight_kg?: number | null;
   height_cm?: number | null;
   date_of_birth?: string | null;
+  birth_year?: number | null;
+  metrics_age?: number | null;
   fitness_level?: FitnessLevel | null;
   weekly_hours_available?: number | null;
   preferred_units?: 'metric' | 'imperial';

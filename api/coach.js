@@ -23,7 +23,7 @@ import { PERSONA_DATA } from './utils/personaData.js';
 import { formatHealth, fetchProprietaryMetrics } from './utils/contextHelpers.js';
 import { buildTemporalAnchor, fetchTemporalAnchorData, buildSessionLabelMap, sanitizeSessionIds } from './utils/temporalAnchor.js';
 import { fetchCoachEnrichmentData, buildCoachEnrichmentBlock } from './utils/coachContextEnrichment.js';
-import { buildCoachingBibleBlock, buildRiderContext, ageFromDob, pickGoalRace } from './utils/coachingBible.js';
+import { buildCoachingBibleBlock, buildRiderContext, ageFromProfile, pickGoalRace } from './utils/coachingBible.js';
 import { fetchRiderStateData, toRiderState } from './utils/toRiderState.js';
 import { evaluateRules, selectInjectedRules, droppedRuleIds } from './utils/rulesEngine.js';
 
@@ -738,11 +738,13 @@ export default async function handler(req, res) {
         .order('deviation_date', { ascending: false })
         .limit(5),
       // Fetch user timezone + FTP/weight for the server training snapshot.
-      // date_of_birth feeds the coaching-bible rider context, which mentions
-      // age only past 40 (masters rules key off it from Phase 2 on).
+      // The three age columns feed the coaching-bible rider context, which
+      // mentions age only past 40 (masters rules key off it from Phase 2 on).
+      // All three are selected because ageFromProfile falls through them in
+      // order — see its comment for why there are three.
       supabase
         .from('user_profiles')
-        .select('timezone, recovery_mode, ftp, weight_kg, date_of_birth')
+        .select('timezone, recovery_mode, ftp, weight_kg, date_of_birth, birth_year, metrics_age')
         .eq('id', verifiedUserId)
         .maybeSingle(),
       // Fetch all active training plans for multi-plan context
@@ -1226,7 +1228,7 @@ When the athlete references a check-in, respond as the same coach — maintain c
 
       const riderContext = buildRiderContext({
         riderName,
-        age: ageFromDob(userProfileResult?.data?.date_of_birth || null),
+        age: ageFromProfile(userProfileResult?.data),
         goalRace: pickGoalRace(anchorData.raceGoals),
         todayStr,
         weeklyHours4wkMean,

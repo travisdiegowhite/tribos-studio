@@ -166,6 +166,59 @@ function formProse(fs) {
 
 const ENDURANCE_RACE_TYPES = new Set(['gran_fondo', 'century', 'gravel']);
 
+/**
+ * The athlete's age, from whichever of the three sources is set.
+ *
+ * Three, because the column was added twice before anyone noticed. In
+ * precedence order:
+ *
+ *   date_of_birth  exact, self-updating, and three profiles have it. Kept and
+ *                  preferred; dropping a column with live data to save a
+ *                  coalesce would be silly.
+ *   birth_year     what new capture writes (migration 119). Nothing in the
+ *                  rules needs a birthday — only which side of 40 the athlete
+ *                  sits on — and a year answers that to within twelve months,
+ *                  which is invisible to a `>= 40` gate except in someone's
+ *                  fortieth year.
+ *   metrics_age    a typed-in integer that gates adaptive EWA tau (migration
+ *                  066). Last, because it is a SNAPSHOT: correct the day it
+ *                  was entered and a year stale every year after. Read anyway
+ *                  — it was set on five profiles against date_of_birth's
+ *                  three, and refusing free coverage to keep the chain tidy
+ *                  would leave two athletes with no age at all.
+ *
+ * @param {{date_of_birth?: string|null, birth_year?: number|null, metrics_age?: number|null}|null} profile
+ * @returns {number|null}
+ */
+export function ageFromProfile(profile, now = new Date()) {
+  const exact = ageFromDob(profile?.date_of_birth ?? null, now);
+  if (exact != null) return exact;
+  const fromYear = ageFromBirthYear(profile?.birth_year ?? null, now);
+  if (fromYear != null) return fromYear;
+  return plainAge(profile?.metrics_age ?? null);
+}
+
+/** A directly-entered age, validated to the same bounds as migration 066. */
+function plainAge(value) {
+  const age = Number(value);
+  if (!Number.isInteger(age) || age < 13 || age > 100) return null;
+  return age;
+}
+
+/**
+ * Age from a birth year. Reports the age the athlete reaches THIS year, which
+ * is right for eight months of it and one year high for the other four —
+ * consistently, rather than randomly, and never low. Erring high on a masters
+ * gate would start the rules a few months early; erring low would withhold
+ * them from someone who qualifies, which is the worse failure.
+ */
+export function ageFromBirthYear(birthYear, now = new Date()) {
+  const year = Number(birthYear);
+  if (!Number.isInteger(year) || year < 1900 || year > 2100) return null;
+  const age = now.getUTCFullYear() - year;
+  return age >= 0 && age < 120 ? age : null;
+}
+
 /** Whole years between a YYYY-MM-DD birth date and `now`, or null. */
 export function ageFromDob(dob, now = new Date()) {
   if (!dob || !/^\d{4}-\d{2}-\d{2}/.test(String(dob))) return null;

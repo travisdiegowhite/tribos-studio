@@ -26,7 +26,6 @@ import {
   Paper,
   SegmentedControl,
 } from '@mantine/core';
-import { DateInput } from '@mantine/dates';
 import { useMediaQuery } from '@mantine/hooks';
 import { useMantineColorScheme } from '@mantine/core';
 import { notifications } from '@mantine/notifications';
@@ -163,8 +162,10 @@ function Settings() {
   const [weightKg, setWeightKg] = useState(null);
   const [powerZones, setPowerZones] = useState(null);
   const [experienceLevel, setExperienceLevel] = useState('intermediate');
-  const [metricsAge, setMetricsAge] = useState(null);
-  const [dateOfBirth, setDateOfBirth] = useState(null);
+  const [birthYear, setBirthYear] = useState(null);
+  // Not rendered. Held only so a birth year that CONTRADICTS a stored
+  // date_of_birth can retire it — see handleSaveProfile.
+  const [storedDob, setStoredDob] = useState(null);
 
   // Load profile data directly from Supabase
   useEffect(() => {
@@ -190,8 +191,19 @@ function Settings() {
           setWeightKg(data.weight_kg || null);
           setPowerZones(data.power_zones || null);
           setExperienceLevel(data.experience_level || 'intermediate');
-          setMetricsAge(data.metrics_age || null);
-          setDateOfBirth(data.date_of_birth || null);
+          // Deliberately NOT seeded from metrics_age when birth_year is
+          // unset. Deriving a year from a stored age is a +/-1 guess, and
+          // prefilling it would let the guess be saved back as a stated fact.
+          // The read chain in coachingBible.ageFromProfile already falls back
+          // to metrics_age, so those profiles lose nothing by this box being
+          // blank.
+          setStoredDob(data.date_of_birth || null);
+          // Seeded from date_of_birth where that is the only source, so the
+          // three profiles carrying one see their own answer rather than an
+          // empty box that looks like we forgot.
+          setBirthYear(
+            data.birth_year || yearOfDob(data.date_of_birth) || null
+          );
           setAiConsentEnabled(!!data.ai_consent_granted_at && !data.ai_consent_withdrawn_at);
           // Default to true when the column hasn't been migrated yet so the
           // toggle reflects the live behavior. The server-side gate also
@@ -328,22 +340,42 @@ function Settings() {
     }
   }, [searchParams, setSearchParams]);
 
-  // Mantine v8's DateInput returns either a Date instance or a YYYY-MM-DD
-  // string depending on configuration. Normalize both to a YYYY-MM-DD string
-  // (Postgres DATE) or null. Returning anything else (e.g. a Date object)
-  // makes the Supabase upsert respond with HTTP 400.
-  const serializeDob = (value) => {
-    if (!value) return null;
-    if (typeof value === 'string') {
-      return /^\d{4}-\d{2}-\d{2}$/.test(value) ? value : null;
+  // One question, two columns. `birth_year` is what the athlete answered;
+  // `metrics_age` is derived from it because the adaptive-tau cron
+  // (api/recompute-user-tau.js) selects on that column and nothing else, and
+  // asking the same person their age and their birth year in adjacent boxes
+  // was how this profile came to have three age fields in the first place.
+  // Re-deriving on every save also refreshes an age that would otherwise sit
+  // a year stale.
+  const MIN_BIRTH_YEAR = new Date().getFullYear() - 100;
+  const MAX_BIRTH_YEAR = new Date().getFullYear() - 13;
+
+  const normalizeBirthYear = (value) => {
+    const year = Number(value);
+    if (!Number.isInteger(year) || year < MIN_BIRTH_YEAR || year > MAX_BIRTH_YEAR) return null;
+    return year;
+  };
+
+  const yearOfDob = (dob) => {
+    const m = /^(\d{4})-\d{2}-\d{2}/.exec(String(dob ?? ''));
+    return m ? Number(m[1]) : null;
+  };
+
+  // date_of_birth outranks birth_year everywhere it is read, so a year that
+  // disagrees with a stored date has to retire that date or the correction is
+  // silently ignored. An AGREEING year leaves it alone: the date is strictly
+  // more precise and there is no reason to throw it away.
+  const ageColumnsFor = (rawYear) => {
+    const year = normalizeBirthYear(rawYear);
+    if (year == null) {
+      return { birth_year: null, metrics_age: null, date_of_birth: null };
     }
-    if (value instanceof Date && !Number.isNaN(value.getTime())) {
-      const y = value.getFullYear();
-      const m = String(value.getMonth() + 1).padStart(2, '0');
-      const d = String(value.getDate()).padStart(2, '0');
-      return `${y}-${m}-${d}`;
-    }
-    return null;
+    const columns = {
+      birth_year: year,
+      metrics_age: new Date().getFullYear() - year,
+    };
+    if (storedDob && yearOfDob(storedDob) !== year) columns.date_of_birth = null;
+    return columns;
   };
 
   const handleSaveProfile = async () => {
@@ -363,8 +395,7 @@ function Settings() {
           ftp: ftp || null,
           weight_kg: weightKg || null,
           experience_level: experienceLevel,
-          metrics_age: metricsAge || null,
-          date_of_birth: serializeDob(dateOfBirth),
+          ...ageColumnsFor(birthYear),
         })
         .select()
         .single();
@@ -1778,23 +1809,16 @@ function Settings() {
                   decimalScale={1}
                 />
                 <NumberInput
-                  label="Age"
-                  description="Optional — tunes how fast fitness builds and fatigue fades for your age. Leave blank for the standard settings."
-                  placeholder="e.g., 42"
-                  value={metricsAge || ''}
-                  onChange={(val) => setMetricsAge(val || null)}
-                  min={13}
-                  max={100}
-                />
-                <DateInput
-                  label="Date of Birth"
-                  description="Used by the event-anchored planner to pick a recovery default. Optional."
-                  placeholder="Select date"
-                  value={dateOfBirth}
-                  onChange={setDateOfBirth}
-                  maxDate={new Date()}
-                  clearable
-                  valueFormat="MMM D, YYYY"
+                  label="Birth Year"
+                  description="Optional — tunes how fast fitness builds and fatigue fades, sets a recovery default, and unlocks the masters coaching guidance. The year is all we need; we never ask for the date."
+                  placeholder="e.g., 1984"
+                  value={birthYear || ''}
+                  onChange={(val) => setBirthYear(val || null)}
+                  min={MIN_BIRTH_YEAR}
+                  max={MAX_BIRTH_YEAR}
+                  allowDecimal={false}
+                  thousandSeparator={false}
+                  hideControls
                 />
               </SimpleGrid>
 
