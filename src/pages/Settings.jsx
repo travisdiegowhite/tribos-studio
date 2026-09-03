@@ -60,6 +60,12 @@ import NotificationSettings from '../components/settings/NotificationSettings.js
 import { googleCalendarService } from '../utils/googleCalendarService';
 import { trackInteraction, EventType } from '../utils/activityTracking';
 import { Barbell, Bell, Bicycle, CaretDown, CaretRight, Check, DownloadSimple, GoogleLogo, Info, Moon, Path, Plug, Plus, Sliders, Sparkle, Sun, Trash, UploadSimple, User, Warning, Wrench } from '@phosphor-icons/react';
+import {
+  ageColumnsForBirthYear,
+  yearOfDob,
+  minBirthYear,
+  maxBirthYear,
+} from '../utils/athleteAge';
 
 // Get the API base URL based on environment
 const getApiBaseUrl = () => {
@@ -340,44 +346,6 @@ function Settings() {
     }
   }, [searchParams, setSearchParams]);
 
-  // One question, two columns. `birth_year` is what the athlete answered;
-  // `metrics_age` is derived from it because the adaptive-tau cron
-  // (api/recompute-user-tau.js) selects on that column and nothing else, and
-  // asking the same person their age and their birth year in adjacent boxes
-  // was how this profile came to have three age fields in the first place.
-  // Re-deriving on every save also refreshes an age that would otherwise sit
-  // a year stale.
-  const MIN_BIRTH_YEAR = new Date().getFullYear() - 100;
-  const MAX_BIRTH_YEAR = new Date().getFullYear() - 13;
-
-  const normalizeBirthYear = (value) => {
-    const year = Number(value);
-    if (!Number.isInteger(year) || year < MIN_BIRTH_YEAR || year > MAX_BIRTH_YEAR) return null;
-    return year;
-  };
-
-  const yearOfDob = (dob) => {
-    const m = /^(\d{4})-\d{2}-\d{2}/.exec(String(dob ?? ''));
-    return m ? Number(m[1]) : null;
-  };
-
-  // date_of_birth outranks birth_year everywhere it is read, so a year that
-  // disagrees with a stored date has to retire that date or the correction is
-  // silently ignored. An AGREEING year leaves it alone: the date is strictly
-  // more precise and there is no reason to throw it away.
-  const ageColumnsFor = (rawYear) => {
-    const year = normalizeBirthYear(rawYear);
-    if (year == null) {
-      return { birth_year: null, metrics_age: null, date_of_birth: null };
-    }
-    const columns = {
-      birth_year: year,
-      metrics_age: new Date().getFullYear() - year,
-    };
-    if (storedDob && yearOfDob(storedDob) !== year) columns.date_of_birth = null;
-    return columns;
-  };
-
   const handleSaveProfile = async () => {
     if (!user) return;
 
@@ -395,7 +363,7 @@ function Settings() {
           ftp: ftp || null,
           weight_kg: weightKg || null,
           experience_level: experienceLevel,
-          ...ageColumnsFor(birthYear),
+          ...ageColumnsForBirthYear(birthYear, storedDob),
         })
         .select()
         .single();
@@ -1814,8 +1782,8 @@ function Settings() {
                   placeholder="e.g., 1984"
                   value={birthYear || ''}
                   onChange={(val) => setBirthYear(val || null)}
-                  min={MIN_BIRTH_YEAR}
-                  max={MAX_BIRTH_YEAR}
+                  min={minBirthYear()}
+                  max={maxBirthYear()}
                   allowDecimal={false}
                   thousandSeparator={false}
                   hideControls

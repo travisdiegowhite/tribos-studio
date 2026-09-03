@@ -279,6 +279,11 @@ export interface UserProfileDB {
   /** Directly-entered age. Gates adaptive EWA tau; a snapshot, so it goes
    *  stale. Settings re-derives it from birth_year on save. */
   metrics_age: number | null;
+  /** Nudge state for the missing-age prompt (migration 120). See
+   *  src/hooks/useAgePrompt.ts — the prompt stops after MAX_AGE_PROMPTS. */
+  age_prompt_opens: number;
+  age_prompt_shown: number;
+  age_prompt_last_open: string | null;
   fitness_level: FitnessLevel | null;
   weekly_hours_available: number | null;
   preferred_units: 'metric' | 'imperial';
@@ -312,6 +317,9 @@ export interface UserProfileInsert {
   date_of_birth?: string | null;
   birth_year?: number | null;
   metrics_age?: number | null;
+  age_prompt_opens?: number;
+  age_prompt_shown?: number;
+  age_prompt_last_open?: string | null;
   fitness_level?: FitnessLevel | null;
   weekly_hours_available?: number | null;
   preferred_units?: 'metric' | 'imperial';
@@ -351,6 +359,9 @@ export interface UserProfileUpdate {
   date_of_birth?: string | null;
   birth_year?: number | null;
   metrics_age?: number | null;
+  age_prompt_opens?: number;
+  age_prompt_shown?: number;
+  age_prompt_last_open?: string | null;
   fitness_level?: FitnessLevel | null;
   weekly_hours_available?: number | null;
   preferred_units?: 'metric' | 'imperial';

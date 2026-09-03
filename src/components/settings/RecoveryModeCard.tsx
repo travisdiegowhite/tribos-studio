@@ -25,6 +25,7 @@ import {
 import { notifications } from '@mantine/notifications';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
+import { ageFromProfile, AGE_COLUMNS } from '../../utils/athleteAge';
 
 type Mode = 'standard' | 'conservative' | 'adaptive';
 
@@ -82,45 +83,6 @@ function defaultModeForAge(age: number | null): Mode {
   return 'standard';
 }
 
-type AgeSources = {
-  date_of_birth?: string | null;
-  birth_year?: number | null;
-  metrics_age?: number | null;
-};
-
-/**
- * Mirrors the precedence in api/utils/coachingBible.js `ageFromProfile`:
- * exact date first, then the birth year that Settings now captures, then the
- * typed-in age the adaptive-tau cron uses. Reading only date_of_birth — as
- * this card did — meant the recovery default stayed 'standard' for every
- * athlete who answered the question in its current form.
- *
- * Duplicated rather than imported because that module is serverless code
- * under api/, outside the Vite build's module graph.
- */
-function ageFromProfile(profile: AgeSources | null): number | null {
-  const dob = profile?.date_of_birth;
-  if (dob) {
-    const dobDate = new Date(dob);
-    if (!Number.isNaN(dobDate.getTime())) {
-      return Math.floor(
-        (Date.now() - dobDate.getTime()) / (1000 * 60 * 60 * 24 * 365.25)
-      );
-    }
-  }
-
-  const year = Number(profile?.birth_year);
-  if (Number.isInteger(year) && year >= 1900 && year <= 2100) {
-    const age = new Date().getFullYear() - year;
-    if (age >= 0 && age < 120) return age;
-  }
-
-  const stated = Number(profile?.metrics_age);
-  if (Number.isInteger(stated) && stated >= 13 && stated <= 100) return stated;
-
-  return null;
-}
-
 export default function RecoveryModeCard() {
   const { user } = useAuth();
   const [mode, setMode] = useState<Mode>('standard');
@@ -135,7 +97,7 @@ export default function RecoveryModeCard() {
     (async () => {
       const { data } = await supabase
         .from('user_profiles')
-        .select('recovery_mode, date_of_birth, birth_year, metrics_age')
+        .select(`recovery_mode, ${AGE_COLUMNS}`)
         .eq('id', user.id)
         .maybeSingle();
       if (!active) return;

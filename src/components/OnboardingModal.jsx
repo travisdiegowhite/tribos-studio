@@ -57,6 +57,7 @@ import {
   Watch,
   Sparkle,
 } from '@phosphor-icons/react';
+import { minBirthYear, maxBirthYear } from '../utils/athleteAge';
 
 // ── Question definitions ──────────────────────────────────────
 
@@ -139,6 +140,7 @@ function OnboardingModal({ opened, onClose }) {
 
   // Fitness baseline (existing)
   const [ftp, setFtp] = useState(null);
+  const [birthYear, setBirthYear] = useState(null);
   const [unitsPreference, setUnitsPreference] = useState('imperial');
 
   // Device connections (existing)
@@ -233,6 +235,7 @@ function OnboardingModal({ opened, onClose }) {
           weekly_tss_estimate: answers.hours ? HOURS_TO_TSS[answers.hours] || null : null,
           preferred_terrain: selectedTerrain.length > 0 ? selectedTerrain : null,
           ftp: ftp || null,
+          birth_year: birthYear || null,
           units_preference: unitsPreference,
           coaching_style_answer: answers.coaching_style || null,
           coach_role_answer: answers.coach_role || null,
@@ -256,7 +259,7 @@ function OnboardingModal({ opened, onClose }) {
     } finally {
       setClassifying(false);
     }
-  }, [answers, targetEventName, targetEventDate, selectedTerrain, ftp, unitsPreference, classificationResult, classifying]);
+  }, [answers, targetEventName, targetEventDate, selectedTerrain, ftp, birthYear, unitsPreference, classificationResult, classifying]);
 
   useEffect(() => {
     if (active === 9 && !classificationResult && !classifying) {
@@ -553,6 +556,19 @@ function OnboardingModal({ opened, onClose }) {
               min={50}
               max={600}
               suffix=" W"
+            />
+
+            <NumberInput
+              label="Birth Year"
+              description="Tunes how fast we assume fitness builds and fatigue clears, and unlocks masters-specific recovery guidance from 40. The year is all we need — we never ask for the date."
+              placeholder="e.g., 1984"
+              value={birthYear || ''}
+              onChange={(val) => setBirthYear(val || null)}
+              min={minBirthYear()}
+              max={maxBirthYear()}
+              allowDecimal={false}
+              thousandSeparator={false}
+              hideControls
             />
 
             <Paper p="sm" style={{ backgroundColor: 'var(--color-bg-secondary)' }}>
