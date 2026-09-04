@@ -55,3 +55,69 @@ export function hasMinimumActivityMetrics(activityInfo) {
 
   return durationSeconds >= MIN_DURATION_SECONDS || distanceMeters >= MIN_DISTANCE_METERS;
 }
+
+/**
+ * True when a webhook item is a bare FIT-file ping: it carries a callbackURL
+ * but none of the distance/duration fields a summary would have.
+ *
+ * Garmin normally delivers an activity twice — a CONNECT_ACTIVITY summary and
+ * an ACTIVITY_FILE_DATA ping pointing at the FIT file. Sometimes only the ping
+ * arrives (2026-09-03: a 116 km ride whose summary never came). The ping has
+ * the name, type and start time but no metrics, so running
+ * `hasMinimumActivityMetrics` on it reads 0 m / 0 s and rejects a real ride
+ * as "too short". Callers use this to download the FIT first and take the
+ * summary from its session message instead.
+ */
+export function isFitPingWithoutMetrics(item, fileUrl = item?.callbackURL) {
+  if (!item || typeof fileUrl !== 'string' || !fileUrl) return false;
+  const hasDuration = [item.durationInSeconds, item.movingDurationInSeconds, item.elapsedDurationInSeconds]
+    .some((v) => typeof v === 'number' && v > 0);
+  const hasDistance = [item.distanceInMeters, item.distance]
+    .some((v) => typeof v === 'number' && v > 0);
+  return !hasDuration && !hasDistance;
+}
+
+/**
+ * Fill a FIT-ping item with the summary fields from the parsed FIT session so
+ * it looks like the CONNECT_ACTIVITY summary Garmin did not send. Values the
+ * ping already carries win; the FIT only fills gaps. Field names are the
+ * Garmin camelCase names `buildActivityData` and `hasMinimumActivityMetrics`
+ * read. Returns a new object; never mutates the input.
+ *
+ * @param {object} item - the ACTIVITY_FILE_DATA item (callbackURL, name, type, start)
+ * @param {object|null} fitSummary - `summary` from parseFitBuffer / extractSummary
+ */
+export function activityInfoFromFitSummary(item, fitSummary) {
+  const base = { ...(item || {}) };
+  if (!fitSummary) return base;
+
+  const positive = (v) => (typeof v === 'number' && Number.isFinite(v) && v > 0 ? v : null);
+  const fill = (key, value) => {
+    if (base[key] == null && value != null) base[key] = value;
+  };
+
+  const elapsed = positive(fitSummary.totalElapsedTime) ?? positive(fitSummary.totalTime);
+  const moving = positive(fitSummary.totalTime) ?? elapsed;
+
+  fill('distanceInMeters', positive(fitSummary.totalDistance));
+  fill('durationInSeconds', elapsed);
+  fill('elapsedDurationInSeconds', elapsed);
+  fill('movingDurationInSeconds', moving);
+  fill('totalElevationGainInMeters', positive(fitSummary.totalAscent));
+  fill('averageSpeedInMetersPerSecond', positive(fitSummary.avgSpeed));
+  fill('maxSpeedInMetersPerSecond', positive(fitSummary.maxSpeed));
+  // Sport-neutral names: the builder reads averagePower / avgCadence for
+  // cycling and running alike, so a FIT run does not get a "biking" field.
+  fill('averagePower', positive(fitSummary.avgPower));
+  fill('averageHeartRateInBeatsPerMinute', positive(fitSummary.avgHeartRate));
+  fill('maxHeartRateInBeatsPerMinute', positive(fitSummary.maxHeartRate));
+  fill('avgCadence', positive(fitSummary.avgCadence));
+
+  if (base.startTimeInSeconds == null && typeof fitSummary.startTime === 'string') {
+    const ms = Date.parse(fitSummary.startTime);
+    if (Number.isFinite(ms)) base.startTimeInSeconds = Math.floor(ms / 1000);
+  }
+
+  base.summarySource = 'fit_session';
+  return base;
+}
