@@ -200,6 +200,16 @@ describe('activityInfoFromFitSummary', () => {
     expect(info.averageHeartRateInBeatsPerMinute).toBeUndefined();
   });
 
+  it('rounds fractional FIT timers to whole seconds (INTEGER columns)', () => {
+    // The real 2026-09-03 FIT session: 4804.834 s elapsed failed the insert
+    // with "invalid input syntax for type integer".
+    const info = activityInfoFromFitSummary(ping, { ...fitSummary, totalElapsedTime: 4804.834, totalTime: 4501.2 });
+    expect(info.durationInSeconds).toBe(4805);
+    expect(info.elapsedDurationInSeconds).toBe(4805);
+    expect(info.movingDurationInSeconds).toBe(4501);
+    expect(Number.isInteger(info.durationInSeconds)).toBe(true);
+  });
+
   it('falls back to totalTime when totalElapsedTime is missing', () => {
     const info = activityInfoFromFitSummary(ping, { ...fitSummary, totalElapsedTime: 0 });
     expect(info.durationInSeconds).toBe(5820);

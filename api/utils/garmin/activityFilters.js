@@ -96,8 +96,15 @@ export function activityInfoFromFitSummary(item, fitSummary) {
     if (base[key] == null && value != null) base[key] = value;
   };
 
-  const elapsed = positive(fitSummary.totalElapsedTime) ?? positive(fitSummary.totalTime);
-  const moving = positive(fitSummary.totalTime) ?? elapsed;
+  // FIT session timers are fractional seconds (e.g. 4804.834); Garmin's own
+  // summary sends whole seconds and activities.moving_time / elapsed_time are
+  // INTEGER columns, so a fractional value fails the insert.
+  const wholeSeconds = (v) => {
+    const p = positive(v);
+    return p == null ? null : Math.round(p);
+  };
+  const elapsed = wholeSeconds(fitSummary.totalElapsedTime) ?? wholeSeconds(fitSummary.totalTime);
+  const moving = wholeSeconds(fitSummary.totalTime) ?? elapsed;
 
   fill('distanceInMeters', positive(fitSummary.totalDistance));
   fill('durationInSeconds', elapsed);
