@@ -8,6 +8,7 @@
 // redrivable via api/admin-garmin-dlq.js) instead of being silently marked
 // processed-with-error.
 
+import { randomUUID } from 'crypto';
 import { getSupabaseAdmin } from './utils/supabaseAdmin.js';
 import { downloadAndParseFitFile } from './utils/fitParser.js';
 import { fetchAthleteProfile } from './utils/athleteProfile.js';
@@ -20,7 +21,7 @@ import { updateBackfillChunkIfApplicable } from './utils/garminBackfill.js';
 import { extractAndStoreActivitySegments } from './utils/roadSegmentExtractor.js';
 
 import { parseWebhookPayload } from './utils/garmin/webhookPayloadParser.js';
-import { shouldFilterActivityType, hasMinimumActivityMetrics } from './utils/garmin/activityFilters.js';
+import { shouldFilterActivityType, hasMinimumActivityMetrics, isFitPingWithoutMetrics, activityInfoFromFitSummary } from './utils/garmin/activityFilters.js';
 import { buildActivityData } from './utils/garmin/activityBuilder.js';
 import { extractStreamsFromActivityDetails } from './utils/garmin/activityDetailsParser.js';
 import { fetchGarminActivityDetails, requestActivityDetailsBackfill, fetchGarminUserId } from './utils/garmin/garminApiClient.js';
@@ -706,6 +707,55 @@ async function downloadAndProcessActivity(event, integration, detailResult = nul
     return;
   }
 
+  // FIT ping without a summary. Garmin normally sends an activity twice — a
+  // CONNECT_ACTIVITY summary and an ACTIVITY_FILE_DATA ping pointing at the
+  // FIT file — but sometimes only the ping arrives. The ping carries the
+  // name, type, start time and callbackURL and nothing else, so FILTER 2
+  // below read it as 0 m / 0 s and rejected a real ride as "too short"
+  // without ever downloading the file (2026-09-03: a 20-mile ride lost).
+  // Download the FIT first and let its session message stand in for the
+  // summary; the parsed result is reused after insert so the file is only
+  // fetched once. Storage retention needs the activity id as its object key,
+  // so the id is drawn up front and stamped on the insert below.
+  let preParsedFit = null;
+  let preassignedActivityId = null;
+  const fitPingUrl = isDetailEvent ? null : (event.file_url || webhookInfo?.callbackURL || null);
+  if (fitPingUrl && isFitPingWithoutMetrics(webhookInfo, fitPingUrl)) {
+    if (!integration.access_token) {
+      await markEventProcessed(event.id, 'FIT ping without summary: no access token to download FIT');
+      return;
+    }
+    console.log(`[FIT:PING-ONLY] No summary for activity ${event.activity_id}; downloading FIT before filtering`);
+    preassignedActivityId = randomUUID();
+    const athlete = await fetchAthleteProfile(integration.user_id);
+    preParsedFit = await downloadAndParseFitFile(fitPingUrl, integration.access_token, athlete, {
+      supabase,
+      userId: integration.user_id,
+      activityId: preassignedActivityId,
+    });
+    if (preParsedFit.error || !preParsedFit.summary) {
+      const reason = preParsedFit.error || 'FIT parsed without a session summary';
+      if (preParsedFit.timedOut) {
+        // Transient: let the queue's backoff retry while the callbackURL is
+        // still live (Garmin URLs expire 24h after issue).
+        throw new Error(`FIT ping without summary: ${reason}`);
+      }
+      // Expired URL, HTTP error or a FIT with no session message: nothing
+      // more can be learned from this event. Ask Garmin to re-emit the
+      // activity (a fresh ping with a fresh URL lands back here) and record
+      // exactly why — never "too short", which this activity may not be.
+      console.warn(`[FIT:PING-ONLY] activity ${event.activity_id}: ${reason}`);
+      if (webhookInfo?.startTimeInSeconds) {
+        await requestActivityDetailsBackfill(integration.access_token, webhookInfo.startTimeInSeconds);
+        console.log(`[FIT:BACKFILL] Requested backfill for summary-less FIT ping ${event.activity_id}`);
+      }
+      await markEventProcessed(event.id, `FIT ping without summary: ${reason} - backfill requested`);
+      return;
+    }
+    webhookInfo = activityInfoFromFitSummary(webhookInfo, preParsedFit.summary);
+    console.log(`[FIT:PING-ONLY] Summary from FIT session for ${event.activity_id}: ${webhookInfo.distanceInMeters ?? '?'} m, ${webhookInfo.durationInSeconds ?? '?'} s`);
+  }
+
   // FILTER 2: Minimum metrics
   if (!hasMinimumActivityMetrics(webhookInfo || {})) {
     await extractAndSaveHealthMetrics(integration.user_id, webhookInfo || {}, supabase);
@@ -731,11 +781,13 @@ async function downloadAndProcessActivity(event, integration, detailResult = nul
   const activityInfo = activityDetails || webhookInfo || {};
 
   // Build activity data
-  const source = isDetailEvent ? 'activity_detail_push' : (activityDetails ? 'webhook_with_api' : 'webhook_push');
+  const source = isDetailEvent
+    ? 'activity_detail_push'
+    : (activityDetails ? 'webhook_with_api' : (preParsedFit ? 'webhook_fit_ping' : 'webhook_push'));
   const activityData = buildActivityData(integration.user_id, event.activity_id, activityInfo, source);
   activityData.raw_data = isDetailEvent
     ? { activityDetailSummary: webhookInfo, sampleCount: detailResult?.pointCount ?? 0 }
-    : { webhook: payload, api: activityDetails };
+    : { webhook: payload, api: activityDetails, ...(preParsedFit ? { fitSummary: preParsedFit.summary } : {}) };
   // Stamp completeness on insert so the row is honest the moment it lands.
   // The FIT enrichment in processFitFile / handleExistingActivity will
   // refresh this to 'full' once streams/power/polyline land.
@@ -755,10 +807,20 @@ async function downloadAndProcessActivity(event, integration, detailResult = nul
     return;
   }
 
-  // Insert activity
+  // Insert activity. The FIT-ping path pre-drew the id (its retained FIT
+  // bytes are keyed by it) and already holds the storage path; both are added
+  // here and not on activityData so the duplicate/takeover path above never
+  // tries to rewrite an existing row's primary key.
+  const insertRow = preParsedFit
+    ? {
+        id: preassignedActivityId,
+        ...activityData,
+        ...(preParsedFit.fit_storage_path ? { fit_storage_path: preParsedFit.fit_storage_path } : {}),
+      }
+    : activityData;
   const { data: activity, error: insertError } = await supabase
     .from('activities')
-    .insert(activityData)
+    .insert(insertRow)
     .select()
     .single();
 
@@ -812,7 +874,17 @@ async function downloadAndProcessActivity(event, integration, detailResult = nul
 
   // FIT file processing
   const fitFileUrl = event.file_url || webhookInfo?.callbackURL;
-  if (fitFileUrl && integration.access_token) {
+  if (preParsedFit) {
+    // Already downloaded and parsed above — apply it, don't fetch it twice.
+    const usable = Boolean(preParsedFit.polyline || preParsedFit.activityStreams || preParsedFit.powerMetrics);
+    if (usable) {
+      await applyParsedResultToActivity(activity.id, preParsedFit, integration.user_id);
+    } else if (activityInfo.startTimeInSeconds) {
+      // Summary-only FIT (no per-second records): same recovery as processFitFile.
+      console.warn(`[FIT:EMPTY] activity ${activity.id}: FIT ping parsed a summary but no records (pointCount=${preParsedFit.pointCount ?? 0})`);
+      await requestActivityDetailsBackfill(integration.access_token, activityInfo.startTimeInSeconds);
+    }
+  } else if (fitFileUrl && integration.access_token) {
     console.log(`[FIT:DOWNLOAD] Processing FIT file for new activity ${activity.id}`);
     await processFitFile(activity.id, fitFileUrl, integration.access_token, integration.user_id, activityInfo.startTimeInSeconds);
   } else if (integration.access_token && activityInfo.startTimeInSeconds) {
