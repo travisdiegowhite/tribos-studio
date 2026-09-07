@@ -310,3 +310,113 @@ One entry per rule (TID-1, DUR-1, RDY-3 …), each with:
 6. What the coach must NOT say (e.g., TID-3, DUR-4)
 
 The coach system prompt then references rule IDs and confidence, not papers. The performance evidence engine's verdicts (ahead / consistent / behind / insufficient) become the *trigger* layer; this document is the *policy* layer.
+
+---
+
+## 9. Session construction (SES) — what a hard day contains
+
+Sections 1–6 decide *when* to go hard, easy, or not at all. This section decides
+what a hard day *is*: which format, at what target, how many, with what recovery,
+and how the session bends to the athlete. It is consumed by the session designer
+(`api/utils/sessionDesigner.js`) through `session-rules.yaml`, not by the model;
+the coach reads the designer's rationale and voices it. Compiled 2026-09-07.
+Items marked `[verify]` were not pulled in this pass.
+
+### 9.1 VO2max formats
+
+#### Key papers
+- Helgerud J et al. *MSSE* 2007;39:665–71. 4×4 min at 90–95 % HRmax beat lactate-threshold and long-slow-distance work matched for total work on VO2max (+7.2 %) in moderately trained men.
+- Seiler S, Jøranson K, Olesen BV, Hetlelid KJ. *Scand J Med Sci Sports* 2013;23:74–83. 4×4 vs 4×8 vs 4×16, 7 weeks, trained cyclists (n=35). 4×8 at ~90 % HRmax produced the largest gains in VO2max and 40-min power.
+- Rønnestad BR, Hansen J, Vegge G, Tønnessen E, Slettaløkken G. *Scand J Med Sci Sports* 2015;25:143–51. 3 × (13 × 30/15 s) vs 4×5 min, 10 weeks, trained cyclists. Short intervals won on VO2max, power at 4 mmol and 40-min TT.
+- Rønnestad BR, Hansen J, Nygaard H, Lundby C. *Scand J Med Sci Sports* 2020;30:849–57. Same comparison, effort-matched, 3 weeks. Short intervals again superior.
+- Bossi AH et al. *IJSPP* 2020;15:982–9. Varied-intensity intervals accumulate more time ≥ 90 % VO2max than constant ones — the proposed mechanism for the 30/15 advantage.
+- Milanović Z, Sporiš G, Weston M. *Sports Med* 2015;45:1469–81. Meta-analysis: HIIT (largely 3–5 min formats) improves VO2max more than continuous training.
+- Buchheit M, Laursen PB. *Sports Med* 2013;43:313–38 and 927–54. The programming framework (long, short, RST, SIT) the format menu follows.
+
+#### Findings
+- Three formats have head-to-head evidence in trained cyclists: 30/15s > 4×5 (Rønnestad ×2), 4×8 > 4×4 and 4×16 (Seiler 2013), and 4×4 > LT/LSD (Helgerud). Nobody has run 30/15 against 4×8.
+- The common thread is time near VO2max per session, which favours short intermittent work early (less fatigue per minute at intensity) and long efforts once the athlete can hold them.
+
+#### Consensus: **Settled that 3–8 min efforts at 105–120 % FTP raise VO2max; Leaning on which format when; Contested between 30/15s and 4×8**
+
+#### Amateur applicability
+Rønnestad's and Seiler's subjects were trained (VO2max ≈ 60–65 ml/kg/min). Helgerud's were moderately trained. Time-crunched amateurs are unstudied; the transfer is the principle, not the magnitude.
+
+#### Decision rules
+- **SES-VO2-1.** Open a VO2 block, and defend a lagging short-power trend, with 30/15s or 40/20s (3 sets, 115–125 % FTP, 3–4 min between sets). Leaning.
+- **SES-VO2-2.** 3–5 min efforts at 108–120 % are the general-purpose format for the middle of a block, a short day, and a conservative recovery mode. Settled.
+- **SES-VO2-3.** 4×8 at 105–112 % later in a block for an athlete who holds VO2 work, especially with a long event ahead. Leaning (one trial).
+
+### 9.2 Threshold, sweet spot, tempo
+
+#### Key papers
+- Sylta Ø et al. *MSSE* 2016;48:2165–74. 4×16, 4×8, 4×4 across 12 weeks at matched session RPE; no format superior, 4×16 improved ~40-min power as much as the shorter ones.
+- Seiler S. *IJSPP* 2010;5:276–91 (distribution; threshold as the "middle" band).
+- Burnley M, Bearden SE, Jones AM. *MSSE* 2022;54:1032–4 (the case against living in tempo).
+- Allen H, Coggan A, McGregor S. *Training and Racing with a Power Meter*, 3rd ed. 2019 — the zone conventions (sweet spot 88–94 %, threshold 95–105 %).
+
+#### Findings
+- Threshold adaptation tracks total minutes at intensity per week more than the shape of any one session. Blocks of 8–20 min at 95–103 % are interchangeable within a week's budget.
+- Sweet spot has no RCT of its own; it is a practitioner band inside the 4×16 evidence, chosen for repeatability.
+
+#### Consensus: **Settled on threshold dose; Leaning on sweet spot as a distinct band; Leaning that tempo is prescribed deliberately**
+
+#### Decision rules
+- **SES-THR-1.** Threshold in 8–20 min blocks at 95–103 %: 2×20 → 3×12 → 4×10 across a block, 3×8 on a short day, 3×20 at 93–99 % on a long one. Settled.
+- **SES-THR-2.** Sweet spot 88–94 % in 12–20 min blocks: 2×20 → 3×15 → 4×12, 3×20 on a long day. Leaning.
+- **SES-THR-3.** Tempo 78–87 % as 2×20 or 1×40, never as a default. Leaning.
+
+### 9.3 Anaerobic, sprint, race simulation, openers
+
+- Buchheit & Laursen 2013 part II: repeated-sprint and sprint-interval work needs near-complete recovery; quality collapses when it is cut. Anaerobic capacity responds to 1–2 min efforts at 125–160 % FTP.
+- Bosquet L et al. *MSSE* 2007;39:1358–65: keep intensity in the taper — the basis for openers being short and sharp, not a workout.
+
+- **SES-ANA-1.** 6–10 × 1 min at 140–160 % or 4–8 × 2 min at 125–135 %, 4 min recovery. Leaning.
+- **SES-ANA-2.** 6–12 × 30 s at 170 %+, 4.5 min recovery, judged on the last one. Leaning.
+- **SES-RACE-1.** Race simulation: 2–3 × 10 min threshold, then 4–6 × 30 s attacks. Contested (mechanism only).
+- **SES-RACE-2.** Openers: 3–4 × 1 min at 100–110 %. Leaning.
+
+### 9.4 Work : rest and the easy parts
+
+- Recovery between efforts is easy riding at ~50 % FTP (Buchheit & Laursen 2013 part I on active vs passive recovery: active preserves repeatability for VO2 work). Roughly 1:1 for 3–5 min VO2 efforts, 1:0.5 for 8 min, 1:0.25–0.5 for threshold blocks.
+- Warmup is endurance (65 %), 8–20 min; cooldown 5–15 min at 50 %. Neither is tempo.
+- **SES-WR-1.** Settled.
+
+### 9.5 Progression within a block
+
+- Foster C. *MSSE* 1998;30:1164–8 (monotony and strain): progress load by varying and lengthening, not by stacking intensity on intensity.
+- Practice across Seiler, Sylta and Rønnestad: week 1 establishes the format, weeks 2–3 raise time at intensity, a peak week precedes the recovery week.
+- **SES-PROG-1.** weekInBlock 0 → introductory format, 1 → middle, 2+ → peak; repeat counts grow to the load budget inside each format's range. Leaning.
+
+### 9.6 Calibration: whose FTP, and how old
+
+- Allen & Coggan 2019: FTP ≈ 95 % of a 20-min test; individual error ±5–8 %.
+- Pinot J, Grappe F. *J Sports Sci* 2011;29:1391–8: the record power profile — the 5-min-to-FTP ratio varies by roughly ±10 % across riders, so a fixed "115 % FTP" VO2 target misses many of them.
+- Jones AM et al. *MSSE* 2010;42:1876–90; Skiba PF et al. *MSSE* 2012;44:1526–32; Poole DC et al. *MSSE* 2016;48:2320–34: critical power and W′; an effort above CP spends W′ at (P − CP) × t, and W′ balance predicts exhaustion well enough to bound an interval.
+- Mackey J, Horner K. *J Sci Cycling* 2021 — FTP field-test reliability `[verify]`.
+
+- **SES-CAL-1.** An FTP is stale after 30 days (≥ 4 rides/week) or 45 days (≥ 2 rides/week), 90 days otherwise; past that the 90-day bests set the targets when they disagree by > 3 %. Stored %FTP stays relative to the profile FTP the device holds. Leaning; the windows are a Tribos decision (founder, 2026-09-07), not a literature value.
+- **SES-CAL-2.** Cap any effort so one interval spends ≤ 85 % of W′; lower the band, never shorten the effort. Leaning.
+- **SES-CAL-3.** Set VO2 targets from the 5-minute best by effort length (micro 100–108 %, short 95–102 %, medium 90–97 %, long 85–91 % of p5). Leaning.
+
+### 9.7 Dose and the load budget
+
+- Coggan's TSS/RSS arithmetic: a segment's load is (IF)² × hours × 100. A session's predicted load is the sum over efforts, recoveries and bookends.
+- **SES-DOSE-1.** Choose repeats so predicted load lands within 5 RSS of the budget; when the format cannot reach it in the time, say so rather than raising intensity. Leaning.
+- **SES-DOSE-2.** Duration wins over load; shed repeats, then sets. Settled.
+
+### 9.8 Gates
+
+The sequencer's two gates and RDY-3 are restated so the designer and the arc ease a day the same way.
+
+- **GATE-FS.** Form score ≤ −15 → endurance, 55 RSS, ≤ 75 min. Leaning.
+- **GATE-AFI.** Four-day fatigue growth past the recovery-mode ceiling → dose × 0.75, format kept. Leaning.
+- **SES-MOD-1.** RDY-3 modify → half the sets, 60 % of the length, intensity kept; skip → rest. Leaning.
+
+### 9.9 Gaps
+
+- No trial compares 30/15s with 4×8, the two best-supported VO2 formats.
+- Sweet spot has no RCT isolating it from threshold.
+- Race-simulation formats are untested in amateurs.
+- The W′ share (85 %) and the FTP staleness windows are design decisions; Tribos data can calibrate both — completion rate of the last repeat against W′ spent is the natural check.
+- **SES-END-1** (long ride with a late effort for low-durability athletes) is documented but not applied: it needs the durability inputs from Phase 4 of the implementation brief, which are still null.

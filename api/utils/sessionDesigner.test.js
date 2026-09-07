@@ -223,7 +223,7 @@ describe('readiness and fatigue gates', () => {
     expect(modify.durationMin).toBe(45);
     expect(modify.targetLoad).toBe(45);
     expect(modify.prescription.intervals[0].repeats).toBeLessThanOrEqual(4);
-    expect(rationaleText(modify)).toMatch(/RDY-3-modify/);
+    expect(rationaleText(modify)).toMatch(/SES-MOD-1/);
 
     const skip = designSession({ session: { type: 'vo2max', durationMin: 75, targetLoad: 90 }, athlete: { ...FRESH, readinessCall: 'skip' } });
     expect(skip.ok).toBe(false);

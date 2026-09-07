@@ -22,13 +22,33 @@
  *   5. Fit to the planned length  bookends absorb the difference
  *   6. Return the reasons
  *
- * Every constant below is a placeholder for a bible rule until Phase C
- * replaces it with a cited one; the rule ids are already the bible's.
+ * Every number here is read from docs/coaching-bible/session-rules.yaml via
+ * the generated module; the rule ids in the rationale are the bible's.
  */
 
 import { buildPrescription } from './prescription.js';
+import { SESSION_RULES } from './sessionRules.generated.js';
 
-// ─── Constants the bible will own ────────────────────────────────────────────
+// ─── Constants, read from the bible ──────────────────────────────────────────
+//
+// Every number below comes from docs/coaching-bible/session-rules.yaml via the
+// generated module. `param` throws at module load if a rule or key is
+// missing, so a renamed rule is a failed import, never a silently wrong
+// session.
+
+const RULES = new Map(SESSION_RULES.rules.map((r) => [r.id, r]));
+
+export function ruleParam(id, key) {
+  const rule = RULES.get(id);
+  if (!rule) throw new Error(`session rules: no rule "${id}"`);
+  if (!(key in rule.params)) throw new Error(`session rules: ${id} has no param "${key}"`);
+  return rule.params[key];
+}
+
+/** The bible rule behind a designer decision, for callers that want the text. */
+export function ruleFor(id) {
+  return RULES.get(id) || null;
+}
 
 /**
  * SES-CAL-1. An FTP older than this is stale and the power bests calibrate
@@ -37,28 +57,44 @@ import { buildPrescription } from './prescription.js';
  * last four), never assumed, and the window widens with gaps.
  */
 export const FTP_STALE_DAYS = {
-  high: 30, // ≥ 4 rides/week
-  consistent: 45, // ≥ 2 rides/week
-  sparse: 90, // fewer, or unknown
+  high: ruleParam('SES-CAL-1', 'stale_days_high'),
+  consistent: ruleParam('SES-CAL-1', 'stale_days_consistent'),
+  sparse: ruleParam('SES-CAL-1', 'stale_days_sparse'),
 };
+const RIDES_PER_WEEK_HIGH = ruleParam('SES-CAL-1', 'rides_per_week_high');
+const RIDES_PER_WEEK_CONSISTENT = ruleParam('SES-CAL-1', 'rides_per_week_consistent');
 /** Bests only override a stale FTP when they disagree with it by more than this. */
-export const FTP_OVERRIDE_MIN_DELTA = 0.03;
+export const FTP_OVERRIDE_MIN_DELTA = ruleParam('SES-CAL-1', 'override_min_delta');
+const FTP_FROM_P1200 = ruleParam('SES-CAL-1', 'ftp_from_p1200');
+const FTP_FROM_P300 = ruleParam('SES-CAL-1', 'ftp_from_p300');
 /** SES-CAL-2. One VO2 effort may spend at most this share of W′. */
-export const WPRIME_MAX_SHARE = 0.85;
+export const WPRIME_MAX_SHARE = ruleParam('SES-CAL-2', 'wprime_max_share');
+const WPRIME_FLOOR_OVER_CP = ruleParam('SES-CAL-2', 'floor_over_cp');
+const WPRIME_BAND_BELOW_CAP = ruleParam('SES-CAL-2', 'band_width_below_cap');
 /** SES-DOSE. A design lands within this many RSS of the budget, or says why not. */
-export const LOAD_TOLERANCE_RSS = 5;
+export const LOAD_TOLERANCE_RSS = ruleParam('SES-DOSE-1', 'load_tolerance_rss');
 /** GATE-FS (sequencer rule). No quality work at or below this form score. */
-export const FORM_SCORE_NO_QUALITY = -15;
+export const FORM_SCORE_NO_QUALITY = ruleParam('GATE-FS', 'form_score_no_quality');
+const EASED_LOAD_RSS = ruleParam('GATE-FS', 'eased_load_rss');
+const EASED_MAX_MIN = ruleParam('GATE-FS', 'eased_max_min');
 /** GATE-AFI (sequencer rule). Trim the dose by this when fatigue grew past the ceiling. */
-export const AFI_TRIM_FACTOR = 0.75;
-/** RDY-3-modify. First block only: about half the sets, keep the intensity. */
-export const MODIFY_SET_FACTOR = 0.5;
+export const AFI_TRIM_FACTOR = ruleParam('GATE-AFI', 'trim_factor');
+/** SES-MOD-1 / RDY-3-modify. First block only: about half the sets, keep the intensity. */
+export const MODIFY_SET_FACTOR = ruleParam('SES-MOD-1', 'set_factor');
+const MODIFY_DURATION_FACTOR = ruleParam('SES-MOD-1', 'duration_factor');
+const MODIFY_MIN_DURATION = ruleParam('SES-MOD-1', 'min_duration_min');
 
-const WARMUP_PCT = 65;
-const COOLDOWN_PCT = 50;
-const RECOVERY_PCT = 50;
-const MIN_WARMUP_MIN = 8;
-const MIN_COOLDOWN_MIN = 5;
+const WARMUP_PCT = ruleParam('SES-WR-1', 'warmup_pct_ftp');
+const COOLDOWN_PCT = ruleParam('SES-WR-1', 'cooldown_pct_ftp');
+const RECOVERY_PCT = ruleParam('SES-WR-1', 'recovery_pct_ftp');
+const MIN_WARMUP_MIN = ruleParam('SES-WR-1', 'min_warmup_min');
+const MIN_COOLDOWN_MIN = ruleParam('SES-WR-1', 'min_cooldown_min');
+const WARMUP_SHARE = ruleParam('SES-WR-1', 'warmup_share_of_spare');
+
+const WEEK_MIDDLE = ruleParam('SES-PROG-1', 'week_middle');
+const WEEK_PEAK = ruleParam('SES-PROG-1', 'week_peak');
+const SHORT_DAY_MAX_MIN = ruleParam('SES-THR-1', 'short_day_max_min');
+const LONG_DAY_MIN_MIN = ruleParam('SES-THR-1', 'long_day_min_min');
 
 /** Session types with a steady shape: no intervals to design. */
 const STEADY_TYPES = new Set(['endurance', 'long_ride', 'recovery', 'z1', 'z2', 'easy', 'foundation']);
@@ -76,115 +112,115 @@ const OFF_BIKE_TYPES = new Set(['strength', 'core', 'flexibility']);
 const FORMATS = {
   vo2_30_15: {
     id: 'vo2_30_15', rule: 'SES-VO2-1', label: '30/15s',
-    sets: 3, repeats: [10, 13], work: 0.5, pct: [115, 125], recovery: 0.25, setRecovery: 3,
+    sets: ruleParam('SES-VO2-1', 'sets'), repeats: [10, 13], work: 0.5, pct: ruleParam('SES-VO2-1', 'pct_ftp'), recovery: 0.25, setRecovery: ruleParam('SES-VO2-1', 'set_recovery_min_30_15'),
     vo2Role: 'micro', notes: 'Rønnestad 30/15s: hold the 30s, spin the 15s.',
   },
   vo2_40_20: {
     id: 'vo2_40_20', rule: 'SES-VO2-1', label: '40/20s',
-    sets: 3, repeats: [8, 10], work: 0.667, pct: [115, 125], recovery: 0.333, setRecovery: 4,
+    sets: ruleParam('SES-VO2-1', 'sets'), repeats: [8, 10], work: 0.667, pct: ruleParam('SES-VO2-1', 'pct_ftp'), recovery: 0.333, setRecovery: ruleParam('SES-VO2-1', 'set_recovery_min_40_20'),
     vo2Role: 'micro', notes: '40/20s: steady output across the set, no sprinting the first one.',
   },
   vo2_4x4: {
     id: 'vo2_4x4', rule: 'SES-VO2-2', label: '4×4min',
-    sets: 1, repeats: [3, 5], work: 4, pct: [110, 118], recovery: 3, setRecovery: 0,
+    sets: 1, repeats: [3, 5], work: 4, pct: ruleParam('SES-VO2-2', 'pct_ftp_4x4'), recovery: ruleParam('SES-VO2-2', 'recovery_min_4x4'), setRecovery: 0,
     vo2Role: 'medium', notes: '4-min efforts: even pace, the last one should feel like the first.',
   },
   vo2_5x4: {
     id: 'vo2_5x4', rule: 'SES-VO2-2', label: '5×4min',
-    sets: 1, repeats: [4, 6], work: 4, pct: [108, 115], recovery: 4, setRecovery: 0,
+    sets: 1, repeats: [4, 6], work: 4, pct: ruleParam('SES-VO2-2', 'pct_ftp_5x4'), recovery: ruleParam('SES-VO2-2', 'recovery_min_5x4'), setRecovery: 0,
     vo2Role: 'medium', notes: '4-min efforts with full recovery between.',
   },
   vo2_5x3: {
     id: 'vo2_5x3', rule: 'SES-VO2-2', label: '5×3min',
-    sets: 1, repeats: [4, 6], work: 3, pct: [112, 120], recovery: 3, setRecovery: 0,
+    sets: 1, repeats: [4, 6], work: 3, pct: ruleParam('SES-VO2-2', 'pct_ftp_5x3'), recovery: ruleParam('SES-VO2-2', 'recovery_min_5x3'), setRecovery: 0,
     vo2Role: 'short', notes: '3-min efforts, hard from the start.',
   },
   vo2_4x8: {
     id: 'vo2_4x8', rule: 'SES-VO2-3', label: '4×8min',
-    sets: 1, repeats: [3, 5], work: 8, pct: [105, 112], recovery: 4, setRecovery: 0,
+    sets: 1, repeats: [3, 5], work: 8, pct: ruleParam('SES-VO2-3', 'pct_ftp'), recovery: ruleParam('SES-VO2-3', 'recovery_min'), setRecovery: 0,
     vo2Role: 'long', notes: 'Seiler 4×8: slightly below all-out, sustainable across four.',
   },
   thr_2x20: {
     id: 'thr_2x20', rule: 'SES-THR-1', label: '2×20min',
-    sets: 1, repeats: [2, 3], work: 20, pct: [95, 100], recovery: 5, setRecovery: 0,
+    sets: 1, repeats: [2, 3], work: 20, pct: ruleParam('SES-THR-1', 'pct_ftp_2x20'), recovery: 5, setRecovery: 0,
     notes: 'Threshold: steady, seated, breathing hard but controlled.',
   },
   thr_3x12: {
     id: 'thr_3x12', rule: 'SES-THR-1', label: '3×12min',
-    sets: 1, repeats: [3, 4], work: 12, pct: [96, 102], recovery: 5, setRecovery: 0,
+    sets: 1, repeats: [3, 4], work: 12, pct: ruleParam('SES-THR-1', 'pct_ftp_3x12'), recovery: 5, setRecovery: 0,
     notes: 'Threshold: upper end, hold the last two minutes of each.',
   },
   thr_4x10: {
     id: 'thr_4x10', rule: 'SES-THR-1', label: '4×10min',
-    sets: 1, repeats: [3, 5], work: 10, pct: [98, 103], recovery: 5, setRecovery: 0,
+    sets: 1, repeats: [3, 5], work: 10, pct: ruleParam('SES-THR-1', 'pct_ftp_4x10'), recovery: 5, setRecovery: 0,
     notes: 'True threshold: at or just over FTP.',
   },
   thr_3x8: {
     id: 'thr_3x8', rule: 'SES-THR-1', label: '3×8min',
-    sets: 1, repeats: [3, 4], work: 8, pct: [98, 104], recovery: 4, setRecovery: 0,
+    sets: 1, repeats: [3, 4], work: 8, pct: ruleParam('SES-THR-1', 'pct_ftp_3x8'), recovery: 4, setRecovery: 0,
     notes: 'Short threshold for a short day.',
   },
   thr_3x20: {
     id: 'thr_3x20', rule: 'SES-THR-1', label: '3×20min',
-    sets: 1, repeats: [2, 3], work: 20, pct: [93, 99], recovery: 6, setRecovery: 0,
+    sets: 1, repeats: [2, 3], work: 20, pct: ruleParam('SES-THR-1', 'pct_ftp_3x20'), recovery: 6, setRecovery: 0,
     notes: 'Long threshold: sustained, a shade under FTP.',
   },
   sst_2x20: {
     id: 'sst_2x20', rule: 'SES-THR-2', label: '2×20min sweet spot',
-    sets: 1, repeats: [2, 3], work: 20, pct: [88, 92], recovery: 5, setRecovery: 0,
+    sets: 1, repeats: [2, 3], work: 20, pct: ruleParam('SES-THR-2', 'pct_ftp_2x20'), recovery: 5, setRecovery: 0,
     notes: 'Sweet spot: firm but repeatable.',
   },
   sst_3x15: {
     id: 'sst_3x15', rule: 'SES-THR-2', label: '3×15min sweet spot',
-    sets: 1, repeats: [3, 4], work: 15, pct: [88, 93], recovery: 5, setRecovery: 0,
+    sets: 1, repeats: [3, 4], work: 15, pct: ruleParam('SES-THR-2', 'pct_ftp_3x15'), recovery: 5, setRecovery: 0,
     notes: 'Upper sweet spot.',
   },
   sst_4x12: {
     id: 'sst_4x12', rule: 'SES-THR-2', label: '4×12min sweet spot',
-    sets: 1, repeats: [3, 5], work: 12, pct: [89, 94], recovery: 4, setRecovery: 0,
+    sets: 1, repeats: [3, 5], work: 12, pct: ruleParam('SES-THR-2', 'pct_ftp_4x12'), recovery: 4, setRecovery: 0,
     notes: 'Sweet spot, pushing toward threshold.',
   },
   sst_3x20: {
     id: 'sst_3x20', rule: 'SES-THR-2', label: '3×20min sweet spot',
-    sets: 1, repeats: [2, 3], work: 20, pct: [88, 92], recovery: 5, setRecovery: 0,
+    sets: 1, repeats: [2, 3], work: 20, pct: ruleParam('SES-THR-2', 'pct_ftp_3x20'), recovery: 5, setRecovery: 0,
     notes: 'Long sweet spot for a long day.',
   },
   tempo_2x20: {
     id: 'tempo_2x20', rule: 'SES-THR-3', label: '2×20min tempo',
-    sets: 1, repeats: [2, 3], work: 20, pct: [80, 87], recovery: 5, setRecovery: 0,
+    sets: 1, repeats: [2, 3], work: 20, pct: ruleParam('SES-THR-3', 'pct_ftp_2x20'), recovery: 5, setRecovery: 0,
     notes: 'Tempo: comfortably hard, conversation in short sentences.',
   },
   tempo_1x40: {
     id: 'tempo_1x40', rule: 'SES-THR-3', label: '40min tempo',
-    sets: 1, repeats: [1, 2], work: 40, pct: [78, 85], recovery: 8, setRecovery: 0,
+    sets: 1, repeats: [1, 2], work: 40, pct: ruleParam('SES-THR-3', 'pct_ftp_1x40'), recovery: 8, setRecovery: 0,
     notes: 'One long tempo block.',
   },
   ana_8x1: {
     id: 'ana_8x1', rule: 'SES-ANA-1', label: '8×1min',
-    sets: 1, repeats: [6, 10], work: 1, pct: [140, 160], recovery: 4, setRecovery: 0,
+    sets: 1, repeats: [6, 10], work: 1, pct: ruleParam('SES-ANA-1', 'pct_ftp_8x1'), recovery: ruleParam('SES-ANA-1', 'recovery_min'), setRecovery: 0,
     vo2Role: 'micro', notes: 'Anaerobic: all-out for the minute, full recovery.',
   },
   ana_6x2: {
     id: 'ana_6x2', rule: 'SES-ANA-1', label: '6×2min',
-    sets: 1, repeats: [4, 8], work: 2, pct: [125, 135], recovery: 4, setRecovery: 0,
+    sets: 1, repeats: [4, 8], work: 2, pct: ruleParam('SES-ANA-1', 'pct_ftp_6x2'), recovery: ruleParam('SES-ANA-1', 'recovery_min'), setRecovery: 0,
     vo2Role: 'short', notes: '2-min efforts above VO2 pace.',
   },
   spr_10x30s: {
     id: 'spr_10x30s', rule: 'SES-ANA-2', label: '10×30s sprints',
-    sets: 1, repeats: [6, 12], work: 0.5, pct: [170, 220], recovery: 4.5, setRecovery: 0,
+    sets: 1, repeats: [6, 12], work: 0.5, pct: ruleParam('SES-ANA-2', 'pct_ftp'), recovery: ruleParam('SES-ANA-2', 'recovery_min'), setRecovery: 0,
     notes: 'Sprints: full recovery, quality over quantity.',
   },
   race_sim: {
     id: 'race_sim', rule: 'SES-RACE-1', label: 'race simulation',
     multi: [
-      { sets: 1, repeats: [2, 3], work: 10, pct: [95, 102], recovery: 5, setRecovery: 0, notes: 'Threshold block' },
-      { sets: 1, repeats: [4, 6], work: 0.5, pct: [150, 170], recovery: 2, setRecovery: 0, notes: 'Attacks on tired legs' },
+      { sets: 1, repeats: [2, 3], work: 10, pct: ruleParam('SES-RACE-1', 'threshold_pct_ftp'), recovery: 5, setRecovery: 0, notes: 'Threshold block' },
+      { sets: 1, repeats: [4, 6], work: 0.5, pct: ruleParam('SES-RACE-1', 'attack_pct_ftp'), recovery: 2, setRecovery: 0, notes: 'Attacks on tired legs' },
     ],
     notes: 'Race simulation: sustained threshold, then attacks on tired legs.',
   },
   openers: {
     id: 'openers', rule: 'SES-RACE-2', label: 'openers',
-    sets: 1, repeats: [3, 4], work: 1, pct: [100, 110], recovery: 3, setRecovery: 0,
+    sets: 1, repeats: [3, 4], work: 1, pct: ruleParam('SES-RACE-2', 'pct_ftp'), recovery: ruleParam('SES-RACE-2', 'recovery_min'), setRecovery: 0,
     notes: 'Openers: wake the legs up, nothing that needs recovering from.',
   },
 };
@@ -221,16 +257,16 @@ export function designFamily(type) {
  */
 export function chooseFormat(family, { weekInBlock = 0, durationMin = 75, pdShortTrend = null, recoveryMode = 'standard', goalDurationMin = null } = {}) {
   const conservative = recoveryMode === 'conservative';
-  const short = durationMin < 55;
-  const long = durationMin >= 100;
+  const short = durationMin <= SHORT_DAY_MAX_MIN;
+  const long = durationMin >= LONG_DAY_MIN_MIN;
 
   if (family === 'vo2max') {
     if (short) return { format: FORMATS.vo2_4x4, why: `${durationMin} minutes is a short day, so 4-minute efforts fit with a real warmup.` };
     if (pdShortTrend === 'behind') {
       return { format: FORMATS.vo2_30_15, why: 'Short power is behind its recent best, and 30/15s spend the most time at VO2 for the least fatigue.' };
     }
-    if (weekInBlock <= 0) return { format: FORMATS.vo2_30_15, why: 'First week of the block: short intervals build the dose without a fortnight of fatigue.' };
-    if (weekInBlock === 1) {
+    if (weekInBlock < WEEK_MIDDLE) return { format: FORMATS.vo2_30_15, why: 'First week of the block: short intervals build the dose without a fortnight of fatigue.' };
+    if (weekInBlock < WEEK_PEAK) {
       return conservative
         ? { format: FORMATS.vo2_4x4, why: 'Second week; conservative recovery mode keeps efforts at 4 minutes.' }
         : { format: FORMATS.vo2_5x4, why: 'Second week: 4-minute efforts raise the time at intensity.' };
@@ -246,15 +282,15 @@ export function chooseFormat(family, { weekInBlock = 0, durationMin = 75, pdShor
   if (family === 'threshold') {
     if (short) return { format: FORMATS.thr_3x8, why: `${durationMin} minutes is a short day, so shorter threshold blocks.` };
     if (long) return { format: FORMATS.thr_3x20, why: 'A long day carries long threshold blocks a shade under FTP.' };
-    if (weekInBlock <= 0) return { format: FORMATS.thr_2x20, why: 'First week: two long blocks anchor threshold before it is split finer.' };
-    if (weekInBlock === 1) return { format: FORMATS.thr_3x12, why: 'Second week: three blocks, a touch higher.' };
+    if (weekInBlock < WEEK_MIDDLE) return { format: FORMATS.thr_2x20, why: 'First week: two long blocks anchor threshold before it is split finer.' };
+    if (weekInBlock < WEEK_PEAK) return { format: FORMATS.thr_3x12, why: 'Second week: three blocks, a touch higher.' };
     return { format: FORMATS.thr_4x10, why: 'Later in the block: four blocks at or just over FTP.' };
   }
 
   if (family === 'sweet_spot') {
     if (long) return { format: FORMATS.sst_3x20, why: 'A long day carries three long sweet-spot blocks.' };
-    if (weekInBlock <= 0) return { format: FORMATS.sst_2x20, why: 'First week: two blocks establish the dose.' };
-    if (weekInBlock === 1) return { format: FORMATS.sst_3x15, why: 'Second week: three blocks, upper sweet spot.' };
+    if (weekInBlock < WEEK_MIDDLE) return { format: FORMATS.sst_2x20, why: 'First week: two blocks establish the dose.' };
+    if (weekInBlock < WEEK_PEAK) return { format: FORMATS.sst_3x15, why: 'Second week: three blocks, upper sweet spot.' };
     return { format: FORMATS.sst_4x12, why: 'Later in the block: four blocks pushing toward threshold.' };
   }
 
@@ -265,7 +301,7 @@ export function chooseFormat(family, { weekInBlock = 0, durationMin = 75, pdShor
   }
 
   if (family === 'anaerobic') {
-    return weekInBlock >= 2
+    return weekInBlock >= WEEK_PEAK
       ? { format: FORMATS.ana_6x2, why: 'Later in the block: longer anaerobic efforts.' }
       : { format: FORMATS.ana_8x1, why: 'One-minute efforts with full recovery.' };
   }
@@ -280,16 +316,16 @@ export function chooseFormat(family, { weekInBlock = 0, durationMin = 75, pdShor
 /** Rides per week → the window an FTP stays fresh for. */
 export function ftpStaleWindowDays(ridesPerWeek) {
   if (ridesPerWeek == null) return FTP_STALE_DAYS.sparse;
-  if (ridesPerWeek >= 4) return FTP_STALE_DAYS.high;
-  if (ridesPerWeek >= 2) return FTP_STALE_DAYS.consistent;
+  if (ridesPerWeek >= RIDES_PER_WEEK_HIGH) return FTP_STALE_DAYS.high;
+  if (ridesPerWeek >= RIDES_PER_WEEK_CONSISTENT) return FTP_STALE_DAYS.consistent;
   return FTP_STALE_DAYS.sparse;
 }
 
 /** FTP implied by the 90-day bests, the same way fitness snapshots estimate it. */
 export function ftpFromBests(bests) {
   if (!bests) return null;
-  if (bests.p1200 > 0) return { ftp: Math.round(bests.p1200 * 0.95), basis: '95% of the 20-minute best' };
-  if (bests.p300 > 0) return { ftp: Math.round(bests.p300 * 0.75), basis: '75% of the 5-minute best' };
+  if (bests.p1200 > 0) return { ftp: Math.round(bests.p1200 * FTP_FROM_P1200), basis: `${Math.round(FTP_FROM_P1200 * 100)}% of the 20-minute best` };
+  if (bests.p300 > 0) return { ftp: Math.round(bests.p300 * FTP_FROM_P300), basis: `${Math.round(FTP_FROM_P300 * 100)}% of the 5-minute best` };
   return null;
 }
 
@@ -335,10 +371,10 @@ export function calibrateFtp(athlete) {
 
 /** Fraction of the 5-minute best a VO2 effort of a given role is ridden at. */
 const VO2_FROM_P300 = {
-  micro: [1.0, 1.08],
-  short: [0.95, 1.02],
-  medium: [0.9, 0.97],
-  long: [0.85, 0.91],
+  micro: ruleParam('SES-CAL-3', 'p300_fraction_micro'),
+  short: ruleParam('SES-CAL-3', 'p300_fraction_short'),
+  medium: ruleParam('SES-CAL-3', 'p300_fraction_medium'),
+  long: ruleParam('SES-CAL-3', 'p300_fraction_long'),
 };
 
 /**
@@ -375,8 +411,8 @@ export function calibrateBand(format, cal, athlete, rationale) {
     const seconds = format.work * 60;
     const maxWatts = cp + (WPRIME_MAX_SHARE * wPrime) / seconds;
     if (wattsHi > maxWatts) {
-      const cappedHi = Math.max(maxWatts, cp * 1.02);
-      const cappedLo = Math.min(wattsLo, cappedHi * 0.96);
+      const cappedHi = Math.max(maxWatts, cp * WPRIME_FLOOR_OVER_CP);
+      const cappedLo = Math.min(wattsLo, cappedHi * WPRIME_BAND_BELOW_CAP);
       rationale.push(`SES-CAL-2: ${Math.round(wattsHi)} W for ${format.work} min would spend more than ${Math.round(WPRIME_MAX_SHARE * 100)}% of W′ (${Math.round(wPrime / 1000)} kJ over CP ${cp} W); capped at ${Math.round(cappedHi)} W.`);
       wattsHi = cappedHi;
       wattsLo = cappedLo;
@@ -488,7 +524,7 @@ export function sizeDose(blocks, { targetLoad, durationMin }, rationale) {
   // Bookends absorb whatever the day has left, 60/40, floors respected.
   const used = sized.reduce((s, b) => s + setMinutes(b), 0);
   const spare = Math.max(minBookends, durationMin - used);
-  const warm = Math.max(MIN_WARMUP_MIN, Math.round(spare * 0.6));
+  const warm = Math.max(MIN_WARMUP_MIN, Math.round(spare * WARMUP_SHARE));
   const cool = Math.max(MIN_COOLDOWN_MIN, spare - warm);
   return { blocks: sized, warmup: warm, cooldown: cool, predicted: predictLoad(sized, warm, cool) };
 }
@@ -516,7 +552,7 @@ export function applyGates(request, athlete, rationale) {
   }
   if (fs != null && fs <= FORM_SCORE_NO_QUALITY) {
     rationale.push(`GATE-FS: form score ${Math.round(fs)} is at or below ${FORM_SCORE_NO_QUALITY}; no quality work today, endurance instead.`);
-    return { ...out, gate: 'endurance', family: 'steady', targetLoad: Math.min(out.targetLoad ?? 55, 55) };
+    return { ...out, gate: 'endurance', family: 'steady', targetLoad: Math.min(out.targetLoad ?? EASED_LOAD_RSS, EASED_LOAD_RSS) };
   }
   if (growth != null && growth > ceiling) {
     const trimmed = out.targetLoad != null ? Math.round(out.targetLoad * AFI_TRIM_FACTOR) : null;
@@ -525,7 +561,7 @@ export function applyGates(request, athlete, rationale) {
     out.gate = 'trim';
   }
   if (call === 'modify') {
-    rationale.push('RDY-3-modify: shorter version today — first block only, keep the intensity.');
+    rationale.push('SES-MOD-1: readiness says modify — shorter version today, first block only, keep the intensity.');
     out.modify = true;
     out.gate = out.gate ? `${out.gate}+modify` : 'modify';
   }
@@ -563,7 +599,7 @@ export function designSession({ session, athlete = {}, now = null } = {}) {
     const eased = familyRaw !== 'steady';
     return {
       ok: false, reason: 'steady', sessionType: eased ? 'endurance' : type,
-      durationMin: eased ? Math.min(durationMin, 75) : durationMin,
+      durationMin: eased ? Math.min(durationMin, EASED_MAX_MIN) : durationMin,
       targetLoad: gated.targetLoad ?? targetLoad, prescription: null, gate: gated.gate, rationale,
     };
   }
@@ -597,7 +633,7 @@ export function designSession({ session, athlete = {}, now = null } = {}) {
   let sessionMin = durationMin;
   let budget = gated.targetLoad ?? targetLoad;
   if (gated.modify) {
-    sessionMin = Math.max(30, Math.round(durationMin * 0.6));
+    sessionMin = Math.max(MODIFY_MIN_DURATION, Math.round(durationMin * MODIFY_DURATION_FACTOR));
     budget = budget != null ? Math.round(budget * MODIFY_SET_FACTOR) : null;
     for (const b of blocks) b.range = [b.range[0], Math.max(b.range[0], Math.ceil(b.range[1] * MODIFY_SET_FACTOR))];
   }
