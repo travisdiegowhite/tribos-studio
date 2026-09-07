@@ -299,12 +299,15 @@ migrations sat committed-but-unapplied for months and both failed silently:
 |---|---|---|
 | 106 (2026-08-03) | `fitness_evidence_weekly` | the weekly `evidence-weekly` cron caught every per-athlete error and still returned 200, so it went green for a month writing nothing |
 | 054 | `fitness_summaries` | `api/fitness-summary.js` discarded the cache read error, so a broken cache looked exactly like an empty one and every request paid for a fresh Claude Haiku call |
+| 099 (2026-06-12) | Storage bucket `garmin-fit` | the migration said to create the bucket by hand in the dashboard; nobody did, and the FIT upload in `fitParser.js` only warns on failure, so FIT retention was off for ~3 months with every row's `fit_storage_path` NULL. Created 2026-09-04 by migration 121 |
 
-Both were applied 2026-09-02. **`npm run audit:schema`** (needs
+The first two were applied 2026-09-02, the bucket 2026-09-04. **`npm run audit:schema`** (needs
 `SUPABASE_URL` + `SUPABASE_SERVICE_KEY`) checks every migration-created table
 against the real database and is the only thing that catches this class of
 bug — tests, types and the Vercel dashboard all miss it by construction. Run it
-when a feature mysteriously does nothing. Its CI-side companion,
+when a feature mysteriously does nothing. It checks tables only; a Storage
+bucket a migration merely *describes* (like 099's) is not covered, so a
+migration that needs a bucket should create it in SQL (see 121). Its CI-side companion,
 `api/utils/schemaContract.test.js`, checks the cheaper half (code referencing a
 table no migration creates) and needs no credentials.
 
