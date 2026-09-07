@@ -480,7 +480,7 @@ export const SESSION_RULES = {
     "laursen2019": "Laursen PB, Buchheit M (eds). Science and Application of High-Intensity Interval Training. Human Kinetics 2019",
     "burnley2022": "Burnley M, Bearden SE, Jones AM. MSSE 2022;54:1032–4",
     "foster1998": "Foster C. MSSE 1998;30:1164–8 — monotony and strain",
-    "coggan2006": "Allen H, Coggan A. Training and Racing with a Power Meter. VeloPress 2006 — TSS, zones, session construction conventions",
+    "coggan2006": "Allen H, Coggan A. Training and Racing with a Power Meter. VeloPress 2006 — training load arithmetic, zones, session construction conventions",
     "allen2019": "Allen H, Coggan A, McGregor S. Training and Racing with a Power Meter, 3rd ed. VeloPress 2019 — FTP testing conventions, 95 % of 20 min",
     "mackey2021": "Mackey J, Horner K. J Sci Cycling 2021 — reliability of FTP field tests [verify]",
     "jones2010": "Jones AM, Vanhatalo A, Burnley M, Morton RH, Poole DC. MSSE 2010;42:1876–90 — critical power: implications for training",
