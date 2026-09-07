@@ -64,9 +64,12 @@ export function weekInBlockFor(family, dateStr, entries) {
   if (!family || !Array.isArray(entries) || entries.length === 0) return 0;
   const date = Date.parse(`${dateStr}T00:00:00Z`);
   if (Number.isNaN(date)) return 0;
+  // Training weeks run Monday to Sunday: a Tuesday session is in the same
+  // week as Monday's, not one week on from it.
+  const monday = date - ((new Date(date).getUTCDay() + 6) % 7) * DAY_MS;
   let weeks = 0;
   for (let w = 1; w <= BLOCK_LOOKBACK_WEEKS; w++) {
-    const from = date - w * 7 * DAY_MS;
+    const from = monday - w * 7 * DAY_MS;
     const to = from + 6 * DAY_MS;
     const hit = entries.some((e) => {
       if (!e || e.type === 'race' || e.status === 'skipped') return false;

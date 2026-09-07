@@ -105,3 +105,11 @@ describe('summaries and the prompt block', () => {
     expect(formatPowerProfileBlock(null)).toBeNull();
   });
 });
+
+describe('week in block uses training weeks', () => {
+  it('puts Tuesday in the same week as Monday', () => {
+    const entries = [{ date: '2026-09-07', type: 'workout', workout_type: 'vo2max', status: 'planned' }];
+    expect(weekInBlockFor('vo2max', '2026-09-08', entries)).toBe(0);
+    expect(weekInBlockFor('vo2max', '2026-09-15', entries)).toBe(1);
+  });
+});

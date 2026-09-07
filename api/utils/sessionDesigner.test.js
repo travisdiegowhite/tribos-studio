@@ -121,7 +121,7 @@ describe('the worked example: stale FTP, strong 5-minute best', () => {
   it('says plainly when a budget cannot be met by the format in the time', () => {
     // 90 RSS in 75 minutes of 4-minute efforts is more than six of them give.
     expect(r.predictedLoad).toBeLessThan(90);
-    expect(rationaleText(r)).toMatch(/SES-DOSE-1: predicted \d+ RSS against a 90 RSS budget/);
+    expect(rationaleText(r)).toMatch(/SES-DOSE-1: .* predicts \d+ RSS against a 90 RSS budget/);
   });
 });
 
@@ -174,7 +174,7 @@ describe('time-crunched', () => {
     const total = p.warmup_min + p.cooldown_min + set.repeats * 8 + (set.repeats - 1) * 4;
     expect(total).toBeLessThanOrEqual(45);
     // The budget cannot be met in 45 minutes, and the design says so.
-    expect(rationaleText(r)).toMatch(/SES-DOSE-1: predicted \d+ RSS against a 70 RSS budget/);
+    expect(rationaleText(r)).toMatch(/SES-DOSE-1: .* predicts \d+ RSS against a 70 RSS budget/);
   });
 });
 

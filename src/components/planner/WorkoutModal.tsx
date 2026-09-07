@@ -61,6 +61,7 @@ import { calculateFuelPlanFromWorkout } from '../../utils/fueling';
 import { exportWorkout, downloadWorkout } from '../../utils/workoutExport';
 import { workoutStructureToCycling } from '../../utils/trainingPlanExport';
 import { fitStructureToDuration } from '../../lib/training/plannedWorkoutShape';
+import posthog from 'posthog-js';
 import { WORKOUT_LIBRARY, getWorkoutById } from '../../data/workoutLibrary';
 
 // ============================================================
@@ -707,6 +708,18 @@ export function WorkoutModal({
           .join(' — '),
       });
       downloadWorkout(result);
+      try {
+        // Phase E soak signal: how often a designed or stand-in session
+        // actually reaches a device.
+        posthog.capture('workout_exported', {
+          format,
+          shape: structureNote ? 'stand_in' : 'prescribed_or_library',
+          planned: !!plannedWorkout,
+          category: workout.category,
+        });
+      } catch {
+        // telemetry never breaks an export
+      }
     } catch (err) {
       console.error('Export failed:', err);
     }

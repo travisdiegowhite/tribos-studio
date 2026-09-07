@@ -510,8 +510,18 @@ export function predictLoad(blocks, warmup, cooldown) {
  * a session that does not fit the day is not a session.
  */
 export function sizeDose(blocks, { targetLoad, durationMin }, rationale) {
-  const { warmup, cooldown } = bookendsFor(durationMin);
   const minBookends = MIN_WARMUP_MIN + MIN_COOLDOWN_MIN;
+
+  // The day's length is fixed, so the bookends are whatever the efforts
+  // leave: predicted load has to include them at that size, or the design
+  // reports one number and stores another.
+  const evaluate = (sized) => {
+    const used = sized.reduce((sum, b) => sum + setMinutes(b), 0);
+    const spare = Math.max(minBookends, durationMin - used);
+    const warmup = Math.max(MIN_WARMUP_MIN, Math.round(spare * WARMUP_SHARE));
+    const cooldown = Math.max(MIN_COOLDOWN_MIN, spare - warmup);
+    return { used, warmup, cooldown, fits: used + minBookends <= durationMin, predicted: predictLoad(sized, warmup, cooldown) };
+  };
 
   // Start every block at its minimum — or, with no budget to size to, at the
   // middle of its range, which is the format as the bible describes it.
@@ -519,56 +529,50 @@ export function sizeDose(blocks, { targetLoad, durationMin }, rationale) {
     ...b,
     repeats: targetLoad == null ? Math.round((b.range[0] + b.range[1]) / 2) : b.range[0],
   }));
-  const fits = () => sized.reduce((s, b) => s + setMinutes(b), 0) + minBookends <= durationMin;
-  const load = () => predictLoad(sized, warmup, cooldown);
 
-  if (!fits()) {
+  if (!evaluate(sized).fits) {
     // Too long for the day: shed repeats to the minimum, then sets.
     for (const b of sized) {
-      while (b.repeats > b.range[0] && !fits()) b.repeats -= 1;
+      while (b.repeats > b.range[0] && !evaluate(sized).fits) b.repeats -= 1;
     }
     for (const b of sized) {
-      while (b.sets > 1 && !fits()) b.sets -= 1;
+      while (b.sets > 1 && !evaluate(sized).fits) b.sets -= 1;
     }
-    if (!fits()) {
+    if (!evaluate(sized).fits) {
       rationale.push(`SES-DOSE-2: ${durationMin} minutes cannot hold the smallest version of this format; trimmed to fit.`);
     }
   }
 
-  // Grow the biggest-contributing block first while under budget and in time.
+  // Grow the first block that still has room while under budget and in time.
   let guard = 0;
-  while (targetLoad != null && load() < targetLoad - LOAD_TOLERANCE_RSS && guard++ < 50) {
-    const candidates = sized.filter((b) => b.repeats < b.range[1]);
-    if (candidates.length === 0) break;
-    const b = candidates[0];
+  while (targetLoad != null && evaluate(sized).predicted < targetLoad - LOAD_TOLERANCE_RSS && guard++ < 50) {
+    const b = sized.find((x) => x.repeats < x.range[1]);
+    if (!b) break;
     b.repeats += 1;
-    if (!fits()) { b.repeats -= 1; break; }
-    if (load() > targetLoad + LOAD_TOLERANCE_RSS) {
+    const after = evaluate(sized);
+    if (!after.fits) { b.repeats -= 1; break; }
+    if (after.predicted > targetLoad + LOAD_TOLERANCE_RSS) {
       // Overshot: keep the closer of the two.
-      const over = load() - targetLoad;
+      const over = after.predicted - targetLoad;
       b.repeats -= 1;
-      const under = targetLoad - load();
+      const under = targetLoad - evaluate(sized).predicted;
       if (over < under) b.repeats += 1;
       break;
     }
   }
 
-  const predicted = load();
-  if (targetLoad != null && Math.abs(predicted - targetLoad) > LOAD_TOLERANCE_RSS) {
-    const why = predicted < targetLoad
+  const final = evaluate(sized);
+  const shape = sized.map((b) => (b.sets > 1 ? `${b.sets}×` : '') + `${b.repeats}×${fmtMin(b.work)}`).join(' + ');
+  if (targetLoad != null && Math.abs(final.predicted - targetLoad) > LOAD_TOLERANCE_RSS) {
+    const why = final.predicted < targetLoad
       ? 'the format\'s maximum set count and the day\'s length cap it'
       : 'the format\'s minimum set already exceeds it';
-    rationale.push(`SES-DOSE-1: predicted ${predicted} RSS against a ${targetLoad} RSS budget; ${why}.`);
+    rationale.push(`SES-DOSE-1: ${shape} predicts ${final.predicted} RSS against a ${targetLoad} RSS budget; ${why}.`);
   } else if (targetLoad != null) {
-    rationale.push(`SES-DOSE-1: ${sized.map((b) => (b.sets > 1 ? `${b.sets}×` : '') + `${b.repeats}×${fmtMin(b.work)}`).join(' + ')} lands on ${predicted} RSS for a ${targetLoad} RSS budget.`);
+    rationale.push(`SES-DOSE-1: ${shape} lands on ${final.predicted} RSS for a ${targetLoad} RSS budget.`);
   }
 
-  // Bookends absorb whatever the day has left, 60/40, floors respected.
-  const used = sized.reduce((s, b) => s + setMinutes(b), 0);
-  const spare = Math.max(minBookends, durationMin - used);
-  const warm = Math.max(MIN_WARMUP_MIN, Math.round(spare * WARMUP_SHARE));
-  const cool = Math.max(MIN_COOLDOWN_MIN, spare - warm);
-  return { blocks: sized, warmup: warm, cooldown: cool, predicted: predictLoad(sized, warm, cool) };
+  return { blocks: sized, warmup: final.warmup, cooldown: final.cooldown, predicted: final.predicted };
 }
 
 function fmtMin(min) {
