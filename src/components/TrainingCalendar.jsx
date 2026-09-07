@@ -28,6 +28,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { WORKOUT_TYPES, TRAINING_PHASES, calculateTSS, estimateTSS } from '../utils/trainingPlans';
 import { isPowerSport } from '../utils/sportType';
 import { getWorkoutById } from '../data/workoutLibrary';
+import { resolvePlannedWorkoutShape } from '../lib/training/plannedWorkoutShape';
 import { tokens } from '../theme';
 import { formatLocalDate, addDays, parsePlanStartDate, parseLocalDate, getTodayString, toDateKey, weekStartKey, activityDateKey } from '../utils/dateUtils';
 import { getCalendarRange } from '../lib/calendar/getCalendarRange';
@@ -143,6 +144,9 @@ const TrainingCalendar = ({ activePlan, rides = [], formatDistance: formatDistan
   // Modal planned workout state (mapped from raw Supabase row to PlannerWorkout shape)
   const [modalPlannedWorkout, setModalPlannedWorkout] = useState(null);
   const [modalWorkoutDef, setModalWorkoutDef] = useState(null);
+  // Set when the profile is a stand-in (inferred / read from notes / steady
+  // fallback) so the modal can say so under the chart.
+  const [modalStructureNote, setModalStructureNote] = useState(null);
 
   // Drag and drop state
   const [draggedWorkout, setDraggedWorkout] = useState(null);
@@ -639,24 +643,14 @@ const TrainingCalendar = ({ activePlan, rides = [], formatDistance: formatDistan
     );
   };
 
-  // Map a raw Supabase workout row to PlannerWorkout shape for WorkoutModal
+  // Map a raw Supabase workout row to PlannerWorkout shape for WorkoutModal.
+  // The definition always carries a ridable structure: a library workout when
+  // the row names one, otherwise a shape resolved from the row's type, length
+  // and notes (see `resolvePlannedWorkoutShape`). Most arc/coach rows name no
+  // library workout, and without this the modal showed a name and no profile.
   const mapToModalWorkout = (raw) => {
     if (!raw) return null;
-    const libraryDef = raw.workout_id ? getWorkoutById(raw.workout_id) : undefined;
-    // Fall back to a minimal definition synthesized from the row so the modal
-    // still opens (and stays editable) for rest days / coach / custom workouts
-    // whose workout_id doesn't resolve to the library. WorkoutModal returns null
-    // without a `workout`, and its definition-only sections (profile, intervals,
-    // exercises, export) self-skip when their fields are absent.
-    const workoutDef = libraryDef || {
-      id: raw.workout_id || 'custom',
-      name: raw.name || (raw.workout_type ? `${raw.workout_type} workout` : 'Workout'),
-      category: raw.workout_type || 'endurance',
-      duration: raw.target_duration || 0,
-      targetTSS: (raw.target_tss ?? raw.target_rss) || 0,
-      intensityFactor: 0,
-      description: '',
-    };
+    const shape = resolvePlannedWorkoutShape(raw);
     return {
       id: raw.id || '',
       planId: raw.plan_id || '',
@@ -666,15 +660,16 @@ const TrainingCalendar = ({ activePlan, rides = [], formatDistance: formatDistan
       workoutId: raw.workout_id || null,
       workoutType: raw.workout_type || null,
       name: raw.name || '',
-      targetTSS: raw.target_tss || 0,
+      targetTSS: raw.target_rss ?? raw.target_tss ?? 0,
       targetDuration: raw.target_duration || 0,
       notes: raw.notes || '',
       completed: raw.completed || false,
       completedAt: raw.completed_at || null,
       activityId: raw.activity_id || null,
-      actualTSS: raw.actual_tss || null,
+      actualTSS: raw.actual_rss ?? raw.actual_tss ?? null,
       actualDuration: raw.actual_duration || null,
-      workout: workoutDef,
+      workout: shape?.workout ?? null,
+      structureNote: shape?.note ?? null,
     };
   };
 
@@ -687,6 +682,7 @@ const TrainingCalendar = ({ activePlan, rides = [], formatDistance: formatDistan
     const mappedWorkout = mapToModalWorkout(workout);
     setModalPlannedWorkout(mappedWorkout);
     setModalWorkoutDef(mappedWorkout?.workout || null);
+    setModalStructureNote(mappedWorkout?.structureNote || null);
 
     setEditModalOpen(true);
   };
@@ -698,6 +694,7 @@ const TrainingCalendar = ({ activePlan, rides = [], formatDistance: formatDistan
     setSelectedDate(date);
     setModalPlannedWorkout(null);
     setModalWorkoutDef(null);
+    setModalStructureNote(null);
     setEditModalOpen(true);
   };
 
@@ -2051,6 +2048,7 @@ const TrainingCalendar = ({ activePlan, rides = [], formatDistance: formatDistan
         onChangeWorkout={handleChangeWorkout}
         onAddWorkout={handleAddWorkoutFromModal}
         isAdd={isAddMode}
+        structureNote={modalStructureNote}
         scheduledDate={selectedDate ? formatLocalDate(selectedDate) : undefined}
       />
 

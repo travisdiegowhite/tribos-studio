@@ -170,8 +170,8 @@ describe('computeArcRefill', () => {
   });
 
   it('returns empty for an arc with no blocks', () => {
-    expect(computeArcRefill(base({ blocks: [] }))).toEqual({ upserts: [], changes: [] });
-    expect(computeArcRefill(base({ blocks: null }))).toEqual({ upserts: [], changes: [] });
+    expect(computeArcRefill(base({ blocks: [] }))).toEqual({ upserts: [], changes: [], prescriptions: new Map() });
+    expect(computeArcRefill(base({ blocks: null }))).toEqual({ upserts: [], changes: [], prescriptions: new Map() });
   });
 
   it('only ever touches rows inside the window', () => {
@@ -342,5 +342,22 @@ describe('computeArcRefill full-horizon mode', () => {
     );
     expect(upserts.find((u) => u.scheduled_date === all[5].scheduled_date)).toBeUndefined();
     expect(upserts.find((u) => u.scheduled_date === all[6].scheduled_date)).toBeUndefined();
+  });
+});
+
+describe('prescriptions travel beside the upserts, never on them', () => {
+  it('maps each written day to the generator\'s interval set, null when eased', () => {
+    const { upserts, prescriptions } = computeArcRefill(
+      base({ gatingCtx: { daily_stats: dailyStats({ fs: -18 }), subjective: [], coefficients: COEFFS } }),
+    );
+    expect(prescriptions).toBeInstanceOf(Map);
+    for (const u of upserts) {
+      expect(u).not.toHaveProperty('prescribed_intervals');
+      expect(prescriptions.has(u.scheduled_date)).toBe(true);
+    }
+    // The eased day carries no set; a surviving quality day carries one.
+    expect(prescriptions.get(WINDOW_START)).toBeNull();
+    const withSet = [...prescriptions.values()].find((v) => Array.isArray(v) && v.length > 0);
+    if (withSet) expect(withSet[0]).toMatchObject({ repeats: expect.any(Number), duration_min: expect.any(Number) });
   });
 });

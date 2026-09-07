@@ -49,7 +49,7 @@ export async function fetchCalendarWindow(userId, timezone, now = new Date()) {
   const supabase = getSupabaseAdmin();
   const { data, error } = await supabase
     .from('calendar_entries')
-    .select('id, date, slot, type, title, workout_type, target_load, target_duration_min, target_distance_km, status, pinned, notes, coach_rationale')
+    .select('id, date, slot, type, title, workout_type, target_load, target_duration_min, target_distance_km, status, pinned, notes, coach_rationale, details')
     .eq('user_id', userId)
     .gte('date', from)
     .lte('date', to)

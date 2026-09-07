@@ -182,8 +182,11 @@ function applyGateToRow(row, gate) {
  * @param {boolean} [params.allowInserts=false] emit persistable rows (no `id`) for regenerated dates
  *                                         with NO existing row at all, so the writer can insert them.
  *                                         Dates holding any existing row keep the update-only rules.
- * @returns {{ upserts: Array<object>, changes: Array<object> }}
+ * @returns {{ upserts: Array<object>, changes: Array<object>, prescriptions: Map<string, Array<object>|null> }}
  *   upserts: persistable planned_workouts partials (no plan_id/user_id — the writer adds them),
+ *   prescriptions: scheduled_date → the generator's interval set for that upsert (null for a
+ *     steady or eased day), kept OFF the upsert rows so nothing transient reaches
+ *     planned_workouts; the calendar_entries mirror stores it as the session's prescription,
  *            each carrying `id` when the existing row had one (for targeted update).
  *   changes: human-readable [{ scheduled_date, from, to, reason }] for surfacing/logging.
  */
@@ -200,7 +203,7 @@ export function computeArcRefill({
   allowInserts = false,
 }) {
   const bands = Array.isArray(blocks) ? blocks : [];
-  if (bands.length === 0 || !windowStart) return { upserts: [], changes: [] };
+  if (bands.length === 0 || !windowStart) return { upserts: [], changes: [], prescriptions: new Map() };
 
   const windowEnd = addDaysIso(windowStart, windowDays - 1);
 
@@ -247,6 +250,7 @@ export function computeArcRefill({
 
   const upserts = [];
   const changes = [];
+  const prescriptions = new Map();
   for (const row of windowRows) {
     const existing = existingByDate.get(row.scheduled_date);
     if (!existing) {
@@ -257,6 +261,7 @@ export function computeArcRefill({
       if (allowInserts && row.workout_type !== undefined) {
         const out = persistable(row);
         upserts.push(out);
+        prescriptions.set(row.scheduled_date, row.prescribed_intervals ?? null);
         changes.push({
           scheduled_date: row.scheduled_date,
           from: null,
@@ -275,6 +280,7 @@ export function computeArcRefill({
     const out = persistable(row);
     if (existing.id) out.id = existing.id;
     upserts.push(out);
+    prescriptions.set(row.scheduled_date, row.prescribed_intervals ?? null);
     changes.push({
       scheduled_date: row.scheduled_date,
       from: { workout_type: existing.workout_type, target_rss: existing.target_rss ?? null },
@@ -283,5 +289,5 @@ export function computeArcRefill({
     });
   }
 
-  return { upserts, changes };
+  return { upserts, changes, prescriptions };
 }

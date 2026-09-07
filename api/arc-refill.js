@@ -21,6 +21,13 @@ import { computeArcRefill, computeDailyStatsFromActivities } from './utils/arcRe
 import { coefficientsForMode } from './utils/sequencerBlockOps.js';
 import { deriveCurrentWeek, derivePhaseFromBlocks } from './utils/contextHelpers.js';
 import { buildRaceDemand } from './utils/raceDemand.js';
+import { normalizeIntervals, buildPrescription, withPrescription } from './utils/prescription.js';
+
+/** The generator's interval set for a refilled day as a stored prescription, or null. */
+function arcPrescription(prescribedIntervals) {
+  const { intervals } = normalizeIntervals(prescribedIntervals);
+  return intervals ? buildPrescription(intervals, 'arc') : null;
+}
 
 const supabase = getSupabaseAdmin();
 
@@ -226,7 +233,7 @@ export default async function handler(req, res) {
 
     // 5. Compute (pure). Readiness gating stays confined to the next 7 days
     //    even in full mode — today's Form Score must not ease September.
-    const { upserts, changes } = computeArcRefill({
+    const { upserts, changes, prescriptions } = computeArcRefill({
       blocks: plan.blocks,
       planStartDate: plan.start_date,
       windowStart,
@@ -284,6 +291,11 @@ export default async function handler(req, res) {
               target_load: u.target_rss,
               target_duration_min: u.target_duration,
               workout_type: u.workout_type,
+              // The structure the generator designed for this day. Until now
+              // it was computed and thrown away, so the athlete saw a name
+              // and two numbers. Null clears a stale set when the day eases
+              // to endurance.
+              details: withPrescription(null, arcPrescription(prescriptions.get(u.scheduled_date))),
             })
             .eq('id', u.id)
             .eq('user_id', userId)

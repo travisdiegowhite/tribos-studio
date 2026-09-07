@@ -99,6 +99,7 @@ export function toLegacyShape(entry, planStart = null) {
     status: entry.status,
     pinned: entry.pinned,
     slot: entry.slot,
+    details: entry.details ?? null,
   };
 }
 

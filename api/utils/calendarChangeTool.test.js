@@ -279,3 +279,43 @@ describe('the tool tells the model to use the generator for long blocks', () => 
     expect(d).toMatch(/Delivering only the races is a half-answer/);
   });
 });
+
+describe('intervals on an operation', () => {
+  const { byHandle, ambiguous } = buildHandleMap([entry()]);
+  const SET = { repeats: 5, duration_min: 4, target_pct_ftp_min: 110, target_pct_ftp_max: 120, recovery_min: 4 };
+
+  it('is offered on a create and on every weekly_pattern day', () => {
+    const itemProps = CALENDAR_CHANGE_TOOL.input_schema.properties.operations.items.properties;
+    expect(itemProps.intervals.type).toBe('array');
+    expect(itemProps.weekly_pattern.items.properties.intervals.type).toBe('array');
+    expect(itemProps.intervals.items.required).toEqual(
+      expect.arrayContaining(['repeats', 'duration_min', 'target_pct_ftp_min', 'target_pct_ftp_max', 'recovery_min']),
+    );
+  });
+
+  it('accepts a well-formed set on create, update and a pattern day', () => {
+    const r = validateOps([
+      { op: 'create', date: '2026-09-08', title: 'VO2 5x4', intervals: [SET], reason: 'Top end.' },
+      { op: 'update', handle: entryHandle(UUID_A), intervals: [SET], reason: 'Sharpen it.' },
+      {
+        op: 'generate_block', from: '2026-09-07', to: '2026-09-27',
+        weekly_pattern: [{ day: 'tue', title: 'VO2', intervals: [SET] }],
+        reason: 'Block.',
+      },
+    ], byHandle, ambiguous);
+    expect(r.valid).toBe(true);
+  });
+
+  it('rejects the whole list when a set is malformed, naming where', () => {
+    const r = validateOps([
+      { op: 'create', date: '2026-09-08', title: 'Fine', reason: 'ok' },
+      {
+        op: 'generate_block', from: '2026-09-07', to: '2026-09-27',
+        weekly_pattern: [{ day: 'tue', title: 'VO2', intervals: [{ ...SET, duration_min: 0 }] }],
+        reason: 'Block.',
+      },
+    ], byHandle, ambiguous);
+    expect(r.valid).toBe(false);
+    expect(r.errors.join(' ')).toMatch(/operation 2, pattern day 1, intervals\[1\]: duration_min/);
+  });
+});

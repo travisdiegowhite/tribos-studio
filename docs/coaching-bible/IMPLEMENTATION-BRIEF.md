@@ -2,11 +2,12 @@
 
 Goal: make the Tribos coach *decide* instead of *describe*. Today the coach reads rider metrics and narrates them, which produces the same generic feel as Strava's Athlete Intelligence. The fix is structural, not a prompt tweak: a small rules layer decides which evidence-backed rules apply to the rider's state, and the model voices those decisions in persona.
 
-Read all three files in this folder before writing code:
+Read all the files in this folder before writing code:
 - `IMPLEMENTATION-BRIEF.md` (this file) — what to build, in what order, and what "done" means
 - `coaching-rules.yaml` — the rules: triggers, claims, confidence, persona lines, forbidden phrasings
+- `session-rules.yaml` — the session-construction rules (SES): what a hard day contains. Consumed by the session designer, not the model; every number the designer uses is a `params` entry here. Regenerate with `npm run build:session-rules`.
 - `coach-system-prompt.md` — the prompt template the coach runs on, with injection slots
-- `tribos-coaching-bible-source-base.md` — the research behind every rule; reference only, never loaded into a prompt
+- `tribos-coaching-bible-source-base.md` — the research behind every rule; reference only, never loaded into a prompt (§9 is the session-construction chapter)
 
 ## Constraints (non-negotiable)
 

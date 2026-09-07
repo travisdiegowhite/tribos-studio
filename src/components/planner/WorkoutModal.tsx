@@ -59,6 +59,9 @@ import {
 } from '@phosphor-icons/react';
 import { calculateFuelPlanFromWorkout } from '../../utils/fueling';
 import { exportWorkout, downloadWorkout } from '../../utils/workoutExport';
+import { workoutStructureToCycling } from '../../utils/trainingPlanExport';
+import { fitStructureToDuration } from '../../lib/training/plannedWorkoutShape';
+import posthog from 'posthog-js';
 import { WORKOUT_LIBRARY, getWorkoutById } from '../../data/workoutLibrary';
 
 // ============================================================
@@ -82,6 +85,11 @@ interface WorkoutModalProps {
   ) => void;
   /** Render in "add to an empty day" mode: pick a workout, then add it. */
   isAdd?: boolean;
+  /**
+   * Shown under the profile when the structure is a stand-in rather than the
+   * prescription itself (see `resolvePlannedWorkoutShape`).
+   */
+  structureNote?: string | null;
 }
 
 // ============================================================
@@ -556,6 +564,7 @@ export function WorkoutModal({
   onChangeWorkout,
   onAddWorkout,
   isAdd = false,
+  structureNote = null,
 }: WorkoutModalProps) {
   // Local edit state
   const [editTSS, setEditTSS] = useState<number>(0);
@@ -605,16 +614,25 @@ export function WorkoutModal({
     }
   }, [plannedWorkout, workout, opened]);
 
+  // The structure to draw and export. A planned entry (or one being added) is
+  // fitted to the duration in the editor, so the profile tracks the number the
+  // athlete is looking at rather than the library's default length.
+  const editable = !!plannedWorkout || isAdd;
+  const displayStructure = useMemo(() => {
+    if (!workout?.structure) return null;
+    return editable ? fitStructureToDuration(workout.structure, editDuration) : workout.structure;
+  }, [workout, editable, editDuration]);
+
   // Flatten workout structure for display
   const segments = useMemo(() => {
-    if (!workout?.structure) return [];
-    return flattenStructure(workout.structure);
-  }, [workout]);
+    if (!displayStructure) return [];
+    return flattenStructure(displayStructure);
+  }, [displayStructure]);
 
   const intervalSummary = useMemo(() => {
-    if (!workout?.structure) return '';
-    return summarizeIntervals(workout.structure);
-  }, [workout]);
+    if (!displayStructure) return '';
+    return summarizeIntervals(displayStructure);
+  }, [displayStructure]);
 
   // Add mode with nothing picked yet → show just the workout picker.
   if (!workout) {
@@ -650,8 +668,16 @@ export function WorkoutModal({
   }
 
   const isOffBike = OFF_BIKE_CATEGORIES.includes(workout.category);
-  const hasStructure = !isOffBike && workout.structure;
+  const hasStructure = !isOffBike && segments.length > 0;
   const hasExercises = isOffBike && workout.exercises;
+  // Every ridden structure exports. The hand-built `cyclingStructure` a few
+  // library workouts carry is preferred only while the profile is unfitted;
+  // once the duration has been edited the fitted structure is the truth.
+  const exportStructure = hasStructure && displayStructure
+    ? (displayStructure === workout.structure && workout.cyclingStructure
+        ? workout.cyclingStructure
+        : workoutStructureToCycling(displayStructure))
+    : null;
   const categoryColor = getCategoryColor(workout.category);
   const categoryIcon = CATEGORY_ICONS[workout.category] || '🚴';
   const hasChanges = plannedWorkout && (
@@ -672,14 +698,28 @@ export function WorkoutModal({
   };
 
   const handleExport = (format: 'fit' | 'zwo' | 'tcx') => {
-    if (!workout.cyclingStructure) return;
+    if (!exportStructure) return;
     try {
-      const result = exportWorkout(workout.cyclingStructure, {
+      const result = exportWorkout(exportStructure, {
         format,
-        workoutName: workout.name,
-        description: workout.description,
+        workoutName: scheduledDate ? `${workout.name} ${scheduledDate}` : workout.name,
+        description: [workout.description, intervalSummary !== 'Steady effort' ? intervalSummary : '']
+          .filter(Boolean)
+          .join(' — '),
       });
       downloadWorkout(result);
+      try {
+        // Phase E soak signal: how often a designed or stand-in session
+        // actually reaches a device.
+        posthog.capture('workout_exported', {
+          format,
+          shape: structureNote ? 'stand_in' : 'prescribed_or_library',
+          planned: !!plannedWorkout,
+          category: workout.category,
+        });
+      } catch {
+        // telemetry never breaks an export
+      }
     } catch (err) {
       console.error('Export failed:', err);
     }
@@ -795,12 +835,17 @@ export function WorkoutModal({
           </Paper>
 
           {/* Workout Structure - Cycling */}
-          {hasStructure && segments.length > 0 && (
+          {hasStructure && (
             <>
               {/* Visual interval chart */}
               <Box>
                 <Text size="sm" fw={600} mb="xs">Workout Profile</Text>
                 <IntervalChart segments={segments} />
+                {structureNote && (
+                  <Text size="xs" c="dimmed" mt={6} data-testid="structure-note">
+                    {structureNote}
+                  </Text>
+                )}
                 <Group gap="xs" mt="xs" justify="center">
                   {[1, 2, 3, 4, 5].map((zone) => (
                     <Group key={zone} gap={4}>
@@ -942,8 +987,8 @@ export function WorkoutModal({
           )}
 
           {/* Export buttons */}
-          {workout.cyclingStructure && (
-            <Box>
+          {exportStructure && (
+            <Box data-testid="workout-export">
               <Text size="xs" c="dimmed" ta="center" mb="xs">Download for Device</Text>
               <Group justify="center" gap="xs">
                 <Button

@@ -24,6 +24,9 @@ const WRITABLE = [
   'type', 'title', 'workout_id', 'workout_type',
   'target_load', 'target_duration_min', 'target_distance_km', 'notes',
   'coach_rationale',
+  // `details.prescription` — the session's interval structure. Writers build
+  // it through `prescription.js`; this list only lets it through.
+  'details',
 ];
 
 function draftFrom(patch) {

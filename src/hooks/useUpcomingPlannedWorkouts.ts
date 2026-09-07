@@ -4,16 +4,18 @@
  * workout picker.
  *
  * One-shot fetch on mount (no Realtime) via the frontend Supabase singleton.
- * Rows are resolved through `resolvePlannedWorkout`, so an arc-generated row
- * that names no library workout still contributes the closest stand-in for
- * its type and length (flagged `inferred`). Only rows with nothing paintable
- * at all — rest days, off-bike work — are dropped.
+ * Rows are resolved through `resolvePlannedWorkoutShape`, so a row carrying
+ * its own stored prescription paints exactly that, a row naming a library
+ * workout paints the library's structure, and an arc or coach row with
+ * neither still contributes the closest stand-in for its type and length
+ * (flagged `inferred`). Only rows with nothing paintable at all — rest days,
+ * off-bike work — are dropped.
  */
 
 import { useEffect, useState } from 'react';
 import { getTodayString } from '../utils/dateUtils';
 import { fetchPlannedSessions } from '../lib/calendar/readPlannedSessions';
-import { resolvePlannedWorkout } from '../data/workoutResolution';
+import { resolvePlannedWorkoutShape } from '../lib/training/plannedWorkoutShape';
 import type { WorkoutDefinition } from '../types/training';
 
 export interface UpcomingPlannedWorkout {
@@ -49,14 +51,14 @@ export function useUpcomingPlannedWorkouts(userId: string | null | undefined) {
 
       const enriched: UpcomingPlannedWorkout[] = [];
       for (const row of data) {
-        const resolved = resolvePlannedWorkout(row);
-        if (!resolved) continue;
+        const resolved = resolvePlannedWorkoutShape(row);
+        if (!resolved || resolved.source === null) continue;
         enriched.push({
           id: row.id,
           scheduledDate: row.scheduled_date,
           name: row.name ?? resolved.workout.name,
           workout: resolved.workout,
-          inferred: resolved.inferred,
+          inferred: resolved.source !== 'prescribed' && resolved.source !== 'library',
           targetDurationMinutes: row.target_duration ?? null,
           targetDistanceKm: row.target_distance_km ?? null,
         });
