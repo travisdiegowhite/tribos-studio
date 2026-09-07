@@ -383,7 +383,7 @@ export function prescriptionToStructure(
     const workMin = Number(set.duration_min);
     const workLabel = workMin < 1 ? `${Math.round(workMin * 60)}s` : `${round1(workMin)}min`;
     const band = lo === hi ? `${lo}%` : `${lo}–${hi}%`;
-    return {
+    const inner: WorkoutInterval = {
       type: 'repeat',
       sets: Math.max(1, Math.round(Number(set.repeats))),
       work: {
@@ -397,6 +397,22 @@ export function prescriptionToStructure(
         zone: 1,
         powerPctFTP: ZONE_POWER[1],
         description: 'Recovery',
+      },
+    };
+    const outerSets = Math.round(Number(set.sets) || 1);
+    if (outerSets <= 1) return inner;
+    // Sets of sets: the inner repeat nests inside an outer one whose rest is
+    // the longer break between sets. The flattener and the exporters both
+    // walk nested repeats.
+    return {
+      type: 'repeat',
+      sets: outerSets,
+      work: inner,
+      rest: {
+        duration: Math.max(0, Number(set.set_recovery_min) || 0),
+        zone: 1,
+        powerPctFTP: ZONE_POWER[1],
+        description: 'Between sets',
       },
     };
   });

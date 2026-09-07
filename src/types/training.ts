@@ -1610,6 +1610,13 @@ export interface IntervalPrescription {
   recovery_min: number;
   repeats: number;
   notes?: string;
+  /** Sets of sets (30/15s ridden as 3 × 13); 1 or absent means one set. */
+  sets?: number;
+  /** Easy riding between sets, minutes. */
+  set_recovery_min?: number;
+  /** Watts the designer aimed at, beside the %FTP the device reads. */
+  target_watts_min?: number;
+  target_watts_max?: number;
 }
 
 /**

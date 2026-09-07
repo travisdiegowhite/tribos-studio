@@ -26,6 +26,7 @@ const MIN_PCT_FTP = 30;
 const MAX_PCT_FTP = 300;
 const MAX_RECOVERY_MIN = 60;
 const MAX_INTERVALS = 12;
+const MAX_SETS = 6;
 const MAX_BOOKEND_MIN = 60;
 
 function num(v) {
@@ -97,6 +98,22 @@ export function normalizeIntervals(input, at = 'intervals') {
       target_pct_ftp_max: Math.round(pctMax),
       recovery_min: round1(recoveryMin),
     };
+    // Sets of sets (30/15s ridden as 3 × 13) with a longer recovery between.
+    // `sets` is only the outer count when `repeats` is spelled out; alone it
+    // is the older spelling of repeats (handled above).
+    const sets = raw.repeats !== undefined ? num(raw.sets) : null;
+    if (sets != null && sets > 1 && sets <= MAX_SETS && Number.isInteger(sets)) {
+      out.sets = sets;
+      const setRecovery = num(raw.set_recovery_min ?? raw.setRecoveryMin) ?? 0;
+      out.set_recovery_min = round1(Math.min(MAX_RECOVERY_MIN, Math.max(0, setRecovery)));
+    }
+    // Watts the designer aimed at, kept beside the %FTP the device reads.
+    const wLo = num(raw.target_watts_min);
+    const wHi = num(raw.target_watts_max);
+    if (wLo != null && wHi != null && wLo > 0 && wHi >= wLo) {
+      out.target_watts_min = Math.round(wLo);
+      out.target_watts_max = Math.round(wHi);
+    }
     const notes = typeof raw.notes === 'string' ? raw.notes.trim().slice(0, 200) : '';
     if (notes) out.notes = notes;
     intervals.push(out);
