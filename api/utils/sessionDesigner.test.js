@@ -254,3 +254,22 @@ describe('determinism', () => {
     expect(a).toEqual(b);
   });
 });
+
+describe('a coach-named set (SES-COACH-1)', () => {
+  it('keeps the count and length, calibrates the targets, fills a sensible recovery', () => {
+    const r = designSession({
+      session: { type: 'vo2max', durationMin: 60, targetLoad: 70 },
+      athlete: FRESH,
+      seed: { repeats: 5, workMin: 3, restMin: null },
+    });
+    expect(r.ok).toBe(true);
+    const set = r.prescription.intervals[0];
+    expect(set.repeats).toBe(5);
+    expect(set.duration_min).toBe(3);
+    expect(set.recovery_min).toBe(3); // 1:1 for VO2
+    // short role: 0.95–1.02 × 318
+    expect(set.target_watts_min).toBe(302);
+    expect(set.target_watts_max).toBe(324);
+    expect(rationaleText(r)).toMatch(/SES-COACH-1/);
+  });
+});

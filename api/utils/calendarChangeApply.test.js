@@ -452,3 +452,62 @@ describe('intervals become details.prescription', () => {
     expect(update.payload.details).toBeUndefined();
   });
 });
+
+describe('the injected session designer', () => {
+  const SET = { repeats: 5, duration_min: 4, target_pct_ftp_min: 110, target_pct_ftp_max: 120, recovery_min: 4 };
+  const stub = (draft, meta) => (draft.workout_type === 'vo2max'
+    ? {
+      prescription: { version: 1, source: 'designer', intervals: [SET], rationale: [`week ${meta?.weekIndex ?? 'n/a'}`] },
+      patch: {},
+      summary: '5×4min, about 80 RSS.',
+    }
+    : null);
+
+  it('fills a create that has no structure, and reports the design', async () => {
+    const r = await applyCalendarOps(USER, [
+      { op: 'create', date: '2026-10-06', title: 'VO2', workout_type: 'vo2max', target_load: 80, reason: 'Top end.' },
+    ], { design: stub });
+    const insert = calls.find((c) => c.op === 'insert');
+    expect(insert.payload.details.prescription.source).toBe('designer');
+    expect(insert.payload).not.toHaveProperty('__design');
+    expect(r.results[0].design).toBe('5×4min, about 80 RSS.');
+  });
+
+  it('never overrides a set the coach gave explicitly', async () => {
+    await applyCalendarOps(USER, [
+      { op: 'create', date: '2026-10-06', title: 'VO2', workout_type: 'vo2max', intervals: [{ ...SET, repeats: 3 }], reason: 'Mine.' },
+    ], { design: stub });
+    const insert = calls.find((c) => c.op === 'insert');
+    expect(insert.payload.details.prescription.source).toBe('coach');
+    expect(insert.payload.details.prescription.intervals[0].repeats).toBe(3);
+  });
+
+  it('designs every pattern day of a block with its week index', () => {
+    const { entries } = expandBlock({
+      from: '2026-09-07', to: '2026-09-20',
+      weekly_pattern: [{ day: 'tue', title: 'VO2', workout_type: 'vo2max', target_load: 80 }],
+    }, new Set(), stub);
+    expect(entries).toHaveLength(2);
+    expect(entries[0].details.prescription.rationale).toEqual(['week 0']);
+    expect(entries[1].details.prescription.rationale).toEqual(['week 1']);
+  });
+
+  it('writes the entry undesigned when the designer throws', async () => {
+    const r = await applyCalendarOps(USER, [
+      { op: 'create', date: '2026-10-06', title: 'VO2', workout_type: 'vo2max', reason: 'x' },
+    ], { design: () => { throw new Error('boom'); } });
+    expect(r.applied).toBe(1);
+    const insert = calls.find((c) => c.op === 'insert');
+    expect(insert.payload.details).toBeNull();
+  });
+
+  it('applies the designer\'s patch when a gate eases the day', async () => {
+    const easing = () => ({ prescription: null, patch: { workout_type: 'endurance', target_load: 55 }, summary: 'eased' });
+    await applyCalendarOps(USER, [
+      { op: 'create', date: '2026-10-06', title: 'VO2', workout_type: 'vo2max', target_load: 90, reason: 'x' },
+    ], { design: easing });
+    const insert = calls.find((c) => c.op === 'insert');
+    expect(insert.payload.workout_type).toBe('endurance');
+    expect(insert.payload.target_load).toBe(55);
+  });
+});

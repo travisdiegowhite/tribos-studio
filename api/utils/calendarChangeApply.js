@@ -113,7 +113,7 @@ export function snapshot(entry) {
  * @param {Array} existingByDate  Map-like of dateKey → true for occupied days.
  * @returns {{entries: Array, skipped: Array}}
  */
-export function expandBlock(op, occupiedDates = new Set()) {
+export function expandBlock(op, occupiedDates = new Set(), design = null) {
   const entries = [];
   const skipped = [];
 
@@ -149,7 +149,7 @@ export function expandBlock(op, occupiedDates = new Set()) {
       const load = Number.isFinite(base)
         ? Math.round(base * (1 + progression * weekIndex))
         : null;
-      entries.push({
+      const entry = {
         date: dateKey,
         title: String(session.title).trim(),
         type: 'workout',
@@ -160,13 +160,35 @@ export function expandBlock(op, occupiedDates = new Set()) {
         target_distance_km: session.target_distance_km ?? null,
         notes: session.notes ?? null,
         details: withPrescription(null, prescriptionFrom(session) ?? null),
-      });
+      };
+      entries.push(applyDesign(entry, design, { weekIndex }));
     }
     // One session per day from a pattern; a genuine double day is a `create`.
     occupiedDates.add(dateKey);
   }
 
   return { entries, skipped };
+}
+
+/**
+ * Let the session designer fill a draft that carries no structure of its own.
+ * The designer is injected (see designForCalendar.js) so this module stays a
+ * pure writer; a draft the coach gave `intervals` to is left exactly as is.
+ */
+function applyDesign(entry, design, meta = {}) {
+  if (typeof design !== 'function' || entry.details?.prescription) return entry;
+  let result;
+  try {
+    result = design(entry, meta);
+  } catch (err) {
+    console.error('session design failed (entry written undesigned):', err?.message || err);
+    return entry;
+  }
+  if (!result) return entry;
+  const out = { ...entry, ...(result.patch || {}) };
+  if (result.prescription) out.details = withPrescription(entry.details, result.prescription);
+  if (result.summary) out.__design = result.summary;
+  return out;
 }
 
 /** Every date in [from, to] this athlete already has an entry on. */
@@ -198,6 +220,9 @@ async function occupiedDatesIn(supabase, userId, fromKey, toKey) {
  *   decision about the entries it changes, and should therefore pin them.
  *   False for a coach change the server applied on its own authority; true
  *   only when the athlete approved a proposal.
+ * @param {Function} [opts.design]  Session designer for creates that carry no
+ *   structure (designForCalendar.js makeCalendarDesigner). Optional; without
+ *   it entries are written as the coach described them.
  * @returns {Promise<{success: boolean, applied: number, failed: number,
  *                    results: Array, undo: Array, error?: string}>}
  */
@@ -207,6 +232,7 @@ export async function applyCalendarOps(userId, resolved, opts = {}) {
   const supabase = getSupabaseAdmin();
   const source = opts.source || 'coach';
   const pin = opts.pin === true;
+  const design = typeof opts.design === 'function' ? opts.design : null;
   const results = [];
   const undo = [];
 
@@ -214,7 +240,7 @@ export async function applyCalendarOps(userId, resolved, opts = {}) {
     try {
       if (op.op === 'generate_block') {
         const occupied = await occupiedDatesIn(supabase, userId, op.from, op.to);
-        const { entries, skipped } = expandBlock(op, occupied);
+        const { entries, skipped } = expandBlock(op, occupied, design);
 
         if (entries.length === 0) {
           results.push({
@@ -226,7 +252,8 @@ export async function applyCalendarOps(userId, resolved, opts = {}) {
 
         // Batch insert: one round trip for a season, not seventy. Slot is
         // always 0 because the expander only writes to unoccupied days.
-        const rows = entries.map((e) => ({
+        const designs = entries.filter((e) => e.__design);
+        const rows = entries.map(({ __design, ...e }) => ({
           id: randomUUID(),
           user_id: userId,
           slot: 0,
@@ -244,6 +271,9 @@ export async function applyCalendarOps(userId, resolved, opts = {}) {
           created: rows.length, skipped: skipped.length,
           from: op.from, to: op.to,
           skipped_dates: skipped.slice(0, 10).map((s2) => s2.date),
+          designed: designs.length,
+          // The first few, so the coach can describe the block's sessions truthfully.
+          designs: designs.slice(0, 4).map((e) => `${e.date} ${e.title}: ${e.__design}`),
         });
         undo.push({ op: 'delete_many', ids: rows.map((r) => r.id) });
         continue;
@@ -280,11 +310,8 @@ export async function applyCalendarOps(userId, resolved, opts = {}) {
 
         const slot = await nextFreeSlot(supabase, userId, op.date);
         const id = randomUUID();
-        const { error } = await supabase.from('calendar_entries').insert({
-          id,
-          user_id: userId,
+        const draft = applyDesign({
           date: op.date,
-          slot,
           type: op.type || 'workout',
           title: String(op.title).trim(),
           workout_id: op.workout_id ?? null,
@@ -294,6 +321,13 @@ export async function applyCalendarOps(userId, resolved, opts = {}) {
           target_distance_km: op.target_distance_km ?? null,
           notes: op.notes ?? null,
           details: withPrescription(null, prescriptionFrom(op) ?? null),
+        }, design);
+        const { __design, ...fields } = draft;
+        const { error } = await supabase.from('calendar_entries').insert({
+          id,
+          user_id: userId,
+          slot,
+          ...fields,
           coach_rationale: op.reason ?? null,
           status: 'planned',
           source,
@@ -304,7 +338,7 @@ export async function applyCalendarOps(userId, resolved, opts = {}) {
           pinned: false,
         });
         if (error) throw error;
-        results.push({ op: 'create', handle: null, id, date: op.date, ok: true });
+        results.push({ op: 'create', handle: null, id, date: op.date, ok: true, ...(__design ? { design: __design } : {}) });
         undo.push({ op: 'delete', id });
         continue;
       }

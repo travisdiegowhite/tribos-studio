@@ -247,6 +247,22 @@ export const SESSION_RULES = {
       }
     },
     {
+      "id": "SES-COACH-1",
+      "family": "all",
+      "claim": "When the coach names a set — in the tool's intervals field or as '5x3min' in the notes — the designer keeps its count and length and still calibrates the targets and recovery to the athlete; a coach's count is a decision, its watts are not.",
+      "confidence": "leaning",
+      "citations": [
+        "coggan2006",
+        "allen2019"
+      ],
+      "decides": "A named set becomes the format (repeats and length fixed); the family's band, the calibration rules and the readiness gates still apply.",
+      "params": {
+        "default_recovery_ratio_vo2": 1,
+        "default_recovery_ratio_threshold": 0.4,
+        "default_recovery_ratio_other": 0.5
+      }
+    },
+    {
       "id": "SES-END-1",
       "family": "endurance",
       "claim": "For an endurance or gravel goal with low durability, the long ride carries its key effort after 20 kJ/kg of work, with fuelling; the designer places it once durability inputs exist.",

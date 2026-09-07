@@ -10,6 +10,10 @@ import { enforceAiQuota } from './utils/aiQuota.js';
 import { WORKOUT_LIBRARY_FOR_AI, ALL_COACH_TOOLS } from './utils/workoutLibrary.js';
 import { CALENDAR_CHANGE_TOOL, validateOps, adjudicateOps, describeVerdict } from './utils/calendarChangeTool.js';
 import { applyCalendarOps, persistProposal } from './utils/calendarChangeApply.js';
+import { fetchAthleteDesignInputs, toAthleteDesign } from './utils/athleteDesignInputs.js';
+import { makeCalendarDesigner, formatPowerProfileBlock } from './utils/designForCalendar.js';
+import { FORMATS } from './utils/sessionDesigner.js';
+import { estimateGoalDurationMin } from './utils/raceDemand.js';
 import { buildCalendarContext, formatCalendarBlock } from './utils/calendarCoachContext.js';
 import { handleFitnessHistoryQuery } from './utils/fitnessHistoryTool.js';
 import { handleTrainingDataQuery } from './utils/trainingDataTool.js';
@@ -268,7 +272,7 @@ const VALID_WORKOUT_TYPES = [
  *   map is built from THIS athlete's rows, so a handle for someone else's entry
  *   simply does not resolve.
  */
-export async function handleCalendarChange(userId, input, calendarContext, conversationId = null) {
+export async function handleCalendarChange(userId, input, calendarContext, conversationId = null, designCtx = null) {
   // Belt and braces. There is no gate any more, but the context can still be
   // missing or degraded (a failed calendar read), and a tool call can arrive
   // from replayed conversation history, so refuse here rather than trusting
@@ -325,10 +329,19 @@ export async function handleCalendarChange(userId, input, calendarContext, conve
     };
   }
 
-  const applyResult = await applyCalendarOps(userId, resolved, { source: 'coach' });
+  // The session designer fills in the intervals of any hard day the coach
+  // created without them, from the athlete's numbers. Without a design
+  // context (the athlete fetch failed) entries are written as described —
+  // undesigned, never blocked.
+  const design = designCtx?.athlete
+    ? makeCalendarDesigner({ athlete: designCtx.athlete, todayStr: designCtx.todayStr, entries: calendarContext.entries || [] })
+    : null;
+  const applyResult = await applyCalendarOps(userId, resolved, { source: 'coach', design });
   const deduped = applyResult.results.filter((r) => r.deduped).length;
+  const designed = applyResult.results.reduce((n, r) => n + (r.design ? 1 : 0) + (r.designed || 0), 0);
   return {
     deduped,
+    designed,
     success: applyResult.success,
     applied: applyResult.applied,
     failed: applyResult.failed,
@@ -860,6 +873,16 @@ export default async function handler(req, res) {
       console.error('Rider state fetch failed (non-blocking):', err.message);
       return null;
     });
+    // Session designer inputs (FTP age, bests, CP/W′, consistency, fatigue).
+    // Same discipline: a failed fetch is a coach that writes undesigned
+    // sessions, not an outage.
+    const athleteDesignData = await fetchAthleteDesignInputs(supabase, verifiedUserId).catch((err) => {
+      console.error('Athlete design inputs fetch failed (non-blocking):', err.message);
+      return null;
+    });
+    // Filled inside the coaching-bible block below, where the readiness call
+    // and the athlete-local date are known; read at the calendar_change site.
+    let designCtx = null;
 
     // Resolve the user's timezone: prefer browser-supplied, then DB, then UTC
     const resolvedTimezone = userLocalDate?.timezone || userDbTimezone || 'UTC';
@@ -1253,6 +1276,24 @@ When the athlete references a check-in, respond as the same coach — maintain c
       const { fired, skipped } = evaluateRules(riderState);
       injectedRules = selectInjectedRules(fired);
 
+      // ── The session designer's view of the athlete ─────────────────────
+      //
+      // The readiness call comes from the same fired rules the coach is
+      // about to voice, so a day the coach says to skip is a day the
+      // designer never writes intervals for.
+      const readinessCall = fired.some((r) => r.id === 'RDY-3-skip') ? 'skip'
+        : fired.some((r) => r.id === 'RDY-3-modify') ? 'modify'
+          : null;
+      const athleteDesign = toAthleteDesign(athleteDesignData, {
+        todayStr,
+        readinessCall,
+        pdShortTrend: riderState.pdShortTrend ?? null,
+        goalDurationMin: estimateGoalDurationMin(pickGoalRace(anchorData.raceGoals)),
+      });
+      designCtx = { athlete: athleteDesign, todayStr };
+      const powerBlock = formatPowerProfileBlock(athleteDesign);
+      if (powerBlock) systemPrompt += `\n\n${powerBlock}`;
+
       const dropped = droppedRuleIds(fired);
       if (fired.length > 0) {
         console.log('[coaching-bible] fired:', fired.map((r) => r.id).join(', '),
@@ -1285,11 +1326,15 @@ moving, swapping, editing, completing, skipping or removing anything is an opera
 on it. Multi-week blocks use its \`generate_block\` operation, not one create per
 session. Races are type "race" and need only a name and a date.
 
-Any session with a set structure — tempo, sweet spot, threshold, VO2, anaerobic —
-MUST carry that structure in the \`intervals\` field (repeats, duration_min, a %FTP
-band, recovery_min), on the create or on the weekly_pattern day. Notes are for
-cues; a set written only in notes never reaches the athlete's bike computer or
-the route builder. Steady endurance and recovery rides need no intervals.
+Hard days are DESIGNED by the server. For any tempo, sweet spot, threshold, VO2,
+anaerobic or race session you create — by \`create\` or a \`weekly_pattern\` day — give
+the type, the length, the target_load and a title; the designer builds the intervals
+from the athlete's own numbers (POWER PROFILE above) and the tool result reports what
+it built, in the \`design\` field. Explain THAT design to the athlete; do not invent a
+different set in prose. If you have a specific set in mind, put it in the \`intervals\`
+field or write it as "5x3min, 3min easy" in notes and the designer keeps your count and
+length while it calibrates the targets. Steady endurance and recovery rides need
+no intervals. The designer's formats: ${Object.values(FORMATS).map((f) => f.label).join(', ')}.
 
 Do not state an outcome before you have the tool result. It tells you whether the
 change APPLIED or is AWAITING THE ATHLETE'S APPROVAL, and your reply must say the
@@ -1576,7 +1621,7 @@ ${conversationSummary}
               + 'Do not repeat operations that already succeeded earlier in this turn.',
           };
         } else {
-          result = await handleCalendarChange(verifiedUserId, tool.input, trainingCalendarContext);
+          result = await handleCalendarChange(verifiedUserId, tool.input, trainingCalendarContext, null, designCtx);
         }
         console.log(`🗓️  calendar_change result:`, JSON.stringify(result));
         calendarChangeResults.push(result);

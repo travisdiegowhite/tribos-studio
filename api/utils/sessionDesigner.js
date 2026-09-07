@@ -91,6 +91,12 @@ const MIN_WARMUP_MIN = ruleParam('SES-WR-1', 'min_warmup_min');
 const MIN_COOLDOWN_MIN = ruleParam('SES-WR-1', 'min_cooldown_min');
 const WARMUP_SHARE = ruleParam('SES-WR-1', 'warmup_share_of_spare');
 
+const SEED_RECOVERY_RATIO = {
+  vo2max: ruleParam('SES-COACH-1', 'default_recovery_ratio_vo2'),
+  threshold: ruleParam('SES-COACH-1', 'default_recovery_ratio_threshold'),
+  other: ruleParam('SES-COACH-1', 'default_recovery_ratio_other'),
+};
+
 const WEEK_MIDDLE = ruleParam('SES-PROG-1', 'week_middle');
 const WEEK_PEAK = ruleParam('SES-PROG-1', 'week_peak');
 const SHORT_DAY_MAX_MIN = ruleParam('SES-THR-1', 'short_day_max_min');
@@ -309,6 +315,42 @@ export function chooseFormat(family, { weekInBlock = 0, durationMin = 75, pdShor
   if (family === 'racing') return { format: FORMATS.race_sim, why: 'Race simulation: sustained work, then attacks.' };
   if (family === 'openers') return { format: FORMATS.openers, why: 'Openers before an event.' };
   return null;
+}
+
+/**
+ * SES-COACH-1. A set the coach named becomes the format: its count and length
+ * are kept, its band comes from the family's middle format, its recovery from
+ * the seed or the family's ratio. Calibration and gating still apply.
+ */
+export function formatFromSeed(family, seed) {
+  const repeats = Math.max(1, Math.min(40, Math.round(Number(seed.repeats))));
+  const work = Number(seed.workMin);
+  if (!(repeats >= 1) || !(work > 0)) return null;
+  const base =
+    family === 'vo2max' ? (work <= 1 ? FORMATS.vo2_30_15 : work >= 6 ? FORMATS.vo2_4x8 : FORMATS.vo2_5x4)
+    : family === 'threshold' ? FORMATS.thr_3x12
+    : family === 'sweet_spot' ? FORMATS.sst_3x15
+    : family === 'tempo' ? FORMATS.tempo_2x20
+    : family === 'anaerobic' ? (work >= 1.5 ? FORMATS.ana_6x2 : FORMATS.ana_8x1)
+    : family === 'sprint' ? FORMATS.spr_10x30s
+    : family === 'openers' ? FORMATS.openers
+    : null;
+  if (!base) return null;
+  const ratio = family === 'vo2max' ? SEED_RECOVERY_RATIO.vo2max
+    : family === 'threshold' || family === 'sweet_spot' ? SEED_RECOVERY_RATIO.threshold
+    : SEED_RECOVERY_RATIO.other;
+  const recovery = Number(seed.restMin) > 0 ? Number(seed.restMin) : Math.max(0.25, Math.round(work * ratio * 4) / 4);
+  const vo2Role = family === 'vo2max' || family === 'anaerobic'
+    ? (work <= 1 ? 'micro' : work <= 3 ? 'short' : work <= 5 ? 'medium' : 'long')
+    : undefined;
+  return {
+    id: `coach_${repeats}x${fmtMin(work).replace(/\s/g, '')}`,
+    rule: 'SES-COACH-1',
+    label: `${repeats}×${fmtMin(work)}`,
+    sets: 1, repeats: [repeats, repeats], work, pct: base.pct, recovery, setRecovery: 0,
+    vo2Role,
+    notes: base.notes,
+  };
 }
 
 // ─── Calibration (SES-CAL) ───────────────────────────────────────────────────
@@ -574,10 +616,11 @@ export function applyGates(request, athlete, rationale) {
  * @param {object} args
  * @param {object} args.session   { type, durationMin, targetLoad, weekInBlock, title }
  * @param {object} args.athlete   from athleteDesignInputs.js; every field optional
+ * @param {object} [args.seed]    { repeats, workMin, restMin } — a set the coach named (SES-COACH-1)
  * @param {Date|string} [args.now]
  * @returns {object} see module header; `prescription` is null for steady / rest / off-bike days
  */
-export function designSession({ session, athlete = {}, now = null } = {}) {
+export function designSession({ session, athlete = {}, seed = null, now = null } = {}) {
   const rationale = [];
   const type = norm(session?.type);
   const familyRaw = designFamily(type);
@@ -604,13 +647,16 @@ export function designSession({ session, athlete = {}, now = null } = {}) {
     };
   }
 
-  const picked = chooseFormat(gated.family, {
-    weekInBlock: session?.weekInBlock ?? 0,
-    durationMin,
-    pdShortTrend: athlete?.pdShortTrend ?? null,
-    recoveryMode: athlete?.recoveryMode ?? 'standard',
-    goalDurationMin: athlete?.goalDurationMin ?? null,
-  });
+  const seeded = seed ? formatFromSeed(gated.family, seed) : null;
+  const picked = seeded
+    ? { format: seeded, why: 'the coach named this set; its count and length are kept and the targets are calibrated.' }
+    : chooseFormat(gated.family, {
+      weekInBlock: session?.weekInBlock ?? 0,
+      durationMin,
+      pdShortTrend: athlete?.pdShortTrend ?? null,
+      recoveryMode: athlete?.recoveryMode ?? 'standard',
+      goalDurationMin: athlete?.goalDurationMin ?? null,
+    });
   if (!picked) {
     return { ok: false, reason: 'unknown_type', sessionType: type, durationMin, targetLoad, prescription: null, rationale };
   }
