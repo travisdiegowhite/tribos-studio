@@ -119,6 +119,7 @@ import { ElevationHoverMarker } from '../features/route-builder-v2/components/El
 import { setElevationHoverKm } from '../features/route-builder-v2/state/elevationHoverStore';
 import { getAnyWorkoutById } from '../data/workoutLookup';
 import { inferWorkoutForType } from '../data/workoutResolution';
+import { usePlannedEntryShape } from '../hooks/usePlannedEntryShape';
 import { formatDistance, formatElevation } from '../utils/units';
 import { EditGhostLayer } from '../features/route-builder-v2/layers/EditGhostLayer';
 import {
@@ -215,6 +216,10 @@ export default function RouteBuilder2() {
   const [pickedWorkoutId, setPickedWorkoutId] = useState<string | null>(
     () => searchParams.get('workoutId') ?? arrivalCtx?.workoutId ?? null,
   );
+  // The definition behind a pick from the in-builder picker. A planned row's
+  // workout may be its own stored prescription or a stand-in, neither of which
+  // has a library id to look up again, so the object itself is kept.
+  const [pickedWorkoutDef, setPickedWorkoutDef] = useState<WorkoutDefinition | null>(null);
   const [seedOverride, setSeedOverride] = useState<{
     durationMinutes?: number;
     distanceKm?: number | '';
@@ -237,17 +242,32 @@ export default function RouteBuilder2() {
   // back to the closest library workout for that prescription rather than
   // dropping the overlay entirely.
   const namedWorkout = useMemo(
-    () => (workoutDetached ? null : getAnyWorkoutById(pickedWorkoutId)),
-    [workoutDetached, pickedWorkoutId],
+    () => (workoutDetached ? null : pickedWorkoutDef ?? getAnyWorkoutById(pickedWorkoutId)),
+    [workoutDetached, pickedWorkoutDef, pickedWorkoutId],
   );
+  // The calendar entry the rider arrived from, resolved to its OWN structure:
+  // a stored prescription paints exactly what the coach wrote, and a library
+  // row paints the library's structure fitted to the planned length. A
+  // workout the rider then picks in-builder takes over from it.
+  const riderPicked = !!pickedWorkoutId && pickedWorkoutId !== (arrivalCtx?.workoutId ?? null);
+  const arrivalEntry = usePlannedEntryShape(
+    user?.id ?? null,
+    workoutDetached || riderPicked ? null : arrivalCtx?.entryId ?? null,
+  );
+  const usingArrivalEntry = !workoutDetached && !riderPicked && !!arrivalEntry && arrivalEntry.source !== null;
   const attachedWorkout = useMemo(() => {
     if (workoutDetached) return null;
+    if (usingArrivalEntry) return arrivalEntry!.workout;
     if (namedWorkout) return namedWorkout;
     const planType = arrivalCtx?.goal ?? searchParams.get('goal');
     return inferWorkoutForType(planType, seedOverride.durationMinutes ?? null);
-  }, [workoutDetached, namedWorkout, arrivalCtx, searchParams, seedOverride.durationMinutes]);
-  /** True when `attachedWorkout` is a stand-in, not a workout the plan named. */
-  const workoutIsInferred = !!attachedWorkout && !namedWorkout;
+  }, [workoutDetached, usingArrivalEntry, arrivalEntry, namedWorkout, arrivalCtx, searchParams, seedOverride.durationMinutes]);
+  /** True when `attachedWorkout` is a stand-in, not the session's own prescription or a named workout. */
+  const workoutIsInferred = !!attachedWorkout && (
+    usingArrivalEntry
+      ? arrivalEntry!.source !== 'prescribed' && arrivalEntry!.source !== 'library'
+      : !namedWorkout
+  );
   const hasWorkout = !!attachedWorkout;
   const upcomingPlanned = useUpcomingPlannedWorkouts(user?.id ?? null);
 
@@ -1334,6 +1354,7 @@ export default function RouteBuilder2() {
     planned?: { targetDurationMinutes: number | null; targetDistanceKm: number | null },
   ) => {
     setPickedWorkoutId(workout.id);
+    setPickedWorkoutDef(workout);
     setWorkoutDetached(false);
     setSeedOverride({
       durationMinutes: planned?.targetDurationMinutes ?? undefined,
@@ -1347,6 +1368,7 @@ export default function RouteBuilder2() {
 
   const handleClearWorkout = () => {
     setPickedWorkoutId(null);
+    setPickedWorkoutDef(null);
     setSeedOverride({});
     setWorkoutDetached(true);
   };

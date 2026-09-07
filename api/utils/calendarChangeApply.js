@@ -19,6 +19,7 @@
 import { randomUUID } from 'node:crypto';
 import { getSupabaseAdmin } from './supabaseAdmin.js';
 import { WEEKDAYS } from './calendarChangeTool.js';
+import { normalizeIntervals, buildPrescription, withPrescription } from './prescription.js';
 
 /** Fields an op may write onto an entry. Anything else the model sends is dropped. */
 const WRITABLE = [
@@ -26,12 +27,29 @@ const WRITABLE = [
   'target_load', 'target_duration_min', 'target_distance_km', 'notes',
 ];
 
-/** Pull the writable subset out of a raw op. */
-function draftFrom(op) {
+/**
+ * The stored prescription for an op's `intervals`, or undefined when the op
+ * carries none (leave the row's details alone) — an explicit empty array
+ * means "remove the structure" and yields null.
+ */
+function prescriptionFrom(op, source = 'coach') {
+  if (op.intervals === undefined) return undefined;
+  const { intervals } = normalizeIntervals(op.intervals);
+  return intervals ? buildPrescription(intervals, source) : null;
+}
+
+/**
+ * Pull the writable subset out of a raw op. `intervals` becomes
+ * `details.prescription`, merged over the entry's existing details so a race's
+ * own detail JSON survives a coach edit.
+ */
+function draftFrom(op, existingDetails = null) {
   const draft = {};
   for (const key of WRITABLE) {
     if (op[key] !== undefined) draft[key] = op[key];
   }
+  const prescription = prescriptionFrom(op);
+  if (prescription !== undefined) draft.details = withPrescription(existingDetails, prescription);
   return draft;
 }
 
@@ -67,7 +85,7 @@ export function snapshot(entry) {
   const keep = [
     'id', 'date', 'slot', 'type', 'title', 'workout_id', 'workout_type',
     'target_load', 'target_duration_min', 'target_distance_km',
-    'status', 'notes', 'coach_rationale', 'pinned',
+    'status', 'notes', 'coach_rationale', 'pinned', 'details',
   ];
   return Object.fromEntries(keep.map((k) => [k, entry[k] ?? null]));
 }
@@ -141,6 +159,7 @@ export function expandBlock(op, occupiedDates = new Set()) {
         target_duration_min: session.target_duration_min ?? null,
         target_distance_km: session.target_distance_km ?? null,
         notes: session.notes ?? null,
+        details: withPrescription(null, prescriptionFrom(session) ?? null),
       });
     }
     // One session per day from a pattern; a genuine double day is a `create`.
@@ -274,6 +293,7 @@ export async function applyCalendarOps(userId, resolved, opts = {}) {
           target_duration_min: op.target_duration_min ?? null,
           target_distance_km: op.target_distance_km ?? null,
           notes: op.notes ?? null,
+          details: withPrescription(null, prescriptionFrom(op) ?? null),
           coach_rationale: op.reason ?? null,
           status: 'planned',
           source,
@@ -314,7 +334,7 @@ export async function applyCalendarOps(userId, resolved, opts = {}) {
           completed_at: op.status === 'done' ? new Date().toISOString() : null,
         };
       } else {
-        patch = draftFrom(op);
+        patch = draftFrom(op, entry.details ?? null);
       }
 
       // PINNING IS A HUMAN ACT. This used to set pinned:true on every write,
@@ -378,7 +398,7 @@ export async function persistProposal(userId, resolved, verdict, summary, conver
         ? { status: op.status }
         : op.op === 'delete'
           ? null
-          : draftFrom(op),
+          : draftFrom(op, op.entry?.details ?? null),
     reason: op.reason ?? null,
   }));
 

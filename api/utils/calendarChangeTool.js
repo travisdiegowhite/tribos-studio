@@ -66,7 +66,30 @@ export function buildHandleMap(entries = []) {
 
 // ─── Tool definition ──────────────────────────────────────────────────────────
 
+import { normalizeIntervals } from './prescription.js';
+
 const OPS = ['create', 'generate_block', 'update', 'move', 'delete', 'set_status'];
+
+/**
+ * The interval structure of a session, as the model writes it. Same shape as
+ * the sequencer's IntervalPrescription so every producer stores one thing.
+ */
+const INTERVALS_SCHEMA = {
+  type: 'array',
+  description: 'The set structure when this is an interval session — the numbers the athlete rides to. One item per distinct set (a 2x20 then a 4x1 is two items). ALWAYS fill this in for tempo, sweet spot, threshold, VO2 and anaerobic sessions; a set described only in notes is not a prescription and will not reach the athlete\'s bike computer. Omit for steady endurance, recovery and rest.',
+  items: {
+    type: 'object',
+    properties: {
+      repeats: { type: 'integer', description: 'How many efforts in this set, e.g. 5 for 5x4min.' },
+      duration_min: { type: 'number', description: 'Length of each effort in minutes, e.g. 4, or 0.5 for 30 seconds.' },
+      target_pct_ftp_min: { type: 'integer', description: 'Bottom of the power band as %FTP, e.g. 105.' },
+      target_pct_ftp_max: { type: 'integer', description: 'Top of the power band as %FTP, e.g. 115.' },
+      recovery_min: { type: 'number', description: 'Easy riding between efforts in minutes, e.g. 4. 0 when there is none.' },
+      notes: { type: 'string', description: 'One short cue for this set, e.g. "seated, 90 rpm".' },
+    },
+    required: ['repeats', 'duration_min', 'target_pct_ftp_min', 'target_pct_ftp_max', 'recovery_min'],
+  },
+};
 
 export const CALENDAR_CHANGE_TOOL = {
   name: 'calendar_change',
@@ -137,6 +160,7 @@ So do NOT promise a specific outcome in your reply. After calling this, describe
               type: 'number',
               description: 'Planned or race distance in kilometres, when distance is the meaningful target.',
             },
+            intervals: INTERVALS_SCHEMA,
             status: {
               type: 'string',
               enum: ['planned', 'done', 'skipped'],
@@ -166,6 +190,7 @@ So do NOT promise a specific outcome in your reply. After calling this, describe
                   workout_id: { type: 'string', description: 'Optional id from the workout library.' },
                   target_load: { type: 'number', description: 'Planned RSS for this session.' },
                   target_duration_min: { type: 'integer', description: 'Planned duration in minutes.' },
+                  intervals: INTERVALS_SCHEMA,
                   notes: { type: 'string', description: 'Execution detail for the athlete.' },
                 },
                 required: ['day', 'title'],
@@ -265,6 +290,7 @@ export function validateOps(operations, byHandle, ambiguous = new Set()) {
           if (!d?.title || !String(d.title).trim()) {
             errors.push(`${at}, pattern day ${j + 1}: needs a title.`);
           }
+          errors.push(...normalizeIntervals(d?.intervals, `${at}, pattern day ${j + 1}, intervals`).errors);
         });
         // A block bigger than this is almost certainly a misread of intent, and
         // it is cheaper to say so than to write hundreds of rows and undo them.
@@ -291,6 +317,7 @@ export function validateOps(operations, byHandle, ambiguous = new Set()) {
       if (op.type && !ENTRY_TYPES.has(op.type)) {
         errors.push(`${at}: unknown type "${op.type}".`);
       }
+      errors.push(...normalizeIntervals(op.intervals, `${at}, intervals`).errors);
       resolved.push({ ...op, entry: null });
       return;
     }
@@ -318,6 +345,9 @@ export function validateOps(operations, byHandle, ambiguous = new Set()) {
     }
     if (op.op === 'update' && op.type && !ENTRY_TYPES.has(op.type)) {
       errors.push(`${at}: unknown type "${op.type}".`);
+    }
+    if (op.op === 'update') {
+      errors.push(...normalizeIntervals(op.intervals, `${at}, intervals`).errors);
     }
 
     resolved.push({ ...op, entry });

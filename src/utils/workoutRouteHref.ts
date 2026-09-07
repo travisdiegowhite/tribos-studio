@@ -7,6 +7,8 @@
  */
 
 export interface WorkoutRouteSource {
+  /** The calendar entry's id, so the builder can paint its stored prescription. */
+  id?: string | null;
   workout_type?: string | null;
   workout_id?: string | null;
   name?: string | null;
@@ -27,6 +29,7 @@ export function buildWorkoutRouteHref(
     duration,
     scheduledDate,
   });
+  if (workout.id) params.set('entryId', workout.id);
   if (workout.workout_id) params.set('workoutId', workout.workout_id);
   if (workout.target_distance_km) params.set('distance', String(workout.target_distance_km));
   if (workout.name) params.set('workoutName', workout.name);

@@ -141,3 +141,11 @@ describe('toPlannedWorkoutShapes', () => {
     expect(toPlannedWorkoutShapes([])).toEqual([]);
   });
 });
+
+describe('details passthrough', () => {
+  it('carries the row\'s details JSON so a stored prescription reaches the modal', () => {
+    const details = { prescription: { version: 1, source: 'coach', intervals: [] } };
+    expect(toPlannedWorkoutShape(entry({ details })).details).toEqual(details);
+    expect(toPlannedWorkoutShape(entry()).details).toBeNull();
+  });
+});

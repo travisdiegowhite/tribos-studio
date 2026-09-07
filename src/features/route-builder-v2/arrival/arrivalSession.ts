@@ -13,6 +13,8 @@
  */
 
 export interface ArrivalContext {
+  /** The calendar entry this arrival came from, when it came from one. */
+  entryId?: string | null;
   workoutId: string | null;
   workoutName: string | null;
   /** Raw `planned_workouts.workout_type` from the calendar URL. */
@@ -50,6 +52,7 @@ function positiveNumber(raw: string | null): number | null {
 
 export function captureArrivalFromParams(params: URLSearchParams): ArrivalContext {
   return {
+    entryId: params.get('entryId'),
     workoutId: params.get('workoutId'),
     workoutName: params.get('workoutName'),
     goal: params.get('goal'),

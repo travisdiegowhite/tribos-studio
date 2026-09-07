@@ -69,9 +69,12 @@ describe('useUpcomingPlannedWorkouts', () => {
     const { result } = renderHook(() => useUpcomingPlannedWorkouts('user-1'));
     await waitFor(() => expect(result.current.workouts.length).toBe(1));
     const [row] = result.current.workouts;
-    // The calendar's own wording survives; the shape comes from the library.
+    // The calendar's own wording survives; the shape comes from the library
+    // (the 75-minute VO2 stand-in is the 4x8), under an id unique to this row.
     expect(row.name).toBe('VO2 Max Intervals');
-    expect(row.workout.id).toBe('four_by_eight_vo2');
+    expect(row.workout.id).toBe('planned:p1');
+    expect(row.workout.structure.main).toHaveLength(1);
+    expect((row.workout.structure.main[0] as { sets: number }).sets).toBe(4);
     expect(row.inferred).toBe(true);
     expect(row.targetDurationMinutes).toBe(75);
   });

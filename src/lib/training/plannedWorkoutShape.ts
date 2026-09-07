@@ -17,6 +17,9 @@
  * This module resolves an entry to a `WorkoutDefinition` that always carries a
  * `structure` when the session is ridden, in order of fidelity:
  *
+ *   0. `prescribed`  — `details.prescription` holds the session's own
+ *                      structure (coach tool, arc refill or designer). This
+ *                      IS the prescription; nothing is inferred.
  *   1. `library`     — `workout_id` names a library workout. Used as-is, with
  *                      its structure fitted to the entry's planned duration.
  *   2. `notes`       — the notes spell the set out ("5x3min at VO2 effort").
@@ -39,6 +42,8 @@ import { WORKOUT_TYPES } from '../../utils/trainingPlans';
 import { getAnyWorkoutById } from '../../data/workoutLookup';
 import { inferWorkoutForType, workoutCategoryForPlanType } from '../../data/workoutResolution';
 import type {
+  IntervalPrescription,
+  StoredPrescription,
   TrainingZone,
   WorkoutCategory,
   WorkoutDefinition,
@@ -53,6 +58,8 @@ import type {
 
 /** The subset of a calendar row (legacy planned_workouts shape) this reads. */
 export interface PlannedEntryShape {
+  /** The calendar row's id; keeps a resolved stand-in's id unique per row. */
+  id?: string | null;
   workout_id?: string | null;
   workout_type?: string | null;
   /** Arc rows also carry the sequencer's own session vocabulary. */
@@ -66,9 +73,11 @@ export interface PlannedEntryShape {
   target_tss?: number | null;
   target_load?: number | null;
   notes?: string | null;
+  /** The row's detail JSON; `details.prescription` is the stored structure. */
+  details?: Record<string, unknown> | null;
 }
 
-export type ShapeSource = 'library' | 'notes' | 'inferred' | 'synthesized';
+export type ShapeSource = 'prescribed' | 'library' | 'notes' | 'inferred' | 'synthesized';
 
 export interface PlannedWorkoutShape {
   /** Always has a `structure` when the session is on-bike. */
@@ -323,6 +332,90 @@ export function buildIntervalStructure(params: {
 }
 
 // ============================================================
+// STORED PRESCRIPTION
+// ============================================================
+
+/** Zone a %FTP band's midpoint falls in, on the library's zone edges. */
+export function zoneForPctFtp(pct: number): TrainingZone {
+  if (pct <= 55) return 1;
+  if (pct <= 75) return 2;
+  if (pct <= 87) return 3;
+  if (pct <= 94) return 3.5;
+  if (pct <= 105) return 4;
+  if (pct <= 120) return 5;
+  if (pct <= 150) return 6;
+  return 7;
+}
+
+/** The prescription on a row's details, or null. Tolerates any JSON shape. */
+export function readStoredPrescription(details: unknown): StoredPrescription | null {
+  if (!details || typeof details !== 'object') return null;
+  const p = (details as { prescription?: unknown }).prescription;
+  if (!p || typeof p !== 'object') return null;
+  const intervals = (p as { intervals?: unknown }).intervals;
+  if (!Array.isArray(intervals) || intervals.length === 0) return null;
+  const clean = intervals.filter(
+    (i): i is IntervalPrescription =>
+      !!i && typeof i === 'object' &&
+      Number((i as IntervalPrescription).repeats) >= 1 &&
+      Number((i as IntervalPrescription).duration_min) > 0 &&
+      Number.isFinite(Number((i as IntervalPrescription).target_pct_ftp_min)),
+  );
+  if (clean.length === 0) return null;
+  return { ...(p as StoredPrescription), intervals: clean };
+}
+
+/**
+ * Turn a stored prescription into the structure the modal draws and the
+ * exporters encode. Each set becomes one repeat block at its band's midpoint;
+ * warmup and cooldown come from the prescription when it names them, else from
+ * the library convention, and the whole is fitted to the planned duration.
+ */
+export function prescriptionToStructure(
+  prescription: StoredPrescription,
+  durationMin: number | null | undefined,
+): WorkoutStructure {
+  const main: WorkoutInterval[] = prescription.intervals.map((set) => {
+    const lo = Number(set.target_pct_ftp_min);
+    const hi = Number(set.target_pct_ftp_max ?? set.target_pct_ftp_min);
+    const pct = Math.round((lo + hi) / 2);
+    const zone = zoneForPctFtp(pct);
+    const workMin = Number(set.duration_min);
+    const workLabel = workMin < 1 ? `${Math.round(workMin * 60)}s` : `${round1(workMin)}min`;
+    const band = lo === hi ? `${lo}%` : `${lo}–${hi}%`;
+    return {
+      type: 'repeat',
+      sets: Math.max(1, Math.round(Number(set.repeats))),
+      work: {
+        duration: workMin,
+        zone,
+        powerPctFTP: pct,
+        description: set.notes ? `${workLabel} at ${band} · ${set.notes}` : `${workLabel} at ${band}`,
+      },
+      rest: {
+        duration: Math.max(0, Number(set.recovery_min) || 0),
+        zone: 1,
+        powerPctFTP: ZONE_POWER[1],
+        description: 'Recovery',
+      },
+    };
+  });
+
+  const guess = bookends(durationMin ?? 60);
+  const warmupMin = prescription.warmup_min ?? guess.warmup;
+  const cooldownMin = prescription.cooldown_min ?? guess.cooldown;
+  const structure: WorkoutStructure = {
+    warmup: warmupMin > 0 ? { duration: warmupMin, zone: 2, powerPctFTP: ZONE_POWER[2] } : null,
+    main,
+    cooldown: cooldownMin > 0 ? { duration: cooldownMin, zone: 1, powerPctFTP: ZONE_POWER[1] } : null,
+  };
+  // A prescription that names its own bookends is exact; only fit when it did
+  // not, so the easy riding absorbs the difference the way the modal expects.
+  if (prescription.warmup_min != null && prescription.cooldown_min != null) return structure;
+  return fitStructureToDuration(structure, durationMin);
+}
+
+// ============================================================
 // NOTES PARSER
 // ============================================================
 
@@ -408,6 +501,18 @@ function entryType(row: PlannedEntryShape): string | null {
   return row.workout_type || row.session_type || null;
 }
 
+/** Category implied by a prescription's hardest set, for rows whose type says nothing. */
+function categoryForPrescription(p: StoredPrescription): WorkoutCategory {
+  const top = Math.max(...p.intervals.map((i) => Number(i.target_pct_ftp_max ?? i.target_pct_ftp_min) || 0));
+  const zone = zoneForPctFtp(top);
+  if (zone >= 6) return 'anaerobic';
+  if (zone >= 5) return 'vo2max';
+  if (zone >= 4) return 'threshold';
+  if (zone >= 3.5) return 'sweet_spot';
+  if (zone >= 3) return 'tempo';
+  return 'endurance';
+}
+
 /** Ride Intensity implied by a load over a duration (RSS = h × RI² × 100). */
 function impliedIntensity(load: number | null, durationMin: number): number {
   if (!load || durationMin <= 0) return 0;
@@ -422,7 +527,7 @@ function baseDefinition(
 ): WorkoutDefinition {
   const load = entryLoad(row);
   return {
-    id: row.workout_id || `planned:${category}`,
+    id: row.workout_id || `planned:${row.id || category}`,
     name: entryName(row, fallbackName),
     category,
     difficulty: 'intermediate',
@@ -449,6 +554,27 @@ export function resolvePlannedWorkoutShape(
 
   const plannedMin = entryDuration(row);
   const load = entryLoad(row);
+
+  // 0. The entry carries its own structure.
+  const stored = readStoredPrescription(row.details);
+  if (stored) {
+    const type = entryType(row);
+    const category = workoutCategoryForPlanType(type) ?? categoryForPrescription(stored);
+    const durationMin = plannedMin ?? Math.round(structureDurationMin(prescriptionToStructure(stored, null)));
+    const named = getAnyWorkoutById(row.workout_id);
+    const base = named ?? baseDefinition(row, category, durationMin, WORKOUT_TYPES[type?.toLowerCase() ?? '']?.name ?? 'Workout');
+    const workout: WorkoutDefinition = {
+      ...base,
+      name: entryName(row, base.name),
+      category,
+      duration: durationMin,
+      targetTSS: load ?? base.targetTSS,
+      intensityFactor: load ? impliedIntensity(load, durationMin) : base.intensityFactor,
+      structure: prescriptionToStructure(stored, durationMin),
+      cyclingStructure: undefined,
+    };
+    return { workout, source: 'prescribed', note: null };
+  }
 
   // 1. The entry names a library workout.
   const named = getAnyWorkoutById(row.workout_id);
@@ -505,7 +631,7 @@ export function resolvePlannedWorkoutShape(
   if (stand?.structure) {
     const workout: WorkoutDefinition = {
       ...stand,
-      id: `planned:${category}`,
+      id: `planned:${row.id || category}`,
       name: entryName(row, stand.name),
       duration: durationMin,
       targetTSS: load ?? stand.targetTSS,

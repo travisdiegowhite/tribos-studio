@@ -232,3 +232,84 @@ describe('export from a resolved shape', () => {
     }
   });
 });
+
+describe('a stored prescription wins over everything', () => {
+  const prescription = {
+    version: 1 as const,
+    source: 'coach' as const,
+    intervals: [{ repeats: 5, duration_min: 4, target_pct_ftp_min: 110, target_pct_ftp_max: 120, recovery_min: 4 }],
+  };
+
+  it('paints exactly the stored set, with no stand-in note', () => {
+    const shape = resolvePlannedWorkoutShape({
+      workout_id: null,
+      workout_type: 'vo2max',
+      name: 'VO2 5x4',
+      target_duration: 75,
+      target_rss: 90,
+      notes: '4x8min at threshold', // must NOT win over the stored structure
+      details: { prescription },
+    })!;
+    expect(shape.source).toBe('prescribed');
+    expect(shape.note).toBeNull();
+    const interval = mainInterval(shape.workout.structure);
+    expect(interval.sets).toBe(5);
+    expect((interval.work as WorkoutSegment).duration).toBe(4);
+    expect((interval.work as WorkoutSegment).powerPctFTP).toBe(115);
+    expect((interval.work as WorkoutSegment).zone).toBe(5);
+    expect(structureDurationMin(shape.workout.structure)).toBeCloseTo(75, 0);
+  });
+
+  it('beats a named library workout too', () => {
+    const shape = resolvePlannedWorkoutShape({
+      workout_id: 'four_by_eight_vo2',
+      workout_type: 'vo2max',
+      name: 'Adjusted VO2',
+      target_duration: 60,
+      details: { prescription },
+    })!;
+    expect(shape.source).toBe('prescribed');
+    expect(mainInterval(shape.workout.structure).sets).toBe(5);
+  });
+
+  it('keeps the prescription\'s own bookends when it names them', () => {
+    const shape = resolvePlannedWorkoutShape({
+      workout_id: null,
+      workout_type: 'threshold',
+      name: '2x20',
+      target_duration: 90,
+      details: {
+        prescription: {
+          ...prescription,
+          warmup_min: 20,
+          cooldown_min: 10,
+          intervals: [{ repeats: 2, duration_min: 20, target_pct_ftp_min: 95, target_pct_ftp_max: 100, recovery_min: 5 }],
+        },
+      },
+    })!;
+    expect(shape.workout.structure.warmup!.duration).toBe(20);
+    expect(shape.workout.structure.cooldown!.duration).toBe(10);
+  });
+
+  it('infers the category from the hardest set when the row has no type', () => {
+    const shape = resolvePlannedWorkoutShape({
+      workout_id: null,
+      workout_type: null,
+      name: 'Mystery',
+      target_duration: 60,
+      details: { prescription },
+    })!;
+    expect(shape.workout.category).toBe('vo2max');
+  });
+
+  it('ignores a malformed prescription and falls through', () => {
+    const shape = resolvePlannedWorkoutShape({
+      workout_id: null,
+      workout_type: 'vo2max',
+      name: 'VO2',
+      target_duration: 75,
+      details: { prescription: { version: 1, source: 'coach', intervals: [{ repeats: 0 }] } },
+    })!;
+    expect(shape.source).toBe('inferred');
+  });
+});

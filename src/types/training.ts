@@ -1612,6 +1612,25 @@ export interface IntervalPrescription {
   notes?: string;
 }
 
+/**
+ * The stored interval structure of a calendar entry, at
+ * `calendar_entries.details.prescription`. Written by the coach's
+ * `calendar_change` tool, the arc refill and the session designer through
+ * `api/utils/prescription.js`; read by `plannedWorkoutShape`. The calendar row
+ * is the session, so its structure lives on the row.
+ */
+export interface StoredPrescription {
+  version: 1;
+  /** Who produced the structure. The UI labels anything but `athlete` / `coach` honestly. */
+  source: 'coach' | 'designer' | 'arc' | 'library' | 'athlete';
+  intervals: IntervalPrescription[];
+  warmup_min?: number;
+  cooldown_min?: number;
+  /** Rule ids and plain sentences from the designer, in decision order. */
+  rationale?: string[];
+  created_at?: string;
+}
+
 export type SessionType =
   | 'rest'
   | 'z1'

@@ -198,3 +198,11 @@ describe('createEntry', () => {
     expect(state.ops).toHaveLength(0);
   });
 });
+
+describe('details', () => {
+  it('lets a server writer store the session prescription', async () => {
+    const details = { prescription: { version: 1, source: 'designer', intervals: [] } };
+    await updateEntry(USER, 'w1', { details });
+    expect(writes()[0].payload.details).toEqual(details);
+  });
+});

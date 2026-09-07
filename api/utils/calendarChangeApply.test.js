@@ -396,3 +396,59 @@ describe('create dedupe', () => {
     expect(calls.some((c) => c.op === 'insert')).toBe(false);
   });
 });
+
+describe('intervals become details.prescription', () => {
+  const SET = { repeats: 5, duration_min: 4, target_pct_ftp_min: 110, target_pct_ftp_max: 120, recovery_min: 4 };
+
+  it('stores a create\'s intervals as a coach prescription on the row', async () => {
+    await applyCalendarOps(USER, [
+      { op: 'create', date: '2026-10-06', title: 'VO2 5x4', workout_type: 'vo2max', intervals: [SET], reason: 'Top end.' },
+    ]);
+    const insert = calls.find((c) => c.op === 'insert');
+    expect(insert.payload.details.prescription).toMatchObject({ version: 1, source: 'coach', intervals: [SET] });
+  });
+
+  it('stores nothing when a create carries no intervals', async () => {
+    await applyCalendarOps(USER, [
+      { op: 'create', date: '2026-10-06', title: 'Easy spin', workout_type: 'recovery', reason: 'Recover.' },
+    ]);
+    const insert = calls.find((c) => c.op === 'insert');
+    expect(insert.payload.details).toBeNull();
+  });
+
+  it('expands a pattern day\'s intervals onto every generated row', () => {
+    const { entries } = expandBlock({
+      from: '2026-09-07', to: '2026-09-20',
+      weekly_pattern: [
+        { day: 'tue', title: 'VO2', intervals: [SET] },
+        { day: 'sat', title: 'Long', target_load: 120 },
+      ],
+    });
+    const vo2 = entries.filter((e) => e.title === 'VO2');
+    const long = entries.filter((e) => e.title === 'Long');
+    expect(vo2).toHaveLength(2);
+    for (const e of vo2) expect(e.details.prescription.intervals).toEqual([SET]);
+    for (const e of long) expect(e.details).toBeNull();
+  });
+
+  it('merges an update\'s intervals over the entry\'s existing details', async () => {
+    const existing = entry({ details: { race_priority: 'B' } });
+    await applyCalendarOps(USER, [
+      { op: 'update', handle: 'sess_1af3bc12', entry: existing, intervals: [SET], reason: 'Structure it.' },
+    ]);
+    const update = calls.find((c) => c.op === 'update');
+    expect(update.payload.details.race_priority).toBe('B');
+    expect(update.payload.details.prescription.intervals).toEqual([SET]);
+    // and the undo snapshot remembers what was there
+    expect(snapshot(existing).details).toEqual({ race_priority: 'B' });
+  });
+
+  it('leaves details untouched when an update says nothing about intervals', async () => {
+    const existing = entry({ details: { prescription: { version: 1, source: 'coach', intervals: [SET] } } });
+    await applyCalendarOps(USER, [
+      { op: 'update', handle: 'sess_1af3bc12', entry: existing, target_load: 80, reason: 'Trim.' },
+    ]);
+    const update = calls.find((c) => c.op === 'update');
+    expect(update.payload.details).toBeUndefined();
+  });
+});

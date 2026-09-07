@@ -31,3 +31,11 @@ describe('buildWorkoutRouteHref', () => {
     expect(p.has('workoutName')).toBe(false);
   });
 });
+
+describe('entryId', () => {
+  it('carries the calendar entry id so the builder can paint its stored prescription', () => {
+    const href = buildWorkoutRouteHref({ ...workout, id: 'entry-42' }, '2026-06-10');
+    const p = new URLSearchParams(href.split('?')[1]);
+    expect(p.get('entryId')).toBe('entry-42');
+  });
+});

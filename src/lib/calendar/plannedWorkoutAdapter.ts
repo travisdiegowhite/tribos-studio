@@ -77,6 +77,11 @@ export interface PlannedWorkoutShape {
   /** Passed through so a generator knows not to overwrite an athlete's edit. */
   pinned: boolean;
   slot: number;
+  /**
+   * The row's detail JSON, passed through untouched. `details.prescription`
+   * is the session's stored interval structure (see `StoredPrescription`).
+   */
+  details: Record<string, unknown> | null;
 }
 
 /** Day of week for a YYYY-MM-DD key, 0=Sun, stepped in UTC so DST cannot shift it. */
@@ -142,6 +147,7 @@ export function toPlannedWorkoutShape(
     entry_type: entry.type,
     pinned: entry.pinned,
     slot: entry.slot,
+    details: entry.details ?? null,
   };
 }
 
