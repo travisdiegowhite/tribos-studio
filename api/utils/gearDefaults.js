@@ -1,63 +1,42 @@
 /**
  * Gear Tracking Defaults
- * Default maintenance thresholds and component type definitions.
- * All distance values stored in meters internally.
+ *
+ * Thin compatibility layer over api/utils/gearCatalog.js, which is now the
+ * single source of truth for part types, thresholds, wear factors, and the
+ * metadata each part carries. Existing callers (gear.js, gearAlerts.js) keep
+ * importing from here; new code should import the catalogue directly.
+ *
+ * All distance values are METERS.
  */
 
-export const METERS_PER_MILE = 1609.344;
+import {
+  CATALOG_PARTS,
+  METERS_PER_MILE,
+  getCatalogThresholds,
+} from './gearCatalog.js';
+
+export { METERS_PER_MILE };
 
 /**
- * Default component maintenance thresholds (in meters).
- * Warning thresholds use 80% of replace where not explicitly defined.
+ * Default component maintenance thresholds keyed by component_type.
+ * Shape preserved: { warning, replace } in meters, plus `time_based_months`
+ * for parts that age rather than wear (bar tape, sealant, brake fluid).
  */
-export const DEFAULT_COMPONENT_THRESHOLDS = {
-  chain: {
-    warning: 1200 * METERS_PER_MILE,
-    replace: 1500 * METERS_PER_MILE,
-  },
-  cassette: {
-    warning: 2400 * METERS_PER_MILE,
-    replace: 3000 * METERS_PER_MILE,
-  },
-  tires_road: {
-    warning: 2000 * METERS_PER_MILE,
-    replace: 2500 * METERS_PER_MILE,
-  },
-  tires_gravel: {
-    warning: 1200 * METERS_PER_MILE,
-    replace: 1500 * METERS_PER_MILE,
-  },
-  brake_pads_rim: {
-    warning: 1200 * METERS_PER_MILE,
-    replace: 1500 * METERS_PER_MILE,
-  },
-  brake_pads_disc: {
-    warning: 1600 * METERS_PER_MILE,
-    replace: 2000 * METERS_PER_MILE,
-  },
-  bar_tape: {
-    // Time-based: 12 months. No mileage threshold.
-    warning: null,
-    replace: null,
-    time_based_months: 12,
-  },
-  cables: {
-    warning: 2400 * METERS_PER_MILE,
-    replace: 3000 * METERS_PER_MILE,
-  },
-  wheels_road: {
-    // Wheels are not consumables — no mileage thresholds
-    warning: null,
-    replace: null,
-  },
-  wheels_gravel: {
-    warning: null,
-    replace: null,
-  },
-};
+export const DEFAULT_COMPONENT_THRESHOLDS = Object.fromEntries(
+  CATALOG_PARTS.map((p) => [
+    p.type,
+    {
+      warning: p.warningMeters,
+      replace: p.replaceMeters,
+      ...(p.wearModel === 'time' && p.serviceMonths ? { time_based_months: p.serviceMonths } : {}),
+      ...(p.wearModel === 'hours' && p.serviceHours ? { service_hours: p.serviceHours, time_based_months: p.serviceMonths } : {}),
+    },
+  ])
+);
 
 /**
- * Running shoe thresholds (in meters)
+ * Running shoe thresholds (in meters). Shoes are a gear_item, not a
+ * component, so they live here rather than in the parts catalogue.
  */
 export const RUNNING_SHOE_THRESHOLDS = {
   warning: 350 * METERS_PER_MILE,
@@ -65,20 +44,9 @@ export const RUNNING_SHOE_THRESHOLDS = {
 };
 
 /**
- * Available component types for the UI
+ * Available component types for the UI, in catalogue order.
  */
-export const COMPONENT_TYPES = [
-  { value: 'chain', label: 'Chain' },
-  { value: 'cassette', label: 'Cassette' },
-  { value: 'tires_road', label: 'Tires (Road)' },
-  { value: 'tires_gravel', label: 'Tires (Gravel/MTB)' },
-  { value: 'wheels_road', label: 'Wheels (Road)' },
-  { value: 'wheels_gravel', label: 'Wheels (Gravel/MTB)' },
-  { value: 'brake_pads_rim', label: 'Brake Pads (Rim)' },
-  { value: 'brake_pads_disc', label: 'Brake Pads (Disc)' },
-  { value: 'bar_tape', label: 'Bar Tape' },
-  { value: 'cables', label: 'Cables/Housing' },
-];
+export const COMPONENT_TYPES = CATALOG_PARTS.map((p) => ({ value: p.type, label: p.label }));
 
 /**
  * Default metadata for tire and wheel components.
@@ -99,5 +67,5 @@ export const DEFAULT_WHEEL_METADATA = {
  * Returns { warning, replace } in meters, or null values for time-based components.
  */
 export function getDefaultThresholds(componentType) {
-  return DEFAULT_COMPONENT_THRESHOLDS[componentType] || { warning: null, replace: null };
+  return getCatalogThresholds(componentType);
 }

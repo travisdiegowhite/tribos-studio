@@ -192,6 +192,27 @@ export default async function handler(req, res) {
 
     console.log('Token revocation results:', JSON.stringify(tokenRevocation));
 
+    // Step 1b: Remove the user's bike photos. Storage objects do not cascade
+    // with the auth row, so a deleted account would otherwise leave its
+    // photos in the private bucket forever. Best-effort: a failure here must
+    // not block the deletion itself.
+    try {
+      const { data: objects } = await supabase.storage.from('gear-photos').list(userId, { limit: 1000 });
+      const keys = [];
+      for (const entry of objects || []) {
+        // list() at the user folder returns the per-bike subfolders.
+        const { data: files } = await supabase.storage.from('gear-photos').list(`${userId}/${entry.name}`, { limit: 1000 });
+        for (const f of files || []) keys.push(`${userId}/${entry.name}/${f.name}`);
+      }
+      if (keys.length > 0) {
+        const { error: rmError } = await supabase.storage.from('gear-photos').remove(keys);
+        if (rmError) console.error('gear-photos cleanup failed:', rmError.message);
+        else console.log(`Removed ${keys.length} gear photo(s)`);
+      }
+    } catch (photoErr) {
+      console.error('gear-photos cleanup threw (non-fatal):', photoErr.message);
+    }
+
     // Step 2: Delete the user via Supabase auth admin
     // This cascades deletes on all tables with ON DELETE CASCADE
     // (activities, routes, training_plans, planned_workouts, gear_items,
