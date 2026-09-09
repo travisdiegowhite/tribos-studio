@@ -18,6 +18,25 @@ describe('gearVision: schema', () => {
     const meta = s.properties.components.items.properties.metadata;
     expect(meta.required.sort()).toEqual(Object.keys(meta.properties).sort());
   });
+
+  it('never puts null inside an enum (the API rejects that — seen in production as a 400)', () => {
+    const s = buildExtractionSchema();
+    const walk = (node, path = '$') => {
+      if (!node || typeof node !== 'object') return;
+      if (Array.isArray(node.enum)) {
+        expect(node.enum.includes(null), `${path}.enum contains null`).toBe(false);
+        expect(node.type, `${path}: enum must sit on a single-type node`).toBe('string');
+      }
+      for (const [k, v] of Object.entries(node)) {
+        if (Array.isArray(v)) v.forEach((item, i) => walk(item, `${path}.${k}[${i}]`));
+        else if (v && typeof v === 'object') walk(v, `${path}.${k}`);
+      }
+    };
+    walk(s);
+    // and the nullable enums are expressed as anyOf
+    expect(s.properties.bike.properties.category.anyOf[1]).toEqual({ type: 'null' });
+    expect(s.properties.bike.properties.category.anyOf[0].enum).toContain('road');
+  });
 });
 
 describe('gearVision: prompt', () => {

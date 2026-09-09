@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   Modal,
   Stack,
@@ -76,10 +76,15 @@ export default function BikePhotoCapture({
     }
   }, [opened, gear?.id]);
 
-  // Free object URLs when the modal unmounts or shots change.
+  // Free object URLs on unmount only. Revoking on every `shots` change
+  // killed the earlier previews the moment a second photo was added, since
+  // the previous state's URLs are the same strings the new state reuses.
+  // Replacing a shot revokes its own old URL in handleFile.
+  const shotsRef = useRef(shots);
+  shotsRef.current = shots;
   useEffect(() => () => {
-    Object.values(shots).forEach((s) => s?.previewUrl && URL.revokeObjectURL(s.previewUrl));
-  }, [shots]);
+    Object.values(shotsRef.current).forEach((s) => s?.previewUrl && URL.revokeObjectURL(s.previewUrl));
+  }, []);
 
   const dupes = useMemo(() => duplicateTypes(rows, existingComponents), [rows, existingComponents]);
   const includedCount = rows.filter((r) => r.included).length;
@@ -226,7 +231,8 @@ export default function BikePhotoCapture({
               );
             })}
           </Stack>
-          <Group justify="flex-end">
+          {/* Bottom padding keeps the actions clear of the mobile browser chrome in fullScreen. */}
+          <Group justify="flex-end" pb={isMobile ? 'xl' : 0}>
             <Button variant="subtle" onClick={onClose} disabled={uploading}>Not now</Button>
             <Button onClick={handleRead} loading={uploading} disabled={!hasRequired} rightSection={<ArrowRight size={14} />}>
               Read the bike
@@ -309,7 +315,7 @@ export default function BikePhotoCapture({
             </Text>
           )}
 
-          <Group justify="space-between">
+          <Group justify="space-between" pb={isMobile ? 'xl' : 0}>
             <Button variant="subtle" onClick={() => setStep('shots')} disabled={saving}>Retake photos</Button>
             <Button onClick={handleSave} loading={saving} disabled={includedCount === 0 && !extraction?.bike?.model}>
               Save {includedCount > 0 ? `${includedCount} part${includedCount === 1 ? '' : 's'}` : ''}
