@@ -7,6 +7,7 @@ import {
   Group,
   Button,
   SegmentedControl,
+  Select,
   Switch,
   Collapse,
   Text,
@@ -15,6 +16,7 @@ import {
 } from '@mantine/core';
 import { DateInput } from '@mantine/dates';
 import { CaretDown, CaretRight } from '@phosphor-icons/react';
+import { BIKE_CATEGORIES } from './gearConstants';
 
 /**
  * Inline collapsible form for adding a new gear item (bike or shoes).
@@ -29,7 +31,7 @@ export default function AddGearForm({ opened, onCancel, onSave }) {
   const [purchasePrice, setPurchasePrice] = useState(null);
   const [notes, setNotes] = useState('');
   const [isDefault, setIsDefault] = useState(false);
-  const [stravaGearId, setStravaGearId] = useState('');
+  const [category, setCategory] = useState('road');
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [saving, setSaving] = useState(false);
 
@@ -42,7 +44,7 @@ export default function AddGearForm({ opened, onCancel, onSave }) {
     setPurchasePrice(null);
     setNotes('');
     setIsDefault(false);
-    setStravaGearId('');
+    setCategory('road');
     setShowAdvanced(false);
   };
 
@@ -66,7 +68,7 @@ export default function AddGearForm({ opened, onCancel, onSave }) {
         purchasePrice: purchasePrice || undefined,
         notes: notes.trim() || undefined,
         isDefault,
-        stravaGearId: stravaGearId.trim() || undefined,
+        ...(sportType === 'cycling' ? { category, isTrainerBike: category === 'trainer' } : {}),
       });
       reset();
     } catch {
@@ -115,6 +117,17 @@ export default function AddGearForm({ opened, onCancel, onSave }) {
             />
           </Group>
 
+          {sportType === 'cycling' && (
+            <Select
+              label="What kind of bike"
+              data={BIKE_CATEGORIES}
+              value={category}
+              onChange={(v) => setCategory(v || 'road')}
+              allowDeselect={false}
+              comboboxProps={{ withinPortal: false }}
+            />
+          )}
+
           <Group grow>
             <DateInput
               label="Purchase Date"
@@ -153,13 +166,6 @@ export default function AddGearForm({ opened, onCancel, onSave }) {
 
           <Collapse in={showAdvanced}>
             <Stack gap="sm">
-              <TextInput
-                label="Strava Gear ID"
-                placeholder="e.g. b12345678"
-                description="Found in your Strava gear settings URL. Enables auto-matching on Strava syncs."
-                value={stravaGearId}
-                onChange={(e) => setStravaGearId(e.currentTarget.value)}
-              />
               <TextInput
                 label="Notes"
                 placeholder="Optional notes"

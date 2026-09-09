@@ -5,8 +5,13 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '../lib/supabase';
+import { trackGear } from '../utils/gearTelemetry';
 
 // ── Types ────────────────────────────────────────────────────
+
+export type BikeCategory = 'road' | 'gravel' | 'mtb' | 'tt' | 'commuter' | 'trainer' | 'other';
+export type ComponentSource = 'manual' | 'vision' | 'coach' | 'check_in';
+export type PhotoShotId = 'whole_bike' | 'drivetrain' | 'front_wheel';
 
 export interface GearItem {
   id: string;
@@ -16,6 +21,13 @@ export interface GearItem {
   name: string;
   brand: string | null;
   model: string | null;
+  /** Migration 123. Null for shoes and for bikes added before it. */
+  category?: BikeCategory | null;
+  is_trainer_bike?: boolean;
+  /** Storage object paths in the gear-photos bucket, keyed by shot. */
+  photo_paths?: Partial<Record<PhotoShotId, string>>;
+  vision_extraction?: VisionExtraction | null;
+  catalogued_at?: string | null;
   purchase_date: string | null;
   purchase_price: number | null;
   notes: string | null;
@@ -55,8 +67,52 @@ export interface GearComponent {
   status: 'active' | 'replaced';
   replaced_date: string | null;
   metadata: Record<string, unknown>;
+  /** Migration 123 wear + provenance columns. */
+  effective_wear_m?: number;
+  wet_distance_m?: number;
+  offroad_distance_m?: number;
+  indoor_distance_m?: number;
+  moving_time_s?: number;
+  source?: ComponentSource;
+  confidence?: number | null;
+  confirmed_at?: string | null;
   created_at: string;
   updated_at: string;
+}
+
+/** Shape returned by /api/gear-vision (see api/utils/gearVision.js). */
+export interface VisionComponent {
+  component_type: string;
+  brand: string | null;
+  model: string | null;
+  metadata: Record<string, unknown>;
+  confidence: number;
+  prefill: boolean;
+  evidence: string;
+  seen_in: PhotoShotId[];
+}
+
+export interface VisionExtraction {
+  bike: {
+    brand: string | null;
+    model: string | null;
+    category: BikeCategory | null;
+    frame_material: string | null;
+    color: string | null;
+    brake_type: 'disc' | 'rim' | null;
+    confidence: number;
+    evidence: string;
+  };
+  groupset: {
+    brand: string | null;
+    tier: string | null;
+    speeds: number | null;
+    electronic: boolean | null;
+    confidence: number;
+    evidence: string;
+  };
+  components: VisionComponent[];
+  unreadable: { component_type: string; reason: string; better_shot: PhotoShotId | null }[];
 }
 
 export interface GearAlert {
@@ -179,8 +235,15 @@ export function useGear({ userId, alertsOnly = false }: UseGearOptions = {}) {
     notes?: string;
     isDefault?: boolean;
     stravaGearId?: string;
+    category?: BikeCategory;
+    isTrainerBike?: boolean;
   }) => {
     const data = await gearApi('create_gear', params);
+    trackGear('gear_bike_added', {
+      sportType: params.sportType,
+      category: params.category ?? null,
+      hasPurchaseDate: Boolean(params.purchaseDate),
+    });
     await fetchGear();
     await fetchAlerts();
     return data.gear as GearItem;
@@ -215,6 +278,10 @@ export function useGear({ userId, alertsOnly = false }: UseGearOptions = {}) {
     replaceThreshold?: number;
     notes?: string;
     metadata?: Record<string, unknown>;
+    /** Who put this row here. Defaults to 'manual' server-side. */
+    source?: ComponentSource;
+    /** Vision confidence 0–1; only stored when source is 'vision'. */
+    confidence?: number;
   }) => {
     const data = await gearApi('create_component', params);
     await fetchAlerts();
@@ -238,6 +305,33 @@ export function useGear({ userId, alertsOnly = false }: UseGearOptions = {}) {
     await gearApi('reassign_activity_gear', { activityId, gearItemId });
     await fetchGear();
   }, [fetchGear]);
+
+  // ── Photo catalogue ──────────────────────────────────────
+
+  /**
+   * Ask /api/gear-vision to read the bike from photos already uploaded to
+   * the gear-photos bucket. Returns a proposal; nothing is written until the
+   * rider confirms and createComponent is called per part.
+   */
+  const catalogueFromPhotos = useCallback(async (
+    gearItemId: string,
+    photoPaths: Partial<Record<PhotoShotId, string>>,
+  ): Promise<{ extraction: VisionExtraction; model: string }> => {
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session) throw new Error('Not authenticated');
+
+    const response = await fetch(`${getApiBaseUrl()}/api/gear-vision`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${session.access_token}`,
+      },
+      body: JSON.stringify({ gearItemId, photoPaths }),
+    });
+    const data = await response.json();
+    if (!response.ok) throw new Error(data.error || 'Could not read the photos');
+    return { extraction: data.extraction as VisionExtraction, model: data.model as string };
+  }, []);
 
   // ── Alerts ───────────────────────────────────────────────
 
@@ -324,6 +418,7 @@ export function useGear({ userId, alertsOnly = false }: UseGearOptions = {}) {
     replaceComponent,
     deleteComponent,
     reassignActivityGear,
+    catalogueFromPhotos,
     dismissAlert,
     recalculateMileage,
     getGearDetail,

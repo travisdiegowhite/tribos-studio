@@ -13,6 +13,7 @@ import {
   ThemeIcon,
 } from '@mantine/core';
 import { useAuth } from '../contexts/AuthContext.jsx';
+import { useUserPreferences } from '../contexts/UserPreferencesContext.jsx';
 import { useGear } from '../hooks/useGear.ts';
 import AppShell from '../components/AppShell.jsx';
 import PageHeader from '../components/PageHeader.jsx';
@@ -40,8 +41,8 @@ function GearPage() {
     dismissAlert,
   } = gearHook;
 
-  // TODO: Get from user preferences context
-  const useImperial = true;
+  const { unitsPreference } = useUserPreferences();
+  const useImperial = unitsPreference !== 'metric';
 
   const activeGear = gearItems.filter(g => g.status === 'active' && g.sport_type === activeSport);
   const retiredGear = gearItems.filter(g => g.status === 'retired' && g.sport_type === activeSport);
@@ -51,10 +52,12 @@ function GearPage() {
       const gear = await createGear(params);
       notifications.show({
         title: 'Gear added',
-        message: `${gear.name} has been added`,
+        message: gear.gear_type === 'bike' ? `${gear.name} added — show me a photo and I'll list the parts` : `${gear.name} has been added`,
         color: 'green',
       });
       setAddModalOpen(false);
+      // Land on the new bike so "Show me your bike" is the next thing seen.
+      if (gear.gear_type === 'bike') setSelectedGearId(gear.id);
     } catch (err) {
       notifications.show({
         title: 'Error',

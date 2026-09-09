@@ -12,21 +12,17 @@ import {
 } from '@mantine/core';
 import { DateInput } from '@mantine/dates';
 import { notifications } from '@mantine/notifications';
-import { COMPONENT_TYPES, TIRE_COMPONENT_TYPES, WHEEL_COMPONENT_TYPES, METERS_PER_MILE } from './gearConstants';
+import { COMPONENT_TYPES, TIRE_COMPONENT_TYPES, WHEEL_COMPONENT_TYPES, METERS_PER_MILE, getCatalogPart } from './gearConstants';
 
-// Default thresholds in miles for display (matching api/utils/gearDefaults.js)
-const DEFAULT_THRESHOLDS_MILES = {
-  chain: { warning: 1200, replace: 1500 },
-  cassette: { warning: 2400, replace: 3000 },
-  tires_road: { warning: 2000, replace: 2500 },
-  tires_gravel: { warning: 1200, replace: 1500 },
-  wheels_road: { warning: null, replace: null },
-  wheels_gravel: { warning: null, replace: null },
-  brake_pads_rim: { warning: 1200, replace: 1500 },
-  brake_pads_disc: { warning: 1600, replace: 2000 },
-  bar_tape: { warning: null, replace: null },
-  cables: { warning: 2400, replace: 3000 },
-};
+// Default thresholds in miles for display, straight from the catalogue.
+function defaultThresholdsMiles(componentType) {
+  const part = getCatalogPart(componentType);
+  if (!part || part.wearModel !== 'distance') return { warning: null, replace: null };
+  return {
+    warning: part.warningMeters ? Math.round(part.warningMeters / METERS_PER_MILE) : null,
+    replace: part.replaceMeters ? Math.round(part.replaceMeters / METERS_PER_MILE) : null,
+  };
+}
 
 const TIRE_WIDTH_OPTIONS = [
   { value: '23', label: '23c' },
@@ -67,14 +63,9 @@ export default function AddComponentForm({ opened, onCancel, onSave, gearItemId 
   // Auto-populate thresholds and metadata defaults when component type changes
   useEffect(() => {
     if (componentType) {
-      const defaults = DEFAULT_THRESHOLDS_MILES[componentType];
-      if (defaults) {
-        setWarningMiles(defaults.warning);
-        setReplaceMiles(defaults.replace);
-      } else {
-        setWarningMiles(null);
-        setReplaceMiles(null);
-      }
+      const defaults = defaultThresholdsMiles(componentType);
+      setWarningMiles(defaults.warning);
+      setReplaceMiles(defaults.replace);
       // Set sensible tire defaults based on type
       if (componentType === 'tires_road') {
         setTireWidthMm('28');
@@ -164,7 +155,9 @@ export default function AddComponentForm({ opened, onCancel, onSave, gearItemId 
     }
   };
 
-  const isBarTape = componentType === 'bar_tape';
+  const part = getCatalogPart(componentType);
+  const isTimeBased = part?.wearModel === 'time' || part?.wearModel === 'hours';
+  const isNoWear = part?.wearModel === 'none';
 
   if (!opened) return null;
 
@@ -254,10 +247,15 @@ export default function AddComponentForm({ opened, onCancel, onSave, gearItemId 
           </>
         )}
 
-        {isBarTape ? (
+        {isTimeBased ? (
           <Text size="sm" c="dimmed">
-            Bar tape uses a time-based threshold (12 months from install date).
-            No mileage thresholds needed.
+            {part.label} is tracked by age
+            {part.wearModel === 'hours' && part.serviceHours ? ` and riding hours (every ~${part.serviceHours} h)` : ''}
+            {part.serviceMonths ? `, due ${part.serviceMonths} months after install` : ''}. No mileage thresholds needed.
+          </Text>
+        ) : isNoWear ? (
+          <Text size="sm" c="dimmed">
+            {part.label} is tracked for its specs, not wear. {part.whyItMatters}
           </Text>
         ) : (
           <Group grow>
