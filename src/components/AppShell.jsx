@@ -18,7 +18,6 @@ import {
   Sun,
   Moon,
   SignOut,
-  Bicycle,
   Users,
   Bell,
   Warning,
@@ -32,7 +31,8 @@ import { useActivation } from '../hooks/useActivation.ts';
 import { formatDistance } from '../utils/units';
 import { ListChecks } from '@phosphor-icons/react';
 
-// Primary navigation: TODAY · RIDE · TRAIN · PROGRESS.
+// Primary navigation: TODAY · RIDE · TRAIN · PROGRESS · GARAGE.
+// GARAGE is the gear tracker (bikes, parts, wear); /gear redirects to it.
 // RIDE opens the route builder directly (/ride redirects to /ride/new; the
 // tab stays active anywhere under /ride). The old route-library hub is kept
 // as a fallback at /ride/library.
@@ -44,6 +44,7 @@ const NAV_ITEMS = [
   { path: '/ride', label: 'RIDE' },
   { path: '/train', label: 'TRAIN' },
   { path: '/progress', label: 'PROGRESS' },
+  { path: '/garage', label: 'GARAGE' },
 ];
 
 function AppShell({ children, fullWidth = false, hideNav = false }) {
@@ -95,6 +96,10 @@ function AppShell({ children, fullWidth = false, hideNav = false }) {
     }
     if (item.path === '/progress') {
       return location.pathname === '/progress';
+    }
+    if (item.path === '/garage') {
+      // /gear is the legacy path; it redirects here but may still be mid-transition.
+      return location.pathname.startsWith('/garage') || location.pathname.startsWith('/gear');
     }
     return false;
   };
@@ -289,7 +294,7 @@ function AppShell({ children, fullWidth = false, hideNav = false }) {
           surfaces (route builder) where it would overlap map controls. */}
       {user && <LifecycleOverlays showFeedbackButton={!fullWidth && !hideNav} />}
 
-      {/* Mobile Bottom Tab Bar — 4 tabs */}
+      {/* Mobile Bottom Tab Bar — 5 tabs */}
       {isMobile && !hideNav && (
         <MobileBottomNav isActive={isActive} />
       )}
@@ -355,7 +360,7 @@ function NotificationBell({ gearAlerts = [], onDismissAlert, navigate }) {
                   size="xs"
                   c="teal"
                   style={{ cursor: 'pointer' }}
-                  onClick={() => navigate('/gear')}
+                  onClick={() => navigate('/garage')}
                 >
                   View all
                 </Text>
@@ -376,7 +381,7 @@ function NotificationBell({ gearAlerts = [], onDismissAlert, navigate }) {
                       />
                     )
                   }
-                  onClick={() => navigate('/gear')}
+                  onClick={() => navigate(alert.gearItemId ? `/garage/${alert.gearItemId}` : '/garage')}
                 >
                   <Text size="sm" fw={500} truncate>{alert.gearName}</Text>
                   <Text size="xs" c="dimmed" truncate>
@@ -387,7 +392,7 @@ function NotificationBell({ gearAlerts = [], onDismissAlert, navigate }) {
               );
             })}
             {alertCount > 5 && (
-              <Menu.Item onClick={() => navigate('/gear')}>
+              <Menu.Item onClick={() => navigate('/garage')}>
                 <Text size="xs" c="teal">+{alertCount - 5} more</Text>
               </Menu.Item>
             )}
@@ -438,12 +443,6 @@ function AvatarDropdown({ initials, colorScheme, toggleColorScheme, onSignOut, n
           Settings
         </Menu.Item>
         <Menu.Item
-          leftSection={<Bicycle size={18} />}
-          onClick={() => navigate('/gear')}
-        >
-          Gear
-        </Menu.Item>
-        <Menu.Item
           leftSection={<Users size={18} />}
           onClick={() => navigate('/community')}
         >
@@ -477,7 +476,7 @@ function AvatarDropdown({ initials, colorScheme, toggleColorScheme, onSignOut, n
   );
 }
 
-// Mobile bottom nav — 4 tabs
+// Mobile bottom nav — 5 tabs
 function MobileBottomNav({ isActive }) {
   const navigate = useNavigate();
 
@@ -509,7 +508,9 @@ function MobileBottomNav({ isActive }) {
               flexDirection: 'column',
               alignItems: 'center',
               justifyContent: 'center',
-              padding: '8px 12px',
+              // Five tabs on a 390px screen: tighter padding and tracking than
+              // the desktop bar so PROGRESS and GARAGE both fit un-wrapped.
+              padding: '8px 4px',
               flex: 1,
               gap: 2,
               minHeight: 44,
@@ -534,9 +535,10 @@ function MobileBottomNav({ isActive }) {
                 fontFamily: "'Barlow Condensed', sans-serif",
                 fontSize: 13,
                 fontWeight: 700,
-                letterSpacing: '2px',
+                letterSpacing: '1.5px',
                 textTransform: 'uppercase',
                 color: active ? '#FFFFFF' : '#9A9990',
+                whiteSpace: 'nowrap',
               }}
             >
               {item.label}

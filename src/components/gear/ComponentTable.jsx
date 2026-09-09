@@ -3,14 +3,19 @@ import { formatDistance } from '../../utils/units';
 import { getComponentLabel } from './gearConstants';
 import { ArrowsClockwise, Trash } from '@phosphor-icons/react';
 
+// Same words and colours as the Garage wear bars (src/components/garage), so
+// the table and the bars above it never disagree about a part.
 function getStatusInfo(componentDistance, warningThreshold, replaceThreshold) {
   if (replaceThreshold && componentDistance >= replaceThreshold) {
-    return { label: 'Replace', color: 'red' };
+    return { label: 'Past due', color: 'var(--color-coral)' };
   }
   if (warningThreshold && componentDistance >= warningThreshold) {
-    return { label: 'Warning', color: 'yellow' };
+    return { label: 'Nearly done', color: 'var(--color-gold)' };
   }
-  return { label: 'OK', color: 'green' };
+  if (replaceThreshold && componentDistance >= replaceThreshold * 0.5) {
+    return { label: 'Wearing in', color: 'var(--color-teal)' };
+  }
+  return { label: 'Fresh', color: 'var(--color-teal)' };
 }
 
 /**
@@ -80,7 +85,12 @@ export default function ComponentTable({
                   </Text>
                 </Table.Td>
                 <Table.Td style={{ textAlign: 'center' }}>
-                  <Badge size="sm" color={status.color} variant="light">
+                  <Badge
+                    size="sm"
+                    variant="outline"
+                    radius={0}
+                    style={{ color: status.color, borderColor: status.color }}
+                  >
                     {status.label}
                   </Badge>
                 </Table.Td>

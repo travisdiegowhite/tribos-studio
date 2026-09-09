@@ -74,7 +74,7 @@ export default function GearAlertBanner({ alerts, onDismiss, compact = false, us
           );
         })}
         {compact && alerts.length > 3 && (
-          <Anchor component={Link} to="/gear" size="sm">
+          <Anchor component={Link} to="/garage" size="sm">
             +{alerts.length - 3} more alert{alerts.length - 3 !== 1 ? 's' : ''}
           </Anchor>
         )}

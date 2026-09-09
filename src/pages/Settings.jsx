@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect } from 'react';
 import {
   Container,
   Title,
@@ -24,7 +24,6 @@ import {
   SimpleGrid,
   Tabs,
   Paper,
-  SegmentedControl,
 } from '@mantine/core';
 import { useMediaQuery } from '@mantine/hooks';
 import { useMantineColorScheme } from '@mantine/core';
@@ -49,17 +48,12 @@ import PageHeader from '../components/PageHeader.jsx';
 import RoadPreferencesCard from '../components/settings/RoadPreferencesCard.jsx';
 import RunningProfileSettings from '../components/settings/RunningProfileSettings.jsx';
 import RecoveryModeCard from '../components/settings/RecoveryModeCard';
-import { useGear } from '../hooks/useGear.ts';
-import GearItemCard from '../components/gear/GearItemCard.jsx';
-import GearDetailView from '../components/gear/GearDetailView.jsx';
 import CoachPersonaSettings from '../components/settings/CoachPersonaSettings.tsx';
-import GearAlertBanner from '../components/gear/GearAlertBanner.jsx';
-import AddGearModal from '../components/gear/AddGearModal.jsx';
 import IntegrationAlert from '../components/IntegrationAlert.jsx';
 import NotificationSettings from '../components/settings/NotificationSettings.jsx';
 import { googleCalendarService } from '../utils/googleCalendarService';
 import { trackInteraction, EventType } from '../utils/activityTracking';
-import { Barbell, Bell, Bicycle, CaretDown, CaretRight, Check, DownloadSimple, GoogleLogo, Info, Moon, Path, Plug, Plus, Sliders, Sparkle, Sun, Trash, UploadSimple, User, Warning, Wrench } from '@phosphor-icons/react';
+import { Barbell, Bell, Bicycle, CaretDown, CaretRight, Check, DownloadSimple, GoogleLogo, Info, Moon, Path, Plug, Sliders, Sparkle, Sun, Trash, UploadSimple, User, Warning } from '@phosphor-icons/react';
 import {
   ageColumnsForBirthYear,
   yearOfDob,
@@ -127,36 +121,6 @@ function Settings() {
   const [duplicatePreview, setDuplicatePreview] = useState(null);
   const [findingDuplicates, setFindingDuplicates] = useState(false);
 
-  // Gear state
-  const gearHook = useGear({ userId: user?.id });
-  const { gearItems, alerts, loading: gearLoading, createGear, dismissAlert } = gearHook;
-  const [activeSport, setActiveSport] = useState('cycling');
-  const [addGearModalOpen, setAddGearModalOpen] = useState(false);
-  const [selectedGearId, setSelectedGearId] = useState(null);
-  const [showRetired, setShowRetired] = useState(false);
-  const useImperial = true; // TODO: Get from user preferences context
-
-  const activeGear = useMemo(() => gearItems.filter(g => g.status === 'active' && g.sport_type === activeSport), [gearItems, activeSport]);
-  const retiredGear = useMemo(() => gearItems.filter(g => g.status === 'retired' && g.sport_type === activeSport), [gearItems, activeSport]);
-
-  const handleCreateGear = async (params) => {
-    try {
-      const gear = await createGear(params);
-      notifications.show({
-        title: 'Gear added',
-        message: `${gear.name} has been added`,
-        color: 'green',
-      });
-      setAddGearModalOpen(false);
-    } catch (err) {
-      notifications.show({
-        title: 'Error',
-        message: err.message || 'Failed to add gear',
-        color: 'red',
-      });
-      throw err;
-    }
-  };
 
   // Form state
   const [displayName, setDisplayName] = useState('');
@@ -1895,115 +1859,22 @@ function Settings() {
                 </Stack>
               </Tabs.Panel>
 
-              {/* Gear Tab */}
+              {/* Gear Tab — the tracker moved to the GARAGE tab; this stays as a pointer
+                  so old ?tab=gear links and muscle memory still land somewhere useful. */}
               <Tabs.Panel value="gear">
-                <Stack gap="md">
-
-          <Group justify="space-between" align="center">
-            <Stack gap={4}>
-              <Title order={3} style={{ color: 'var(--color-text-primary)' }}>
-                Gear
-              </Title>
-              <Text size="sm" style={{ color: 'var(--color-text-secondary)' }}>
-                Track mileage and maintenance for your bikes and running shoes
-              </Text>
-            </Stack>
-            <Button
-              leftSection={<Plus size={16} />}
-              onClick={() => setAddGearModalOpen(true)}
-            >
-              Add Gear
-            </Button>
-          </Group>
-
-          <AddGearModal
-            opened={addGearModalOpen}
-            onClose={() => setAddGearModalOpen(false)}
-            onSave={handleCreateGear}
-          />
-
-          {alerts.length > 0 && (
-            <GearAlertBanner
-              alerts={alerts}
-              onDismiss={dismissAlert}
-              useImperial={useImperial}
-            />
-          )}
-
-          <SegmentedControl
-            value={activeSport}
-            onChange={setActiveSport}
-            data={[
-              { label: 'Cycling', value: 'cycling' },
-              { label: 'Running', value: 'running' },
-            ]}
-          />
-
-          {gearLoading ? (
-            <Text c="dimmed" ta="center" py="xl">Loading gear...</Text>
-          ) : activeGear.length === 0 ? (
-            <Stack align="center" gap="sm" py="xl">
-              <ThemeIcon size={48} radius="xl" variant="light" color="gray">
-                <Wrench size={24} />
-              </ThemeIcon>
-              <Text c="dimmed" ta="center">
-                No {activeSport === 'cycling' ? 'bikes' : 'shoes'} tracked yet.
-              </Text>
-              <Button
-                variant="light"
-                size="sm"
-                onClick={() => setAddGearModalOpen(true)}
-              >
-                Add your first {activeSport === 'cycling' ? 'bike' : 'pair of shoes'}
-              </Button>
-            </Stack>
-          ) : (
-            <SimpleGrid cols={{ base: 1, sm: 2 }}>
-              {activeGear.map((gear) => (
-                <GearItemCard
-                  key={gear.id}
-                  gear={gear}
-                  onClick={() => setSelectedGearId(gear.id)}
-                  useImperial={useImperial}
-                />
-              ))}
-            </SimpleGrid>
-          )}
-
-          {retiredGear.length > 0 && (
-            <>
-              <UnstyledButton onClick={() => setShowRetired(!showRetired)}>
-                <Group gap={4}>
-                  {showRetired ? <CaretDown size={14} /> : <CaretRight size={14} />}
-                  <Text size="sm" c="dimmed">
-                    Retired ({retiredGear.length})
-                  </Text>
-                </Group>
-              </UnstyledButton>
-              <Collapse in={showRetired}>
-                <SimpleGrid cols={{ base: 1, sm: 2 }}>
-                  {retiredGear.map((gear) => (
-                    <GearItemCard
-                      key={gear.id}
-                      gear={gear}
-                      onClick={() => setSelectedGearId(gear.id)}
-                      useImperial={useImperial}
-                    />
-                  ))}
-                </SimpleGrid>
-              </Collapse>
-            </>
-          )}
-
-          <GearDetailView
-            gearId={selectedGearId}
-            opened={!!selectedGearId}
-            onClose={() => setSelectedGearId(null)}
-            useGearHook={gearHook}
-            useImperial={useImperial}
-          />
-
-                </Stack>
+                <Paper withBorder p="lg">
+                  <Stack gap="sm" align="flex-start">
+                    <Title order={3} style={{ color: 'var(--color-text-primary)' }}>
+                      Your bikes live in the Garage now
+                    </Title>
+                    <Text size="sm" style={{ color: 'var(--color-text-secondary)' }}>
+                      Bikes, the parts on them, how worn each one is, and the rides that wore it.
+                    </Text>
+                    <Button component={Link} to="/garage" leftSection={<Bicycle size={16} />}>
+                      Open the Garage
+                    </Button>
+                  </Stack>
+                </Paper>
               </Tabs.Panel>
 
               {/* Integrations Tab */}
