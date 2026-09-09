@@ -73,6 +73,11 @@ export async function computeGearAlerts(supabase, userId) {
 
   // Check cycling components
   for (const comp of (components || [])) {
+    // A part vision proposed but the rider never confirmed is a guess, not
+    // a fact: it must never become an alert. The confirm screen sets
+    // confirmed_at on save, so in practice only orphaned rows hit this.
+    if (comp.source === 'vision' && !comp.confirmed_at) continue;
+
     const parentDistance = comp.gear_items?.total_distance_logged || 0;
     const componentDistance = parentDistance - (comp.distance_at_install || 0);
 

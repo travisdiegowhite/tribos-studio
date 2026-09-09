@@ -17,11 +17,15 @@ import {
 } from '@mantine/core';
 import { useMediaQuery } from '@mantine/hooks';
 import { formatDistance } from '../../utils/units';
-import { RUNNING_SHOE_THRESHOLDS, METERS_PER_MILE } from './gearConstants';
+import { supabase } from '../../lib/supabase';
+import { RUNNING_SHOE_THRESHOLDS, METERS_PER_MILE, BIKE_CATEGORIES } from './gearConstants';
 import ComponentTable from './ComponentTable';
 import AddComponentForm from './AddComponentForm';
+import BikePhotoCapture from './BikePhotoCapture';
 import { notifications } from '@mantine/notifications';
-import { Archive, ArrowsClockwise, Bicycle, PersonSimpleRun, Plus, Star, Trash } from '@phosphor-icons/react';
+import { Archive, ArrowsClockwise, Bicycle, Camera, PersonSimpleRun, Plus, Star, Trash } from '@phosphor-icons/react';
+
+const PHOTO_BUCKET = 'gear-photos';
 
 /**
  * Full gear detail view shown as a modal.
@@ -39,6 +43,8 @@ export default function GearDetailView({
   const [activities, setActivities] = useState([]);
   const [loading, setLoading] = useState(true);
   const [addCompOpen, setAddCompOpen] = useState(false);
+  const [photoOpen, setPhotoOpen] = useState(false);
+  const [photoUrl, setPhotoUrl] = useState(null);
 
   const {
     getGearDetail,
@@ -49,23 +55,51 @@ export default function GearDetailView({
     replaceComponent,
     deleteComponent,
     recalculateMileage,
+    catalogueFromPhotos,
   } = useGearHook;
+
+  const loadDetail = () => {
+    if (!gearId) return Promise.resolve();
+    return getGearDetail(gearId)
+      .then(({ gear: g, components: c, activities: a }) => {
+        setGear(g);
+        setComponents(c);
+        setActivities(a);
+      })
+      .catch(() => {});
+  };
 
   // Load detail data
   useEffect(() => {
     if (opened && gearId) {
       setLoading(true);
       setAddCompOpen(false);
-      getGearDetail(gearId)
-        .then(({ gear: g, components: c, activities: a }) => {
-          setGear(g);
-          setComponents(c);
-          setActivities(a);
-        })
-        .catch(() => {})
-        .finally(() => setLoading(false));
+      setPhotoOpen(false);
+      loadDetail().finally(() => setLoading(false));
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [opened, gearId, getGearDetail]);
+
+  // The bike's whole-bike photo lives in the private bucket; sign a URL
+  // under RLS (owner-only select policy) for the hour this modal is open.
+  const wholeBikePath = gear?.photo_paths?.whole_bike || null;
+  useEffect(() => {
+    let cancelled = false;
+    if (!opened || !wholeBikePath) {
+      setPhotoUrl(null);
+      return undefined;
+    }
+    supabase.storage
+      .from(PHOTO_BUCKET)
+      .createSignedUrl(wholeBikePath, 3600)
+      .then(({ data }) => {
+        if (!cancelled) setPhotoUrl(data?.signedUrl || null);
+      })
+      .catch(() => {
+        if (!cancelled) setPhotoUrl(null);
+      });
+    return () => { cancelled = true; };
+  }, [opened, wholeBikePath]);
 
   if (!opened) return null;
 
@@ -190,13 +224,27 @@ export default function GearDetailView({
         <Stack gap="lg">
           {/* Header */}
           <Group justify="space-between" align="flex-start">
-            <Group gap="sm">
-              <Icon size={24} color="var(--color-teal)"  />
+            <Group gap="sm" wrap="nowrap" align="flex-start">
+              {photoUrl ? (
+                <Box
+                  component="img"
+                  src={photoUrl}
+                  alt={gear.name}
+                  style={{ width: 96, height: 72, objectFit: 'cover', border: '1px solid var(--tribos-border-default)', flex: '0 0 auto' }}
+                />
+              ) : (
+                <Icon size={24} color="var(--color-teal)" />
+              )}
               <Box>
                 <Title order={3}>{gear.name}</Title>
                 {(gear.brand || gear.model) && (
                   <Text c="dimmed" size="sm">
                     {[gear.brand, gear.model].filter(Boolean).join(' ')}
+                  </Text>
+                )}
+                {gear.category && (
+                  <Text c="dimmed" size="xs">
+                    {BIKE_CATEGORIES.find((c) => c.value === gear.category)?.label || gear.category}
                   </Text>
                 )}
               </Box>
@@ -206,6 +254,42 @@ export default function GearDetailView({
               {isRetired && <Badge color="gray" variant="light">Retired</Badge>}
             </Group>
           </Group>
+
+          {/* Photo catalogue — the way parts get on a bike */}
+          {isBike && !isRetired && (
+            <Box>
+              {gear.catalogued_at ? (
+                <Group justify="space-between">
+                  <Text size="sm" c="dimmed">
+                    Catalogued from photos on {new Date(gear.catalogued_at).toLocaleDateString()}.
+                  </Text>
+                  <Button size="xs" variant="subtle" leftSection={<Camera size={14} />} onClick={() => setPhotoOpen(true)}>
+                    Re-catalogue
+                  </Button>
+                </Group>
+              ) : (
+                <Group justify="space-between" wrap="nowrap">
+                  <Text size="sm">
+                    Show me your bike and I&apos;ll list the parts — no forms.
+                  </Text>
+                  <Button size="xs" leftSection={<Camera size={14} />} onClick={() => setPhotoOpen(true)}>
+                    Show me your bike
+                  </Button>
+                </Group>
+              )}
+            </Box>
+          )}
+
+          <BikePhotoCapture
+            opened={photoOpen}
+            onClose={() => setPhotoOpen(false)}
+            gear={gear}
+            existingComponents={components}
+            catalogueFromPhotos={catalogueFromPhotos}
+            createComponent={createComponent}
+            updateGear={updateGear}
+            onSaved={loadDetail}
+          />
 
           {/* Stats */}
           <Group grow>

@@ -4,10 +4,14 @@
 import { getSupabaseAdmin } from './utils/supabaseAdmin.js';
 import { setupCors } from './utils/cors.js';
 import { getDefaultThresholds } from './utils/gearDefaults.js';
+import { getCatalogPart, BIKE_CATEGORIES } from './utils/gearCatalog.js';
 import { recalculateGearMileage, reassignActivityGear } from './utils/gearAssignment.js';
 import { computeGearAlerts } from './utils/gearAlerts.js';
 
 const supabase = getSupabaseAdmin();
+
+const COMPONENT_SOURCES = ['manual', 'vision', 'coach', 'check_in'];
+const isBikeCategory = (c) => BIKE_CATEGORIES.some((b) => b.value === c);
 
 async function getUserFromAuthHeader(req) {
   const authHeader = req.headers.authorization;
@@ -149,10 +153,13 @@ async function getGear(req, res, userId) {
 // ── Create gear item ─────────────────────────────────────────
 
 async function createGear(req, res, userId) {
-  const { name, sportType, brand, model, purchaseDate, purchasePrice, notes, isDefault, stravaGearId } = req.body;
+  const { name, sportType, brand, model, purchaseDate, purchasePrice, notes, isDefault, stravaGearId, category, isTrainerBike } = req.body;
 
   if (!name || !sportType) {
     return res.status(400).json({ error: 'name and sportType required' });
+  }
+  if (category !== undefined && category !== null && !isBikeCategory(category)) {
+    return res.status(400).json({ error: 'invalid category' });
   }
 
   const gearType = sportType === 'cycling' ? 'bike' : 'shoes';
@@ -181,6 +188,8 @@ async function createGear(req, res, userId) {
       notes: notes || null,
       is_default: isDefault || false,
       strava_gear_id: stravaGearId || null,
+      ...(gearType === 'bike' && category ? { category } : {}),
+      ...(gearType === 'bike' && isTrainerBike ? { is_trainer_bike: true } : {}),
     })
     .select()
     .single();
@@ -244,8 +253,11 @@ async function createGear(req, res, userId) {
 // ── Update gear item ─────────────────────────────────────────
 
 async function updateGear(req, res, userId) {
-  const { gearId, name, brand, model, purchaseDate, purchasePrice, notes, isDefault, stravaGearId } = req.body;
+  const { gearId, name, brand, model, purchaseDate, purchasePrice, notes, isDefault, stravaGearId, category, isTrainerBike, cataloguedAt } = req.body;
   if (!gearId) return res.status(400).json({ error: 'gearId required' });
+  if (category !== undefined && category !== null && !isBikeCategory(category)) {
+    return res.status(400).json({ error: 'invalid category' });
+  }
 
   // If setting as default, clear existing defaults for this sport_type
   if (isDefault) {
@@ -275,6 +287,9 @@ async function updateGear(req, res, userId) {
   if (notes !== undefined) updates.notes = notes;
   if (isDefault !== undefined) updates.is_default = isDefault;
   if (stravaGearId !== undefined) updates.strava_gear_id = stravaGearId;
+  if (category !== undefined) updates.category = category;
+  if (isTrainerBike !== undefined) updates.is_trainer_bike = Boolean(isTrainerBike);
+  if (cataloguedAt !== undefined) updates.catalogued_at = cataloguedAt;
 
   const { data, error } = await supabase
     .from('gear_items')
@@ -333,11 +348,18 @@ async function deleteGear(req, res, userId) {
 // ── Create component ─────────────────────────────────────────
 
 async function createComponent(req, res, userId) {
-  const { gearItemId, componentType, brand, model, installedDate, warningThreshold, replaceThreshold, notes, metadata } = req.body;
+  const { gearItemId, componentType, brand, model, installedDate, warningThreshold, replaceThreshold, notes, metadata, source, confidence } = req.body;
 
   if (!gearItemId || !componentType) {
     return res.status(400).json({ error: 'gearItemId and componentType required' });
   }
+  if (!getCatalogPart(componentType)) {
+    return res.status(400).json({ error: `unknown componentType ${componentType}` });
+  }
+  const componentSource = COMPONENT_SOURCES.includes(source) ? source : 'manual';
+  const componentConfidence = Number.isFinite(Number(confidence))
+    ? Math.max(0, Math.min(1, Number(confidence)))
+    : null;
 
   // Get parent gear's current distance
   const { data: gear } = await supabase
@@ -386,6 +408,11 @@ async function createComponent(req, res, userId) {
       replace_threshold_meters: replaceThreshold ?? defaults.replace,
       notes: notes || null,
       ...(metadata && typeof metadata === 'object' ? { metadata } : {}),
+      source: componentSource,
+      confidence: componentSource === 'vision' ? componentConfidence : null,
+      // Everything created through this endpoint was put here by the rider
+      // (the confirm screen included), so it is confirmed on arrival.
+      confirmed_at: new Date().toISOString(),
     })
     .select()
     .single();
@@ -475,6 +502,11 @@ async function replaceComponent(req, res, userId) {
       warning_threshold_meters: oldComp.warning_threshold_meters,
       replace_threshold_meters: oldComp.replace_threshold_meters,
       notes: newNotes || null,
+      // A like-for-like replacement keeps the specs (tire width, rim width)
+      // unless the rider says otherwise on the next catalogue.
+      metadata: oldComp.metadata || {},
+      source: 'manual',
+      confirmed_at: new Date().toISOString(),
     })
     .select()
     .single();
