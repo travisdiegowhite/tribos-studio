@@ -488,6 +488,7 @@ async function handleActivityCreate(eventId, webhookData, integration) {
         activityType: savedActivity.type,
         distance: savedActivity.distance,
         stravaGearId: savedActivity.gear_id || null,
+        trainer: Boolean(savedActivity.trainer),
       });
     } catch (gearError) {
       console.error('⚠️ Gear assignment failed (non-critical):', gearError.message);

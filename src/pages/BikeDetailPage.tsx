@@ -20,6 +20,7 @@ import { WearBars } from '../components/garage/WearBars';
 import { WearTimeline } from '../components/garage/WearTimeline';
 import { ServiceLog } from '../components/garage/ServiceLog';
 import { SeasonTotals } from '../components/garage/SeasonTotals';
+import { RidesOnThisBike } from '../components/garage/RidesOnThisBike';
 import { FONT, cardStyle } from '../components/garage/garageTokens';
 import { formatWhole } from '../lib/gear/wearSeries';
 import { trackGear } from '../utils/gearTelemetry';
@@ -159,6 +160,18 @@ export default function BikeDetailPage() {
                   Each row is one part&rsquo;s life. The dashed line is where it&rsquo;s done. The rides underneath share the same {history.domain.bucket === 'week' ? 'weeks' : 'days'}.
                 </Text>
                 <WearTimeline history={history} useImperial={useImperial} />
+              </Card>
+            )}
+
+            {/* Backload rides */}
+            {!isShoes && bike.status === 'active' && (
+              <Card label="Rides on this bike" accent="var(--color-orange)">
+                <RidesOnThisBike
+                  bike={bike}
+                  useImperial={useImperial}
+                  gearHook={gearHook}
+                  onChanged={async () => { await refetch(); await gearHook.refreshAlerts(); }}
+                />
               </Card>
             )}
 

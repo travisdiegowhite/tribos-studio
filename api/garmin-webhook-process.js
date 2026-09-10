@@ -847,6 +847,7 @@ async function downloadAndProcessActivity(event, integration, detailResult = nul
       activityType: activity.type,
       distance: activity.distance,
       stravaGearId: null,
+      trainer: Boolean(activity.trainer),
     });
   } catch (gearError) {
     console.error('⚠️ Gear assignment failed (non-critical):', gearError.message);
