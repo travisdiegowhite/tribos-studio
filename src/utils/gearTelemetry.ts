@@ -21,7 +21,10 @@ export type GearEvent =
   | 'gear_component_added'
   | 'gear_ride_assigned'
   | 'gear_alert_shown'
-  | 'gear_alert_dismissed';
+  | 'gear_alert_dismissed'
+  | 'garage_opened'
+  | 'bike_detail_viewed'
+  | 'bike_wear_chart_hovered';
 
 export function trackGear(event: GearEvent, properties: Record<string, unknown> = {}): void {
   try {

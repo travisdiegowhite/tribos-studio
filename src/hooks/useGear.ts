@@ -328,6 +328,16 @@ export function useGear({ userId, alertsOnly = false }: UseGearOptions = {}) {
       },
       body: JSON.stringify({ gearItemId, photoPaths }),
     });
+    // A non-JSON body means the route was not reached (the SPA rewrite or a
+    // 404 page answered) — say so instead of surfacing a JSON parse error.
+    const contentType = response.headers.get('content-type') || '';
+    if (!contentType.includes('application/json')) {
+      throw new Error(
+        response.status === 404 || contentType.includes('text/html')
+          ? 'The vision endpoint is not deployed on this server yet (/api/gear-vision)'
+          : `Vision request failed (${response.status})`
+      );
+    }
     const data = await response.json();
     if (!response.ok) throw new Error(data.error || 'Could not read the photos');
     return { extraction: data.extraction as VisionExtraction, model: data.model as string };

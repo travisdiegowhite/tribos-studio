@@ -31,7 +31,8 @@ const TrainingDashboard = lazy(() => import('./pages/TrainingDashboard.jsx'));
 const PlannerPage = lazy(() => import('./pages/PlannerPage.tsx'));
 const Settings = lazy(() => import('./pages/Settings.jsx'));
 const CommunityPage = lazy(() => import('./pages/CommunityPage.jsx'));
-const GearPage = lazy(() => import('./pages/GearPage.jsx'));
+const GaragePage = lazy(() => import('./pages/GaragePage.tsx'));
+const BikeDetailPage = lazy(() => import('./pages/BikeDetailPage.tsx'));
 const Admin = lazy(() => import('./pages/Admin.jsx'));
 const InternalMetricsAudit = lazy(() => import('./pages/InternalMetricsAudit.tsx'));
 const MyRoutes = lazy(() => import('./pages/MyRoutes.jsx'));
@@ -107,6 +108,14 @@ function OpenRoute({ children }) {
 function RedirectToRideNew() {
   const location = useLocation();
   return <Navigate to={`/ride/new${location.search}`} replace />;
+}
+
+// /gear/:gearId → /garage/:gearId. The gear tracker moved out of the avatar
+// menu into the GARAGE tab; old bookmarks and bell links keep working.
+function RedirectGearToGarage() {
+  const location = useLocation();
+  const rest = location.pathname.replace(/^\/gear/, '');
+  return <Navigate to={`/garage${rest}${location.search}`} replace />;
 }
 
 // Root route — the product is the front door: signed-out visitors go
@@ -345,6 +354,24 @@ function AppRoutes() {
         }
       />
 
+      {/* GARAGE — bikes, parts, wear and the rides that did it */}
+      <Route
+        path="/garage"
+        element={
+          <ProtectedRoute>
+            <GaragePage />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/garage/:gearId"
+        element={
+          <ProtectedRoute>
+            <BikeDetailPage />
+          </ProtectedRoute>
+        }
+      />
+
       {/* ===== AVATAR DROPDOWN PAGES ===== */}
 
       <Route
@@ -352,22 +379,6 @@ function AppRoutes() {
         element={
           <ProtectedRoute>
             <Settings />
-          </ProtectedRoute>
-        }
-      />
-      <Route
-        path="/gear"
-        element={
-          <ProtectedRoute>
-            <GearPage />
-          </ProtectedRoute>
-        }
-      />
-      <Route
-        path="/gear/:gearId"
-        element={
-          <ProtectedRoute>
-            <GearPage />
           </ProtectedRoute>
         }
       />
@@ -401,6 +412,8 @@ function AppRoutes() {
       <Route path="/routes/manual/:routeId" element={<Navigate to="/ride/new" replace />} />
       <Route path="/training" element={<Navigate to="/train" replace />} />
       <Route path="/planner" element={<Navigate to="/train/planner" replace />} />
+      <Route path="/gear" element={<RedirectGearToGarage />} />
+      <Route path="/gear/:gearId" element={<RedirectGearToGarage />} />
       <Route path="/updates" element={<Navigate to="/settings" replace />} />
 
       {/* ===== INTERNAL (audit tools, Travis-only) ===== */}

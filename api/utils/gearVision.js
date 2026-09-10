@@ -32,6 +32,10 @@ export function buildExtractionSchema() {
   const nullableString = { type: ['string', 'null'] };
   const nullableNumber = { type: ['number', 'null'] };
   const nullableBool = { type: ['boolean', 'null'] };
+  // Structured outputs reject `enum` containing null alongside a union type
+  // ("Enum value 'road' does not match declared type ['string','null']"), so
+  // a nullable enum is spelled as anyOf: the enum branch, or null.
+  const nullableEnum = (values) => ({ anyOf: [{ type: 'string', enum: values }, { type: 'null' }] });
   const confidence = { type: 'number', minimum: 0, maximum: 1 };
 
   return {
@@ -46,10 +50,10 @@ export function buildExtractionSchema() {
         properties: {
           brand: nullableString,
           model: nullableString,
-          category: { type: ['string', 'null'], enum: [...CATEGORY_IDS, null] },
-          frame_material: { type: ['string', 'null'], enum: ['carbon', 'aluminium', 'steel', 'titanium', null] },
+          category: nullableEnum(CATEGORY_IDS),
+          frame_material: nullableEnum(['carbon', 'aluminium', 'steel', 'titanium']),
           color: nullableString,
-          brake_type: { type: ['string', 'null'], enum: ['disc', 'rim', null] },
+          brake_type: nullableEnum(['disc', 'rim']),
           confidence,
           evidence: { type: 'string' },
         },
@@ -116,7 +120,7 @@ export function buildExtractionSchema() {
           properties: {
             component_type: { type: 'string', enum: COMPONENT_TYPE_IDS },
             reason: { type: 'string' },
-            better_shot: { type: ['string', 'null'], enum: ['whole_bike', 'drivetrain', 'front_wheel', null] },
+            better_shot: nullableEnum(['whole_bike', 'drivetrain', 'front_wheel']),
           },
         },
       },

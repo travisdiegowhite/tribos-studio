@@ -147,12 +147,16 @@ export default async function handler(req, res) {
       },
     });
   } catch (error) {
+    // Production sits behind Cloudflare, which replaces 502/503/504 bodies
+    // with its own HTML error page — the browser then sees "<!DOCTYPE" where
+    // it expected JSON. Upstream failures are reported as 500 with a JSON
+    // body so the message actually reaches the rider.
     if (error instanceof Anthropic.RateLimitError) {
-      return res.status(503).json({ error: 'Vision is busy — try again in a minute' });
+      return res.status(429).json({ error: 'Vision is busy — try again in a minute' });
     }
     if (error instanceof Anthropic.APIError) {
       console.error('[gear-vision] Claude API error', error.status, error.message);
-      return res.status(502).json({ error: 'Vision service error' });
+      return res.status(500).json({ error: 'Vision service error', detail: error.status === 400 ? 'invalid request to vision model' : undefined });
     }
     console.error('[gear-vision] failed', error);
     return res.status(500).json({
