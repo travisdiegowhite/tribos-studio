@@ -312,6 +312,7 @@ async function runPostImportSideEffects({ supabase, integration, activity, activ
       activityType: activity.type,
       distance: activity.distance,
       stravaGearId: null,
+      trainer: Boolean(activity.trainer),
     });
   } catch (err) {
     console.error('⚠️ [PULL] Gear assignment failed (non-critical):', err.message);

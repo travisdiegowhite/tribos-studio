@@ -28,6 +28,7 @@ import {
 import { ViewOnStravaLink, PoweredByStrava, StravaLogo } from './StravaBranding';
 import { PoweredByGarmin } from './GarminBranding';
 import ShareCardModal from './ShareCardModal';
+import BikePickerMenu from './gear/BikePickerMenu.jsx';
 import { FuelCard } from './fueling';
 import ActivityPowerCurve from './ActivityPowerCurve';
 import SegmentEffortCompare from './SegmentEffortCompare';
@@ -147,6 +148,9 @@ const RideAnalysisModal = ({
   onBackfillGps,
   isBackfilling = false,
   hasCreatedRoute = false,
+  bikes = [],
+  onAssignBike,
+  onSetSurface,
 }) => {
   const navigate = useNavigate();
   const [resyncState, setResyncState] = useState({ loading: false, message: null, kind: null });
@@ -456,6 +460,9 @@ const RideAnalysisModal = ({
               {formatDate(ride.start_date || ride.recorded_at)}
             </Text>
           </Box>
+          {!isRun && (
+            <BikePickerMenu ride={ride} bikes={bikes} onAssignBike={onAssignBike} onSetSurface={onSetSurface} />
+          )}
         </Group>
       }
       size="xl"

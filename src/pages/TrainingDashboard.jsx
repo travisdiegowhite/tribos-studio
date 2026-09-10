@@ -35,6 +35,8 @@ import { tokens, depth } from '../theme';
 import AppShell from '../components/AppShell.jsx';
 import { useAuth } from '../contexts/AuthContext.jsx';
 import { useActivation } from '../hooks/useActivation';
+import { useGear } from '../hooks/useGear';
+import { trackGear } from '../utils/gearTelemetry';
 import { parsePlanStartDate, formatLocalDate, getTodayString, activityDateKey, weekRangeKeys } from '../utils/dateUtils';
 import { supabase } from '../lib/supabase';
 import { fetchPlannedSessions } from '../lib/calendar/readPlannedSessions';
@@ -273,6 +275,25 @@ function TrainingDashboard() {
           console.log(`Activity date range: ${dates[0]} to ${dates[dates.length - 1]}`);
         }
         setActivities(allActivities);
+
+        // Which bike each ride is on (activity_gear, chunked .in()). Merged as
+        // ride.gear so the history rows and the ride modal can show a picker.
+        try {
+          const rideIds = allActivities.map(a => a.id);
+          const links = new Map();
+          for (let i = 0; i < rideIds.length; i += 200) {
+            const { data: linkRows } = await supabase
+              .from('activity_gear')
+              .select('activity_id, gear_item_id, assigned_by, surface_override')
+              .in('activity_id', rideIds.slice(i, i + 200));
+            for (const row of linkRows || []) links.set(row.activity_id, row);
+          }
+          if (links.size > 0) {
+            setActivities(prev => prev.map(a => (links.has(a.id) ? { ...a, gear: links.get(a.id) } : a)));
+          }
+        } catch (gearErr) {
+          console.warn('Could not load bike assignments:', gearErr?.message || gearErr);
+        }
 
         const { data: profileData } = await supabase
           .from('user_speed_profiles')
@@ -743,6 +764,45 @@ function TrainingDashboard() {
     setRideAnalysisModalOpen(true);
   }, []);
 
+  // Which bike a ride was on — the rider's decision, so assigned_by 'manual'.
+  const { gearItems, reassignActivityGear, setRideSurface } = useGear({ userId: user?.id });
+  const bikes = useMemo(
+    () => gearItems.filter(g => g.gear_type === 'bike'),
+    [gearItems],
+  );
+  const patchRideGear = useCallback((rideId, patch) => {
+    const apply = (a) => (a.id === rideId ? { ...a, gear: { ...(a.gear || { activity_id: rideId, gear_item_id: null, assigned_by: 'manual', surface_override: null }), ...patch } } : a);
+    setActivities(prev => prev.map(apply));
+    setSelectedRide(prev => (prev && prev.id === rideId ? apply(prev) : prev));
+  }, []);
+
+  const handleAssignBike = useCallback(async (ride, gearItemId) => {
+    const before = ride.gear || null;
+    const bike = bikes.find(b => b.id === gearItemId);
+    patchRideGear(ride.id, { gear_item_id: gearItemId, assigned_by: 'manual' });
+    try {
+      await reassignActivityGear(ride.id, gearItemId, 'manual');
+      trackGear('gear_ride_assigned', { source: rideAnalysisModalOpen ? 'modal' : 'history', gearId: gearItemId, previousGearId: before?.gear_item_id ?? null });
+      notifications.show({ title: `On ${bike?.name || 'that bike'}`, message: `"${ride.name || 'Untitled ride'}" now counts toward its wear.`, color: 'green' });
+    } catch (error) {
+      setActivities(prev => prev.map(a => (a.id === ride.id ? { ...a, gear: before } : a)));
+      setSelectedRide(prev => (prev && prev.id === ride.id ? { ...prev, gear: before } : prev));
+      notifications.show({ title: 'Could not change the bike', message: error.message || 'Try again', color: 'red' });
+    }
+  }, [bikes, patchRideGear, reassignActivityGear, rideAnalysisModalOpen]);
+
+  const handleSetSurface = useCallback(async (ride, surface) => {
+    const before = ride.gear || null;
+    patchRideGear(ride.id, { surface_override: surface });
+    try {
+      await setRideSurface(ride.id, surface);
+    } catch (error) {
+      setActivities(prev => prev.map(a => (a.id === ride.id ? { ...a, gear: before } : a)));
+      setSelectedRide(prev => (prev && prev.id === ride.id ? { ...prev, gear: before } : prev));
+      notifications.show({ title: 'Could not set the surface', message: error.message || 'Try again', color: 'red' });
+    }
+  }, [patchRideGear, setRideSurface]);
+
   // Handle hiding/showing a ride
   const handleHideRide = useCallback(async (ride) => {
     if (!user) return;
@@ -1074,6 +1134,9 @@ function TrainingDashboard() {
                 maxRows={Infinity}
                 onViewRide={handleViewRide}
                 onHideRide={handleHideRide}
+                bikes={bikes}
+                onAssignBike={handleAssignBike}
+                onSetSurface={handleSetSurface}
               />
             )}
 
@@ -1160,6 +1223,9 @@ function TrainingDashboard() {
         formatElevation={formatElev}
         formatSpeed={formatSpd}
         hasCreatedRoute={!!activation?.steps?.first_route?.completed}
+        bikes={bikes}
+        onAssignBike={handleAssignBike}
+        onSetSurface={handleSetSurface}
       />
     </AppShell>
   );

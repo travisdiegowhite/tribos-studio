@@ -115,6 +115,80 @@ export interface VisionExtraction {
   unreadable: { component_type: string; reason: string; better_shot: PhotoShotId | null }[];
 }
 
+export type RideSurface = 'road' | 'gravel' | 'mtb' | 'indoor';
+/** Who put a ride on a bike. Bulk actions never move manual/check_in/coach rows. */
+export type AssignedBy = 'auto' | 'manual' | 'strava' | 'check_in' | 'coach';
+
+/** What a set of rides adds up to (api/utils/gearBackfill.js summarizeRides). */
+export interface BackfillSummary {
+  rides: number;
+  distanceM: number;
+  firstDate: string | null;
+  lastDate: string | null;
+  bySurface: { road: number; offroad: number; indoor: number };
+  byType: { road: number; gravel: number; mtb: number; ebike: number; indoor: number };
+}
+
+export interface BackfillSkipped {
+  alreadyHere: number;
+  protected: number;
+  otherBike: number;
+  byGear: { gearId: string; name: string; protected: number; otherBike: number }[];
+}
+
+export interface BackfillPreview {
+  summary: BackfillSummary;
+  skipped: BackfillSkipped;
+  /** Earliest ride in the window that is on no bike at all. */
+  oldestUnassigned: string | null;
+  unassignedCount: number;
+}
+
+export interface PreviousLink {
+  activity_id: string;
+  gear_item_id: string;
+  assigned_by: AssignedBy;
+  surface_override: RideSurface | null;
+}
+
+export interface BackfillResult {
+  linked: number;
+  linkedIds: string[];
+  distanceM: number;
+  /** Rows displaced by the backfill; hand back to undoAssignBatch verbatim. */
+  previous: PreviousLink[];
+  touchedGearIds: string[];
+  summary: BackfillSummary;
+  skipped: BackfillSkipped;
+}
+
+export interface ProviderGearItem extends BackfillSummary {
+  providerGearId: string;
+  name: string | null;
+  brand: string | null;
+  model: string | null;
+  frameType: number | null;
+  retired: boolean | null;
+  suggestedCategory: BikeCategory;
+  claimedByGearId: string | null;
+  claimedByName: string | null;
+  claimedByStatus: 'active' | 'retired' | null;
+}
+
+export interface ProviderGearList {
+  stravaConnected: boolean;
+  enrichmentSkipped: boolean;
+  enriched?: number;
+  items: ProviderGearItem[];
+}
+
+export interface RideGearLink {
+  activity_id: string;
+  gear_item_id: string;
+  assigned_by: AssignedBy;
+  surface_override: RideSurface | null;
+}
+
 export interface GearAlert {
   type: 'warning' | 'replace';
   level: 'warning' | 'critical' | 'info';
@@ -161,7 +235,12 @@ async function gearApi(action: string, params: Record<string, unknown> = {}) {
   });
 
   const data = await response.json();
-  if (!response.ok) throw new Error(data.error || 'API request failed');
+  if (!response.ok) {
+    const err = new Error(data.error || 'API request failed') as Error & { status?: number; data?: unknown };
+    err.status = response.status;
+    err.data = data;
+    throw err;
+  }
   return data;
 }
 
@@ -301,9 +380,74 @@ export function useGear({ userId, alertsOnly = false }: UseGearOptions = {}) {
 
   // ── Activity gear ────────────────────────────────────────
 
-  const reassignActivityGear = useCallback(async (activityId: string, gearItemId: string) => {
-    await gearApi('reassign_activity_gear', { activityId, gearItemId });
+  const reassignActivityGear = useCallback(async (
+    activityId: string,
+    gearItemId: string,
+    assignedBy: 'manual' | 'check_in' | 'coach' = 'manual',
+  ): Promise<{ previousGearItemId: string | null }> => {
+    const data = await gearApi('reassign_activity_gear', { activityId, gearItemId, assignedBy });
     await fetchGear();
+    return { previousGearItemId: data.previousGearItemId ?? null };
+  }, [fetchGear]);
+
+  const setRideSurface = useCallback(async (activityId: string, surface: RideSurface | null) => {
+    await gearApi('set_ride_surface', { activityId, surface });
+    trackGear('gear_ride_surface_set', { surface });
+  }, []);
+
+  // ── Backload rides onto a bike ───────────────────────────
+
+  const previewAssignRange = useCallback(async (
+    gearId: string,
+    opts: { from?: string | null; until?: string | null; includeAuto?: boolean } = {},
+  ): Promise<BackfillPreview> => {
+    const data = await gearApi('preview_assign_range', { gearId, ...opts });
+    trackGear('gear_backfill_previewed', { gearId, rides: data.summary?.rides, distanceM: data.summary?.distanceM });
+    return data;
+  }, []);
+
+  const assignRange = useCallback(async (
+    gearId: string,
+    opts: { from: string; until?: string | null; includeAuto?: boolean },
+  ): Promise<BackfillResult> => {
+    const data = await gearApi('assign_range', { gearId, ...opts });
+    trackGear('gear_backfill_applied', { mode: 'date', gearId, rides: data.linked, distanceM: data.distanceM, includeAuto: opts.includeAuto ?? true });
+    await fetchGear();
+    return data;
+  }, [fetchGear]);
+
+  const undoAssignBatch = useCallback(async (
+    gearId: string,
+    linkedIds: string[],
+    previous: PreviousLink[],
+  ): Promise<{ restored: number; unlinked: number; touchedGearIds: string[] }> => {
+    const data = await gearApi('undo_assign_batch', { gearId, linkedIds, previous });
+    trackGear('gear_backfill_undone', { gearId, restored: data.restored, unlinked: data.unlinked });
+    await fetchGear();
+    return data;
+  }, [fetchGear]);
+
+  const listProviderGear = useCallback(async (): Promise<ProviderGearList> => {
+    const data = await gearApi('list_provider_gear');
+    trackGear('gear_provider_gear_listed', {
+      count: data.items?.length ?? 0,
+      unclaimed: (data.items || []).filter((i: ProviderGearItem) => !i.claimedByGearId).length,
+      enriched: data.enriched ?? 0,
+      stravaConnected: data.stravaConnected,
+    });
+    return data;
+  }, []);
+
+  const linkProviderGear = useCallback(async (
+    gearId: string,
+    providerGearId: string,
+    includeAuto = true,
+  ): Promise<BackfillResult> => {
+    const data = await gearApi('link_provider_gear', { gearId, providerGearId, includeAuto });
+    trackGear('gear_provider_gear_linked', { gearId, rides: data.linked, distanceM: data.distanceM });
+    trackGear('gear_backfill_applied', { mode: 'strava', gearId, rides: data.linked, distanceM: data.distanceM, includeAuto });
+    await fetchGear();
+    return data;
   }, [fetchGear]);
 
   // ── Photo catalogue ──────────────────────────────────────
@@ -428,6 +572,12 @@ export function useGear({ userId, alertsOnly = false }: UseGearOptions = {}) {
     replaceComponent,
     deleteComponent,
     reassignActivityGear,
+    setRideSurface,
+    previewAssignRange,
+    assignRange,
+    undoAssignBatch,
+    listProviderGear,
+    linkProviderGear,
     catalogueFromPhotos,
     dismissAlert,
     recalculateMileage,

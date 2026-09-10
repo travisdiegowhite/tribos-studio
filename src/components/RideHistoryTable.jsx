@@ -21,6 +21,7 @@ import { ViewOnStravaLink, StravaLogo, PoweredByStrava, STRAVA_ORANGE } from './
 import { PoweredByGarmin } from './GarminBranding';
 import { Bicycle, CaretLeft, CaretRight, ChartBar, Eye, EyeSlash, Funnel, MagnifyingGlass, Path, PersonSimpleRun, UploadSimple, Watch } from '@phosphor-icons/react';
 import { estimateActivityTSS } from '../utils/computeFitnessSnapshots';
+import BikePickerMenu from './gear/BikePickerMenu.jsx';
 
 /**
  * Ride History Table Component
@@ -36,6 +37,10 @@ const RideHistoryTable = ({
   ftp = null,
   maxRows = 10,
   pageSize = 25,
+  /** The rider's bikes + handlers turn on the per-ride bike picker (Garage). */
+  bikes = [],
+  onAssignBike,
+  onSetSurface,
 }) => {
   const navigate = useNavigate();
   const isMobile = useMediaQuery('(max-width: 768px)');
@@ -364,21 +369,26 @@ const RideHistoryTable = ({
                     </Box>
                   )}
                 </Group>
-                {onHideRide && (
-                  <Tooltip label={ride.is_hidden ? 'Restore ride' : 'Hide ride'}>
-                    <ActionIcon
-                      size="sm"
-                      variant="subtle"
-                      color={ride.is_hidden ? 'green' : 'gray'}
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        onHideRide(ride);
-                      }}
-                    >
-                      {ride.is_hidden ? <Eye size={16} /> : <EyeSlash size={16} />}
-                    </ActionIcon>
-                  </Tooltip>
-                )}
+                <Group gap="xs">
+                  {getSportType(ride) !== 'running' && (
+                    <BikePickerMenu ride={ride} bikes={bikes} onAssignBike={onAssignBike} onSetSurface={onSetSurface} size="xs" />
+                  )}
+                  {onHideRide && (
+                    <Tooltip label={ride.is_hidden ? 'Restore ride' : 'Hide ride'}>
+                      <ActionIcon
+                        size="sm"
+                        variant="subtle"
+                        color={ride.is_hidden ? 'green' : 'gray'}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onHideRide(ride);
+                        }}
+                      >
+                        {ride.is_hidden ? <Eye size={16} /> : <EyeSlash size={16} />}
+                      </ActionIcon>
+                    </Tooltip>
+                  )}
+                </Group>
               </Group>
             </Card>
           ))}
@@ -475,7 +485,10 @@ const RideHistoryTable = ({
                     )}
                   </Table.Td>
                   <Table.Td>
-                    <Group gap="xs">
+                    <Group gap="xs" wrap="nowrap">
+                      {getSportType(ride) !== 'running' && (
+                        <BikePickerMenu ride={ride} bikes={bikes} onAssignBike={onAssignBike} onSetSurface={onSetSurface} />
+                      )}
                       <Tooltip label="View ride">
                         <ActionIcon
                           size="sm"
