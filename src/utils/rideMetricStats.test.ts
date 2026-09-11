@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import {
+  nearestIndex,
   formatDistanceKm,
   formatMetricValue,
   metricUnit,
@@ -41,5 +42,21 @@ describe('formatting', () => {
   it('formats distance to one decimal', () => {
     expect(formatDistanceKm(12.34)).toBe('12.3 km');
     expect(formatDistanceKm(null)).toBe('–');
+  });
+});
+
+describe('nearestIndex', () => {
+  const xs = [0, 1.5, 3, 4.5, 10];
+  it('finds the closest position, preferring the earlier one on ties', () => {
+    expect(nearestIndex(xs, -5)).toBe(0);
+    expect(nearestIndex(xs, 1.4)).toBe(1);
+    expect(nearestIndex(xs, 2.25)).toBe(1);
+    expect(nearestIndex(xs, 2.3)).toBe(2);
+    expect(nearestIndex(xs, 7)).toBe(3);
+    expect(nearestIndex(xs, 99)).toBe(4);
+  });
+  it('returns -1 for empty input or a non-finite x', () => {
+    expect(nearestIndex([], 1)).toBe(-1);
+    expect(nearestIndex(xs, NaN)).toBe(-1);
   });
 });

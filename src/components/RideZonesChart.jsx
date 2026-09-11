@@ -13,16 +13,12 @@ import {
 } from 'recharts';
 import { useThemeTokens } from '../hooks/useThemeTokens';
 import { isPowerSport, isRunningActivity } from '../utils/sportType';
+import { HR_ZONE_DEFS, POWER_ZONE_DEFS } from '../utils/rideZones';
 
-// HR zone definitions (% of max HR). Colors resolve per color scheme in the
-// component via useThemeTokens — never capture tokens at module load.
-const HR_ZONES = [
-  { zone: 1, name: 'Recovery', min: 0, max: 60 },
-  { zone: 2, name: 'Endurance', min: 60, max: 70 },
-  { zone: 3, name: 'Tempo', min: 70, max: 80 },
-  { zone: 4, name: 'Threshold', min: 80, max: 90 },
-  { zone: 5, name: 'VO2max+', min: 90, max: 200 },
-];
+// Zone boundaries are shared with the ride map (src/utils/rideZones.ts).
+// Colors resolve per color scheme in the component via useThemeTokens —
+// never capture tokens at module load.
+const HR_ZONES = HR_ZONE_DEFS;
 
 /**
  * Format seconds in zone as "18m" / "1h 05m". `approximate` marks values
@@ -79,15 +75,7 @@ function computePowerZones(powerStream, ftp) {
 
   // Canonical 7-zone boundaries — lockstep with TRAINING_ZONES and the DB
   // trigger calculate_power_zones (55/75/90/105/120/150 %FTP).
-  const zoneDefs = [
-    { zone: 1, name: 'Recovery', min: 0, max: 55 },
-    { zone: 2, name: 'Endurance', min: 55, max: 75 },
-    { zone: 3, name: 'Tempo', min: 75, max: 90 },
-    { zone: 4, name: 'Threshold', min: 90, max: 105 },
-    { zone: 5, name: 'VO2max', min: 105, max: 120 },
-    { zone: 6, name: 'Anaerobic', min: 120, max: 150 },
-    { zone: 7, name: 'Neuromuscular', min: 150, max: 9999 },
-  ];
+  const zoneDefs = POWER_ZONE_DEFS;
 
   const zones = zoneDefs.map((z) => ({
     ...z,

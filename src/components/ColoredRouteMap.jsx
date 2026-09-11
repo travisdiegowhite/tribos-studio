@@ -8,14 +8,30 @@ import {
   Paper,
   Skeleton,
 } from '@mantine/core';
-import Map, { Source, Layer, NavigationControl } from 'react-map-gl';
+import Map, { Source, Layer, Marker, NavigationControl } from 'react-map-gl';
 import 'mapbox-gl/dist/mapbox-gl.css';
 import { Gauge, Heartbeat, Lightning, Mountains, Path } from '@phosphor-icons/react';
-import { cumulativeDistancesKm } from '../utils/streamChartData';
+import {
+  buildStreamRows,
+  cumulativeDistancesKm,
+  downsampleRows,
+  smoothRows,
+  smoothingWindowForCount,
+} from '../utils/streamChartData';
+import { useThemeTokens } from '../hooks/useThemeTokens';
+import RideMetricStrip from './RideMetricStrip';
+import {
+  HR_ZONE_DEFS,
+  POWER_ZONE_DEFS,
+  hrZoneFor,
+  powerZoneFor,
+  zoneLowerBound,
+} from '../utils/rideZones';
 import {
   formatDistanceKm,
   formatMetricValue,
   metricUnit,
+  nearestIndex,
   summarizeMetric,
 } from '../utils/rideMetricStats';
 import {
@@ -113,54 +129,48 @@ function lerpColor(color1, color2, t) {
 }
 
 /**
- * Build colored GeoJSON segments from activity streams
- * Each segment is a 2-point LineString with a color property
+ * Percentile display range for a metric (2nd–98th) so a single spike doesn't
+ * flatten the rest of the ride. Null when there's nothing to show.
  */
-function buildColoredSegments(streams, mode) {
-  const { coords } = streams;
-  const metricArray = streams[mode];
-
-  if (!metricArray || coords.length < 2) return null;
-
-  const distances_km = cumulativeDistancesKm(coords);
-
-  // Find min/max for normalization (skip nulls)
+function metricRange(metricArray) {
+  if (!metricArray) return null;
   const validValues = metricArray.filter(v => v != null && v > 0);
   if (validValues.length === 0) return null;
-
-  // Use percentile-based range to avoid outlier skew
   const sorted = [...validValues].sort((a, b) => a - b);
-  const minVal = sorted[Math.floor(sorted.length * 0.02)];  // 2nd percentile
-  const maxVal = sorted[Math.floor(sorted.length * 0.98)];  // 98th percentile
-  const range = maxVal - minVal;
+  const min = sorted[Math.floor(sorted.length * 0.02)];
+  const max = sorted[Math.floor(sorted.length * 0.98)];
+  if (max - min <= 0) return null;
+  return { min, max };
+}
 
-  if (range <= 0) return null;
-
-  const colorScale = COLOR_SCALES[mode];
+/**
+ * Build colored GeoJSON segments from parallel coords/metric arrays.
+ * Each segment is a 2-point LineString carrying its color, the metric's
+ * normalized position in the display range (drives wall height in 3D), the
+ * raw value and the cumulative distance (drive the readout and scrub sync).
+ */
+function buildColoredSegments(coords, metricArray, distances_km, range, colorFor) {
+  if (!metricArray || !range || coords.length < 2) return null;
+  const { min: minVal, max: maxVal } = range;
+  const span = maxVal - minVal;
   const features = [];
 
   for (let i = 0; i < coords.length - 1; i++) {
-    // Use average of two endpoints for segment color
     const v1 = metricArray[i];
     const v2 = metricArray[i + 1];
 
-    // If both values are null, use neutral color
-    let color;
+    let color = '#666666';
     let norm = null;
     let value = null;
-    if (v1 == null && v2 == null) {
-      color = '#666666';
-    } else {
-      value = v1 != null && v2 != null
-        ? (v1 + v2) / 2
-        : (v1 ?? v2);
-      norm = Math.max(0, Math.min(1, (value - minVal) / range));
-      color = interpolateColor(norm, colorScale);
+    if (!(v1 == null && v2 == null)) {
+      value = v1 != null && v2 != null ? (v1 + v2) / 2 : (v1 ?? v2);
+      norm = Math.max(0, Math.min(1, (value - minVal) / span));
+      color = colorFor(value, norm);
     }
 
     features.push({
       type: 'Feature',
-      properties: { color, norm, value, distance_km: distances_km[i] },
+      properties: { color, norm, value, distance_km: distances_km[i], index: i },
       geometry: {
         type: 'LineString',
         coordinates: [coords[i], coords[i + 1]],
@@ -168,27 +178,73 @@ function buildColoredSegments(streams, mode) {
     });
   }
 
+  return { type: 'FeatureCollection', features };
+}
+
+/**
+ * How a metric maps to color. Two kinds:
+ *  - `zones`: discrete bands from the athlete's FTP (7 power zones) or the
+ *    ride's max HR (5 HR zones), colored with the theme's zone tokens so the
+ *    map agrees with the zones chart below it.
+ *  - `ramp`: continuous percentile ramp, used for speed, elevation, and for
+ *    power / HR when no reference is known.
+ */
+function buildColorizer(mode, { ftp, maxHr, zoneColors, range }) {
+  if (mode === 'plain') return null;
+  if (mode === 'power' && ftp > 0) {
+    const colors = zoneColors.slice(0, POWER_ZONE_DEFS.length);
+    return {
+      kind: 'zones',
+      defs: POWER_ZONE_DEFS,
+      colors,
+      reference: ftp,
+      zoneFor: (v) => powerZoneFor(v, ftp),
+      colorFor: (v) => {
+        const z = powerZoneFor(v, ftp);
+        return z ? colors[z.zone - 1] : '#666666';
+      },
+    };
+  }
+  if (mode === 'heartRate' && maxHr > 0) {
+    const colors = zoneColors.slice(0, HR_ZONE_DEFS.length);
+    return {
+      kind: 'zones',
+      defs: HR_ZONE_DEFS,
+      colors,
+      reference: maxHr,
+      zoneFor: (v) => hrZoneFor(v, maxHr),
+      colorFor: (v) => {
+        const z = hrZoneFor(v, maxHr);
+        return z ? colors[z.zone - 1] : '#666666';
+      },
+    };
+  }
+  const scale = COLOR_SCALES[mode];
+  if (!scale || !range) return null;
+  const span = range.max - range.min;
   return {
-    type: 'FeatureCollection',
-    features,
-    meta: { min: minVal, max: maxVal },
+    kind: 'ramp',
+    scale,
+    zoneFor: () => null,
+    colorFor: (v, norm) => {
+      const n = norm ?? Math.max(0, Math.min(1, (v - range.min) / span));
+      return interpolateColor(n, scale);
+    },
   };
 }
 
 /**
  * Bottom-left card: selected metric, its ride-wide average and max, the
- * color ramp with its display range, and — while hovering the route — the
- * reading under the cursor.
+ * color key (zone swatches or ramp with its range), and — while scrubbing —
+ * the reading under the cursor with the other metrics at that point.
  */
-function MetricStatsCard({ mode, min, max, summary, hovered }) {
+function MetricStatsCard({ mode, range, summary, colorizer, hovered }) {
   const config = COLOR_MODES[mode];
-  const colorScale = COLOR_SCALES[mode];
-
-  if (!colorScale || min == null || max == null) return null;
+  if (!config || !colorizer) return null;
 
   const unit = metricUnit(mode);
-  const gradientStops = colorScale.map(([pos, color]) => `${color} ${pos * 100}%`).join(', ');
   const labelStyle = { textTransform: 'uppercase', letterSpacing: '0.06em', opacity: 0.7 };
+  const hoveredZone = hovered ? colorizer.zoneFor(hovered.value) : null;
 
   return (
     <Stack
@@ -198,7 +254,7 @@ function MetricStatsCard({ mode, min, max, summary, hovered }) {
         bottom: 8,
         left: 8,
         zIndex: 10,
-        width: 236,
+        width: 250,
         maxWidth: 'calc(100% - 16px)',
         padding: '8px 10px',
         backgroundColor: 'rgba(0,0,0,0.62)',
@@ -211,16 +267,35 @@ function MetricStatsCard({ mode, min, max, summary, hovered }) {
         <Text size="xs" fw={700} style={{ textTransform: 'uppercase', letterSpacing: '0.08em' }}>
           {config.label}
         </Text>
-        <Text size="xs" style={{ opacity: 0.7 }}>{unit}</Text>
+        <Text size="xs" style={{ opacity: 0.7 }}>
+          {colorizer.kind === 'zones'
+            ? `zones · ${mode === 'power' ? 'FTP' : 'max HR'} ${Math.round(colorizer.reference)} ${unit}`
+            : unit}
+        </Text>
       </Group>
 
       {hovered ? (
-        <Group gap={6} wrap="nowrap" align="baseline">
-          <Text size="lg" fw={700} lh={1.1} ff="monospace">
-            {formatMetricValue(mode, hovered.value)}
-          </Text>
-          <Text size="xs" style={{ opacity: 0.75 }}>at {formatDistanceKm(hovered.distance_km)}</Text>
-        </Group>
+        <Stack gap={2}>
+          <Group gap={6} wrap="nowrap" align="baseline">
+            <Text size="lg" fw={700} lh={1.1} ff="monospace">
+              {formatMetricValue(mode, hovered.value)}
+            </Text>
+            <Text size="xs" style={{ opacity: 0.8 }}>{unit}</Text>
+            {hoveredZone && (
+              <Text size="xs" fw={600} style={{ color: colorizer.colorFor(hovered.value) }}>
+                Z{hoveredZone.zone} {hoveredZone.name}
+              </Text>
+            )}
+            <Text size="xs" style={{ opacity: 0.75, marginLeft: 'auto' }}>
+              {formatDistanceKm(hovered.distance_km)}
+            </Text>
+          </Group>
+          {hovered.others && (
+            <Text size="xs" ff="monospace" style={{ opacity: 0.8 }}>
+              {hovered.others}
+            </Text>
+          )}
+        </Stack>
       ) : summary ? (
         <Group gap="md" wrap="nowrap">
           <Group gap={4} align="baseline" wrap="nowrap">
@@ -234,17 +309,41 @@ function MetricStatsCard({ mode, min, max, summary, hovered }) {
         </Group>
       ) : null}
 
-      <Group gap={6} wrap="nowrap" mt={2}>
-        <Text size="xs" ff="monospace" style={{ opacity: 0.85 }}>{formatMetricValue(mode, min)}</Text>
-        <Box
-          style={{
-            flex: 1,
-            height: 6,
-            background: `linear-gradient(to right, ${gradientStops})`,
-          }}
-        />
-        <Text size="xs" ff="monospace" style={{ opacity: 0.85 }}>{formatMetricValue(mode, max)}</Text>
-      </Group>
+      {colorizer.kind === 'zones' ? (
+        <Group gap={2} wrap="nowrap" mt={2}>
+          {colorizer.defs.map((z, i) => (
+            <Box
+              key={z.zone}
+              title={`Z${z.zone} ${z.name} · from ${zoneLowerBound(z, colorizer.reference)} ${unit}`}
+              style={{
+                flex: 1,
+                height: 14,
+                backgroundColor: colorizer.colors[i],
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                opacity: hoveredZone && hoveredZone.zone !== z.zone ? 0.45 : 1,
+              }}
+            >
+              <Text size="9px" fw={700} ff="monospace" lh={1} style={{ color: 'rgba(255,255,255,0.92)', textShadow: '0 1px 1px rgba(0,0,0,0.6)' }}>
+                Z{z.zone}
+              </Text>
+            </Box>
+          ))}
+        </Group>
+      ) : range ? (
+        <Group gap={6} wrap="nowrap" mt={2}>
+          <Text size="xs" ff="monospace" style={{ opacity: 0.85 }}>{formatMetricValue(mode, range.min)}</Text>
+          <Box
+            style={{
+              flex: 1,
+              height: 6,
+              background: `linear-gradient(to right, ${colorizer.scale.map(([pos, color]) => `${color} ${pos * 100}%`).join(', ')})`,
+            }}
+          />
+          <Text size="xs" ff="monospace" style={{ opacity: 0.85 }}>{formatMetricValue(mode, range.max)}</Text>
+        </Group>
+      ) : null}
     </Stack>
   );
 }
@@ -296,21 +395,41 @@ const overlayControlStyles = {
   },
 };
 
+
+const STRIP_TARGET_POINTS = 500;
+
+/** First metric worth showing when the map opens. */
+function defaultColorMode(streams) {
+  if (!streams?.coords) return 'plain';
+  for (const mode of ['power', 'heartRate', 'speed', 'elevation']) {
+    if (streams[mode]) return mode;
+  }
+  return 'plain';
+}
+
 /**
  * ColoredRouteMap Component
- * Renders a ride on a Mapbox map, colored by speed, power, elevation, or HR.
+ * Renders a ride on a Mapbox map, colored by power, heart rate, speed or
+ * elevation, with a scrubbable strip chart of the same metric beneath.
  *
- * Draws over 3D terrain by default (toggleable, remembered per viewer). The
- * track comes from `activityStreams.coords` when present so a colored
- * segment lands on the exact geometry it was measured on; the decoded
- * summary polyline (`routeCoords`) is the fallback for older activities.
+ * Draws over 3D terrain by default (toggleable, remembered per viewer); in 3D
+ * the metric also becomes wall height along the route. The track comes from
+ * `activityStreams.coords` when present so a colored segment lands on the
+ * exact geometry it was measured on; the decoded summary polyline
+ * (`routeCoords`) is the fallback for older activities.
+ *
+ * Power colors by FTP zones when `ftp` is known and heart rate by max-HR
+ * zones when `maxHr` is known; otherwise a percentile ramp.
  */
-const ColoredRouteMap = ({ activityStreams, routeCoords, bounds: boundsProp }) => {
+const ColoredRouteMap = ({ activityStreams, routeCoords, bounds: boundsProp, ftp, maxHr }) => {
   const mapRef = useRef(null);
+  const { tokens } = useThemeTokens();
   const [mapLoaded, setMapLoaded] = useState(false);
-  const [colorMode, setColorMode] = useState('plain');
+  const [colorMode, setColorMode] = useState(() => defaultColorMode(activityStreams));
   const [is3d, setIs3d] = useState(() => readStored3dPreference());
-  const [hovered, setHovered] = useState(null);
+  // Shared scrub position: distance along the ride, in km. Drives the map
+  // marker, the strip cursor and the readout together.
+  const [hoverX, setHoverX] = useState(null);
 
   const geometry = useMemo(
     () => routeGeometryFor(activityStreams, routeCoords),
@@ -318,55 +437,61 @@ const ColoredRouteMap = ({ activityStreams, routeCoords, bounds: boundsProp }) =
   );
   const bounds = geometry.bounds ?? boundsProp ?? null;
   const bearing3d = useMemo(() => cameraBearingForRoute(geometry.coords), [geometry.coords]);
+  const hasStreamTrack = geometry.source === 'streams';
+
+  const distances_km = useMemo(
+    () => (hasStreamTrack ? cumulativeDistancesKm(geometry.coords) : []),
+    [hasStreamTrack, geometry.coords],
+  );
 
   // Determine which color modes are available based on stream data. Colored
   // segments are only meaningful on the stream track itself.
   const availableModes = useMemo(() => {
     const modes = ['plain'];
-    if (activityStreams && geometry.source === 'streams') {
-      if (activityStreams.speed) modes.push('speed');
+    if (activityStreams && hasStreamTrack) {
       if (activityStreams.power) modes.push('power');
-      if (activityStreams.elevation) modes.push('elevation');
       if (activityStreams.heartRate) modes.push('heartRate');
+      if (activityStreams.speed) modes.push('speed');
+      if (activityStreams.elevation) modes.push('elevation');
     }
     return modes;
-  }, [activityStreams, geometry.source]);
+  }, [activityStreams, hasStreamTrack]);
 
-  // Build colored GeoJSON when mode changes
-  const { coloredGeoJSON, meta } = useMemo(() => {
-    if (colorMode === 'plain' || !activityStreams || geometry.source !== 'streams') {
-      return { coloredGeoJSON: null, meta: null };
-    }
+  // Theme zone tokens; Z7's token is a border grey that vanishes on a map,
+  // so neuromuscular gets coral instead.
+  const zoneColors = useMemo(
+    () => [1, 2, 3, 4, 5, 6].map((n) => tokens.colors[`zone${n}`]).concat(tokens.colors.coral),
+    [tokens],
+  );
 
-    const result = buildColoredSegments({ ...activityStreams, coords: geometry.coords }, colorMode);
-    if (!result) return { coloredGeoJSON: null, meta: null };
+  const range = useMemo(
+    () => (colorMode === 'plain' ? null : metricRange(activityStreams?.[colorMode])),
+    [activityStreams, colorMode],
+  );
 
-    return {
-      coloredGeoJSON: result,
-      meta: result.meta,
-    };
-  }, [activityStreams, colorMode, geometry]);
+  const colorizer = useMemo(
+    () => buildColorizer(colorMode, { ftp, maxHr, zoneColors, range }),
+    [colorMode, ftp, maxHr, zoneColors, range],
+  );
 
   const summary = useMemo(
     () => (colorMode === 'plain' ? null : summarizeMetric(colorMode, activityStreams?.[colorMode])),
     [activityStreams, colorMode],
   );
 
-  // Hover readout: the segment under the cursor on whichever metric layer
-  // is showing. Mapbox hands back the feature's properties.
-  const handleMouseMove = useCallback((event) => {
-    const f = event.features?.[0];
-    if (f && f.properties && f.properties.value != null) {
-      setHovered({ value: f.properties.value, distance_km: f.properties.distance_km });
-    } else {
-      setHovered(null);
-    }
-  }, []);
-  const handleMouseLeave = useCallback(() => setHovered(null), []);
+  const coloredGeoJSON = useMemo(() => {
+    if (!colorizer || !hasStreamTrack) return null;
+    return buildColoredSegments(
+      geometry.coords,
+      activityStreams[colorMode],
+      distances_km,
+      range,
+      colorizer.colorFor,
+    );
+  }, [colorizer, hasStreamTrack, geometry.coords, activityStreams, colorMode, distances_km, range]);
 
   // In 3D the metric becomes height: one thin extruded wall per segment,
-  // colored on the same scale as the flat line. Built lazily so 2D never
-  // pays for polygon geometry.
+  // colored like the flat line. Built lazily so 2D never pays for polygons.
   const extrusionGeoJSON = useMemo(() => {
     if (!is3d || !coloredGeoJSON) return null;
     const scale = extrusionScaleForCoords(geometry.coords);
@@ -376,19 +501,69 @@ const ColoredRouteMap = ({ activityStreams, routeCoords, bounds: boundsProp }) =
       color: f.properties.color,
     }));
     const built = buildExtrusionCollection(segments, scale);
-    // Carry the readout fields onto the walls so hover works there too.
     built.features.forEach((f, i) => {
-      f.properties.value = coloredGeoJSON.features[i].properties.value;
-      f.properties.distance_km = coloredGeoJSON.features[i].properties.distance_km;
+      const src = coloredGeoJSON.features[i].properties;
+      f.properties.value = src.value;
+      f.properties.distance_km = src.distance_km;
     });
     return built;
   }, [is3d, coloredGeoJSON, geometry.coords]);
 
-  // Reset to plain if current mode becomes unavailable
+  // Strip chart rows: smoothed and thinned like RideStreamsChart, keyed on
+  // distance so they line up with the map's segments.
+  const stripRows = useMemo(() => {
+    if (!hasStreamTrack) return [];
+    const { rows } = buildStreamRows(activityStreams);
+    const window = smoothingWindowForCount(rows.length, STRIP_TARGET_POINTS);
+    const smoothed = smoothRows(rows, ['power', 'heartRate', 'speed_kmh', 'cadence'], window);
+    return downsampleRows(smoothed, STRIP_TARGET_POINTS);
+  }, [activityStreams, hasStreamTrack]);
+  const stripXs = useMemo(() => stripRows.map((r) => r.x), [stripRows]);
+
+  // Strip colors work in row units (km/h for speed); the map's in stream units.
+  const colorForRowValue = useCallback(
+    (v) => (colorizer ? colorizer.colorFor(colorMode === 'speed' ? v / 3.6 : v) : ROUTE_COLOR),
+    [colorizer, colorMode],
+  );
+
+  // Everything the scrub position resolves to: marker coordinate, readout.
+  const scrub = useMemo(() => {
+    if (hoverX == null || !hasStreamTrack) return null;
+    const ci = nearestIndex(distances_km, hoverX);
+    const ri = nearestIndex(stripXs, hoverX);
+    if (ci < 0) return null;
+    const coord = geometry.coords[ci];
+    const row = ri >= 0 ? stripRows[ri] : null;
+    const streamValue = colorMode === 'plain' ? null : activityStreams?.[colorMode]?.[ci];
+    const others = row
+      ? [
+          colorMode !== 'power' && row.power != null ? `${Math.round(row.power)} W` : null,
+          colorMode !== 'heartRate' && row.heartRate != null ? `${Math.round(row.heartRate)} bpm` : null,
+          colorMode !== 'speed' && row.speed_kmh != null ? `${Math.round(row.speed_kmh)} km/h` : null,
+          colorMode !== 'elevation' && row.elevation_m != null ? `${Math.round(row.elevation_m)} m` : null,
+        ].filter(Boolean).join(' · ')
+      : null;
+    return {
+      coord,
+      color: colorizer && streamValue != null ? colorizer.colorFor(streamValue) : ROUTE_COLOR,
+      readout: streamValue != null ? { value: streamValue, distance_km: distances_km[ci], others } : null,
+    };
+  }, [hoverX, hasStreamTrack, distances_km, stripXs, stripRows, geometry.coords, colorMode, activityStreams, colorizer]);
+
+  // Map hover: the segment under the cursor on whichever metric layer shows.
+  const handleMouseMove = useCallback((event) => {
+    const f = event.features?.[0];
+    if (f && f.properties && f.properties.distance_km != null) {
+      setHoverX(f.properties.distance_km);
+    } else {
+      setHoverX(null);
+    }
+  }, []);
+  const handleMouseLeave = useCallback(() => setHoverX(null), []);
+
   const handleModeChange = useCallback((mode) => {
     if (availableModes.includes(mode)) {
       setColorMode(mode);
-      setHovered(null);
     }
   }, [availableModes]);
 
@@ -421,13 +596,14 @@ const ColoredRouteMap = ({ activityStreams, routeCoords, bounds: boundsProp }) =
 
   if (!bounds || !MAPBOX_TOKEN) return null;
 
-  const showColoredRoute = colorMode !== 'plain' && coloredGeoJSON;
+  const showColoredRoute = Boolean(coloredGeoJSON);
   const showExtrusion = Boolean(showColoredRoute && is3d && extrusionGeoJSON);
   const hoverLayerIds = showExtrusion
     ? ['metric-extrusion-fill']
     : showColoredRoute
       ? ['colored-route-line']
       : undefined;
+  const mapHovering = Boolean(scrub) && hoverLayerIds;
 
   return (
     <Paper withBorder radius="md" style={{ overflow: 'hidden' }}>
@@ -448,7 +624,7 @@ const ColoredRouteMap = ({ activityStreams, routeCoords, bounds: boundsProp }) =
           interactiveLayerIds={hoverLayerIds}
           onMouseMove={hoverLayerIds ? handleMouseMove : undefined}
           onMouseLeave={hoverLayerIds ? handleMouseLeave : undefined}
-          cursor={hovered ? 'crosshair' : 'grab'}
+          cursor={mapHovering ? 'crosshair' : 'grab'}
           scrollZoom={false}
           dragRotate={true}
           touchPitch={true}
@@ -465,7 +641,7 @@ const ColoredRouteMap = ({ activityStreams, routeCoords, bounds: boundsProp }) =
             maxzoom={14}
           />
 
-          {/* Plain route (shown when no color mode or as shadow under colored route) */}
+          {/* Plain route (shown when no color mode or as outline under colored route) */}
           {geometry.geojson && (
             <Source id="route" type="geojson" data={geometry.geojson}>
               <Layer
@@ -512,17 +688,34 @@ const ColoredRouteMap = ({ activityStreams, routeCoords, bounds: boundsProp }) =
             </Source>
           )}
 
+          {/* Scrub marker */}
+          {scrub && (
+            <Marker longitude={scrub.coord[0]} latitude={scrub.coord[1]} anchor="center">
+              <Box
+                style={{
+                  width: 16,
+                  height: 16,
+                  borderRadius: '50%',
+                  backgroundColor: scrub.color,
+                  border: '3px solid white',
+                  boxShadow: '0 1px 6px rgba(0,0,0,0.55)',
+                  pointerEvents: 'none',
+                }}
+              />
+            </Marker>
+          )}
+
           <NavigationControl position="top-left" visualizePitch showZoom showCompass />
         </Map>
 
-        {/* Metric stats + color ramp + hover readout */}
-        {showColoredRoute && meta && (
+        {/* Metric stats + color key + scrub readout */}
+        {showColoredRoute && colorizer && (
           <MetricStatsCard
             mode={colorMode}
-            min={meta.min}
-            max={meta.max}
+            range={range}
             summary={summary}
-            hovered={hovered}
+            colorizer={colorizer}
+            hovered={scrub?.readout ?? null}
           />
         )}
 
@@ -554,6 +747,17 @@ const ColoredRouteMap = ({ activityStreams, routeCoords, bounds: boundsProp }) =
           />
         </Group>
       </Box>
+
+      {/* Scrubber: the selected metric against distance, elevation behind */}
+      {stripRows.length > 1 && (
+        <RideMetricStrip
+          rows={stripRows}
+          metric={colorMode === 'plain' ? null : colorMode}
+          colorForValue={colorForRowValue}
+          hoverX={hoverX}
+          onHoverX={setHoverX}
+        />
+      )}
     </Paper>
   );
 };

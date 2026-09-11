@@ -74,3 +74,22 @@ export function formatDistanceKm(distance_km: number | null | undefined): string
   if (distance_km == null || !Number.isFinite(distance_km)) return '–';
   return `${distance_km.toFixed(1)} km`;
 }
+
+/**
+ * Index of the entry in a sorted, non-decreasing array of positions closest
+ * to `x`. Used to sync the strip chart cursor, the map marker and the
+ * readout on a shared distance along the ride. Empty array → -1.
+ */
+export function nearestIndex(sorted: ReadonlyArray<number>, x: number): number {
+  const n = sorted.length;
+  if (n === 0 || !Number.isFinite(x)) return -1;
+  let lo = 0;
+  let hi = n - 1;
+  while (lo < hi) {
+    const mid = (lo + hi) >> 1;
+    if (sorted[mid] < x) lo = mid + 1;
+    else hi = mid;
+  }
+  if (lo > 0 && Math.abs(sorted[lo - 1] - x) <= Math.abs(sorted[lo] - x)) return lo - 1;
+  return lo;
+}

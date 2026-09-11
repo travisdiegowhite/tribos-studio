@@ -465,6 +465,8 @@ const RideAnalysisModal = ({
             activityStreams={ride.activity_streams}
             routeCoords={routeCoords}
             bounds={bounds}
+            ftp={ftp}
+            maxHr={metrics?.maxHR}
           />
         ) : (
           <Paper withBorder radius="md" style={{ overflow: 'hidden' }}>
