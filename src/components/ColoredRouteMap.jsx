@@ -11,6 +11,10 @@ import Map, { Source, Layer, NavigationControl } from 'react-map-gl';
 import 'mapbox-gl/dist/mapbox-gl.css';
 import { Gauge, Heartbeat, Lightning, Mountains, Path } from '@phosphor-icons/react';
 import {
+  buildExtrusionCollection,
+  extrusionScaleForCoords,
+} from '../utils/rideMetricExtrusion';
+import {
   RIDE_MAP_3D_PITCH,
   RIDE_MAP_TERRAIN_EXAGGERATION,
   cameraBearingForRoute,
@@ -137,19 +141,20 @@ function buildColoredSegments(streams, mode) {
 
     // If both values are null, use neutral color
     let color;
+    let norm = null;
     if (v1 == null && v2 == null) {
       color = '#666666';
     } else {
       const avg = v1 != null && v2 != null
         ? (v1 + v2) / 2
         : (v1 ?? v2);
-      const normalized = (avg - minVal) / range;
-      color = interpolateColor(normalized, colorScale);
+      norm = Math.max(0, Math.min(1, (avg - minVal) / range));
+      color = interpolateColor(norm, colorScale);
     }
 
     features.push({
       type: 'Feature',
-      properties: { color },
+      properties: { color, norm },
       geometry: {
         type: 'LineString',
         coordinates: [coords[i], coords[i + 1]],
@@ -311,6 +316,20 @@ const ColoredRouteMap = ({ activityStreams, routeCoords, bounds: boundsProp }) =
     };
   }, [activityStreams, colorMode, geometry]);
 
+  // In 3D the metric becomes height: one thin extruded wall per segment,
+  // colored on the same scale as the flat line. Built lazily so 2D never
+  // pays for polygon geometry.
+  const extrusionGeoJSON = useMemo(() => {
+    if (!is3d || !coloredGeoJSON) return null;
+    const scale = extrusionScaleForCoords(geometry.coords);
+    const segments = coloredGeoJSON.features.map((f) => ({
+      coordinates: f.geometry.coordinates,
+      norm: f.properties.norm,
+      color: f.properties.color,
+    }));
+    return buildExtrusionCollection(segments, scale);
+  }, [is3d, coloredGeoJSON, geometry.coords]);
+
   // Reset to plain if current mode becomes unavailable
   const handleModeChange = useCallback((mode) => {
     if (availableModes.includes(mode)) {
@@ -348,6 +367,7 @@ const ColoredRouteMap = ({ activityStreams, routeCoords, bounds: boundsProp }) =
   if (!bounds || !MAPBOX_TOKEN) return null;
 
   const showColoredRoute = colorMode !== 'plain' && coloredGeoJSON;
+  const showExtrusion = Boolean(showColoredRoute && is3d && extrusionGeoJSON);
 
   return (
     <Paper withBorder radius="md" style={{ overflow: 'hidden' }}>
@@ -397,8 +417,23 @@ const ColoredRouteMap = ({ activityStreams, routeCoords, bounds: boundsProp }) =
             </Source>
           )}
 
-          {/* Colored route segments */}
-          {showColoredRoute && (
+          {/* Colored route segments: flat line in 2D, extruded walls in 3D */}
+          {showExtrusion && (
+            <Source id="metric-extrusion" type="geojson" data={extrusionGeoJSON}>
+              <Layer
+                id="metric-extrusion-fill"
+                type="fill-extrusion"
+                paint={{
+                  'fill-extrusion-color': ['get', 'color'],
+                  'fill-extrusion-height': ['get', 'height'],
+                  'fill-extrusion-base': 0,
+                  'fill-extrusion-opacity': 0.88,
+                  'fill-extrusion-vertical-gradient': true,
+                }}
+              />
+            </Source>
+          )}
+          {showColoredRoute && !showExtrusion && (
             <Source id="colored-route" type="geojson" data={coloredGeoJSON}>
               <Layer
                 id="colored-route-line"
