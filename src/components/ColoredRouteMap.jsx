@@ -215,32 +215,31 @@ function ColorLegend({ mode, min, max }) {
 }
 
 /**
- * Mapbox terrain DEM. Shared by the `terrain` prop (3D relief) and the
- * hillshade layer that gives the dark basemap its shading — dark-v11 has no
- * hillshade of its own, so without this a pitched map reads as flat paper.
+ * Basemap. Outdoors carries its own hillshade and contour lines, which is
+ * what makes the pitched terrain read as terrain — the dark style has no
+ * relief shading and a 3D ride on it looked like tilted paper.
  */
+const RIDE_MAP_STYLE = 'mapbox://styles/mapbox/outdoors-v12';
+
+/** Mapbox terrain DEM, driving the 3D mesh via the `terrain` prop. */
 const TERRAIN_SOURCE_ID = 'ride-terrain-dem';
 const TERRAIN_SOURCE_URL = 'mapbox://mapbox.mapbox-terrain-dem-v1';
 
-// Atmosphere for the pitched view. Colors sit in the dark palette family
-// (cool green-black) so the horizon blends into the card rather than
-// showing a bright sky band.
+// Atmosphere for the pitched view: a pale haze that softens the far
+// terrain and a muted sky so the horizon doesn't turn into a bright band.
 const FOG_3D = {
-  range: [0.6, 8],
-  color: '#101613',
-  'high-color': '#18211d',
-  'space-color': '#0a0e0c',
-  'horizon-blend': 0.12,
+  range: [0.8, 9],
+  color: '#e4ebe7',
+  'high-color': '#b7cad3',
+  'space-color': '#9db3c0',
+  'horizon-blend': 0.08,
   'star-intensity': 0,
 };
 
-const HILLSHADE_PAINT = {
-  'hillshade-exaggeration': 0.55,
-  'hillshade-shadow-color': '#000000',
-  'hillshade-highlight-color': '#4a5a52',
-  'hillshade-accent-color': '#000000',
-  'hillshade-illumination-direction': 315,
-};
+// Under the colored segments: a dark outline so warm segment colors keep
+// their edge against the light basemap.
+const ROUTE_OUTLINE_COLOR = '#1f2a26';
+const ROUTE_COLOR = '#1f6f68';
 
 const MAP_HEIGHT = 440;
 const FIT_PADDING = { top: 56, bottom: 44, left: 24, right: 24 };
@@ -249,6 +248,11 @@ const overlayControlStyles = {
   root: {
     backgroundColor: 'rgba(0,0,0,0.6)',
     backdropFilter: 'blur(4px)',
+  },
+  // Mantine's default indicator is opaque white, which hid the white
+  // active label; a translucent one keeps every label legible.
+  indicator: {
+    backgroundColor: 'rgba(255,255,255,0.28)',
   },
   label: {
     color: 'white',
@@ -357,7 +361,7 @@ const ColoredRouteMap = ({ activityStreams, routeCoords, bounds: boundsProp }) =
             fitBoundsOptions: { padding: FIT_PADDING, ...cameraFor(is3d) },
           }}
           style={{ width: '100%', height: '100%' }}
-          mapStyle="mapbox://styles/mapbox/dark-v11"
+          mapStyle={RIDE_MAP_STYLE}
           mapboxAccessToken={MAPBOX_TOKEN}
           onLoad={() => setMapLoaded(true)}
           interactive={true}
@@ -368,16 +372,14 @@ const ColoredRouteMap = ({ activityStreams, routeCoords, bounds: boundsProp }) =
           terrain={is3d ? { source: TERRAIN_SOURCE_ID, exaggeration: RIDE_MAP_TERRAIN_EXAGGERATION } : undefined}
           fog={is3d ? FOG_3D : undefined}
         >
-          {/* Terrain DEM: drives both the 3D mesh and the relief shading */}
+          {/* Terrain DEM for the 3D mesh (the basemap supplies its own hillshade) */}
           <Source
             id={TERRAIN_SOURCE_ID}
             type="raster-dem"
             url={TERRAIN_SOURCE_URL}
             tileSize={512}
             maxzoom={14}
-          >
-            <Layer id="ride-hillshade" type="hillshade" paint={HILLSHADE_PAINT} />
-          </Source>
+          />
 
           {/* Plain route (shown when no color mode or as shadow under colored route) */}
           {geometry.geojson && (
@@ -387,9 +389,9 @@ const ColoredRouteMap = ({ activityStreams, routeCoords, bounds: boundsProp }) =
                 type="line"
                 layout={{ 'line-cap': 'round', 'line-join': 'round' }}
                 paint={{
-                  'line-color': showColoredRoute ? '#9A9C90' : '#2A8C82',
-                  'line-width': showColoredRoute ? 6 : 4,
-                  'line-opacity': showColoredRoute ? 0.4 : 0.95,
+                  'line-color': showColoredRoute ? ROUTE_OUTLINE_COLOR : ROUTE_COLOR,
+                  'line-width': showColoredRoute ? 6.5 : 4,
+                  'line-opacity': showColoredRoute ? 0.55 : 0.95,
                 }}
               />
             </Source>
