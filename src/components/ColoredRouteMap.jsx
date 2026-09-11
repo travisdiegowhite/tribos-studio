@@ -3,6 +3,7 @@ import {
   Box,
   Group,
   SegmentedControl,
+  Stack,
   Text,
   Paper,
   Skeleton,
@@ -10,6 +11,13 @@ import {
 import Map, { Source, Layer, NavigationControl } from 'react-map-gl';
 import 'mapbox-gl/dist/mapbox-gl.css';
 import { Gauge, Heartbeat, Lightning, Mountains, Path } from '@phosphor-icons/react';
+import { cumulativeDistancesKm } from '../utils/streamChartData';
+import {
+  formatDistanceKm,
+  formatMetricValue,
+  metricUnit,
+  summarizeMetric,
+} from '../utils/rideMetricStats';
 import {
   buildExtrusionCollection,
   extrusionScaleForCoords,
@@ -37,37 +45,32 @@ const COLOR_MODES = {
 };
 
 /**
- * Color stops for each metric — maps normalized 0–1 values to colors
- * Using perceptually distinct palettes that work on dark map backgrounds
+ * Color stops for each metric — maps normalized 0–1 values to colors.
+ *
+ * Six evenly spaced stops through the tribos palette (teal → sage → gold →
+ * orange → coral → deep red) so the ramp keeps changing across the whole
+ * range. The earlier scales held teal for the bottom quarter and coral for
+ * the top quarter, which made half of most rides read as two flat colors.
  */
+const EFFORT_RAMP = [
+  [0.0, '#2A8C82'],  // teal — easiest
+  [0.2, '#5E9C6A'],  // sage
+  [0.4, '#C49A0A'],  // gold
+  [0.6, '#D4600A'],  // orange
+  [0.8, '#C43C2A'],  // coral
+  [1.0, '#7A1810'],  // deep red — hardest
+];
+
 const COLOR_SCALES = {
-  speed: [
-    [0.0, '#2A8C82'],  // teal - slow
-    [0.25, '#2A8C82'], // teal
-    [0.5, '#D4600A'],  // orange
-    [0.75, '#C43C2A'], // coral
-    [1.0, '#C43C2A'],  // coral - fast
-  ],
-  power: [
-    [0.0, '#2A8C82'],  // teal - easy (zone 1-2)
-    [0.25, '#2A8C82'], // teal (zone 2-3)
-    [0.5, '#D4600A'],  // orange (zone 3-4)
-    [0.75, '#C43C2A'], // coral (zone 4-5)
-    [1.0, '#C43C2A'],  // coral (zone 5+)
-  ],
+  speed: EFFORT_RAMP,
+  power: EFFORT_RAMP,
+  heartRate: EFFORT_RAMP,
   elevation: [
-    [0.0, '#2A8C82'],  // teal - low
-    [0.25, '#C49A0A'], // gold
-    [0.5, '#D4600A'],  // orange
-    [0.75, '#C43C2A'], // coral
-    [1.0, '#C43C2A'],  // coral - high
-  ],
-  heartRate: [
-    [0.0, '#2A8C82'],  // teal - low HR
-    [0.25, '#2A8C82'], // teal
-    [0.5, '#D4600A'],  // orange
-    [0.75, '#C43C2A'], // coral
-    [1.0, '#C43C2A'],  // coral - high HR
+    [0.0, '#2A8C82'],  // teal — low
+    [0.25, '#5E9C6A'], // sage
+    [0.5, '#C49A0A'],  // gold
+    [0.75, '#D4600A'], // orange
+    [1.0, '#C43C2A'],  // coral — high
   ],
 };
 
@@ -119,6 +122,8 @@ function buildColoredSegments(streams, mode) {
 
   if (!metricArray || coords.length < 2) return null;
 
+  const distances_km = cumulativeDistancesKm(coords);
+
   // Find min/max for normalization (skip nulls)
   const validValues = metricArray.filter(v => v != null && v > 0);
   if (validValues.length === 0) return null;
@@ -142,19 +147,20 @@ function buildColoredSegments(streams, mode) {
     // If both values are null, use neutral color
     let color;
     let norm = null;
+    let value = null;
     if (v1 == null && v2 == null) {
       color = '#666666';
     } else {
-      const avg = v1 != null && v2 != null
+      value = v1 != null && v2 != null
         ? (v1 + v2) / 2
         : (v1 ?? v2);
-      norm = Math.max(0, Math.min(1, (avg - minVal) / range));
+      norm = Math.max(0, Math.min(1, (value - minVal) / range));
       color = interpolateColor(norm, colorScale);
     }
 
     features.push({
       type: 'Feature',
-      properties: { color, norm },
+      properties: { color, norm, value, distance_km: distances_km[i] },
       geometry: {
         type: 'LineString',
         coordinates: [coords[i], coords[i + 1]],
@@ -170,52 +176,76 @@ function buildColoredSegments(streams, mode) {
 }
 
 /**
- * Color scale legend component
+ * Bottom-left card: selected metric, its ride-wide average and max, the
+ * color ramp with its display range, and — while hovering the route — the
+ * reading under the cursor.
  */
-function ColorLegend({ mode, min, max }) {
+function MetricStatsCard({ mode, min, max, summary, hovered }) {
   const config = COLOR_MODES[mode];
   const colorScale = COLOR_SCALES[mode];
 
   if (!colorScale || min == null || max == null) return null;
 
-  // Format values based on metric type
-  const formatValue = (val) => {
-    if (mode === 'speed') return `${(val * 3.6).toFixed(0)}`; // m/s to km/h
-    if (mode === 'elevation') return `${Math.round(val)}`;
-    return `${Math.round(val)}`;
-  };
-
-  // Build gradient CSS
+  const unit = metricUnit(mode);
   const gradientStops = colorScale.map(([pos, color]) => `${color} ${pos * 100}%`).join(', ');
+  const labelStyle = { textTransform: 'uppercase', letterSpacing: '0.06em', opacity: 0.7 };
 
   return (
-    <Group
-      gap={6}
+    <Stack
+      gap={4}
       style={{
         position: 'absolute',
         bottom: 8,
         left: 8,
-        right: 8,
         zIndex: 10,
+        width: 236,
+        maxWidth: 'calc(100% - 16px)',
+        padding: '8px 10px',
+        backgroundColor: 'rgba(0,0,0,0.62)',
+        backdropFilter: 'blur(4px)',
+        color: 'white',
         pointerEvents: 'none',
       }}
     >
-      <Text size="xs" fw={600} c="white" style={{ textShadow: '0 1px 3px rgba(0,0,0,0.8)' }}>
-        {formatValue(min)} {config.unit}
-      </Text>
-      <Box
-        style={{
-          flex: 1,
-          height: 6,
-          borderRadius: 3,
-          background: `linear-gradient(to right, ${gradientStops})`,
-          boxShadow: '0 1px 3px rgba(0,0,0,0.5)',
-        }}
-      />
-      <Text size="xs" fw={600} c="white" style={{ textShadow: '0 1px 3px rgba(0,0,0,0.8)' }}>
-        {formatValue(max)} {config.unit}
-      </Text>
-    </Group>
+      <Group justify="space-between" gap="xs" wrap="nowrap">
+        <Text size="xs" fw={700} style={{ textTransform: 'uppercase', letterSpacing: '0.08em' }}>
+          {config.label}
+        </Text>
+        <Text size="xs" style={{ opacity: 0.7 }}>{unit}</Text>
+      </Group>
+
+      {hovered ? (
+        <Group gap={6} wrap="nowrap" align="baseline">
+          <Text size="lg" fw={700} lh={1.1} ff="monospace">
+            {formatMetricValue(mode, hovered.value)}
+          </Text>
+          <Text size="xs" style={{ opacity: 0.75 }}>at {formatDistanceKm(hovered.distance_km)}</Text>
+        </Group>
+      ) : summary ? (
+        <Group gap="md" wrap="nowrap">
+          <Group gap={4} align="baseline" wrap="nowrap">
+            <Text size="xs" style={labelStyle}>avg</Text>
+            <Text size="sm" fw={700} ff="monospace" lh={1.1}>{formatMetricValue(mode, summary.avg)}</Text>
+          </Group>
+          <Group gap={4} align="baseline" wrap="nowrap">
+            <Text size="xs" style={labelStyle}>max</Text>
+            <Text size="sm" fw={700} ff="monospace" lh={1.1}>{formatMetricValue(mode, summary.max)}</Text>
+          </Group>
+        </Group>
+      ) : null}
+
+      <Group gap={6} wrap="nowrap" mt={2}>
+        <Text size="xs" ff="monospace" style={{ opacity: 0.85 }}>{formatMetricValue(mode, min)}</Text>
+        <Box
+          style={{
+            flex: 1,
+            height: 6,
+            background: `linear-gradient(to right, ${gradientStops})`,
+          }}
+        />
+        <Text size="xs" ff="monospace" style={{ opacity: 0.85 }}>{formatMetricValue(mode, max)}</Text>
+      </Group>
+    </Stack>
   );
 }
 
@@ -280,6 +310,7 @@ const ColoredRouteMap = ({ activityStreams, routeCoords, bounds: boundsProp }) =
   const [mapLoaded, setMapLoaded] = useState(false);
   const [colorMode, setColorMode] = useState('plain');
   const [is3d, setIs3d] = useState(() => readStored3dPreference());
+  const [hovered, setHovered] = useState(null);
 
   const geometry = useMemo(
     () => routeGeometryFor(activityStreams, routeCoords),
@@ -316,6 +347,23 @@ const ColoredRouteMap = ({ activityStreams, routeCoords, bounds: boundsProp }) =
     };
   }, [activityStreams, colorMode, geometry]);
 
+  const summary = useMemo(
+    () => (colorMode === 'plain' ? null : summarizeMetric(colorMode, activityStreams?.[colorMode])),
+    [activityStreams, colorMode],
+  );
+
+  // Hover readout: the segment under the cursor on whichever metric layer
+  // is showing. Mapbox hands back the feature's properties.
+  const handleMouseMove = useCallback((event) => {
+    const f = event.features?.[0];
+    if (f && f.properties && f.properties.value != null) {
+      setHovered({ value: f.properties.value, distance_km: f.properties.distance_km });
+    } else {
+      setHovered(null);
+    }
+  }, []);
+  const handleMouseLeave = useCallback(() => setHovered(null), []);
+
   // In 3D the metric becomes height: one thin extruded wall per segment,
   // colored on the same scale as the flat line. Built lazily so 2D never
   // pays for polygon geometry.
@@ -327,13 +375,20 @@ const ColoredRouteMap = ({ activityStreams, routeCoords, bounds: boundsProp }) =
       norm: f.properties.norm,
       color: f.properties.color,
     }));
-    return buildExtrusionCollection(segments, scale);
+    const built = buildExtrusionCollection(segments, scale);
+    // Carry the readout fields onto the walls so hover works there too.
+    built.features.forEach((f, i) => {
+      f.properties.value = coloredGeoJSON.features[i].properties.value;
+      f.properties.distance_km = coloredGeoJSON.features[i].properties.distance_km;
+    });
+    return built;
   }, [is3d, coloredGeoJSON, geometry.coords]);
 
   // Reset to plain if current mode becomes unavailable
   const handleModeChange = useCallback((mode) => {
     if (availableModes.includes(mode)) {
       setColorMode(mode);
+      setHovered(null);
     }
   }, [availableModes]);
 
@@ -368,6 +423,11 @@ const ColoredRouteMap = ({ activityStreams, routeCoords, bounds: boundsProp }) =
 
   const showColoredRoute = colorMode !== 'plain' && coloredGeoJSON;
   const showExtrusion = Boolean(showColoredRoute && is3d && extrusionGeoJSON);
+  const hoverLayerIds = showExtrusion
+    ? ['metric-extrusion-fill']
+    : showColoredRoute
+      ? ['colored-route-line']
+      : undefined;
 
   return (
     <Paper withBorder radius="md" style={{ overflow: 'hidden' }}>
@@ -385,6 +445,10 @@ const ColoredRouteMap = ({ activityStreams, routeCoords, bounds: boundsProp }) =
           mapboxAccessToken={MAPBOX_TOKEN}
           onLoad={() => setMapLoaded(true)}
           interactive={true}
+          interactiveLayerIds={hoverLayerIds}
+          onMouseMove={hoverLayerIds ? handleMouseMove : undefined}
+          onMouseLeave={hoverLayerIds ? handleMouseLeave : undefined}
+          cursor={hovered ? 'crosshair' : 'grab'}
           scrollZoom={false}
           dragRotate={true}
           touchPitch={true}
@@ -451,9 +515,15 @@ const ColoredRouteMap = ({ activityStreams, routeCoords, bounds: boundsProp }) =
           <NavigationControl position="top-left" visualizePitch showZoom showCompass />
         </Map>
 
-        {/* Color legend */}
+        {/* Metric stats + color ramp + hover readout */}
         {showColoredRoute && meta && (
-          <ColorLegend mode={colorMode} min={meta.min} max={meta.max} />
+          <MetricStatsCard
+            mode={colorMode}
+            min={meta.min}
+            max={meta.max}
+            summary={summary}
+            hovered={hovered}
+          />
         )}
 
         {/* Top-right: metric color mode + 2D/3D toggle */}
