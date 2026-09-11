@@ -1,4 +1,4 @@
-import { useMemo, useState, useCallback } from 'react';
+import { useMemo, useState, useCallback, useRef } from 'react';
 import {
   Box,
   Group,
@@ -7,10 +7,17 @@ import {
   Paper,
   Skeleton,
 } from '@mantine/core';
-import Map, { Source, Layer } from 'react-map-gl';
+import Map, { Source, Layer, NavigationControl } from 'react-map-gl';
 import 'mapbox-gl/dist/mapbox-gl.css';
-import { tokens } from '../theme';
 import { Gauge, Heartbeat, Lightning, Mountains, Path } from '@phosphor-icons/react';
+import {
+  RIDE_MAP_3D_PITCH,
+  RIDE_MAP_TERRAIN_EXAGGERATION,
+  cameraBearingForRoute,
+  readStored3dPreference,
+  routeGeometryFor,
+  writeStored3dPreference,
+} from '../utils/rideMapCamera';
 
 const MAPBOX_TOKEN = import.meta.env.VITE_MAPBOX_TOKEN;
 
@@ -208,39 +215,97 @@ function ColorLegend({ mode, min, max }) {
 }
 
 /**
- * ColoredRouteMap Component
- * Renders a route on a Mapbox map, colored by speed, power, elevation, or HR
+ * Mapbox terrain DEM. Shared by the `terrain` prop (3D relief) and the
+ * hillshade layer that gives the dark basemap its shading — dark-v11 has no
+ * hillshade of its own, so without this a pitched map reads as flat paper.
  */
-const ColoredRouteMap = ({ activityStreams, routeCoords, routeGeoJSON, bounds }) => {
+const TERRAIN_SOURCE_ID = 'ride-terrain-dem';
+const TERRAIN_SOURCE_URL = 'mapbox://mapbox.mapbox-terrain-dem-v1';
+
+// Atmosphere for the pitched view. Colors sit in the dark palette family
+// (cool green-black) so the horizon blends into the card rather than
+// showing a bright sky band.
+const FOG_3D = {
+  range: [0.6, 8],
+  color: '#101613',
+  'high-color': '#18211d',
+  'space-color': '#0a0e0c',
+  'horizon-blend': 0.12,
+  'star-intensity': 0,
+};
+
+const HILLSHADE_PAINT = {
+  'hillshade-exaggeration': 0.55,
+  'hillshade-shadow-color': '#000000',
+  'hillshade-highlight-color': '#4a5a52',
+  'hillshade-accent-color': '#000000',
+  'hillshade-illumination-direction': 315,
+};
+
+const MAP_HEIGHT = 440;
+const FIT_PADDING = { top: 56, bottom: 44, left: 24, right: 24 };
+
+const overlayControlStyles = {
+  root: {
+    backgroundColor: 'rgba(0,0,0,0.6)',
+    backdropFilter: 'blur(4px)',
+  },
+  label: {
+    color: 'white',
+    fontSize: 11,
+    padding: '4px 8px',
+  },
+};
+
+/**
+ * ColoredRouteMap Component
+ * Renders a ride on a Mapbox map, colored by speed, power, elevation, or HR.
+ *
+ * Draws over 3D terrain by default (toggleable, remembered per viewer). The
+ * track comes from `activityStreams.coords` when present so a colored
+ * segment lands on the exact geometry it was measured on; the decoded
+ * summary polyline (`routeCoords`) is the fallback for older activities.
+ */
+const ColoredRouteMap = ({ activityStreams, routeCoords, bounds: boundsProp }) => {
+  const mapRef = useRef(null);
   const [mapLoaded, setMapLoaded] = useState(false);
   const [colorMode, setColorMode] = useState('plain');
+  const [is3d, setIs3d] = useState(() => readStored3dPreference());
 
-  // Determine which color modes are available based on stream data
+  const geometry = useMemo(
+    () => routeGeometryFor(activityStreams, routeCoords),
+    [activityStreams, routeCoords],
+  );
+  const bounds = geometry.bounds ?? boundsProp ?? null;
+  const bearing3d = useMemo(() => cameraBearingForRoute(geometry.coords), [geometry.coords]);
+
+  // Determine which color modes are available based on stream data. Colored
+  // segments are only meaningful on the stream track itself.
   const availableModes = useMemo(() => {
     const modes = ['plain'];
-    if (activityStreams) {
+    if (activityStreams && geometry.source === 'streams') {
       if (activityStreams.speed) modes.push('speed');
       if (activityStreams.power) modes.push('power');
       if (activityStreams.elevation) modes.push('elevation');
       if (activityStreams.heartRate) modes.push('heartRate');
     }
     return modes;
-  }, [activityStreams]);
+  }, [activityStreams, geometry.source]);
 
   // Build colored GeoJSON when mode changes
   const { coloredGeoJSON, meta } = useMemo(() => {
-    if (colorMode === 'plain' || !activityStreams) {
+    if (colorMode === 'plain' || !activityStreams || geometry.source !== 'streams') {
       return { coloredGeoJSON: null, meta: null };
     }
 
-    const result = buildColoredSegments(activityStreams, colorMode);
+    const result = buildColoredSegments({ ...activityStreams, coords: geometry.coords }, colorMode);
     if (!result) return { coloredGeoJSON: null, meta: null };
 
     return {
       coloredGeoJSON: result,
       meta: result.meta,
     };
-  }, [activityStreams, colorMode]);
+  }, [activityStreams, colorMode, geometry]);
 
   // Reset to plain if current mode becomes unavailable
   const handleModeChange = useCallback((mode) => {
@@ -249,19 +314,47 @@ const ColoredRouteMap = ({ activityStreams, routeCoords, routeGeoJSON, bounds })
     }
   }, [availableModes]);
 
+  const cameraFor = useCallback(
+    (threeD) => ({
+      pitch: threeD ? RIDE_MAP_3D_PITCH : 0,
+      bearing: threeD ? bearing3d : 0,
+    }),
+    [bearing3d],
+  );
+
+  const flyToRoute = useCallback(
+    (threeD) => {
+      const map = mapRef.current?.getMap?.();
+      if (!map || !bounds) return;
+      map.fitBounds(bounds, { padding: FIT_PADDING, duration: 900, ...cameraFor(threeD) });
+    },
+    [bounds, cameraFor],
+  );
+
+  const handle3dChange = useCallback(
+    (value) => {
+      const threeD = value === '3d';
+      setIs3d(threeD);
+      writeStored3dPreference(threeD);
+      flyToRoute(threeD);
+    },
+    [flyToRoute],
+  );
+
   if (!bounds || !MAPBOX_TOKEN) return null;
 
   const showColoredRoute = colorMode !== 'plain' && coloredGeoJSON;
 
   return (
     <Paper withBorder radius="md" style={{ overflow: 'hidden' }}>
-      <Box style={{ height: 300, position: 'relative' }}>
-        {!mapLoaded && <Skeleton height={300} />}
+      <Box style={{ height: MAP_HEIGHT, position: 'relative' }}>
+        {!mapLoaded && <Skeleton height={MAP_HEIGHT} />}
 
         <Map
+          ref={mapRef}
           initialViewState={{
-            bounds: bounds,
-            fitBoundsOptions: { padding: 40 },
+            bounds,
+            fitBoundsOptions: { padding: FIT_PADDING, ...cameraFor(is3d) },
           }}
           style={{ width: '100%', height: '100%' }}
           mapStyle="mapbox://styles/mapbox/dark-v11"
@@ -269,17 +362,34 @@ const ColoredRouteMap = ({ activityStreams, routeCoords, routeGeoJSON, bounds })
           onLoad={() => setMapLoaded(true)}
           interactive={true}
           scrollZoom={false}
+          dragRotate={true}
+          touchPitch={true}
+          maxPitch={75}
+          terrain={is3d ? { source: TERRAIN_SOURCE_ID, exaggeration: RIDE_MAP_TERRAIN_EXAGGERATION } : undefined}
+          fog={is3d ? FOG_3D : undefined}
         >
+          {/* Terrain DEM: drives both the 3D mesh and the relief shading */}
+          <Source
+            id={TERRAIN_SOURCE_ID}
+            type="raster-dem"
+            url={TERRAIN_SOURCE_URL}
+            tileSize={512}
+            maxzoom={14}
+          >
+            <Layer id="ride-hillshade" type="hillshade" paint={HILLSHADE_PAINT} />
+          </Source>
+
           {/* Plain route (shown when no color mode or as shadow under colored route) */}
-          {routeGeoJSON && (
-            <Source id="route" type="geojson" data={routeGeoJSON}>
+          {geometry.geojson && (
+            <Source id="route" type="geojson" data={geometry.geojson}>
               <Layer
                 id="route-line"
                 type="line"
+                layout={{ 'line-cap': 'round', 'line-join': 'round' }}
                 paint={{
                   'line-color': showColoredRoute ? '#9A9C90' : '#2A8C82',
-                  'line-width': showColoredRoute ? 5 : 3,
-                  'line-opacity': showColoredRoute ? 0.4 : 0.9,
+                  'line-width': showColoredRoute ? 6 : 4,
+                  'line-opacity': showColoredRoute ? 0.4 : 0.95,
                 }}
               />
             </Source>
@@ -291,14 +401,17 @@ const ColoredRouteMap = ({ activityStreams, routeCoords, routeGeoJSON, bounds })
               <Layer
                 id="colored-route-line"
                 type="line"
+                layout={{ 'line-cap': 'round', 'line-join': 'round' }}
                 paint={{
                   'line-color': ['get', 'color'],
-                  'line-width': 3.5,
+                  'line-width': 4,
                   'line-opacity': 0.95,
                 }}
               />
             </Source>
           )}
+
+          <NavigationControl position="top-left" visualizePitch showZoom showCompass />
         </Map>
 
         {/* Color legend */}
@@ -306,41 +419,33 @@ const ColoredRouteMap = ({ activityStreams, routeCoords, routeGeoJSON, bounds })
           <ColorLegend mode={colorMode} min={meta.min} max={meta.max} />
         )}
 
-        {/* Color mode toggle — only show if we have stream data */}
-        {availableModes.length > 1 && (
-          <Box
-            style={{
-              position: 'absolute',
-              top: 8,
-              right: 8,
-              zIndex: 10,
-            }}
-          >
+        {/* Top-right: metric color mode + 2D/3D toggle */}
+        <Group
+          gap={6}
+          justify="flex-end"
+          style={{ position: 'absolute', top: 8, right: 8, zIndex: 10 }}
+        >
+          {availableModes.length > 1 && (
             <SegmentedControl
               size="xs"
               value={colorMode}
               onChange={handleModeChange}
-              data={availableModes.map(mode => {
-                const config = COLOR_MODES[mode];
-                return {
-                  value: mode,
-                  label: config.label,
-                };
-              })}
-              styles={{
-                root: {
-                  backgroundColor: 'rgba(0,0,0,0.6)',
-                  backdropFilter: 'blur(4px)',
-                },
-                label: {
-                  color: 'white',
-                  fontSize: 11,
-                  padding: '4px 8px',
-                },
-              }}
+              data={availableModes.map(mode => ({ value: mode, label: COLOR_MODES[mode].label }))}
+              styles={overlayControlStyles}
             />
-          </Box>
-        )}
+          )}
+          <SegmentedControl
+            size="xs"
+            value={is3d ? '3d' : '2d'}
+            onChange={handle3dChange}
+            data={[
+              { value: '2d', label: '2D' },
+              { value: '3d', label: '3D' },
+            ]}
+            styles={overlayControlStyles}
+            aria-label="Map perspective"
+          />
+        </Group>
       </Box>
     </Paper>
   );
