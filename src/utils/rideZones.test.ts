@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { HR_ZONE_DEFS, POWER_ZONE_DEFS, hrZoneFor, powerZoneFor, zoneLowerBound } from './rideZones';
+import { HR_ZONE_DEFS, POWER_ZONE_DEFS, ZONE_COLORS, hrZoneFor, powerZoneFor, zoneColor, zoneLowerBound } from './rideZones';
 
 describe('powerZoneFor', () => {
   const ftp = 250;
@@ -47,5 +47,15 @@ describe('zoneLowerBound', () => {
   it('converts a zone floor to the metric unit', () => {
     expect(zoneLowerBound(POWER_ZONE_DEFS[3], 250)).toBe(225);
     expect(zoneLowerBound(HR_ZONE_DEFS[1], 180)).toBe(108);
+  });
+});
+
+describe('zoneColor', () => {
+  it('has one color per power zone and clamps out-of-range zones', () => {
+    expect(ZONE_COLORS).toHaveLength(POWER_ZONE_DEFS.length);
+    expect(zoneColor(1)).toBe('#51cf66');
+    expect(zoneColor(7)).toBe('#862e9c');
+    expect(zoneColor(0)).toBe(zoneColor(1));
+    expect(zoneColor(9)).toBe(zoneColor(7));
   });
 });

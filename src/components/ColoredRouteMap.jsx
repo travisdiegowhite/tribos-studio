@@ -12,17 +12,16 @@ import Map, { Source, Layer, Marker, NavigationControl } from 'react-map-gl';
 import 'mapbox-gl/dist/mapbox-gl.css';
 import { Gauge, Heartbeat, Lightning, Mountains, Path } from '@phosphor-icons/react';
 import {
+  bucketAverageRows,
   buildStreamRows,
   cumulativeDistancesKm,
-  downsampleRows,
   smoothRows,
-  smoothingWindowForCount,
 } from '../utils/streamChartData';
-import { useThemeTokens } from '../hooks/useThemeTokens';
 import RideMetricStrip from './RideMetricStrip';
 import {
   HR_ZONE_DEFS,
   POWER_ZONE_DEFS,
+  ZONE_COLORS,
   hrZoneFor,
   powerZoneFor,
   zoneLowerBound,
@@ -184,15 +183,14 @@ function buildColoredSegments(coords, metricArray, distances_km, range, colorFor
 /**
  * How a metric maps to color. Two kinds:
  *  - `zones`: discrete bands from the athlete's FTP (7 power zones) or the
- *    ride's max HR (5 HR zones), colored with the theme's zone tokens so the
- *    map agrees with the zones chart below it.
+ *    ride's max HR (5 HR zones), in the Power tab's zone colors.
  *  - `ramp`: continuous percentile ramp, used for speed, elevation, and for
  *    power / HR when no reference is known.
  */
-function buildColorizer(mode, { ftp, maxHr, zoneColors, range }) {
+function buildColorizer(mode, { ftp, maxHr, range }) {
   if (mode === 'plain') return null;
   if (mode === 'power' && ftp > 0) {
-    const colors = zoneColors.slice(0, POWER_ZONE_DEFS.length);
+    const colors = ZONE_COLORS.slice(0, POWER_ZONE_DEFS.length);
     return {
       kind: 'zones',
       defs: POWER_ZONE_DEFS,
@@ -206,7 +204,7 @@ function buildColorizer(mode, { ftp, maxHr, zoneColors, range }) {
     };
   }
   if (mode === 'heartRate' && maxHr > 0) {
-    const colors = zoneColors.slice(0, HR_ZONE_DEFS.length);
+    const colors = ZONE_COLORS.slice(0, HR_ZONE_DEFS.length);
     return {
       kind: 'zones',
       defs: HR_ZONE_DEFS,
@@ -396,7 +394,15 @@ const overlayControlStyles = {
 };
 
 
-const STRIP_TARGET_POINTS = 500;
+/**
+ * Strip chart resolution. The strip is an overview, so it is smoothed harder
+ * than RideStreamsChart: a rolling mean sized to ~STRIP_SMOOTH_TARGET
+ * effective samples, then bucket-averaged (not LTTB, which keeps spikes) to
+ * STRIP_TARGET_POINTS.
+ */
+const STRIP_TARGET_POINTS = 240;
+const STRIP_SMOOTH_TARGET = 120;
+const STRIP_MAX_WINDOW = 61;
 
 /** First metric worth showing when the map opens. */
 function defaultColorMode(streams) {
@@ -423,7 +429,6 @@ function defaultColorMode(streams) {
  */
 const ColoredRouteMap = ({ activityStreams, routeCoords, bounds: boundsProp, ftp, maxHr }) => {
   const mapRef = useRef(null);
-  const { tokens } = useThemeTokens();
   const [mapLoaded, setMapLoaded] = useState(false);
   const [colorMode, setColorMode] = useState(() => defaultColorMode(activityStreams));
   const [is3d, setIs3d] = useState(() => readStored3dPreference());
@@ -457,21 +462,14 @@ const ColoredRouteMap = ({ activityStreams, routeCoords, bounds: boundsProp, ftp
     return modes;
   }, [activityStreams, hasStreamTrack]);
 
-  // Theme zone tokens; Z7's token is a border grey that vanishes on a map,
-  // so neuromuscular gets coral instead.
-  const zoneColors = useMemo(
-    () => [1, 2, 3, 4, 5, 6].map((n) => tokens.colors[`zone${n}`]).concat(tokens.colors.coral),
-    [tokens],
-  );
-
   const range = useMemo(
     () => (colorMode === 'plain' ? null : metricRange(activityStreams?.[colorMode])),
     [activityStreams, colorMode],
   );
 
   const colorizer = useMemo(
-    () => buildColorizer(colorMode, { ftp, maxHr, zoneColors, range }),
-    [colorMode, ftp, maxHr, zoneColors, range],
+    () => buildColorizer(colorMode, { ftp, maxHr, range }),
+    [colorMode, ftp, maxHr, range],
   );
 
   const summary = useMemo(
@@ -514,9 +512,11 @@ const ColoredRouteMap = ({ activityStreams, routeCoords, bounds: boundsProp, ftp
   const stripRows = useMemo(() => {
     if (!hasStreamTrack) return [];
     const { rows } = buildStreamRows(activityStreams);
-    const window = smoothingWindowForCount(rows.length, STRIP_TARGET_POINTS);
+    let window = Math.floor(rows.length / STRIP_SMOOTH_TARGET);
+    window = Math.min(STRIP_MAX_WINDOW, Math.max(1, window));
+    if (window % 2 === 0) window += 1;
     const smoothed = smoothRows(rows, ['power', 'heartRate', 'speed_kmh', 'cadence'], window);
-    return downsampleRows(smoothed, STRIP_TARGET_POINTS);
+    return bucketAverageRows(smoothed, STRIP_TARGET_POINTS);
   }, [activityStreams, hasStreamTrack]);
   const stripXs = useMemo(() => stripRows.map((r) => r.x), [stripRows]);
 

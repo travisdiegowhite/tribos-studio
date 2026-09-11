@@ -254,14 +254,14 @@ export default function RideMetricStrip({
           <path d={model.elevationArea} fill={ELEVATION_FILL} fillOpacity={0.18} />
         )}
         {model.metricArea && (
-          <path d={model.metricArea} fill={`url(#${gradientId})`} fillOpacity={0.55} />
+          <path d={model.metricArea} fill={`url(#${gradientId})`} fillOpacity={0.7} />
         )}
         {model.metricLine && (
           <path
             d={model.metricLine}
             fill="none"
             stroke={`url(#${gradientId})`}
-            strokeWidth={1.6}
+            strokeWidth={1.2}
             vectorEffect="non-scaling-stroke"
             strokeLinejoin="round"
           />

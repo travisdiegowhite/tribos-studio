@@ -63,8 +63,10 @@ describe('ColoredRouteMap', () => {
     for (let z = 1; z <= 7; z++) expect(screen.getByText(`Z${z}`)).toBeTruthy();
     const extrusion = drawn.sources.find((s) => s.id === 'metric-extrusion');
     const colors = new Set(extrusion.data.features.map((f) => f.properties.color));
-    // 100–490 W at FTP 250 spans Z1 (40%) through Z7 (196%): seven distinct zone colors
+    // 100–490 W at FTP 250 spans Z1 (40%) through Z7 (196%): the Power tab's seven zone colors
     expect(colors.size).toBe(7);
+    expect(colors.has('#51cf66')).toBe(true); // Z1
+    expect(colors.has('#862e9c')).toBe(true); // Z7
   });
 
   it('falls back to the percentile ramp without an FTP', () => {

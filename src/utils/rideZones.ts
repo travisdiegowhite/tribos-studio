@@ -62,6 +62,25 @@ export function hrZoneFor(bpm: number | null | undefined, maxHr: number | null |
   return zoneFor(HR_ZONE_DEFS, bpm, maxHr);
 }
 
+/**
+ * Zone colors as shown on the training dashboard's Power tab. One list for
+ * every surface that paints a zone, so Z4 is the same orange on the map,
+ * the strip chart and the tab.
+ */
+export const ZONE_COLORS: readonly string[] = [
+  '#51cf66', // Z1 Recovery — green
+  '#4dabf7', // Z2 Endurance — blue
+  '#ffd43b', // Z3 Tempo — yellow
+  '#ff922b', // Z4 Threshold — orange
+  '#ff6b6b', // Z5 VO2max — red
+  '#cc5de8', // Z6 Anaerobic — grape
+  '#862e9c', // Z7 Neuromuscular — dark grape
+];
+
+export function zoneColor(zone: number): string {
+  return ZONE_COLORS[Math.min(ZONE_COLORS.length, Math.max(1, zone)) - 1];
+}
+
 /** Absolute lower bound of a zone in the metric's own unit (W or bpm). */
 export function zoneLowerBound(def: ZoneDef, reference: number): number {
   return Math.round((reference * def.min) / 100);

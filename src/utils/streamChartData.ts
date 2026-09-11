@@ -271,6 +271,44 @@ export function downsampleRows(rows: StreamRow[], targetPoints: number): StreamR
 }
 
 /**
+ * Bucket-mean downsampling: splits rows into `targetPoints` equal-count
+ * buckets and averages each numeric field (nulls excluded, a bucket with no
+ * readings stays null). Unlike LTTB this deliberately flattens spikes — it
+ * is for an overview strip where shape matters more than extremes.
+ */
+export function bucketAverageRows(rows: StreamRow[], targetPoints: number): StreamRow[] {
+  if (rows.length <= targetPoints || targetPoints < 1) return rows;
+  const keys: Array<keyof StreamRow> = ['power', 'heartRate', 'speed_kmh', 'cadence', 'elevation_m'];
+  const out: StreamRow[] = [];
+  const size = rows.length / targetPoints;
+  for (let b = 0; b < targetPoints; b++) {
+    const start = Math.floor(b * size);
+    const end = Math.min(rows.length, Math.floor((b + 1) * size));
+    if (end <= start) continue;
+    const row: StreamRow = { x: 0, power: null, heartRate: null, speed_kmh: null, cadence: null, elevation_m: null };
+    let xSum = 0;
+    const sums: Record<string, number> = {};
+    const counts: Record<string, number> = {};
+    for (let i = start; i < end; i++) {
+      xSum += rows[i].x;
+      for (const k of keys) {
+        const v = rows[i][k];
+        if (v != null) {
+          sums[k] = (sums[k] ?? 0) + (v as number);
+          counts[k] = (counts[k] ?? 0) + 1;
+        }
+      }
+    }
+    row.x = xSum / (end - start);
+    for (const k of keys) {
+      if (counts[k]) (row as unknown as Record<string, number | null>)[k] = sums[k] / counts[k];
+    }
+    out.push(row);
+  }
+  return out;
+}
+
+/**
  * "Nice" axis ticks covering [min, max] with steps of 1 / 2 / 2.5 / 5 × 10^n,
  * at most maxTickCount ticks.
  */

@@ -71,6 +71,7 @@ import { WORKOUT_LIBRARY, getWorkoutsByCategory, getWorkoutById } from '../data/
 import { getWorkoutRecommendation } from '../services/workoutRecommendation';
 import { getAllPlans } from '../data/trainingPlanTemplates';
 import { interpretTSB, findOptimalSupplementDays, TRAINING_ZONES } from '../utils/trainingPlans';
+import { zoneColor } from '../utils/rideZones';
 import { estimateActivityTSS } from '../utils/computeFitnessSnapshots';
 import { buildDailyLoadSeries } from '../views/today/athleteMetrics';
 import { FtpMissingBadge } from '../components/ui';
@@ -1422,14 +1423,16 @@ const TrendsTab = React.memo(function TrendsTab({ dailyTSSData, trainingMetrics,
 const PowerTab = React.memo(function PowerTab({ ftp, powerZones, navigate, activities, weight }) {
   // Names/ranges local; plain-language descriptions come from the canonical
   // zone table so every surface explains a zone the same way.
+  // Colors come from the shared zone palette (src/utils/rideZones.ts) so
+  // the ride map paints the same Z1–Z7.
   const zones = [
-    { zone: 1, name: 'Recovery', range: '< 55%', color: '#51cf66', description: TRAINING_ZONES[1]?.description },
-    { zone: 2, name: 'Endurance', range: '55-75%', color: '#4dabf7', description: TRAINING_ZONES[2]?.description },
-    { zone: 3, name: 'Tempo', range: '75-90%', color: '#ffd43b', description: TRAINING_ZONES[3]?.description },
-    { zone: 4, name: 'Threshold', range: '90-105%', color: '#ff922b', description: TRAINING_ZONES[4]?.description },
-    { zone: 5, name: 'VO2max', range: '105-120%', color: '#ff6b6b', description: TRAINING_ZONES[5]?.description },
-    { zone: 6, name: 'Anaerobic', range: '120-150%', color: '#cc5de8', description: TRAINING_ZONES[6]?.description },
-    { zone: 7, name: 'Neuromuscular', range: '> 150%', color: '#862e9c', description: TRAINING_ZONES[7]?.description },
+    { zone: 1, name: 'Recovery', range: '< 55%', color: zoneColor(1), description: TRAINING_ZONES[1]?.description },
+    { zone: 2, name: 'Endurance', range: '55-75%', color: zoneColor(2), description: TRAINING_ZONES[2]?.description },
+    { zone: 3, name: 'Tempo', range: '75-90%', color: zoneColor(3), description: TRAINING_ZONES[3]?.description },
+    { zone: 4, name: 'Threshold', range: '90-105%', color: zoneColor(4), description: TRAINING_ZONES[4]?.description },
+    { zone: 5, name: 'VO2max', range: '105-120%', color: zoneColor(5), description: TRAINING_ZONES[5]?.description },
+    { zone: 6, name: 'Anaerobic', range: '120-150%', color: zoneColor(6), description: TRAINING_ZONES[6]?.description },
+    { zone: 7, name: 'Neuromuscular', range: '> 150%', color: zoneColor(7), description: TRAINING_ZONES[7]?.description },
   ];
 
   // Check if we have any power data
