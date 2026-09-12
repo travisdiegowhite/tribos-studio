@@ -375,8 +375,15 @@ const FOG_3D = {
 const ROUTE_OUTLINE_COLOR = '#1f2a26';
 const ROUTE_COLOR = '#1f6f68';
 
-const MAP_HEIGHT = 440;
-const FIT_PADDING = { top: 56, bottom: 44, left: 24, right: 24 };
+const DEFAULT_MAP_HEIGHT = 440;
+// Room for the floating controls (top-right) and the stats card (bottom-left)
+// so the fitted route never sits under them. A short embed can't spare that
+// much frame, so the reserve shrinks with the map.
+function fitPaddingFor(height) {
+  return height >= 320
+    ? { top: 56, bottom: 44, left: 24, right: 24 }
+    : { top: 36, bottom: 20, left: 16, right: 16 };
+}
 /** Zoom levels closer than fit-to-bounds when the map opens or resets. */
 const RIDE_MAP_ZOOM_IN = 1;
 
@@ -417,6 +424,16 @@ function defaultColorMode(streams) {
   return 'plain';
 }
 
+/** The card chrome, or nothing when the host supplies its own. */
+function Frame({ frameless, children }) {
+  if (frameless) return <Box style={{ overflow: 'hidden' }}>{children}</Box>;
+  return (
+    <Paper withBorder radius="md" style={{ overflow: 'hidden' }}>
+      {children}
+    </Paper>
+  );
+}
+
 /**
  * ColoredRouteMap Component
  * Renders a ride on a Mapbox map, colored by power, heart rate, speed or
@@ -430,8 +447,21 @@ function defaultColorMode(streams) {
  *
  * Power colors by FTP zones when `ftp` is known and heart rate by max-HR
  * zones when `maxHr` is known; otherwise a percentile ramp.
+ *
+ * Embeds: `height` sizes the map box (the strip adds its own), `frameless`
+ * drops the Paper chrome so a host card can supply its own border, and
+ * `showStrip={false}` leaves out the scrub strip where the host is short.
  */
-const ColoredRouteMap = ({ activityStreams, routeCoords, bounds: boundsProp, ftp, maxHr }) => {
+const ColoredRouteMap = ({
+  activityStreams,
+  routeCoords,
+  bounds: boundsProp,
+  ftp,
+  maxHr,
+  height = DEFAULT_MAP_HEIGHT,
+  frameless = false,
+  showStrip = true,
+}) => {
   const mapRef = useRef(null);
   const [mapLoaded, setMapLoaded] = useState(false);
   const [colorMode, setColorMode] = useState(() => defaultColorMode(activityStreams));
@@ -584,11 +614,11 @@ const ColoredRouteMap = ({ activityStreams, routeCoords, bounds: boundsProp, ftp
   const routeCamera = useCallback(
     (map, threeD) => {
       if (!map || !bounds) return null;
-      const cam = map.cameraForBounds(bounds, { padding: FIT_PADDING, ...cameraFor(threeD) });
+      const cam = map.cameraForBounds(bounds, { padding: fitPaddingFor(height), ...cameraFor(threeD) });
       if (!cam) return null;
       return { ...cam, zoom: cam.zoom + RIDE_MAP_ZOOM_IN, ...cameraFor(threeD) };
     },
-    [bounds, cameraFor],
+    [bounds, cameraFor, height],
   );
 
   const flyToRoute = useCallback(
@@ -651,15 +681,15 @@ const ColoredRouteMap = ({ activityStreams, routeCoords, bounds: boundsProp, ftp
   const mapHovering = Boolean(scrub) && hoverLayerIds;
 
   return (
-    <Paper withBorder radius="md" style={{ overflow: 'hidden' }}>
-      <Box style={{ height: MAP_HEIGHT, position: 'relative' }}>
-        {!mapLoaded && <Skeleton height={MAP_HEIGHT} />}
+    <Frame frameless={frameless}>
+      <Box style={{ height, position: 'relative' }} data-testid="ride-map-box">
+        {!mapLoaded && <Skeleton height={height} />}
 
         <Map
           ref={mapRef}
           initialViewState={{
             bounds,
-            fitBoundsOptions: { padding: FIT_PADDING, ...cameraFor(is3d) },
+            fitBoundsOptions: { padding: fitPaddingFor(height), ...cameraFor(is3d) },
           }}
           style={{ width: '100%', height: '100%' }}
           mapStyle={RIDE_MAP_STYLE}
@@ -769,7 +799,8 @@ const ColoredRouteMap = ({ activityStreams, routeCoords, bounds: boundsProp, ftp
         <Group
           gap={6}
           justify="flex-end"
-          style={{ position: 'absolute', top: 8, right: 8, zIndex: 10 }}
+          wrap="wrap"
+          style={{ position: 'absolute', top: 8, right: 8, zIndex: 10, maxWidth: 'calc(100% - 56px)' }}
         >
           {hasStreamTrack && (
             <ActionIcon
@@ -787,6 +818,7 @@ const ColoredRouteMap = ({ activityStreams, routeCoords, bounds: boundsProp, ftp
           {availableModes.length > 1 && (
             <SegmentedControl
               size="xs"
+              radius={0}
               value={colorMode}
               onChange={handleModeChange}
               data={availableModes.map(mode => ({ value: mode, label: COLOR_MODES[mode].label }))}
@@ -795,6 +827,7 @@ const ColoredRouteMap = ({ activityStreams, routeCoords, bounds: boundsProp, ftp
           )}
           <SegmentedControl
             size="xs"
+            radius={0}
             value={is3d ? '3d' : '2d'}
             onChange={handle3dChange}
             data={[
@@ -808,7 +841,7 @@ const ColoredRouteMap = ({ activityStreams, routeCoords, bounds: boundsProp, ftp
       </Box>
 
       {/* Scrubber: the selected metric against distance, elevation behind */}
-      {stripRows.length > 1 && (
+      {showStrip && stripRows.length > 1 && (
         <RideMetricStrip
           rows={stripRows}
           metric={colorMode === 'plain' ? null : colorMode}
@@ -817,7 +850,7 @@ const ColoredRouteMap = ({ activityStreams, routeCoords, bounds: boundsProp, ftp
           onHoverX={handleStripHover}
         />
       )}
-    </Paper>
+    </Frame>
   );
 };
 

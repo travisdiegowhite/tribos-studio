@@ -7,6 +7,8 @@
  * rides with bogus coordinates from pulling the map bounds into the ocean.
  */
 
+import { ridePolylineOf } from '../../../utils/rideGeo';
+
 export interface RecentRide {
   id: string;
   name: string;
@@ -49,12 +51,7 @@ export function mapRowToRecentRide(a: ActivityRow): RecentRide {
       Number(a.moving_time) ||
       Number(a.elapsed_time) ||
       0,
-    polyline:
-      (a.polyline as string | null) ||
-      (a.summary_polyline as string | null) ||
-      (a.map_summary_polyline as string | null) ||
-      ((a.map as { summary_polyline?: string } | null)?.summary_polyline ?? null) ||
-      null,
+    polyline: ridePolylineOf(a),
     provider: a.provider ?? null,
   };
 }
