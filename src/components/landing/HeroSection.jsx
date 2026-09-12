@@ -125,8 +125,7 @@ export default function HeroSection() {
               </Button>
               <Button
                 component={Link}
-                to="/auth"
-                state={{ fromBetaSignup: true }}
+                to="/auth?mode=signup"
                 size="lg"
                 variant="outline"
                 color="teal"

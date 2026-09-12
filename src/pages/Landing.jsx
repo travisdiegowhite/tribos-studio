@@ -59,8 +59,7 @@ function Landing() {
             </Button>
             <Button
               component={Link}
-              to="/auth"
-              state={{ fromBetaSignup: true }}
+              to="/auth?mode=signup"
               size="sm"
               color="teal"
             >

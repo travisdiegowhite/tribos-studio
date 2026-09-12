@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useNavigate, useLocation } from 'react-router-dom';
+import { useNavigate, useLocation, useSearchParams } from 'react-router-dom';
 import {
   Container,
   Paper,
@@ -50,11 +50,15 @@ async function markBetaSignupActivated(email) {
 function Auth() {
   const navigate = useNavigate();
   const location = useLocation();
+  const [searchParams] = useSearchParams();
 
-  // Check if coming from beta signup flow
+  // Which form to open. `?mode=signup` is the linkable form (landing CTAs,
+  // the guest route-builder modal, a Threads post); router state is kept
+  // for one release so any cached bundle still passing it keeps working.
   const { email: prefilledEmail, fromBetaSignup } = location.state || {};
+  const startInSignUp = searchParams.get('mode') === 'signup' || !!fromBetaSignup;
 
-  const [isSignUp, setIsSignUp] = useState(fromBetaSignup || false);
+  const [isSignUp, setIsSignUp] = useState(startInSignUp);
   const [email, setEmail] = useState(prefilledEmail || '');
   const [password, setPassword] = useState('');
   const [name, setName] = useState('');
@@ -80,28 +84,12 @@ function Auth() {
 
     try {
       if (isSignUp) {
-        const { data, error } = await signUp(email, password, { full_name: name });
+        const { error } = await signUp(email, password, { full_name: name });
         if (error) throw error;
 
-        // Link beta signup record to the new user account
-        if (fromBetaSignup && data?.user?.id) {
-          try {
-            await supabase
-              .from('beta_signups')
-              .update({
-                user_id: data.user.id,
-                status: 'activated',
-                activated_at: new Date().toISOString()
-              })
-              .eq('email', email);
-          } catch (linkError) {
-            console.error('Failed to link beta signup:', linkError);
-            // Non-blocking - don't prevent signup success
-          }
-        }
-
-        // Store consent acceptance for later persistence to user_profiles
-        // (profile may not exist yet — created by DB trigger after email confirmation)
+        // Store consent acceptance for later persistence to user_profiles.
+        // The row is created on first authenticated load (AppShell →
+        // ensureUserProfile), which then flushes this.
         try {
           localStorage.setItem('tribos_consent_pending', JSON.stringify({
             tos_accepted_at: new Date().toISOString(),
@@ -215,12 +203,6 @@ function Auth() {
               {message && (
                 <Alert color="teal" variant="light">
                   {message}
-                </Alert>
-              )}
-
-              {fromBetaSignup && !message && (
-                <Alert color="teal" variant="light">
-                  Your email has been added to the beta list! Complete your account below.
                 </Alert>
               )}
 
