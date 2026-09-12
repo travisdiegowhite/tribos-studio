@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import {
+  bucketAverageRows,
   buildStreamRows,
   cumulativeDistancesKm,
   downsampleRows,
@@ -297,5 +298,31 @@ describe('formatElapsed', () => {
 
   it('clamps negatives to zero', () => {
     expect(formatElapsed(-5)).toBe('0:00');
+  });
+});
+
+describe('bucketAverageRows', () => {
+  const rows = Array.from({ length: 10 }, (_, i) => ({
+    x: i,
+    power: i === 4 ? null : i * 10,
+    heartRate: 100 + i,
+    speed_kmh: null,
+    cadence: 90,
+    elevation_m: 1000,
+  }));
+
+  it('averages equal-count buckets and skips nulls within a bucket', () => {
+    const out = bucketAverageRows(rows, 2);
+    expect(out).toHaveLength(2);
+    expect(out[0].x).toBe(2); // mean of 0..4
+    expect(out[0].power).toBe(15); // mean of 0,10,20,30 (index 4 null)
+    expect(out[0].heartRate).toBe(102);
+    expect(out[0].speed_kmh).toBeNull();
+    expect(out[1].power).toBe(70); // mean of 50..90
+  });
+
+  it('returns rows untouched when already at or under the target', () => {
+    expect(bucketAverageRows(rows, 10)).toBe(rows);
+    expect(bucketAverageRows(rows, 0)).toBe(rows);
   });
 });

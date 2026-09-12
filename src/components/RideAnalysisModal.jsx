@@ -270,19 +270,6 @@ const RideAnalysisModal = ({
     return calculateBounds(routeCoords);
   }, [routeCoords]);
 
-  // Build GeoJSON for the route
-  const routeGeoJSON = useMemo(() => {
-    if (routeCoords.length === 0) return null;
-    return {
-      type: 'Feature',
-      properties: {},
-      geometry: {
-        type: 'LineString',
-        coordinates: routeCoords,
-      },
-    };
-  }, [routeCoords]);
-
   // Calculate metrics
   const metrics = useMemo(() => {
     if (!ride) return null;
@@ -421,7 +408,10 @@ const RideAnalysisModal = ({
 
   if (!ride) return null;
 
-  const hasGpsData = routeCoords.length > 0;
+  // Stream coords (parallel to the metric arrays) or a summary polyline —
+  // either is enough to draw the ride on the map.
+  const hasGpsData =
+    routeCoords.length > 0 || (ride.activity_streams?.coords?.length ?? 0) >= 2;
   const hasPowerData = metrics?.powerSport && metrics?.avgPower > 0;
   const hasHRData = metrics?.avgHR > 0;
   const isGarminRide = ride.provider?.toLowerCase() === 'garmin';
@@ -474,8 +464,9 @@ const RideAnalysisModal = ({
           <ColoredRouteMap
             activityStreams={ride.activity_streams}
             routeCoords={routeCoords}
-            routeGeoJSON={routeGeoJSON}
             bounds={bounds}
+            ftp={ftp}
+            maxHr={metrics?.maxHR}
           />
         ) : (
           <Paper withBorder radius="md" style={{ overflow: 'hidden' }}>
