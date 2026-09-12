@@ -252,7 +252,10 @@ export function RidesMap({
       {!MAPBOX_TOKEN ? (
         <EmptyCanvas height={height} message="MAP REQUIRES CONFIGURATION" />
       ) : showLastRide && latestRide ? (
-        <>
+        // Desktop: the card is stretched to the coach panel's height, so the
+        // map grows into it (`height` is the floor). Behind the phone's
+        // numbers door there is nothing to stretch into, so it stays fixed.
+        <Box style={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0 }}>
           <ColoredRouteMap
             key={latestRide.id}
             activityStreams={latestRide.streams}
@@ -260,6 +263,7 @@ export function RidesMap({
             ftp={ftp}
             maxHr={latestRide.maxHr}
             frameless
+            fill={!compact}
             height={height}
             showStrip={!compact}
           />
@@ -290,7 +294,7 @@ export function RidesMap({
               FULL ANALYSIS →
             </Link>
           </Group>
-        </>
+        </Box>
       ) : decoded.length === 0 ? (
         <EmptyCanvas height={height} message="NO RIDES WITH ROUTE DATA YET" />
       ) : (
