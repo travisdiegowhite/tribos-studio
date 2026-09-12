@@ -53,6 +53,7 @@ import IntegrationAlert from '../components/IntegrationAlert.jsx';
 import NotificationSettings from '../components/settings/NotificationSettings.jsx';
 import { googleCalendarService } from '../utils/googleCalendarService';
 import { trackInteraction, EventType } from '../utils/activityTracking';
+import { hasOnboardingDraft } from '../utils/onboardingState';
 import { Barbell, Bell, Bicycle, CaretDown, CaretRight, Check, DownloadSimple, GoogleLogo, Info, Moon, Path, Plug, Sliders, Sparkle, Sun, Trash, UploadSimple, User, Warning } from '@phosphor-icons/react';
 import {
   ageColumnsForBirthYear,
@@ -285,9 +286,23 @@ function Settings() {
     }
   }, [user]);
 
-  // Handle Google Calendar callback success
+  // Handle OAuth callback success (?connected=<provider>).
+  //
+  // Google Calendar: toast only. Ride providers: toast AND open the Import
+  // Wizard — connecting stores tokens but imports nothing, and until now
+  // the athlete came back to Settings with the parameter ignored and had to
+  // find the wizard on their own (or wait a week of riding for TODAY to say
+  // anything). The wizard covers Strava history and Garmin/Wahoo auto-sync.
+  // Skipped while an onboarding-wizard draft exists so the two modals never
+  // stack; the wizard's own "Import your ride history" card clears the draft
+  // before navigating here.
   useEffect(() => {
-    if (searchParams.get('connected') === 'google-calendar') {
+    const connected = searchParams.get('connected');
+    if (!connected) return;
+
+    const PROVIDER_LABELS = { strava: 'Strava', garmin: 'Garmin', wahoo: 'Wahoo', coros: 'COROS' };
+
+    if (connected === 'google-calendar') {
       setGoogleCalendarStatus({ connected: true, loading: false, email: null });
       notifications.show({
         title: 'Google Calendar Connected',
@@ -297,8 +312,27 @@ function Settings() {
       searchParams.delete('connected');
       searchParams.delete('tab');
       setSearchParams(searchParams, { replace: true });
+      return;
     }
-  }, [searchParams, setSearchParams]);
+
+    if (PROVIDER_LABELS[connected]) {
+      const label = PROVIDER_LABELS[connected];
+      const importable = connected !== 'coros' && !hasOnboardingDraft(user?.id);
+      notifications.show({
+        title: `${label} connected`,
+        message: importable
+          ? 'Now pull in your ride history so your coach has something to read.'
+          : 'New activities will sync automatically.',
+        color: 'teal',
+      });
+      if (importable) {
+        setActiveTab('integrations');
+        setOpenModal('importWizard');
+      }
+      searchParams.delete('connected');
+      setSearchParams(searchParams, { replace: true });
+    }
+  }, [searchParams, setSearchParams, user?.id]);
 
   // Handle reconnect query parameter (from IntegrationAlert)
   useEffect(() => {
