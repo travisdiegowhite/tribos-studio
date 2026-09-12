@@ -1,5 +1,6 @@
 import { useMemo, useState, useCallback, useRef } from 'react';
 import {
+  ActionIcon,
   Box,
   Group,
   SegmentedControl,
@@ -10,7 +11,8 @@ import {
 } from '@mantine/core';
 import Map, { Source, Layer, Marker, NavigationControl } from 'react-map-gl';
 import 'mapbox-gl/dist/mapbox-gl.css';
-import { Gauge, Heartbeat, Lightning, Mountains, Path } from '@phosphor-icons/react';
+import { Gauge, Heartbeat, Lightning, Mountains, Path, Pause, Play } from '@phosphor-icons/react';
+import { useRideFlyThrough } from '../hooks/useRideFlyThrough';
 import {
   bucketAverageRows,
   buildStreamRows,
@@ -375,6 +377,8 @@ const ROUTE_COLOR = '#1f6f68';
 
 const MAP_HEIGHT = 440;
 const FIT_PADDING = { top: 56, bottom: 44, left: 24, right: 24 };
+/** Zoom levels closer than fit-to-bounds when the map opens or resets. */
+const RIDE_MAP_ZOOM_IN = 1;
 
 const overlayControlStyles = {
   root: {
@@ -575,23 +579,64 @@ const ColoredRouteMap = ({ activityStreams, routeCoords, bounds: boundsProp, ftp
     [bearing3d],
   );
 
-  const flyToRoute = useCallback(
-    (threeD) => {
-      const map = mapRef.current?.getMap?.();
-      if (!map || !bounds) return;
-      map.fitBounds(bounds, { padding: FIT_PADDING, duration: 900, ...cameraFor(threeD) });
+  // Fit-to-bounds camera, then a step closer: the fit leaves the ride small
+  // in the frame once the tilt foreshortens it.
+  const routeCamera = useCallback(
+    (map, threeD) => {
+      if (!map || !bounds) return null;
+      const cam = map.cameraForBounds(bounds, { padding: FIT_PADDING, ...cameraFor(threeD) });
+      if (!cam) return null;
+      return { ...cam, zoom: cam.zoom + RIDE_MAP_ZOOM_IN, ...cameraFor(threeD) };
     },
     [bounds, cameraFor],
   );
 
+  const flyToRoute = useCallback(
+    (threeD) => {
+      const map = mapRef.current?.getMap?.();
+      const cam = routeCamera(map, threeD);
+      if (cam) map.easeTo({ ...cam, duration: 900 });
+    },
+    [routeCamera],
+  );
+
+  const handleLoad = useCallback(() => {
+    const map = mapRef.current?.getMap?.();
+    const cam = routeCamera(map, is3d);
+    if (cam) map.jumpTo(cam);
+    setMapLoaded(true);
+  }, [routeCamera, is3d]);
+
+  // Playback: camera rides the route; progress drives the same hoverX as
+  // scrubbing, so marker, strip cursor and readout follow for free.
+  const getMap = useCallback(() => mapRef.current?.getMap?.(), []);
+  const handleFlyFinish = useCallback(() => flyToRoute(is3d), [flyToRoute, is3d]);
+  const flight = useRideFlyThrough({
+    getMap,
+    coords: hasStreamTrack ? geometry.coords : [],
+    distances_km,
+    onProgress: setHoverX,
+    onFinish: handleFlyFinish,
+  });
+
   const handle3dChange = useCallback(
     (value) => {
       const threeD = value === '3d';
+      if (flight.playing) flight.pause();
       setIs3d(threeD);
       writeStored3dPreference(threeD);
       flyToRoute(threeD);
     },
-    [flyToRoute],
+    [flyToRoute, flight],
+  );
+
+  // Scrubbing the strip takes over from playback.
+  const handleStripHover = useCallback(
+    (x) => {
+      if (flight.playing) flight.pause();
+      setHoverX(x);
+    },
+    [flight],
   );
 
   if (!bounds || !MAPBOX_TOKEN) return null;
@@ -619,12 +664,13 @@ const ColoredRouteMap = ({ activityStreams, routeCoords, bounds: boundsProp, ftp
           style={{ width: '100%', height: '100%' }}
           mapStyle={RIDE_MAP_STYLE}
           mapboxAccessToken={MAPBOX_TOKEN}
-          onLoad={() => setMapLoaded(true)}
+          onLoad={handleLoad}
           interactive={true}
           interactiveLayerIds={hoverLayerIds}
-          onMouseMove={hoverLayerIds ? handleMouseMove : undefined}
-          onMouseLeave={hoverLayerIds ? handleMouseLeave : undefined}
-          cursor={mapHovering ? 'crosshair' : 'grab'}
+          onMouseMove={hoverLayerIds && !flight.playing ? handleMouseMove : undefined}
+          onMouseLeave={hoverLayerIds && !flight.playing ? handleMouseLeave : undefined}
+          onDragStart={flight.playing ? flight.pause : undefined}
+          cursor={mapHovering && !flight.playing ? 'crosshair' : 'grab'}
           scrollZoom={false}
           dragRotate={true}
           touchPitch={true}
@@ -719,12 +765,25 @@ const ColoredRouteMap = ({ activityStreams, routeCoords, bounds: boundsProp, ftp
           />
         )}
 
-        {/* Top-right: metric color mode + 2D/3D toggle */}
+        {/* Top-right: playback, metric color mode, 2D/3D toggle */}
         <Group
           gap={6}
           justify="flex-end"
           style={{ position: 'absolute', top: 8, right: 8, zIndex: 10 }}
         >
+          {hasStreamTrack && (
+            <ActionIcon
+              variant="filled"
+              size={26}
+              radius={0}
+              aria-label={flight.playing ? 'Pause fly-through' : 'Play fly-through'}
+              title={flight.playing ? 'Pause' : 'Fly the route'}
+              onClick={flight.toggle}
+              style={{ backgroundColor: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(4px)', color: 'white' }}
+            >
+              {flight.playing ? <Pause size={14} weight="fill" /> : <Play size={14} weight="fill" />}
+            </ActionIcon>
+          )}
           {availableModes.length > 1 && (
             <SegmentedControl
               size="xs"
@@ -755,7 +814,7 @@ const ColoredRouteMap = ({ activityStreams, routeCoords, bounds: boundsProp, ftp
           metric={colorMode === 'plain' ? null : colorMode}
           colorForValue={colorForRowValue}
           hoverX={hoverX}
-          onHoverX={setHoverX}
+          onHoverX={handleStripHover}
         />
       )}
     </Paper>

@@ -94,6 +94,11 @@ describe('ColoredRouteMap', () => {
     expect(drawn.layers.some((l) => l.id === 'colored-route-line')).toBe(true);
   });
 
+  it('offers the fly-through when there is a track', () => {
+    renderMap({ ftp: 250 });
+    expect(screen.getByRole('button', { name: 'Play fly-through' })).toBeTruthy();
+  });
+
   it('renders nothing without a track', () => {
     const { container } = renderMap({ activityStreams: null, routeCoords: [] });
     expect(container.querySelector('[data-testid="map"]')).toBeNull();
