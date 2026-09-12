@@ -2,6 +2,7 @@ import { useEffect, useState, useRef } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Box, Text, Stack, Alert } from '@mantine/core';
 import { useAuth } from '../../contexts/AuthContext.jsx';
+import { hasOnboardingDraft } from '../../utils/onboardingState';
 import { tokens } from '../../theme';
 import { wahooService } from '../../utils/wahooService';
 
@@ -68,7 +69,9 @@ function WahooCallback() {
 
         console.log('✅ Wahoo connected successfully');
         setStatus('success');
-        navigate('/settings?connected=wahoo');
+        // Mid-onboarding-wizard connects resume the wizard on /today (it reads
+        // the draft); everyone else lands on Settings as before.
+        navigate(hasOnboardingDraft(user.id) ? '/today' : '/settings?connected=wahoo');
       } catch (err) {
         console.error('Wahoo callback error:', err);
         setError('Failed to connect Wahoo. Please try again.');

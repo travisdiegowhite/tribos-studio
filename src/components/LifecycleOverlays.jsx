@@ -27,7 +27,12 @@ import WhatsNewModal, { hasSeenLatestUpdates } from './WhatsNewModal.jsx';
 import AgePromptModal from './AgePromptModal.jsx';
 import BetaFeedbackWidget from './BetaFeedbackWidget.jsx';
 import { useAgePrompt } from '../hooks/useAgePrompt';
-import { hasSeenOnboarding, markOnboardingSeen } from '../utils/onboardingState';
+import {
+  hasSeenOnboarding,
+  markOnboardingSeen,
+  hasOnboardingDraft,
+  clearOnboardingDraft,
+} from '../utils/onboardingState';
 
 function LifecycleOverlays({ showFeedbackButton = true }) {
   const { user } = useAuth();
@@ -52,6 +57,7 @@ function LifecycleOverlays({ showFeedbackButton = true }) {
 
         if (data?.onboarding_completed) {
           markOnboardingSeen(user.id);
+          clearOnboardingDraft(user.id);
           if (!hasSeenLatestUpdates(user.id)) {
             setShowWhatsNew(true);
           }
@@ -66,7 +72,9 @@ function LifecycleOverlays({ showFeedbackButton = true }) {
       // has already finished or explicitly skipped it. The seen flag is
       // written by the wizard itself on completion/skip — writing it here,
       // before it opened, is what made an interrupted wizard vanish for good.
-      if (!hasSeenOnboarding(user.id)) {
+      // A wizard draft means the athlete is mid-flow (back from a device
+      // connect) — resume it even if this browser had skipped before.
+      if (!hasSeenOnboarding(user.id) || hasOnboardingDraft(user.id)) {
         setShowOnboarding(true);
       } else if (!hasSeenLatestUpdates(user.id)) {
         setShowWhatsNew(true);

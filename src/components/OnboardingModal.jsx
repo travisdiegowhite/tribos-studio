@@ -59,7 +59,12 @@ import {
   Sparkle,
 } from '@phosphor-icons/react';
 import { minBirthYear, maxBirthYear } from '../utils/athleteAge';
-import { markOnboardingSeen } from '../utils/onboardingState';
+import {
+  markOnboardingSeen,
+  readOnboardingDraft,
+  writeOnboardingDraft,
+  clearOnboardingDraft,
+} from '../utils/onboardingState';
 
 // ── Question definitions ──────────────────────────────────────
 
@@ -134,27 +139,39 @@ const HOURS_TO_TSS = { '3.5': 100, '6.5': 250, '10': 450, '14': 650 };
 // Total stepper steps: 0-9 are Stepper.Step, 10 is Stepper.Completed
 const TOTAL_STEPS = 10;
 
+// Screen index of "Connect Your Device" — where a resumed wizard lands.
+const CONNECT_STEP = 7;
+
 function OnboardingModal({ opened, onClose }) {
   const navigate = useNavigate();
   const { user } = useAuth();
-  const [active, setActive] = useState(0);
+
+  // Resume state stashed before a device-connect OAuth round trip (see
+  // utils/onboardingState.js). Read once; the lazy initialisers below seed
+  // from it so the athlete lands back on the connect screen with their
+  // answers intact. LifecycleOverlays only mounts this with a user present.
+  const [draft] = useState(() => readOnboardingDraft(user?.id));
+  const [active, setActive] = useState(draft ? CONNECT_STEP : 0);
   const [loading, setLoading] = useState(false);
 
   // Fitness baseline (existing)
-  const [ftp, setFtp] = useState(null);
-  const [birthYear, setBirthYear] = useState(null);
-  const [unitsPreference, setUnitsPreference] = useState('imperial');
+  const [ftp, setFtp] = useState(draft?.ftp ?? null);
+  const [birthYear, setBirthYear] = useState(draft?.birthYear ?? null);
+  const [unitsPreference, setUnitsPreference] = useState(draft?.unitsPreference ?? 'imperial');
 
-  // Device connections (existing)
-  const [stravaConnected, setStravaConnected] = useState(false);
-  const [garminConnected, setGarminConnected] = useState(false);
-  const [wahooConnected, setWahooConnected] = useState(false);
+  // Device connections (existing). The provider the athlete just came back
+  // from is shown as connected immediately; checkConnections confirms.
+  const [stravaConnected, setStravaConnected] = useState(draft?.pendingProvider === 'strava');
+  const [garminConnected, setGarminConnected] = useState(draft?.pendingProvider === 'garmin');
+  const [wahooConnected, setWahooConnected] = useState(draft?.pendingProvider === 'wahoo');
 
   // Question answers
-  const [answers, setAnswers] = useState({});
-  const [targetEventName, setTargetEventName] = useState('');
-  const [targetEventDate, setTargetEventDate] = useState(null);
-  const [selectedTerrain, setSelectedTerrain] = useState([]);
+  const [answers, setAnswers] = useState(draft?.answers ?? {});
+  const [targetEventName, setTargetEventName] = useState(draft?.targetEventName ?? '');
+  const [targetEventDate, setTargetEventDate] = useState(
+    draft?.targetEventDate ? new Date(draft.targetEventDate) : null,
+  );
+  const [selectedTerrain, setSelectedTerrain] = useState(draft?.selectedTerrain ?? []);
 
   // Coach reveal (screen 9)
   const [classifying, setClassifying] = useState(false);
@@ -180,18 +197,41 @@ function OnboardingModal({ opened, onClose }) {
     if (opened) checkConnections();
   }, [user, opened]);
 
-  // Device connection handlers
+  // Device connection handlers. Each leaves the page, so stash the wizard
+  // first — synchronously, and for Garmin before the awaited URL fetch so a
+  // thrown error cannot skip it.
+  const stashDraft = useCallback(
+    (pendingProvider) => {
+      writeOnboardingDraft(user?.id, {
+        active: CONNECT_STEP,
+        answers,
+        targetEventName,
+        targetEventDate: targetEventDate ? targetEventDate.toISOString() : null,
+        selectedTerrain,
+        ftp,
+        birthYear,
+        unitsPreference,
+        pendingProvider,
+      });
+    },
+    [user, answers, targetEventName, targetEventDate, selectedTerrain, ftp, birthYear, unitsPreference],
+  );
   const handleConnectStrava = () => {
+    stashDraft('strava');
     window.location.href = stravaService.getAuthorizationUrl();
   };
   const handleConnectGarmin = async () => {
     if (!garminService.isConfigured()) return;
+    stashDraft('garmin');
     window.location.href = await garminService.getAuthorizationUrl();
   };
   const handleConnectWahoo = () => {
     if (!wahooService.isConfigured()) return;
+    stashDraft('wahoo');
     window.location.href = wahooService.getAuthorizationUrl();
   };
+  const anyProviderConnected = stravaConnected || garminConnected || wahooConnected;
+  const connectedProvider = stravaConnected ? 'strava' : garminConnected ? 'garmin' : wahooConnected ? 'wahoo' : null;
 
   const handleAnswer = useCallback((questionId, value) => {
     setAnswers((prev) => ({ ...prev, [questionId]: value }));
@@ -270,6 +310,10 @@ function OnboardingModal({ opened, onClose }) {
   }, [active, classificationResult, classifying, handleClassification]);
 
   const handleComplete = useCallback(async () => {
+    // Clear the draft synchronously, before any await: Settings' auto-open
+    // of the Import Wizard checks for a draft, and the "Import your ride
+    // history" card navigates there right after this.
+    clearOnboardingDraft(user?.id);
     setLoading(true);
     try {
       await supabase
@@ -290,6 +334,7 @@ function OnboardingModal({ opened, onClose }) {
   // Explicit exit. Only an explicit skip (or completion) retires the wizard
   // in this browser; an interrupted one comes back on the next load.
   const handleSkip = useCallback(() => {
+    clearOnboardingDraft(user?.id);
     markOnboardingSeen(user.id);
     onClose();
   }, [user, onClose]);
@@ -681,7 +726,7 @@ function OnboardingModal({ opened, onClose }) {
               Your coach is ready. Here&apos;s what to do next:
             </Text>
 
-            <SimpleGrid cols={{ base: 1, xs: 2 }} spacing="md" style={{ width: '100%' }}>
+            <SimpleGrid cols={{ base: 1, xs: anyProviderConnected ? 3 : 2 }} spacing="md" style={{ width: '100%' }}>
               <Paper
                 p="md"
                 withBorder
@@ -698,11 +743,36 @@ function OnboardingModal({ opened, onClose }) {
                 </Stack>
               </Paper>
 
+              {anyProviderConnected && (
+                // Connecting stores tokens but imports nothing; without this
+                // the athlete lands on an empty TODAY and has to find the
+                // Import Wizard in Settings on their own. ?connected= makes
+                // Settings open it.
+                <Paper
+                  p="md"
+                  withBorder
+                  style={{ backgroundColor: 'var(--color-bg-secondary)', cursor: 'pointer' }}
+                  onClick={async () => {
+                    await handleComplete();
+                    navigate(`/settings?tab=integrations&connected=${connectedProvider}`);
+                  }}
+                >
+                  <Stack gap="xs" align="center">
+                    <ThemeIcon size="lg" color="teal" variant="light">
+                      <Watch size={20} />
+                    </ThemeIcon>
+                    <Text size="sm" fw={500} ta="center" style={{ color: 'var(--color-text-primary)' }}>
+                      Import your ride history
+                    </Text>
+                  </Stack>
+                </Paper>
+              )}
+
               <Paper
                 p="md"
                 withBorder
                 style={{ backgroundColor: 'var(--color-bg-secondary)', cursor: 'pointer' }}
-                onClick={() => { handleComplete(); navigate('/train?tab=browse'); }}
+                onClick={async () => { await handleComplete(); navigate('/train?tab=browse'); }}
               >
                 <Stack gap="xs" align="center">
                   <ThemeIcon size="lg" color="gray" variant="light">
