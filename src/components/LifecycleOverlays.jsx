@@ -27,6 +27,7 @@ import WhatsNewModal, { hasSeenLatestUpdates } from './WhatsNewModal.jsx';
 import AgePromptModal from './AgePromptModal.jsx';
 import BetaFeedbackWidget from './BetaFeedbackWidget.jsx';
 import { useAgePrompt } from '../hooks/useAgePrompt';
+import { hasSeenOnboarding, markOnboardingSeen } from '../utils/onboardingState';
 
 function LifecycleOverlays({ showFeedbackButton = true }) {
   const { user } = useAuth();
@@ -50,7 +51,7 @@ function LifecycleOverlays({ showFeedbackButton = true }) {
           .single();
 
         if (data?.onboarding_completed) {
-          localStorage.setItem(`tribos_welcome_seen_${user.id}`, 'true');
+          markOnboardingSeen(user.id);
           if (!hasSeenLatestUpdates(user.id)) {
             setShowWhatsNew(true);
           }
@@ -61,10 +62,11 @@ function LifecycleOverlays({ showFeedbackButton = true }) {
         // Profile doesn't exist yet — user needs onboarding
       }
 
-      // Only show onboarding if not completed in database
-      const hasSeenWelcome = localStorage.getItem(`tribos_welcome_seen_${user.id}`);
-      if (!hasSeenWelcome) {
-        localStorage.setItem(`tribos_welcome_seen_${user.id}`, 'true');
+      // Not completed in the database. Show the wizard unless this browser
+      // has already finished or explicitly skipped it. The seen flag is
+      // written by the wizard itself on completion/skip — writing it here,
+      // before it opened, is what made an interrupted wizard vanish for good.
+      if (!hasSeenOnboarding(user.id)) {
         setShowOnboarding(true);
       } else if (!hasSeenLatestUpdates(user.id)) {
         setShowWhatsNew(true);

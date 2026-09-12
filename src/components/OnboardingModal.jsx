@@ -17,6 +17,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import {
+  Anchor,
   Modal,
   Stepper,
   Button,
@@ -58,6 +59,7 @@ import {
   Sparkle,
 } from '@phosphor-icons/react';
 import { minBirthYear, maxBirthYear } from '../utils/athleteAge';
+import { markOnboardingSeen } from '../utils/onboardingState';
 
 // ── Question definitions ──────────────────────────────────────
 
@@ -276,9 +278,20 @@ function OnboardingModal({ opened, onClose }) {
     } catch (err) {
       console.error('Error completing onboarding:', err);
     } finally {
+      // Finished (or at least reached the end): don't show this browser the
+      // wizard again even if the upsert failed — the DB check in
+      // LifecycleOverlays still governs other browsers.
+      markOnboardingSeen(user.id);
       setLoading(false);
       onClose();
     }
+  }, [user, onClose]);
+
+  // Explicit exit. Only an explicit skip (or completion) retires the wizard
+  // in this browser; an interrupted one comes back on the next load.
+  const handleSkip = useCallback(() => {
+    markOnboardingSeen(user.id);
+    onClose();
   }, [user, onClose]);
 
   const nextStep = () => {
@@ -437,8 +450,22 @@ function OnboardingModal({ opened, onClose }) {
               </Stack>
             </Paper>
 
-            <Text size="sm" style={{ color: 'var(--color-text-muted)' }}>
-              This takes about 3 minutes.
+            <Group justify="space-between" align="baseline">
+              <Text size="sm" style={{ color: 'var(--color-text-muted)' }}>
+                This takes about 3 minutes.
+              </Text>
+              <Anchor
+                component="button"
+                type="button"
+                size="sm"
+                onClick={handleSkip}
+                style={{ color: 'var(--color-text-muted)' }}
+              >
+                Skip for now
+              </Anchor>
+            </Group>
+            <Text size="xs" style={{ color: 'var(--color-text-muted)' }}>
+              Skipping is fine — you can connect devices and set your FTP later in Settings.
             </Text>
           </Stack>
         </Stepper.Step>
