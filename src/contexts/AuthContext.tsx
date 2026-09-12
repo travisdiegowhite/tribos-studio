@@ -77,13 +77,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const signIn: AuthContextValue['signIn'] = async (email, password) => {
-    console.log('signIn called with email:', email);
-    const result = await supabase.auth.signInWithPassword({
+    // Never log the result: it carries the session's access and refresh tokens.
+    return await supabase.auth.signInWithPassword({
       email,
       password,
     });
-    console.log('signIn result:', result);
-    return result;
   };
 
   const signInWithGoogle: AuthContextValue['signInWithGoogle'] = async () => {
