@@ -425,8 +425,20 @@ function defaultColorMode(streams) {
 }
 
 /** The card chrome, or nothing when the host supplies its own. */
-function Frame({ frameless, children }) {
-  if (frameless) return <Box style={{ overflow: 'hidden' }}>{children}</Box>;
+function Frame({ frameless, fill, children }) {
+  if (frameless) {
+    return (
+      <Box
+        style={
+          fill
+            ? { overflow: 'hidden', display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0 }
+            : { overflow: 'hidden' }
+        }
+      >
+        {children}
+      </Box>
+    );
+  }
   return (
     <Paper withBorder radius="md" style={{ overflow: 'hidden' }}>
       {children}
@@ -451,6 +463,8 @@ function Frame({ frameless, children }) {
  * Embeds: `height` sizes the map box (the strip adds its own), `frameless`
  * drops the Paper chrome so a host card can supply its own border, and
  * `showStrip={false}` leaves out the scrub strip where the host is short.
+ * `fill` (frameless only) lets the map grow to its host's height in a flex
+ * column; `height` is then the floor rather than the size.
  */
 const ColoredRouteMap = ({
   activityStreams,
@@ -461,6 +475,7 @@ const ColoredRouteMap = ({
   height = DEFAULT_MAP_HEIGHT,
   frameless = false,
   showStrip = true,
+  fill = false,
 }) => {
   const mapRef = useRef(null);
   const [mapLoaded, setMapLoaded] = useState(false);
@@ -681,8 +696,11 @@ const ColoredRouteMap = ({
   const mapHovering = Boolean(scrub) && hoverLayerIds;
 
   return (
-    <Frame frameless={frameless}>
-      <Box style={{ height, position: 'relative' }} data-testid="ride-map-box">
+    <Frame frameless={frameless} fill={fill}>
+      <Box
+        style={fill ? { flex: 1, minHeight: height, position: 'relative' } : { height, position: 'relative' }}
+        data-testid="ride-map-box"
+      >
         {!mapLoaded && <Skeleton height={height} />}
 
         <Map

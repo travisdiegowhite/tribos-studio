@@ -103,6 +103,18 @@ describe('RidesMap — zone 03 views', () => {
     expect(fullAnalysisHref('a b')).toBe('/train?tab=history&ride=a%20b');
   });
 
+  it('lets the LAST RIDE map grow to the card on desktop, fixed behind the phone door', () => {
+    renderZone();
+    expect(screen.getByTestId('ride-map-box').style.flexGrow).toBe('1');
+    expect(screen.getByTestId('ride-map-box').style.minHeight).toBe('230px');
+  });
+
+  it('keeps a fixed map height when compact', () => {
+    renderZone({ compact: true });
+    expect(screen.getByTestId('ride-map-box').style.height).toBe('230px');
+    expect(screen.getByTestId('ride-map-box').style.flexGrow).toBe('');
+  });
+
   it('drops the strip when compact and opens on LAST RIDE when focused', () => {
     renderZone({ compact: true, focusOnMount: true, latestRide: latest({ streams: null, hasStreamTrack: false }) });
     expect(screen.getByRole('button', { name: 'LAST RIDE' }).getAttribute('aria-pressed')).toBe('true');

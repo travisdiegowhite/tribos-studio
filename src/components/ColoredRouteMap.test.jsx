@@ -125,4 +125,12 @@ describe('ColoredRouteMap — embed props', () => {
     renderMap({ ftp: 250, showStrip: false });
     expect(screen.queryByTestId('ride-metric-strip')).toBeNull();
   });
+
+  it('grows into a flex host when `fill` is set, with `height` as the floor', () => {
+    renderMap({ ftp: 250, frameless: true, fill: true, height: 230 });
+    const box = screen.getByTestId('ride-map-box');
+    expect(box.style.flexGrow).toBe('1');
+    expect(box.style.minHeight).toBe('230px');
+    expect(box.style.height).toBe('');
+  });
 });
