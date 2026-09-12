@@ -32,15 +32,26 @@ interface BeatsColumnProps {
    * selected yet.
    */
   feel?: Feel | null;
+  /**
+   * Beat 1's "see the map": the page flags that the ride map behind the door
+   * should open on the last ride. The door itself opens here.
+   */
+  onSeeMap?: () => void;
 }
 
-export function BeatsColumn({ data, units, numbers, feel = null }: BeatsColumnProps) {
+export function BeatsColumn({ data, units, numbers, feel = null, onSeeMap }: BeatsColumnProps) {
   const [showNumbers, setShowNumbers] = useState(false);
   const beats = useMemo(() => buildBeats(data, feel, units), [data, feel, units]);
+  const seeMap = onSeeMap
+    ? () => {
+        setShowNumbers(true);
+        onSeeMap();
+      }
+    : undefined;
 
   return (
     <Stack gap={14}>
-      <Beat1Recap vm={beats.beat1} />
+      <Beat1Recap vm={beats.beat1} onSeeMap={seeMap} />
       <Beat3Call vm={beats.beat3} personaName={data.coach.personaName} />
       <Beat4Route vm={beats.beat4} />
 

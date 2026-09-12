@@ -589,3 +589,30 @@ describe('assembleSpine — beat inputs', () => {
     expect(assembleSpine(baseInput()).latestActivity).toBeNull();
   });
 });
+
+describe('assembleSpine — zone-03 LAST RIDE inputs', () => {
+  it('defaults the latest ride map and athlete FTP to null', () => {
+    const data = assembleSpine(baseInput());
+    expect(data.latestRideMap).toBeNull();
+    expect(data.athleteFtp).toBeNull();
+  });
+
+  it('passes the latest ride map and the real FTP through untouched', () => {
+    const latestRideMap = {
+      id: 'r1',
+      name: 'Flagstaff loop',
+      startDate: '2026-06-29T14:00:00Z',
+      distanceKm: 42,
+      elevationM: 800,
+      durationSec: 5400,
+      polyline: null,
+      streams: { coords: [[-105.3, 40.0], [-105.31, 40.01]] as Array<[number, number]>, power: [200, 220] },
+      hasStreamTrack: true,
+      maxHr: 178,
+      provider: 'garmin',
+    };
+    const data = assembleSpine(baseInput({ latestRideMap, athleteFtp: 265 }));
+    expect(data.latestRideMap).toBe(latestRideMap);
+    expect(data.athleteFtp).toBe(265);
+  });
+});

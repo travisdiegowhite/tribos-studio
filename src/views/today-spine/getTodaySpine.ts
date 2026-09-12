@@ -32,11 +32,13 @@ import { formPhrase, workoutTypeCopy } from '../../utils/todayVocabulary';
 import { fmtDate } from '../today/athleteMetrics';
 import type { AthleteActivityRow, ServerLoadRow } from '../today/athleteMetrics';
 import { mapRowToRecentRide, type RecentRide } from '../today/shared/recentRides';
+import { rideHasGps, rideHasStreamTrack, rideStreamsOf, sanitizedMaxHr } from '../../utils/rideGeo';
 import type {
   DayActivity,
   DayNode,
   LastRide,
   LatestActivity,
+  LatestRideMap,
   SpineData,
   SpineEvent,
   TodaysWorkout,
@@ -266,6 +268,10 @@ export interface AssembleInput {
   rideStats?: RideStat[];
   /** Newest known activity, for Beat 2's next-ride deferral. */
   latestActivity?: LatestActivity | null;
+  /** Newest drawable ride with streams, for the zone-03 LAST RIDE map. */
+  latestRideMap?: LatestRideMap | null;
+  /** The athlete's real FTP (null when unset) — never the 200 W load default. */
+  athleteFtp?: number | null;
 }
 
 /** One ride, reduced to what the Beat 1 recap and the route pre-fill need. */
@@ -610,6 +616,8 @@ export function assembleSpine(input: AssembleInput): SpineData {
     lastRide: buildLastRide(days, PAST_SPAN, dailySec, dailyName, rideStats),
     typicalRideMin: medianRideMinutes(rideStats, todayKey),
     latestActivity: input.latestActivity ?? null,
+    latestRideMap: input.latestRideMap ?? null,
+    athleteFtp: input.athleteFtp ?? null,
   };
 }
 
@@ -830,6 +838,19 @@ export async function getTodaySpine(userId: string): Promise<SpineData> {
     ? { id: newest.id, startDate: newest.start_date }
     : null;
 
+  // The newest ride that can be drawn, streams included, for zone 03's
+  // LAST RIDE view. Same read as the map — no extra query — and only this
+  // one ride's streams are kept on SpineData.
+  const newestGps = mapSource.find(rideHasGps) ?? null;
+  const latestRideMap: LatestRideMap | null = newestGps
+    ? {
+        ...mapRowToRecentRide(newestGps),
+        streams: rideStreamsOf(newestGps),
+        hasStreamTrack: rideHasStreamTrack(newestGps),
+        maxHr: sanitizedMaxHr(newestGps),
+      }
+    : null;
+
   // This-week rollup for the map chips, derived from the same read (the last
   // 50 rides always cover the trailing week).
   const sevenDaysIso = sevenDaysAgo.toISOString();
@@ -877,5 +898,7 @@ export async function getTodaySpine(userId: string): Promise<SpineData> {
     planRecoveryPhase,
     rideStats,
     latestActivity,
+    latestRideMap,
+    athleteFtp: (profileRes.data?.ftp as number | null) || null,
   });
 }

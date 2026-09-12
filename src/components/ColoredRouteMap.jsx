@@ -455,7 +455,7 @@ function Frame({ frameless, children }) {
 const ColoredRouteMap = ({
   activityStreams,
   routeCoords,
-  bounds: boundsProp,
+  bounds: boundsProp = null,
   ftp,
   maxHr,
   height = DEFAULT_MAP_HEIGHT,
