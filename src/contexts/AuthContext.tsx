@@ -23,6 +23,25 @@ interface AuthContextValue {
 
 const AuthContext = createContext<AuthContextValue | null>(null);
 
+/** sessionStorage key set when Supabase reports a password-recovery session. */
+export const PASSWORD_RECOVERY_KEY = 'tribos_pw_recovery';
+
+export function hasPendingPasswordRecovery(): boolean {
+  try {
+    return sessionStorage.getItem(PASSWORD_RECOVERY_KEY) === '1';
+  } catch {
+    return false;
+  }
+}
+
+export function clearPendingPasswordRecovery(): void {
+  try {
+    sessionStorage.removeItem(PASSWORD_RECOVERY_KEY);
+  } catch {
+    // ignore
+  }
+}
+
 export const useAuth = (): AuthContextValue => {
   const context = useContext(AuthContext);
   if (!context) {
@@ -56,7 +75,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     // Listen for auth changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      (_event, session) => {
+      (event, session) => {
+        // A password-reset link lands on /auth/reset-password with the
+        // recovery session in the URL hash. The client consumes it at boot
+        // and emits this event, usually BEFORE the lazy-loaded reset page
+        // mounts — so remember it here, where the subscription already
+        // exists, and let the page (and AuthCallback) read the flag.
+        if (event === 'PASSWORD_RECOVERY') {
+          try {
+            sessionStorage.setItem(PASSWORD_RECOVERY_KEY, '1');
+          } catch {
+            // storage unavailable; the reset page still works from the session
+          }
+        }
         setUser(session?.user ?? null);
         identifyUser(session?.user ?? null);
       }

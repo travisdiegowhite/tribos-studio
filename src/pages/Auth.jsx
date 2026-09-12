@@ -59,6 +59,10 @@ function Auth() {
   const startInSignUp = searchParams.get('mode') === 'signup' || !!fromBetaSignup;
 
   const [isSignUp, setIsSignUp] = useState(startInSignUp);
+  // Forgot-password is a third form on the same page: email only, sends the
+  // reset link, lands on /auth/reset-password. `?mode=forgot` lets the reset
+  // page link back here when a link has expired.
+  const [isForgot, setIsForgot] = useState(searchParams.get('mode') === 'forgot');
   const [email, setEmail] = useState(prefilledEmail || '');
   const [password, setPassword] = useState('');
   const [name, setName] = useState('');
@@ -84,7 +88,7 @@ function Auth() {
   const [tosAccepted, setTosAccepted] = useState(false);
   const [webviewInfo, setWebviewInfo] = useState({ isWebview: false, appName: null });
 
-  const { signIn, signUp, signInWithGoogle } = useAuth();
+  const { signIn, signUp, signInWithGoogle, resetPassword } = useAuth();
 
   // Check if we're in an in-app browser/webview
   useEffect(() => {
@@ -99,7 +103,16 @@ function Auth() {
     setMessage('');
 
     try {
-      if (isSignUp) {
+      if (isForgot) {
+        const { error } = await resetPassword(email);
+        if (error && error.status === 429) {
+          throw new Error('Too many requests — try again in a minute.');
+        }
+        // Deliberately the same message on success and on any other error:
+        // never confirm whether an address has an account.
+        if (error) console.error('Password reset request error:', error);
+        setMessage('If an account exists for that email, a reset link is on its way.');
+      } else if (isSignUp) {
         const { error } = await signUp(email, password, { full_name: name });
         if (error) throw error;
 
@@ -181,7 +194,7 @@ function Auth() {
             TRIBOS.STUDIO
           </Text>
           <Title order={2} style={{ color: 'var(--color-text-primary)' }}>
-            {isSignUp ? 'Create your account' : 'Welcome back'}
+            {isForgot ? 'Reset your password' : isSignUp ? 'Create your account' : 'Welcome back'}
           </Title>
         </Box>
 
@@ -241,14 +254,21 @@ function Auth() {
                 required
               />
 
-              <PasswordInput
-                label="Password"
-                placeholder="Your password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                required
-                minLength={6}
-              />
+              {isForgot ? (
+                <Text size="sm" style={{ color: 'var(--color-text-secondary)' }}>
+                  Enter the email you signed up with and we&apos;ll send a link to choose a new
+                  password.
+                </Text>
+              ) : (
+                <PasswordInput
+                  label="Password"
+                  placeholder="Your password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  required
+                  minLength={6}
+                />
+              )}
 
               {isSignUp && (
                 <Checkbox
@@ -279,45 +299,83 @@ function Auth() {
                 mt="sm"
                 disabled={isSignUp && !tosAccepted}
               >
-                {isSignUp ? 'Create Account' : 'Sign In'}
+                {isForgot ? 'Send reset link' : isSignUp ? 'Create Account' : 'Sign In'}
               </Button>
+
+              {!isSignUp && !isForgot && (
+                <Text ta="right" size="sm">
+                  <Anchor
+                    component="button"
+                    type="button"
+                    onClick={() => {
+                      setIsForgot(true);
+                      setError('');
+                      setMessage('');
+                    }}
+                    style={{ color: 'var(--color-text-secondary)' }}
+                  >
+                    Forgot password?
+                  </Anchor>
+                </Text>
+              )}
             </Stack>
           </form>
 
-          <Divider my="lg" label="or continue with" labelPosition="center" />
+          {!isForgot && (
+            <>
+              <Divider my="lg" label="or continue with" labelPosition="center" />
 
-          <Stack gap="sm">
-            <Tooltip
-              label={webviewInfo.isWebview ? `Google sign-in doesn't work in ${webviewInfo.appName}'s browser` : null}
-              disabled={!webviewInfo.isWebview}
-            >
-              <Button
-                variant="outline"
-                color="gray"
-                fullWidth
-                onClick={handleGoogleSignIn}
-                leftSection={<span>🔵</span>}
-                style={webviewInfo.isWebview ? { opacity: 0.5 } : undefined}
-              >
-                Google {webviewInfo.isWebview && '(unavailable)'}
-              </Button>
-            </Tooltip>
-          </Stack>
+              <Stack gap="sm">
+                <Tooltip
+                  label={webviewInfo.isWebview ? `Google sign-in doesn't work in ${webviewInfo.appName}'s browser` : null}
+                  disabled={!webviewInfo.isWebview}
+                >
+                  <Button
+                    variant="outline"
+                    color="gray"
+                    fullWidth
+                    onClick={handleGoogleSignIn}
+                    leftSection={<span>🔵</span>}
+                    style={webviewInfo.isWebview ? { opacity: 0.5 } : undefined}
+                  >
+                    Google {webviewInfo.isWebview && '(unavailable)'}
+                  </Button>
+                </Tooltip>
+              </Stack>
+            </>
+          )}
 
           <Text ta="center" mt="lg" size="sm" style={{ color: 'var(--color-text-secondary)' }}>
-            {isSignUp ? 'Already have an account? ' : "Don't have an account? "}
-            <Anchor
-              component="button"
-              type="button"
-              onClick={() => {
-                setIsSignUp(!isSignUp);
-                setError('');
-                setMessage('');
-              }}
-              style={{ color: 'var(--color-teal)' }}
-            >
-              {isSignUp ? 'Sign in' : 'Sign up'}
-            </Anchor>
+            {isForgot ? (
+              <Anchor
+                component="button"
+                type="button"
+                onClick={() => {
+                  setIsForgot(false);
+                  setError('');
+                  setMessage('');
+                }}
+                style={{ color: 'var(--color-teal)' }}
+              >
+                Back to sign in
+              </Anchor>
+            ) : (
+              <>
+                {isSignUp ? 'Already have an account? ' : "Don't have an account? "}
+                <Anchor
+                  component="button"
+                  type="button"
+                  onClick={() => {
+                    setIsSignUp(!isSignUp);
+                    setError('');
+                    setMessage('');
+                  }}
+                  style={{ color: 'var(--color-teal)' }}
+                >
+                  {isSignUp ? 'Sign in' : 'Sign up'}
+                </Anchor>
+              </>
+            )}
           </Text>
         </Paper>
       </Container>

@@ -2,8 +2,17 @@ import { useEffect } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Box, Text, Stack } from '@mantine/core';
 import { supabase } from '../../lib/supabase';
+import { hasPendingPasswordRecovery } from '../../contexts/AuthContext.jsx';
 import { consumeReturnTo } from '../../utils/returnTo';
 import { tokens } from '../../theme';
+
+// Where a fresh session should go. A recovery session (password-reset link
+// whose template ignored redirectTo and landed here) must reach the reset
+// page, not the dashboard.
+function postAuthDestination() {
+  if (hasPendingPasswordRecovery()) return '/auth/reset-password';
+  return consumeReturnTo() || '/today';
+}
 
 function AuthCallback() {
   const navigate = useNavigate();
@@ -42,7 +51,7 @@ function AuthCallback() {
           // Successfully authenticated. Guests who signed up from the route
           // builder stashed a return path — land them back there (their
           // in-progress route rehydrates from the persisted store).
-          navigate(consumeReturnTo() || '/today');
+          navigate(postAuthDestination());
         } else {
           // No session yet, might need to wait for auth state change
           // Listen for the auth state to update
@@ -51,7 +60,7 @@ function AuthCallback() {
               if (session) {
                 clearTimeout(fallbackTimer);
                 subscription?.unsubscribe();
-                navigate(consumeReturnTo() || '/today');
+                navigate(postAuthDestination());
               }
             }
           ));

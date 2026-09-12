@@ -13,6 +13,7 @@ import { theme } from './theme';
 // Pages — eagerly loaded (critical path)
 import Landing from './pages/Landing.jsx';
 import Auth from './pages/Auth.jsx';
+import ResetPassword from './pages/ResetPassword.jsx';
 import PrivacyPolicy from './pages/PrivacyPolicy.jsx';
 import Terms from './pages/Terms.jsx';
 import Support from './pages/Support.jsx';
@@ -206,6 +207,18 @@ function AppRoutes() {
 
       {/* OAuth Callbacks */}
       <Route path="/auth/callback" element={<AuthCallback />} />
+      {/* Password-reset landing. OpenRoute on purpose: the recovery link
+          arrives already authenticated (PublicRoute would bounce it to
+          /today) and an expired link arrives unauthenticated (ProtectedRoute
+          would bounce it to /auth before it could be explained). */}
+      <Route
+        path="/auth/reset-password"
+        element={
+          <OpenRoute>
+            <ResetPassword />
+          </OpenRoute>
+        }
+      />
       {/* Public share links — no auth guard; the API only serves routes
           explicitly marked public by their owner. */}
       <Route path="/r/:routeId" element={<SharedRoute />} />
