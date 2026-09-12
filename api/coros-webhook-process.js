@@ -178,15 +178,16 @@ async function processWorkoutEvent(event, results, integrationCache) {
     console.error('⚠️ Snapshot update failed (non-critical):', snapshotError.message);
   }
 
-  // Track activation and insights (non-blocking)
-  await completeActivationStep(supabase, userId, 'first_activity').catch(() => {});
+  // Track activation and insights (non-blocking). Same step name and
+  // enqueue signature as the Strava/Garmin/Wahoo webhooks: 'first_activity'
+  // is not a valid step (it logged and returned), and the old enqueue call
+  // passed a label as the activity id and an object as the insight type,
+  // which failed the insight_type CHECK constraint and was swallowed — so a
+  // COROS athlete could never complete first_sync or first_insight.
+  await completeActivationStep(supabase, userId, 'first_sync').catch(() => {});
 
   try {
-    await enqueueProactiveInsight(supabase, userId, 'new_activity', {
-      activityId: inserted.id,
-      provider: 'coros',
-      type: activityData.type
-    });
+    await enqueueProactiveInsight(supabase, userId, inserted.id);
   } catch (insightErr) {
     // Non-blocking
   }
