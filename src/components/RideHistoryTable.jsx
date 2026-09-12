@@ -23,6 +23,9 @@ import { Bicycle, CaretLeft, CaretRight, ChartBar, Eye, EyeSlash, Funnel, Magnif
 import { estimateActivityTSS } from '../utils/computeFitnessSnapshots';
 import BikePickerMenu from './gear/BikePickerMenu.jsx';
 
+/** Soft teal wash for the row whose ride is on the map above the table. */
+const SELECTED_ROW_BG = 'rgba(42, 140, 130, 0.12)';
+
 /**
  * Ride History Table Component
  * Displays user's ride history with metrics and filtering
@@ -32,6 +35,8 @@ const RideHistoryTable = ({
   onViewRide,
   onAnalyzeRide,
   onHideRide,
+  /** The ride currently shown on the page's map; its row is highlighted. */
+  selectedRideId = null,
   formatDistance,
   formatElevation,
   ftp = null,
@@ -282,7 +287,11 @@ const RideHistoryTable = ({
               key={ride.id}
               withBorder
               p="sm"
-              style={{ backgroundColor: 'var(--color-card)', cursor: 'pointer' }}
+              aria-selected={ride.id === selectedRideId || undefined}
+              style={{
+                backgroundColor: ride.id === selectedRideId ? SELECTED_ROW_BG : 'var(--color-card)',
+                cursor: 'pointer',
+              }}
               onClick={() => onViewRide?.(ride)}
             >
               <Group justify="space-between" mb="xs">
@@ -413,7 +422,11 @@ const RideHistoryTable = ({
             </Table.Thead>
             <Table.Tbody>
               {filteredRides.map((ride) => (
-                <Table.Tr key={ride.id}>
+                <Table.Tr
+                  key={ride.id}
+                  aria-selected={ride.id === selectedRideId || undefined}
+                  style={ride.id === selectedRideId ? { backgroundColor: SELECTED_ROW_BG } : undefined}
+                >
                   <Table.Td>
                     <Text size="xs">{formatDate(getDate(ride))}</Text>
                   </Table.Td>

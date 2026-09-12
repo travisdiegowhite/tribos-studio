@@ -104,3 +104,25 @@ describe('ColoredRouteMap', () => {
     expect(container.querySelector('[data-testid="map"]')).toBeNull();
   });
 });
+
+describe('ColoredRouteMap — embed props', () => {
+  it('sizes the map box from `height`', () => {
+    renderMap({ ftp: 250, height: 260 });
+    expect(screen.getByTestId('ride-map-box').style.height).toBe('260px');
+  });
+
+  it('drops the Paper chrome when frameless', () => {
+    const { container } = renderMap({ ftp: 250, frameless: true });
+    expect(container.querySelector('.mantine-Paper-root')).toBeNull();
+  });
+
+  it('keeps the Paper chrome by default', () => {
+    const { container } = renderMap({ ftp: 250 });
+    expect(container.querySelector('.mantine-Paper-root')).not.toBeNull();
+  });
+
+  it('leaves out the scrub strip when showStrip is false', () => {
+    renderMap({ ftp: 250, showStrip: false });
+    expect(screen.queryByTestId('ride-metric-strip')).toBeNull();
+  });
+});

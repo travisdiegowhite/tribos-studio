@@ -13,8 +13,29 @@
  */
 
 import type { RecentRide } from '../today/shared/recentRides';
+import type { RideStreams } from '../../utils/rideGeo';
 
 export type { RecentRide };
+
+/**
+ * The newest ride that can be drawn, for zone 03's LAST RIDE view. Carries
+ * the per-point streams (the only place on SpineData that does) so the
+ * colored map can render without a second read; `hasStreamTrack` decides
+ * whether that view is the default.
+ */
+export interface LatestRideMap {
+  id: string;
+  name: string;
+  startDate: string;
+  distanceKm: number;
+  elevationM: number;
+  durationSec: number;
+  polyline: string | null;
+  streams: RideStreams | null;
+  hasStreamTrack: boolean;
+  /** The ride's own max HR (sanitised), for HR zone colouring. */
+  maxHr: number | null;
+}
 
 /** Per-day zone/activity chip shown in the node's teal header. */
 export interface DayActivity {
@@ -141,6 +162,13 @@ export interface SpineData {
   event: SpineEvent | null;
   weekRollup: WeekRollup;
   recentRides: RecentRide[];
+  /** Newest drawable ride with its streams, for the zone-03 LAST RIDE map. */
+  latestRideMap: LatestRideMap | null;
+  /**
+   * The athlete's real FTP, or null when unset. Distinct from the 200 W the
+   * load math substitutes — a placeholder must never colour power zones.
+   */
+  athleteFtp: number | null;
   coach: CoachSeed;
   /** Header one-liner, e.g. 'Peak lands in 9 days, right on the gran fondo.' */
   summaryLine: string | null;

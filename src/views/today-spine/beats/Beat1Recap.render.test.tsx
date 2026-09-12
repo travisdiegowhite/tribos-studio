@@ -1,5 +1,5 @@
-import { describe, it, expect } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { describe, it, expect, vi } from 'vitest';
+import { fireEvent, render, screen } from '@testing-library/react';
 import { MantineProvider } from '@mantine/core';
 import { Beat1Recap } from './Beat1Recap';
 import type { Beat1VM } from './types';
@@ -26,10 +26,10 @@ function vm(over: Partial<Beat1VM> = {}): Beat1VM {
   };
 }
 
-function renderBeat(v: Beat1VM) {
+function renderBeat(v: Beat1VM, onSeeMap?: () => void) {
   return render(
     <MantineProvider>
-      <Beat1Recap vm={v} />
+      <Beat1Recap vm={v} onSeeMap={onSeeMap} />
     </MantineProvider>,
   );
 }
@@ -57,5 +57,19 @@ describe('Beat1Recap', () => {
   it('omits the trace when the geometry is too short to be a shape', () => {
     renderBeat(vm({ polyline: '_p~iF~ps|U' })); // one point
     expect(screen.queryByTestId('route-trace')).toBeNull();
+  });
+
+  it('offers the map only when there is a route to draw and a way to open it', () => {
+    const onSeeMap = vi.fn();
+    renderBeat(vm(), onSeeMap);
+    fireEvent.click(screen.getByRole('button', { name: 'See the map' }));
+    expect(onSeeMap).toHaveBeenCalledTimes(1);
+  });
+
+  it('shows no map link without a handler, or for a ride with no geometry', () => {
+    renderBeat(vm());
+    expect(screen.queryByRole('button', { name: 'See the map' })).toBeNull();
+    renderBeat(vm({ polyline: null }), vi.fn());
+    expect(screen.queryByRole('button', { name: 'See the map' })).toBeNull();
   });
 });

@@ -1,31 +1,81 @@
 /**
- * RidesMap — Zone 03. A dark Mapbox canvas showing the last few rides as teal
- * route lines (most recent full-strength, older dimmed), each sitting on a
- * blurred same-color shadow — the brand's one real flourish. Overlay chips carry
- * the this-week distance / elevation / ride-count rollup.
+ * RidesMap — Zone 03, two views behind one header:
+ *
+ * LAST RIDE — the newest drawable ride on the zone-colored ColoredRouteMap
+ * (3D terrain, power/HR zones, scrub strip), the same visualization the ride
+ * analysis modal opens with. Default whenever that ride carries streams.
+ *
+ * THIS WEEK — the dark Mapbox canvas showing the last few rides as teal route
+ * lines (most recent full-strength, older dimmed), each sitting on a blurred
+ * same-color shadow — the brand's one real flourish. Overlay chips carry the
+ * this-week distance / elevation / ride-count rollup.
  *
  * Reuses the map plumbing proven in src/components/RecentRidesMap.jsx
  * (react-map-gl, dark-v11, VITE_MAPBOX_TOKEN) and the shared polyline decoder.
- * Coordinates are canonical [lng, lat].
+ * Coordinates are canonical [lng, lat]. ColoredRouteMap is imported here, not
+ * in TodaySpine, so mapbox-gl stays behind the lazy boundary that keeps it off
+ * the page's initial load.
  */
 
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import Map, { Layer, Marker, Source } from 'react-map-gl';
 import 'mapbox-gl/dist/mapbox-gl.css';
 import { Box, Group, Text } from '@mantine/core';
+import { Link } from 'react-router-dom';
+import ColoredRouteMap from '../../components/ColoredRouteMap.jsx';
 import { decodePolyline } from '../today/shared/decodePolyline';
 import { filterRidesNearLatest } from '../today/shared/recentRides';
 import { C, FONT } from './tokens';
-import type { RecentRide, WeekRollup } from './types';
+import type { LatestRideMap, RecentRide, WeekRollup } from './types';
 import type { UnitsPreference } from './units';
 
 const MAPBOX_TOKEN = import.meta.env.VITE_MAPBOX_TOKEN as string | undefined;
+
+type View = 'last' | 'week';
 
 interface RidesMapProps {
   rides: RecentRide[];
   weekRollup: WeekRollup;
   units: UnitsPreference;
   height?: number;
+  /** Newest drawable ride, streams included. Null hides the LAST RIDE view. */
+  latestRide?: LatestRideMap | null;
+  /** The athlete's real FTP for power-zone colouring; null → percentile ramp. */
+  ftp?: number | null;
+  /** Phone: drop the scrub strip so the card stays short behind the door. */
+  compact?: boolean;
+  /** Open on LAST RIDE and scroll into view (the Beat 1 "see the map" link). */
+  focusOnMount?: boolean;
+}
+
+/** Where the full analysis lives — /train selects the ride and opens the modal. */
+export function fullAnalysisHref(rideId: string): string {
+  return `/train?tab=history&ride=${encodeURIComponent(rideId)}`;
+}
+
+function ViewTab({ active, onClick, children }: { active: boolean; onClick: () => void; children: string }) {
+  return (
+    <Box
+      component="button"
+      type="button"
+      onClick={onClick}
+      aria-pressed={active}
+      style={{
+        background: 'none',
+        border: 'none',
+        borderBottom: `2px solid ${active ? C.gold : 'transparent'}`,
+        padding: '2px 0 3px',
+        cursor: 'pointer',
+        fontFamily: FONT.mono,
+        fontSize: 10,
+        fontWeight: 500,
+        letterSpacing: '1.5px',
+        color: active ? C.text : C.text3,
+      }}
+    >
+      {children}
+    </Box>
+  );
 }
 
 interface DecodedRide extends RecentRide {
@@ -75,8 +125,35 @@ function EmptyCanvas({ height, message }: { height: number; message: string }) {
   );
 }
 
-export function RidesMap({ rides, weekRollup, units, height = 230 }: RidesMapProps) {
+export function RidesMap({
+  rides,
+  weekRollup,
+  units,
+  height = 230,
+  latestRide = null,
+  ftp = null,
+  compact = false,
+  focusOnMount = false,
+}: RidesMapProps) {
   const [mapLoaded, setMapLoaded] = useState(false);
+  const rootRef = useRef<HTMLDivElement>(null);
+  // LAST RIDE leads when the newest ride has streams to colour; a polyline-only
+  // ride draws as a plain line, which the week overlay already does better.
+  const [view, setView] = useState<View>(() => (latestRide?.hasStreamTrack ? 'last' : 'week'));
+  const showLastRide = Boolean(latestRide) && view === 'last';
+
+  useEffect(() => {
+    if (!focusOnMount || !latestRide) return;
+    setView('last');
+    rootRef.current?.scrollIntoView?.({ behavior: 'smooth', block: 'start' });
+    // Mount-only by design: the signal is "the athlete asked for the map".
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const lastRideCoords = useMemo(
+    () => (latestRide ? decodePolyline(latestRide.polyline) : []),
+    [latestRide],
+  );
 
   const decoded = useMemo<DecodedRide[]>(() => {
     return rides
@@ -132,14 +209,20 @@ export function RidesMap({ rides, weekRollup, units, height = 230 }: RidesMapPro
       ? { value: Math.round(weekRollup.elevationM).toLocaleString(), unit: 'm' }
       : { value: Math.round(weekRollup.elevationFt).toLocaleString(), unit: 'ft' };
 
+  const lastRideDate = latestRide
+    ? new Date(latestRide.startDate).toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' })
+    : '';
+
   return (
     <Box
+      ref={rootRef}
       style={{
         background: C.card,
         border: `1.5px solid ${C.border}`,
         boxShadow: '0 1px 3px rgba(20,16,8,.07),0 4px 12px rgba(20,16,8,.05)',
         display: 'flex',
         flexDirection: 'column',
+        scrollMarginTop: 72,
       }}
     >
       <Group justify="space-between" align="center" style={{ padding: '13px 16px 11px' }}>
@@ -150,13 +233,64 @@ export function RidesMap({ rides, weekRollup, units, height = 230 }: RidesMapPro
             WHERE YOU RIDE
           </Text>
         </Group>
-        <Text style={{ fontFamily: FONT.mono, fontSize: 10, letterSpacing: '1px', color: C.text3 }}>
-          {ridesForMap.length > 0 ? `LAST ${ridesForMap.length} RIDES` : 'NO RIDES'}
-        </Text>
+        {latestRide ? (
+          <Group gap={14} align="center">
+            <ViewTab active={view === 'last'} onClick={() => setView('last')}>
+              LAST RIDE
+            </ViewTab>
+            <ViewTab active={view === 'week'} onClick={() => setView('week')}>
+              THIS WEEK
+            </ViewTab>
+          </Group>
+        ) : (
+          <Text style={{ fontFamily: FONT.mono, fontSize: 10, letterSpacing: '1px', color: C.text3 }}>
+            {ridesForMap.length > 0 ? `LAST ${ridesForMap.length} RIDES` : 'NO RIDES'}
+          </Text>
+        )}
       </Group>
 
       {!MAPBOX_TOKEN ? (
         <EmptyCanvas height={height} message="MAP REQUIRES CONFIGURATION" />
+      ) : showLastRide && latestRide ? (
+        <>
+          <ColoredRouteMap
+            key={latestRide.id}
+            activityStreams={latestRide.streams}
+            routeCoords={lastRideCoords}
+            ftp={ftp}
+            maxHr={latestRide.maxHr}
+            frameless
+            height={height}
+            showStrip={!compact}
+          />
+          <Group
+            justify="space-between"
+            align="center"
+            wrap="nowrap"
+            style={{ padding: '10px 16px', borderTop: `1px solid ${C.border}` }}
+          >
+            <Text
+              style={{ fontFamily: FONT.mono, fontSize: 10, letterSpacing: '1px', color: C.text3, minWidth: 0 }}
+              lineClamp={1}
+            >
+              {`${latestRide.name} · ${lastRideDate}`.toUpperCase()}
+            </Text>
+            <Link
+              to={fullAnalysisHref(latestRide.id)}
+              style={{
+                fontFamily: FONT.mono,
+                fontSize: 10,
+                letterSpacing: '1.5px',
+                color: C.teal,
+                textDecoration: 'underline',
+                textUnderlineOffset: 3,
+                whiteSpace: 'nowrap',
+              }}
+            >
+              FULL ANALYSIS →
+            </Link>
+          </Group>
+        </>
       ) : decoded.length === 0 ? (
         <EmptyCanvas height={height} message="NO RIDES WITH ROUTE DATA YET" />
       ) : (

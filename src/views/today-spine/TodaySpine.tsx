@@ -92,6 +92,8 @@ export default function TodaySpine() {
 
   const [selected, setSelected] = useState(0);
   const [flipped, setFlipped] = useState(false);
+  // Beat 1's "see the map" opens the numbers door with zone 03 on LAST RIDE.
+  const [mapRequested, setMapRequested] = useState(false);
 
   // Initialize selection once data lands.
   useEffect(() => {
@@ -199,7 +201,13 @@ export default function TodaySpine() {
     const bottomRow = (
       <Box style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1.32fr 1fr', gap: 20, alignItems: 'stretch' }}>
         <Suspense fallback={<Skeleton height={260} radius={0} />}>
-          <RidesMap rides={data.recentRides} weekRollup={data.weekRollup} units={units} />
+          <RidesMap
+            rides={data.recentRides}
+            weekRollup={data.weekRollup}
+            units={units}
+            latestRide={data.latestRideMap}
+            ftp={data.athleteFtp}
+          />
         </Suspense>
         {/* A successful coach schedule adjustment refetches the spine so the
             projected bars reflect the new calendar without a reload. */}
@@ -227,6 +235,7 @@ export default function TodaySpine() {
           <BeatsColumn
             data={data}
             units={units}
+            onSeeMap={() => setMapRequested(true)}
             numbers={
               <>
                 {nodeCard}
@@ -240,7 +249,15 @@ export default function TodaySpine() {
                   onToggleFlip={() => {}}
                   onSnapToday={snapToday}
                 />
-                <RidesMap rides={data.recentRides} weekRollup={data.weekRollup} units={units} />
+                <RidesMap
+                  rides={data.recentRides}
+                  weekRollup={data.weekRollup}
+                  units={units}
+                  latestRide={data.latestRideMap}
+                  ftp={data.athleteFtp}
+                  compact
+                  focusOnMount={mapRequested}
+                />
               </>
             }
           />

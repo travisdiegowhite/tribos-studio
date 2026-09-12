@@ -87,6 +87,8 @@ import { Barbell, Bicycle, Calendar, CalendarBlank, CaretDown, CaretRight, Chart
 import PlanProgressBar from '../components/train/PlanProgressBar.jsx';
 import WeekSummaryGrid from '../components/train/WeekSummaryGrid.jsx';
 import SecondaryNavBar from '../components/train/SecondaryNavBar.jsx';
+import RideMapCard from '../components/train/RideMapCard.jsx';
+import { rideHasGps, selectGpsRide } from '../utils/rideGeo';
 
 // Helper to determine sport type from activity data
 const CYCLING_TYPES = ['Ride', 'VirtualRide', 'EBikeRide', 'GravelRide', 'MountainBikeRide'];
@@ -172,6 +174,16 @@ function TrainingDashboard() {
     activities.filter(a => !a.is_hidden),
     [activities]
   );
+
+  // The ride map above the tabs. `mapRideId` is the athlete's pick (a HISTORY
+  // row or the prev/next arrows); null means "the newest ride with GPS". The
+  // selection resolves by id on every render so it survives the gear merge
+  // replacing every row object.
+  const [mapRideId, setMapRideId] = useState(null);
+  const [mapOpenSignal, setMapOpenSignal] = useState(0);
+  const mapCardRef = useRef(null);
+  const gpsRides = useMemo(() => visibleActivities.filter(rideHasGps), [visibleActivities]);
+  const mapSel = useMemo(() => selectGpsRide(gpsRides, mapRideId), [gpsRides, mapRideId]);
 
   // Recalculate training metrics when visible activities change.
   // Uses the shared server-preferred day walk (buildDailyLoadSeries) so /train
@@ -765,6 +777,39 @@ function TrainingDashboard() {
     setRideAnalysisModalOpen(true);
   }, []);
 
+  // A HISTORY row drives the map card above the tabs; a ride with nothing to
+  // draw (indoor, hidden) still opens the full analysis directly.
+  const handleSelectMapRide = useCallback((ride) => {
+    if (!gpsRides.some(r => r.id === ride.id)) {
+      handleViewRide(ride);
+      return;
+    }
+    setMapRideId(ride.id);
+    setMapOpenSignal(n => n + 1);
+    mapCardRef.current?.scrollIntoView?.({ behavior: 'smooth', block: 'start' });
+  }, [gpsRides, handleViewRide]);
+  const handleMapNewer = useCallback(() => {
+    setMapRideId(gpsRides[mapSel.index - 1]?.id ?? null);
+  }, [gpsRides, mapSel.index]);
+  const handleMapOlder = useCallback(() => {
+    setMapRideId(gpsRides[mapSel.index + 1]?.id ?? null);
+  }, [gpsRides, mapSel.index]);
+
+  // `/train?tab=history&ride=<id>` (the Today card's "full analysis" link):
+  // once the activities are in, put that ride on the map and open the modal
+  // — once. The ref keeps a later `activities` replacement (gear merge, hide)
+  // from re-opening it after the athlete closed it.
+  const urlRideId = searchParams.get('ride');
+  const consumedUrlRide = useRef(null);
+  useEffect(() => {
+    if (!urlRideId || loading || consumedUrlRide.current === urlRideId) return;
+    const ride = activities.find(a => a.id === urlRideId);
+    if (!ride) return;
+    consumedUrlRide.current = urlRideId;
+    setMapRideId(ride.id);
+    handleViewRide(ride);
+  }, [urlRideId, loading, activities, handleViewRide]);
+
   // Which bike a ride was on — the rider's decision, so assigned_by 'manual'.
   const { gearItems, reassignActivityGear, setRideSurface } = useGear({ userId: user?.id });
   const bikes = useMemo(
@@ -1041,6 +1086,26 @@ function TrainingDashboard() {
             loading={loading}
           />
 
+          {/* The ride map: newest GPS ride by default, or the HISTORY pick */}
+          {mapSel.ride && (
+            <div ref={mapCardRef}>
+              <RideMapCard
+                ride={mapSel.ride}
+                ftp={ftp}
+                formatDistance={formatDist}
+                formatElevation={formatElev}
+                formatTime={formatTime}
+                title={activeTab === 'history' ? 'Selected ride' : 'Latest ride'}
+                hasNewer={mapSel.hasNewer}
+                hasOlder={mapSel.hasOlder}
+                onNewer={handleMapNewer}
+                onOlder={handleMapOlder}
+                onFullAnalysis={handleViewRide}
+                openSignal={mapOpenSignal}
+              />
+            </div>
+          )}
+
           {/* FTP nudge — TSS/intensity/form below are estimated without an FTP */}
           {!loading && !ftp && (
             <Group justify="flex-end">
@@ -1133,7 +1198,8 @@ function TrainingDashboard() {
                 formatElevation={formatElev}
                 ftp={ftp}
                 maxRows={Infinity}
-                onViewRide={handleViewRide}
+                onViewRide={handleSelectMapRide}
+                selectedRideId={mapSel.ride?.id ?? null}
                 onHideRide={handleHideRide}
                 bikes={bikes}
                 onAssignBike={handleAssignBike}

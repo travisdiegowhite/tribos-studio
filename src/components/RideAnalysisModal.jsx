@@ -39,50 +39,12 @@ import RidePacingChart from './RidePacingChart';
 import { trackFeature, EventType } from '../utils/activityTracking';
 import { isPowerSport, isRunningActivity, getActivityNoun, getLoadLabel } from '../utils/sportType';
 import { buildRideSummary } from '../utils/rideSummary';
+import { rideRouteCoords } from '../utils/rideGeo';
 import { ArrowRight, ArrowsClockwise, Clock, Fire, Gauge, Heart, Heartbeat, Lightning, MapTrifold, Mountains, Path, ShareNetwork, Watch } from '@phosphor-icons/react';
 
 // FIT protocol uses 0xFFFF (65535) for "no data" - must filter before display
 const MAX_VALID_POWER_WATTS = 2500;
 const MAX_VALID_HR_BPM = 250;
-
-/**
- * Decode a Google-encoded polyline string to coordinates
- */
-function decodePolyline(encoded) {
-  if (!encoded) return [];
-
-  const coords = [];
-  let index = 0;
-  let lat = 0;
-  let lng = 0;
-
-  while (index < encoded.length) {
-    let shift = 0;
-    let result = 0;
-    let byte;
-
-    do {
-      byte = encoded.charCodeAt(index++) - 63;
-      result |= (byte & 0x1f) << shift;
-      shift += 5;
-    } while (byte >= 0x20);
-    lat += result & 1 ? ~(result >> 1) : result >> 1;
-
-    shift = 0;
-    result = 0;
-
-    do {
-      byte = encoded.charCodeAt(index++) - 63;
-      result |= (byte & 0x1f) << shift;
-      shift += 5;
-    } while (byte >= 0x20);
-    lng += result & 1 ? ~(result >> 1) : result >> 1;
-
-    coords.push([lng / 1e5, lat / 1e5]);
-  }
-
-  return coords;
-}
 
 /**
  * Calculate bounds for fitting map to route
@@ -249,21 +211,8 @@ const RideAnalysisModal = ({
     }
   };
 
-  // Extract polyline from various possible locations
-  const polyline = useMemo(() => {
-    if (!ride) return null;
-    return (
-      ride.map_summary_polyline ||
-      ride.summary_polyline ||
-      ride.polyline ||
-      ride.map?.summary_polyline
-    );
-  }, [ride]);
-
-  // Decode polyline to coordinates
-  const routeCoords = useMemo(() => {
-    return decodePolyline(polyline);
-  }, [polyline]);
+  // Decode the summary polyline (whichever column variant the row carries)
+  const routeCoords = useMemo(() => rideRouteCoords(ride), [ride]);
 
   // Calculate map bounds
   const bounds = useMemo(() => {
@@ -802,7 +751,7 @@ const RideAnalysisModal = ({
         {/* Route Builder Nudge — only for users who haven't created a route yet.
             Hidden for runs until the route builder gains running support
             (planned for a later phase). */}
-        {!hasCreatedRoute && polyline && !isRun && (
+        {!hasCreatedRoute && routeCoords.length > 0 && !isRun && (
           <Paper
             p="md"
             style={{
