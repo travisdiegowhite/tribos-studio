@@ -10,6 +10,12 @@ function AuthCallback() {
   const [searchParams] = useSearchParams();
 
   useEffect(() => {
+    // Held outside the async body so cleanup can cancel them: the fallback
+    // timer used to fire even after a successful sign-in, bouncing a slow
+    // (but successful) confirmation back to /auth.
+    let subscription = null;
+    let fallbackTimer = null;
+
     const handleCallback = async () => {
       try {
         // Check for error in URL params (from Supabase)
@@ -40,19 +46,21 @@ function AuthCallback() {
         } else {
           // No session yet, might need to wait for auth state change
           // Listen for the auth state to update
-          const { data: { subscription } } = supabase.auth.onAuthStateChange(
+          ({ data: { subscription } } = supabase.auth.onAuthStateChange(
             (event, session) => {
               if (session) {
-                subscription.unsubscribe();
+                clearTimeout(fallbackTimer);
+                subscription?.unsubscribe();
                 navigate(consumeReturnTo() || '/today');
               }
             }
-          );
+          ));
 
           // Timeout fallback - if no session after 5 seconds, redirect to auth
-          setTimeout(() => {
-            subscription.unsubscribe();
-            navigate('/auth');
+          // and say why (Auth.jsx reads ?error=callback_failed).
+          fallbackTimer = setTimeout(() => {
+            subscription?.unsubscribe();
+            navigate('/auth?error=callback_failed');
           }, 5000);
         }
       } catch (err) {
@@ -62,6 +70,11 @@ function AuthCallback() {
     };
 
     handleCallback();
+
+    return () => {
+      clearTimeout(fallbackTimer);
+      subscription?.unsubscribe();
+    };
   }, [navigate, searchParams]);
 
   return (

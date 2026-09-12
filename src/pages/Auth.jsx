@@ -50,7 +50,7 @@ async function markBetaSignupActivated(email) {
 function Auth() {
   const navigate = useNavigate();
   const location = useLocation();
-  const [searchParams] = useSearchParams();
+  const [searchParams, setSearchParams] = useSearchParams();
 
   // Which form to open. `?mode=signup` is the linkable form (landing CTAs,
   // the guest route-builder modal, a Threads post); router state is kept
@@ -63,7 +63,23 @@ function Auth() {
   const [password, setPassword] = useState('');
   const [name, setName] = useState('');
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState('');
+  // /auth/callback redirects here with ?error=callback_failed when a
+  // confirmation or OAuth link could not be completed. Say so; a blank
+  // login form after clicking an email link reads as "the link did nothing".
+  const [error, setError] = useState(() =>
+    searchParams.get('error') === 'callback_failed'
+      ? "We couldn't complete sign-in from that link. Try signing in below, or request a new link."
+      : ''
+  );
+
+  useEffect(() => {
+    if (!searchParams.has('error')) return;
+    const next = new URLSearchParams(searchParams);
+    next.delete('error');
+    setSearchParams(next, { replace: true });
+    // Once, on mount: strip the param so a refresh does not re-show the message.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   const [message, setMessage] = useState('');
   const [tosAccepted, setTosAccepted] = useState(false);
   const [webviewInfo, setWebviewInfo] = useState({ isWebview: false, appName: null });
