@@ -39,11 +39,13 @@ export function GuestSaveModal({ opened, onClose, trigger }: GuestSaveModalProps
     if (opened) trackRb2('signup_modal_shown', { trigger });
   }, [opened, trigger]);
 
-  const goToAuth = () => {
-    // Come back to the builder (not /today) once the session exists; the
-    // persisted store rehydrates the in-progress route.
+  // Come back to the builder (not /today) once the session exists; the
+  // persisted store rehydrates the in-progress route. The primary button
+  // opens the SIGN-UP form — this is the highest-intent moment in the
+  // product, and landing it on "Welcome back" cost real conversions.
+  const goToAuth = (mode: 'signup' | 'signin') => {
     stashReturnTo(location.pathname || '/ride/new');
-    navigate('/auth');
+    navigate(mode === 'signup' ? '/auth?mode=signup' : '/auth');
   };
 
   const copy = COPY[trigger];
@@ -81,7 +83,7 @@ export function GuestSaveModal({ opened, onClose, trigger }: GuestSaveModalProps
             Not now
           </Button>
           <Button
-            onClick={goToAuth}
+            onClick={() => goToAuth('signup')}
             data-testid="rb2-guest-modal-signup"
             styles={{
               root: {
@@ -105,7 +107,7 @@ export function GuestSaveModal({ opened, onClose, trigger }: GuestSaveModalProps
           Already have an account?{' '}
           <Text
             component="span"
-            onClick={goToAuth}
+            onClick={() => goToAuth('signin')}
             style={{ color: RB2.teal, cursor: 'pointer', textDecoration: 'underline' }}
           >
             Log in

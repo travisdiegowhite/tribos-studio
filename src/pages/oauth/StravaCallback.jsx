@@ -2,6 +2,7 @@ import { useEffect, useState, useRef } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Box, Text, Stack, Alert } from '@mantine/core';
 import { useAuth } from '../../contexts/AuthContext.jsx';
+import { hasOnboardingDraft } from '../../utils/onboardingState';
 import { tokens } from '../../theme';
 import { stravaService } from '../../utils/stravaService';
 
@@ -75,7 +76,9 @@ function StravaCallback() {
 
         // Redirect to settings with success indicator
         setTimeout(() => {
-          navigate('/settings?tab=integrations&connected=strava');
+          // Mid-onboarding-wizard connects resume the wizard on /today (it reads
+        // the draft); everyone else lands on Settings as before.
+        navigate(hasOnboardingDraft(user.id) ? '/today' : '/settings?tab=integrations&connected=strava');
         }, 2000);
 
       } catch (err) {

@@ -25,6 +25,7 @@ import {
 } from '@phosphor-icons/react';
 import { useAuth } from '../contexts/AuthContext.jsx';
 import { supabase } from '../lib/supabase';
+import { ensureUserProfile } from '../utils/ensureProfile';
 import LifecycleOverlays from './LifecycleOverlays.jsx';
 import { useGear } from '../hooks/useGear.ts';
 import { useActivation } from '../hooks/useActivation.ts';
@@ -61,22 +62,30 @@ function AppShell({ children, fullWidth = false, hideNav = false }) {
   // Activation guide — undismiss support
   const { isDismissed: guideIsDismissed, isComplete: guideIsComplete, undismissGuide } = useActivation(user?.id);
 
-  // Persist pending consent from signup flow to user_profiles
+  // First authenticated load: make sure the profile row exists (no DB
+  // trigger creates it), then persist any consent captured at signup.
+  // The consent write is an upsert too, so it can never no-op against a
+  // missing row — which is exactly how it used to lose ToS/privacy
+  // acceptance for athletes who never finished the onboarding wizard.
   useEffect(() => {
     if (!user?.id || consentPersisted.current) return;
     consentPersisted.current = true;
 
-    try {
-      const pending = localStorage.getItem('tribos_consent_pending');
-      if (pending) {
+    const persist = async () => {
+      await ensureUserProfile(user.id);
+      try {
+        const pending = localStorage.getItem('tribos_consent_pending');
+        if (!pending) return;
         const consent = JSON.parse(pending);
-        supabase.from('user_profiles').update(consent).eq('id', user.id)
-          .then(() => localStorage.removeItem('tribos_consent_pending'))
-          .catch(() => {}); // Non-blocking
+        const { error } = await supabase
+          .from('user_profiles')
+          .upsert({ id: user.id, ...consent }, { onConflict: 'id' });
+        if (!error) localStorage.removeItem('tribos_consent_pending');
+      } catch {
+        // Ignore localStorage/JSON errors; the pending key stays for a retry.
       }
-    } catch {
-      // Ignore localStorage errors
-    }
+    };
+    persist().catch(() => {}); // Non-blocking
   }, [user?.id]);
 
   // Check if current path matches nav item

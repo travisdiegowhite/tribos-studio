@@ -5,7 +5,7 @@
  * Used by webhook handlers and API routes (all server-side with service key).
  */
 
-const VALID_STEPS = ['connect_device', 'first_sync', 'first_insight', 'first_route', 'first_plan'];
+export const VALID_STEPS = ['connect_device', 'first_sync', 'first_insight', 'first_route', 'first_plan'];
 
 /**
  * Mark an activation step as completed for a user.

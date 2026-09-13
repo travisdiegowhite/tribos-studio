@@ -15,6 +15,26 @@ const supabase = getSupabaseAdmin();
 
 const BCC = ['travis@tribos.studio'];
 
+// The candidate window is on user_profiles.created_at, and that row is
+// created on first authenticated load (src/utils/ensureProfile.js) — which
+// for an account that signed up months ago and only now logs in again is
+// TODAY. Without this guard every such account would get "thanks for
+// joining the beta" on its next visit. Key the cutoff on the real signup
+// time from auth.users instead.
+export const WELCOME_MAX_ACCOUNT_AGE_MS = 48 * 60 * 60 * 1000;
+
+/**
+ * True when the auth account is too old to be a genuine new signup.
+ * @param {string | null | undefined} authCreatedAt ISO timestamp from auth.users
+ * @param {Date} [now]
+ */
+export function isTooOldForWelcome(authCreatedAt, now = new Date()) {
+  if (!authCreatedAt) return false;
+  const created = new Date(authCreatedAt).getTime();
+  if (Number.isNaN(created)) return false;
+  return now.getTime() - created > WELCOME_MAX_ACCOUNT_AGE_MS;
+}
+
 export default async function handler(req, res) {
   if (!verifyCronAuth(req).authorized) {
     return res.status(401).json({ error: 'Unauthorized' });
@@ -52,6 +72,16 @@ export default async function handler(req, res) {
     for (const candidate of candidates) {
       const { data: { user: authUser } } = await supabase.auth.admin.getUserById(candidate.id);
       if (!authUser?.email) continue;
+
+      if (isTooOldForWelcome(authUser.created_at, now)) {
+        // Old account whose profile row only just appeared. Mark it so the
+        // day-two nudge (gated on welcome_email_sent) stays quiet too.
+        await supabase
+          .from('user_profiles')
+          .update({ welcome_email_sent: true })
+          .eq('id', candidate.id);
+        continue;
+      }
 
       const completed = !!candidate.onboarding_completed;
 

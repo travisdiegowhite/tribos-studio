@@ -32,7 +32,8 @@ const ACTIVATION_STEPS = [
     label: 'Sync your first activity',
     description: 'Your recent rides will import automatically',
     cta: 'Check sync',
-    href: '/training?tab=history',
+    // /train directly: the legacy /training redirect drops the query string.
+    href: '/train?tab=history',
     icon: ArrowsClockwise,
   },
   {

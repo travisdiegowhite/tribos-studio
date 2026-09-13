@@ -2,6 +2,7 @@ import { useEffect, useState, useRef } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Box, Text, Stack, Alert } from '@mantine/core';
 import { useAuth } from '../../contexts/AuthContext.jsx';
+import { hasOnboardingDraft } from '../../utils/onboardingState';
 import { tokens } from '../../theme';
 import { garminService } from '../../utils/garminService';
 
@@ -49,7 +50,9 @@ function GarminCallback() {
       try {
         // Exchange authorization code for tokens
         await garminService.exchangeToken(code, state);
-        navigate('/settings?connected=garmin');
+        // Mid-onboarding-wizard connects resume the wizard on /today (it reads
+        // the draft); everyone else lands on Settings as before.
+        navigate(hasOnboardingDraft(user.id) ? '/today' : '/settings?connected=garmin');
       } catch (err) {
         console.error('Garmin callback error:', err);
         setError(err.message || 'Failed to connect Garmin. Please try again.');

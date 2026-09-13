@@ -35,7 +35,9 @@ const MILESTONE_NUDGES = {
   first_plan: {
     subject: 'Which training plan fits your goal?',
     cta: 'Browse Training Plans',
-    url: 'https://www.tribos.studio/train/planner?tab=browse',
+    // Same target as the Get Started guide's "Browse plans" step; the planner
+    // page has no browse tab.
+    url: 'https://www.tribos.studio/train?tab=browse',
   },
 };
 

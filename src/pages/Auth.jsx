@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useNavigate, useLocation } from 'react-router-dom';
+import { useNavigate, useLocation, useSearchParams } from 'react-router-dom';
 import {
   Container,
   Paper,
@@ -50,21 +50,45 @@ async function markBetaSignupActivated(email) {
 function Auth() {
   const navigate = useNavigate();
   const location = useLocation();
+  const [searchParams, setSearchParams] = useSearchParams();
 
-  // Check if coming from beta signup flow
+  // Which form to open. `?mode=signup` is the linkable form (landing CTAs,
+  // the guest route-builder modal, a Threads post); router state is kept
+  // for one release so any cached bundle still passing it keeps working.
   const { email: prefilledEmail, fromBetaSignup } = location.state || {};
+  const startInSignUp = searchParams.get('mode') === 'signup' || !!fromBetaSignup;
 
-  const [isSignUp, setIsSignUp] = useState(fromBetaSignup || false);
+  const [isSignUp, setIsSignUp] = useState(startInSignUp);
+  // Forgot-password is a third form on the same page: email only, sends the
+  // reset link, lands on /auth/reset-password. `?mode=forgot` lets the reset
+  // page link back here when a link has expired.
+  const [isForgot, setIsForgot] = useState(searchParams.get('mode') === 'forgot');
   const [email, setEmail] = useState(prefilledEmail || '');
   const [password, setPassword] = useState('');
   const [name, setName] = useState('');
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState('');
+  // /auth/callback redirects here with ?error=callback_failed when a
+  // confirmation or OAuth link could not be completed. Say so; a blank
+  // login form after clicking an email link reads as "the link did nothing".
+  const [error, setError] = useState(() =>
+    searchParams.get('error') === 'callback_failed'
+      ? "We couldn't complete sign-in from that link. Try signing in below, or request a new link."
+      : ''
+  );
+
+  useEffect(() => {
+    if (!searchParams.has('error')) return;
+    const next = new URLSearchParams(searchParams);
+    next.delete('error');
+    setSearchParams(next, { replace: true });
+    // Once, on mount: strip the param so a refresh does not re-show the message.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   const [message, setMessage] = useState('');
   const [tosAccepted, setTosAccepted] = useState(false);
   const [webviewInfo, setWebviewInfo] = useState({ isWebview: false, appName: null });
 
-  const { signIn, signUp, signInWithGoogle } = useAuth();
+  const { signIn, signUp, signInWithGoogle, resetPassword } = useAuth();
 
   // Check if we're in an in-app browser/webview
   useEffect(() => {
@@ -79,29 +103,22 @@ function Auth() {
     setMessage('');
 
     try {
-      if (isSignUp) {
-        const { data, error } = await signUp(email, password, { full_name: name });
+      if (isForgot) {
+        const { error } = await resetPassword(email);
+        if (error && error.status === 429) {
+          throw new Error('Too many requests — try again in a minute.');
+        }
+        // Deliberately the same message on success and on any other error:
+        // never confirm whether an address has an account.
+        if (error) console.error('Password reset request error:', error);
+        setMessage('If an account exists for that email, a reset link is on its way.');
+      } else if (isSignUp) {
+        const { error } = await signUp(email, password, { full_name: name });
         if (error) throw error;
 
-        // Link beta signup record to the new user account
-        if (fromBetaSignup && data?.user?.id) {
-          try {
-            await supabase
-              .from('beta_signups')
-              .update({
-                user_id: data.user.id,
-                status: 'activated',
-                activated_at: new Date().toISOString()
-              })
-              .eq('email', email);
-          } catch (linkError) {
-            console.error('Failed to link beta signup:', linkError);
-            // Non-blocking - don't prevent signup success
-          }
-        }
-
-        // Store consent acceptance for later persistence to user_profiles
-        // (profile may not exist yet — created by DB trigger after email confirmation)
+        // Store consent acceptance for later persistence to user_profiles.
+        // The row is created on first authenticated load (AppShell →
+        // ensureUserProfile), which then flushes this.
         try {
           localStorage.setItem('tribos_consent_pending', JSON.stringify({
             tos_accepted_at: new Date().toISOString(),
@@ -177,7 +194,7 @@ function Auth() {
             TRIBOS.STUDIO
           </Text>
           <Title order={2} style={{ color: 'var(--color-text-primary)' }}>
-            {isSignUp ? 'Create your account' : 'Welcome back'}
+            {isForgot ? 'Reset your password' : isSignUp ? 'Create your account' : 'Welcome back'}
           </Title>
         </Box>
 
@@ -218,12 +235,6 @@ function Auth() {
                 </Alert>
               )}
 
-              {fromBetaSignup && !message && (
-                <Alert color="teal" variant="light">
-                  Your email has been added to the beta list! Complete your account below.
-                </Alert>
-              )}
-
               {isSignUp && (
                 <TextInput
                   label="Full Name"
@@ -243,14 +254,21 @@ function Auth() {
                 required
               />
 
-              <PasswordInput
-                label="Password"
-                placeholder="Your password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                required
-                minLength={6}
-              />
+              {isForgot ? (
+                <Text size="sm" style={{ color: 'var(--color-text-secondary)' }}>
+                  Enter the email you signed up with and we&apos;ll send a link to choose a new
+                  password.
+                </Text>
+              ) : (
+                <PasswordInput
+                  label="Password"
+                  placeholder="Your password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  required
+                  minLength={6}
+                />
+              )}
 
               {isSignUp && (
                 <Checkbox
@@ -281,45 +299,83 @@ function Auth() {
                 mt="sm"
                 disabled={isSignUp && !tosAccepted}
               >
-                {isSignUp ? 'Create Account' : 'Sign In'}
+                {isForgot ? 'Send reset link' : isSignUp ? 'Create Account' : 'Sign In'}
               </Button>
+
+              {!isSignUp && !isForgot && (
+                <Text ta="right" size="sm">
+                  <Anchor
+                    component="button"
+                    type="button"
+                    onClick={() => {
+                      setIsForgot(true);
+                      setError('');
+                      setMessage('');
+                    }}
+                    style={{ color: 'var(--color-text-secondary)' }}
+                  >
+                    Forgot password?
+                  </Anchor>
+                </Text>
+              )}
             </Stack>
           </form>
 
-          <Divider my="lg" label="or continue with" labelPosition="center" />
+          {!isForgot && (
+            <>
+              <Divider my="lg" label="or continue with" labelPosition="center" />
 
-          <Stack gap="sm">
-            <Tooltip
-              label={webviewInfo.isWebview ? `Google sign-in doesn't work in ${webviewInfo.appName}'s browser` : null}
-              disabled={!webviewInfo.isWebview}
-            >
-              <Button
-                variant="outline"
-                color="gray"
-                fullWidth
-                onClick={handleGoogleSignIn}
-                leftSection={<span>🔵</span>}
-                style={webviewInfo.isWebview ? { opacity: 0.5 } : undefined}
-              >
-                Google {webviewInfo.isWebview && '(unavailable)'}
-              </Button>
-            </Tooltip>
-          </Stack>
+              <Stack gap="sm">
+                <Tooltip
+                  label={webviewInfo.isWebview ? `Google sign-in doesn't work in ${webviewInfo.appName}'s browser` : null}
+                  disabled={!webviewInfo.isWebview}
+                >
+                  <Button
+                    variant="outline"
+                    color="gray"
+                    fullWidth
+                    onClick={handleGoogleSignIn}
+                    leftSection={<span>🔵</span>}
+                    style={webviewInfo.isWebview ? { opacity: 0.5 } : undefined}
+                  >
+                    Google {webviewInfo.isWebview && '(unavailable)'}
+                  </Button>
+                </Tooltip>
+              </Stack>
+            </>
+          )}
 
           <Text ta="center" mt="lg" size="sm" style={{ color: 'var(--color-text-secondary)' }}>
-            {isSignUp ? 'Already have an account? ' : "Don't have an account? "}
-            <Anchor
-              component="button"
-              type="button"
-              onClick={() => {
-                setIsSignUp(!isSignUp);
-                setError('');
-                setMessage('');
-              }}
-              style={{ color: 'var(--color-teal)' }}
-            >
-              {isSignUp ? 'Sign in' : 'Sign up'}
-            </Anchor>
+            {isForgot ? (
+              <Anchor
+                component="button"
+                type="button"
+                onClick={() => {
+                  setIsForgot(false);
+                  setError('');
+                  setMessage('');
+                }}
+                style={{ color: 'var(--color-teal)' }}
+              >
+                Back to sign in
+              </Anchor>
+            ) : (
+              <>
+                {isSignUp ? 'Already have an account? ' : "Don't have an account? "}
+                <Anchor
+                  component="button"
+                  type="button"
+                  onClick={() => {
+                    setIsSignUp(!isSignUp);
+                    setError('');
+                    setMessage('');
+                  }}
+                  style={{ color: 'var(--color-teal)' }}
+                >
+                  {isSignUp ? 'Sign in' : 'Sign up'}
+                </Anchor>
+              </>
+            )}
           </Text>
         </Paper>
       </Container>
