@@ -46,8 +46,13 @@ function RepeatsMap({ anchor, efforts, hoverX, height = 420 }) {
   if (!MAPBOX_TOKEN || !bounds) return null;
 
   return (
-    <Box style={{ height, position: 'relative' }} data-testid="repeats-map">
-      {!mapLoaded && <Skeleton height={height} radius={0} />}
+    <Box style={{ height, position: 'relative', overflow: 'hidden' }} data-testid="repeats-map">
+      {/* Overlaid, not in flow, so the map keeps its box while the style loads */}
+      {!mapLoaded && (
+        <Box style={{ position: 'absolute', inset: 0, zIndex: 1, pointerEvents: 'none' }}>
+          <Skeleton height={height} radius={0} />
+        </Box>
+      )}
       <Map
         initialViewState={{ bounds, fitBoundsOptions: { padding: FIT_PADDING } }}
         style={{ width: '100%', height: '100%' }}
