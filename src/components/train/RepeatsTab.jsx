@@ -9,7 +9,7 @@
  * already holds — no new reads.
  */
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { Component, useCallback, useEffect, useMemo, useState } from 'react';
 import {
   ActionIcon,
   Badge,
@@ -29,8 +29,8 @@ import { useSegmentLibrary } from '../../hooks/useSegmentLibrary';
 import {
   anchorFromRide,
   anchorFromSegment,
+  createRepeatsScan,
   effortPointAt,
-  findRepeats,
   repeatBests,
   repeatColor,
 } from '../../utils/rideRepeats';
@@ -39,6 +39,8 @@ import RepeatsStrip from './RepeatsStrip';
 
 const MAX_SELECTED = 8;
 const DEFAULT_SELECTED = 6;
+/** Matching runs between frames in slices this long, so the page never freezes. */
+const SCAN_SLICE_MS = 24;
 
 const METRIC_OPTIONS = [
   { value: 'power', label: 'Power', key: 'power', unit: 'W' },
@@ -99,6 +101,85 @@ function Stat({ label, value }) {
 }
 
 /**
+ * A fault in this tab must never take the page down with it: the rest of
+ * /train keeps working and the athlete gets a retry instead of a blank site.
+ */
+class RepeatsErrorBoundary extends Component {
+  constructor(props) {
+    super(props);
+    this.state = { error: null };
+  }
+
+  static getDerivedStateFromError(error) {
+    return { error };
+  }
+
+  componentDidCatch(error, info) {
+    console.error('REPEATS tab failed', error, info);
+    if (typeof window !== 'undefined' && window.Sentry) {
+      window.Sentry.captureException(error, { extra: info });
+    }
+  }
+
+  render() {
+    if (this.state.error) {
+      return (
+        <Box
+          data-testid="repeats-error"
+          style={{ border: '0.5px solid var(--color-border)', backgroundColor: 'var(--color-card)', padding: 16 }}
+        >
+          <Text style={eyebrowStyle} mb={6}>
+            Repeats
+          </Text>
+          <Text size="sm" mb={10}>
+            Repeats couldn't be drawn for this ride. The rest of the page is unaffected.
+          </Text>
+          <UnstyledButton onClick={() => this.setState({ error: null })} style={{ ...mono, fontSize: 11, letterSpacing: '1.5px', textDecoration: 'underline' }}>
+            TRY AGAIN
+          </UnstyledButton>
+        </Box>
+      );
+    }
+    return this.props.children;
+  }
+}
+
+/**
+ * Match `activities` against `anchor` in short slices between frames.
+ * A history of thousands of rides used to be scanned in one synchronous
+ * pass on click; now the page stays responsive and shows progress.
+ */
+function useRepeatsScan(anchor, activities) {
+  const [state, setState] = useState({ efforts: [], done: true, processed: 0, total: 0 });
+
+  useEffect(() => {
+    const scan = createRepeatsScan(anchor, activities);
+    let cancelled = false;
+    let timer = null;
+    const publish = () =>
+      setState({
+        efforts: scan.done ? scan.efforts.map((e, i) => ({ ...e, color: repeatColor(i) })) : [],
+        done: scan.done,
+        processed: scan.processed,
+        total: scan.total,
+      });
+    const run = () => {
+      if (cancelled) return;
+      scan.step(SCAN_SLICE_MS);
+      publish();
+      if (!scan.done) timer = setTimeout(run, 0);
+    };
+    run();
+    return () => {
+      cancelled = true;
+      if (timer) clearTimeout(timer);
+    };
+  }, [anchor, activities]);
+
+  return state;
+}
+
+/**
  * @param {object} props
  * @param {object|null} props.anchorRide   The ride on the map card (anchor for "this ride").
  * @param {object[]} props.activities      Every visible activity row.
@@ -107,7 +188,15 @@ function Stat({ label, value }) {
  * @param {(kmh: number) => string} props.formatSpeed
  * @param {(ride: object) => void} props.onOpenRide   Opens the full analysis.
  */
-function RepeatsTab({ anchorRide, activities, userId, formatDistance, formatSpeed, onOpenRide }) {
+function RepeatsTab(props) {
+  return (
+    <RepeatsErrorBoundary>
+      <RepeatsTabInner {...props} />
+    </RepeatsErrorBoundary>
+  );
+}
+
+function RepeatsTabInner({ anchorRide, activities, userId, formatDistance, formatSpeed, onOpenRide }) {
   const isMobile = useMediaQuery('(max-width: 768px)');
   const [anchorKind, setAnchorKind] = useState('ride');
   const [segmentId, setSegmentId] = useState(null);
@@ -136,10 +225,8 @@ function RepeatsTab({ anchorRide, activities, userId, formatDistance, formatSpee
     return anchorFromRide(anchorRide);
   }, [anchorKind, anchorRide, segments, segmentId]);
 
-  const efforts = useMemo(
-    () => findRepeats(anchor, activities).map((e, i) => ({ ...e, color: repeatColor(i) })),
-    [anchor, activities],
-  );
+  const scan = useRepeatsScan(anchor, activities);
+  const efforts = scan.efforts;
 
   // A new anchor starts from the default pick again.
   const anchorKey = anchor ? `${anchor.kind}:${anchor.id}` : '';
@@ -239,6 +326,8 @@ function RepeatsTab({ anchorRide, activities, userId, formatDistance, formatSpee
       anchorKind === 'ride'
         ? 'Pick a ride with GPS on the map card above to see its repeats.'
         : 'Pick a segment to see every ride along it.';
+  } else if (!scan.done) {
+    empty = `Scanning ${scan.processed.toLocaleString()} of ${scan.total.toLocaleString()} rides…`;
   } else if (efforts.length === 0) {
     empty = 'No rides along this path yet.';
   }
@@ -276,9 +365,12 @@ function RepeatsTab({ anchorRide, activities, userId, formatDistance, formatSpee
       </Box>
 
       {anchor && empty && (
-        <Text size="sm" c="dimmed" p="md">
-          {empty}
-        </Text>
+        <Group gap="sm" p="md" align="center" data-testid="repeats-status">
+          {!scan.done && <Loader size="xs" />}
+          <Text size="sm" c="dimmed">
+            {empty}
+          </Text>
+        </Group>
       )}
 
       {anchor && !empty && (

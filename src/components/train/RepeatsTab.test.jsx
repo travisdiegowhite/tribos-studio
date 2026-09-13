@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { fireEvent, render, screen, within } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { MantineProvider } from '@mantine/core';
 
 vi.mock('react-map-gl', () => ({
@@ -66,8 +66,9 @@ beforeEach(() => {
 });
 
 describe('RepeatsTab', () => {
-  it('lists every repeat of the anchor ride with its numbers and draws them on the map', () => {
+  it('lists every repeat of the anchor ride with its numbers and draws them on the map', async () => {
     renderTab();
+    await screen.findByTestId('repeats-list');
     // The anchor's name heads the tab and names its own row.
     expect(screen.getAllByText('Lookout loop')).toHaveLength(2);
     expect(screen.getByText(/3 rides · /)).toBeTruthy();
@@ -88,8 +89,9 @@ describe('RepeatsTab', () => {
     expect(screen.queryByTestId('repeat-trace-c')).toBeNull();
   });
 
-  it('hides a ride from the map and strip when its swatch is toggled off', () => {
+  it('hides a ride from the map and strip when its swatch is toggled off', async () => {
     renderTab();
+    await screen.findByTestId('repeats-list');
     fireEvent.click(screen.getByRole('button', { name: /Hide Sep 3, 26/ }));
     expect(screen.queryByTestId('source-repeat-b')).toBeNull();
     expect(screen.queryByTestId('repeat-trace-b')).toBeNull();
@@ -98,9 +100,10 @@ describe('RepeatsTab', () => {
     expect(screen.getByTestId('source-repeat-b')).toBeTruthy();
   });
 
-  it('opens the full analysis on the chosen effort', () => {
+  it('opens the full analysis on the chosen effort', async () => {
     const onOpenRide = vi.fn();
     renderTab({ onOpenRide });
+    await screen.findByTestId('repeats-list');
     fireEvent.click(screen.getByRole('button', { name: 'Open Sep 3, 26' }));
     expect(onOpenRide).toHaveBeenCalledWith(B);
   });
@@ -111,7 +114,7 @@ describe('RepeatsTab', () => {
     expect(screen.queryByTestId('map')).toBeNull();
   });
 
-  it('anchors on a library segment and lists the rides along it', () => {
+  it('anchors on a library segment and lists the rides along it', async () => {
     libraryState.segments = [
       { id: 's1', display_name: 'North arc', distance_meters: 1500, ride_count: 4, geojson: { coordinates: loop().slice(50, 200) } },
     ];
@@ -123,8 +126,35 @@ describe('RepeatsTab', () => {
     fireEvent.click(screen.getByRole('option', { name: /North arc/ }));
     expect(screen.getByText('North arc')).toBeTruthy();
     // Both measured loops pass along the arc; the geometry-only one too.
-    expect(within(screen.getByTestId('repeats-list')).getAllByTestId(/repeat-row-/)).toHaveLength(3);
+    await waitFor(() =>
+      expect(within(screen.getByTestId('repeats-list')).getAllByTestId(/repeat-row-/)).toHaveLength(3),
+    );
     expect(screen.queryByText('anchor')).toBeNull();
+  });
+
+  it('survives a ride row that breaks the matcher and never blanks the page', async () => {
+    // A row whose polyline getter throws: the scan skips it, the tab still renders.
+    const poison = {
+      id: 'poison',
+      name: 'Corrupt',
+      start_date: '2026-08-01T14:00:00Z',
+      get map_summary_polyline() {
+        throw new Error('corrupt row');
+      },
+    };
+    renderTab({ activities: [A, B, poison] });
+    const list = await screen.findByTestId('repeats-list');
+    expect(within(list).getAllByTestId(/repeat-row-/)).toHaveLength(2);
+    expect(screen.queryByTestId('repeats-error')).toBeNull();
+  });
+
+  it('fences a render failure inside the tab with its own fallback', () => {
+    const spy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    // formatDistance is called on render for the header; make it throw.
+    renderTab({ formatDistance: () => { throw new Error('boom'); } });
+    expect(screen.getByTestId('repeats-error')).toBeTruthy();
+    expect(screen.getByText(/rest of the page is unaffected/)).toBeTruthy();
+    spy.mockRestore();
   });
 
   it('formats durations for the list', () => {
