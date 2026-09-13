@@ -88,6 +88,7 @@ import PlanProgressBar from '../components/train/PlanProgressBar.jsx';
 import WeekSummaryGrid from '../components/train/WeekSummaryGrid.jsx';
 import SecondaryNavBar from '../components/train/SecondaryNavBar.jsx';
 import RideMapCard from '../components/train/RideMapCard.jsx';
+import RepeatsTab from '../components/train/RepeatsTab.jsx';
 import { rideHasGps, selectGpsRide } from '../utils/rideGeo';
 
 // Helper to determine sport type from activity data
@@ -111,7 +112,7 @@ function TrainingDashboard() {
   // Read tab from URL query parameter, default to 'calendar'
   // Note: 'plans' tab moved to /planner page, 'today' moved to /today, 'routes' moved to /ride
   const urlTab = searchParams.get('tab');
-  const validTabs = ['coach', 'race', 'trends', 'power', 'history', 'insights', 'calendar', 'browse'];
+  const validTabs = ['coach', 'race', 'trends', 'power', 'history', 'repeats', 'insights', 'calendar', 'browse'];
   const initialTab = validTabs.includes(urlTab) ? urlTab : 'calendar';
   const [activeTab, setActiveTab] = useState(initialTab);
   // Keep the active tab in sync with the ?tab= param so deep links and CTAs
@@ -1095,7 +1096,9 @@ function TrainingDashboard() {
                 formatDistance={formatDist}
                 formatElevation={formatElev}
                 formatTime={formatTime}
-                title={activeTab === 'history' ? 'Selected ride' : 'Latest ride'}
+                title={
+                  activeTab === 'history' ? 'Selected ride' : activeTab === 'repeats' ? 'Anchor ride' : 'Latest ride'
+                }
                 hasNewer={mapSel.hasNewer}
                 hasOlder={mapSel.hasOlder}
                 onNewer={handleMapNewer}
@@ -1204,6 +1207,18 @@ function TrainingDashboard() {
                 bikes={bikes}
                 onAssignBike={handleAssignBike}
                 onSetSurface={handleSetSurface}
+              />
+            )}
+
+            {/* REPEATS TAB — every ride along the anchor ride or a segment, overlaid */}
+            {activeTab === 'repeats' && (
+              <RepeatsTab
+                anchorRide={mapSel.ride}
+                activities={visibleActivities}
+                userId={user?.id}
+                formatDistance={formatDist}
+                formatSpeed={formatSpd}
+                onOpenRide={handleViewRide}
               />
             )}
 

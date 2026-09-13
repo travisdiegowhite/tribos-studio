@@ -8,6 +8,7 @@ const tabs = [
   { value: 'trends', label: 'TRENDS' },
   { value: 'power', label: 'POWER' },
   { value: 'history', label: 'HISTORY' },
+  { value: 'repeats', label: 'REPEATS' },
   { value: 'insights', label: 'INSIGHTS' },
 ];
 
