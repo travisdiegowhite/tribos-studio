@@ -26,21 +26,13 @@ import {
 import { useMediaQuery } from '@mantine/hooks';
 import { ChartBar } from '@phosphor-icons/react';
 import { useRepeatAnchorSegments } from '../../hooks/useRepeatAnchorSegments';
-import {
-  anchorFromRide,
-  anchorFromSegment,
-  createRepeatsScan,
-  effortPointAt,
-  repeatBests,
-  repeatColor,
-} from '../../utils/rideRepeats';
+import { useRepeatsScan } from '../../hooks/useRepeatsScan';
+import { anchorFromRide, anchorFromSegment, effortPointAt, repeatBests } from '../../utils/rideRepeats';
 import RepeatsMap from './RepeatsMap';
 import RepeatsStrip from './RepeatsStrip';
 
 const MAX_SELECTED = 8;
 const DEFAULT_SELECTED = 6;
-/** Matching runs between frames in slices this long, so the page never freezes. */
-const SCAN_SLICE_MS = 24;
 
 const METRIC_OPTIONS = [
   { value: 'power', label: 'Power', key: 'power', unit: 'W' },
@@ -142,41 +134,6 @@ class RepeatsErrorBoundary extends Component {
     }
     return this.props.children;
   }
-}
-
-/**
- * Match `activities` against `anchor` in short slices between frames.
- * A history of thousands of rides used to be scanned in one synchronous
- * pass on click; now the page stays responsive and shows progress.
- */
-function useRepeatsScan(anchor, activities) {
-  const [state, setState] = useState({ efforts: [], done: true, processed: 0, total: 0 });
-
-  useEffect(() => {
-    const scan = createRepeatsScan(anchor, activities);
-    let cancelled = false;
-    let timer = null;
-    const publish = () =>
-      setState({
-        efforts: scan.done ? scan.efforts.map((e, i) => ({ ...e, color: repeatColor(i) })) : [],
-        done: scan.done,
-        processed: scan.processed,
-        total: scan.total,
-      });
-    const run = () => {
-      if (cancelled) return;
-      scan.step(SCAN_SLICE_MS);
-      publish();
-      if (!scan.done) timer = setTimeout(run, 0);
-    };
-    run();
-    return () => {
-      cancelled = true;
-      if (timer) clearTimeout(timer);
-    };
-  }, [anchor, activities]);
-
-  return state;
 }
 
 /**

@@ -27,6 +27,7 @@ import {
 } from '../../api/utils/segmentCoverage.js';
 import { ridePolylineOf, rideRouteCoords, rideStreamsOf, type RideStreams } from './rideGeo';
 import { buildStreamRows, cumulativeDistancesKm, type StreamRow } from './streamChartData';
+import { haversineKm } from './distanceUnits';
 
 export type LngLat = [number, number];
 type RideRow = Record<string, unknown> & { id: string };
@@ -116,9 +117,44 @@ const STREAM_KEYS = ['power', 'heartRate', 'speed', 'cadence', 'elevation'] as c
 const sanitizedCache = new WeakMap<object, RideStreams | null>();
 
 /**
- * The ride's streams with every invalid coordinate removed from ALL parallel
- * arrays, so indices stay aligned. Null when there is no usable track.
- * Cached per row object: the scan touches each ride once per anchor.
+ * A step between consecutive points longer than this is a GPS glitch, not
+ * riding. Simplified tracks average ~300 m between vertices and a dropout in
+ * a tunnel or canyon spans a few km; a jump to null island spans thousands,
+ * and densifying that at 20 m is what runs the matcher out of memory.
+ */
+export const MAX_STEP_KM = 8;
+/** No ride is this long; a track that is has a glitch the step check missed. */
+export const MAX_TRACK_KM = 600;
+
+/**
+ * Indices of the longest run of plausible points: each valid, and each within
+ * MAX_STEP_KM of the one before it. Returns [] when fewer than two remain.
+ */
+export function plausibleRun(coords: readonly unknown[]): number[] {
+  let best: number[] = [];
+  let run: number[] = [];
+  let prev: LngLat | null = null;
+  for (let i = 0; i < coords.length; i++) {
+    const c = coords[i];
+    if (!isFiniteLngLat(c)) {
+      prev = null;
+      continue;
+    }
+    if (prev && haversineKm(prev[1], prev[0], c[1], c[0]) > MAX_STEP_KM) {
+      if (run.length > best.length) best = run;
+      run = [];
+    }
+    run.push(i);
+    prev = c;
+  }
+  if (run.length > best.length) best = run;
+  return best.length >= 2 ? best : [];
+}
+
+/**
+ * The ride's streams with every implausible coordinate removed from ALL
+ * parallel arrays, so indices stay aligned. Null when there is no usable
+ * track. Cached per row object: the scan touches each ride once per anchor.
  */
 export function sanitizedStreams(ride: RideRow | null | undefined): RideStreams | null {
   if (!ride) return null;
@@ -126,10 +162,7 @@ export function sanitizedStreams(ride: RideRow | null | undefined): RideStreams 
   const raw = rideStreamsOf(ride);
   let out: RideStreams | null = null;
   if (raw && Array.isArray(raw.coords)) {
-    const keep: number[] = [];
-    raw.coords.forEach((c, i) => {
-      if (isFiniteLngLat(c)) keep.push(i);
-    });
+    const keep = plausibleRun(raw.coords);
     if (keep.length >= 2) {
       if (keep.length === raw.coords.length) {
         out = raw;
@@ -156,7 +189,9 @@ export function rideTrackCoords(ride: RideRow | null | undefined): LngLat[] {
   if (!ride) return [];
   const streams = sanitizedStreams(ride);
   if (streams) return streams.coords as LngLat[];
-  return rideRouteCoords(ride).filter(isFiniteLngLat);
+  const decoded = rideRouteCoords(ride);
+  const keep = plausibleRun(decoded);
+  return keep.length === decoded.length ? decoded : keep.map((i) => decoded[i]);
 }
 
 /** Length of a track in km (0 for fewer than two points). */
@@ -181,7 +216,9 @@ export function anchorFromRide(ride: RideRow | null | undefined): RepeatAnchor |
   const coords = rideTrackCoords(ride);
   if (coords.length < 2) return null;
   const km = cumulativeDistancesKm(coords);
-  return { kind: 'ride', id: ride.id, name: rideName(ride), coords, lengthKm: km[km.length - 1] };
+  const lengthKm = km[km.length - 1];
+  if (!(lengthKm > 0) || lengthKm > MAX_TRACK_KM) return null;
+  return { kind: 'ride', id: ride.id, name: rideName(ride), coords, lengthKm };
 }
 
 export function anchorFromSegment(
@@ -192,17 +229,18 @@ export function anchorFromSegment(
 ): RepeatAnchor | null {
   const raw = segment?.geojson?.coordinates;
   if (!segment || !Array.isArray(raw)) return null;
-  const coords = raw.filter(
-    (c): c is LngLat => Array.isArray(c) && c.length >= 2 && Number.isFinite(c[0]) && Number.isFinite(c[1]),
-  );
-  if (coords.length < 2) return null;
+  const keep = plausibleRun(raw);
+  if (keep.length < 2) return null;
+  const coords = keep.map((i) => raw[i] as LngLat);
   const km = cumulativeDistancesKm(coords);
+  const lengthKm = km[km.length - 1];
+  if (!(lengthKm > 0) || lengthKm > MAX_TRACK_KM) return null;
   return {
     kind: 'segment',
     id: segment.id,
     name: segment.display_name || 'Segment',
     coords,
-    lengthKm: km[km.length - 1],
+    lengthKm,
   };
 }
 
@@ -376,8 +414,11 @@ const SEGMENT_BBOX_PAD_METERS = 100;
 function passesPrefilter(anchor: RepeatAnchor, anchorBox: Bbox | null, track: LngLat[]): boolean {
   const box = bboxOf(track) as Bbox | null;
   if (!box) return false;
+  const lengthKm = trackLengthKm(track);
+  // Nothing real is this long; whatever it is, it must not be densified.
+  if (lengthKm > MAX_TRACK_KM) return false;
   if (anchor.kind === 'ride') {
-    const ratio = trackLengthKm(track) / (anchor.lengthKm || 1);
+    const ratio = lengthKm / (anchor.lengthKm || 1);
     if (ratio < RIDE_LENGTH_RATIO[0] || ratio > RIDE_LENGTH_RATIO[1]) return false;
     return bboxWithin(anchorBox, box, RIDE_BBOX_PAD_METERS) && bboxWithin(box, anchorBox, RIDE_BBOX_PAD_METERS);
   }
