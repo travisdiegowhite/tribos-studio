@@ -11,9 +11,13 @@ vi.mock('react-map-gl', () => ({
 }));
 vi.mock('mapbox-gl/dist/mapbox-gl.css', () => ({}));
 
-const libraryState = { segments: [], loading: false };
-vi.mock('../../hooks/useSegmentLibrary', () => ({
-  useSegmentLibrary: () => ({ segments: libraryState.segments, loading: libraryState.loading }),
+const libraryState = { segments: [], loading: false, error: null };
+vi.mock('../../hooks/useRepeatAnchorSegments', () => ({
+  useRepeatAnchorSegments: () => ({
+    segments: libraryState.segments,
+    loading: libraryState.loading,
+    error: libraryState.error,
+  }),
 }));
 
 const mediaState = { mobile: false };
@@ -62,6 +66,7 @@ function renderTab(props = {}) {
 beforeEach(() => {
   libraryState.segments = [];
   libraryState.loading = false;
+  libraryState.error = null;
   mediaState.mobile = false;
 });
 
@@ -114,22 +119,29 @@ describe('RepeatsTab', () => {
     expect(screen.queryByTestId('map')).toBeNull();
   });
 
-  it('anchors on a library segment and lists the rides along it', async () => {
+  it('anchors on the most-ridden library segment by default and lists the rides along it', async () => {
     libraryState.segments = [
       { id: 's1', display_name: 'North arc', distance_meters: 1500, ride_count: 4, geojson: { coordinates: loop().slice(50, 200) } },
+      { id: 's2', display_name: 'South arc', distance_meters: 1200, ride_count: 1, geojson: { coordinates: loop().slice(250, 350) } },
     ];
     renderTab();
     fireEvent.click(screen.getByRole('radio', { name: 'Segment' }));
-    expect(screen.getByText(/Pick a segment to see every ride along it/)).toBeTruthy();
-    const select = screen.getByRole('textbox', { name: 'Segment' });
-    fireEvent.click(select);
-    fireEvent.click(screen.getByRole('option', { name: /North arc/ }));
-    expect(screen.getByText('North arc')).toBeTruthy();
+    // Lands on the first (most-ridden) segment without a manual pick.
+    expect(await screen.findByText('North arc')).toBeTruthy();
+    expect(screen.getByRole('textbox', { name: 'Segment' }).value).toMatch(/North arc · 1.5 km · 4 rides/);
     // Both measured loops pass along the arc; the geometry-only one too.
     await waitFor(() =>
       expect(within(screen.getByTestId('repeats-list')).getAllByTestId(/repeat-row-/)).toHaveLength(3),
     );
     expect(screen.queryByText('anchor')).toBeNull();
+  });
+
+  it('says so when the segment library cannot be read', () => {
+    libraryState.error = 'column training_segments.retired_at does not exist';
+    renderTab();
+    fireEvent.click(screen.getByRole('radio', { name: 'Segment' }));
+    expect(screen.getByTestId('repeats-segments-error').textContent).toMatch(/Couldn't load your segments/);
+    expect(screen.getByText(/Pick a segment to see every ride along it/)).toBeTruthy();
   });
 
   it('survives a ride row that breaks the matcher and never blanks the page', async () => {

@@ -25,7 +25,7 @@ import {
 } from '@mantine/core';
 import { useMediaQuery } from '@mantine/hooks';
 import { ChartBar } from '@phosphor-icons/react';
-import { useSegmentLibrary } from '../../hooks/useSegmentLibrary';
+import { useRepeatAnchorSegments } from '../../hooks/useRepeatAnchorSegments';
 import {
   anchorFromRide,
   anchorFromSegment,
@@ -205,18 +205,28 @@ function RepeatsTabInner({ anchorRide, activities, userId, formatDistance, forma
   const [metric, setMetric] = useState('power');
   const [hoverX, setHoverX] = useState(null);
 
-  const { segments, loading: segmentsLoading } = useSegmentLibrary(anchorKind === 'segment' ? userId : undefined);
+  const {
+    segments,
+    loading: segmentsLoading,
+    error: segmentsError,
+  } = useRepeatAnchorSegments(userId, anchorKind === 'segment');
 
   const segmentOptions = useMemo(
     () =>
-      segments
-        .filter((s) => s.geojson?.coordinates?.length > 1)
-        .map((s) => ({
-          value: s.id,
-          label: `${s.display_name}${s.distance_meters ? ` · ${formatDistance(s.distance_meters / 1000)}` : ''}${s.ride_count > 1 ? ` · ${s.ride_count} rides` : ''}`,
-        })),
+      segments.map((s) => ({
+        value: s.id,
+        label: `${s.display_name}${s.distance_meters ? ` · ${formatDistance(s.distance_meters / 1000)}` : ''} · ${s.ride_count} ${s.ride_count === 1 ? 'ride' : 'rides'}`,
+      })),
     [segments, formatDistance],
   );
+
+  // Entering segment mode lands on the most-ridden segment rather than an
+  // empty picker; the athlete can change it from there.
+  useEffect(() => {
+    if (anchorKind === 'segment' && segmentId == null && segments.length > 0) {
+      setSegmentId(segments[0].id);
+    }
+  }, [anchorKind, segmentId, segments]);
 
   const anchor = useMemo(() => {
     if (anchorKind === 'segment') {
@@ -300,6 +310,10 @@ function RepeatsTabInner({ anchorRide, activities, userId, formatDistance, forma
       {anchorKind === 'segment' &&
         (segmentsLoading ? (
           <Loader size="xs" />
+        ) : segmentsError ? (
+          <Text size="xs" c="red" data-testid="repeats-segments-error">
+            Couldn't load your segments: {segmentsError}
+          </Text>
         ) : segmentOptions.length === 0 ? (
           <Text size="xs" c="dimmed">
             No segments in your library yet.
