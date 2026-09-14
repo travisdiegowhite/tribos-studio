@@ -3,10 +3,13 @@ import {
   alignEffort,
   anchorFromRide,
   anchorFromSegment,
+  createRepeatsScan,
   effortPointAt,
   findRepeats,
   repeatBests,
   repeatColor,
+  rideTrackCoords,
+  sanitizedStreams,
   sliceStats,
   type LngLat,
 } from './rideRepeats';
@@ -191,5 +194,66 @@ describe('alignEffort and lookups', () => {
     expect(repeatColor(0)).toBe('#2A8C82');
     expect(repeatColor(8)).toBe('#2A8C82');
     expect(repeatColor(1)).not.toBe(repeatColor(2));
+  });
+});
+
+describe('real-data hardening', () => {
+  it('drops an impossible coordinate from every parallel stream and keeps them aligned', () => {
+    const coords = loop().slice(0, 50) as Array<LngLat | unknown>;
+    coords.splice(10, 0, [-2.43, 151.1]); // lat 151: the kind of point real rows carry
+    const ride = {
+      id: 'bad',
+      activity_streams: { coords, power: coords.map((_, i) => i), speed: coords.map(() => 8) },
+    };
+    const clean = sanitizedStreams(ride)!;
+    expect(clean.coords).toHaveLength(50);
+    expect(clean.power).toHaveLength(50);
+    // Index 10 was the bad point; the power that followed it moves up one slot.
+    expect(clean.power![10]).toBe(11);
+    expect(rideTrackCoords(ride)).toHaveLength(50);
+    expect(sanitizedStreams(ride)).toBe(clean); // cached per row
+  });
+
+  it('treats a stream whose coords are not an array as no track', () => {
+    expect(sanitizedStreams({ id: 'x', activity_streams: { coords: 'nope', power: [1, 2] } })).toBeNull();
+    expect(rideTrackCoords({ id: 'x', activity_streams: { coords: {} } })).toEqual([]);
+  });
+
+  it('skips a much longer or much shorter ride before the matcher runs', () => {
+    const anchor = anchorFromRide(anchorRide)!;
+    const tiny = { id: 't', start_date: '2026-09-01T00:00:00Z', activity_streams: streamsFor(loop().slice(0, 120), 200, 8) };
+    expect(findRepeats(anchor, [tiny])).toEqual([]);
+  });
+
+  it('scans in resumable slices and lands on the same answer as one pass', () => {
+    const anchor = anchorFromRide(anchorRide);
+    const rides = [farAway, sameLoopReversed, anchorRide, polylineOnly, sameLoopFaster, longerRide];
+    const scan = createRepeatsScan(anchor, rides);
+    expect(scan.total).toBe(rides.length);
+    let steps = 0;
+    while (!scan.step(0)) steps++; // a zero budget processes one ride per step
+    expect(steps).toBeGreaterThanOrEqual(rides.length - 1);
+    expect(scan.done).toBe(true);
+    expect(scan.efforts.map((e) => e.id)).toEqual(findRepeats(anchor, rides).map((e) => e.id));
+  });
+
+  it('skips a row that throws instead of aborting the scan', () => {
+    const anchor = anchorFromRide(anchorRide);
+    const poison = {
+      id: 'p',
+      start_date: '2026-08-01T00:00:00Z',
+      get activity_streams(): unknown {
+        throw new Error('corrupt');
+      },
+    };
+    const efforts = findRepeats(anchor, [poison, sameLoopFaster]);
+    expect(efforts.map((e) => e.id)).toEqual(['b']);
+  });
+
+  it('reports no work for a missing anchor', () => {
+    const scan = createRepeatsScan(null, [anchorRide]);
+    expect(scan.done).toBe(true);
+    expect(scan.total).toBe(0);
+    expect(scan.step()).toBe(true);
   });
 });

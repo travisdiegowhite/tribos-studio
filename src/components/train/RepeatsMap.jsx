@@ -10,7 +10,7 @@ import { Box, Skeleton } from '@mantine/core';
 import Map, { Source, Layer, Marker, NavigationControl } from 'react-map-gl';
 import 'mapbox-gl/dist/mapbox-gl.css';
 import { boundsForCoords } from '../../utils/rideMapCamera';
-import { effortPointAt } from '../../utils/rideRepeats';
+import { effortPointAt, isFiniteLngLat } from '../../utils/rideRepeats';
 
 const MAPBOX_TOKEN = import.meta.env.VITE_MAPBOX_TOKEN;
 const MAP_STYLE = 'mapbox://styles/mapbox/outdoors-v12';
@@ -26,7 +26,19 @@ const FIT_PADDING = { top: 36, bottom: 36, left: 36, right: 36 };
 function RepeatsMap({ anchor, efforts, hoverX, height = 420 }) {
   const [mapLoaded, setMapLoaded] = useState(false);
 
-  const bounds = useMemo(() => boundsForCoords(anchor.coords), [anchor.coords]);
+  // Mapbox throws on an out-of-range LngLat, and a thrown error here would
+  // unmount the page; only ever hand it plausible geometry.
+  const bounds = useMemo(() => {
+    const b = boundsForCoords(anchor.coords.filter(isFiniteLngLat));
+    if (!b) return null;
+    const ok = b.every(([lng, lat]) => Number.isFinite(lng) && Number.isFinite(lat) && Math.abs(lat) <= 90);
+    return ok ? b : null;
+  }, [anchor.coords]);
+
+  const drawable = useMemo(
+    () => efforts.map((e) => ({ ...e, coords: e.coords.filter(isFiniteLngLat) })).filter((e) => e.coords.length >= 2),
+    [efforts],
+  );
 
   const anchorGeoJSON = useMemo(
     () => ({ type: 'Feature', properties: {}, geometry: { type: 'LineString', coordinates: anchor.coords } }),
@@ -35,13 +47,13 @@ function RepeatsMap({ anchor, efforts, hoverX, height = 420 }) {
 
   const markers = useMemo(() => {
     if (hoverX == null) return [];
-    return efforts
+    return drawable
       .map((e) => {
         const at = effortPointAt(e, hoverX);
-        return at ? { id: e.id, color: e.color, coord: at.coord } : null;
+        return at && isFiniteLngLat(at.coord) ? { id: e.id, color: e.color, coord: at.coord } : null;
       })
       .filter(Boolean);
-  }, [efforts, hoverX]);
+  }, [drawable, hoverX]);
 
   if (!MAPBOX_TOKEN || !bounds) return null;
 
@@ -73,7 +85,7 @@ function RepeatsMap({ anchor, efforts, hoverX, height = 420 }) {
           />
         </Source>
 
-        {efforts.map((e) => (
+        {drawable.map((e) => (
           <Source
             key={e.id}
             id={`repeat-${e.id}`}
