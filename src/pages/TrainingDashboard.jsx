@@ -801,6 +801,9 @@ function TrainingDashboard() {
   // — once. The ref keeps a later `activities` replacement (gear merge, hide)
   // from re-opening it after the athlete closed it.
   const urlRideId = searchParams.get('ride');
+  // `/train?tab=repeats&segment=<id>` (the ride modal's "compare repeats"):
+  // the REPEATS tab opens anchored on that segment.
+  const urlSegmentId = searchParams.get('segment');
   const consumedUrlRide = useRef(null);
   useEffect(() => {
     if (!urlRideId || loading || consumedUrlRide.current === urlRideId) return;
@@ -1216,6 +1219,7 @@ function TrainingDashboard() {
                 anchorRide={mapSel.ride}
                 activities={visibleActivities}
                 userId={user?.id}
+                initialSegmentId={urlSegmentId}
                 formatDistance={formatDist}
                 formatSpeed={formatSpd}
                 onOpenRide={handleViewRide}

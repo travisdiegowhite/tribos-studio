@@ -6,6 +6,7 @@ import {
   createRepeatsScan,
   effortPointAt,
   findRepeats,
+  plausibleRun,
   repeatBests,
   repeatColor,
   rideTrackCoords,
@@ -255,5 +256,27 @@ describe('real-data hardening', () => {
     expect(scan.done).toBe(true);
     expect(scan.total).toBe(0);
     expect(scan.step()).toBe(true);
+  });
+
+  it('cuts a track at a GPS glitch and keeps the longest plausible run, in every array', () => {
+    const good = loop().slice(0, 200) as LngLat[];
+    const coords: LngLat[] = [...good.slice(0, 150), [0, 0], ...good.slice(150)]; // null island mid-ride
+    const idx = plausibleRun(coords);
+    expect(idx).toHaveLength(150);
+    expect(idx[0]).toBe(0);
+    const ride = { id: 'g', activity_streams: { coords, power: coords.map((_, i) => i) } };
+    const clean = sanitizedStreams(ride)!;
+    expect(clean.coords).toHaveLength(150);
+    expect(clean.power![149]).toBe(149);
+    // A polyline track gets the same treatment.
+    const enc = { id: 'p', activity_streams: { coords } };
+    expect(rideTrackCoords(enc)).toHaveLength(150);
+  });
+
+  it('refuses an anchor or candidate that is impossibly long', () => {
+    const far: LngLat[] = Array.from({ length: 200 }, (_, i) => [-105 + i * 0.05, 40]); // ~850 km in 4 km steps
+    const ride = { id: 'long', start_date: '2026-09-01T00:00:00Z', activity_streams: streamsFor(far, 200, 8) };
+    expect(anchorFromRide(ride)).toBeNull();
+    expect(findRepeats(anchorFromSegment({ id: 's', geojson: { coordinates: far.slice(0, 5) } }), [ride])).toEqual([]);
   });
 });

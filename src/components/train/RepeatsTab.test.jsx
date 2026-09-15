@@ -11,9 +11,27 @@ vi.mock('react-map-gl', () => ({
 }));
 vi.mock('mapbox-gl/dist/mapbox-gl.css', () => ({}));
 
-const libraryState = { segments: [], loading: false };
-vi.mock('../../hooks/useSegmentLibrary', () => ({
-  useSegmentLibrary: () => ({ segments: libraryState.segments, loading: libraryState.loading }),
+const libraryState = { segments: [], loading: false, error: null };
+const patch = vi.fn();
+vi.mock('../../hooks/useRepeatAnchorSegments', () => ({
+  useRepeatAnchorSegments: () => ({
+    segments: libraryState.segments,
+    loading: libraryState.loading,
+    error: libraryState.error,
+    patch,
+  }),
+}));
+
+const namerState = {
+  progress: { running: false, done: 0, total: 0, named: 0, error: null },
+  unnamedCount: 0,
+  nameAll: vi.fn(),
+  stop: vi.fn(),
+  rename: vi.fn(),
+  renaming: null,
+};
+vi.mock('../../hooks/useSegmentNamer', () => ({
+  useSegmentNamer: () => namerState,
 }));
 
 const mediaState = { mobile: false };
@@ -51,6 +69,22 @@ const FAR = { id: 'far', name: 'Elsewhere', start_date: '2026-08-20T14:00:00Z', 
 
 const fmt = { formatDistance: (km) => `${km.toFixed(1)} km`, formatSpeed: (kmh) => `${kmh.toFixed(1)} km/h` };
 
+const segment = (id, name, rideCount, coords, extra = {}) => ({
+  id,
+  display_name: name,
+  auto_name: name,
+  custom_name: null,
+  generic: false,
+  distance_meters: 1500,
+  avg_gradient: 1.2,
+  elevation_gain_meters: 20,
+  ride_count: rideCount,
+  terrain_type: 'rolling',
+  last_ridden_at: '2026-09-03T14:00:00Z',
+  geojson: { type: 'LineString', coordinates: coords },
+  ...extra,
+});
+
 function renderTab(props = {}) {
   return render(
     <MantineProvider>
@@ -62,37 +96,47 @@ function renderTab(props = {}) {
 beforeEach(() => {
   libraryState.segments = [];
   libraryState.loading = false;
+  libraryState.error = null;
   mediaState.mobile = false;
+  namerState.unnamedCount = 0;
+  namerState.progress = { running: false, done: 0, total: 0, named: 0, error: null };
+  vi.clearAllMocks();
 });
 
 describe('RepeatsTab', () => {
   it('lists every repeat of the anchor ride with its numbers and draws them on the map', async () => {
     renderTab();
     await screen.findByTestId('repeats-list');
-    // The anchor's name heads the tab and names its own row.
-    expect(screen.getAllByText('Lookout loop')).toHaveLength(2);
-    expect(screen.getByText(/3 rides · /)).toBeTruthy();
-    expect(screen.getByText(/2 with full data/)).toBeTruthy();
+    // The anchor's name heads zones 01 and 02 and names its own row.
+    expect(screen.getAllByText('Lookout loop').length).toBeGreaterThanOrEqual(2);
+    expect(screen.getByText(/3 RIDES · /)).toBeTruthy();
+    expect(screen.getByText(/2 WITH FULL DATA/)).toBeTruthy();
     const list = screen.getByTestId('repeats-list');
     expect(within(list).getAllByTestId(/repeat-row-/)).toHaveLength(3);
     expect(within(list).getByText('anchor')).toBeTruthy();
-    expect(within(list).getByText('fastest')).toBeTruthy();
+    expect(within(list).getByText('best time')).toBeTruthy();
     expect(within(list).getByText('geometry only')).toBeTruthy();
     expect(screen.getByTestId('source-repeats-anchor')).toBeTruthy();
     expect(screen.getByTestId('source-repeat-a')).toBeTruthy();
     expect(screen.getByTestId('source-repeat-b')).toBeTruthy();
     expect(screen.getByTestId('source-repeat-c')).toBeTruthy();
     expect(screen.queryByTestId('repeat-row-far')).toBeNull();
-    // Traces only for the measured rides.
+    // Traces only for the measured rides, with a value axis in the metric's unit.
     expect(screen.getByTestId('repeat-trace-a')).toBeTruthy();
     expect(screen.getByTestId('repeat-trace-b')).toBeTruthy();
     expect(screen.queryByTestId('repeat-trace-c')).toBeNull();
+    expect(screen.getAllByTestId('repeats-y-tick').length).toBeGreaterThan(0);
+    expect(screen.getByText('W')).toBeTruthy();
+    // The legend names what is drawn.
+    const legend = screen.getByTestId('repeats-legend');
+    expect(within(legend).getByText(/Sep 10, 26/)).toBeTruthy();
+    expect(within(legend).getByText(/Aug 27, 26 · no trace/)).toBeTruthy();
   });
 
-  it('hides a ride from the map and strip when its swatch is toggled off', async () => {
+  it('hides a ride from the map and strip when its row is clicked, and back with its swatch', async () => {
     renderTab();
     await screen.findByTestId('repeats-list');
-    fireEvent.click(screen.getByRole('button', { name: /Hide Sep 3, 26/ }));
+    fireEvent.click(screen.getByTestId('repeat-row-b'));
     expect(screen.queryByTestId('source-repeat-b')).toBeNull();
     expect(screen.queryByTestId('repeat-trace-b')).toBeNull();
     expect(screen.getByTestId('source-repeat-a')).toBeTruthy();
@@ -100,12 +144,21 @@ describe('RepeatsTab', () => {
     expect(screen.getByTestId('source-repeat-b')).toBeTruthy();
   });
 
-  it('opens the full analysis on the chosen effort', async () => {
+  it('switches the trace metric from the header tabs', async () => {
+    renderTab();
+    await screen.findByTestId('repeats-list');
+    fireEvent.click(screen.getByRole('button', { name: 'HEART RATE' }));
+    expect(screen.getByText('bpm')).toBeTruthy();
+    expect(screen.queryByText('W')).toBeNull();
+  });
+
+  it('opens the full analysis on the chosen effort without toggling its row', async () => {
     const onOpenRide = vi.fn();
     renderTab({ onOpenRide });
     await screen.findByTestId('repeats-list');
     fireEvent.click(screen.getByRole('button', { name: 'Open Sep 3, 26' }));
     expect(onOpenRide).toHaveBeenCalledWith(B);
+    expect(screen.getByTestId('source-repeat-b')).toBeTruthy();
   });
 
   it('explains itself without an anchor ride', () => {
@@ -114,22 +167,42 @@ describe('RepeatsTab', () => {
     expect(screen.queryByTestId('map')).toBeNull();
   });
 
-  it('anchors on a library segment and lists the rides along it', async () => {
+  it('anchors on the most-ridden library segment by default and lists the rides along it', async () => {
     libraryState.segments = [
-      { id: 's1', display_name: 'North arc', distance_meters: 1500, ride_count: 4, geojson: { coordinates: loop().slice(50, 200) } },
+      segment('s1', 'North arc', 4, loop().slice(50, 200)),
+      segment('s2', 'South arc', 1, loop().slice(250, 350), { distance_meters: 1200 }),
     ];
     renderTab();
-    fireEvent.click(screen.getByRole('radio', { name: 'Segment' }));
-    expect(screen.getByText(/Pick a segment to see every ride along it/)).toBeTruthy();
-    const select = screen.getByRole('textbox', { name: 'Segment' });
-    fireEvent.click(select);
-    fireEvent.click(screen.getByRole('option', { name: /North arc/ }));
-    expect(screen.getByText('North arc')).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: 'SEGMENT' }));
+    // Lands on the first (most-ridden) segment without a manual pick.
+    expect(await screen.findByTestId('segment-picker')).toBeTruthy();
+    expect(screen.getByTestId('segment-card-s1').getAttribute('data-selected')).toBe('true');
+    expect(screen.getByTestId('segment-card-s2').getAttribute('data-selected')).toBe('false');
+    expect(within(screen.getByTestId('segment-card-s1')).getByText('1.5 KM · ROLLING · +1.2%')).toBeTruthy();
+    expect(within(screen.getByTestId('segment-card-s1')).getByText(/4 RIDES/)).toBeTruthy();
     // Both measured loops pass along the arc; the geometry-only one too.
-    await waitFor(() =>
-      expect(within(screen.getByTestId('repeats-list')).getAllByTestId(/repeat-row-/)).toHaveLength(3),
-    );
+    await waitFor(() => expect(within(screen.getByTestId('repeats-list')).getAllByTestId(/repeat-row-/)).toHaveLength(3));
     expect(screen.queryByText('anchor')).toBeNull();
+    // Picking the other card re-anchors.
+    fireEvent.click(screen.getByRole('button', { name: 'Compare repeats of South arc' }));
+    expect(screen.getByTestId('segment-card-s2').getAttribute('data-selected')).toBe('true');
+    expect(screen.getAllByText('South arc').length).toBeGreaterThanOrEqual(2);
+  });
+
+  it('opens straight onto a deep-linked segment', async () => {
+    libraryState.segments = [segment('s1', 'North arc', 4, loop().slice(50, 200)), segment('s2', 'South arc', 1, loop().slice(250, 350))];
+    renderTab({ initialSegmentId: 's2' });
+    expect(await screen.findByTestId('segment-picker')).toBeTruthy();
+    expect(screen.getByTestId('segment-card-s2').getAttribute('data-selected')).toBe('true');
+    await waitFor(() => expect(screen.getByTestId('repeats-list')).toBeTruthy());
+  });
+
+  it('says so when the segment library cannot be read', () => {
+    libraryState.error = 'column training_segments.retired_at does not exist';
+    renderTab();
+    fireEvent.click(screen.getByRole('button', { name: 'SEGMENT' }));
+    expect(screen.getByTestId('repeats-segments-error').textContent).toMatch(/Couldn't load your segments/);
+    expect(screen.queryByTestId('repeats-zone-map')).toBeNull();
   });
 
   it('survives a ride row that breaks the matcher and never blanks the page', async () => {

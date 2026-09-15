@@ -31,7 +31,7 @@ import ShareCardModal from './ShareCardModal';
 import BikePickerMenu from './gear/BikePickerMenu.jsx';
 import { FuelCard } from './fueling';
 import ActivityPowerCurve from './ActivityPowerCurve';
-import SegmentEffortCompare from './SegmentEffortCompare';
+import SegmentEffortCompare, { compareRepeatsHref } from './SegmentEffortCompare';
 import ColoredRouteMap from './ColoredRouteMap';
 import RideStreamsChart from './RideStreamsChart';
 import RideZonesChart from './RideZonesChart';
@@ -500,7 +500,15 @@ const RideAnalysisModal = ({
         {/* Familiar Segments — this ride's efforts vs your history on the
             same segments. The only receipts on the surface, so they render
             up top, right under the summary and key facts. */}
-        <SegmentEffortCompare ride={ride} enabled={opened} formatSpeed={formatSpeed} />
+        <SegmentEffortCompare
+          ride={ride}
+          enabled={opened}
+          formatSpeed={formatSpeed}
+          onCompareRepeats={(segmentId) => {
+            onClose();
+            navigate(compareRepeatsHref(segmentId));
+          }}
+        />
 
         {/* The stats door — full analysis is one deliberate, labeled click away. */}
         {hasDeepStats && (
