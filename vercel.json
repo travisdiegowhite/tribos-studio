@@ -73,6 +73,9 @@
     "api/admin.js": {
       "maxDuration": 60
     },
+    "api/segment-analysis.js": {
+      "maxDuration": 60
+    },
     "api/email-tool.js": {
       "maxDuration": 60
     },

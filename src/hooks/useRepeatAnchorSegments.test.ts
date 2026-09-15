@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { orderAnchorSegments } from './useRepeatAnchorSegments';
+import { orderAnchorSegments, patchSegment } from './useRepeatAnchorSegments';
 
 const line = { type: 'LineString', coordinates: [[-105.2, 40.0], [-105.21, 40.01]] };
 
@@ -16,7 +16,22 @@ describe('orderAnchorSegments', () => {
     const out = orderAnchorSegments(rows);
     expect(out.map((s) => s.id)).toEqual(['b', 'f', 'a']);
     expect(out[1].display_name).toBe('Named by me');
+    expect(out[1].generic).toBe(false);
+    expect(out[0].display_name).toBe('Rolling 14.7km');
+    expect(out[0].generic).toBe(true);
     expect(out[0].distance_meters).toBeNull();
+  });
+
+  it('marks road names as meaningful and lets a patch rename in place', () => {
+    const [seg] = orderAnchorSegments([{ id: 'r', auto_name: 'Nelson Rd → 63rd St', ride_count: 4, geojson: line }]);
+    expect(seg.generic).toBe(false);
+    const renamed = patchSegment(seg, { custom_name: 'Tuesday loop' });
+    expect(renamed.display_name).toBe('Tuesday loop');
+    expect(renamed.auto_name).toBe('Nelson Rd → 63rd St');
+    const cleared = patchSegment(renamed, { custom_name: null });
+    expect(cleared.display_name).toBe('Nelson Rd → 63rd St');
+    const generic = patchSegment(cleared, { auto_name: 'Rolling 1.2km' });
+    expect(generic.generic).toBe(true);
   });
 
   it('works on a row shape without any migration-110 columns', () => {

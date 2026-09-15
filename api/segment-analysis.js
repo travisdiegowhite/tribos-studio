@@ -8,6 +8,8 @@
  *     - get_segments: Retrieve user's segment library
  *     - get_segment_detail: Get detailed segment info including rides and profile
  *     - update_segment_name: Update a segment's custom name
+ *     - name_segment: Rebuild one segment's auto_name from the roads it runs along
+ *     - name_segments: The same for a list of segments, within one call's time budget
  *     - get_matches: Get workout-segment matches for a workout type
  */
 
@@ -15,6 +17,12 @@ import { getSupabaseAdmin } from './utils/supabaseAdmin.js';
 import { setCorsHeaders } from './utils/cors.js';
 import { analyzeActivitySegments, analyzeUnprocessedActivities, analyzePolylineActivities } from './utils/segmentAnalysisPipeline.js';
 import { computeWorkoutSegmentMatches, computeAllMatchesForUser } from './utils/workoutSegmentMatcher.js';
+import { nameTrainingSegment, nameTrainingSegments } from './utils/segmentNaming.js';
+
+// name_segments runs Map Matching per segment; this many fit comfortably
+// inside the function's 60 s (vercel.json) with the naming budget below.
+const NAME_BATCH_MAX = 40;
+const NAME_BUDGET_MS = 45000;
 
 export default async function handler(req, res) {
   setCorsHeaders(req, res);
@@ -64,6 +72,12 @@ export default async function handler(req, res) {
 
       case 'update_segment_name':
         return await handleUpdateSegmentName(res, supabase, userId, params);
+
+      case 'name_segment':
+        return await handleNameSegment(res, supabase, userId, params);
+
+      case 'name_segments':
+        return await handleNameSegments(res, supabase, userId, params);
 
       case 'get_matches':
         return await handleGetMatches(res, supabase, userId, params);
@@ -298,6 +312,40 @@ async function handleUpdateSegmentName(res, supabase, userId, params) {
   }
 
   return res.status(200).json({ success: true });
+}
+
+/**
+ * Rebuild one segment's auto_name (roads via Map Matching, place as the
+ * fallback). custom_name is the athlete's and is left alone.
+ */
+async function handleNameSegment(res, supabase, userId, params) {
+  const { segmentId } = params;
+  if (!segmentId) {
+    return res.status(400).json({ error: 'segmentId required' });
+  }
+  const result = await nameTrainingSegment(supabase, segmentId, { userId });
+  if (result.source === 'missing') {
+    return res.status(404).json({ error: 'Segment not found' });
+  }
+  return res.status(200).json(result);
+}
+
+/**
+ * Name up to NAME_BATCH_MAX of the caller's segments in one call. The
+ * response says which ids were not reached so the client can send them
+ * again; the client owns the list, so there is no cursor to lose.
+ */
+async function handleNameSegments(res, supabase, userId, params) {
+  const ids = Array.isArray(params.segmentIds)
+    ? params.segmentIds.filter((id) => typeof id === 'string' && id.length > 0).slice(0, NAME_BATCH_MAX)
+    : [];
+  if (ids.length === 0) {
+    return res.status(400).json({ error: 'segmentIds required' });
+  }
+  const { results, processed, remaining } = await nameTrainingSegments(supabase, userId, ids, {
+    budgetMs: NAME_BUDGET_MS,
+  });
+  return res.status(200).json({ results, processed, remaining });
 }
 
 async function handleGetMatches(res, supabase, userId, params) {

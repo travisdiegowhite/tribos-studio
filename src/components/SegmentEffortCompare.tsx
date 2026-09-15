@@ -8,8 +8,8 @@
  * comparable history.
  */
 
-import { Badge, Box, Divider, Group, Loader, Paper, SimpleGrid, Stack, Text, Tooltip } from '@mantine/core';
-import { Lightning, TrendDown, TrendUp } from '@phosphor-icons/react';
+import { Badge, Box, Divider, Group, Loader, Paper, SimpleGrid, Stack, Text, Tooltip, UnstyledButton } from '@mantine/core';
+import { ArrowRight, Lightning, TrendDown, TrendUp } from '@phosphor-icons/react';
 import { useSegmentEffortComparison } from '../hooks/useSegmentEffortComparison';
 import type {
   FamiliarSegmentSummary,
@@ -106,6 +106,36 @@ const METRIC_TOOLTIPS: Partial<Record<MetricComparison['key'], string>> = {
 // SUBCOMPONENTS
 // ============================================================================
 
+/** Where every ride along this segment can be overlaid: /train's REPEATS tab. */
+export function compareRepeatsHref(segmentId: string): string {
+  return `/train?tab=repeats&segment=${encodeURIComponent(segmentId)}`;
+}
+
+function CompareRepeatsLink({ segmentId, name, onCompareRepeats }: { segmentId: string; name: string; onCompareRepeats?: (segmentId: string) => void }) {
+  if (!onCompareRepeats) return null;
+  return (
+    <UnstyledButton
+      onClick={() => onCompareRepeats(segmentId)}
+      aria-label={`Compare repeats of ${name}`}
+      style={{
+        fontFamily: "'DM Mono', monospace",
+        fontSize: 10,
+        letterSpacing: '1.5px',
+        textTransform: 'uppercase',
+        color: 'var(--tribos-teal, #2A8C82)',
+        textDecoration: 'underline',
+        textUnderlineOffset: 3,
+        whiteSpace: 'nowrap',
+        display: 'inline-flex',
+        alignItems: 'center',
+        gap: 4,
+      }}
+    >
+      Compare repeats <ArrowRight size={11} />
+    </UnstyledButton>
+  );
+}
+
 function MetricCell({ metric, formatSpeed }: { metric: MetricComparison; formatSpeed?: (kmh: number) => string }) {
   const tooltip = METRIC_TOOLTIPS[metric.key];
   const cell = (
@@ -122,7 +152,15 @@ function MetricCell({ metric, formatSpeed }: { metric: MetricComparison; formatS
   return tooltip ? <Tooltip label={tooltip} withArrow multiline w={240}>{cell}</Tooltip> : cell;
 }
 
-function SegmentCard({ comparison, formatSpeed }: { comparison: SegmentComparison; formatSpeed?: (kmh: number) => string }) {
+function SegmentCard({
+  comparison,
+  formatSpeed,
+  onCompareRepeats,
+}: {
+  comparison: SegmentComparison;
+  formatSpeed?: (kmh: number) => string;
+  onCompareRepeats?: (segmentId: string) => void;
+}) {
   const { segment, metrics, verdict, historyCount, totalTraversalCount, isFastest, isBestEfficiency, effort } = comparison;
 
   const shownMetrics = DISPLAY_ORDER
@@ -171,6 +209,8 @@ function SegmentCard({ comparison, formatSpeed }: { comparison: SegmentCompariso
             <MetricCell key={m.key} metric={m} formatSpeed={formatSpeed} />
           ))}
         </SimpleGrid>
+
+        <CompareRepeatsLink segmentId={segment.id} name={segment.display_name || 'this segment'} onCompareRepeats={onCompareRepeats} />
       </Stack>
     </Paper>
   );
@@ -180,7 +220,7 @@ function SegmentCard({ comparison, formatSpeed }: { comparison: SegmentCompariso
  * A road the rider knows but has no timed effort on. Deliberately minimal:
  * no metrics, no verdict — it answers "have I been here" and nothing more.
  */
-function FamiliarRow({ familiar }: { familiar: FamiliarSegmentSummary }) {
+function FamiliarRow({ familiar, onCompareRepeats }: { familiar: FamiliarSegmentSummary; onCompareRepeats?: (segmentId: string) => void }) {
   const { segment, totalTraversalCount, lastRiddenAt } = familiar;
   const distKm = (segment.distance_meters / 1000).toFixed(1);
 
@@ -189,10 +229,13 @@ function FamiliarRow({ familiar }: { familiar: FamiliarSegmentSummary }) {
       <Text size="sm" lineClamp={1} style={{ minWidth: 0 }}>
         {segment.display_name || 'Unnamed segment'}
       </Text>
-      <Text size="xs" c="dimmed" style={{ flexShrink: 0 }}>
-        {distKm} km · ridden {totalTraversalCount + 1} time{totalTraversalCount === 0 ? '' : 's'}
-        {lastRiddenAt ? ` · last ${new Date(lastRiddenAt).toLocaleDateString()}` : ''}
-      </Text>
+      <Group gap="sm" wrap="nowrap" style={{ flexShrink: 0 }}>
+        <Text size="xs" c="dimmed">
+          {distKm} km · ridden {totalTraversalCount + 1} time{totalTraversalCount === 0 ? '' : 's'}
+          {lastRiddenAt ? ` · last ${new Date(lastRiddenAt).toLocaleDateString()}` : ''}
+        </Text>
+        <CompareRepeatsLink segmentId={segment.id} name={segment.display_name || 'this segment'} onCompareRepeats={onCompareRepeats} />
+      </Group>
     </Group>
   );
 }
@@ -212,9 +255,11 @@ interface SegmentEffortCompareProps {
   } | null;
   enabled: boolean;
   formatSpeed?: (kmh: number) => string;
+  /** Open /train's REPEATS tab anchored on this segment. Omit to hide the links. */
+  onCompareRepeats?: (segmentId: string) => void;
 }
 
-export default function SegmentEffortCompare({ ride, enabled, formatSpeed }: SegmentEffortCompareProps) {
+export default function SegmentEffortCompare({ ride, enabled, formatSpeed, onCompareRepeats }: SegmentEffortCompareProps) {
   const { status, comparisons, familiarOnly, summary } = useSegmentEffortComparison(ride, enabled);
 
   // Nothing to say: no matched segments, error, or not started. Stay silent —
@@ -247,13 +292,13 @@ export default function SegmentEffortCompare({ ride, enabled, formatSpeed }: Seg
           <Text size="sm" fw={500}>{summary.headline}</Text>
         )}
         {comparisons.map((c) => (
-          <SegmentCard key={c.segment.id} comparison={c} formatSpeed={formatSpeed} />
+          <SegmentCard key={c.segment.id} comparison={c} formatSpeed={formatSpeed} onCompareRepeats={onCompareRepeats} />
         ))}
         {familiarOnly.length > 0 && (
           <Stack gap={4}>
             <Text size="xs" c="dimmed">Roads you know, with no timed effort to compare yet</Text>
             {familiarOnly.map((f) => (
-              <FamiliarRow key={f.segment.id} familiar={f} />
+              <FamiliarRow key={f.segment.id} familiar={f} onCompareRepeats={onCompareRepeats} />
             ))}
           </Stack>
         )}
