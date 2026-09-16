@@ -16,7 +16,6 @@ import {
   Paper,
   ThemeIcon,
   RingProgress,
-  Select,
   Divider,
   Alert,
   Modal,
@@ -24,9 +23,6 @@ import {
   Menu,
   ActionIcon,
   Tooltip,
-  Grid,
-  Collapse,
-  SegmentedControl,
 } from '@mantine/core';
 import { notifications } from '@mantine/notifications';
 import { useMediaQuery } from '@mantine/hooks';
@@ -53,7 +49,7 @@ import HealthCheckInModal from '../components/HealthCheckInModal.jsx';
 import FitUploadModal from '../components/FitUploadModal.jsx';
 import BulkGpxUploadModal from '../components/BulkGpxUploadModal.jsx';
 import { TrainingMetricsSkeleton } from '../components/LoadingSkeletons.jsx';
-import { SupplementWorkoutModal, SegmentLibraryPanel, TrainingPlanExportMenu, RaceTab } from '../components/training';
+import { SupplementWorkoutModal, SegmentLibraryPanel, TrainingPlanExportItems, RaceTab } from '../components/training';
 import RaceGoalsPanel from '../components/RaceGoalsPanel.jsx';
 import PowerDurationCurve from '../components/PowerDurationCurve.jsx';
 import ZoneDistributionChart from '../components/ZoneDistributionChart.jsx';
@@ -83,9 +79,8 @@ import { PoweredByGarmin } from '../components/GarminBranding';
 import { garminService } from '../utils/garminService.js';
 import PageHeader from '../components/PageHeader.jsx';
 import { useCrossTraining } from '../hooks/useCrossTraining';
-import { Barbell, Bicycle, Calendar, CalendarBlank, CaretDown, CaretRight, ChartBar, ChartLine, ChatCircle, Clock, DownloadSimple, FileArrowDown, FileArrowUp, FileZip, Fire, Gear, Heart, Heartbeat, Lightning, Medal, Moon, Mountains, Path, PersonSimpleRun, Sparkle, Target, TrendDown, TrendUp, Trophy, UploadSimple, Watch } from '@phosphor-icons/react';
-import PlanProgressBar from '../components/train/PlanProgressBar.jsx';
-import WeekSummaryGrid from '../components/train/WeekSummaryGrid.jsx';
+import { Barbell, Bicycle, Calendar, CaretDown, CaretRight, ChartBar, ChartLine, ChatCircle, Clock, DotsThree, DownloadSimple, FileArrowUp, FileZip, Fire, Gear, Heart, Heartbeat, Lightning, Medal, Moon, Mountains, Path, PersonSimpleRun, Sparkle, Target, TrendDown, TrendUp, Trophy, UploadSimple, Watch } from '@phosphor-icons/react';
+import PlanWeekCard from '../components/train/PlanWeekCard.jsx';
 import SecondaryNavBar from '../components/train/SecondaryNavBar.jsx';
 import RideMapCard from '../components/train/RideMapCard.jsx';
 import RepeatsTab from '../components/train/RepeatsTab.jsx';
@@ -100,6 +95,9 @@ const getSportTypeForActivity = (a) => {
   if (CYCLING_TYPES.includes(a.type)) return 'cycling';
   return 'other';
 };
+
+// Rolling window handed to the coach context; not a visible control.
+const COACH_CONTEXT_DAYS = 30;
 
 function TrainingDashboard() {
   const { user } = useAuth();
@@ -123,7 +121,6 @@ function TrainingDashboard() {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [urlTab]);
-  const [timeRange, setTimeRange] = useState('30');
   const [activities, setActivities] = useState([]);
   const [speedProfile, setSpeedProfile] = useState(null);
   const [unitsPreference, setUnitsPreference] = useState('imperial');
@@ -182,6 +179,11 @@ function TrainingDashboard() {
   // replacing every row object.
   const [mapRideId, setMapRideId] = useState(null);
   const [mapOpenSignal, setMapOpenSignal] = useState(0);
+  // The map card starts collapsed; REPEATS overlays rides on the anchor
+  // ride shown there, so opening that tab asks the card to unfold.
+  useEffect(() => {
+    if (activeTab === 'repeats') setMapOpenSignal((n) => n + 1);
+  }, [activeTab]);
   const mapCardRef = useRef(null);
   const gpsRides = useMemo(() => visibleActivities.filter(rideHasGps), [visibleActivities]);
   const mapSel = useMemo(() => selectGpsRide(gpsRides, mapRideId), [gpsRides, mapRideId]);
@@ -604,9 +606,12 @@ function TrainingDashboard() {
     loadCrossTrainingContext();
   }, [user, getRecentActivitiesForContext]);
 
-  // Calculate weekly stats (uses visibleActivities to exclude hidden)
+  // Rolling-window stats (uses visibleActivities to exclude hidden). Nothing
+  // on the page renders these — they only feed buildTrainingContext, so the
+  // window is a fixed 30 days rather than a header selector that appeared to
+  // do nothing.
   const weeklyStats = useMemo(() => {
-    const days = parseInt(timeRange) || 7;
+    const days = COACH_CONTEXT_DAYS;
     const cutoff = new Date();
     cutoff.setDate(cutoff.getDate() - days);
 
@@ -663,13 +668,13 @@ function TrainingDashboard() {
       : 0;
 
     return stats;
-  }, [visibleActivities, timeRange, ftp]);
+  }, [visibleActivities, ftp]);
 
   // Calculate true weekly stats (Monday-Sunday of current week).
   // Bounded at BOTH ends against date keys — the old `>= thisMonday` form had
   // no upper bound, so a future-dated activity counted toward this week, and
   // it compared Date objects built two different ways. `totalTSS` lives here
-  // (not on `weeklyStats`, which follows the 30-day timeRange selector) so the
+  // (not on `weeklyStats`, which is the coach's rolling 30-day window) so the
   // header's RSS numerator and denominator describe the same seven days.
   const actualWeeklyStats = useMemo(() => {
     const week = weekRangeKeys(getTodayString());
@@ -977,82 +982,14 @@ function TrainingDashboard() {
       <Container size="xl" py="xl">
         <Stack gap="lg">
           {/* Header */}
+          {/* One primary action (the daily check-in) and one overflow menu.
+              The header used to carry seven controls, two of which did
+              nothing visible: PLAN re-selected the default tab, and the
+              "Last N days" select only changed what the coach was told. */}
           <PageHeader
             title="Training Hub"
-            subtitle="Your personalized training command center"
             actions={
               <>
-                <Button
-                  variant="filled"
-                  color="teal"
-                  size="xs"
-                  leftSection={<CalendarBlank size={14} />}
-                  onClick={() => setActiveTab('calendar')}
-                >
-                  Plan
-                </Button>
-                <Select
-                  size="xs"
-                  value={timeRange}
-                  onChange={setTimeRange}
-                  data={[
-                    { value: '7', label: 'Last 7 days' },
-                    { value: '30', label: 'Last 30 days' },
-                    { value: '90', label: 'Last 90 days' },
-                  ]}
-                  w={{ base: 'auto', sm: 130 }}
-                />
-                {activePlan && (
-                  <Button
-                    variant="light"
-                    color="pink"
-                    size="xs"
-                    leftSection={<Barbell size={14} />}
-                    onClick={() => setSupplementModalOpen(true)}
-                  >
-                    Add Supplement
-                  </Button>
-                )}
-                {activePlan && (
-                  <TrainingPlanExportMenu
-                    plan={activePlan}
-                    workouts={plannedWorkouts}
-                    progress={null}
-                  />
-                )}
-                <Menu shadow="md" width={200}>
-                  <Menu.Target>
-                    <Button
-                      variant="light"
-                      color="orange"
-                      size="xs"
-                      leftSection={<FileArrowDown size={14} />}
-                    >
-                      Import
-                    </Button>
-                  </Menu.Target>
-                  <Menu.Dropdown>
-                    <Menu.Label>Import Activities</Menu.Label>
-                    <Menu.Item
-                      leftSection={<Heartbeat size={16} />}
-                      onClick={() => setGpxUploadOpen(true)}
-                    >
-                      Strava Export (ZIP)
-                    </Menu.Item>
-                    <Menu.Item
-                      leftSection={<FileZip size={16} />}
-                      onClick={() => setGpxUploadOpen(true)}
-                    >
-                      Garmin Export (ZIP)
-                    </Menu.Item>
-                    <Menu.Item
-                      leftSection={<Watch size={16} />}
-                      onClick={() => setFitUploadOpen(true)}
-                    >
-                      FIT Files (single)
-                    </Menu.Item>
-                  </Menu.Dropdown>
-                </Menu>
                 <Button
                   variant={todayHealthMetrics ? 'light' : 'filled'}
                   color="violet"
@@ -1062,15 +999,60 @@ function TrainingDashboard() {
                 >
                   {todayHealthMetrics ? 'Check-in ✓' : 'Body Check-in'}
                 </Button>
-                <Button
-                  variant="light"
-                  color="teal"
-                  size="xs"
-                  leftSection={<Gear size={14} />}
-                  onClick={() => navigate('/settings')}
-                >
-                  Settings
-                </Button>
+                <Menu shadow="md" width={280} position="bottom-end">
+                  <Menu.Target>
+                    <ActionIcon
+                      variant="default"
+                      radius={0}
+                      size="lg"
+                      aria-label="More training actions"
+                    >
+                      <DotsThree size={18} weight="bold" />
+                    </ActionIcon>
+                  </Menu.Target>
+                  <Menu.Dropdown>
+                    {activePlan && (
+                      <>
+                        <Menu.Label>Plan</Menu.Label>
+                        <Menu.Item
+                          leftSection={<Barbell size={16} />}
+                          onClick={() => setSupplementModalOpen(true)}
+                        >
+                          Add supplement workout
+                        </Menu.Item>
+                        <Menu.Divider />
+                        <TrainingPlanExportItems
+                          plan={activePlan}
+                          workouts={plannedWorkouts}
+                          progress={null}
+                        />
+                        <Menu.Divider />
+                      </>
+                    )}
+                    <Menu.Label>Import activities</Menu.Label>
+                    {/* Strava and Garmin bulk exports go through the same
+                        modal — it tells them apart itself. */}
+                    <Menu.Item
+                      leftSection={<FileZip size={16} />}
+                      onClick={() => setGpxUploadOpen(true)}
+                    >
+                      Strava or Garmin export (ZIP)
+                    </Menu.Item>
+                    <Menu.Item
+                      leftSection={<Watch size={16} />}
+                      onClick={() => setFitUploadOpen(true)}
+                    >
+                      FIT file (single)
+                    </Menu.Item>
+                    <Menu.Divider />
+                    <Menu.Item
+                      leftSection={<Gear size={16} />}
+                      onClick={() => navigate('/settings')}
+                    >
+                      Settings
+                    </Menu.Item>
+                  </Menu.Dropdown>
+                </Menu>
               </>
             }
           />
@@ -1080,17 +1062,11 @@ function TrainingDashboard() {
               below the ride map. */}
           <SecondaryNavBar activeTab={activeTab} onTabChange={setActiveTab} />
 
-          {/* Plan Progress Bar */}
-          <PlanProgressBar
+          {/* Plan strip + this week's plan-vs-actual, one card */}
+          <PlanWeekCard
             activePlan={activePlan}
             plannedWorkouts={plannedWorkouts}
-            loading={loading}
-          />
-
-          {/* Week Summary Grid */}
-          <WeekSummaryGrid
             actualWeeklyStats={actualWeeklyStats}
-            plannedWorkouts={plannedWorkouts}
             formatTime={formatTime}
             loading={loading}
           />

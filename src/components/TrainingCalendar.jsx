@@ -10,11 +10,8 @@ import {
   Tooltip,
   Button,
   Paper,
-  Progress,
   Box,
   Divider,
-  SimpleGrid,
-  ThemeIcon,
   Flex,
   Drawer,
   Collapse,
@@ -30,7 +27,7 @@ import { isPowerSport } from '../utils/sportType';
 import { getWorkoutById } from '../data/workoutLibrary';
 import { resolvePlannedWorkoutShape } from '../lib/training/plannedWorkoutShape';
 import { tokens } from '../theme';
-import { formatLocalDate, addDays, parsePlanStartDate, parseLocalDate, getTodayString, toDateKey, weekStartKey, activityDateKey } from '../utils/dateUtils';
+import { formatLocalDate, addDays, parseLocalDate } from '../utils/dateUtils';
 import { getCalendarRange } from '../lib/calendar/getCalendarRange';
 import {
   moveEntry, swapEntries, createEntry, deleteEntry, updateEntry, setEntryStatus,
@@ -47,7 +44,7 @@ import { useCrossTraining, ACTIVITY_CATEGORIES } from '../hooks/useCrossTraining
 import CrossTrainingModal from './CrossTrainingModal';
 import { WorkoutModal } from './planner/WorkoutModal';
 import { WorkoutLibrarySidebar } from './planner/WorkoutLibrarySidebar';
-import { ArrowsLeftRight, Barbell, Bicycle, CalendarBlank, CalendarX, CaretDown, CaretLeft, CaretRight, Check, Circle, Clock, Cloud, CloudLightning, CloudRain, CloudSun, DotsSixVertical, Fire, Heartbeat, Moon, Path, PencilSimple, PersonSimpleRun, PersonSimpleWalk, Plus, Snowflake, Sun, Trash, TrendUp, Trophy, Wind, X } from '@phosphor-icons/react';
+import { ArrowsLeftRight, Barbell, Bicycle, CalendarBlank, CalendarX, CaretDown, CaretLeft, CaretRight, Check, Circle, Cloud, CloudLightning, CloudRain, CloudSun, DotsSixVertical, Heartbeat, Moon, Path, PencilSimple, PersonSimpleRun, PersonSimpleWalk, Plus, Snowflake, Sun, Trash, Trophy, Wind, X } from '@phosphor-icons/react';
 import { useWeatherForecast } from '../hooks/useWeatherForecast';
 import { useRouteBuilderStore } from '../stores/routeBuilderStore';
 import { getWeatherSeverity, formatTemperature } from '../utils/weather';
@@ -514,104 +511,6 @@ const TrainingCalendar = ({ activePlan, rides = [], formatDistance: formatDistan
     }
   };
 
-  // Calculate weekly summary stats, keyed by the MONDAY DATE of each week.
-  //
-  // Previously this bucketed planned workouts by `workout.week_number` while
-  // bucketing rides by weeks-since-activePlan-start — two different axes in one
-  // map. `plannedWorkouts` is user-scoped (loaded across all of the athlete's
-  // plans), and `week_number` is measured from each row's OWN plan start, so
-  // three plans' "Week 4" all landed in bucket 4 and summed together. A date key
-  // is the only axis every row actually shares.
-  const weeklyStats = useMemo(() => {
-    const stats = {};
-    const bucket = (key) => {
-      if (!key) return null;
-      if (!stats[key]) {
-        stats[key] = {
-          plannedTSS: 0,
-          actualTSS: 0,
-          completedCount: 0,
-          totalCount: 0,
-          plannedDuration: 0,
-          actualDuration: 0,
-        };
-      }
-      return stats[key];
-    };
-
-    // Group planned workouts by the Monday of their scheduled week.
-    plannedWorkouts.forEach(workout => {
-      if (workout.workout_type === 'rest') return;
-      const week = bucket(weekStartKey(toDateKey(workout.scheduled_date)));
-      if (!week) return;
-      week.totalCount++;
-      // Canonical target_rss first, legacy target_tss fallback (CLAUDE.md).
-      week.plannedTSS += workout.target_rss ?? workout.target_tss ?? 0;
-      week.plannedDuration += workout.target_duration || 0;
-      if (workout.completed) {
-        week.completedCount++;
-        week.actualTSS +=
-          workout.actual_rss ?? workout.actual_tss ?? workout.target_rss ?? workout.target_tss ?? 0;
-        week.actualDuration += workout.actual_duration || workout.target_duration || 0;
-      }
-    });
-
-    // Add actual ride TSS from activities, keyed by the athlete's local day.
-    rides.forEach(ride => {
-      const week = bucket(weekStartKey(activityDateKey(ride)));
-      if (!week) return;
-      // Prefer stored canonical load (rss, fallback to legacy tss). For
-      // runs we never apply the cycling power→TSS formula because watts
-      // from a footpod would be misread against cycling FTP. Phase 2 will
-      // replace the duration-based fallback with HR-TRIMP / rTSS.
-      const storedLoad = ride.rss ?? ride.tss;
-      let rideTSS;
-      if (storedLoad != null && storedLoad > 0) {
-        rideTSS = storedLoad;
-      } else if (isPowerSport(ride) && ride.average_watts && ftp) {
-        rideTSS = calculateTSS(ride.moving_time, ride.average_watts, ftp);
-      } else {
-        rideTSS = estimateTSS(
-          (ride.moving_time || 0) / 60,
-          (ride.distance || 0) / 1000,
-          ride.total_elevation_gain || 0,
-          'endurance'
-        );
-      }
-      rideTSS = Math.min(rideTSS || 0, 500);
-      week.actualTSS += rideTSS;
-      week.actualDuration += (ride.moving_time || 0) / 60;
-    });
-
-    return stats;
-  }, [plannedWorkouts, rides, ftp]);
-
-  // Get current week number
-  const getCurrentWeekNumber = () => {
-    if (!activePlan) return 0;
-    // Use parsePlanStartDate for timezone-safe parsing
-    const planStartDate = parsePlanStartDate(getPlanStartDate(activePlan));
-    if (!planStartDate) return 1;
-
-    const now = new Date();
-    now.setHours(0, 0, 0, 0); // Compare at midnight
-    const daysSinceStart = Math.floor((now - planStartDate) / (24 * 60 * 60 * 1000));
-    return Math.max(1, Math.floor(daysSinceStart / 7) + 1);
-  };
-
-  // Get current phase
-  const getCurrentPhase = () => {
-    if (!activePlan) return null;
-    const currentWeek = getCurrentWeekNumber();
-    const totalWeeks = activePlan.duration_weeks || 8;
-    const progress = currentWeek / totalWeeks;
-
-    if (progress <= 0.3) return { name: 'Base', color: 'blue' };
-    if (progress <= 0.6) return { name: 'Build', color: 'orange' };
-    if (progress <= 0.85) return { name: 'Peak', color: 'red' };
-    return { name: 'Taper', color: 'green' };
-  };
-
   // Navigate by 1 week
   const previousWeek = () => {
     setAnchorDate(prev => addDays(prev, -7));
@@ -1049,10 +948,6 @@ const TrainingCalendar = ({ activePlan, rides = [], formatDistance: formatDistan
 
   const days = getRolling4Weeks();
   const rangeLabel = `${anchorDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} – ${addDays(anchorDate, 27).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`;
-  const currentWeek = getCurrentWeekNumber();
-  const currentPhase = getCurrentPhase();
-  // weeklyStats is keyed by Monday date; the plan-relative number is label only.
-  const currentWeekStats = weeklyStats[weekStartKey(getTodayString())];
 
   // Workout library sidebar (shared by the desktop rail and the mobile drawer).
   const librarySidebar = (
@@ -1071,104 +966,8 @@ const TrainingCalendar = ({ activePlan, rides = [], formatDistance: formatDistan
 
   return (
     <Stack gap="md">
-      {/* Plan Overview Header */}
-      {activePlan && (
-        <Paper p="md" withBorder>
-          <Group justify="space-between" wrap="wrap" gap="md">
-            <Group gap="md">
-              <Box>
-                <Text size="sm" c="dimmed">Active Plan</Text>
-                <Text fw={600}>{activePlan.name}</Text>
-              </Box>
-              {currentPhase && (
-                <Badge color={currentPhase.color} variant="light" size="lg">
-                  {currentPhase.name} Phase
-                </Badge>
-              )}
-            </Group>
-            <Group gap="lg">
-              <Box ta="center">
-                <Text size="xl" fw={700} c="terracotta">{currentWeek}</Text>
-                <Text size="xs" c="dimmed">of {activePlan.duration_weeks} weeks</Text>
-              </Box>
-              <Box ta="center">
-                <Text size="xl" fw={700} c="blue">
-                  {activePlan.compliance_percentage ? Math.round(activePlan.compliance_percentage) : 0}%
-                </Text>
-                <Text size="xs" c="dimmed">compliance</Text>
-              </Box>
-            </Group>
-          </Group>
-
-          {/* Overall Progress */}
-          <Progress
-            value={(currentWeek / activePlan.duration_weeks) * 100}
-            color="teal"
-            size="sm"
-            radius="xl"
-            mt="md"
-          />
-        </Paper>
-      )}
-
-      {/* Weekly Summary */}
-      {activePlan && currentWeekStats && (
-        <Paper p="md" withBorder>
-          <Group justify="space-between" mb="sm">
-            <Text fw={600} size="sm">Week {currentWeek} Summary</Text>
-            <Badge variant="light" color="gray">Current Week</Badge>
-          </Group>
-          <SimpleGrid cols={{ base: 2, sm: 4 }} spacing="md">
-            <Box>
-              <Group gap="xs">
-                <ThemeIcon size="sm" color="orange" variant="light">
-                  <Fire size={14} />
-                </ThemeIcon>
-                <Text size="xs" c="dimmed">RSS</Text>
-              </Group>
-              <Text fw={600}>
-                {Math.round(currentWeekStats.actualTSS)} / {currentWeekStats.plannedTSS}
-              </Text>
-            </Box>
-            <Box>
-              <Group gap="xs">
-                <ThemeIcon size="sm" color="blue" variant="light">
-                  <Clock size={14} />
-                </ThemeIcon>
-                <Text size="xs" c="dimmed">Duration</Text>
-              </Group>
-              <Text fw={600}>
-                {Math.round(currentWeekStats.actualDuration)} / {currentWeekStats.plannedDuration} min
-              </Text>
-            </Box>
-            <Box>
-              <Group gap="xs">
-                <ThemeIcon size="sm" color="green" variant="light">
-                  <Check size={14} />
-                </ThemeIcon>
-                <Text size="xs" c="dimmed">Completed</Text>
-              </Group>
-              <Text fw={600}>
-                {currentWeekStats.completedCount} / {currentWeekStats.totalCount} workouts
-              </Text>
-            </Box>
-            <Box>
-              <Group gap="xs">
-                <ThemeIcon size="sm" color="grape" variant="light">
-                  <TrendUp size={14} />
-                </ThemeIcon>
-                <Text size="xs" c="dimmed">Compliance</Text>
-              </Group>
-              <Text fw={600}>
-                {currentWeekStats.totalCount > 0
-                  ? Math.round((currentWeekStats.completedCount / currentWeekStats.totalCount) * 100)
-                  : 0}%
-              </Text>
-            </Box>
-          </SimpleGrid>
-        </Paper>
-      )}
-
+      {/* The plan strip and week summary live in /train's PlanWeekCard above
+          the tabs; this panel starts with what only the calendar knows. */}
       {/* Training Insights — collapsible, directly under the weekly summary */}
       {activePlan && (weekSummary || adaptations.length > 0 || insights.length > 0) && (
         <Paper p="md" withBorder>

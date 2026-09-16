@@ -12,7 +12,7 @@ export { default as TrainingNotifications } from './TrainingNotifications';
 export { default as SupplementWorkoutModal } from './SupplementWorkoutModal';
 export { default as RouteAnalysisPanel } from './RouteAnalysisPanel';
 export { default as SegmentLibraryPanel } from './SegmentLibraryPanel';
-export { default as TrainingPlanExportMenu } from './TrainingPlanExportMenu';
+export { default as TrainingPlanExportMenu, TrainingPlanExportItems } from './TrainingPlanExportMenu';
 export { default as PlanConflictModal } from './PlanConflictModal';
 export { default as RaceTab } from './RaceTab';
 

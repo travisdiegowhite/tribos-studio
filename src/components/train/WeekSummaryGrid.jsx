@@ -17,8 +17,16 @@ import { getTodayString, toDateKey, weekRangeKeys } from '../../utils/dateUtils'
  * Keep all four metrics on one window — this row sits directly above
  * CheckInWeekBar, and any divergence between them is visible to the athlete.
  */
-function WeekSummaryGrid({ actualWeeklyStats, plannedWorkouts, formatTime, loading }) {
+function WeekSummaryGrid({ actualWeeklyStats, plannedWorkouts, formatTime, loading, frameless = false }) {
   const isMobile = useMediaQuery('(max-width: 768px)');
+  // `frameless` drops the card chrome so the row can sit inside PlanWeekCard.
+  const frame = frameless
+    ? { padding: 0 }
+    : {
+        padding: '14px 16px',
+        border: '0.5px solid var(--color-border)',
+        backgroundColor: 'var(--color-card)',
+      };
 
   if (loading) {
     return (
@@ -28,8 +36,8 @@ function WeekSummaryGrid({ actualWeeklyStats, plannedWorkouts, formatTime, loadi
             key={i}
             style={{
               padding: '12px 16px',
-              border: '0.5px solid var(--color-border)',
-              backgroundColor: 'var(--color-card)',
+              border: frameless ? undefined : '0.5px solid var(--color-border)',
+              backgroundColor: frameless ? undefined : 'var(--color-card)',
             }}
           >
             <Skeleton height={10} width={60} mb={6} />
@@ -95,13 +103,7 @@ function WeekSummaryGrid({ actualWeeklyStats, plannedWorkouts, formatTime, loadi
   ];
 
   return (
-    <Box
-      style={{
-        padding: '14px 16px',
-        border: '0.5px solid var(--color-border)',
-        backgroundColor: 'var(--color-card)',
-      }}
-    >
+    <Box style={frame}>
       <MetricCitation
         sentence={sentence}
         color="var(--color-text-primary)"
