@@ -1075,6 +1075,11 @@ function TrainingDashboard() {
             }
           />
 
+          {/* Secondary Nav Bar — the page's tabs, directly under the header so
+              they read as the page's top-level navigation rather than sitting
+              below the ride map. */}
+          <SecondaryNavBar activeTab={activeTab} onTabChange={setActiveTab} />
+
           {/* Plan Progress Bar */}
           <PlanProgressBar
             activePlan={activePlan}
@@ -1118,9 +1123,6 @@ function TrainingDashboard() {
               <FtpMissingBadge ftp={ftp} />
             </Group>
           )}
-
-          {/* Secondary Nav Bar */}
-          <SecondaryNavBar activeTab={activeTab} onTabChange={setActiveTab} />
 
           {/* Tab Content Panels */}
           <Box>
