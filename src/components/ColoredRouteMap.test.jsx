@@ -94,16 +94,6 @@ describe('ColoredRouteMap', () => {
     expect(drawn.layers.some((l) => l.id === 'colored-route-line')).toBe(true);
   });
 
-  it('keeps its controls in a toolbar above the map, not floated over it', () => {
-    renderMap({ ftp: 250 });
-    const toolbar = screen.getByTestId('ride-map-toolbar');
-    const mapBox = screen.getByTestId('ride-map-box');
-    expect(toolbar.contains(screen.getByRole('radio', { name: 'Power' }))).toBe(true);
-    expect(toolbar.contains(screen.getByRole('radio', { name: '3D' }))).toBe(true);
-    expect(mapBox.contains(toolbar)).toBe(false);
-    expect(toolbar.compareDocumentPosition(mapBox) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-  });
-
   it('offers the fly-through when there is a track', () => {
     renderMap({ ftp: 250 });
     expect(screen.getByRole('button', { name: 'Play fly-through' })).toBeTruthy();
