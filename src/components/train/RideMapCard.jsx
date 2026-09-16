@@ -86,8 +86,9 @@ function formatRideDate(iso) {
  * @param {(ride: object) => void} props.onFullAnalysis  Opens RideAnalysisModal.
  * @param {string} [props.title]            Eyebrow: 'Latest ride' / 'Selected ride'.
  * @param {boolean} [props.loading]
- * @param {number} [props.openSignal]       Bump to expand the map on phones (a
- *                                          history row was tapped).
+ * @param {number} [props.openSignal]       Bump to expand the map (a history
+ *                                          row was tapped, or REPEATS needs
+ *                                          its anchor ride on screen).
  */
 function RideMapCard({
   ride,
@@ -105,8 +106,10 @@ function RideMapCard({
   openSignal = 0,
 }) {
   const isMobile = useMediaQuery('(max-width: 768px)');
-  // Phones start collapsed so the map's WebGL cost is only paid on request;
-  // desktop always shows it. The phone choice is remembered per browser.
+  // The map starts collapsed everywhere: the card sits above every tab's
+  // content, and the open map is ~440px of the page before the calendar or
+  // table the athlete came for. It opens on request (remembered per browser)
+  // or when the page signals a ride was picked (HISTORY row, REPEATS anchor).
   const [open, setOpen] = useState(readStoredOpen);
 
   useEffect(() => {
@@ -140,7 +143,7 @@ function RideMapCard({
   }
   if (!ride) return null;
 
-  const showMap = !isMobile || open;
+  const showMap = open;
   const mapHeight = isMobile ? MOBILE_MAP_HEIGHT : DESKTOP_MAP_HEIGHT;
 
   return (
@@ -212,15 +215,13 @@ function RideMapCard({
           </Group>
         </Group>
 
-        {isMobile && (
-          <UnstyledButton
-            onClick={toggleOpen}
-            aria-expanded={open}
-            style={{ ...linkButtonStyle, marginTop: 10 }}
-          >
-            {open ? 'Hide map' : 'Show map'}
-          </UnstyledButton>
-        )}
+        <UnstyledButton
+          onClick={toggleOpen}
+          aria-expanded={open}
+          style={{ ...linkButtonStyle, marginTop: 10 }}
+        >
+          {open ? 'Hide map' : 'Show map'}
+        </UnstyledButton>
       </Box>
 
       {showMap && (

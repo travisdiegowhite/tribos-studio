@@ -2,16 +2,23 @@ import { Link } from 'react-router-dom';
 import { Box, Group, Text, Badge, Progress, Button, Skeleton } from '@mantine/core';
 import { CaretRight, CalendarBlank, Trophy } from '@phosphor-icons/react';
 
-function PlanProgressBar({ activePlan, plannedWorkouts, loading }) {
+/**
+ * @param {object} props
+ * @param {boolean} [props.frameless]  Drop the card border/background so the
+ *                                     strip can sit inside PlanWeekCard's frame.
+ */
+function PlanProgressBar({ activePlan, plannedWorkouts, loading, frameless = false }) {
+  const frame = frameless
+    ? { padding: 0 }
+    : {
+        border: '1px solid var(--color-border)',
+        backgroundColor: 'var(--color-card)',
+        padding: '16px 20px',
+      };
+
   if (loading) {
     return (
-      <Box
-        style={{
-          border: '1px solid var(--color-border)',
-          backgroundColor: 'var(--color-card)',
-          padding: '16px 20px',
-        }}
-      >
+      <Box style={frame}>
         <Skeleton height={14} width="40%" mb={10} />
         <Skeleton height={8} mb={8} />
         <Skeleton height={12} width="30%" />
@@ -21,13 +28,7 @@ function PlanProgressBar({ activePlan, plannedWorkouts, loading }) {
 
   if (!activePlan) {
     return (
-      <Box
-        style={{
-          border: '1px solid var(--color-border)',
-          backgroundColor: 'var(--color-card)',
-          padding: '16px 20px',
-        }}
-      >
+      <Box style={frame}>
         <Group justify="space-between" align="center">
           <Group gap="sm">
             <CalendarBlank size={18} color="var(--color-text-muted)" />
@@ -90,13 +91,7 @@ function PlanProgressBar({ activePlan, plannedWorkouts, loading }) {
   const currentPhase = activePlan.current_phase || activePlan.phase || null;
 
   return (
-    <Box
-      style={{
-        border: '1px solid var(--color-border)',
-        backgroundColor: 'var(--color-card)',
-        padding: '16px 20px',
-      }}
-    >
+    <Box style={frame}>
       {/* Plan name and phase */}
       <Group justify="space-between" align="center" mb={10}>
         <Group gap="sm">
@@ -150,9 +145,11 @@ function PlanProgressBar({ activePlan, plannedWorkouts, loading }) {
               </Text>
             </Group>
           )}
+          {/* The browse tab is the only plan-management surface; the old
+              "EDIT → ?tab=calendar" link was a no-op on the tab it sat on. */}
           <Button
             component={Link}
-            to="/train?tab=calendar"
+            to="/train?tab=browse"
             variant="subtle"
             color="gray"
             size="compact-xs"
@@ -165,7 +162,7 @@ function PlanProgressBar({ activePlan, plannedWorkouts, loading }) {
               textTransform: 'uppercase',
             }}
           >
-            EDIT
+            CHANGE PLAN
           </Button>
         </Group>
       </Group>

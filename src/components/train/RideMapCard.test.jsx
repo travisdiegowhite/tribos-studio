@@ -69,7 +69,7 @@ beforeEach(() => {
 });
 
 describe('RideMapCard', () => {
-  it('leads with the ride name, cites its numbers and draws the map', () => {
+  it('leads with the ride name and cites its numbers, with the map folded away', () => {
     renderCard();
     expect(screen.getByText('Latest ride')).toBeTruthy();
     expect(screen.getByText('Flagstaff loop')).toBeTruthy();
@@ -78,8 +78,26 @@ describe('RideMapCard', () => {
     expect(screen.getByText('1h 30m')).toBeTruthy();
     expect(screen.getByText('210W')).toBeTruthy();
     expect(screen.getByText('148 bpm')).toBeTruthy();
+    // The card sits above every tab's content, so the map itself waits to be asked for.
+    expect(screen.queryByTestId('map')).toBeNull();
+    expect(screen.getByRole('button', { name: 'Show map' })).toBeTruthy();
+  });
+
+  it('draws the map with its metric strip on desktop once opened, and remembers it', () => {
+    renderCard();
+    fireEvent.click(screen.getByRole('button', { name: 'Show map' }));
     expect(screen.getByTestId('map')).toBeTruthy();
     expect(screen.getByTestId('ride-metric-strip')).toBeTruthy();
+    expect(localStorage.getItem('tribos-train-ride-map-open')).toBe('1');
+    fireEvent.click(screen.getByRole('button', { name: 'Hide map' }));
+    expect(screen.queryByTestId('map')).toBeNull();
+    expect(localStorage.getItem('tribos-train-ride-map-open')).toBe('0');
+  });
+
+  it('starts open when the browser remembers the map was left open', () => {
+    localStorage.setItem('tribos-train-ride-map-open', '1');
+    renderCard();
+    expect(screen.getByTestId('map')).toBeTruthy();
   });
 
   it('omits power and heart-rate chips when the ride has neither', () => {
@@ -111,7 +129,7 @@ describe('RideMapCard', () => {
     expect(document.querySelector('.mantine-Skeleton-root')).not.toBeNull();
   });
 
-  it('starts collapsed on a phone, expands on request and remembers it', () => {
+  it('starts collapsed on a phone too, expands on request and remembers it', () => {
     mediaState.mobile = true;
     renderCard();
     expect(screen.queryByTestId('map')).toBeNull();
