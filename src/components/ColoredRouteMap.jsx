@@ -376,30 +376,26 @@ const ROUTE_OUTLINE_COLOR = '#1f2a26';
 const ROUTE_COLOR = '#1f6f68';
 
 const DEFAULT_MAP_HEIGHT = 440;
-// Room for the floating controls (top-right) and the stats card (bottom-left)
-// so the fitted route never sits under them. A short embed can't spare that
-// much frame, so the reserve shrinks with the map.
+// Room for the stats card (bottom-left) so the fitted route never sits under
+// it; the controls are in the toolbar above the map, so the top only needs
+// breathing room. A short embed can't spare much frame, so the reserve
+// shrinks with the map.
 function fitPaddingFor(height) {
   return height >= 320
-    ? { top: 56, bottom: 44, left: 24, right: 24 }
-    : { top: 36, bottom: 20, left: 16, right: 16 };
+    ? { top: 28, bottom: 44, left: 24, right: 24 }
+    : { top: 16, bottom: 20, left: 16, right: 16 };
 }
 /** Zoom levels closer than fit-to-bounds when the map opens or resets. */
 const RIDE_MAP_ZOOM_IN = 1;
 
-const overlayControlStyles = {
-  root: {
-    backgroundColor: 'rgba(0,0,0,0.6)',
-    backdropFilter: 'blur(4px)',
-  },
-  // Mantine's default indicator is opaque white, which hid the white
-  // active label; a translucent one keeps every label legible.
-  indicator: {
-    backgroundColor: 'rgba(255,255,255,0.28)',
-  },
+// Controls live in a toolbar row above the map, not floated over it: on a
+// wide embed the floating cluster crowded the map's corner and hid terrain,
+// and on a short one it collided with the compass. Plain card chrome so it
+// reads as part of the host card in either color scheme.
+const toolbarControlStyles = {
   label: {
-    color: 'white',
     fontSize: 11,
+    letterSpacing: '0.04em',
     padding: '4px 8px',
   },
 };
@@ -697,6 +693,60 @@ const ColoredRouteMap = ({
 
   return (
     <Frame frameless={frameless} fill={fill}>
+      {/* Toolbar: playback, metric color mode, 2D/3D toggle */}
+      <Group
+        justify="space-between"
+        align="center"
+        gap={6}
+        wrap="wrap"
+        data-testid="ride-map-toolbar"
+        style={{
+          padding: '6px 8px',
+          backgroundColor: 'var(--color-card)',
+          borderBottom: '0.5px solid var(--color-border)',
+          flexShrink: 0,
+        }}
+      >
+        <Box style={{ minWidth: 26 }}>
+          {hasStreamTrack && (
+            <ActionIcon
+              variant="default"
+              size={26}
+              radius={0}
+              aria-label={flight.playing ? 'Pause fly-through' : 'Play fly-through'}
+              title={flight.playing ? 'Pause' : 'Fly the route'}
+              onClick={flight.toggle}
+            >
+              {flight.playing ? <Pause size={14} weight="fill" /> : <Play size={14} weight="fill" />}
+            </ActionIcon>
+          )}
+        </Box>
+        <Group gap={6} wrap="wrap" justify="flex-end">
+          {availableModes.length > 1 && (
+            <SegmentedControl
+              size="xs"
+              radius={0}
+              value={colorMode}
+              onChange={handleModeChange}
+              data={availableModes.map(mode => ({ value: mode, label: COLOR_MODES[mode].label }))}
+              styles={toolbarControlStyles}
+            />
+          )}
+          <SegmentedControl
+            size="xs"
+            radius={0}
+            value={is3d ? '3d' : '2d'}
+            onChange={handle3dChange}
+            data={[
+              { value: '2d', label: '2D' },
+              { value: '3d', label: '3D' },
+            ]}
+            styles={toolbarControlStyles}
+            aria-label="Map perspective"
+          />
+        </Group>
+      </Group>
+
       <Box
         style={fill ? { flex: 1, minHeight: height, position: 'relative' } : { height, position: 'relative' }}
         data-testid="ride-map-box"
@@ -813,49 +863,6 @@ const ColoredRouteMap = ({
           />
         )}
 
-        {/* Top-right: playback, metric color mode, 2D/3D toggle */}
-        <Group
-          gap={6}
-          justify="flex-end"
-          wrap="wrap"
-          style={{ position: 'absolute', top: 8, right: 8, zIndex: 10, maxWidth: 'calc(100% - 56px)' }}
-        >
-          {hasStreamTrack && (
-            <ActionIcon
-              variant="filled"
-              size={26}
-              radius={0}
-              aria-label={flight.playing ? 'Pause fly-through' : 'Play fly-through'}
-              title={flight.playing ? 'Pause' : 'Fly the route'}
-              onClick={flight.toggle}
-              style={{ backgroundColor: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(4px)', color: 'white' }}
-            >
-              {flight.playing ? <Pause size={14} weight="fill" /> : <Play size={14} weight="fill" />}
-            </ActionIcon>
-          )}
-          {availableModes.length > 1 && (
-            <SegmentedControl
-              size="xs"
-              radius={0}
-              value={colorMode}
-              onChange={handleModeChange}
-              data={availableModes.map(mode => ({ value: mode, label: COLOR_MODES[mode].label }))}
-              styles={overlayControlStyles}
-            />
-          )}
-          <SegmentedControl
-            size="xs"
-            radius={0}
-            value={is3d ? '3d' : '2d'}
-            onChange={handle3dChange}
-            data={[
-              { value: '2d', label: '2D' },
-              { value: '3d', label: '3D' },
-            ]}
-            styles={overlayControlStyles}
-            aria-label="Map perspective"
-          />
-        </Group>
       </Box>
 
       {/* Scrubber: the selected metric against distance, elevation behind */}
