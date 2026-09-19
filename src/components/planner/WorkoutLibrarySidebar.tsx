@@ -53,7 +53,7 @@ const CATEGORY_LABELS: Record<WorkoutCategory, string> = {
   tempo: 'Tempo',
   sweet_spot: 'Sweet Spot',
   threshold: 'Threshold',
-  vo2max: 'VO2max',
+  vo2max: 'VO2max (top end)',
   anaerobic: 'Anaerobic',
   climbing: 'Climbing',
   racing: 'Racing',

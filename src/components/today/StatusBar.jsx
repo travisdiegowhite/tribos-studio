@@ -1,4 +1,5 @@
-import { Box, Text, Skeleton, SimpleGrid, Tooltip } from '@mantine/core';
+import { useState } from 'react';
+import { Box, Text, Skeleton, SimpleGrid, Tooltip, Modal, UnstyledButton, Stack } from '@mantine/core';
 import { useMediaQuery } from '@mantine/hooks';
 import { translateCTL, translateATL, translateTSB, translateTrend, colorToVar } from '../../lib/fitness/translate';
 import { METRIC_TOOLTIPS } from '../../lib/fitness/tooltips';
@@ -13,14 +14,50 @@ const TERRAIN_LABELS = {
 };
 
 const TERRAIN_TOOLTIPS = {
-  flat: 'Latest day classified as flat (< 8 m of elevation gain per km). Ride Stress Score (RSS) estimator treated it as a baseline terrain day.',
-  rolling: 'Latest day classified as rolling (8–15 m/km). Kilojoule and inferred RSS tiers were scaled up by the spec §3.1 terrain multiplier.',
-  hilly: 'Latest day classified as hilly (15–25 m/km). Kilojoule and inferred RSS tiers were scaled up by the spec §3.1 terrain multiplier.',
-  mountainous: 'Latest day classified as mountainous (≥ 25 m/km). Kilojoule and inferred RSS tiers were scaled up by the spec §3.1 terrain multiplier.',
+  flat: 'Your latest ride was flat (under 8 m of climbing per km). Ride stress was estimated as a baseline terrain day.',
+  rolling: 'Your latest ride was rolling (8–15 m of climbing per km). Ride stress estimates for rides without power data were scaled up for the extra climbing.',
+  hilly: 'Your latest ride was hilly (15–25 m of climbing per km). Ride stress estimates for rides without power data were scaled up for the extra climbing.',
+  mountainous: 'Your latest ride was mountainous (25+ m of climbing per km). Ride stress estimates for rides without power data were scaled up for the extra climbing.',
 };
+
+// Plain-language definitions for the "What these numbers mean" modal. This is
+// the one place a new rider can read the definitions without hovering — the
+// cell tooltips never fire on touch. Keep the wording word-first, abbreviation
+// second, per spec §6.
+const METRIC_GLOSSARY = [
+  {
+    key: 'tsb',
+    title: 'Form',
+    longName: 'Form score (FS)',
+    definition:
+      'Fitness minus fatigue. Positive means you are fresh and ready for a hard day or a race. Negative means you are carrying fatigue. Slightly negative is normal in the middle of a training block.',
+  },
+  {
+    key: 'ctl',
+    title: 'Fitness',
+    longName: 'Training fitness index (TFI)',
+    definition:
+      'Your long-term training load, weighted toward the last six weeks or so. It builds slowly with consistent riding and fades slowly when you stop.',
+  },
+  {
+    key: 'atl',
+    title: 'Fatigue',
+    longName: 'Acute fatigue index (AFI)',
+    definition:
+      'Your short-term training load, weighted toward the last week. It jumps after hard days and clears within days of rest.',
+  },
+  {
+    key: 'rss',
+    title: 'Ride stress',
+    longName: 'Ride stress score (RSS)',
+    definition:
+      'One number for how hard a ride was, combining how long it lasted and how intense it felt. An easy hour is roughly 40 to 50; a hard race can be 200 or more. Each day\'s ride stress feeds your fitness and fatigue.',
+  },
+];
 
 function StatusBar({ ctl, atl, tsb, ctlDeltaPct, weekRides, weekPlanned, loading, fsConfidence, todayTerrain }) {
   const isMobile = useMediaQuery('(max-width: 768px)');
+  const [glossaryOpen, setGlossaryOpen] = useState(false);
 
   if (loading) {
     return (
@@ -60,7 +97,7 @@ function StatusBar({ ctl, atl, tsb, ctlDeltaPct, weekRides, weekPlanned, loading
   const cells = [
     {
       label: 'FORM',
-      sublabel: 'FS \u2014 freshness',
+      sublabel: 'Freshness \u2014 form score',
       value: formValue,
       color: formColor,
       fontStyle: isVeryLowConf ? 'italic' : undefined,
@@ -70,7 +107,7 @@ function StatusBar({ ctl, atl, tsb, ctlDeltaPct, weekRides, weekPlanned, loading
     },
     {
       label: 'FITNESS',
-      sublabel: 'TFI \u2014 training fitness index',
+      sublabel: 'Training fitness index',
       value: String(ctl),
       color: 'var(--color-teal)',
       status: fitnessTranslation.label,
@@ -79,7 +116,7 @@ function StatusBar({ ctl, atl, tsb, ctlDeltaPct, weekRides, weekPlanned, loading
     },
     {
       label: 'FATIGUE',
-      sublabel: 'AFI \u2014 acute fatigue index',
+      sublabel: 'Acute fatigue index',
       value: String(atl),
       color: 'var(--color-orange)',
       status: fatigueTranslation.label,
@@ -262,6 +299,78 @@ function StatusBar({ ctl, atl, tsb, ctlDeltaPct, weekRides, weekPlanned, loading
         return content;
       })}
     </SimpleGrid>
+      <UnstyledButton
+        onClick={() => setGlossaryOpen(true)}
+        style={{
+          display: 'block',
+          marginTop: 6,
+          fontFamily: "'DM Mono', monospace",
+          fontSize: 11,
+          letterSpacing: '0.5px',
+          color: 'var(--color-text-muted)',
+          textDecoration: 'underline',
+          textUnderlineOffset: 3,
+        }}
+      >
+        What these numbers mean
+      </UnstyledButton>
+      <Modal
+        opened={glossaryOpen}
+        onClose={() => setGlossaryOpen(false)}
+        title="What these numbers mean"
+        radius={0}
+        size="md"
+        styles={{
+          title: {
+            fontFamily: "'Barlow Condensed', sans-serif",
+            fontSize: 18,
+            fontWeight: 700,
+            letterSpacing: '1.5px',
+            textTransform: 'uppercase',
+          },
+        }}
+      >
+        <Stack gap="md">
+          {METRIC_GLOSSARY.map((item) => {
+            const rightNow =
+              item.key === 'tsb'
+                ? METRIC_TOOLTIPS.tsb(tsb)
+                : item.key === 'ctl'
+                  ? METRIC_TOOLTIPS.ctl(ctl)
+                  : item.key === 'atl'
+                    ? METRIC_TOOLTIPS.atl(atl, ctl)
+                    : null;
+            return (
+              <Box key={item.key} style={{ borderTop: '0.5px solid var(--color-border)', paddingTop: 10 }}>
+                <Text
+                  style={{
+                    fontFamily: "'Barlow Condensed', sans-serif",
+                    fontSize: 14,
+                    fontWeight: 700,
+                    letterSpacing: '2px',
+                    textTransform: 'uppercase',
+                    color: 'var(--color-text-muted)',
+                  }}
+                >
+                  {item.title}
+                </Text>
+                <Text style={{ fontFamily: "'DM Mono', monospace", fontSize: 12, color: '#7A7970', marginBottom: 4 }}>
+                  {item.longName}
+                </Text>
+                <Text size="sm" style={{ color: 'var(--color-text-secondary)', lineHeight: 1.5 }}>
+                  {item.definition}
+                </Text>
+                {rightNow && (
+                  <Text size="sm" mt={6} style={{ color: 'var(--color-text-primary)', lineHeight: 1.5 }}>
+                    <Text span fw={700}>Right now: </Text>
+                    {rightNow}
+                  </Text>
+                )}
+              </Box>
+            );
+          })}
+        </Stack>
+      </Modal>
     </Box>
   );
 }

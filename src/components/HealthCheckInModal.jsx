@@ -428,7 +428,7 @@ function HealthCheckInModal({ opened, onClose, onSave, existingData }) {
             suffix=" bpm"
           />
           <NumberInput
-            label="HRV"
+            label="HRV (heart-rate variability)"
             placeholder="ms"
             leftSection={<Speedometer size={14} />}
             value={formData.hrv_score || ''}
@@ -678,7 +678,7 @@ function HealthCheckInModal({ opened, onClose, onSave, existingData }) {
                                 label=""
                                 description=""
                               />
-                              <Text size="xs" c="dimmed">RPE</Text>
+                              <Text size="xs" c="dimmed">Effort (1–10)</Text>
                               <ActionIcon
                                 size="sm"
                                 variant="subtle"

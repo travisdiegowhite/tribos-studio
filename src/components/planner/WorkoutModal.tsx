@@ -773,7 +773,7 @@ export function WorkoutModal({
                 {workout.targetTSS > 0 && (
                   <Group gap={4}>
                     <Fire size={16} color="var(--mantine-color-orange-5)" />
-                    <Text size="sm" fw={500}>{workout.targetTSS} RSS</Text>
+                    <Text size="sm" fw={500}>{workout.targetTSS} stress</Text>
                   </Group>
                 )}
                 {workout.intensityFactor > 0 && (
@@ -949,7 +949,7 @@ export function WorkoutModal({
           {(plannedWorkout || isAdd) && (
             <Group grow>
               <NumberInput
-                label="Target RSS"
+                label="Target ride stress"
                 value={editTSS}
                 onChange={(val) => setEditTSS(typeof val === 'number' ? val : 0)}
                 min={0}

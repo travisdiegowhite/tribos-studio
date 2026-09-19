@@ -415,7 +415,7 @@ const RideHistoryTable = ({
                 <Table.Th>Distance</Table.Th>
                 <Table.Th>Elevation</Table.Th>
                 <Table.Th>Duration</Table.Th>
-                <Table.Th>RSS</Table.Th>
+                <Table.Th>Ride stress</Table.Th>
                 <Table.Th>Pace/Power</Table.Th>
                 <Table.Th>Actions</Table.Th>
               </Table.Tr>

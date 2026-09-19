@@ -94,7 +94,7 @@ function WeekSummaryGrid({ actualWeeklyStats, plannedWorkouts, formatTime, loadi
 
   const metrics = [
     {
-      label: 'RSS',
+      label: 'STRESS',
       value: plannedTSS > 0 ? `${Math.round(weeklyTSS)}/${Math.round(plannedTSS)}` : String(Math.round(weeklyTSS)),
     },
     { label: 'TIME', value: formattedTime },

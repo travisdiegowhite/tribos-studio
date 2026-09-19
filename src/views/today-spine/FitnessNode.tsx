@@ -187,7 +187,7 @@ export function FitnessNode({
             <MetricCitation
               sentence={vm.stateText}
               color={vm.stateColor}
-              metrics={[{ label: 'FS', value: fsLabel }]}
+              metrics={[{ label: 'Form score', value: fsLabel }]}
               sentenceStyle={{
                 fontFamily: FONT.body,
                 fontSize: 17,

@@ -177,7 +177,7 @@ export function SpinePanel({
         >
           <LegendKey swatch={<span style={{ width: 16, height: 2, background: CHART.pastLine }} />} label="FITNESS" />
           <LegendKey swatch={<span style={{ width: 16, height: 0, borderTop: `2px dashed ${C.text3}` }} />} label="PROJECTED" />
-          <LegendKey swatch={<span style={{ width: 10, height: 10, background: CHART.tssBar }} />} label="DAILY RSS" />
+          <LegendKey swatch={<span style={{ width: 10, height: 10, background: CHART.tssBar }} />} label="DAILY STRESS" />
         </Group>
       </Group>
 

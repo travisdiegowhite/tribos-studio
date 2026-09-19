@@ -116,7 +116,7 @@ export default function DeviationCard({
           </Text>
           <Text size="xs" c="dimmed" mt={2}>
             {CONFIDENCE_LABEL[tssSource] ?? CONFIDENCE_LABEL.inferred}
-            {' · '}+{Math.round(deviation.tss_delta ?? 0)} RSS over planned
+            {' · '}+{Math.round(deviation.tss_delta ?? 0)} stress over planned
           </Text>
         </div>
         <Badge

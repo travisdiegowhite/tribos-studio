@@ -67,37 +67,37 @@ const RampRateAlert = ({ dailyTSSData, currentCTL, showDetails = true }) => {
       status = 'danger';
       color = 'red';
       icon = Warning;
-      message = `You're ramping load far faster than your body can absorb (+${weeklyRampRate} RSS/week)`;
+      message = `You're ramping load far faster than your body can absorb (+${weeklyRampRate} fitness points/week)`;
       recommendation = 'Significantly reduce training load immediately. High risk of overtraining, injury, or illness.';
     } else if (weeklyRampRate > 7) {
       status = 'warning';
       color = 'orange';
       icon = Warning;
-      message = `You're building load aggressively (+${weeklyRampRate} RSS/week)`;
+      message = `You're building load aggressively (+${weeklyRampRate} fitness points/week)`;
       recommendation = 'Consider backing off slightly. Monitor fatigue levels closely.';
     } else if (weeklyRampRate >= 3 && weeklyRampRate <= 7) {
       status = 'optimal';
       color = 'green';
       icon = Check;
-      message = `You're building load at a sustainable rate (+${weeklyRampRate} RSS/week)`;
+      message = `You're building load at a sustainable rate (+${weeklyRampRate} fitness points/week)`;
       recommendation = 'Great job! This is the ideal rate for sustainable fitness gains.';
     } else if (weeklyRampRate >= 0 && weeklyRampRate < 3) {
       status = 'maintenance';
       color = 'blue';
       icon = Info;
-      message = `You're holding fitness steady (+${weeklyRampRate} RSS/week)`;
+      message = `You're holding fitness steady (+${weeklyRampRate} fitness points/week)`;
       recommendation = 'You\'re maintaining fitness. Increase load slightly if looking to improve.';
     } else if (weeklyRampRate >= -5) {
       status = 'recovery';
       color = 'teal';
       icon = TrendDown;
-      message = `Load is easing off — recovery or taper (${weeklyRampRate} RSS/week)`;
+      message = `Load is easing off — recovery or taper (${weeklyRampRate} fitness points/week)`;
       recommendation = 'This could be a recovery week or taper. Normal if intentional.';
     } else {
       status = 'detraining';
       color = 'yellow';
       icon = TrendDown;
-      message = `Load has dropped enough that fitness is fading (${weeklyRampRate} RSS/week)`;
+      message = `Load has dropped enough that fitness is fading (${weeklyRampRate} fitness points/week)`;
       recommendation = 'Significant fitness loss occurring. Resume training if unintentional.';
     }
 
@@ -143,7 +143,7 @@ const RampRateAlert = ({ dailyTSSData, currentCTL, showDetails = true }) => {
           <Text fw={600}>Training Ramp Rate</Text>
           <Text size="xs" c="dimmed">How fast you're adding training load</Text>
           <Badge color={rampRateData.color} variant="filled" size="sm">
-            {rampRateData.weeklyRampRate > 0 ? '+' : ''}{rampRateData.weeklyRampRate} RSS/week
+            {rampRateData.weeklyRampRate > 0 ? '+' : ''}{rampRateData.weeklyRampRate} fitness points/week
           </Badge>
         </Group>
       }
@@ -157,7 +157,7 @@ const RampRateAlert = ({ dailyTSSData, currentCTL, showDetails = true }) => {
             <Box>
               <Group justify="space-between" mb={4}>
                 <Text size="xs" c="dimmed">Losing fitness</Text>
-                <Text size="xs" c="dimmed">Sustainable (3–7 RSS/wk)</Text>
+                <Text size="xs" c="dimmed">Sustainable (3–7 points/wk)</Text>
                 <Text size="xs" c="dimmed">Too fast to absorb</Text>
               </Group>
               <Box style={{ position: 'relative' }}>
