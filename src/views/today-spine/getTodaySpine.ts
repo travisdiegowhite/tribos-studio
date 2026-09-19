@@ -203,7 +203,7 @@ function labelActivity(opts: {
       tag: 'PLAN',
       name: todaysWorkout.name,
       meta:
-        [dur, todaysWorkout.targetRss > 0 ? `~${Math.round(todaysWorkout.targetRss)} RSS` : null]
+        [dur, todaysWorkout.targetRss > 0 ? `~${Math.round(todaysWorkout.targetRss)} stress` : null]
           .filter(Boolean)
           .join(' · ') || 'planned',
       tagColor: '#ffffff',
@@ -213,7 +213,7 @@ function labelActivity(opts: {
     return { tag: 'REST', name: plannedName ?? 'Recovery day', meta: 'off the bike', tagColor: '#dfeae6' };
   }
   const min = durationSec > 0 ? Math.round(durationSec / 60) : Math.round(rss * 1.4);
-  const meta = [formatDur(min), `${Math.round(rss)} RSS`].filter(Boolean).join(' · ');
+  const meta = [formatDur(min), `${Math.round(rss)} stress`].filter(Boolean).join(' · ');
   if (rss < 45) {
     return { tag: 'EASY', name: realName ?? plannedName ?? 'Recovery spin', meta, tagColor: '#d3efe1' };
   }

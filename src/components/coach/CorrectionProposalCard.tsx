@@ -87,7 +87,7 @@ function ModRow({ mod, selected, onToggle }: {
             </Badge>
             {mod.new_rss != null && (
               <Text size="xs" c="dimmed" ff="monospace">
-                {mod.new_rss} RSS
+                {mod.new_rss} stress
               </Text>
             )}
           </Group>
@@ -213,7 +213,7 @@ export default function CorrectionProposalCard({ proposal, onDecision }: Props) 
         </Text>
         {proposal.current_tfi != null && proposal.target_tfi_min != null && (
           <Badge size="xs" variant="outline" color="orange" style={{ borderRadius: 0, marginLeft: 'auto' }}>
-            TFI {proposal.current_tfi < proposal.target_tfi_min ? 'below' : 'above'} target
+            Fitness {proposal.current_tfi < proposal.target_tfi_min ? 'below' : 'above'} target
           </Badge>
         )}
       </Group>
@@ -266,7 +266,7 @@ export default function CorrectionProposalCard({ proposal, onDecision }: Props) 
         <Collapse in={expanded}>
           <Stack gap={2} mt="xs">
             <Group gap="xs" justify="space-between">
-              <Text size="xs" c="dimmed">Current TFI</Text>
+              <Text size="xs" c="dimmed">Current fitness</Text>
               <Text size="xs" fw={600} ff="monospace">{proposal.current_tfi ?? '—'}</Text>
             </Group>
             <Group gap="xs" justify="space-between">

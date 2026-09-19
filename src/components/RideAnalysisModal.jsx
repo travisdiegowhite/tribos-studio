@@ -568,7 +568,7 @@ const RideAnalysisModal = ({
                   }>
                     <Box>
                       <Group gap={4} align="center">
-                        <Text size="xs" c="dimmed">EP</Text>
+                        <Text size="xs" c="dimmed">Effective power</Text>
                         {!metrics.hasRealNP && (
                           <Badge size="xs" variant="light" color="gray">est.</Badge>
                         )}
@@ -590,7 +590,7 @@ const RideAnalysisModal = ({
                 <Paper p="sm" withBorder>
                   <Tooltip label={`Ride Intensity (RI) — EP as % of your FTP${metrics.ifZone?.name ? ` (${metrics.ifZone.name})` : ''}`}>
                     <Box>
-                      <Text size="xs" c="dimmed">RI</Text>
+                      <Text size="xs" c="dimmed">Intensity</Text>
                       <Group gap="xs">
                         <Text fw={600}>{metrics.intensityFactor}</Text>
                         {metrics.ifZone && (

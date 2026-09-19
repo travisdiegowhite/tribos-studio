@@ -93,7 +93,7 @@ export function WorkoutCard({
             <Group gap="xs" mt={4}>
               <Badge size="xs" color={color}>{workout.category}</Badge>
               <Text size="xs">{workout.duration}min</Text>
-              <Text size="xs">{workout.targetTSS} RSS</Text>
+              <Text size="xs">{workout.targetTSS} stress</Text>
             </Group>
           </Box>
         }
@@ -179,7 +179,7 @@ export function WorkoutCard({
           <Group gap={2}>
             <Fire size={12} color="var(--mantine-color-gray-5)" />
             <Text size="xs" c="gray.4">
-              {workout.targetTSS} RSS
+              {workout.targetTSS} stress
             </Text>
           </Group>
         )}

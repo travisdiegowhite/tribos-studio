@@ -229,7 +229,7 @@ describe('assembleSpine', () => {
     const data = assembleSpine(
       baseInput({ todaysWorkout: { name: 'Hygiene Loop', type: 'endurance', durationMin: 90, targetRss: 72 } }),
     );
-    expect(data.days[42].activity.meta).toBe('1h30 · ~72 RSS');
+    expect(data.days[42].activity.meta).toBe('1h30 · ~72 stress');
   });
 
   it("a plan with no target renders 'planned', not a phantom number", () => {
@@ -254,7 +254,7 @@ describe('assembleSpine', () => {
     const today = data.days[42].activity;
     expect(today.tag).toBe('BRISK'); // 77 RSS → tempo band
     expect(today.name).toBe('Erie Road Cycling');
-    expect(today.meta).toContain('77 RSS');
+    expect(today.meta).toContain('77 stress');
   });
 
   it('uses a real completed-activity name and zone for a past ride', () => {

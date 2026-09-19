@@ -159,7 +159,7 @@ const ZoneDistributionChart = ({ activities, ftp, timeRange = '7' }) => {
       2: 'Endurance',
       3: 'Tempo',
       4: 'Threshold',
-      5: 'VO2max',
+      5: 'VO2max (top end)',
       6: 'Anaerobic',
     };
 

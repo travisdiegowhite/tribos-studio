@@ -272,7 +272,7 @@ export default function CheckInWeekBar({
         </Text>
         {totals.plannedToDate > 0 ? (
           <Text size="xs" ff="monospace" fw={700} c={totals.diffToDate >= 0 ? 'teal' : 'red'}>
-            {totals.diffToDate > 0 ? '+' : ''}{totals.diffToDate} RSS vs plan to date
+            {totals.diffToDate > 0 ? '+' : ''}{totals.diffToDate} stress vs plan to date
             {totals.pctToDate != null && (
               <Text span c="dimmed" fw={400}>
                 {' '}({totals.pctToDate}%)
@@ -281,7 +281,7 @@ export default function CheckInWeekBar({
           </Text>
         ) : totals.actualToDate > 0 ? (
           <Text size="xs" ff="monospace" fw={700} c="dimmed">
-            +{totals.actualToDate} RSS
+            +{totals.actualToDate} stress logged
           </Text>
         ) : null}
       </Group>
