@@ -415,8 +415,18 @@ const TrainingCalendar = ({ activePlan, rides = [], formatDistance: formatDistan
       (w) => w.entry_type === 'race' && w.scheduled_date === dateStr
     );
     if (entryRace) {
-      return { id: entryRace.id, name: entryRace.name, race_date: dateStr,
-               race_type: entryRace.workout_type };
+      // `details` holds what migration 115 (and raceEntrySync) copied from
+      // race_goals — priority, distance, goals, route. Spread it so the chip
+      // styles by real priority and so editing from here does not hand the
+      // modal a race with every field blanked, which it would then save.
+      return {
+        ...(entryRace.details || {}),
+        id: entryRace.id,
+        name: entryRace.name,
+        race_date: dateStr,
+        race_type: entryRace.workout_type || entryRace.details?.race_type,
+        notes: entryRace.notes,
+      };
     }
     return raceGoals.find(r => r.race_date === dateStr);
   };
@@ -1935,6 +1945,9 @@ const TrainingCalendar = ({ activePlan, rides = [], formatDistance: formatDistan
         }}
         raceGoal={selectedRaceGoal}
         onSaved={() => {
+          // Races render from calendar_entries first, so reload those too or
+          // a deleted race stays on the grid until the next navigation.
+          loadPlannedWorkouts();
           loadRaceGoals();
           if (onPlanUpdated) onPlanUpdated();
         }}
