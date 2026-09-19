@@ -32,6 +32,7 @@ import { buildGravelLoopCandidates, type GravelLoopRoute } from './gravelRouteBu
 import { getAuthHeaders } from './authHeaders';
 import { reverseGeocodeRegion } from './geocoding.js';
 import { measureGravelPct } from './surfaceMeasurement';
+import type { TaggedWay } from './wayTags';
 import { scoreRoutePreference } from './routeScoring';
 import { calculateBearing } from './routeUtils';
 import { haversineKm } from './distanceUnits';
@@ -55,6 +56,8 @@ export interface RouteCandidate {
   gravel_target_pct: number | null;
   /** Measured gravel+unpaved share (%) of the routed geometry; null if unknown. */
   gravel_actual_pct: number | null;
+  /** Surface-tagged ways the router returned (BRouter); [] otherwise. */
+  tagged_ways: TaggedWay[];
   familiarity_percent: number | null;
   /** Fidelity-to-request score in [0, 1]; candidates are returned best-first. */
   score: number;
@@ -199,6 +202,8 @@ interface GeneratedRouteResult {
   directionLabel?: string;
   familiarityScore?: { familiarityPercent?: number } | null;
   cues?: unknown[] | null;
+  /** Surface-tagged ways from the router (BRouter), when available. */
+  taggedWays?: TaggedWay[];
 }
 
 function scoreCandidate(
@@ -267,6 +272,7 @@ function candidateFromRoute(
     surface_profile: request.routeProfile,
     gravel_target_pct: request.gravelTargetPct ?? null,
     gravel_actual_pct: null,
+    tagged_ways: route.taggedWays ?? [],
     familiarity_percent: route.familiarityScore?.familiarityPercent ?? null,
     score: 0,
     requested: { distance_km: request.targetDistanceKm, bearing: requestedBearing },
@@ -508,7 +514,9 @@ export async function generatePlannedRouteCandidates(
     await enrichAll(cands);
     if (wantsGravel) {
       for (const candidate of cands) {
-        const measured = await measureGravelPct(candidate.snapshot.geometry);
+        const measured = await measureGravelPct(candidate.snapshot.geometry, {
+          ways: candidate.tagged_ways,
+        });
         candidate.gravel_actual_pct = measured?.gravelPct ?? null;
       }
     }
@@ -549,6 +557,7 @@ export async function generatePlannedRouteCandidates(
           duration_s: gr.duration_s,
           name: gr.name,
           source: gr.source,
+          taggedWays: gr.taggedWays,
           directionLabel,
           rationale:
             gr.gravelWaysUsed.length > 0

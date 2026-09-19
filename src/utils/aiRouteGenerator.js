@@ -22,9 +22,8 @@ import {
 } from './routeBuilderTelemetry';
 import { EnhancedContextCollector } from './enhancedContext';
 import { optimizeLoopRoute, validateLoopRoute } from './routeOptimizer';
-import { filterRoutesByInfrastructure, enhanceRouteWithInfrastructure, generateInfrastructureReport } from './infrastructureValidator';
 import { getSmartCyclingRoute, getRoutingStrategyDescription } from './smartCyclingRouter';
-import { analyzeSegmentSuitability } from './stadiaMapsRouter';
+import { analyzeSegmentSuitability, scoreRouteInfrastructure } from './stadiaMapsRouter';
 import { generateSmartRouteName, generateAlternativeNames } from './routeNaming';
 import { geocodeWaypoint } from './geocoding';
 import { haversineKm } from './distanceUnits';
@@ -655,39 +654,68 @@ async function generateMapboxBasedRoutes(params) {
     return route;
   });
 
-  // Apply infrastructure validation and filtering if preferences exist
-  if (userPreferences?.safetyPreferences?.bikeInfrastructure) {
-    console.log('🚴 Applying infrastructure validation...');
-    
-    // Filter and enhance routes based on infrastructure
-    validRoutes = filterRoutesByInfrastructure(validRoutes, userPreferences);
-    
-    // Add infrastructure metadata to each route
-    validRoutes = validRoutes.map(route => enhanceRouteWithInfrastructure(route, userPreferences));
-    
-    // Generate infrastructure report
-    const report = generateInfrastructureReport(validRoutes, userPreferences);
-    console.log('📊 Infrastructure Report:', report.summary);
-    if (report.recommendation) {
-      console.log('💡 Recommendation:', report.recommendation);
-    }
-    
-    // Add infrastructure info to route descriptions
-    validRoutes = validRoutes.map(route => {
-      if (route.infrastructure) {
-        const infraNote = route.infrastructure.coverage 
-          ? ` (${route.infrastructure.coverage} bike infrastructure)`
-          : '';
-        return {
-          ...route,
-          description: `${route.description || ''}${infraNote}`.trim()
-        };
-      }
-      return route;
-    });
-  }
-  
+  // Bike-infrastructure score from real OSM data (Overpass overlap, protected
+  // cycleway 1.0 → sharrow 0.2), replacing the old keyword scan of the route
+  // NAME. Fail-soft per route (null when Overpass is unavailable); scoreRoutes
+  // reads `infrastructureScore` as a ranking bonus. Only a 'required'
+  // preference filters, and never down to nothing.
+  validRoutes = await scoreRoutesInfrastructure(validRoutes, userPreferences);
+
   return validRoutes;
+}
+
+/**
+ * Attach `infrastructureScore` (0–1 or null) to each route via
+ * scoreRouteInfrastructure. Sequential on purpose: fetchBikeInfrastructure
+ * aborts any in-flight request when a new one starts, so parallel calls
+ * would leave every candidate but the last scoring null. Candidates share
+ * an area, so after the first Overpass fetch the rest hit the grid cache.
+ * Each call is capped at INFRA_SCORE_TIMEOUT_MS so a slow Overpass can't
+ * stall generation. When the rider requires bike infrastructure, drop
+ * routes scoring below INFRA_REQUIRED_MIN unless that would leave nothing,
+ * in which case keep the best two and flag them.
+ */
+const INFRA_REQUIRED_MIN = 0.5;
+const INFRA_SCORE_TIMEOUT_MS = 4000;
+async function scoreRoutesInfrastructure(routes, userPreferences) {
+  if (!Array.isArray(routes) || routes.length === 0) return routes;
+
+  const scores = [];
+  for (const route of routes) {
+    let timer = null;
+    try {
+      const timeout = new Promise((resolve) => {
+        timer = setTimeout(() => resolve(null), INFRA_SCORE_TIMEOUT_MS);
+      });
+      scores.push(await Promise.race([scoreRouteInfrastructure(route.coordinates), timeout]));
+    } catch {
+      scores.push(null);
+    } finally {
+      if (timer) clearTimeout(timer);
+    }
+  }
+  const scored = routes.map((route, i) => ({
+    ...route,
+    infrastructureScore: scores[i] ?? route.infrastructureScore ?? null,
+  }));
+
+  const requirement = userPreferences?.safetyPreferences?.bikeInfrastructure;
+  if (requirement !== 'required') return scored;
+
+  const meets = scored.filter(
+    (r) => r.infrastructureScore !== null && r.infrastructureScore >= INFRA_REQUIRED_MIN
+  );
+  if (meets.length > 0) return meets;
+
+  console.warn('No routes meet the required bike-infrastructure coverage, showing best available');
+  return [...scored]
+    .sort((a, b) => (b.infrastructureScore ?? -1) - (a.infrastructureScore ?? -1))
+    .slice(0, 2)
+    .map((r) => ({
+      ...r,
+      warning: 'Does not meet infrastructure requirements',
+      name: `⚠️ ${r.name}`,
+    }));
 }
 
 // Generate smart cycling destinations using real cycling data
@@ -862,7 +890,7 @@ async function generateMapboxLoop(startLocation, targetDistanceKm, pattern, trai
     // Check multiple indicators for gravel/unpaved preference:
     // 1. Primary surfaces explicitly include gravel/dirt
     // 2. High gravel tolerance (>50%) indicates willingness for unpaved routes
-    let routingProfile = 'bike'; // Default
+    let routingProfile = 'road'; // Default (a real ROUTE_PROFILE_COSTING key)
 
     if (userPreferences?.surfacePreferences?.primarySurfaces) {
       const surfaces = userPreferences.surfacePreferences.primarySurfaces;
@@ -873,7 +901,7 @@ async function generateMapboxLoop(startLocation, targetDistanceKm, pattern, trai
     }
 
     // Also check gravel tolerance - if >50%, they want gravel routes
-    if (routingProfile === 'bike' && userPreferences?.surfacePreferences?.gravelTolerance > 0.5) {
+    if (routingProfile === 'road' && userPreferences?.surfacePreferences?.gravelTolerance > 0.5) {
       routingProfile = 'gravel';
       console.log(`🌾 High gravel tolerance (${(userPreferences.surfacePreferences.gravelTolerance * 100).toFixed(0)}%), using gravel routing profile`);
     }
@@ -1124,11 +1152,11 @@ async function convertClaudeToFullRoute(claudeRoute, startLocation, targetDistan
     // preference-based inference below is the legacy fallback for callers
     // that don't pass one (it silently routed riders onto the gravel
     // engine when their saved gravelTolerance was > 0.5).
-    let routingProfile = 'bike'; // Default
+    let routingProfile = 'road'; // Default (a real ROUTE_PROFILE_COSTING key)
 
     if (explicitProfile) {
       routingProfile =
-        explicitProfile === 'road' ? 'bike'
+        explicitProfile === 'road' ? 'road'
           : explicitProfile === 'mtb' || explicitProfile === 'mountain' ? 'mountain'
             : explicitProfile === 'commute' ? 'commuting'
               : explicitProfile; // 'gravel'
@@ -1143,7 +1171,7 @@ async function convertClaudeToFullRoute(claudeRoute, startLocation, targetDistan
       }
 
       // Also check gravel tolerance - if >50%, they want gravel routes
-      if (routingProfile === 'bike' && preferences?.surfacePreferences?.gravelTolerance > 0.5) {
+      if (routingProfile === 'road' && preferences?.surfacePreferences?.gravelTolerance > 0.5) {
         routingProfile = 'gravel';
         console.log(`🌾 High gravel tolerance (${(preferences.surfacePreferences.gravelTolerance * 100).toFixed(0)}%) for Claude route, using gravel routing profile`);
       }

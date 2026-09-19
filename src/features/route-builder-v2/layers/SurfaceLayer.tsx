@@ -3,9 +3,9 @@
  *
  * Fetches per-segment surface data from OSM (Overpass) for the route
  * geometry, then renders each segment with its surface color band.
- * Memoized by geometry-coordinate-count + first/last vertex so we don't
- * refetch on every render. The Overpass call is debounced inside the
- * effect.
+ * Memoized by a hash of the quantized geometry so we don't refetch on every
+ * render but DO refetch when the line is reshaped (a same-length reshape
+ * used to slip past a count + endpoints key).
  */
 
 import { useEffect, useMemo, useRef, useState } from 'react';
@@ -15,6 +15,7 @@ import {
   fetchRouteSurfaceData,
   createSurfaceRoute,
 } from '../../../utils/surfaceOverlay.js';
+import { fnv1a32, stableJson } from '../../../utils/stableHash';
 
 export interface SurfaceLayerProps {
   geometry: { type: 'LineString'; coordinates: Coordinate[] } | null;
@@ -28,9 +29,12 @@ export interface SurfaceLayerProps {
 
 function hashGeometry(coords: Coordinate[]): string {
   if (!coords || coords.length < 2) return '';
-  const first = coords[0];
-  const last = coords[coords.length - 1];
-  return `${coords.length}|${first[0].toFixed(5)},${first[1].toFixed(5)}|${last[0].toFixed(5)},${last[1].toFixed(5)}`;
+  // ~1 m quantization: identical to surfaceMeasurement's cache key scheme.
+  const quantized = coords.map(([lng, lat]) => [
+    Math.round(lng * 1e5) / 1e5,
+    Math.round(lat * 1e5) / 1e5,
+  ]);
+  return fnv1a32(stableJson(quantized));
 }
 
 export function SurfaceLayer({ geometry, onSegments }: SurfaceLayerProps) {

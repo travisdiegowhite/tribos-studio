@@ -1,5 +1,7 @@
 # Legacy Routing Module Notes — Reference for T2.1 RouterClient
 
+> **Historical framing.** The RouterClient this was written for was deleted in the Route Builder 2.0 cutover (Epic 0). The audit of `smartCyclingRouter.js` / `stadiaMapsRouter.js` / `brouter.js` / `directions.js` behaviour below is still accurate and is the best reference for the costing merge rules. See `route-quality-brainstorm.md` for current routing work.
+
 **Status:** Reference doc for T2.1 implementation
 **Source files audited:**
 - `src/utils/smartCyclingRouter.js` (431 lines)

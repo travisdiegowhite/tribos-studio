@@ -560,7 +560,10 @@ export default function RouteBuilder2() {
           if (seq !== surfaceCheckSeqRef.current) return;
           if (!segments || segments.length === 0) return;
           setSurfaceSegments(segments);
-          const dist = computeSurfaceDistribution(segments) as Record<string, number>;
+          const dist = computeSurfaceDistribution(
+            segments,
+            geometry as Array<[number, number]>,
+          ) as Record<string, number>;
           const unpavedPct = Math.round((dist.gravel ?? 0) + (dist.unpaved ?? 0));
           appendChatMessage({
             role: 'assistant',
@@ -1541,7 +1544,12 @@ export default function RouteBuilder2() {
       return calculatePersonalizedETA({
         distanceKm: dist,
         elevationProfile: profile.map((p) => ({ distance: p.distance_km, elevation: p.elevation_m })),
-        surfaceDistribution: surfaceSegments ? computeSurfaceDistribution(surfaceSegments) : undefined,
+        surfaceDistribution: surfaceSegments
+          ? computeSurfaceDistribution(
+              surfaceSegments,
+              (geometryForLayers?.coordinates ?? null) as Array<[number, number]> | null,
+            )
+          : undefined,
         speedProfile: (speedProfile ?? undefined) as object | undefined,
         routeProfile,
         trainingGoal,
@@ -1633,6 +1641,7 @@ export default function RouteBuilder2() {
         onClear={handleClearRoute}
         isImperial={isImperial}
         surfaceSegments={surfaceSegments}
+        surfaceCoordinates={geometryForLayers?.coordinates ?? null}
         onSave={() => void handleQuickSave()}
         saveState={
           persistence.isSaving ? 'saving' : hasUnsavedChanges ? 'unsaved' : 'saved'
@@ -1715,7 +1724,11 @@ export default function RouteBuilder2() {
             )}
             {visibility.surface && hasRoute && (
               <Box style={{ marginTop: 10 }}>
-                <SurfaceSummaryBar segments={surfaceSegments} isMobile />
+                <SurfaceSummaryBar
+                  segments={surfaceSegments}
+                  coordinates={geometryForLayers?.coordinates ?? null}
+                  isMobile
+                />
               </Box>
             )}
             {visibility.wind && hasRoute && (
@@ -2080,7 +2093,11 @@ export default function RouteBuilder2() {
           )}
           {visibility.gradient && hasRoute && <GradientLegend isMobile />}
           {visibility.surface && hasRoute && (
-            <SurfaceSummaryBar segments={surfaceSegments} isMobile />
+            <SurfaceSummaryBar
+                  segments={surfaceSegments}
+                  coordinates={geometryForLayers?.coordinates ?? null}
+                  isMobile
+                />
           )}
           {visibility.wind && hasRoute && <WindLegend weather={weather} isMobile />}
           {visibility.bikeInfra && <BikeInfrastructureLegend visible />}

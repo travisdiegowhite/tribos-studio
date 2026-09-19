@@ -5,6 +5,8 @@
  * and creates a GeoJSON FeatureCollection for map visualization.
  */
 
+import { haversineMeters } from './distanceUnits';
+
 // Surface type colors (solid = paved, semi-transparent for visual distinction)
 export const SURFACE_COLORS = {
   paved:   '#3D8B50', // teal
@@ -38,19 +40,50 @@ export function classifySurface(tag) {
   return 'unknown';
 }
 
+// Overpass endpoints, tried in order (same list as bikeInfrastructureService).
+const OVERPASS_SERVERS = [
+  'https://overpass-api.de/api/interpreter',
+  'https://overpass.kumi.systems/api/interpreter',
+  'https://maps.mail.ru/osm/tools/overpass/api/interpreter',
+];
+const OVERPASS_TIMEOUT_MS = 15000;
+
+// A sampled route point further than this from every tagged way is reported
+// as 'unknown' rather than inheriting the nearest way's surface. Without a
+// cutoff an untagged road silently took the surface of a tagged way hundreds
+// of metres away.
+export const SURFACE_SNAP_RADIUS_M = 25;
+const SNAP_RADIUS_SQ_M = SURFACE_SNAP_RADIUS_M ** 2;
+
 /**
- * Build a spatial grid index from OSM way elements for fast nearest-way lookups.
+ * Way vertices arrive in two shapes: Overpass `{lat, lon}` nodes and the
+ * canonical `[lng, lat]` tuples of a `TaggedWay` (wayTags.ts). Normalise here
+ * so the matcher is shape-agnostic.
+ */
+function nodeLngLat(node) {
+  if (Array.isArray(node)) return [node[0], node[1]];
+  if (node && typeof node.lon === 'number' && typeof node.lat === 'number') return [node.lon, node.lat];
+  return null;
+}
+
+/**
+ * Build a spatial grid index from way elements for fast nearest-way lookups.
  * Each cell maps to the set of way IDs whose geometry passes through it.
+ * Accepts Overpass elements or TaggedWay objects; only ways with a `surface`
+ * tag are indexed.
  */
 function buildSpatialIndex(elements, cellSize) {
   const grid = new Map();
   const wayMap = new Map();
 
   for (const el of elements) {
-    if (el.type !== 'way' || !el.geometry || !el.tags?.surface) continue;
-    wayMap.set(el.id, el);
-    for (const node of el.geometry) {
-      const cellKey = `${Math.floor(node.lon / cellSize)},${Math.floor(node.lat / cellSize)}`;
+    if (!el || !Array.isArray(el.geometry) || !el.tags?.surface) continue;
+    if (el.type && el.type !== 'way') continue;
+    const vertices = el.geometry.map(nodeLngLat).filter(Boolean);
+    if (vertices.length === 0) continue;
+    wayMap.set(el.id, { el, vertices });
+    for (const [lon, lat] of vertices) {
+      const cellKey = `${Math.floor(lon / cellSize)},${Math.floor(lat / cellSize)}`;
       if (!grid.has(cellKey)) grid.set(cellKey, new Set());
       grid.get(cellKey).add(el.id);
     }
@@ -60,8 +93,29 @@ function buildSpatialIndex(elements, cellSize) {
 }
 
 /**
- * Find the closest OSM way to a point using the spatial index.
- * Checks the cell containing the point plus all 8 neighbors.
+ * Squared distance in metres² from point p to segment a–b, all [lon, lat].
+ * Equirectangular: longitude is scaled by cos(lat) so east–west and
+ * north–south metres match at cycling scales.
+ */
+function pointToSegmentSqM(p, a, b) {
+  const kx = 111000 * Math.cos((p[1] * Math.PI) / 180);
+  const ky = 111000;
+  const ax = (a[0] - p[0]) * kx, ay = (a[1] - p[1]) * ky;
+  const bx = (b[0] - p[0]) * kx, by = (b[1] - p[1]) * ky;
+  const dx = bx - ax, dy = by - ay;
+  const len2 = dx * dx + dy * dy;
+  let t = 0;
+  if (len2 > 0) t = Math.max(0, Math.min(1, -(ax * dx + ay * dy) / len2));
+  const cx = ax + t * dx, cy = ay + t * dy;
+  return cx * cx + cy * cy;
+}
+
+/**
+ * Find the closest indexed way to a point (distance to the way's EDGES, not
+ * just its vertices — a sampled midpoint can sit 40 m from the nearest vertex
+ * of the very road it's on), or null when nothing lies within
+ * SURFACE_SNAP_RADIUS_M. Checks the cell containing the point plus all 8
+ * neighbours.
  */
 function findClosestWay(lon, lat, index) {
   const { grid, wayMap, cellSize } = index;
@@ -77,24 +131,118 @@ function findClosestWay(lon, lat, index) {
     }
   }
 
+  const p = [lon, lat];
   let best = null, bestDist = Infinity;
   for (const id of candidateIds) {
-    const el = wayMap.get(id);
-    for (const node of el.geometry) {
-      const d = (node.lon - lon) ** 2 + (node.lat - lat) ** 2; // squared dist — no sqrt needed for comparison
+    const { el, vertices } = wayMap.get(id);
+    if (vertices.length === 1) {
+      const d = pointToSegmentSqM(p, vertices[0], vertices[0]);
+      if (d < bestDist) { bestDist = d; best = el; }
+      continue;
+    }
+    for (let i = 1; i < vertices.length; i++) {
+      const d = pointToSegmentSqM(p, vertices[i - 1], vertices[i]);
       if (d < bestDist) { bestDist = d; best = el; }
     }
   }
 
-  return best;
+  return bestDist <= SNAP_RADIUS_SQ_M ? best : null;
+}
+
+/**
+ * Match a route geometry against a set of surface-tagged ways.
+ * Returns one surface category per coordinate segment (length - 1), or null
+ * when there are no usable ways. Pure: no network.
+ *
+ * @param {ReadonlyArray<ReadonlyArray<number>>} coordinates - [lon, lat] tuples
+ * @param {ReadonlyArray<any>} ways - Overpass elements or TaggedWay objects with `tags.surface`
+ * @returns {string[]|null}
+ */
+export function matchRouteSurfaces(coordinates, ways) {
+  if (!coordinates || coordinates.length < 2 || !Array.isArray(ways) || ways.length === 0) return null;
+
+  const cellSize = 0.001; // ~111m cells — good granularity for cycling routes
+  const index = buildSpatialIndex(ways, cellSize);
+  if (index.wayMap.size === 0) return null;
+
+  // Sample route points for matching to keep it fast
+  // For routes with many coordinates, sample every Nth point
+  const maxMatchPoints = 500;
+  const matchStep = Math.max(1, Math.ceil(coordinates.length / maxMatchPoints));
+
+  // Match sampled points to nearest way
+  const sampledSurfaces = [];
+  const sampledIndices = [];
+  for (let i = 0; i < coordinates.length - 1; i += matchStep) {
+    const nextI = Math.min(i + 1, coordinates.length - 1);
+    const midLon = (coordinates[i][0] + coordinates[nextI][0]) / 2;
+    const midLat = (coordinates[i][1] + coordinates[nextI][1]) / 2;
+
+    const closest = findClosestWay(midLon, midLat, index);
+    const surface = closest?.tags?.surface ? classifySurface(closest.tags.surface) : 'unknown';
+    sampledSurfaces.push(surface);
+    sampledIndices.push(i);
+  }
+
+  // Interpolate: fill in all coordinate segments from sampled results
+  const surfaceSegments = [];
+  let sampleIdx = 0;
+  for (let i = 0; i < coordinates.length - 1; i++) {
+    // Advance to the closest sample
+    while (sampleIdx < sampledIndices.length - 1 && sampledIndices[sampleIdx + 1] <= i) {
+      sampleIdx++;
+    }
+    surfaceSegments.push(sampledSurfaces[sampleIdx]);
+  }
+
+  return surfaceSegments;
+}
+
+async function fetchOverpassWays(query) {
+  let lastError = null;
+  for (const server of OVERPASS_SERVERS) {
+    try {
+      const resp = await fetch(server, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: `data=${encodeURIComponent(query)}`,
+        signal: AbortSignal.timeout(OVERPASS_TIMEOUT_MS),
+      });
+      if (!resp.ok) {
+        console.warn(`Overpass API error from ${server}: ${resp.status}`);
+        lastError = new Error(`Overpass ${resp.status}`);
+        continue;
+      }
+      const data = await resp.json();
+      return Array.isArray(data?.elements) ? data.elements : [];
+    } catch (err) {
+      console.warn(`Overpass request to ${server} failed:`, err?.message ?? err);
+      lastError = err;
+    }
+  }
+  if (lastError) throw lastError;
+  return [];
 }
 
 /**
  * Fetch surface data for a route from Overpass API.
  * Returns per-coordinate-segment surface info.
+ *
+ * @param {ReadonlyArray<ReadonlyArray<number>>} coordinates - [lon, lat] tuples
+ * @param {{ ways?: ReadonlyArray<any> | null }} [options]
+ * @param {ReadonlyArray<any>|null} [options.ways] - Pre-fetched surface-tagged ways (e.g. the
+ *   `taggedWays` a BRouter route already carries). When given and non-empty
+ *   the Overpass round-trip is skipped entirely.
  */
-export async function fetchRouteSurfaceData(coordinates) {
+export async function fetchRouteSurfaceData(coordinates, options = {}) {
   if (!coordinates || coordinates.length < 2) return null;
+
+  if (Array.isArray(options.ways) && options.ways.length > 0) {
+    const fromWays = matchRouteSurfaces(coordinates, options.ways);
+    // null means none of the supplied ways carried a surface tag; Overpass
+    // has the same tags for the same ways, but may know neighbouring ones.
+    if (fromWays) return fromWays;
+  }
 
   try {
     // Bounding box from ALL coordinates with ~100m buffer
@@ -103,59 +251,15 @@ export async function fetchRouteSurfaceData(coordinates) {
     const bufDeg = 100 / 111000; // ~100m buffer
     const bbox = `${Math.min(...lats) - bufDeg},${Math.min(...lons) - bufDeg},${Math.max(...lats) + bufDeg},${Math.max(...lons) + bufDeg}`;
 
-    // Also query ways without surface tag but with highway tag to reduce unknowns
-    // highway=residential/tertiary/secondary/primary are almost always paved
+    // Only ways that carry an explicit surface tag. Inferring surface from
+    // highway class / tracktype for the untagged remainder is the C12 item in
+    // docs/route-quality-brainstorm.md — until then they read as 'unknown'.
     const query = `[out:json][timeout:15];(way["highway"]["surface"](${bbox}););out geom;`;
 
-    const resp = await fetch('https://overpass-api.de/api/interpreter', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-      body: `data=${encodeURIComponent(query)}`,
-    });
+    const elements = await fetchOverpassWays(query);
+    if (!elements.length) return null;
 
-    if (!resp.ok) {
-      console.warn(`Overpass API error: ${resp.status}`);
-      return null;
-    }
-
-    const data = await resp.json();
-    if (!data.elements?.length) return null;
-
-    // Build spatial index for O(1) cell lookups instead of O(n*m)
-    const cellSize = 0.001; // ~111m cells — good granularity for cycling routes
-    const index = buildSpatialIndex(data.elements, cellSize);
-
-    // Sample route points for matching to keep it fast
-    // For routes with many coordinates, sample every Nth point
-    const maxMatchPoints = 500;
-    const matchStep = Math.max(1, Math.ceil(coordinates.length / maxMatchPoints));
-
-    // Match sampled points to nearest OSM way
-    const sampledSurfaces = [];
-    const sampledIndices = [];
-    for (let i = 0; i < coordinates.length - 1; i += matchStep) {
-      const nextI = Math.min(i + 1, coordinates.length - 1);
-      const midLon = (coordinates[i][0] + coordinates[nextI][0]) / 2;
-      const midLat = (coordinates[i][1] + coordinates[nextI][1]) / 2;
-
-      const closest = findClosestWay(midLon, midLat, index);
-      const surface = closest?.tags?.surface ? classifySurface(closest.tags.surface) : 'unknown';
-      sampledSurfaces.push(surface);
-      sampledIndices.push(i);
-    }
-
-    // Interpolate: fill in all coordinate segments from sampled results
-    const surfaceSegments = [];
-    let sampleIdx = 0;
-    for (let i = 0; i < coordinates.length - 1; i++) {
-      // Advance to the closest sample
-      while (sampleIdx < sampledIndices.length - 1 && sampledIndices[sampleIdx + 1] <= i) {
-        sampleIdx++;
-      }
-      surfaceSegments.push(sampledSurfaces[sampleIdx]);
-    }
-
-    return surfaceSegments;
+    return matchRouteSurfaces(coordinates, elements);
   } catch (err) {
     console.error('Surface data fetch failed:', err);
     return null;
@@ -212,16 +316,39 @@ export function createSurfaceRoute(coordinates, surfaceSegments) {
 
 /**
  * Compute surface distribution summary.
- * Returns { paved: 62, gravel: 28, unpaved: 10 } (percentages)
+ * Returns { paved: 62, gravel: 28, unpaved: 10 } (percentages, 'unknown'
+ * omitted so the values may sum to less than 100).
+ *
+ * When `coordinates` is supplied, each segment is weighted by its length so
+ * a run of many short vertices can't over-report its surface; without it the
+ * share is by segment count (legacy behaviour, kept for callers that don't
+ * have the geometry to hand).
+ *
+ * @param {string[]} surfaceSegments - one category per coordinate segment
+ * @param {ReadonlyArray<ReadonlyArray<number>>|null} [coordinates] - the geometry those segments span
+ * @returns {Record<string, number>}
  */
-export function computeSurfaceDistribution(surfaceSegments) {
+export function computeSurfaceDistribution(surfaceSegments, coordinates = null) {
   if (!surfaceSegments?.length) return {};
-  const counts = {};
-  for (const s of surfaceSegments) counts[s] = (counts[s] || 0) + 1;
-  const total = surfaceSegments.length;
+  const weights = {};
+  let total = 0;
+  const useLengths =
+    Array.isArray(coordinates) && coordinates.length === surfaceSegments.length + 1;
+  for (let i = 0; i < surfaceSegments.length; i++) {
+    const s = surfaceSegments[i];
+    let w = 1;
+    if (useLengths) {
+      const a = coordinates[i];
+      const b = coordinates[i + 1];
+      w = haversineMeters(a[1], a[0], b[1], b[0]);
+    }
+    weights[s] = (weights[s] || 0) + w;
+    total += w;
+  }
+  if (total <= 0) return {};
   const dist = {};
-  for (const [key, count] of Object.entries(counts)) {
-    if (key !== 'unknown') dist[key] = Math.round((count / total) * 100);
+  for (const [key, w] of Object.entries(weights)) {
+    if (key !== 'unknown') dist[key] = Math.round((w / total) * 100);
   }
   return dist;
 }
