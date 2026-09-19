@@ -1,5 +1,7 @@
 # RouterClient — Stateful Routing Service
 
+> **Historical.** `src/routing/RouterClient/` was deleted in the Route Builder 2.0 cutover (Epic 0, `route-builder-2-roadmap.md`). Kept for the provider registry and cache rationale; the live code is `src/utils/smartCyclingRouter.js`. See `route-quality-brainstorm.md` for current routing work.
+
 **Status:** Shipped in T2.1 with zero production callers.
 **Wired in by:** T2.5 (Executor facade), then T3.x (conversational layer).
 **Replaces (eventually):** `src/utils/smartCyclingRouter.js`.

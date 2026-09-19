@@ -6,6 +6,7 @@
 
 import { canonicalToBRouter } from './coordConverters';
 import { brouterUsesFerry } from './ferryGuard';
+import { taggedWaysFromBRouterProperties } from './wayTags';
 
 // BRouter profiles for different cycling types
 export const BROUTER_PROFILES = {
@@ -88,6 +89,12 @@ export async function getBRouterDirections(coordinates, options = {}) {
     const ascent = parseFloat(properties['filtered ascend']) || 0; // meters
     const descent = parseFloat(properties['filtered descend']) || 0; // meters
 
+    // Per-segment OSM tags (surface, highway, cycleway, maxspeed, …) from the
+    // messages table — the only free source of "what did we get routed onto".
+    // Consumers (surface measurement, and later LTS scoring) use these instead
+    // of a second Overpass round-trip. Empty when the instance omits messages.
+    const taggedWays = taggedWaysFromBRouterProperties(routeCoordinates, properties);
+
     console.log(`✅ BRouter route generated:`, {
       distance_km: `${(distance_m / 1000).toFixed(1)}km`,
       duration_min: `${(duration_s / 60).toFixed(0)}min`,
@@ -110,6 +117,7 @@ export async function getBRouterDirections(coordinates, options = {}) {
       confidence: 0.9, // BRouter is very reliable for cycling
       profile,
       source: 'brouter',
+      taggedWays,
       properties // Include all BRouter-specific properties
     };
 

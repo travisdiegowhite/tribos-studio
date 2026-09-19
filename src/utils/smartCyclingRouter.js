@@ -454,7 +454,10 @@ async function tryBRouterRouting(waypoints, options) {
         elevationLoss: result.elevation?.descent || 0,
         confidence: result.confidence || 0.9,
         profile: brouterProfile,
-        source: 'brouter'
+        source: 'brouter',
+        // Per-segment OSM tags parsed from BRouter's messages table (see
+        // wayTags.ts); [] when the instance didn't return them.
+        taggedWays: result.taggedWays || []
       };
     }
 

@@ -1,11 +1,12 @@
 /**
  * surfaceMeasurement — measure the actual gravel/unpaved share of a route.
  *
- * The routing providers (BRouter/Stadia/Mapbox via smartCyclingRouter) do
- * NOT return surface composition, so the only way to report a real "~X%
- * gravel" figure is to query OSM surface tags via Overpass. That's a heavy
- * call, so callers run it sequentially across candidates and this module
- * caches results by quantized geometry (mirroring elevationEnrichment.ts).
+ * Stadia and Mapbox do NOT return surface composition, so for their routes
+ * the only way to report a real "~X% gravel" figure is to query OSM surface
+ * tags via Overpass. That's a heavy call, so callers run it sequentially
+ * across candidates and this module caches results by quantized geometry
+ * (mirroring elevationEnrichment.ts). BRouter routes DO carry per-segment
+ * tags (`taggedWays`, see wayTags.ts); pass them and Overpass is skipped.
  *
  * Always fail-soft: any error or empty result returns null, and the caller
  * falls back to a "gravel-biased" label.
@@ -17,6 +18,15 @@ import {
 } from './surfaceOverlay.js';
 import { fnv1a32, stableJson } from './stableHash';
 import type { Coordinate } from '../types/geo';
+import type { TaggedWay } from './wayTags';
+
+export interface MeasureGravelOptions {
+  /**
+   * Surface-tagged ways the router already returned for this geometry
+   * (BRouter `taggedWays`). When present and non-empty, no Overpass call.
+   */
+  ways?: ReadonlyArray<TaggedWay> | null;
+}
 
 export interface GravelMeasurement {
   /** Rounded percent of the route on gravel + unpaved surfaces. */
@@ -46,12 +56,15 @@ function cacheSet(key: string, value: GravelMeasurement | null): void {
   cache.set(key, value);
 }
 
-function cacheKeyForGeometry(geometry: ReadonlyArray<ReadonlyArray<number>>): string {
+function cacheKeyForGeometry(
+  geometry: ReadonlyArray<ReadonlyArray<number>>,
+  source: 'overpass' | 'ways',
+): string {
   const quantized = geometry.map(([lng, lat]) => [
     Math.round(lng * 1e5) / 1e5,
     Math.round(lat * 1e5) / 1e5,
   ]);
-  return fnv1a32(stableJson(quantized));
+  return fnv1a32(stableJson([source, quantized]));
 }
 
 /**
@@ -60,22 +73,26 @@ function cacheKeyForGeometry(geometry: ReadonlyArray<ReadonlyArray<number>>): st
  */
 export async function measureGravelPct(
   geometry: ReadonlyArray<Coordinate>,
+  options: MeasureGravelOptions = {},
 ): Promise<GravelMeasurement | null> {
   if (!Array.isArray(geometry) || geometry.length < 2) return null;
 
-  const key = cacheKeyForGeometry(geometry);
+  const ways = options.ways && options.ways.length > 0 ? options.ways : null;
+  const key = cacheKeyForGeometry(geometry, ways ? 'ways' : 'overpass');
   const cached = cacheGet(key);
   if (cached !== undefined) return cached;
 
   try {
+    const coords = geometry as Array<[number, number]>;
     const segments = (await fetchRouteSurfaceData(
-      geometry as Array<[number, number]>,
+      coords,
+      ways ? { ways } : undefined,
     )) as string[] | null;
     if (!segments || segments.length === 0) {
       cacheSet(key, null);
       return null;
     }
-    const distribution = computeSurfaceDistribution(segments) as Record<string, number>;
+    const distribution = computeSurfaceDistribution(segments, coords) as Record<string, number>;
     const gravelPct = Math.round((distribution.gravel ?? 0) + (distribution.unpaved ?? 0));
     const result: GravelMeasurement = { gravelPct, distribution };
     cacheSet(key, result);

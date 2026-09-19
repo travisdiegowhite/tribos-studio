@@ -37,6 +37,8 @@ export interface StatsOverlayProps {
   isImperial?: boolean;
   /** Per-segment surface categories (from SurfaceLayer); shows a surface line when present. */
   surfaceSegments?: string[] | null;
+  /** Geometry the surface segments span; enables distance-weighted shares. */
+  surfaceCoordinates?: ReadonlyArray<ReadonlyArray<number>> | null;
   /** Quick-save action; renders a Save affordance next to Clear when set. */
   onSave?: () => void;
   saveState?: 'saved' | 'unsaved' | 'saving';
@@ -78,9 +80,15 @@ function formatElevationCompact(m: number, isImperial: boolean): string {
   return `${Math.round(value)}${isImperial ? 'ft' : 'm'}`;
 }
 
-function surfaceBreakdown(segments: string[] | null | undefined) {
+function surfaceBreakdown(
+  segments: string[] | null | undefined,
+  coordinates?: ReadonlyArray<ReadonlyArray<number>> | null,
+) {
   if (!segments || segments.length === 0) return [];
-  const dist = computeSurfaceDistribution(segments) as Record<string, number>;
+  const dist = computeSurfaceDistribution(
+    segments,
+    (coordinates ?? null) as Array<[number, number]> | null,
+  ) as Record<string, number>;
   return SURFACE_ORDER.filter((k) => (dist[k] ?? 0) > 0).map((k) => ({
     key: k,
     pct: dist[k],
@@ -95,6 +103,7 @@ export function StatsOverlay({
   onClear,
   isImperial = false,
   surfaceSegments,
+  surfaceCoordinates = null,
   onSave,
   saveState = 'unsaved',
   targetStatus = null,
@@ -102,7 +111,7 @@ export function StatsOverlay({
 }: StatsOverlayProps) {
   if (!stats || stats.distance_km <= 0) return null;
 
-  const surfaces = surfaceBreakdown(surfaceSegments);
+  const surfaces = surfaceBreakdown(surfaceSegments, surfaceCoordinates);
 
   return (
     <Box

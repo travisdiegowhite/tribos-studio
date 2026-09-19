@@ -278,9 +278,14 @@ export const useRouteManipulation = ({
       if (useSmartRouting && cyclingProfiles.includes(routingProfile)) {
         console.log(`🧠 Using smart ${routingProfile} routing`);
 
+        // Pass the profile through by its engine name. 'road' and
+        // 'commuting' are real ROUTE_PROFILE_COSTING keys; the old 'bike'
+        // catch-all wasn't, so Valhalla silently fell back to road costing
+        // and commuting's quiet-street preference never reached manual edits.
+        // Training goal + rider preferences are still not sent here — that
+        // needs the persisted preferences from route-quality-brainstorm B10.
         const smartRoute = await getSmartCyclingRoute(waypointCoordinates, {
-          profile: routingProfile === 'gravel' ? 'gravel' :
-                   routingProfile === 'mountain' ? 'mountain' : 'bike',
+          profile: routingProfile,
           mapboxToken: mapboxToken,
         });
 

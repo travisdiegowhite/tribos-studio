@@ -19,15 +19,27 @@ import {
 export interface SurfaceSummaryBarProps {
   /** Per-segment surface categories from fetchRouteSurfaceData, or null. */
   segments: string[] | null;
+  /**
+   * The geometry those segments span (length = segments + 1). When given,
+   * shares are weighted by segment length rather than segment count.
+   */
+  coordinates?: ReadonlyArray<ReadonlyArray<number>> | null;
   isMobile?: boolean;
 }
 
 const SURFACE_ORDER = ['paved', 'gravel', 'unpaved', 'mixed'] as const;
 
-export function SurfaceSummaryBar({ segments, isMobile = false }: SurfaceSummaryBarProps) {
+export function SurfaceSummaryBar({
+  segments,
+  coordinates = null,
+  isMobile = false,
+}: SurfaceSummaryBarProps) {
   if (!segments || segments.length === 0) return null;
 
-  const dist = computeSurfaceDistribution(segments) as Record<string, number>;
+  const dist = computeSurfaceDistribution(
+    segments,
+    coordinates as Array<[number, number]> | null,
+  ) as Record<string, number>;
   const known = SURFACE_ORDER.filter((k) => (dist[k] ?? 0) > 0).map((k) => ({
     key: k,
     pct: dist[k],

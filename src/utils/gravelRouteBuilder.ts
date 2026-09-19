@@ -26,6 +26,7 @@ import { haversineKm } from './distanceUnits';
 import { fnv1a32, stableJson } from './stableHash';
 import { clipLoopGeometry } from './clipLoopGeometry';
 import { assertCoordinate, type Coordinate } from '../types/geo';
+import type { TaggedWay } from './wayTags';
 
 // The geometry helpers + router are untyped JS (JSDoc uses mutable [number,number]).
 // Re-type them once to accept the readonly canonical Coordinate.
@@ -44,6 +45,8 @@ interface SmartRouteResult {
   duration_s?: number;
   duration?: number;
   elevationGain?: number;
+  /** Per-segment OSM tags when BRouter routed it (wayTags.ts). */
+  taggedWays?: TaggedWay[];
 }
 const getSmartCyclingRoute = getSmartCyclingRouteJs as (
   waypoints: ReadonlyArray<Coordinate>,
@@ -79,6 +82,11 @@ export interface GravelLoopRoute {
   source: 'gravel_network';
   gravelWaysUsed: string[];
   gravelChunkKm: number;
+  /**
+   * Surface-tagged ways from the router (BRouter), matched spatially so they
+   * survive the loop clip below. Lets surface measurement skip Overpass.
+   */
+  taggedWays: TaggedWay[];
 }
 
 export interface BuildGravelParams {
@@ -490,6 +498,7 @@ export async function buildGravelLoopCandidates(
       source: 'gravel_network',
       gravelWaysUsed,
       gravelChunkKm: chunks.reduce((sum, c) => sum + c.lengthKm, 0),
+      taggedWays: route.taggedWays ?? [],
     });
     if (results.length >= count) break;
   }
