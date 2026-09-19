@@ -27,6 +27,7 @@ import { formatLocalDate } from '../utils/dateUtils';
 import { CalendarBlank, CaretDown, CaretUp, Check, Clock, Fire, MapPin, Mountains, Path, Target, Trash, Trophy } from '@phosphor-icons/react';
 import { RACE_TYPES as BASE_RACE_TYPES } from '../utils/raceTypes';
 import { listRoutes } from '../utils/routesService';
+import { syncRaceEntry, deleteRaceEntry } from '../lib/calendar/raceEntrySync';
 
 // Race type options with emoji labels for the modal
 const RACE_TYPES = BASE_RACE_TYPES.map(t => {
@@ -258,15 +259,20 @@ const RaceGoalModal = ({
       };
 
       if (raceGoal?.id) {
-        // Update existing
+        // Update existing. Upsert rather than update: a race the coach put on
+        // the calendar has a calendar_entries row but no race_goals row yet,
+        // and editing it here is how it gets one (under the same id).
         const { data: updated, error } = await supabase
           .from('race_goals')
-          .update(raceData)
-          .eq('id', raceGoal.id)
+          .upsert({ id: raceGoal.id, ...raceData }, { onConflict: 'id' })
           .select()
           .single();
 
         if (error) throw error;
+
+        // The calendar renders races from calendar_entries, not race_goals.
+        const synced = await syncRaceEntry(user.id, raceGoal.id, raceData);
+        if (!synced.success) throw new Error(synced.error || 'Calendar update failed');
 
         notifications.show({
           title: 'Race Goal Updated',
@@ -285,6 +291,10 @@ const RaceGoalModal = ({
           .single();
 
         if (error) throw error;
+
+        // Mirror onto the calendar under the same id (migration 115's invariant).
+        const synced = await syncRaceEntry(user.id, inserted.id, raceData);
+        if (!synced.success) throw new Error(synced.error || 'Calendar update failed');
 
         notifications.show({
           title: 'Race Goal Added',
@@ -310,15 +320,23 @@ const RaceGoalModal = ({
 
   // Delete race goal
   const handleDelete = async () => {
-    if (!raceGoal?.id) return;
+    if (!raceGoal?.id || !user?.id) return;
 
     setDeleting(true);
 
     try {
+      // The calendar row first: it is the one the athlete is looking at, and
+      // it is what stayed behind when this deleted race_goals alone. A race
+      // the coach created has ONLY this row, so the race_goals delete below
+      // may legitimately match nothing.
+      const removed = await deleteRaceEntry(user.id, raceGoal.id);
+      if (!removed.success) throw new Error(removed.error || 'Calendar update failed');
+
       const { error } = await supabase
         .from('race_goals')
         .delete()
-        .eq('id', raceGoal.id);
+        .eq('id', raceGoal.id)
+        .eq('user_id', user.id);
 
       if (error) throw error;
 
