@@ -30,6 +30,27 @@ describe('StatsOverlay', () => {
     expect(surface).toHaveTextContent(/%/);
   });
 
+  it('shows a quiet-roads line when a stress summary is provided', () => {
+    render(
+      <MantineProvider>
+        <StatsOverlay
+          stats={{ distance_km: 40, elevation_gain_m: 300, duration_s: 5400 }}
+          stressSummary={{
+            totalKm: 40,
+            knownKm: 38,
+            kmByLts: { 0: 2, 1: 20, 2: 10, 3: 6, 4: 2 },
+            quietPct: 79,
+            unknownPct: 5,
+            stressScore: 0.3,
+            lts4Km: 2,
+            maxContinuousLts4Km: 1.2,
+          }}
+        />
+      </MantineProvider>,
+    );
+    expect(screen.getByTestId('rb2-stats-stress')).toHaveTextContent('Quiet roads 79% · 2.0 km high stress');
+  });
+
   it('omits the surface line when no segment data', () => {
     render(
       <MantineProvider>

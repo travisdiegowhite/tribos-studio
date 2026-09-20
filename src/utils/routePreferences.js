@@ -124,7 +124,9 @@ export async function getPreferences(authToken) {
       explore_mode: false,
       min_rides_for_familiar: 2,
       recency_weight: 30,
-      familiarity_decay_days: 180
+      familiarity_decay_days: 180,
+      traffic_tolerance: 'medium',
+      bike_infra_preference: 'preferred'
     };
   }
 }

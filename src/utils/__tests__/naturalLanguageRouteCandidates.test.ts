@@ -40,6 +40,10 @@ vi.mock('../geocoding.js', () => ({
 }));
 
 const measureGravelPct = vi.fn();
+const measureRouteStress = vi.fn();
+vi.mock('../roadAttributes', () => ({
+  measureRouteStress: (...a: unknown[]) => measureRouteStress(...a),
+}));
 vi.mock('../surfaceMeasurement', () => ({
   measureGravelPct: (...a: unknown[]) => measureGravelPct(...a),
 }));
@@ -93,6 +97,8 @@ function iterativeRouteOf(distanceKm: number, elevationGain = 300) {
 }
 
 beforeEach(() => {
+  measureRouteStress.mockReset();
+  measureRouteStress.mockResolvedValue(null);
   parseRouteRequest.mockReset();
   generateRouteFromParsedRequest.mockReset();
   routeThroughWaypoints.mockReset();

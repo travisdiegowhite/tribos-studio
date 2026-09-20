@@ -2,6 +2,7 @@ import { useCallback, useRef, useState } from 'react';
 import { notifications } from '@mantine/notifications';
 import { getElevationData, calculateElevationStats } from '../utils/elevation';
 import { getSmartCyclingRoute } from '../utils/smartCyclingRouter';
+import { useRouteBuilderStore } from '../stores/routeBuilderStore';
 import { M_TO_KM, assertKm, haversineMeters } from '../utils/distanceUnits';
 
 /**
@@ -24,6 +25,10 @@ export const useRouteManipulation = ({
   // snap, or null when the provider has none / the route is freehand.
   setRouteCues = () => {},
 }) => {
+  // The rider's "Road comfort" choice, so a drag/add-waypoint re-snap uses the
+  // same traffic costing as generation instead of profile defaults.
+  const trafficTolerance = useRouteBuilderStore((s) => s.trafficTolerance);
+
   // History for undo/redo
   // Refs hold the actual data (no re-render on change), state drives UI reactivity
   const historyRef = useRef([]);
@@ -282,10 +287,11 @@ export const useRouteManipulation = ({
         // 'commuting' are real ROUTE_PROFILE_COSTING keys; the old 'bike'
         // catch-all wasn't, so Valhalla silently fell back to road costing
         // and commuting's quiet-street preference never reached manual edits.
-        // Training goal + rider preferences are still not sent here — that
-        // needs the persisted preferences from route-quality-brainstorm B10.
         const smartRoute = await getSmartCyclingRoute(waypointCoordinates, {
           profile: routingProfile,
+          preferences: trafficTolerance
+            ? { trafficTolerance, routingPreferences: { trafficTolerance } }
+            : null,
           mapboxToken: mapboxToken,
         });
 
@@ -407,7 +413,7 @@ export const useRouteManipulation = ({
       }
       return null;
     }
-  }, [waypoints, routingProfile, useSmartRouting, setRouteGeometry, setRouteStats, setElevationProfile, setRouteCues]);
+  }, [waypoints, routingProfile, trafficTolerance, useSmartRouting, setRouteGeometry, setRouteStats, setElevationProfile, setRouteCues]);
 
   // === Build Freehand Route (straight lines between waypoints) ===
   // The freehand counterpart to snapToRoads: no routing engine, just direct

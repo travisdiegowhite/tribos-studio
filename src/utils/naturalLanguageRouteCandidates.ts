@@ -32,6 +32,8 @@ import { buildGravelLoopCandidates, type GravelLoopRoute } from './gravelRouteBu
 import { getAuthHeaders } from './authHeaders';
 import { reverseGeocodeRegion } from './geocoding.js';
 import { measureGravelPct } from './surfaceMeasurement';
+import { measureRouteStress } from './roadAttributes';
+import type { StressSummary, TrafficTolerance } from './trafficStress';
 import type { TaggedWay } from './wayTags';
 import { scoreRoutePreference } from './routeScoring';
 import { calculateBearing } from './routeUtils';
@@ -58,6 +60,8 @@ export interface RouteCandidate {
   gravel_actual_pct: number | null;
   /** Surface-tagged ways the router returned (BRouter); [] otherwise. */
   tagged_ways: TaggedWay[];
+  /** Traffic-stress roll-up of the routed geometry; null if unmeasured. */
+  stress_summary: StressSummary | null;
   familiarity_percent: number | null;
   /** Fidelity-to-request score in [0, 1]; candidates are returned best-first. */
   score: number;
@@ -69,11 +73,12 @@ export interface RouteCandidate {
 /** Courtesy stagger between variant/plan starts (each = several routing calls). */
 const VARIANT_STAGGER_MS = 300;
 
-/** Score weights: distance fit dominates, then direction, gravel, familiarity. */
-const W_DISTANCE = 0.4;
-const W_DIRECTION = 0.25;
-const W_GRAVEL = 0.2;
+/** Score weights: distance fit dominates, then direction, gravel, stress, familiarity. */
+const W_DISTANCE = 0.35;
+const W_DIRECTION = 0.2;
+const W_GRAVEL = 0.15;
 const W_FAMILIARITY = 0.15;
+const W_STRESS = 0.15;
 
 const sleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
 
@@ -87,6 +92,34 @@ const routeThroughWaypointsLoose = routeThroughWaypoints as unknown as (
   names: string[],
   opts: Record<string, unknown>,
 ) => Promise<GeneratedRouteResult | null>;
+
+/** Per-candidate cap on the stress measurement so Overpass can't stall the reply. */
+const STRESS_TIMEOUT_MS = 4000;
+
+/**
+ * Measure traffic stress for each candidate, sequentially (the corridor
+ * fetch is cached per geometry and free for BRouter routes). Fail-soft and
+ * time-capped: an unmeasured candidate scores neutral, never blocks.
+ */
+async function stressAll(cands: RouteCandidate[]): Promise<void> {
+  for (const candidate of cands) {
+    let timer: ReturnType<typeof setTimeout> | null = null;
+    try {
+      const timeout = new Promise<null>((resolve) => {
+        timer = setTimeout(() => resolve(null), STRESS_TIMEOUT_MS);
+      });
+      const result = await Promise.race([
+        measureRouteStress(candidate.snapshot.geometry, { taggedWays: candidate.tagged_ways }),
+        timeout,
+      ]);
+      candidate.stress_summary = result?.summary ?? null;
+    } catch {
+      candidate.stress_summary = null;
+    } finally {
+      if (timer) clearTimeout(timer);
+    }
+  }
+}
 
 /** Drop candidates whose distance is wildly off target; never empty the list. */
 const DIST_HI = 1.6;
@@ -188,6 +221,14 @@ interface ParsedRequest {
   targetDistanceKm: number;
   direction: string | null;
   gravelTargetPct?: number | null;
+  /** The rider's "Road comfort" setting; shapes routing costing and ranking. */
+  trafficTolerance?: TrafficTolerance | null;
+}
+
+/** Router `preferences` for a request (the shape stadiaMapsRouter reads). */
+function routerPreferences(request: Pick<ParsedRequest, 'trafficTolerance'>) {
+  const t = request.trafficTolerance ?? null;
+  return t ? { trafficTolerance: t, routingPreferences: { trafficTolerance: t } } : null;
 }
 
 interface GeneratedRouteResult {
@@ -210,6 +251,7 @@ function scoreCandidate(
   candidate: RouteCandidate,
   requestedBearing: number | null,
   startLocation: Coordinate,
+  tolerance: TrafficTolerance | null = null,
 ): number {
   const target_km = candidate.requested.distance_km;
   const actual_km = candidate.snapshot.stats.distance_km;
@@ -235,11 +277,21 @@ function scoreCandidate(
 
   const familiarity = (candidate.familiarity_percent ?? 0) / 100;
 
+  // Traffic stress: 1 = every known metre is calm, 0 = all LTS 4. Neutral
+  // when unmeasured. A rider who said "Direct" (high tolerance) still gets a
+  // nudge toward quieter roads, at half weight.
+  let stressMatch = 0.5;
+  if (candidate.stress_summary && candidate.stress_summary.knownKm > 0) {
+    stressMatch = clamp01(1 - candidate.stress_summary.stressScore);
+  }
+  const stressWeight = tolerance === 'high' ? W_STRESS / 2 : W_STRESS;
+
   return clamp01(
     W_DISTANCE * distanceAccuracy +
       W_DIRECTION * directionMatch +
       W_GRAVEL * gravelMatch +
-      W_FAMILIARITY * familiarity,
+      W_FAMILIARITY * familiarity +
+      stressWeight * stressMatch,
   );
 }
 
@@ -273,6 +325,7 @@ function candidateFromRoute(
     gravel_target_pct: request.gravelTargetPct ?? null,
     gravel_actual_pct: null,
     tagged_ways: route.taggedWays ?? [],
+    stress_summary: null,
     familiarity_percent: route.familiarityScore?.familiarityPercent ?? null,
     score: 0,
     requested: { distance_km: request.targetDistanceKm, bearing: requestedBearing },
@@ -332,6 +385,7 @@ export async function generateRouteCandidatesFromNaturalLanguage(
   context: Record<string, unknown> = {},
 ): Promise<RouteCandidate[]> {
   const request = (await parseRouteRequest(userRequest, context)) as ParsedRequest;
+  request.trafficTolerance = (context.trafficTolerance as TrafficTolerance | undefined) ?? null;
   const accessToken = (context.accessToken as string | null) ?? null;
   const onProgress = context.onProgress as ((stage: string) => void) | undefined;
   const progress = (stage: string) => {
@@ -370,7 +424,11 @@ export async function generateRouteCandidatesFromNaturalLanguage(
         routeType: request.type === 'out_back' ? 'out_and_back' : request.type,
         direction: bearing_deg !== null ? String(bearing_deg) : null,
         loopOrientation: spec.orientation,
-        options: { profile: request.routeProfile, trainingGoal: request.goal },
+        options: {
+          profile: request.routeProfile,
+          trainingGoal: request.goal,
+          preferences: routerPreferences(request),
+        },
         trainingGoal: request.goal,
       });
 
@@ -404,10 +462,16 @@ export async function generateRouteCandidatesFromNaturalLanguage(
   // gain) must land before display so no card or reply ever says 0m climbing.
   await enrichAll(candidates);
   await familiarityAll(candidates, accessToken);
+  await stressAll(candidates);
 
   const guarded = applyDistanceGuard(candidates);
   for (const candidate of guarded) {
-    candidate.score = scoreCandidate(candidate, requestedBearing, request.startLocation);
+    candidate.score = scoreCandidate(
+      candidate,
+      requestedBearing,
+      request.startLocation,
+      request.trafficTolerance ?? null,
+    );
   }
   guarded.sort((a, b) => b.score - a.score);
 
@@ -490,6 +554,7 @@ export async function generatePlannedRouteCandidates(
   const gravelTargetPct = plan.gravelTargetPct ?? (plan.surfaceType === 'gravel' ? 50 : null);
   const wantsGravel = (gravelTargetPct ?? 0) > 0 || plan.surfaceType === 'gravel';
   const routeProfile = wantsGravel ? 'gravel' : (context.profile as string) || 'road';
+  const trafficTolerance = (context.trafficTolerance as TrafficTolerance | undefined) ?? null;
 
   const request: ParsedRequest = {
     parsed: { waypoints: [], preferences: { surfaceType: plan.surfaceType } },
@@ -502,6 +567,7 @@ export async function generatePlannedRouteCandidates(
     targetDistanceKm,
     direction: plan.direction,
     gravelTargetPct,
+    trafficTolerance,
   };
 
   const directionLabel =
@@ -521,9 +587,10 @@ export async function generatePlannedRouteCandidates(
       }
     }
     await familiarityAll(cands, accessToken);
+    await stressAll(cands);
     const guarded = applyDistanceGuard(cands);
     for (const candidate of guarded) {
-      candidate.score = scoreCandidate(candidate, requestedBearing, startLocation);
+      candidate.score = scoreCandidate(candidate, requestedBearing, startLocation, trafficTolerance);
     }
     guarded.sort((a, b) => b.score - a.score);
     return guarded;
@@ -543,6 +610,7 @@ export async function generatePlannedRouteCandidates(
         gravelTargetPct: gravelTargetPct ?? 50,
         goal,
         count: 3,
+        preferences: routerPreferences(request),
       });
     } catch {
       gravelRoutes = [];
@@ -583,7 +651,11 @@ export async function generatePlannedRouteCandidates(
         routeType: type === 'out_back' ? 'out_and_back' : type,
         direction: requestedBearing !== null ? String(requestedBearing) : null,
         loopOrientation: 'cw',
-        options: { profile: routeProfile, trainingGoal: goal },
+        options: {
+          profile: routeProfile,
+          trainingGoal: goal,
+          preferences: routerPreferences(request),
+        },
         trainingGoal: goal,
       });
     } catch {
@@ -604,6 +676,7 @@ export async function generatePlannedRouteCandidates(
         profile: routeProfile,
         goal,
         type,
+        preferences: routerPreferences(request),
       });
       if (routed) {
         route = { ...routed, name: planRoute.name, rationale: planRoute.rationale, directionLabel };

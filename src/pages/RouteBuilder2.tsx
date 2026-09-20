@@ -42,6 +42,7 @@ import {
   StatsOverlay,
   ElevationPanel,
   GradientLegend,
+  TrafficStressLegend,
   SurfaceSummaryBar,
   LayerToggles,
   WaypointListPanel,
@@ -91,6 +92,8 @@ import { GuestSaveModal } from '../features/route-builder-v2/components/GuestSav
 import type { RouteCue as RouteCueType } from '../utils/routeCues';
 import { supabase } from '../lib/supabase';
 import { SurfaceLayer } from '../features/route-builder-v2/layers/SurfaceLayer';
+import { TrafficStressLayer } from '../features/route-builder-v2/layers/TrafficStressLayer';
+import type { RouteStressResult } from '../utils/roadAttributes';
 import { GradientLayer } from '../features/route-builder-v2/layers/GradientLayer';
 import { POILayer } from '../features/route-builder-v2/layers/POILayer';
 import { BikeInfraLayer } from '../features/route-builder-v2/layers/BikeInfraLayer';
@@ -146,6 +149,7 @@ import type { Coordinate } from '../types/geo';
 
 const DEFAULT_VISIBILITY: LayerVisibilityState = {
   surface: false,
+  stress: false,
   gradient: false,
   wind: false,
   poi: false,
@@ -327,6 +331,7 @@ export default function RouteBuilder2() {
   const routeName = useRouteBuilderStore((s) => s.routeName);
   const routeDescription = useRouteBuilderStore((s) => s.routeDescription);
   const routeProfile = useRouteBuilderStore((s) => s.routeProfile);
+  const trafficTolerance = useRouteBuilderStore((s) => s.trafficTolerance);
   const trainingGoal = useRouteBuilderStore((s) => s.trainingGoal);
   const routeTypeFromStore = useRouteBuilderStore((s) => s.routeType);
   const routeTarget = useRouteBuilderStore((s) => s.routeTarget);
@@ -406,6 +411,9 @@ export default function RouteBuilder2() {
   // Per-segment surface categories reported up by SurfaceLayer so the
   // summary bar reuses them without a second Overpass fetch.
   const [surfaceSegments, setSurfaceSegments] = useState<string[] | null>(null);
+  // Traffic-stress analysis reported up by TrafficStressLayer so the legend
+  // and the stats card reuse it without a second corridor fetch.
+  const [stressResult, setStressResult] = useState<RouteStressResult | null>(null);
   // Elevation-chart hover lives in its own store (see elevationHoverStore) so
   // per-mousemove scrubbing re-renders only the map dot, not this page.
   // Clip-tangent mode: toggle on → click a spur → confirm card → reroute.
@@ -840,6 +848,7 @@ export default function RouteBuilder2() {
           placedStart: waypoints?.[0]?.position ?? null,
           weather: weather.weather ?? undefined,
           profile: routeProfile,
+          trafficTolerance,
           useIterativeBuilder: true,
           accessToken,
         });
@@ -862,6 +871,7 @@ export default function RouteBuilder2() {
                 surface_label: c.surface_profile === 'gravel' ? 'gravel-biased' : undefined,
                 gravel_actual_pct: c.gravel_actual_pct,
                 gravel_target_pct: c.gravel_target_pct,
+                quiet_pct: c.stress_summary?.quietPct ?? null,
                 rationale: c.rationale,
               }))
             : undefined;
@@ -1483,10 +1493,13 @@ export default function RouteBuilder2() {
       {visibility.surface && (
         <SurfaceLayer geometry={geometryForLayers} onSegments={setSurfaceSegments} />
       )}
-      {visibility.gradient && !visibility.surface && (
+      {visibility.stress && !visibility.surface && (
+        <TrafficStressLayer geometry={geometryForLayers} onStress={setStressResult} />
+      )}
+      {visibility.gradient && !visibility.surface && !visibility.stress && (
         <GradientLayer geometry={geometryForLayers} />
       )}
-      {visibility.intervals && !visibility.surface && !visibility.gradient && (
+      {visibility.intervals && !visibility.surface && !visibility.stress && !visibility.gradient && (
         <IntervalsLayer geometry={geometryForLayers} cues={workoutCues} />
       )}
       {visibility.poi && (
@@ -1642,6 +1655,7 @@ export default function RouteBuilder2() {
         isImperial={isImperial}
         surfaceSegments={surfaceSegments}
         surfaceCoordinates={geometryForLayers?.coordinates ?? null}
+        stressSummary={stressResult?.summary ?? null}
         onSave={() => void handleQuickSave()}
         saveState={
           persistence.isSaving ? 'saving' : hasUnsavedChanges ? 'unsaved' : 'saved'
@@ -1701,6 +1715,7 @@ export default function RouteBuilder2() {
         icon: <StackIcon size={20} weight="duotone" />,
         badge:
           (visibility.surface ? 1 : 0) +
+          (visibility.stress ? 1 : 0) +
           (visibility.gradient ? 1 : 0) +
           (visibility.wind ? 1 : 0) +
           (visibility.bikeInfra ? 1 : 0) +
@@ -1720,6 +1735,15 @@ export default function RouteBuilder2() {
             {visibility.gradient && hasRoute && (
               <Box style={{ marginTop: 10 }}>
                 <GradientLegend isMobile />
+              </Box>
+            )}
+            {visibility.stress && hasRoute && (
+              <Box style={{ marginTop: 10 }}>
+                <TrafficStressLegend
+                  summary={stressResult?.summary ?? null}
+                  isImperial={isImperial}
+                  isMobile
+                />
               </Box>
             )}
             {visibility.surface && hasRoute && (
@@ -2018,6 +2042,7 @@ export default function RouteBuilder2() {
   // ---- Mobile: map-first — compact top bar + bottom-sheet tools ----
   const activeLayerCount =
     (visibility.surface ? 1 : 0) +
+    (visibility.stress ? 1 : 0) +
     (visibility.gradient ? 1 : 0) +
     (visibility.wind ? 1 : 0) +
     (visibility.bikeInfra ? 1 : 0) +
@@ -2092,6 +2117,13 @@ export default function RouteBuilder2() {
             />
           )}
           {visibility.gradient && hasRoute && <GradientLegend isMobile />}
+          {visibility.stress && hasRoute && (
+            <TrafficStressLegend
+              summary={stressResult?.summary ?? null}
+              isImperial={isImperial}
+              isMobile
+            />
+          )}
           {visibility.surface && hasRoute && (
             <SurfaceSummaryBar
                   segments={surfaceSegments}

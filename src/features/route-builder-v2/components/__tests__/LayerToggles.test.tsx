@@ -5,6 +5,7 @@ import { LayerToggles, type LayerVisibilityState } from '../LayerToggles';
 
 const initialVisibility: LayerVisibilityState = {
   surface: false,
+  stress: false,
   gradient: false,
   wind: false,
   poi: false,
@@ -53,9 +54,18 @@ describe('LayerToggles', () => {
     const switches = screen
       .getByTestId('rb2-layer-toggles')
       .querySelectorAll('input[type="checkbox"]');
-    // Order: surface, gradient, wind, bikeInfra, familiar, poi.
-    fireEvent.click(switches[2] as HTMLInputElement);
+    // Order: surface, stress, gradient, wind, bikeInfra, familiar, poi.
+    fireEvent.click(switches[3] as HTMLInputElement);
     expect(props.onToggle).toHaveBeenCalledWith('wind', true);
+  });
+
+  it('fires onToggle for the traffic stress layer', () => {
+    const { props } = renderToggles();
+    const switches = screen
+      .getByTestId('rb2-layer-toggles')
+      .querySelectorAll('input[type="checkbox"]');
+    fireEvent.click(switches[1] as HTMLInputElement);
+    expect(props.onToggle).toHaveBeenCalledWith('stress', true);
   });
 
   it('disables the familiar-segments toggle when no Strava connection', () => {
@@ -78,11 +88,11 @@ describe('LayerToggles', () => {
       visibility: { ...initialVisibility, intervals: true },
     });
     expect(screen.getByText('Intervals')).toBeInTheDocument();
-    // Order with a workout: surface, gradient, intervals, wind, …
+    // Order with a workout: surface, stress, gradient, intervals, wind, …
     const switches = screen
       .getByTestId('rb2-layer-toggles')
       .querySelectorAll('input[type="checkbox"]');
-    fireEvent.click(switches[2] as HTMLInputElement);
+    fireEvent.click(switches[3] as HTMLInputElement);
     expect(props.onToggle).toHaveBeenCalledWith('intervals', false);
   });
 });

@@ -18,6 +18,11 @@ import { trackRb2 } from '../telemetry/trackRb2';
 import { geocodeWaypoint } from '../../../utils/geocoding.js';
 import { useSpeedProfile } from '../../../hooks/route-builder';
 import { flatSpeedKmh } from '../../../utils/routeTargets.js';
+import { useRoadComfort, ROAD_COMFORT_OPTIONS } from '../../../hooks/route-builder/useRoadComfort';
+import type { TrafficTolerance } from '../../../utils/trafficStress';
+
+export { ROAD_COMFORT_OPTIONS };
+export type RoadComfort = TrafficTolerance;
 
 export type Goal =
   | 'endurance'
@@ -158,6 +163,10 @@ export function useGenerateForm({
   const [localError, setLocalError] = useState<string | null>(null);
   const [isResolving, setIsResolving] = useState(false);
 
+  // "Road comfort" is a persisted rider preference (store + server), not
+  // per-form state: it applies to chat generation and manual edits too.
+  const { roadComfort, setRoadComfort } = useRoadComfort();
+
   // The rider's own pace, so the derived field below is their estimate and
   // not a generic one. Cached at module scope, shared with the ETA.
   const speedProfile = useSpeedProfile();
@@ -233,6 +242,7 @@ export function useGenerateForm({
       duration_minutes: duration,
       surface,
       shape,
+      road_comfort: roadComfort,
       has_distance: distanceKm !== '',
       has_elevation: elevationGainM !== '',
     });
@@ -270,6 +280,7 @@ export function useGenerateForm({
           ? undefined
           : distanceKm,
       elevation_gain_m: elevationGainM === '' ? undefined : elevationGainM,
+      traffic_tolerance: roadComfort,
     });
   }, [
     generation,
@@ -280,6 +291,7 @@ export function useGenerateForm({
     surface,
     surfaceProfile,
     shape,
+    roadComfort,
     distanceKm,
     elevationGainM,
     resolveStartCoord,
@@ -319,6 +331,8 @@ export function useGenerateForm({
     setSurface,
     shape,
     setShape,
+    roadComfort,
+    setRoadComfort,
     startLocation,
     setStartLocation,
     distanceKm,

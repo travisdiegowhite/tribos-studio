@@ -444,6 +444,7 @@ function RouteOptionCards({
               {formatElevation(option.elevation_gain_m, isImperial)} climbing
               {option.direction_label ? ` · ${option.direction_label}` : ''}
               {surfaceText(option) ? ` · ${surfaceText(option)}` : ''}
+              {typeof option.quiet_pct === 'number' ? ` · ${option.quiet_pct}% quiet roads` : ''}
               {typeof option.familiarity_percent === 'number' && option.familiarity_percent > 0
                 ? ` · ${option.familiarity_percent}% familiar`
                 : ''}

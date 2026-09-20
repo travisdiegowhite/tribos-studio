@@ -247,7 +247,11 @@ async function computeSmartCyclingRoute(waypoints, options = {}) {
     // For recovery: use SAFETY profile (quietest roads)
     // For intervals/tempo: use FASTBIKE (smooth, fast roads)
     // For endurance: use TREKKING (balanced)
-    const brouterProfile = selectBRouterProfile(trainingGoal, preferences?.surfaceType);
+    const brouterProfile = selectBRouterProfile(
+      trainingGoal,
+      preferences?.surfaceType,
+      trafficToleranceOf(preferences)
+    );
     console.log(`🚴 Trying BRouter as fallback with profile: ${brouterProfile} (goal: ${trainingGoal})`);
     const brouterResult = await tryBRouterRouting(waypoints, {
       profile: brouterProfile,
@@ -291,6 +295,11 @@ async function computeSmartCyclingRoute(waypoints, options = {}) {
 
   console.warn('❌ All routing strategies failed');
   return null;
+}
+
+/** The rider's traffic tolerance from either preference shape (flat or nested). */
+function trafficToleranceOf(preferences) {
+  return preferences?.routingPreferences?.trafficTolerance || preferences?.trafficTolerance || null;
 }
 
 /**
@@ -422,7 +431,8 @@ async function tryGraphHopperRouting(waypoints, options) {
  */
 async function tryBRouterRouting(waypoints, options) {
   const { profile, preferences, trainingGoal } = options;
-  const brouterProfile = profile || selectBRouterProfile(trainingGoal, preferences?.surfaceType);
+  const brouterProfile =
+    profile || selectBRouterProfile(trainingGoal, preferences?.surfaceType, trafficToleranceOf(preferences));
   const startMs = Date.now();
   trackRouteBuilder('generation_routing_called', {
     provider: 'brouter',

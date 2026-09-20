@@ -52,7 +52,7 @@ const DEFAULT_AVG_SPEED_KMH = 28;
  *   null when fewer than one intermediate waypoint geocodes or routing fails.
  */
 export async function routeThroughWaypoints(startLocation, waypointNames, opts = {}) {
-  const { profile = 'road', goal = 'endurance', type = 'loop', mapboxToken } = opts;
+  const { profile = 'road', goal = 'endurance', type = 'loop', mapboxToken, preferences = null } = opts;
 
   const geocoded = [];
   const geocodedNames = [];
@@ -74,6 +74,7 @@ export async function routeThroughWaypoints(startLocation, waypointNames, opts =
   const routeResult = await getSmartCyclingRoute(waypointCoords, {
     profile,
     trainingGoal: goal,
+    preferences,
     mapboxToken: mapboxToken ?? import.meta.env.VITE_MAPBOX_TOKEN,
   });
   if (!routeResult?.coordinates || routeResult.coordinates.length < 10) return null;

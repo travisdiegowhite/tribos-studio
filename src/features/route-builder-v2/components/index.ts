@@ -12,6 +12,7 @@ export { FormPanel, type FormPanelHandle } from './FormPanel';
 export { StatsOverlay } from './StatsOverlay';
 export { ElevationPanel } from './ElevationPanel';
 export { GradientLegend } from './GradientLegend';
+export { TrafficStressLegend } from './TrafficStressLegend';
 export { WorkoutOverlayLegend } from './WorkoutOverlayLegend';
 export { WorkoutPickerPanel } from './WorkoutPickerPanel';
 export { WorkoutArrivalCard, WorkoutArrivalPill, type PastRideOption } from './WorkoutArrivalCard';

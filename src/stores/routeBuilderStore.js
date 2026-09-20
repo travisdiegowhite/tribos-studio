@@ -43,6 +43,11 @@ const initialState = {
   timeAvailable: 60,
   routeType: 'loop',
   routeProfile: 'road',
+  // "Road comfort": low (quiet roads) | medium (balanced) | high (direct).
+  // Mirrors user_road_preferences.traffic_tolerance (useRoadComfort syncs it);
+  // persisted locally so the choice survives a reload before the server
+  // answers, and works for guests.
+  trafficTolerance: 'medium',
   explicitDistanceKm: null, // When user specifies distance directly (e.g., "100km loop")
 
   // What the rider actually asked for on the last generation:
@@ -147,6 +152,11 @@ export const useRouteBuilderStore = create(
 
       setRouteProfile: (profile) => set({
         routeProfile: profile,
+        lastSaved: Date.now()
+      }),
+
+      setTrafficTolerance: (tolerance) => set({
+        trafficTolerance: tolerance,
         lastSaved: Date.now()
       }),
 
@@ -299,6 +309,7 @@ export const useRouteBuilderStore = create(
         timeAvailable: state.timeAvailable,
         routeType: state.routeType,
         routeProfile: state.routeProfile,
+        trafficTolerance: state.trafficTolerance,
         explicitDistanceKm: state.explicitDistanceKm,
         routeTarget: state.routeTarget,
         raceType: state.raceType,

@@ -13,6 +13,7 @@ import {
   Button,
   Box,
   Slider,
+  SegmentedControl,
   Switch,
   Badge,
   Progress,
@@ -55,6 +56,9 @@ export default function RoadPreferencesCard() {
   const [exploreMode, setExploreMode] = useState(false);
   const [minRidesForFamiliar, setMinRidesForFamiliar] = useState(2);
   const [recencyWeight, setRecencyWeight] = useState(30);
+  // "Road comfort" (migration 125): low = quiet roads, medium = balanced,
+  // high = direct. Shared with the Route Builder's Build form.
+  const [trafficTolerance, setTrafficTolerance] = useState('medium');
 
   // Extraction progress
   const [extractionProgress, setExtractionProgress] = useState(null);
@@ -147,6 +151,7 @@ export default function RoadPreferencesCard() {
           setExploreMode(prefsData.preferences.explore_mode ?? false);
           setMinRidesForFamiliar(prefsData.preferences.min_rides_for_familiar ?? 2);
           setRecencyWeight(prefsData.preferences.recency_weight ?? 30);
+          setTrafficTolerance(prefsData.preferences.traffic_tolerance ?? 'medium');
         }
       }
     } catch (error) {
@@ -299,7 +304,8 @@ export default function RoadPreferencesCard() {
           familiarity_strength: familiarityStrength,
           explore_mode: exploreMode,
           min_rides_for_familiar: minRidesForFamiliar,
-          recency_weight: recencyWeight
+          recency_weight: recencyWeight,
+          traffic_tolerance: trafficTolerance
         })
       });
 
@@ -538,6 +544,28 @@ export default function RoadPreferencesCard() {
         </Box>
 
         <Divider label="Routing Preferences" labelPosition="center" />
+
+        {/* Road comfort: which roads the router may use */}
+        <Box>
+          <Text size="sm" fw={500} style={{ color: 'var(--color-text-primary)' }}>
+            Road comfort
+          </Text>
+          <Text size="xs" mb="xs" style={{ color: 'var(--color-text-secondary)' }}>
+            Quiet keeps you on calm streets and paths; Direct allows busier roads when they are shorter.
+          </Text>
+          <SegmentedControl
+            data-testid="road-comfort-control"
+            fullWidth
+            radius={0}
+            value={trafficTolerance}
+            onChange={setTrafficTolerance}
+            data={[
+              { value: 'low', label: 'Quiet' },
+              { value: 'medium', label: 'Balanced' },
+              { value: 'high', label: 'Direct' },
+            ]}
+          />
+        </Box>
 
         {/* Familiarity Strength Slider */}
         <Box>

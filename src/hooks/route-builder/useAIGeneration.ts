@@ -190,6 +190,15 @@ export function useAIGeneration(): UseAIGenerationReturn {
         // distance the time was converted into.
         targetMode: input.target_mode ?? 'time',
         targetDurationMinutes: durationMinutes,
+        // The rider's "Road comfort" choice, in the shape stadiaMapsRouter and
+        // the candidate ranker read. Previously RB2 sent no preferences at
+        // all, so traffic tolerance always fell back to a stored default.
+        preferences: input.traffic_tolerance
+          ? {
+              trafficTolerance: input.traffic_tolerance,
+              routingPreferences: { trafficTolerance: input.traffic_tolerance },
+            }
+          : undefined,
       };
 
       try {
