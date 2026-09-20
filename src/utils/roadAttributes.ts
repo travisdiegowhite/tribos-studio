@@ -1,29 +1,33 @@
 /**
  * roadAttributes — the OSM ways a route actually rides, with their tags.
  *
- * Two sources, cheapest first:
- *   1. BRouter `taggedWays` (wayTags.ts) when the router already told us the
- *      way tags for this geometry — free, no network.
- *   2. Overpass, corridor query: the route is cut into ~1.5 km chunks and
- *      each chunk's bounding box (padded by CORRIDOR_M) becomes one term of
- *      a single union query. Bounding-box filters are index-backed and fast
- *      on every public mirror. The obvious alternative, `way(around:…)`
- *      with the route as a polyline, is NOT usable: overpass-api.de answers
- *      it with 406 Not Acceptable (even for a single point) and the other
- *      mirrors time out computing it over the global way set. It returns
- *      untagged roads too, which is what traffic stress needs.
+ * Sources, cheapest first:
+ *   1. BRouter `taggedWays` (wayTags.ts) handed in by the caller, or
+ *      remembered by the BRouter client for this exact geometry — the
+ *      router already told us the way tags, free, no network.
+ *   2. BRouter re-ride (brouterTrace.ts): the line is reconstructed through
+ *      via points sampled along it and the response's tag rows are snapped
+ *      back onto the original geometry. ~0.5 s for a 45 km loop, works for
+ *      Stadia-built, imported, restored and loaded routes alike.
+ *   3. Overpass, corridor query, last resort: the route is cut into short
+ *      chunks and each chunk's bounding box (padded by CORRIDOR_M) becomes
+ *      one term of a single union query. The public mirrors are shared and
+ *      slow — a 110 km route's corridor drew 504s and 30 s timeouts in
+ *      production, which is why tier 2 exists. `way(around:…)` with the
+ *      route as a polyline is NOT usable at all: overpass-api.de answers it
+ *      with 406 Not Acceptable and the other mirrors time out.
  *
  * Successful results are cached by quantized geometry (LRU; failures are
- * not cached so a mirror hiccup can be retried), mirroring
- * surfaceMeasurement.ts. Matching a geometry against the ways reuses
- * surfaceOverlay's spatial grid + edge-distance snap (`matchRouteWays`).
+ * not cached so a hiccup can be retried), mirroring surfaceMeasurement.ts.
+ * Matching a geometry against the ways reuses surfaceOverlay's spatial
+ * grid + edge-distance snap (`matchRouteWays`).
  */
 
 import { fetchOverpassElements, type OverpassElement } from './overpassClient';
 import { matchRouteWays, groupSegmentsToFeatures } from './surfaceOverlay.js';
-import { fnv1a32, stableJson } from './stableHash';
 import { haversineMeters } from './distanceUnits';
-import { taggedWaysCoverage, type TaggedWay } from './wayTags';
+import { taggedWaysCoverage, recallTaggedWays, geometryKey, type TaggedWay } from './wayTags';
+import { traceTaggedWaysWithBRouter } from './brouterTrace';
 import {
   ltsForTags,
   summarizeStress,
@@ -36,10 +40,14 @@ import type { Coordinate } from '../types/geo';
 
 /** Each chunk's bounding box is padded by this many metres. */
 export const CORRIDOR_M = 40;
-/** Route length per bounding box; longer routes scale this up to stay under MAX_BOXES. */
-export const CHUNK_M = 1500;
-/** Hard cap on boxes per query so the request stays small and fast. */
-export const MAX_BOXES = 80;
+/**
+ * Route length per bounding box; longer routes scale this up to stay under
+ * MAX_BOXES. Short chunks hug the line, so the union covers far less area
+ * (and far fewer ways to serialise) than the 1.5 km chunks it replaced.
+ */
+export const CHUNK_M = 500;
+/** Hard cap on boxes per query so the request stays parseable. */
+export const MAX_BOXES = 250;
 /** BRouter tags are used alone when they cover at least this share of the route. */
 const TAGGED_WAYS_MIN_COVERAGE = 0.9;
 const CACHE_MAX_SIZE = 30;
@@ -52,7 +60,11 @@ const WAY_FILTER =
   '["service"!~"^(driveway|parking_aisle)$"]' +
   '["footway"!~"^(sidewalk|crossing)$"]';
 
-export type RoadAttributeSource = 'brouter' | 'overpass';
+/**
+ * `brouter`: tags from the route's own build; `brouter_trace`: BRouter
+ * re-rode the line; `overpass`: corridor query.
+ */
+export type RoadAttributeSource = 'brouter' | 'brouter_trace' | 'overpass';
 
 export interface CorridorWays {
   ways: TaggedWay[];
@@ -92,14 +104,6 @@ function cacheSet(key: string, value: CorridorWays): void {
 
 export function clearRoadAttributesCache(): void {
   cache.clear();
-}
-
-function cacheKey(geometry: ReadonlyArray<ReadonlyArray<number>>): string {
-  const quantized = geometry.map(([lng, lat]) => [
-    Math.round(lng * 1e5) / 1e5,
-    Math.round(lat * 1e5) / 1e5,
-  ]);
-  return fnv1a32(stableJson(['corridor', quantized]));
 }
 
 /** Route length in metres. */
@@ -191,9 +195,9 @@ export function elementsToTaggedWays(elements: ReadonlyArray<OverpassElement>): 
 }
 
 /**
- * Ways along the route. BRouter tags win when they cover the geometry;
- * otherwise a cached Overpass corridor fetch. Never throws; null when
- * nothing is available.
+ * Ways along the route: BRouter tags (given or remembered) when they cover
+ * the geometry, else a BRouter re-ride, else a cached Overpass corridor
+ * fetch. Never throws; null when nothing is available.
  */
 export async function fetchCorridorWays(
   coordinates: ReadonlyArray<Coordinate>,
@@ -209,9 +213,19 @@ export async function fetchCorridorWays(
     }
   }
 
-  const key = cacheKey(coordinates);
+  const remembered = recallTaggedWays(coordinates);
+  if (remembered) return { ways: remembered, source: 'brouter' };
+
+  const key = geometryKey(coordinates);
   const cached = cacheGet(key);
   if (cached !== undefined) return cached;
+
+  const traced = await traceTaggedWaysWithBRouter(coordinates);
+  if (traced) {
+    const result: CorridorWays = { ways: traced, source: 'brouter_trace' };
+    cacheSet(key, result);
+    return result;
+  }
 
   try {
     const elements = await fetchOverpassElements(buildCorridorQuery(coordinates), {
