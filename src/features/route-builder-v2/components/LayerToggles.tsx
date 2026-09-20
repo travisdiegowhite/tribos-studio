@@ -31,6 +31,14 @@ export interface LayerTogglesProps {
   onPoiLayerToggle: (layer: POILayer) => void;
   activePoiLayers: POILayer[];
   isMobile?: boolean;
+  /**
+   * Whether the switch list starts open. Defaults to open on desktop and
+   * collapsed on mobile. The desktop rail flyout passes `isMobile` for its
+   * compact styling but is opened on purpose, so it sets this to true —
+   * otherwise the rider meets a second collapsed "Layers" header and never
+   * sees the switches.
+   */
+  defaultExpanded?: boolean;
   hasStravaConnection?: boolean;
   /** When true, an "Intervals" toggle is shown (a workout is attached). */
   hasWorkout?: boolean;
@@ -51,10 +59,11 @@ export function LayerToggles({
   onPoiLayerToggle,
   activePoiLayers,
   isMobile = false,
+  defaultExpanded,
   hasStravaConnection = false,
   hasWorkout = false,
 }: LayerTogglesProps) {
-  const [expanded, setExpanded] = useState(!isMobile);
+  const [expanded, setExpanded] = useState(defaultExpanded ?? !isMobile);
 
   const toggle = useCallback(
     (key: keyof LayerVisibilityState, next: boolean) => {

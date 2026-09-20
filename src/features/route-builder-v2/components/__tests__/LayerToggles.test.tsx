@@ -39,6 +39,19 @@ describe('LayerToggles', () => {
     expect(screen.getByTestId('rb2-layer-toggles')).toBeInTheDocument();
   });
 
+  it('starts collapsed on mobile, so the switches are hidden until the header is clicked', () => {
+    renderToggles({ isMobile: true });
+    const root = screen.getByTestId('rb2-layer-toggles');
+    expect(root.querySelectorAll('input[type="checkbox"]').length).toBe(0);
+  });
+
+  it('starts expanded when defaultExpanded is set, even with mobile styling', () => {
+    renderToggles({ isMobile: true, defaultExpanded: true });
+    const root = screen.getByTestId('rb2-layer-toggles');
+    expect(root.querySelectorAll('input[type="checkbox"]').length).toBeGreaterThan(0);
+    expect(screen.getByText('Traffic Stress')).toBeInTheDocument();
+  });
+
   it('fires onToggle with the layer key when a switch flips', () => {
     const { props } = renderToggles();
     const switches = screen
