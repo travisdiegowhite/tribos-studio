@@ -24,6 +24,7 @@ import { EnhancedContextCollector } from './enhancedContext';
 import { optimizeLoopRoute, validateLoopRoute } from './routeOptimizer';
 import { getSmartCyclingRoute, getRoutingStrategyDescription } from './smartCyclingRouter';
 import { analyzeSegmentSuitability, scoreRouteInfrastructure } from './stadiaMapsRouter';
+import { measureRouteStress } from './roadAttributes';
 import { generateSmartRouteName, generateAlternativeNames } from './routeNaming';
 import { geocodeWaypoint } from './geocoding';
 import { haversineKm } from './distanceUnits';
@@ -123,6 +124,10 @@ export async function generateAIRoutes(params, onProgress = null) {
     // Explicit surface selection from the form ('road' | 'gravel' | 'mtb' |
     // 'commute'); wins over the preference-inferred profile.
     routeProfile = null,
+    // Caller-supplied routing preferences (RB2's "Road comfort" control).
+    // Merged over the stored defaults below; the only source when there is
+    // no signed-in user.
+    preferences: callerPreferences = null,
     // Which number the rider is actually asking for. In 'time' mode the
     // route gets a corrective pass against its estimated ride time — a
     // target distance derived from minutes is only as good as the pace
@@ -232,6 +237,9 @@ export async function generateAIRoutes(params, onProgress = null) {
     } catch (error) {
       console.warn('Could not load user preferences:', error);
     }
+  }
+  if (callerPreferences) {
+    userPreferences = mergeCallerPreferences(userPreferences, callerPreferences);
   }
   
   // Priority 0: Generate Claude AI route suggestions first
@@ -507,7 +515,10 @@ export async function generateAIRoutes(params, onProgress = null) {
 
   // Score and rank routes
   onProgress?.({ step: 'scoring', message: 'Scoring & ranking routes' });
-  const scoredRoutes = await scoreRoutes(validRoutes, {
+  // Traffic stress for every candidate (Claude-planned and pattern-based
+  // alike) before ranking; cached per geometry, free for BRouter routes.
+  const stressedRoutes = await scoreRoutesStress(validRoutes);
+  const scoredRoutes = await scoreRoutes(stressedRoutes, {
     trainingGoal,
     weatherData,
     timeAvailable,
@@ -662,6 +673,55 @@ async function generateMapboxBasedRoutes(params) {
   validRoutes = await scoreRoutesInfrastructure(validRoutes, userPreferences);
 
   return validRoutes;
+}
+
+/**
+ * Caller preferences (a flat `{ trafficTolerance }` plus an optional
+ * `routingPreferences` block) win over the stored ones, key by key.
+ */
+function mergeCallerPreferences(stored, caller) {
+  const base = stored || {};
+  return {
+    ...base,
+    ...caller,
+    routingPreferences: {
+      ...(base.routingPreferences || {}),
+      ...(caller.routingPreferences || {}),
+      ...(caller.trafficTolerance ? { trafficTolerance: caller.trafficTolerance } : {}),
+    },
+  };
+}
+
+/**
+ * Attach `stressSummary` (trafficStress.ts roll-up, or null) to each route.
+ * Sequential: the corridor fetch is cached per geometry, and the shared
+ * Overpass mirrors are politer to one request at a time. Each call is capped
+ * so a slow Overpass can't stall generation. Read by getTrafficAvoidanceScore.
+ */
+const STRESS_SCORE_TIMEOUT_MS = 4000;
+async function scoreRoutesStress(routes) {
+  if (!Array.isArray(routes) || routes.length === 0) return routes;
+  const out = [];
+  for (const route of routes) {
+    let timer = null;
+    let summary = null;
+    try {
+      const timeout = new Promise((resolve) => {
+        timer = setTimeout(() => resolve(null), STRESS_SCORE_TIMEOUT_MS);
+      });
+      const result = await Promise.race([
+        measureRouteStress(route.coordinates, { taggedWays: route.taggedWays }),
+        timeout,
+      ]);
+      summary = result?.summary ?? null;
+    } catch {
+      summary = null;
+    } finally {
+      if (timer) clearTimeout(timer);
+    }
+    out.push({ ...route, stressSummary: summary ?? route.stressSummary ?? null });
+  }
+  return out;
 }
 
 /**
@@ -982,6 +1042,8 @@ async function generateMapboxLoop(startLocation, targetDistanceKm, pattern, trai
     // so that scoreRoutes() can use it for ranking — matches convertClaudeToFullRoute behavior
     if (route.maneuvers) result.maneuvers = route.maneuvers;
     if (route.trafficScore !== undefined) result.trafficScore = route.trafficScore;
+    if (route.stressSummary) result.stressSummary = route.stressSummary;
+    if (route.taggedWays) result.taggedWays = route.taggedWays;
     if (route.quietnessScore !== undefined) result.quietnessScore = route.quietnessScore;
     if (route.roadClassification) result.roadClassification = route.roadClassification;
     if (route.infrastructureScore !== undefined) result.infrastructureScore = route.infrastructureScore;
@@ -1353,6 +1415,8 @@ async function convertClaudeToFullRoute(claudeRoute, startLocation, targetDistan
 
       // Propagate traffic, quietness, road classification, and infrastructure scores
       if (route.trafficScore !== undefined) fullRoute.trafficScore = route.trafficScore;
+      if (route.stressSummary) fullRoute.stressSummary = route.stressSummary;
+      if (route.taggedWays) fullRoute.taggedWays = route.taggedWays;
       if (route.quietnessScore !== undefined) fullRoute.quietnessScore = route.quietnessScore;
       if (route.roadClassification) fullRoute.roadClassification = route.roadClassification;
       if (route.infrastructureScore !== undefined) fullRoute.infrastructureScore = route.infrastructureScore;
@@ -2782,12 +2846,29 @@ function calculatePatternConfidence(patterns) {
 
 // NEW: Score route based on traffic avoidance preferences
 function getTrafficAvoidanceScore(route, preferences) {
-  const trafficTolerance = preferences?.routingPreferences?.trafficTolerance;
-  
+  const trafficTolerance = preferences?.routingPreferences?.trafficTolerance
+    || preferences?.trafficTolerance;
+
   if (!trafficTolerance) return 0;
-  
+
   let score = 0;
-  
+
+  // Measured Level of Traffic Stress (roadAttributes.ts) beats the legacy
+  // name-regex trafficScore whenever it exists: stressScore is 0 for an
+  // all-calm route and 1 for all LTS 4, so quiet-seeking riders get up to
+  // +0.3 for calm routes and −0.2 for stressful ones.
+  if (route.stressSummary && route.stressSummary.knownKm > 0) {
+    const stress = route.stressSummary.stressScore;
+    if (trafficTolerance === 'low') {
+      score += 0.3 * (1 - stress) - 0.2 * stress;
+    } else if (trafficTolerance === 'medium') {
+      score += 0.15 * (1 - stress) - 0.1 * stress;
+    } else {
+      score += 0.05 * (1 - stress);
+    }
+    return Math.max(-0.3, Math.min(0.4, score));
+  }
+
   // High reward for routes that match user's traffic preferences
   if (route.trafficScore) {
     const expectedTrafficLevels = {

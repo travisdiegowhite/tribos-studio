@@ -6,6 +6,7 @@
  */
 
 import { haversineMeters } from './distanceUnits';
+import { fetchOverpassElements } from './overpassClient';
 
 // Surface type colors (solid = paved, semi-transparent for visual distinction)
 export const SURFACE_COLORS = {
@@ -40,14 +41,6 @@ export function classifySurface(tag) {
   return 'unknown';
 }
 
-// Overpass endpoints, tried in order (same list as bikeInfrastructureService).
-const OVERPASS_SERVERS = [
-  'https://overpass-api.de/api/interpreter',
-  'https://overpass.kumi.systems/api/interpreter',
-  'https://maps.mail.ru/osm/tools/overpass/api/interpreter',
-];
-const OVERPASS_TIMEOUT_MS = 15000;
-
 // A sampled route point further than this from every tagged way is reported
 // as 'unknown' rather than inheriting the nearest way's surface. Without a
 // cutoff an untagged road silently took the surface of a tagged way hundreds
@@ -69,15 +62,17 @@ function nodeLngLat(node) {
 /**
  * Build a spatial grid index from way elements for fast nearest-way lookups.
  * Each cell maps to the set of way IDs whose geometry passes through it.
- * Accepts Overpass elements or TaggedWay objects; only ways with a `surface`
- * tag are indexed.
+ * Accepts Overpass elements or TaggedWay objects. When `requireTag` is set,
+ * only ways carrying that tag are indexed (surface matching); otherwise
+ * every way with geometry is (traffic-stress matching).
  */
-function buildSpatialIndex(elements, cellSize) {
+function buildSpatialIndex(elements, cellSize, requireTag = null) {
   const grid = new Map();
   const wayMap = new Map();
 
   for (const el of elements) {
-    if (!el || !Array.isArray(el.geometry) || !el.tags?.surface) continue;
+    if (!el || !Array.isArray(el.geometry) || !el.tags) continue;
+    if (requireTag && !el.tags[requireTag]) continue;
     if (el.type && el.type !== 'way') continue;
     const vertices = el.geometry.map(nodeLngLat).filter(Boolean);
     if (vertices.length === 0) continue;
@@ -150,6 +145,54 @@ function findClosestWay(lon, lat, index) {
 }
 
 /**
+ * Match a route geometry against a set of ways. Returns one way (or null)
+ * per coordinate segment (length - 1), or null when there are no usable
+ * ways. Pure: no network. Samples at most 500 segment midpoints and
+ * interpolates the rest, so long routes stay cheap.
+ *
+ * @param {ReadonlyArray<ReadonlyArray<number>>} coordinates - [lon, lat] tuples
+ * @param {ReadonlyArray<any>} ways - Overpass elements or TaggedWay objects
+ * @param {{ requireTag?: string | null }} [options] - only index ways carrying this tag
+ * @returns {Array<any|null>|null}
+ */
+export function matchRouteWays(coordinates, ways, options = {}) {
+  if (!coordinates || coordinates.length < 2 || !Array.isArray(ways) || ways.length === 0) return null;
+
+  const cellSize = 0.001; // ~111m cells — good granularity for cycling routes
+  const index = buildSpatialIndex(ways, cellSize, options.requireTag ?? null);
+  if (index.wayMap.size === 0) return null;
+
+  // Sample route points for matching to keep it fast
+  // For routes with many coordinates, sample every Nth point
+  const maxMatchPoints = 500;
+  const matchStep = Math.max(1, Math.ceil(coordinates.length / maxMatchPoints));
+
+  // Match sampled points to nearest way
+  const sampledWays = [];
+  const sampledIndices = [];
+  for (let i = 0; i < coordinates.length - 1; i += matchStep) {
+    const nextI = Math.min(i + 1, coordinates.length - 1);
+    const midLon = (coordinates[i][0] + coordinates[nextI][0]) / 2;
+    const midLat = (coordinates[i][1] + coordinates[nextI][1]) / 2;
+    sampledWays.push(findClosestWay(midLon, midLat, index));
+    sampledIndices.push(i);
+  }
+
+  // Interpolate: fill in all coordinate segments from sampled results
+  const matched = [];
+  let sampleIdx = 0;
+  for (let i = 0; i < coordinates.length - 1; i++) {
+    // Advance to the closest sample
+    while (sampleIdx < sampledIndices.length - 1 && sampledIndices[sampleIdx + 1] <= i) {
+      sampleIdx++;
+    }
+    matched.push(sampledWays[sampleIdx]);
+  }
+
+  return matched;
+}
+
+/**
  * Match a route geometry against a set of surface-tagged ways.
  * Returns one surface category per coordinate segment (length - 1), or null
  * when there are no usable ways. Pure: no network.
@@ -159,69 +202,9 @@ function findClosestWay(lon, lat, index) {
  * @returns {string[]|null}
  */
 export function matchRouteSurfaces(coordinates, ways) {
-  if (!coordinates || coordinates.length < 2 || !Array.isArray(ways) || ways.length === 0) return null;
-
-  const cellSize = 0.001; // ~111m cells — good granularity for cycling routes
-  const index = buildSpatialIndex(ways, cellSize);
-  if (index.wayMap.size === 0) return null;
-
-  // Sample route points for matching to keep it fast
-  // For routes with many coordinates, sample every Nth point
-  const maxMatchPoints = 500;
-  const matchStep = Math.max(1, Math.ceil(coordinates.length / maxMatchPoints));
-
-  // Match sampled points to nearest way
-  const sampledSurfaces = [];
-  const sampledIndices = [];
-  for (let i = 0; i < coordinates.length - 1; i += matchStep) {
-    const nextI = Math.min(i + 1, coordinates.length - 1);
-    const midLon = (coordinates[i][0] + coordinates[nextI][0]) / 2;
-    const midLat = (coordinates[i][1] + coordinates[nextI][1]) / 2;
-
-    const closest = findClosestWay(midLon, midLat, index);
-    const surface = closest?.tags?.surface ? classifySurface(closest.tags.surface) : 'unknown';
-    sampledSurfaces.push(surface);
-    sampledIndices.push(i);
-  }
-
-  // Interpolate: fill in all coordinate segments from sampled results
-  const surfaceSegments = [];
-  let sampleIdx = 0;
-  for (let i = 0; i < coordinates.length - 1; i++) {
-    // Advance to the closest sample
-    while (sampleIdx < sampledIndices.length - 1 && sampledIndices[sampleIdx + 1] <= i) {
-      sampleIdx++;
-    }
-    surfaceSegments.push(sampledSurfaces[sampleIdx]);
-  }
-
-  return surfaceSegments;
-}
-
-async function fetchOverpassWays(query) {
-  let lastError = null;
-  for (const server of OVERPASS_SERVERS) {
-    try {
-      const resp = await fetch(server, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-        body: `data=${encodeURIComponent(query)}`,
-        signal: AbortSignal.timeout(OVERPASS_TIMEOUT_MS),
-      });
-      if (!resp.ok) {
-        console.warn(`Overpass API error from ${server}: ${resp.status}`);
-        lastError = new Error(`Overpass ${resp.status}`);
-        continue;
-      }
-      const data = await resp.json();
-      return Array.isArray(data?.elements) ? data.elements : [];
-    } catch (err) {
-      console.warn(`Overpass request to ${server} failed:`, err?.message ?? err);
-      lastError = err;
-    }
-  }
-  if (lastError) throw lastError;
-  return [];
+  const matched = matchRouteWays(coordinates, ways, { requireTag: 'surface' });
+  if (!matched) return null;
+  return matched.map((way) => (way?.tags?.surface ? classifySurface(way.tags.surface) : 'unknown'));
 }
 
 /**
@@ -256,7 +239,7 @@ export async function fetchRouteSurfaceData(coordinates, options = {}) {
     // docs/route-quality-brainstorm.md — until then they read as 'unknown'.
     const query = `[out:json][timeout:15];(way["highway"]["surface"](${bbox}););out geom;`;
 
-    const elements = await fetchOverpassWays(query);
+    const elements = await fetchOverpassElements(query);
     if (!elements.length) return null;
 
     return matchRouteSurfaces(coordinates, elements);
@@ -267,44 +250,41 @@ export async function fetchRouteSurfaceData(coordinates, options = {}) {
 }
 
 /**
- * Create a GeoJSON FeatureCollection for surface-colored route segments.
- * Groups consecutive segments with the same surface type.
+ * Group consecutive coordinate segments with the same value into LineString
+ * features. `propsFor(value)` supplies each feature's properties (color,
+ * label, …). Shared by the surface and traffic-stress overlays.
+ *
+ * @param {ReadonlyArray<ReadonlyArray<number>>} coordinates
+ * @param {ReadonlyArray<any>} values - one per coordinate segment
+ * @param {(value: any) => Record<string, any>} propsFor
  */
-export function createSurfaceRoute(coordinates, surfaceSegments) {
-  if (!coordinates || !surfaceSegments || surfaceSegments.length < 1) return null;
+export function groupSegmentsToFeatures(coordinates, values, propsFor) {
+  if (!coordinates || !values || values.length < 1) return null;
 
   const features = [];
   let segStart = 0;
-  let currentSurface = surfaceSegments[0];
+  let current = values[0];
 
-  for (let i = 1; i < surfaceSegments.length; i++) {
-    if (surfaceSegments[i] !== currentSurface) {
+  for (let i = 1; i < values.length; i++) {
+    if (values[i] !== current) {
       // Flush current group
       features.push({
         type: 'Feature',
-        properties: {
-          color: SURFACE_COLORS[currentSurface] || SURFACE_COLORS.unknown,
-          surface: currentSurface,
-          label: SURFACE_LABELS[currentSurface] || 'Unknown',
-        },
+        properties: propsFor(current),
         geometry: {
           type: 'LineString',
           coordinates: coordinates.slice(segStart, i + 1), // +1 for overlap continuity
         },
       });
       segStart = i;
-      currentSurface = surfaceSegments[i];
+      current = values[i];
     }
   }
 
   // Flush last group
   features.push({
     type: 'Feature',
-    properties: {
-      color: SURFACE_COLORS[currentSurface] || SURFACE_COLORS.unknown,
-      surface: currentSurface,
-      label: SURFACE_LABELS[currentSurface] || 'Unknown',
-    },
+    properties: propsFor(current),
     geometry: {
       type: 'LineString',
       coordinates: coordinates.slice(segStart),
@@ -312,6 +292,18 @@ export function createSurfaceRoute(coordinates, surfaceSegments) {
   });
 
   return { type: 'FeatureCollection', features };
+}
+
+/**
+ * Create a GeoJSON FeatureCollection for surface-colored route segments.
+ * Groups consecutive segments with the same surface type.
+ */
+export function createSurfaceRoute(coordinates, surfaceSegments) {
+  return groupSegmentsToFeatures(coordinates, surfaceSegments, (surface) => ({
+    color: SURFACE_COLORS[surface] || SURFACE_COLORS.unknown,
+    surface,
+    label: SURFACE_LABELS[surface] || 'Unknown',
+  }));
 }
 
 /**

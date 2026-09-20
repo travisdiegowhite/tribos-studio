@@ -139,3 +139,20 @@ describe('useGenerateForm target mode', () => {
     expect(result.current.targetMode).toBe('time');
   });
 });
+
+describe('useGenerateForm road comfort', () => {
+  it('submits the persisted traffic tolerance with the generation input', async () => {
+    const generate = vi.fn();
+    const gen = { ...generation, generate } as unknown as UseAIGenerationReturn;
+    const { result } = renderHook(() =>
+      useGenerateForm({ generation: gen, defaultStart: [-105, 40] }),
+    );
+    expect(result.current.roadComfort).toBe('medium');
+    act(() => result.current.setRoadComfort('low'));
+    expect(result.current.roadComfort).toBe('low');
+    await act(async () => {
+      await result.current.onSubmit();
+    });
+    expect(generate).toHaveBeenCalledWith(expect.objectContaining({ traffic_tolerance: 'low' }));
+  });
+});

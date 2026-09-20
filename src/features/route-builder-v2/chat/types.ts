@@ -20,6 +20,8 @@ export interface RouteOptionSummary {
   gravel_actual_pct?: number | null;
   /** Requested gravel share (%), when the rider stated one. */
   gravel_target_pct?: number | null;
+  /** Share (%) of the mapped route on calm/comfortable roads (LTS 1–2). */
+  quiet_pct?: number | null;
   /** One-line "why this route" from the planner. */
   rationale?: string;
 }

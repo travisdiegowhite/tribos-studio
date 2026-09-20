@@ -18,10 +18,12 @@ import {
   GOAL_OPTIONS,
   SURFACE_OPTIONS,
   SHAPE_OPTIONS,
+  ROAD_COMFORT_OPTIONS,
   TARGET_MODE_OPTIONS,
   type Goal,
   type Surface,
   type Shape,
+  type RoadComfort,
   type TargetMode,
   type GenerateFormSeed,
 } from './useGenerateForm';
@@ -96,6 +98,8 @@ export const FormPanel = forwardRef<FormPanelHandle, FormPanelProps>(function Fo
     setDuration,
     surface,
     setSurface,
+    roadComfort,
+    setRoadComfort,
     shape,
     setShape,
     startLocation,
@@ -281,6 +285,22 @@ export const FormPanel = forwardRef<FormPanelHandle, FormPanelProps>(function Fo
               disabled={generation.isGenerating}
               styles={{ input: { borderRadius: 0 } }}
               allowDeselect={false}
+            />
+          </Box>
+          <Box style={{ marginTop: 10 }}>
+            <Text style={labelStyle}>Road comfort</Text>
+            <SegmentedControl
+              data-testid="rb2-road-comfort"
+              data={ROAD_COMFORT_OPTIONS}
+              value={roadComfort}
+              onChange={(v) => {
+                setRoadComfort(v as RoadComfort);
+                trackRb2('form_field_changed', { field: 'road_comfort' });
+              }}
+              disabled={generation.isGenerating}
+              fullWidth
+              size="xs"
+              radius={0}
             />
           </Box>
           <Box style={{ marginTop: 10 }}>

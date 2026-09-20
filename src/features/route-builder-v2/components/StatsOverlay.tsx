@@ -14,6 +14,7 @@ import {
   SURFACE_LABELS,
   computeSurfaceDistribution,
 } from '../../../utils/surfaceOverlay.js';
+import type { StressSummary } from '../../../utils/trafficStress';
 
 export interface RouteStats {
   distance_km: number;
@@ -39,6 +40,8 @@ export interface StatsOverlayProps {
   surfaceSegments?: string[] | null;
   /** Geometry the surface segments span; enables distance-weighted shares. */
   surfaceCoordinates?: ReadonlyArray<ReadonlyArray<number>> | null;
+  /** Traffic-stress roll-up (from TrafficStressLayer); shows a quiet-roads line when present. */
+  stressSummary?: StressSummary | null;
   /** Quick-save action; renders a Save affordance next to Clear when set. */
   onSave?: () => void;
   saveState?: 'saved' | 'unsaved' | 'saving';
@@ -104,6 +107,7 @@ export function StatsOverlay({
   isImperial = false,
   surfaceSegments,
   surfaceCoordinates = null,
+  stressSummary = null,
   onSave,
   saveState = 'unsaved',
   targetStatus = null,
@@ -264,6 +268,23 @@ export function StatsOverlay({
           </UnstyledButton>
         </Box>
       )}
+      {stressSummary && stressSummary.knownKm > 0 && (
+        <Text
+          data-testid="rb2-stats-stress"
+          style={{
+            fontFamily: RB2_FONT.mono,
+            fontSize: 10,
+            letterSpacing: '0.04em',
+            color: RB2.textSecondary,
+            marginTop: 8,
+          }}
+        >
+          Quiet roads {stressSummary.quietPct}%
+          {stressSummary.lts4Km > 0
+            ? ` · ${formatStressKm(stressSummary.lts4Km, isImperial)} high stress`
+            : ''}
+        </Text>
+      )}
       {surfaces.length > 0 && (
         <Box
           data-testid="rb2-stats-surface"
@@ -289,6 +310,11 @@ export function StatsOverlay({
       )}
     </Box>
   );
+}
+
+function formatStressKm(km: number, isImperial: boolean): string {
+  const value = isImperial ? (convertDistance.kmToMiles(km) as number) : km;
+  return `${value < 10 ? value.toFixed(1) : Math.round(value)} ${isImperial ? 'mi' : 'km'}`;
 }
 
 function StatCell({ label, value }: { label: string; value: string }) {

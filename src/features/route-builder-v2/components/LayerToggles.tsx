@@ -1,7 +1,8 @@
 /**
  * LayerToggles — Route Builder 2.0 map layer toggle panel.
  *
- * Five toggles: surface, gradient, POI, bike infra, familiar segments.
+ * Toggles: surface, traffic stress, gradient, wind, POI, bike infra, familiar
+ * segments (and intervals when a workout is attached).
  * POI dispatches through useRouteAnalysis.togglePOILayer. The other
  * four are local UI state owned by the page (passed in as props).
  */
@@ -15,6 +16,7 @@ import type { POILayer } from '../../../hooks/route-builder';
 
 export interface LayerVisibilityState {
   surface: boolean;
+  stress: boolean;
   gradient: boolean;
   wind: boolean;
   poi: boolean;
@@ -110,6 +112,18 @@ export function LayerToggles({
             checked={visibility.surface}
             onChange={(v) => toggle('surface', v)}
           />
+          <Tooltip
+            label="How stressful each road is for cycling, from OSM speed, lane and bike-lane data"
+            withinPortal
+          >
+            <Box>
+              <ToggleRow
+                label="Traffic Stress"
+                checked={visibility.stress}
+                onChange={(v) => toggle('stress', v)}
+              />
+            </Box>
+          </Tooltip>
           <ToggleRow
             label="Gradient"
             checked={visibility.gradient}

@@ -1,8 +1,9 @@
 # Route quality brainstorm — bike lanes, shoulders, low traffic, real gravel
 
-_2026-09-19. Status: brainstorm + Phase 1 shipped on this branch. Decisions taken:
-**self-host BRouter** as the routing lever (Track B), and start with the Phase 1
-quick fixes before the keystone LTS work._
+_2026-09-19. Status: brainstorm + Phase 1 and Phase 2 shipped on this branch.
+Decisions taken: **self-host BRouter** as the routing lever (Track B); Phase 1
+quick fixes first; then the LTS keystone (Phase 2) with Valhalla alternates
+deferred to Phase 2b._
 
 ## Why
 
@@ -46,9 +47,10 @@ module · **[big]** new infra or an external dependency.
    present. Request `alternates` so there are candidates to re-rank (D17).
 3. **Fix the costing plumbing** [quick] — **shipped (Phase 1)**: `'bike'` profile
    mapping in manual snap and generation; manual snap now reaches the
-   `commuting` costing. Still open: manual snap sends no training goal or
-   preferences (needs B10's persisted preferences to do properly); BRouter
-   tolerance → profile mapping until B7.
+   `commuting` costing. Phase 2 closed the rest: manual snap now sends the
+   rider's traffic tolerance, and BRouter maps `low` tolerance to its
+   `safety` profile until B7 gives per-tag control. Training goal is still
+   not sent on manual snap.
 4. **Wire the real `scoreRouteInfrastructure`** [quick] — **shipped (Phase 1)**.
    Candidates are scored by Overpass bike-infra overlap (protected cycleway
    1.0 → sharrow 0.2); the keyword heuristic `infrastructureValidator.js` is
@@ -58,7 +60,15 @@ module · **[big]** new infra or an external dependency.
 ## Track B — make the router itself prefer bike lanes, shoulders, quiet roads
 
 5. **Level of Traffic Stress (LTS) per segment from OSM tags** [medium] — *the
-   keystone*. Published methodology (Mekuria / Furth / Nixon; used by
+   keystone* — **shipped (Phase 2)**. `src/utils/trafficStress.ts` (rule
+   ladder below), `src/utils/roadAttributes.ts` (corridor fetch: BRouter
+   `taggedWays` when they cover the route, else a cached Overpass `around:`
+   query via `overpassClient.ts`), a **Traffic Stress** map layer + legend
+   (`TrafficStressLayer`, `TrafficStressLegend`) and a "Quiet roads NN%" line
+   in the stats card. Stress is a 0.15-weight term in the chat candidate
+   ranking (`naturalLanguageRouteCandidates`) and replaces the regex-derived
+   `trafficScore` in `aiRouteGenerator.getTrafficAvoidanceScore`. Original
+   proposal: Published methodology (Mekuria / Furth / Nixon; used by
    PeopleForBikes and many DOTs). Inputs are tags we can get from Overpass or
    BRouter WayTags: `highway`, `maxspeed`, `lanes`, `cycleway*`, `shoulder`,
    `shoulder:width`, `parking:*`. Output LTS 1–4 per segment (1 = child-safe,
@@ -97,7 +107,15 @@ module · **[big]** new infra or an external dependency.
    6:30 on a Sunday is fine; at 5 pm Tuesday it isn't. The coach knows the
    session slot; shift the LTS cap by ride time. Coach-differentiated and free
    once LTS exists.
-10. **Persist safety preferences** [medium]. Migration `user_routing_preferences`
+10. **Persist safety preferences** [medium] — **shipped (Phase 2)** as
+    "Road comfort": migration 125 adds `traffic_tolerance` and
+    `bike_infra_preference` to `user_road_preferences`; `useRoadComfort`
+    mirrors it into the route-builder store; the Build form (`FormPanel`,
+    `GenerateBar`) and the Settings card expose Quiet / Balanced / Direct;
+    the value reaches Valhalla costing, the BRouter profile choice
+    (`low → safety`), manual drag-snap, chat generation and the gravel
+    builder. Manual snap now sends preferences (closing A3's remaining gap).
+    Original proposal: Migration `user_routing_preferences`
     (`traffic_tolerance`, `bike_infra_preference`, `shoulder_required`,
     `max_lts`, `gravel_target_pct`, `avoided_way_ids[]`), one "Road comfort"
     control in RB2's Build tab, feeding Valhalla `use_roads`, BRouter profile
@@ -152,7 +170,11 @@ module · **[big]** new infra or an external dependency.
 
 ## Track D — corridor intelligence and re-ranking
 
-17. **Re-rank alternates by composite quality** [quick, after 5 and 11].
+17. **Re-rank alternates by composite quality** [quick, after 5 and 11] —
+    **partly shipped (Phase 2)**: the existing 3-candidate chat ranking and the
+    legacy candidate ranker now include measured stress. Still open (Phase
+    2b): requesting Valhalla `alternates` / BRouter `alternativeidx` so there
+    are more candidates to rank. Original proposal:
     Valhalla `alternates` plus BRouter `alternativeidx` 0–3; score `{ km at
     LTS ≥ 3, infra coverage, surface match to target, familiarity }` by rider
     weights. The cheapest "choose the best roads" and it gives before/after
@@ -168,12 +190,32 @@ module · **[big]** new infra or an external dependency.
     `avoided_way_ids`; `exclude_polygons` on Valhalla, `×0` in the BRouter
     profile.
 
+## LTS rule ladder (as implemented in `trafficStress.ts`)
+
+Speed is `maxspeed` (mph converted) or a per-class assumption (residential 40,
+unclassified/tertiary 50, secondary 60, primary 70 km/h); lanes likewise
+(residential 2, primary 4). Bands carry ~1 km/h slack so 25 / 30 / 40 mph land
+where a planner expects.
+
+| Situation | LTS |
+|---|---|
+| `cycleway`, `path`, `track`, `footway`, `pedestrian`, or `cycleway*=track/separate` | 1 |
+| `motorway` | 4 |
+| Bike lane / paved shoulder: ≤ 25 mph & ≤ 2 lanes → 1; ≤ 30 mph → 2; ≤ 40 mph → 3; else 4. Shoulder is at least 2; a sharrow is one worse than a lane; adjacent parking +1 | 1–4 |
+| No facility: `living_street`/`service` or ≤ 30 km/h → 1; residential/unclassified ≤ 25 mph & ≤ 2 lanes → 2; ≤ 30 mph & ≤ 2 lanes → 3; `primary`/`trunk`, > 30 mph or ≥ 4 lanes → 4; parking +1 | 1–4 |
+| No `highway` tag | 0 (unknown, excluded from the roll-up) |
+
+Roll-up per route (`summarizeStress`): distance-weighted km per level,
+`quietPct` (LTS 1–2 share of known km), `stressScore` (mean of (LTS−1)/3),
+`lts4Km`, `maxContinuousLts4Km`, `unknownPct`.
+
 ## Sequencing
 
-1. **Phase 1** — this branch: A1, A3 (profile mapping), A4, C11.
-2. **Phase 2** — keystone: B5 LTS + cached corridor attributes, D17 re-rank,
-   B10 preferences + RB2 "Road comfort" control, an LTS map layer beside
-   Surface so riders can see the router's reasoning.
+1. **Phase 1** — shipped: A1, A3 (profile mapping), A4, C11.
+2. **Phase 2** — shipped: B5 LTS + corridor attributes, the Traffic Stress
+   layer, stress in ranking (D17-lite), B10 "Road comfort" preference.
+   **Phase 2b** (next): Valhalla `alternates` + BRouter `alternativeidx`
+   re-ranking.
 3. **Phase 3** — the router obeys: B7 self-hosted BRouter + Tribos profiles, B6
    `exclude_polygons` repair, D20 avoid roads, B9 time-of-day.
 4. **Phase 4** — gravel intelligence: C12, C13, C15, C16; C14 only once C13 has

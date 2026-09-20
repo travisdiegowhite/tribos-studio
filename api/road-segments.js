@@ -400,6 +400,10 @@ async function getSegmentStats(req, res, authUser) {
   });
 }
 
+// Allowed values for the "Road comfort" fields (migration 125).
+const TRAFFIC_TOLERANCES = new Set(['low', 'medium', 'high']);
+const BIKE_INFRA_PREFERENCES = new Set(['flexible', 'preferred', 'required']);
+
 /**
  * Get user's road preference settings
  */
@@ -415,14 +419,22 @@ async function getPreferences(req, res, authUser) {
     return res.status(500).json({ error: 'Failed to fetch preferences' });
   }
 
-  // Return defaults if no preferences set
-  const preferences = data || {
+  // Return defaults if no preferences set. The two "Road comfort" fields
+  // (migration 125) are also defaulted when the row predates the migration.
+  const preferences = {
     familiarity_strength: 50,
     explore_mode: false,
     min_rides_for_familiar: 2,
     recency_weight: 30,
-    familiarity_decay_days: 180
+    familiarity_decay_days: 180,
+    traffic_tolerance: 'medium',
+    bike_infra_preference: 'preferred',
+    ...(data || {}),
   };
+  if (!TRAFFIC_TOLERANCES.has(preferences.traffic_tolerance)) preferences.traffic_tolerance = 'medium';
+  if (!BIKE_INFRA_PREFERENCES.has(preferences.bike_infra_preference)) {
+    preferences.bike_infra_preference = 'preferred';
+  }
 
   return res.json({
     success: true,
@@ -439,7 +451,9 @@ async function updatePreferences(req, res, authUser) {
     explore_mode,
     min_rides_for_familiar,
     recency_weight,
-    familiarity_decay_days
+    familiarity_decay_days,
+    traffic_tolerance,
+    bike_infra_preference
   } = req.body;
 
   const updates = {};
@@ -448,6 +462,18 @@ async function updatePreferences(req, res, authUser) {
   if (min_rides_for_familiar !== undefined) updates.min_rides_for_familiar = min_rides_for_familiar;
   if (recency_weight !== undefined) updates.recency_weight = recency_weight;
   if (familiarity_decay_days !== undefined) updates.familiarity_decay_days = familiarity_decay_days;
+  if (traffic_tolerance !== undefined) {
+    if (!TRAFFIC_TOLERANCES.has(traffic_tolerance)) {
+      return res.status(400).json({ error: 'traffic_tolerance must be low, medium or high' });
+    }
+    updates.traffic_tolerance = traffic_tolerance;
+  }
+  if (bike_infra_preference !== undefined) {
+    if (!BIKE_INFRA_PREFERENCES.has(bike_infra_preference)) {
+      return res.status(400).json({ error: 'bike_infra_preference must be flexible, preferred or required' });
+    }
+    updates.bike_infra_preference = bike_infra_preference;
+  }
 
   if (Object.keys(updates).length === 0) {
     return res.status(400).json({ error: 'No preference updates provided' });
@@ -465,6 +491,13 @@ async function updatePreferences(req, res, authUser) {
 
   if (error) {
     console.error('Error updating preferences:', error);
+    // Migration 125 not applied yet: Postgres 42703 (undefined_column).
+    if (error.code === '42703' || /column .* does not exist/i.test(error.message || '')) {
+      return res.status(409).json({
+        error: 'Road comfort preferences need database migration 125',
+        needsMigration: true
+      });
+    }
     return res.status(500).json({ error: 'Failed to update preferences' });
   }
 

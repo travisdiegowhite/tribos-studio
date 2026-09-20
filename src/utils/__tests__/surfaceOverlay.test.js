@@ -2,6 +2,8 @@ import { describe, it, expect } from 'vitest';
 import {
   classifySurface,
   matchRouteSurfaces,
+  matchRouteWays,
+  groupSegmentsToFeatures,
   computeSurfaceDistribution,
   SURFACE_SNAP_RADIUS_M,
 } from '../surfaceOverlay.js';
@@ -68,6 +70,32 @@ describe('matchRouteSurfaces', () => {
     expect(matchRouteSurfaces(ROUTE, [untagged])).toBeNull();
     expect(matchRouteSurfaces(ROUTE, [])).toBeNull();
     expect(matchRouteSurfaces([ROUTE[0]], [overpassWay(1, 0, 10, 'asphalt')])).toBeNull();
+  });
+});
+
+describe('matchRouteWays', () => {
+  it('returns the matched way per segment, including untagged ways', () => {
+    const untagged = { type: 'way', id: 7, tags: { highway: 'residential' }, geometry: overpassWay(7, 0, 5, 'x').geometry };
+    const tagged = overpassWay(8, 5, 10, 'gravel');
+    const matched = matchRouteWays(ROUTE, [untagged, tagged]);
+    expect(matched).toHaveLength(10);
+    expect(matched.slice(0, 5).every((w) => w?.id === 7)).toBe(true);
+    expect(matched.slice(5).every((w) => w?.id === 8)).toBe(true);
+  });
+
+  it('honours requireTag by ignoring ways without it', () => {
+    const untagged = { type: 'way', id: 7, tags: { highway: 'residential' }, geometry: overpassWay(7, 0, 10, 'x').geometry };
+    expect(matchRouteWays(ROUTE, [untagged], { requireTag: 'surface' })).toBeNull();
+    expect(matchRouteWays(ROUTE, [untagged])).not.toBeNull();
+  });
+});
+
+describe('groupSegmentsToFeatures', () => {
+  it('groups runs of equal values into overlapping LineStrings', () => {
+    const fc = groupSegmentsToFeatures(ROUTE.slice(0, 6), ['a', 'a', 'b', 'b', 'a'], (v) => ({ v }));
+    expect(fc.features.map((f) => f.properties.v)).toEqual(['a', 'b', 'a']);
+    expect(fc.features[0].geometry.coordinates).toHaveLength(3);
+    expect(fc.features[1].geometry.coordinates[0]).toEqual(ROUTE[2]);
   });
 });
 

@@ -95,6 +95,8 @@ export interface BuildGravelParams {
   gravelTargetPct: number;
   goal?: string;
   count?: number;
+  /** Router preferences (traffic tolerance etc.), forwarded to the smart router. */
+  preferences?: Record<string, unknown> | null;
 }
 
 // Tuning constants.
@@ -433,7 +435,14 @@ export async function buildGravelLoopCandidates(
   params: BuildGravelParams,
 ): Promise<GravelLoopRoute[]> {
   assertCoordinate(start, 'buildGravelLoopCandidates.start');
-  const { targetDistanceKm, bearingDeg, gravelTargetPct, goal = 'endurance', count = 3 } = params;
+  const {
+    targetDistanceKm,
+    bearingDeg,
+    gravelTargetPct,
+    goal = 'endurance',
+    count = 3,
+    preferences = null,
+  } = params;
 
   const radiusKm = Math.min(25, Math.max(3, (targetDistanceKm / (2 * Math.PI)) * 1.3));
   const ways = await findGravelWays(start, bearingDeg, radiusKm);
@@ -473,6 +482,7 @@ export async function buildGravelLoopCandidates(
       route = await getSmartCyclingRoute(waypoints, {
         profile: 'gravel',
         trainingGoal: goal,
+        preferences,
         mapboxToken,
       });
     } catch {

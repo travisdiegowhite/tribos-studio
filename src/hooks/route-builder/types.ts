@@ -115,6 +115,8 @@ export interface GenerationFormInput {
   route_profile?: RoutingProfile;
   route_shape?: RouteShape;
   surface_mix?: SurfaceMix;
+  /** "Road comfort": low = quiet roads, medium = balanced, high = direct. */
+  traffic_tolerance?: 'low' | 'medium' | 'high';
   like_ride_id?: string;
 }
 

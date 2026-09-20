@@ -32,10 +32,12 @@ import {
   GOAL_OPTIONS,
   SURFACE_OPTIONS,
   SHAPE_OPTIONS,
+  ROAD_COMFORT_OPTIONS,
   TARGET_MODE_OPTIONS,
   type Goal,
   type Surface,
   type Shape,
+  type RoadComfort,
   type TargetMode,
   type GenerateFormSeed,
 } from './useGenerateForm';
@@ -219,6 +221,18 @@ export function GenerateBar({
                 data={SURFACE_OPTIONS}
                 value={f.surface}
                 onChange={(v) => v && f.setSurface(v as Surface)}
+                disabled={generation.isGenerating}
+                styles={inputStyles}
+                allowDeselect={false}
+                comboboxProps={{ withinPortal: true }}
+              />
+            </Box>
+            <Box style={{ flex: 1 }}>
+              <Text style={labelStyle}>Road comfort</Text>
+              <Select
+                data={ROAD_COMFORT_OPTIONS}
+                value={f.roadComfort}
+                onChange={(v) => v && f.setRoadComfort(v as RoadComfort)}
                 disabled={generation.isGenerating}
                 styles={inputStyles}
                 allowDeselect={false}

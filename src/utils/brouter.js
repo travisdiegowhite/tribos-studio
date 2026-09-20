@@ -163,12 +163,19 @@ export async function validateBRouterService() {
 }
 
 /**
- * Select appropriate BRouter profile based on training goal and surface preference
+ * Select appropriate BRouter profile based on training goal, surface
+ * preference and the rider's traffic tolerance ("Road comfort"). A rider who
+ * asked for quiet roads gets BRouter's `safety` profile regardless of goal —
+ * BRouter has no per-tag costing knobs, so the profile IS the preference.
  */
-export function selectBRouterProfile(trainingGoal, surfacePreference = null) {
+export function selectBRouterProfile(trainingGoal, surfacePreference = null, trafficTolerance = null) {
   // If explicitly requesting gravel/unpaved
   if (surfacePreference === 'gravel') {
     return BROUTER_PROFILES.GRAVEL;
+  }
+
+  if (trafficTolerance === 'low') {
+    return BROUTER_PROFILES.SAFETY;
   }
 
   // Map training goals to profiles

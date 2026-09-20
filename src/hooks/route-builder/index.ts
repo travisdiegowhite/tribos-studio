@@ -37,3 +37,4 @@ export type {
 } from './useUserLocation';
 export { useSpeedProfile, loadSpeedProfile, resetSpeedProfileCache } from './useSpeedProfile';
 export type { SpeedProfile } from './useSpeedProfile';
+export { useRoadComfort, ROAD_COMFORT_OPTIONS, isTrafficTolerance } from './useRoadComfort';
