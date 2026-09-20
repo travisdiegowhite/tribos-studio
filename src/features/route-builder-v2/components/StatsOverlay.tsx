@@ -45,6 +45,8 @@ export interface StatsOverlayProps {
    * QUIET ROADS stat; null shows a placeholder while it's being measured.
    */
   stressSummary?: StressSummary | null;
+  /** Measurement state, so "still measuring" and "couldn't measure" read differently. */
+  stressStatus?: 'idle' | 'loading' | 'ready' | 'unavailable';
   /** Click handler for the QUIET ROADS stat: colours the map by stress. */
   onToggleStress?: () => void;
   /** Whether the stress overlay is currently shown (pressed styling). */
@@ -115,6 +117,7 @@ export function StatsOverlay({
   surfaceSegments,
   surfaceCoordinates = null,
   stressSummary = null,
+  stressStatus = 'idle',
   onToggleStress,
   stressActive = false,
   onSave,
@@ -227,6 +230,7 @@ export function StatsOverlay({
         <StatCell label="Duration" value={formatDuration(stats.duration_s)} />
         <QuietRoadsCell
           summary={stressSummary}
+          status={stressStatus}
           isImperial={isImperial}
           onToggle={onToggleStress}
           active={stressActive}
@@ -330,24 +334,31 @@ export function quietRoadsColor(quietPct: number): string {
  */
 function QuietRoadsCell({
   summary,
+  status,
   isImperial,
   onToggle,
   active,
 }: {
   summary: StressSummary | null;
+  status: 'idle' | 'loading' | 'ready' | 'unavailable';
   isImperial: boolean;
   onToggle?: () => void;
   active: boolean;
 }) {
   const measured = !!summary && summary.knownKm > 0;
   const unmapped = !!summary && summary.knownKm === 0;
-  const value = measured ? `${summary!.quietPct}%` : unmapped ? 'n/a' : '—';
+  const failed = !summary && status === 'unavailable';
+  const value = measured ? `${summary!.quietPct}%` : unmapped || failed ? 'n/a' : '—';
   const color = measured ? quietRoadsColor(summary!.quietPct) : RB2.textTertiary;
   const detail = measured
     ? summary!.lts4Km > 0
       ? `${formatStressKm(summary!.lts4Km, isImperial)} high stress`
       : 'no high-stress roads'
-    : null;
+    : failed
+      ? 'road data unavailable'
+      : unmapped
+        ? 'no mapped roads'
+        : null;
 
   const body = (
     <>
@@ -397,7 +408,13 @@ function QuietRoadsCell({
   }
   return (
     <Tooltip
-      label={active ? 'Show the plain route line' : 'Color the map by traffic stress'}
+      label={
+        failed
+          ? 'Road data unavailable right now'
+          : active
+            ? 'Show the plain route line'
+            : 'Color the map by traffic stress'
+      }
       position="bottom"
       withinPortal
     >

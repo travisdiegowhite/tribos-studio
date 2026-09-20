@@ -62,8 +62,11 @@ module · **[big]** new infra or an external dependency.
 5. **Level of Traffic Stress (LTS) per segment from OSM tags** [medium] — *the
    keystone* — **shipped (Phase 2)**. `src/utils/trafficStress.ts` (rule
    ladder below), `src/utils/roadAttributes.ts` (corridor fetch: BRouter
-   `taggedWays` when they cover the route, else a cached Overpass `around:`
-   query via `overpassClient.ts`), a **Traffic Stress** map layer + legend
+   `taggedWays` when they cover the route, else a cached Overpass query via
+   `overpassClient.ts` built as a **union of per-chunk bounding boxes**: the
+   public mirrors reject `way(around:…)` polyline corridors, 406 on
+   overpass-api.de and timeouts elsewhere, which is why the first release
+   never coloured anything), a **Traffic Stress** map layer + legend
    (`TrafficStressLayer`, `TrafficStressLegend`) and a "Quiet roads NN%" line
    in the stats card. Follow-up (same branch): stress is now measured for
    **every** route by `useRouteStress` (debounced, cached) and surfaced on

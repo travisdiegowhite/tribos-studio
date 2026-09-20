@@ -25,6 +25,8 @@ export interface UseRouteStressReturn {
 }
 
 export const STRESS_DEBOUNCE_MS = 800;
+/** One automatic retry after a null result (mirror hiccup) before giving up. */
+export const STRESS_RETRY_MS = 4000;
 
 function hashGeometry(coords: ReadonlyArray<Coordinate>): string {
   if (!coords || coords.length < 2) return '';
@@ -62,30 +64,37 @@ export function useRouteStress(
     const seq = ++seqRef.current;
     setStatus('loading');
     const coords = geometry.coordinates;
-    const timer = setTimeout(() => {
-      void (async () => {
-        let next: RouteStressResult | null = null;
-        try {
-          next = await measureRouteStress(coords, { taggedWays: taggedWaysRef.current });
-        } catch {
-          next = null;
-        }
-        if (seq !== seqRef.current) return;
-        setResult(next);
-        setStatus(next ? 'ready' : 'unavailable');
-        if (next) {
-          trackRb2('stress_computed', {
-            quiet_pct: next.summary.quietPct,
-            lts4_km: next.summary.lts4Km,
-            unknown_pct: next.summary.unknownPct,
-            source: next.source,
-          });
-        }
-      })();
-    }, STRESS_DEBOUNCE_MS);
+    let retryTimer: ReturnType<typeof setTimeout> | null = null;
+
+    const attempt = async (retriesLeft: number) => {
+      let next: RouteStressResult | null = null;
+      try {
+        next = await measureRouteStress(coords, { taggedWays: taggedWaysRef.current });
+      } catch {
+        next = null;
+      }
+      if (seq !== seqRef.current) return;
+      if (!next && retriesLeft > 0) {
+        retryTimer = setTimeout(() => void attempt(retriesLeft - 1), STRESS_RETRY_MS);
+        return;
+      }
+      setResult(next);
+      setStatus(next ? 'ready' : 'unavailable');
+      if (next) {
+        trackRb2('stress_computed', {
+          quiet_pct: next.summary.quietPct,
+          lts4_km: next.summary.lts4Km,
+          unknown_pct: next.summary.unknownPct,
+          source: next.source,
+        });
+      }
+    };
+
+    const timer = setTimeout(() => void attempt(1), STRESS_DEBOUNCE_MS);
 
     return () => {
       clearTimeout(timer);
+      if (retryTimer) clearTimeout(retryTimer);
     };
   }, [geometry, key]);
 

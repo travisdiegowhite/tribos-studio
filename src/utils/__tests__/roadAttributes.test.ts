@@ -7,7 +7,7 @@ vi.mock('../overpassClient', () => ({
 
 import {
   buildCorridorQuery,
-  sampleCorridorPoints,
+  corridorBoxes,
   elementsToTaggedWays,
   fetchCorridorWays,
   analyzeRouteStress,
@@ -15,6 +15,7 @@ import {
   createStressRoute,
   clearRoadAttributesCache,
   CORRIDOR_M,
+  MAX_BOXES,
 } from '../roadAttributes';
 import type { Coordinate } from '../../types/geo';
 import type { TaggedWay } from '../wayTags';
@@ -40,27 +41,33 @@ beforeEach(() => {
   clearRoadAttributesCache();
 });
 
-describe('sampleCorridorPoints / buildCorridorQuery', () => {
-  it('keeps first and last points and thins to ~75 m spacing', () => {
-    const pts = sampleCorridorPoints(LINE);
-    expect(pts[0]).toEqual([LINE[0][0], LINE[0][1]]);
-    expect(pts[pts.length - 1]).toEqual([LINE[20][0], LINE[20][1]]);
-    // 85 m steps ≥ 75 m spacing → every vertex kept.
-    expect(pts.length).toBe(21);
+describe('corridorBoxes / buildCorridorQuery', () => {
+  it('cuts the route into ~1.5 km chunks and pads each box', () => {
+    const boxes = corridorBoxes(LINE); // ≈1.7 km → 2 boxes
+    expect(boxes.length).toBe(2);
+    const padLat = CORRIDOR_M / 111000;
+    expect(boxes[0].south).toBeCloseTo(40 - padLat, 6);
+    expect(boxes[0].north).toBeCloseTo(40 + padLat, 6);
+    expect(boxes[0].west).toBeLessThan(LINE[0][0]);
+    // The second box starts where the first ended (shared vertex).
+    expect(boxes[1].west).toBeLessThan(boxes[0].east);
   });
 
-  it('caps the sample count on very long routes', () => {
-    const long: Coordinate[] = Array.from({ length: 5000 }, (_, i) => [-105 + i * 0.001, 40]);
-    const pts = sampleCorridorPoints(long);
-    expect(pts.length).toBeLessThanOrEqual(402);
+  it('caps the number of boxes on very long routes', () => {
+    const long: Coordinate[] = Array.from({ length: 5000 }, (_, i) => [-105 + i * 0.001, 40]); // ~425 km
+    expect(corridorBoxes(long).length).toBeLessThanOrEqual(MAX_BOXES);
   });
 
-  it('emits an around: corridor query with lat,lon pairs', () => {
-    const q = buildCorridorQuery(LINE.slice(0, 3));
-    expect(q).toContain(`(around:${CORRIDOR_M},40.000000,-105.000000,`);
-    expect(q).toContain('way["highway"]');
-    expect(q).toContain('out geom;');
-    expect(q).not.toContain('bbox');
+  it('emits a union of bbox way terms with the ridden-way filter, never an around: corridor', () => {
+    const q = buildCorridorQuery(LINE);
+    expect(q.startsWith('[out:json][timeout:25];(')).toBe(true);
+    expect(q).toContain('way["highway"]["highway"!~');
+    expect(q).toContain('["footway"!~"^(sidewalk|crossing)$"]');
+    expect(q).toContain('["service"!~"^(driveway|parking_aisle)$"]');
+    expect(q).not.toContain('around');
+    expect(q.endsWith(');out geom;')).toBe(true);
+    // Two boxes → two terms.
+    expect(q.match(/way\["highway"\]/g)?.length).toBe(2);
   });
 });
 
@@ -109,6 +116,14 @@ describe('fetchCorridorWays', () => {
     fetchOverpassElements.mockResolvedValue([]);
     expect(await fetchCorridorWays(LINE)).toBeNull();
     expect(await fetchCorridorWays([LINE[0]])).toBeNull();
+  });
+
+  it('does not cache a failure, so the next call tries again', async () => {
+    fetchOverpassElements.mockRejectedValueOnce(new Error('down'));
+    expect(await fetchCorridorWays(LINE)).toBeNull();
+    fetchOverpassElements.mockResolvedValue([overpassWay(9, 0, 20, { highway: 'residential' })]);
+    expect((await fetchCorridorWays(LINE))?.source).toBe('overpass');
+    expect(fetchOverpassElements).toHaveBeenCalledTimes(2);
   });
 });
 
