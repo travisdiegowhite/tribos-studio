@@ -38,3 +38,5 @@ export type {
 export { useSpeedProfile, loadSpeedProfile, resetSpeedProfileCache } from './useSpeedProfile';
 export type { SpeedProfile } from './useSpeedProfile';
 export { useRoadComfort, ROAD_COMFORT_OPTIONS, isTrafficTolerance } from './useRoadComfort';
+export { useRouteStress, STRESS_DEBOUNCE_MS } from './useRouteStress';
+export type { UseRouteStressReturn, RouteStressStatus } from './useRouteStress';

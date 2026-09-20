@@ -65,7 +65,11 @@ module · **[big]** new infra or an external dependency.
    `taggedWays` when they cover the route, else a cached Overpass `around:`
    query via `overpassClient.ts`), a **Traffic Stress** map layer + legend
    (`TrafficStressLayer`, `TrafficStressLegend`) and a "Quiet roads NN%" line
-   in the stats card. Stress is a 0.15-weight term in the chat candidate
+   in the stats card. Follow-up (same branch): stress is now measured for
+   **every** route by `useRouteStress` (debounced, cached) and surfaced on
+   the main view as a fourth **QUIET ROADS** stat in the route card (click
+   colours the map) and a **TRAFFIC** chip in the edit toolbar, so it no
+   longer hides behind the Layers panel. Stress is a 0.15-weight term in the chat candidate
    ranking (`naturalLanguageRouteCandidates`) and replaces the regex-derived
    `trafficScore` in `aiRouteGenerator.getTrafficAvoidanceScore`. Original
    proposal: Published methodology (Mekuria / Furth / Nixon; used by
