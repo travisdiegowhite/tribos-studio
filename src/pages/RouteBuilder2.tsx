@@ -1729,6 +1729,7 @@ export default function RouteBuilder2() {
               onPoiLayerToggle={handlePoiLayerToggle}
               activePoiLayers={analysis.activeLayers}
               isMobile
+              defaultExpanded
               hasStravaConnection={false}
               hasWorkout={hasWorkout}
             />
