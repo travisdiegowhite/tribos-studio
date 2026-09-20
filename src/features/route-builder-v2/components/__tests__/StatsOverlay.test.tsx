@@ -56,6 +56,20 @@ describe('StatsOverlay', () => {
     expect(cell).toHaveTextContent('2.0 km high stress');
   });
 
+  it('shows n/a with a reason when road data could not be loaded', () => {
+    render(
+      <MantineProvider>
+        <StatsOverlay
+          stats={{ distance_km: 40, elevation_gain_m: 300, duration_s: 5400 }}
+          stressStatus="unavailable"
+        />
+      </MantineProvider>,
+    );
+    const cell = screen.getByTestId('rb2-stats-stress');
+    expect(cell).toHaveTextContent('n/a');
+    expect(cell).toHaveTextContent('road data unavailable');
+  });
+
   it('shows a placeholder while stress is unmeasured, never hiding the stat', () => {
     render(
       <MantineProvider>

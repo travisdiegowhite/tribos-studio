@@ -10,7 +10,7 @@ vi.mock('../../../features/route-builder-v2/telemetry/trackRb2', () => ({
   trackRb2: (...a: unknown[]) => trackRb2(...a),
 }));
 
-import { useRouteStress, STRESS_DEBOUNCE_MS } from '../useRouteStress';
+import { useRouteStress, STRESS_DEBOUNCE_MS, STRESS_RETRY_MS } from '../useRouteStress';
 import type { Coordinate } from '../../../types/geo';
 
 const result = {
@@ -77,13 +77,30 @@ describe('useRouteStress', () => {
     expect(measureRouteStress).toHaveBeenCalledWith(geomB.coordinates, { taggedWays: null });
   });
 
-  it('reports unavailable when nothing could be measured', async () => {
+  it('retries once after a null result, then reports unavailable', async () => {
     measureRouteStress.mockResolvedValue(null);
     const { result: r } = renderHook(() => useRouteStress(geomA));
     await flush();
+    expect(r.current.status).toBe('loading');
+    expect(measureRouteStress).toHaveBeenCalledTimes(1);
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(STRESS_RETRY_MS + 10);
+    });
+    expect(measureRouteStress).toHaveBeenCalledTimes(2);
     expect(r.current.status).toBe('unavailable');
     expect(r.current.result).toBeNull();
     expect(trackRb2).not.toHaveBeenCalled();
+  });
+
+  it('recovers when the retry succeeds', async () => {
+    measureRouteStress.mockResolvedValueOnce(null).mockResolvedValueOnce(result);
+    const { result: r } = renderHook(() => useRouteStress(geomA));
+    await flush();
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(STRESS_RETRY_MS + 10);
+    });
+    expect(r.current.status).toBe('ready');
+    expect(r.current.result).toEqual(result);
   });
 
   it('clears when the geometry goes away', async () => {

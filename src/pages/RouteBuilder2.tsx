@@ -1670,6 +1670,7 @@ export default function RouteBuilder2() {
         surfaceSegments={surfaceSegments}
         surfaceCoordinates={geometryForLayers?.coordinates ?? null}
         stressSummary={stressResult?.summary ?? null}
+        stressStatus={stress.status}
         onToggleStress={handleToggleStress}
         stressActive={visibility.stress}
         onSave={() => void handleQuickSave()}

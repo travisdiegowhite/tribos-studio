@@ -4,12 +4,17 @@
  * Two sources, cheapest first:
  *   1. BRouter `taggedWays` (wayTags.ts) when the router already told us the
  *      way tags for this geometry — free, no network.
- *   2. Overpass, corridor query: every `highway` way within CORRIDOR_M of a
- *      sampled polyline of the route (`around:` with a lat,lon list). Far
- *      smaller than a bounding-box fetch on a long loop, and it returns
+ *   2. Overpass, corridor query: the route is cut into ~1.5 km chunks and
+ *      each chunk's bounding box (padded by CORRIDOR_M) becomes one term of
+ *      a single union query. Bounding-box filters are index-backed and fast
+ *      on every public mirror. The obvious alternative, `way(around:…)`
+ *      with the route as a polyline, is NOT usable: overpass-api.de answers
+ *      it with 406 Not Acceptable (even for a single point) and the other
+ *      mirrors time out computing it over the global way set. It returns
  *      untagged roads too, which is what traffic stress needs.
  *
- * Results are cached by quantized geometry (LRU, fail-soft null), mirroring
+ * Successful results are cached by quantized geometry (LRU; failures are
+ * not cached so a mirror hiccup can be retried), mirroring
  * surfaceMeasurement.ts. Matching a geometry against the ways reuses
  * surfaceOverlay's spatial grid + edge-distance snap (`matchRouteWays`).
  */
@@ -29,17 +34,23 @@ import {
 } from './trafficStress';
 import type { Coordinate } from '../types/geo';
 
-/** Ways within this many metres of the route are fetched. */
-export const CORRIDOR_M = 25;
-/** Sample the route at roughly this spacing for the Overpass `around` list. */
-const SAMPLE_SPACING_M = 75;
-/** Hard cap on sampled points so the query body stays small (~10 KB). */
-const MAX_SAMPLE_POINTS = 400;
+/** Each chunk's bounding box is padded by this many metres. */
+export const CORRIDOR_M = 40;
+/** Route length per bounding box; longer routes scale this up to stay under MAX_BOXES. */
+export const CHUNK_M = 1500;
+/** Hard cap on boxes per query so the request stays small and fast. */
+export const MAX_BOXES = 80;
 /** BRouter tags are used alone when they cover at least this share of the route. */
 const TAGGED_WAYS_MIN_COVERAGE = 0.9;
 const CACHE_MAX_SIZE = 30;
 
-const EXCLUDED_HIGHWAYS = '^(proposed|construction|abandoned|razed|corridor|elevator|platform|bus_stop)$';
+// Ways that are never ridden and only inflate the payload: unbuilt roads,
+// steps, sidewalks/crossings, driveways and parking aisles.
+const WAY_FILTER =
+  '["highway"]' +
+  '["highway"!~"^(proposed|construction|abandoned|razed|corridor|elevator|platform|bus_stop|steps)$"]' +
+  '["service"!~"^(driveway|parking_aisle)$"]' +
+  '["footway"!~"^(sidewalk|crossing)$"]';
 
 export type RoadAttributeSource = 'brouter' | 'overpass';
 
@@ -59,9 +70,9 @@ export interface FetchCorridorOptions {
   taggedWays?: ReadonlyArray<TaggedWay> | null;
 }
 
-const cache = new Map<string, CorridorWays | null>();
+const cache = new Map<string, CorridorWays>();
 
-function cacheGet(key: string): CorridorWays | null | undefined {
+function cacheGet(key: string): CorridorWays | undefined {
   if (!cache.has(key)) return undefined;
   const entry = cache.get(key)!;
   cache.delete(key);
@@ -69,7 +80,7 @@ function cacheGet(key: string): CorridorWays | null | undefined {
   return entry;
 }
 
-function cacheSet(key: string, value: CorridorWays | null): void {
+function cacheSet(key: string, value: CorridorWays): void {
   if (cache.has(key)) {
     cache.delete(key);
   } else if (cache.size >= CACHE_MAX_SIZE) {
@@ -102,35 +113,65 @@ export function polylineLengthM(coordinates: ReadonlyArray<ReadonlyArray<number>
   return total;
 }
 
+export interface CorridorBox {
+  south: number;
+  west: number;
+  north: number;
+  east: number;
+}
+
 /**
- * Thin the route to points ~SAMPLE_SPACING_M apart (always keeping the first
- * and last), capped at MAX_SAMPLE_POINTS. Exported for tests.
+ * Cut the route into chunks of ~CHUNK_M (scaled up so a very long route
+ * still fits MAX_BOXES) and return each chunk's bounding box padded by
+ * CORRIDOR_M. Exported for tests.
  */
-export function sampleCorridorPoints(
-  coordinates: ReadonlyArray<ReadonlyArray<number>>,
-): Array<[number, number]> {
+export function corridorBoxes(coordinates: ReadonlyArray<ReadonlyArray<number>>): CorridorBox[] {
   if (coordinates.length === 0) return [];
   const totalM = polylineLengthM(coordinates);
-  const spacing = Math.max(SAMPLE_SPACING_M, totalM / MAX_SAMPLE_POINTS);
-  const out: Array<[number, number]> = [[coordinates[0][0], coordinates[0][1]]];
-  let sinceLast = 0;
+  const chunkM = Math.max(CHUNK_M, totalM / MAX_BOXES);
+
+  const boxes: CorridorBox[] = [];
+  let chunk: Array<ReadonlyArray<number>> = [coordinates[0]];
+  let acc = 0;
+  const flush = () => {
+    if (chunk.length === 0) return;
+    let south = Infinity, west = Infinity, north = -Infinity, east = -Infinity;
+    for (const [lng, lat] of chunk) {
+      if (lat < south) south = lat;
+      if (lat > north) north = lat;
+      if (lng < west) west = lng;
+      if (lng > east) east = lng;
+    }
+    const padLat = CORRIDOR_M / 111000;
+    const midLat = ((south + north) / 2) * (Math.PI / 180);
+    const padLng = padLat / Math.max(0.2, Math.cos(midLat));
+    boxes.push({ south: south - padLat, west: west - padLng, north: north + padLat, east: east + padLng });
+  };
   for (let i = 1; i < coordinates.length; i++) {
     const a = coordinates[i - 1];
     const b = coordinates[i];
-    sinceLast += haversineMeters(a[1], a[0], b[1], b[0]);
-    if (sinceLast >= spacing || i === coordinates.length - 1) {
-      out.push([b[0], b[1]]);
-      sinceLast = 0;
+    acc += haversineMeters(a[1], a[0], b[1], b[0]);
+    chunk.push(b);
+    if (acc >= chunkM) {
+      flush();
+      chunk = [b];
+      acc = 0;
     }
   }
-  return out;
+  if (chunk.length > 1) flush();
+  else if (boxes.length === 0) flush();
+  return boxes;
 }
 
-/** Overpass QL for every highway way within CORRIDOR_M of the sampled route. */
+/** Overpass QL: one union of per-chunk bounding-box way queries. */
 export function buildCorridorQuery(coordinates: ReadonlyArray<ReadonlyArray<number>>): string {
-  const pts = sampleCorridorPoints(coordinates);
-  const list = pts.map(([lng, lat]) => `${lat.toFixed(6)},${lng.toFixed(6)}`).join(',');
-  return `[out:json][timeout:20];way["highway"]["highway"!~"${EXCLUDED_HIGHWAYS}"](around:${CORRIDOR_M},${list});out geom;`;
+  const terms = corridorBoxes(coordinates)
+    .map(
+      (b) =>
+        `way${WAY_FILTER}(${b.south.toFixed(5)},${b.west.toFixed(5)},${b.north.toFixed(5)},${b.east.toFixed(5)});`,
+    )
+    .join('');
+  return `[out:json][timeout:25];(${terms});out geom;`;
 }
 
 /** The one Overpass `{lat, lon}` → canonical `[lng, lat]` conversion. */
@@ -174,15 +215,17 @@ export async function fetchCorridorWays(
 
   try {
     const elements = await fetchOverpassElements(buildCorridorQuery(coordinates), {
-      timeoutMs: 20000,
+      timeoutMs: 30000,
     });
     const ways = elementsToTaggedWays(elements);
-    const result: CorridorWays | null = ways.length > 0 ? { ways, source: 'overpass' } : null;
+    if (ways.length === 0) return null;
+    const result: CorridorWays = { ways, source: 'overpass' };
+    // Only successes are cached: a transient mirror failure must not pin a
+    // geometry to "unavailable" until the page reloads.
     cacheSet(key, result);
     return result;
   } catch (err) {
     console.warn('Corridor way fetch failed:', (err as Error)?.message ?? err);
-    cacheSet(key, null);
     return null;
   }
 }
