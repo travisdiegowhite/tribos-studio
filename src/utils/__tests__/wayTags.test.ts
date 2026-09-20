@@ -168,3 +168,19 @@ describe('ferryGuard still reads the same table', () => {
     expect(brouterUsesFerry(PROPERTIES)).toBe(false);
   });
 });
+
+describe('remembered tagged ways', () => {
+  it('recalls by geometry, tolerating sub-metre float noise, and forgets nothing it was not told', async () => {
+    const { rememberTaggedWays, recallTaggedWays, clearRememberedTaggedWays } = await import('../wayTags');
+    clearRememberedTaggedWays();
+    const ways = taggedWaysFromBRouterProperties(LINE, PROPERTIES);
+    rememberTaggedWays(LINE, ways);
+    const noisy = LINE.map(([lng, lat]) => [lng + 1e-7, lat - 1e-7] as [number, number]);
+    expect(recallTaggedWays(noisy)).toEqual(ways);
+    expect(recallTaggedWays(LINE.slice(0, 5))).toBeNull();
+    rememberTaggedWays(LINE.slice(0, 5), []);
+    expect(recallTaggedWays(LINE.slice(0, 5))).toBeNull();
+    clearRememberedTaggedWays();
+    expect(recallTaggedWays(LINE)).toBeNull();
+  });
+});

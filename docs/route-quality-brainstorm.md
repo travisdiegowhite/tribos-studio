@@ -61,12 +61,21 @@ module · **[big]** new infra or an external dependency.
 
 5. **Level of Traffic Stress (LTS) per segment from OSM tags** [medium] — *the
    keystone* — **shipped (Phase 2)**. `src/utils/trafficStress.ts` (rule
-   ladder below), `src/utils/roadAttributes.ts` (corridor fetch: BRouter
-   `taggedWays` when they cover the route, else a cached Overpass query via
-   `overpassClient.ts` built as a **union of per-chunk bounding boxes**: the
-   public mirrors reject `way(around:…)` polyline corridors, 406 on
-   overpass-api.de and timeouts elsewhere, which is why the first release
-   never coloured anything), a **Traffic Stress** map layer + legend
+   ladder below), `src/utils/roadAttributes.ts` (corridor fetch, three
+   tiers: BRouter `taggedWays` from the route's own build, handed in or
+   remembered by geometry in `wayTags.ts`; else a **BRouter re-ride** of
+   the line through sampled via points, `brouterTrace.ts`, ~0.5 s for a
+   45 km loop and works for Stadia-built, imported and loaded routes; else
+   a cached Overpass query via `overpassClient.ts` built as a union of
+   per-chunk bounding boxes. Overpass is last for a reason: the public
+   mirrors reject `way(around:…)` polyline corridors outright, 406 on
+   overpass-api.de, and answered even the bbox form for a 110 km route
+   with 504s and 30 s timeouts, which is why the first two releases never
+   coloured anything. Stadia's `trace_attributes` would be the cleanest
+   source of all, per-edge road class / speed limit / lanes / cycle lane
+   from the router we pay for, but map matching is gated behind a higher
+   Stadia plan on this account, see `getStadiaCuesForGeometry`), a
+   **Traffic Stress** map layer + legend
    (`TrafficStressLayer`, `TrafficStressLegend`) and a "Quiet roads NN%" line
    in the stats card. Follow-up (same branch): stress is now measured for
    **every** route by `useRouteStress` (debounced, cached) and surfaced on

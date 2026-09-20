@@ -6,7 +6,7 @@
 
 import { canonicalToBRouter } from './coordConverters';
 import { brouterUsesFerry } from './ferryGuard';
-import { taggedWaysFromBRouterProperties } from './wayTags';
+import { taggedWaysFromBRouterProperties, rememberTaggedWays } from './wayTags';
 
 // BRouter profiles for different cycling types
 export const BROUTER_PROFILES = {
@@ -94,6 +94,9 @@ export async function getBRouterDirections(coordinates, options = {}) {
     // Consumers (surface measurement, and later LTS scoring) use these instead
     // of a second Overpass round-trip. Empty when the instance omits messages.
     const taggedWays = taggedWaysFromBRouterProperties(routeCoordinates, properties);
+    // Keyed by the geometry so the traffic-stress analysis can recall them
+    // once the route has travelled through the store as a bare LineString.
+    rememberTaggedWays(routeCoordinates, taggedWays);
 
     console.log(`✅ BRouter route generated:`, {
       distance_km: `${(distance_m / 1000).toFixed(1)}km`,

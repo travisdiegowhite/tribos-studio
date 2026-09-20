@@ -4,6 +4,10 @@ const fetchOverpassElements = vi.fn();
 vi.mock('../overpassClient', () => ({
   fetchOverpassElements: (...a: unknown[]) => fetchOverpassElements(...a),
 }));
+const traceTaggedWaysWithBRouter = vi.fn();
+vi.mock('../brouterTrace', () => ({
+  traceTaggedWaysWithBRouter: (...a: unknown[]) => traceTaggedWaysWithBRouter(...a),
+}));
 
 import {
   buildCorridorQuery,
@@ -18,7 +22,7 @@ import {
   MAX_BOXES,
 } from '../roadAttributes';
 import type { Coordinate } from '../../types/geo';
-import type { TaggedWay } from '../wayTags';
+import { rememberTaggedWays, clearRememberedTaggedWays, type TaggedWay } from '../wayTags';
 
 // 21 vertices east along 40°N, ~85 m apart (≈1.7 km).
 const LINE: Coordinate[] = Array.from({ length: 21 }, (_, i) => [-105 + i * 0.001, 40]);
@@ -38,13 +42,16 @@ function taggedWay(id: number, from: number, to: number, tags: Record<string, st
 
 beforeEach(() => {
   fetchOverpassElements.mockReset();
+  traceTaggedWaysWithBRouter.mockReset();
+  traceTaggedWaysWithBRouter.mockResolvedValue(null);
   clearRoadAttributesCache();
+  clearRememberedTaggedWays();
 });
 
 describe('corridorBoxes / buildCorridorQuery', () => {
-  it('cuts the route into ~1.5 km chunks and pads each box', () => {
-    const boxes = corridorBoxes(LINE); // ≈1.7 km → 2 boxes
-    expect(boxes.length).toBe(2);
+  it('cuts the route into ~500 m chunks and pads each box', () => {
+    const boxes = corridorBoxes(LINE); // ≈1.7 km → 4 boxes
+    expect(boxes.length).toBe(4);
     const padLat = CORRIDOR_M / 111000;
     expect(boxes[0].south).toBeCloseTo(40 - padLat, 6);
     expect(boxes[0].north).toBeCloseTo(40 + padLat, 6);
@@ -66,8 +73,8 @@ describe('corridorBoxes / buildCorridorQuery', () => {
     expect(q).toContain('["service"!~"^(driveway|parking_aisle)$"]');
     expect(q).not.toContain('around');
     expect(q.endsWith(');out geom;')).toBe(true);
-    // Two boxes → two terms.
-    expect(q.match(/way\["highway"\]/g)?.length).toBe(2);
+    // Four boxes → four terms.
+    expect(q.match(/way\["highway"\]/g)?.length).toBe(4);
   });
 });
 
@@ -93,6 +100,26 @@ describe('fetchCorridorWays', () => {
     expect(result?.source).toBe('brouter');
     expect(result?.ways).toHaveLength(2);
     expect(fetchOverpassElements).not.toHaveBeenCalled();
+  });
+
+  it('recalls the tags the BRouter client remembered for this geometry', async () => {
+    rememberTaggedWays(LINE, [taggedWay(-1, 0, 20, { highway: 'residential' })]);
+    const result = await fetchCorridorWays(LINE);
+    expect(result?.source).toBe('brouter');
+    expect(result?.ways).toHaveLength(1);
+    expect(traceTaggedWaysWithBRouter).not.toHaveBeenCalled();
+    expect(fetchOverpassElements).not.toHaveBeenCalled();
+  });
+
+  it('re-rides the line with BRouter before touching Overpass', async () => {
+    traceTaggedWaysWithBRouter.mockResolvedValue([taggedWay(-1, 0, 20, { highway: 'tertiary' })]);
+    const result = await fetchCorridorWays(LINE);
+    expect(result?.source).toBe('brouter_trace');
+    expect(traceTaggedWaysWithBRouter).toHaveBeenCalledWith(LINE);
+    expect(fetchOverpassElements).not.toHaveBeenCalled();
+    // Cached like any other success.
+    await fetchCorridorWays(LINE);
+    expect(traceTaggedWaysWithBRouter).toHaveBeenCalledTimes(1);
   });
 
   it('falls through to Overpass when tagged ways cover too little', async () => {

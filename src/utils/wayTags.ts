@@ -21,6 +21,7 @@
 
 import type { Coordinate } from '../types/geo';
 import { haversineMeters } from './distanceUnits';
+import { fnv1a32, stableJson } from './stableHash';
 
 export interface WayTagRow {
   /** End node of the run, canonical [lng, lat]. */
@@ -170,4 +171,57 @@ export function taggedWaysCoverage(ways: ReadonlyArray<TaggedWay>): number {
     }
   }
   return total;
+}
+
+// ---------------------------------------------------------------------------
+// Remembered tags: the route's own build already told us its ways.
+//
+// A BRouter-built route carries its tags in the response, but the geometry
+// then travels through the store and the page as a bare LineString. Rather
+// than thread `taggedWays` through every `setRouteGeometry` caller, the
+// BRouter client remembers them here keyed by the geometry, and
+// `roadAttributes` recalls them before doing any network work.
+// ---------------------------------------------------------------------------
+
+const REMEMBERED_MAX = 30;
+const remembered = new Map<string, TaggedWay[]>();
+
+/** Stable key for a geometry, quantized to ~1 m so float noise cannot miss. */
+export function geometryKey(coordinates: ReadonlyArray<ReadonlyArray<number>>): string {
+  const quantized = coordinates.map(([lng, lat]) => [
+    Math.round(lng * 1e5) / 1e5,
+    Math.round(lat * 1e5) / 1e5,
+  ]);
+  return fnv1a32(stableJson(quantized));
+}
+
+export function rememberTaggedWays(
+  coordinates: ReadonlyArray<ReadonlyArray<number>>,
+  ways: ReadonlyArray<TaggedWay> | null | undefined,
+): void {
+  if (!Array.isArray(coordinates) || coordinates.length < 2) return;
+  if (!Array.isArray(ways) || ways.length === 0) return;
+  const key = geometryKey(coordinates);
+  if (remembered.has(key)) remembered.delete(key);
+  else if (remembered.size >= REMEMBERED_MAX) {
+    const oldest = remembered.keys().next().value;
+    if (oldest !== undefined) remembered.delete(oldest);
+  }
+  remembered.set(key, [...ways]);
+}
+
+export function recallTaggedWays(
+  coordinates: ReadonlyArray<ReadonlyArray<number>>,
+): TaggedWay[] | null {
+  if (!Array.isArray(coordinates) || coordinates.length < 2) return null;
+  const key = geometryKey(coordinates);
+  const ways = remembered.get(key);
+  if (!ways) return null;
+  remembered.delete(key);
+  remembered.set(key, ways);
+  return ways;
+}
+
+export function clearRememberedTaggedWays(): void {
+  remembered.clear();
 }
