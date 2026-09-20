@@ -94,6 +94,7 @@ import { supabase } from '../lib/supabase';
 import { SurfaceLayer } from '../features/route-builder-v2/layers/SurfaceLayer';
 import { TrafficStressLayer } from '../features/route-builder-v2/layers/TrafficStressLayer';
 import { useRouteStress } from '../hooks/route-builder/useRouteStress';
+import { useRouteSurface } from '../hooks/route-builder/useRouteSurface';
 import { GradientLayer } from '../features/route-builder-v2/layers/GradientLayer';
 import { POILayer } from '../features/route-builder-v2/layers/POILayer';
 import { BikeInfraLayer } from '../features/route-builder-v2/layers/BikeInfraLayer';
@@ -129,7 +130,7 @@ import {
   generatePlannedRouteCandidates,
   type RouteCandidate,
 } from '../utils/naturalLanguageRouteCandidates';
-import { fetchRouteSurfaceData, computeSurfaceDistribution } from '../utils/surfaceOverlay.js';
+import { measureRouteSurface } from '../utils/roadAttributes';
 import { removeSegmentAndReroute } from '../utils/routeEditor';
 import { polylineLengthKm } from '../utils/gravelRouteBuilder';
 import {
@@ -408,9 +409,6 @@ export default function RouteBuilder2() {
   // Failures from fire-and-forget overlay work (clip reroute, layer fetches)
   // that would otherwise be console-only; feeds the same ErrorState toast.
   const [overlayError, setOverlayError] = useState<string | null>(null);
-  // Per-segment surface categories reported up by SurfaceLayer so the
-  // summary bar reuses them without a second Overpass fetch.
-  const [surfaceSegments, setSurfaceSegments] = useState<string[] | null>(null);
   // Elevation-chart hover lives in its own store (see elevationHoverStore) so
   // per-mousemove scrubbing re-renders only the map dot, not this page.
   // Clip-tangent mode: toggle on → click a spur → confirm card → reroute.
@@ -541,13 +539,14 @@ export default function RouteBuilder2() {
   // shape doesn't.
   const chatCandidatesRef = useRef<RouteCandidate[]>([]);
 
-  // Monotonic guard so a slow Overpass surface check for a route the rider
-  // has already switched away from never posts a stale chat line.
+  // Monotonic guard so a slow surface check for a route the rider has
+  // already switched away from never posts a stale chat line.
   const surfaceCheckSeqRef = useRef(0);
 
   // Fail-soft surface follow-up for the applied route (gravel requests only):
-  // one Overpass fetch, reused by the SurfaceSummaryBar via the shared
-  // segments state, plus a short chat line with the actual unpaved share.
+  // a short chat line with the actual unpaved share. `measureRouteSurface`
+  // shares its corridor cache with the always-on `useRouteSurface` hook, so
+  // this costs no second fetch.
   const appendChatMessage = chat.append;
   const runSurfaceCheck = useCallback(
     (candidate: RouteCandidate) => {
@@ -559,17 +558,10 @@ export default function RouteBuilder2() {
       const seq = ++surfaceCheckSeqRef.current;
       void (async () => {
         try {
-          const segments = (await fetchRouteSurfaceData(
-            geometry as Array<[number, number]>,
-          )) as string[] | null;
+          const measured = await measureRouteSurface(geometry as Array<[number, number]>);
           if (seq !== surfaceCheckSeqRef.current) return;
-          if (!segments || segments.length === 0) return;
-          setSurfaceSegments(segments);
-          const dist = computeSurfaceDistribution(
-            segments,
-            geometry as Array<[number, number]>,
-          ) as Record<string, number>;
-          const unpavedPct = Math.round((dist.gravel ?? 0) + (dist.unpaved ?? 0));
+          if (!measured || measured.summary.knownKm <= 0) return;
+          const unpavedPct = measured.summary.gravelPct;
           appendChatMessage({
             role: 'assistant',
             text: `Surface check: ~${unpavedPct}% unpaved on this one.`,
@@ -1428,6 +1420,10 @@ export default function RouteBuilder2() {
   // one result — no layer panel needed to see the number.
   const stress = useRouteStress(geometryForLayers);
   const stressResult = stress.result;
+  // Surface rides the same corridor fetch (shared cache), so the Surface
+  // overlay, its summary bar, the stats card and the ETA read one result.
+  const surface = useRouteSurface(geometryForLayers);
+  const surfaceSegments = surface.result?.segments ?? null;
 
   // Scale the attached workout's structure onto the current route (km-keyed
   // cues), reused by the elevation bands and the map intervals line.
@@ -1505,7 +1501,7 @@ export default function RouteBuilder2() {
         <EditGhostLayer geometry={pendingEditReview.previous.geometry} />
       )}
       {visibility.surface && (
-        <SurfaceLayer geometry={geometryForLayers} onSegments={setSurfaceSegments} />
+        <SurfaceLayer geometry={geometryForLayers} result={surface.result} />
       )}
       {visibility.stress && !visibility.surface && (
         <TrafficStressLayer geometry={geometryForLayers} result={stressResult} />
@@ -1571,12 +1567,7 @@ export default function RouteBuilder2() {
       return calculatePersonalizedETA({
         distanceKm: dist,
         elevationProfile: profile.map((p) => ({ distance: p.distance_km, elevation: p.elevation_m })),
-        surfaceDistribution: surfaceSegments
-          ? computeSurfaceDistribution(
-              surfaceSegments,
-              (geometryForLayers?.coordinates ?? null) as Array<[number, number]> | null,
-            )
-          : undefined,
+        surfaceDistribution: surface.result?.summary.distribution,
         speedProfile: (speedProfile ?? undefined) as object | undefined,
         routeProfile,
         trainingGoal,
@@ -1584,7 +1575,7 @@ export default function RouteBuilder2() {
     } catch {
       return null;
     }
-  }, [routeStats?.distance_km, analysis.elevationProfile, surfaceSegments, speedProfile, routeProfile, trainingGoal]);
+  }, [routeStats?.distance_km, analysis.elevationProfile, surface.result, speedProfile, routeProfile, trainingGoal]);
 
   // How far the current route sits from what the rider asked for. Recomputed
   // from live stats rather than captured at generation, so the chip keeps
@@ -1766,11 +1757,7 @@ export default function RouteBuilder2() {
             )}
             {visibility.surface && hasRoute && (
               <Box style={{ marginTop: 10 }}>
-                <SurfaceSummaryBar
-                  segments={surfaceSegments}
-                  coordinates={geometryForLayers?.coordinates ?? null}
-                  isMobile
-                />
+                <SurfaceSummaryBar result={surface.result} status={surface.status} isMobile />
               </Box>
             )}
             {visibility.wind && hasRoute && (
@@ -2159,11 +2146,7 @@ export default function RouteBuilder2() {
             />
           )}
           {visibility.surface && hasRoute && (
-            <SurfaceSummaryBar
-                  segments={surfaceSegments}
-                  coordinates={geometryForLayers?.coordinates ?? null}
-                  isMobile
-                />
+            <SurfaceSummaryBar result={surface.result} status={surface.status} isMobile />
           )}
           {visibility.wind && hasRoute && <WindLegend weather={weather} isMobile />}
           {visibility.bikeInfra && <BikeInfrastructureLegend visible />}

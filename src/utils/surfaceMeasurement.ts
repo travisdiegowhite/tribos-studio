@@ -1,29 +1,28 @@
 /**
  * surfaceMeasurement — measure the actual gravel/unpaved share of a route.
  *
- * Stadia and Mapbox do NOT return surface composition, so for their routes
- * the only way to report a real "~X% gravel" figure is to query OSM surface
- * tags via Overpass. That's a heavy call, so callers run it sequentially
- * across candidates and this module caches results by quantized geometry
- * (mirroring elevationEnrichment.ts). BRouter routes DO carry per-segment
- * tags (`taggedWays`, see wayTags.ts); pass them and Overpass is skipped.
+ * Stadia and Mapbox do NOT return surface composition, so a real "~X% gravel"
+ * figure has to come from the OSM tags of the ways the route rides. Those
+ * come from `measureRouteSurface` (roadAttributes.ts): BRouter tags when the
+ * route came from BRouter, else a BRouter re-ride of the line, else an
+ * Overpass corridor query; every way counts, with `surface=*` missing ones
+ * inferred from `tracktype` / `highway` (surfaceInference.ts). Its corridor
+ * cache is shared with the traffic-stress measurement, so a candidate that
+ * measured one gets the other for free.
  *
  * Always fail-soft: any error or empty result returns null, and the caller
  * falls back to a "gravel-biased" label.
  */
 
-import {
-  fetchRouteSurfaceData,
-  computeSurfaceDistribution,
-} from './surfaceOverlay.js';
-import { fnv1a32, stableJson } from './stableHash';
+import { measureRouteSurface } from './roadAttributes';
+import { geometryKey } from './wayTags';
 import type { Coordinate } from '../types/geo';
 import type { TaggedWay } from './wayTags';
 
 export interface MeasureGravelOptions {
   /**
-   * Surface-tagged ways the router already returned for this geometry
-   * (BRouter `taggedWays`). When present and non-empty, no Overpass call.
+   * Tagged ways the router already returned for this geometry (BRouter
+   * `taggedWays`). When present and covering the route, no network call.
    */
   ways?: ReadonlyArray<TaggedWay> | null;
 }
@@ -31,8 +30,12 @@ export interface MeasureGravelOptions {
 export interface GravelMeasurement {
   /** Rounded percent of the route on gravel + unpaved surfaces. */
   gravelPct: number;
-  /** Full rounded distribution keyed paved/gravel/unpaved/mixed. */
+  /** Full rounded distribution keyed paved/gravel/unpaved. */
   distribution: Record<string, number>;
+  /** Percent of the route whose surface was inferred rather than tagged. */
+  inferredPct: number;
+  /** Percent of the route with no surface verdict at all. */
+  unknownPct: number;
 }
 
 const CACHE_MAX_SIZE = 30;
@@ -56,20 +59,9 @@ function cacheSet(key: string, value: GravelMeasurement | null): void {
   cache.set(key, value);
 }
 
-function cacheKeyForGeometry(
-  geometry: ReadonlyArray<ReadonlyArray<number>>,
-  source: 'overpass' | 'ways',
-): string {
-  const quantized = geometry.map(([lng, lat]) => [
-    Math.round(lng * 1e5) / 1e5,
-    Math.round(lat * 1e5) / 1e5,
-  ]);
-  return fnv1a32(stableJson([source, quantized]));
-}
-
 /**
  * Measure the gravel/unpaved share of a route geometry. Cached by geometry;
- * never throws — returns null when surface data can't be fetched.
+ * never throws — returns null when surface data can't be had.
  */
 export async function measureGravelPct(
   geometry: ReadonlyArray<Coordinate>,
@@ -78,27 +70,26 @@ export async function measureGravelPct(
   if (!Array.isArray(geometry) || geometry.length < 2) return null;
 
   const ways = options.ways && options.ways.length > 0 ? options.ways : null;
-  const key = cacheKeyForGeometry(geometry, ways ? 'ways' : 'overpass');
+  const key = geometryKey(geometry);
   const cached = cacheGet(key);
   if (cached !== undefined) return cached;
 
   try {
-    const coords = geometry as Array<[number, number]>;
-    const segments = (await fetchRouteSurfaceData(
-      coords,
-      ways ? { ways } : undefined,
-    )) as string[] | null;
-    if (!segments || segments.length === 0) {
-      cacheSet(key, null);
+    const measured = await measureRouteSurface(geometry, { taggedWays: ways });
+    if (!measured) {
+      // Not cached: a transient fetch failure must not pin a geometry to null.
       return null;
     }
-    const distribution = computeSurfaceDistribution(segments, coords) as Record<string, number>;
-    const gravelPct = Math.round((distribution.gravel ?? 0) + (distribution.unpaved ?? 0));
-    const result: GravelMeasurement = { gravelPct, distribution };
+    const { summary } = measured;
+    const result: GravelMeasurement = {
+      gravelPct: summary.gravelPct,
+      distribution: summary.distribution,
+      inferredPct: summary.inferredPct,
+      unknownPct: summary.unknownPct,
+    };
     cacheSet(key, result);
     return result;
   } catch {
-    cacheSet(key, null);
     return null;
   }
 }

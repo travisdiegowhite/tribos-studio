@@ -16,6 +16,8 @@ import {
   fetchCorridorWays,
   analyzeRouteStress,
   measureRouteStress,
+  analyzeRouteSurface,
+  measureRouteSurface,
   createStressRoute,
   clearRoadAttributesCache,
   CORRIDOR_M,
@@ -183,5 +185,46 @@ describe('analyzeRouteStress / measureRouteStress', () => {
     expect(fc?.features).toHaveLength(2);
     expect(fc?.features[0].properties?.label).toBe('Calm');
     expect(fc?.features[1].properties?.lts).toBe(4);
+  });
+});
+
+describe('analyzeRouteSurface / measureRouteSurface', () => {
+  it('infers every segment, tagged or not, and rolls up provenance', () => {
+    const corridor = {
+      ways: [
+        taggedWay(-1, 0, 5, { highway: 'residential', surface: 'asphalt' }),
+        taggedWay(-2, 5, 10, { highway: 'track', tracktype: 'grade3' }),
+        taggedWay(-3, 10, 15, { highway: 'track' }),
+        taggedWay(-4, 15, 20, { highway: 'residential' }),
+      ],
+      source: 'brouter_trace' as const,
+    };
+    const result = analyzeRouteSurface(LINE, corridor);
+    expect(result?.segments.slice(0, 5)).toEqual(Array(5).fill('paved'));
+    expect(result?.segments.slice(5, 15)).toEqual(Array(10).fill('unpaved'));
+    expect(result?.segments.slice(15)).toEqual(Array(5).fill('unknown'));
+    expect(result?.inferences[7].detail).toBe('tracktype=grade3');
+    expect(result?.inferences[12].detail).toBe('highway=track');
+    expect(result?.summary.taggedPct).toBe(25);
+    expect(result?.summary.inferredPct).toBe(50);
+    expect(result?.summary.unknownPct).toBe(25);
+    expect(result?.summary.gravelPct).toBe(50);
+    expect(result?.source).toBe('brouter_trace');
+  });
+
+  it('shares one corridor fetch between surface and stress, even when they race', async () => {
+    let resolveTrace: (v: TaggedWay[]) => void = () => {};
+    traceTaggedWaysWithBRouter.mockReturnValue(
+      new Promise<TaggedWay[]>((resolve) => {
+        resolveTrace = resolve;
+      }),
+    );
+    const surfaceP = measureRouteSurface(LINE);
+    const stressP = measureRouteStress(LINE);
+    resolveTrace([taggedWay(-1, 0, 20, { highway: 'track', surface: 'gravel', maxspeed: '30' })]);
+    const [surface, stress] = await Promise.all([surfaceP, stressP]);
+    expect(traceTaggedWaysWithBRouter).toHaveBeenCalledTimes(1);
+    expect(surface?.summary.gravelPct).toBe(100);
+    expect(stress?.summary.quietPct).toBe(100);
   });
 });

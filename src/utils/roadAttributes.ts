@@ -36,6 +36,13 @@ import {
   type Lts,
   type StressSummary,
 } from './trafficStress';
+import {
+  inferSurface,
+  summarizeSurface,
+  type SurfaceCategory,
+  type SurfaceInference,
+  type SurfaceSummary,
+} from './surfaceInference';
 import type { Coordinate } from '../types/geo';
 
 /** Each chunk's bounding box is padded by this many metres. */
@@ -78,11 +85,23 @@ export interface RouteStressResult {
   source: RoadAttributeSource;
 }
 
+export interface RouteSurfaceResult {
+  /** One category per coordinate segment (`coordinates.length - 1`). */
+  segments: SurfaceCategory[];
+  /** The inference behind each segment (category, confidence, deciding tag). */
+  inferences: SurfaceInference[];
+  summary: SurfaceSummary;
+  source: RoadAttributeSource;
+}
+
 export interface FetchCorridorOptions {
   taggedWays?: ReadonlyArray<TaggedWay> | null;
 }
 
 const cache = new Map<string, CorridorWays>();
+// Stress and surface are measured for the same geometry at the same moment;
+// one network round-trip serves both.
+const inflight = new Map<string, Promise<CorridorWays | null>>();
 
 function cacheGet(key: string): CorridorWays | undefined {
   if (!cache.has(key)) return undefined;
@@ -220,6 +239,17 @@ export async function fetchCorridorWays(
   const cached = cacheGet(key);
   if (cached !== undefined) return cached;
 
+  const pending = inflight.get(key);
+  if (pending) return pending;
+  const work = fetchCorridorWaysUncached(coordinates, key).finally(() => inflight.delete(key));
+  inflight.set(key, work);
+  return work;
+}
+
+async function fetchCorridorWaysUncached(
+  coordinates: ReadonlyArray<Coordinate>,
+  key: string,
+): Promise<CorridorWays | null> {
   const traced = await traceTaggedWaysWithBRouter(coordinates);
   if (traced) {
     const result: CorridorWays = { ways: traced, source: 'brouter_trace' };
@@ -269,6 +299,36 @@ export async function measureRouteStress(
   const corridor = await fetchCorridorWays(coordinates, options);
   if (!corridor) return null;
   return analyzeRouteStress(coordinates, corridor);
+}
+
+/**
+ * Per-segment surface for a geometry given its corridor ways. Pure. Every
+ * way counts, tagged or not: the inference ladder (surfaceInference.ts)
+ * decides what each segment is made of and how sure we are.
+ */
+export function analyzeRouteSurface(
+  coordinates: ReadonlyArray<Coordinate>,
+  corridor: CorridorWays,
+): RouteSurfaceResult | null {
+  const matched = matchRouteWays(coordinates, corridor.ways) as Array<TaggedWay | null> | null;
+  if (!matched) return null;
+  const inferences = matched.map((way) => inferSurface(way?.tags));
+  return {
+    segments: inferences.map((inf) => inf.category),
+    inferences,
+    summary: summarizeSurface(inferences, coordinates),
+    source: corridor.source,
+  };
+}
+
+/** Fetch + analyze surface in one call; shares the corridor cache with stress. */
+export async function measureRouteSurface(
+  coordinates: ReadonlyArray<Coordinate>,
+  options: FetchCorridorOptions = {},
+): Promise<RouteSurfaceResult | null> {
+  const corridor = await fetchCorridorWays(coordinates, options);
+  if (!corridor) return null;
+  return analyzeRouteSurface(coordinates, corridor);
 }
 
 /** GeoJSON for the traffic-stress line overlay. */

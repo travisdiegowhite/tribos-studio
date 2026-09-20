@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import {
+  createSurfaceRoute,
   classifySurface,
   matchRouteSurfaces,
   matchRouteWays,
@@ -131,5 +132,30 @@ describe('computeSurfaceDistribution', () => {
   it('drops unknown from the output and is empty for no segments', () => {
     expect(computeSurfaceDistribution([])).toEqual({});
     expect(computeSurfaceDistribution(['unknown'])).toEqual({});
+  });
+});
+
+describe('createSurfaceRoute with inferences', () => {
+  it('splits runs where the evidence changes and stamps inferred + detail', () => {
+    const coords = [[-105, 40], [-105.001, 40], [-105.002, 40], [-105.003, 40], [-105.004, 40]];
+    const segments = ['gravel', 'gravel', 'gravel', 'paved'];
+    const inferences = [
+      { evidence: 'surface', detail: 'surface=gravel' },
+      { evidence: 'tracktype', detail: 'tracktype=grade2' },
+      { evidence: 'tracktype', detail: 'tracktype=grade2' },
+      { evidence: 'highway', detail: 'highway=primary' },
+    ];
+    const fc = createSurfaceRoute(coords, segments, inferences);
+    expect(fc.features).toHaveLength(3);
+    expect(fc.features[0].properties).toMatchObject({ surface: 'gravel', inferred: false, detail: 'surface=gravel' });
+    expect(fc.features[1].properties).toMatchObject({ surface: 'gravel', inferred: true, detail: 'tracktype=grade2' });
+    expect(fc.features[1].geometry.coordinates).toHaveLength(3);
+    expect(fc.features[2].properties).toMatchObject({ surface: 'paved', inferred: true, detail: 'highway=primary' });
+  });
+
+  it('is unchanged without inferences', () => {
+    const fc = createSurfaceRoute([[-105, 40], [-105.001, 40], [-105.002, 40]], ['gravel', 'gravel']);
+    expect(fc.features).toHaveLength(1);
+    expect(fc.features[0].properties.inferred).toBeUndefined();
   });
 });
