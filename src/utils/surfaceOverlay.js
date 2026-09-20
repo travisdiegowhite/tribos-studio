@@ -297,13 +297,43 @@ export function groupSegmentsToFeatures(coordinates, values, propsFor) {
 /**
  * Create a GeoJSON FeatureCollection for surface-colored route segments.
  * Groups consecutive segments with the same surface type.
+ *
+ * With `inferences` (one per segment, from surfaceInference.ts) a run is
+ * also split where the evidence changes, and each feature carries
+ * `inferred` (true when the surface was deduced from tracktype/highway
+ * rather than read from a `surface` tag) and `detail` (the deciding tag),
+ * so the overlay can draw inferred stretches dashed and say why.
+ *
+ * @param {ReadonlyArray<ReadonlyArray<number>>} coordinates
+ * @param {ReadonlyArray<string>} surfaceSegments
+ * @param {ReadonlyArray<{evidence: string, detail: string}>|null} [inferences]
  */
-export function createSurfaceRoute(coordinates, surfaceSegments) {
-  return groupSegmentsToFeatures(coordinates, surfaceSegments, (surface) => ({
-    color: SURFACE_COLORS[surface] || SURFACE_COLORS.unknown,
-    surface,
-    label: SURFACE_LABELS[surface] || 'Unknown',
-  }));
+export function createSurfaceRoute(coordinates, surfaceSegments, inferences = null) {
+  const withEvidence =
+    Array.isArray(inferences) && inferences.length === surfaceSegments?.length;
+  if (!withEvidence) {
+    return groupSegmentsToFeatures(coordinates, surfaceSegments, (surface) => ({
+      color: SURFACE_COLORS[surface] || SURFACE_COLORS.unknown,
+      surface,
+      label: SURFACE_LABELS[surface] || 'Unknown',
+    }));
+  }
+  const SEP = '\u0000';
+  const values = surfaceSegments.map((surface, i) => {
+    const inf = inferences[i] || {};
+    const inferred = inf.evidence && inf.evidence !== 'surface' && inf.evidence !== 'none' ? '1' : '0';
+    return `${surface}${SEP}${inferred}${SEP}${inf.detail || ''}`;
+  });
+  return groupSegmentsToFeatures(coordinates, values, (value) => {
+    const [surface, inferred, detail] = String(value).split(SEP);
+    return {
+      color: SURFACE_COLORS[surface] || SURFACE_COLORS.unknown,
+      surface,
+      label: SURFACE_LABELS[surface] || 'Unknown',
+      inferred: inferred === '1',
+      detail: detail || '',
+    };
+  });
 }
 
 /**

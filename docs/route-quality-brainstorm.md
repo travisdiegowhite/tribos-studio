@@ -146,8 +146,15 @@ module · **[big]** new infra or an external dependency.
     `SurfaceLayer`. Still open: bearing-match the route segment to the way
     (±20°, as `mapboxRoadLookup.js` does) so a parallel path and its road don't
     cross-contaminate.
-12. **Infer surface when `surface=*` is missing, with confidence** [medium].
-    Query all `way["highway"]` in the corridor, then a rule ladder:
+12. **Infer surface when `surface=*` is missing, with confidence** [medium] —
+    **shipped (Phase 4a)** as `src/utils/surfaceInference.ts` (`inferSurface`,
+    `summarizeSurface`) over the corridor ways from `roadAttributes.ts`
+    (`analyzeRouteSurface` / `measureRouteSurface`, sharing the stress
+    fetch and its cache, de-duplicated in flight). The Surface overlay,
+    summary bar, stats card, ETA and candidate `measureGravelPct` all read
+    it via the always-on `useRouteSurface` hook; the surface-tag-only
+    Overpass bbox query is no longer used by RB2 (kept for the classic v1
+    builder). The ladder as implemented:
 
     | Evidence | Result | Confidence |
     |---|---|---|
@@ -160,8 +167,11 @@ module · **[big]** new infra or an external dependency.
     | untagged `highway=motorway..tertiary` | paved | 0.85 |
     | untagged rural `residential\|unclassified`, `tiger:reviewed=no` | **unknown** | never guess: this is exactly the GraphHopper `TERTIARY && surface==MISSING ×3` mistake |
 
-    Report the unknown share honestly in `SurfaceSummaryBar`. Mapbox Tilequery
-    `surface` (already used by `mapboxRoadLookup.js`) as a secondary source.
+    Report the unknown share honestly in `SurfaceSummaryBar` — done, as the
+    `tagged · inferred · unmapped` line. Still open: Mapbox Tilequery
+    `surface` (already used by `mapboxRoadLookup.js`) as a secondary source,
+    and `smoothness`, which BRouter's tag rows do not carry (the ladder
+    handles it when Overpass is the source).
 13. **Learn surface from the rider's own rides** [medium]. In
     `roadSegmentExtractor.js`: `GravelRide`, a gravel/mtb bike, or
     `surface_override` → `surface_observed='unpaved'` with source and count; a
@@ -180,9 +190,12 @@ module · **[big]** new infra or an external dependency.
     correction pass when measured misses target by more than 15 points; the
     inferred ways from C12 as chunk candidates so gravel-sparse areas still
     find something.
-16. **"Why is this gravel?" provenance tooltip** [quick, after 12]. "OSM: gravel"
-    vs "inferred from tracktype=grade3" vs "you rode this on your gravel bike
-    4×". Trust is the P0 theme of `route-builder-review-2026-07.md`.
+16. **"Why is this gravel?" provenance tooltip** [quick, after 12] — **shipped
+    (Phase 4a)**: inferred stretches are drawn dashed on the map, the summary
+    bar shows `tagged 61% · inferred 27% · unmapped 12%`, and each legend
+    swatch's tooltip lists the deciding tags with distance (`surface=gravel
+    8.1 km · tracktype=grade3 2.4 km`). "You rode this on your gravel bike
+    4×" waits on C13. Trust is the P0 theme of `route-builder-review-2026-07.md`.
 
 ## Track D — corridor intelligence and re-ranking
 
@@ -234,8 +247,10 @@ Roll-up per route (`summarizeStress`): distance-weighted km per level,
    re-ranking.
 3. **Phase 3** — the router obeys: B7 self-hosted BRouter + Tribos profiles, B6
    `exclude_polygons` repair, D20 avoid roads, B9 time-of-day.
-4. **Phase 4** — gravel intelligence: C12, C13, C15, C16; C14 only once C13 has
-   data.
+4. **Phase 4a** — shipped: C12 surface inference with confidence + C16
+   provenance, on the shared corridor fetch. **Phase 4b** — C13 (learn
+   surface from the rider's rides), C15 (make "mixed" real); C14 only once
+   C13 has data.
 5. Decide separately later: D18, D19, B8.
 
 ## Verification approach (every phase)
