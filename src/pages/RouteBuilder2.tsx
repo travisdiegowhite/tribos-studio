@@ -93,7 +93,7 @@ import type { RouteCue as RouteCueType } from '../utils/routeCues';
 import { supabase } from '../lib/supabase';
 import { SurfaceLayer } from '../features/route-builder-v2/layers/SurfaceLayer';
 import { TrafficStressLayer } from '../features/route-builder-v2/layers/TrafficStressLayer';
-import type { RouteStressResult } from '../utils/roadAttributes';
+import { useRouteStress } from '../hooks/route-builder/useRouteStress';
 import { GradientLayer } from '../features/route-builder-v2/layers/GradientLayer';
 import { POILayer } from '../features/route-builder-v2/layers/POILayer';
 import { BikeInfraLayer } from '../features/route-builder-v2/layers/BikeInfraLayer';
@@ -411,9 +411,6 @@ export default function RouteBuilder2() {
   // Per-segment surface categories reported up by SurfaceLayer so the
   // summary bar reuses them without a second Overpass fetch.
   const [surfaceSegments, setSurfaceSegments] = useState<string[] | null>(null);
-  // Traffic-stress analysis reported up by TrafficStressLayer so the legend
-  // and the stats card reuse it without a second corridor fetch.
-  const [stressResult, setStressResult] = useState<RouteStressResult | null>(null);
   // Elevation-chart hover lives in its own store (see elevationHoverStore) so
   // per-mousemove scrubbing re-renders only the map dot, not this page.
   // Clip-tangent mode: toggle on → click a spur → confirm card → reroute.
@@ -1349,12 +1346,23 @@ export default function RouteBuilder2() {
 
   const handleVisibilityToggle = (key: keyof LayerVisibilityState, next: boolean) => {
     setVisibility((prev) => ({ ...prev, [key]: next }));
+    // The stat and the toolbar chip promise a visible change; Surface
+    // wins the line-colouring chain, so turning stress on turns it off.
+    if (key === 'stress' && next) {
+      setVisibility((prev) => ({ ...prev, stress: true, surface: false }));
+    }
     // The wind overlay needs weather data — fetch it lazily on first enable,
     // the same data the Weather panel uses (shared hook, so it's cached).
     if (key === 'wind' && next && weather.status === 'idle') {
       void weather.refresh();
     }
   };
+
+  const handleToggleStress = useCallback(() => {
+    const next = !visibility.stress;
+    setVisibility((prev) => ({ ...prev, stress: next, surface: next ? false : prev.surface }));
+    trackRb2('layer_toggled', { layer: 'stress', state: next ? 'shown' : 'hidden', source: 'main' });
+  }, [visibility.stress]);
 
   const handlePoiLayerToggle = (layer: Parameters<typeof analysis.togglePOILayer>[0]) => {
     void analysis.togglePOILayer(layer);
@@ -1414,6 +1422,12 @@ export default function RouteBuilder2() {
       coordinates: routeGeometry.coordinates as Coordinate[],
     };
   }, [routeGeometry]);
+
+  // Traffic stress is measured for every route (debounced, cached) so the
+  // QUIET ROADS stat, the TRAFFIC chip, the legend and the overlay all read
+  // one result — no layer panel needed to see the number.
+  const stress = useRouteStress(geometryForLayers);
+  const stressResult = stress.result;
 
   // Scale the attached workout's structure onto the current route (km-keyed
   // cues), reused by the elevation bands and the map intervals line.
@@ -1494,7 +1508,7 @@ export default function RouteBuilder2() {
         <SurfaceLayer geometry={geometryForLayers} onSegments={setSurfaceSegments} />
       )}
       {visibility.stress && !visibility.surface && (
-        <TrafficStressLayer geometry={geometryForLayers} onStress={setStressResult} />
+        <TrafficStressLayer geometry={geometryForLayers} result={stressResult} />
       )}
       {visibility.gradient && !visibility.surface && !visibility.stress && (
         <GradientLayer geometry={geometryForLayers} />
@@ -1656,6 +1670,8 @@ export default function RouteBuilder2() {
         surfaceSegments={surfaceSegments}
         surfaceCoordinates={geometryForLayers?.coordinates ?? null}
         stressSummary={stressResult?.summary ?? null}
+        onToggleStress={handleToggleStress}
+        stressActive={visibility.stress}
         onSave={() => void handleQuickSave()}
         saveState={
           persistence.isSaving ? 'saving' : hasUnsavedChanges ? 'unsaved' : 'saved'
@@ -1902,7 +1918,21 @@ export default function RouteBuilder2() {
                 onOpenChange={setRailOpenId}
               />
             }
-            statsStrip={statsNode}
+            statsStrip={
+              statsNode ? (
+                <>
+                  {statsNode}
+                  {visibility.stress && (
+                    <Box style={{ marginTop: 8 }}>
+                      <TrafficStressLegend
+                        summary={stressResult?.summary ?? null}
+                        isImperial={isImperial}
+                      />
+                    </Box>
+                  )}
+                </>
+              ) : undefined
+            }
             mapArea={
               <>
                 {mapElement}
@@ -1943,6 +1973,8 @@ export default function RouteBuilder2() {
                     clipMode={clipMode}
                     onClear={handleClearRoute}
                     canClear={canClearMap}
+                    onToggleStress={hasRoute ? handleToggleStress : undefined}
+                    stressActive={visibility.stress}
                   />
                   {clipMode && pendingClip && (
                     <ClipConfirmCard
@@ -2304,6 +2336,8 @@ export default function RouteBuilder2() {
                 clipMode={clipMode}
                 onClear={handleClearRoute}
                 canClear={canClearMap}
+                onToggleStress={hasRoute ? handleToggleStress : undefined}
+                stressActive={visibility.stress}
               />
             </Box>
             <Box style={{ flexShrink: 0 }}>

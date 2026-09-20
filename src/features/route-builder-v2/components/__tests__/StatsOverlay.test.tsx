@@ -30,25 +30,57 @@ describe('StatsOverlay', () => {
     expect(surface).toHaveTextContent(/%/);
   });
 
-  it('shows a quiet-roads line when a stress summary is provided', () => {
+  const summary = {
+    totalKm: 40,
+    knownKm: 38,
+    kmByLts: { 0: 2, 1: 20, 2: 10, 3: 6, 4: 2 },
+    quietPct: 79,
+    unknownPct: 5,
+    stressScore: 0.3,
+    lts4Km: 2,
+    maxContinuousLts4Km: 1.2,
+  };
+
+  it('shows the QUIET ROADS stat with the high-stress distance', () => {
     render(
       <MantineProvider>
         <StatsOverlay
           stats={{ distance_km: 40, elevation_gain_m: 300, duration_s: 5400 }}
-          stressSummary={{
-            totalKm: 40,
-            knownKm: 38,
-            kmByLts: { 0: 2, 1: 20, 2: 10, 3: 6, 4: 2 },
-            quietPct: 79,
-            unknownPct: 5,
-            stressScore: 0.3,
-            lts4Km: 2,
-            maxContinuousLts4Km: 1.2,
-          }}
+          stressSummary={summary}
         />
       </MantineProvider>,
     );
-    expect(screen.getByTestId('rb2-stats-stress')).toHaveTextContent('Quiet roads 79% · 2.0 km high stress');
+    const cell = screen.getByTestId('rb2-stats-stress');
+    expect(cell).toHaveTextContent('Quiet roads');
+    expect(cell).toHaveTextContent('79%');
+    expect(cell).toHaveTextContent('2.0 km high stress');
+  });
+
+  it('shows a placeholder while stress is unmeasured, never hiding the stat', () => {
+    render(
+      <MantineProvider>
+        <StatsOverlay stats={{ distance_km: 40, elevation_gain_m: 300, duration_s: 5400 }} />
+      </MantineProvider>,
+    );
+    expect(screen.getByTestId('rb2-stats-stress')).toHaveTextContent('—');
+  });
+
+  it('toggles the stress overlay when the stat is clicked and reflects the pressed state', () => {
+    const onToggleStress = vi.fn();
+    render(
+      <MantineProvider>
+        <StatsOverlay
+          stats={{ distance_km: 40, elevation_gain_m: 300, duration_s: 5400 }}
+          stressSummary={summary}
+          onToggleStress={onToggleStress}
+          stressActive
+        />
+      </MantineProvider>,
+    );
+    const cell = screen.getByTestId('rb2-stats-stress');
+    expect(cell).toHaveAttribute('aria-pressed', 'true');
+    fireEvent.click(cell);
+    expect(onToggleStress).toHaveBeenCalledTimes(1);
   });
 
   it('omits the surface line when no segment data', () => {

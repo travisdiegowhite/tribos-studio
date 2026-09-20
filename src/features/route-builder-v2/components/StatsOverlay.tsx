@@ -5,7 +5,7 @@
  * current route. Hidden when no route exists.
  */
 
-import { Box, Text, UnstyledButton } from '@mantine/core';
+import { Box, Text, Tooltip, UnstyledButton } from '@mantine/core';
 import { Check, FloppyDisk, Warning, X } from '@phosphor-icons/react';
 import { RB2, RB2_FONT } from './brand';
 import { convertDistance } from '../../../utils/units.jsx';
@@ -14,7 +14,7 @@ import {
   SURFACE_LABELS,
   computeSurfaceDistribution,
 } from '../../../utils/surfaceOverlay.js';
-import type { StressSummary } from '../../../utils/trafficStress';
+import { LTS_COLORS, type StressSummary } from '../../../utils/trafficStress';
 
 export interface RouteStats {
   distance_km: number;
@@ -40,8 +40,15 @@ export interface StatsOverlayProps {
   surfaceSegments?: string[] | null;
   /** Geometry the surface segments span; enables distance-weighted shares. */
   surfaceCoordinates?: ReadonlyArray<ReadonlyArray<number>> | null;
-  /** Traffic-stress roll-up (from TrafficStressLayer); shows a quiet-roads line when present. */
+  /**
+   * Traffic-stress roll-up for the route (useRouteStress). Drives the
+   * QUIET ROADS stat; null shows a placeholder while it's being measured.
+   */
   stressSummary?: StressSummary | null;
+  /** Click handler for the QUIET ROADS stat: colours the map by stress. */
+  onToggleStress?: () => void;
+  /** Whether the stress overlay is currently shown (pressed styling). */
+  stressActive?: boolean;
   /** Quick-save action; renders a Save affordance next to Clear when set. */
   onSave?: () => void;
   saveState?: 'saved' | 'unsaved' | 'saving';
@@ -108,6 +115,8 @@ export function StatsOverlay({
   surfaceSegments,
   surfaceCoordinates = null,
   stressSummary = null,
+  onToggleStress,
+  stressActive = false,
   onSave,
   saveState = 'unsaved',
   targetStatus = null,
@@ -216,6 +225,12 @@ export function StatsOverlay({
         <StatCell label="Distance" value={formatDistanceCompact(stats.distance_km, isImperial)} />
         <StatCell label="Elevation" value={formatElevationCompact(stats.elevation_gain_m, isImperial)} />
         <StatCell label="Duration" value={formatDuration(stats.duration_s)} />
+        <QuietRoadsCell
+          summary={stressSummary}
+          isImperial={isImperial}
+          onToggle={onToggleStress}
+          active={stressActive}
+        />
       </Box>
       {targetStatus && (
         <Box style={{ marginTop: 8 }}>
@@ -268,23 +283,6 @@ export function StatsOverlay({
           </UnstyledButton>
         </Box>
       )}
-      {stressSummary && stressSummary.knownKm > 0 && (
-        <Text
-          data-testid="rb2-stats-stress"
-          style={{
-            fontFamily: RB2_FONT.mono,
-            fontSize: 10,
-            letterSpacing: '0.04em',
-            color: RB2.textSecondary,
-            marginTop: 8,
-          }}
-        >
-          Quiet roads {stressSummary.quietPct}%
-          {stressSummary.lts4Km > 0
-            ? ` · ${formatStressKm(stressSummary.lts4Km, isImperial)} high stress`
-            : ''}
-        </Text>
-      )}
       {surfaces.length > 0 && (
         <Box
           data-testid="rb2-stats-surface"
@@ -315,6 +313,111 @@ export function StatsOverlay({
 function formatStressKm(km: number, isImperial: boolean): string {
   const value = isImperial ? (convertDistance.kmToMiles(km) as number) : km;
   return `${value < 10 ? value.toFixed(1) : Math.round(value)} ${isImperial ? 'mi' : 'km'}`;
+}
+
+/** Colour for the QUIET ROADS value: the LTS band the route mostly sits in. */
+export function quietRoadsColor(quietPct: number): string {
+  if (quietPct >= 80) return LTS_COLORS[1];
+  if (quietPct >= 60) return LTS_COLORS[2];
+  if (quietPct >= 40) return LTS_COLORS[3];
+  return LTS_COLORS[4];
+}
+
+/**
+ * The fourth stat: share of the mapped route on calm/comfortable roads, with
+ * the high-stress distance beneath. Clickable when the page hands it a
+ * toggle, so the number is one click from the coloured map.
+ */
+function QuietRoadsCell({
+  summary,
+  isImperial,
+  onToggle,
+  active,
+}: {
+  summary: StressSummary | null;
+  isImperial: boolean;
+  onToggle?: () => void;
+  active: boolean;
+}) {
+  const measured = !!summary && summary.knownKm > 0;
+  const unmapped = !!summary && summary.knownKm === 0;
+  const value = measured ? `${summary!.quietPct}%` : unmapped ? 'n/a' : '—';
+  const color = measured ? quietRoadsColor(summary!.quietPct) : RB2.textTertiary;
+  const detail = measured
+    ? summary!.lts4Km > 0
+      ? `${formatStressKm(summary!.lts4Km, isImperial)} high stress`
+      : 'no high-stress roads'
+    : null;
+
+  const body = (
+    <>
+      <Text
+        style={{
+          fontFamily: RB2_FONT.mono,
+          fontSize: 10,
+          letterSpacing: '0.12em',
+          textTransform: 'uppercase',
+          color: active ? RB2.teal : RB2.textTertiary,
+          lineHeight: 1.2,
+        }}
+      >
+        Quiet roads
+      </Text>
+      <Text
+        style={{
+          fontFamily: RB2_FONT.heading,
+          fontSize: 22,
+          fontWeight: 700,
+          color,
+          lineHeight: 1.1,
+          letterSpacing: '0.02em',
+        }}
+      >
+        {value}
+      </Text>
+      {detail && (
+        <Text
+          style={{
+            fontFamily: RB2_FONT.mono,
+            fontSize: 9,
+            letterSpacing: '0.04em',
+            color: RB2.textTertiary,
+            lineHeight: 1.2,
+            whiteSpace: 'nowrap',
+          }}
+        >
+          {detail}
+        </Text>
+      )}
+    </>
+  );
+
+  if (!onToggle) {
+    return <Box data-testid="rb2-stats-stress">{body}</Box>;
+  }
+  return (
+    <Tooltip
+      label={active ? 'Show the plain route line' : 'Color the map by traffic stress'}
+      position="bottom"
+      withinPortal
+    >
+      <UnstyledButton
+        data-testid="rb2-stats-stress"
+        onClick={onToggle}
+        aria-pressed={active}
+        aria-label={active ? 'Hide traffic stress on the map' : 'Show traffic stress on the map'}
+        style={{
+          textAlign: 'left',
+          padding: '0 4px',
+          margin: '0 -4px',
+          borderBottom: `2px solid ${active ? RB2.teal : 'transparent'}`,
+          cursor: 'pointer',
+        }}
+      >
+        {body}
+      </UnstyledButton>
+    </Tooltip>
+  );
 }
 
 function StatCell({ label, value }: { label: string; value: string }) {

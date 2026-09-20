@@ -61,6 +61,10 @@ export interface EditToolbarProps {
   onClear?: () => void;
   /** Whether there's anything to clear (disables the button when false). */
   canClear?: boolean;
+  /** When provided, renders a TRAFFIC chip that colours the map by traffic stress. */
+  onToggleStress?: () => void;
+  /** Whether the traffic-stress overlay is currently shown (pressed styling). */
+  stressActive?: boolean;
 }
 
 export function EditToolbar({
@@ -82,6 +86,8 @@ export function EditToolbar({
   clipMode = false,
   onClear,
   canClear = false,
+  onToggleStress,
+  stressActive = false,
 }: EditToolbarProps) {
   const profileLabel =
     ROUTE_PROFILE_OPTIONS.find((p) => p.value === routeProfile)?.label ?? 'Road';
@@ -233,6 +239,31 @@ export function EditToolbar({
           </ToolbarButton>
         </>
       )}
+      {onToggleStress && (
+        <>
+          <Box style={{ width: 1, backgroundColor: RB2.border }} />
+          <ToolbarButton
+            label={stressActive ? 'Traffic stress shown' : 'Show traffic stress'}
+            shortcut={stressActive ? 'back to the plain line' : 'colour the route by how busy each road is'}
+            testid="rb2-stress-toggle"
+            disabled={false}
+            onClick={onToggleStress}
+            active={stressActive}
+            wide
+          >
+            <span
+              style={{
+                fontFamily: RB2_FONT.mono,
+                fontSize: 11,
+                fontWeight: 600,
+                letterSpacing: '0.06em',
+              }}
+            >
+              TRAFFIC
+            </span>
+          </ToolbarButton>
+        </>
+      )}
       {onClear && (
         <>
           <Box style={{ width: 1, backgroundColor: RB2.border }} />
@@ -261,6 +292,7 @@ function ToolbarButton({
   children,
   danger = false,
   active = false,
+  wide = false,
 }: {
   label: string;
   shortcut: string;
@@ -270,6 +302,8 @@ function ToolbarButton({
   children: React.ReactNode;
   danger?: boolean;
   active?: boolean;
+  /** Text chips need more than the 38px icon slot. */
+  wide?: boolean;
 }) {
   const color = disabled
     ? RB2.textDisabled
@@ -287,7 +321,8 @@ function ToolbarButton({
         aria-label={label}
         aria-pressed={active}
         style={{
-          width: 38,
+          width: wide ? undefined : 38,
+          padding: wide ? '0 10px' : undefined,
           height: 34,
           display: 'flex',
           alignItems: 'center',

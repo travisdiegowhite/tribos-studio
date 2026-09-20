@@ -3,7 +3,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 const { stressResult } = vi.hoisted(() => ({
   stressResult: {
-  ltsSegments: [1, 4],
+  ltsSegments: [1, 4] as Array<0 | 1 | 2 | 3 | 4>,
   summary: {
     totalKm: 0.2,
     knownKm: 0.2,
@@ -63,6 +63,13 @@ describe('TrafficStressLayer', () => {
       'stress_computed',
       expect.objectContaining({ quiet_pct: 50, source: 'overpass' }),
     );
+  });
+
+  it('renders a supplied result without fetching', async () => {
+    render(<TrafficStressLayer geometry={geometry} result={stressResult} />);
+    expect(createStressRoute).toHaveBeenCalledWith(geometry.coordinates, stressResult.ltsSegments);
+    await new Promise((r) => setTimeout(r, 0));
+    expect(measureRouteStress).not.toHaveBeenCalled();
   });
 
   it('clears the reported result on unmount', async () => {

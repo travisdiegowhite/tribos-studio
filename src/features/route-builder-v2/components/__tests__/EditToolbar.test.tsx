@@ -237,3 +237,43 @@ describe('EditToolbar', () => {
     expect(onChangeProfile).toHaveBeenCalledWith('commuting');
   });
 });
+
+describe('EditToolbar traffic chip', () => {
+  it('omits the chip unless onToggleStress is provided', () => {
+    renderToolbar();
+    expect(screen.queryByTestId('rb2-stress-toggle')).toBeNull();
+  });
+
+  it('renders the chip, reflects the active state and invokes the toggle', () => {
+    const onToggleStress = vi.fn();
+    const { rerender } = render(
+      <MantineProvider>
+        <EditToolbar
+          canUndo={false}
+          canRedo={false}
+          onUndo={() => {}}
+          onRedo={() => {}}
+          onToggleStress={onToggleStress}
+        />
+      </MantineProvider>,
+    );
+    const chip = screen.getByTestId('rb2-stress-toggle');
+    expect(chip).toHaveTextContent('TRAFFIC');
+    expect(chip).toHaveAttribute('aria-pressed', 'false');
+    fireEvent.click(chip);
+    expect(onToggleStress).toHaveBeenCalledTimes(1);
+    rerender(
+      <MantineProvider>
+        <EditToolbar
+          canUndo={false}
+          canRedo={false}
+          onUndo={() => {}}
+          onRedo={() => {}}
+          onToggleStress={onToggleStress}
+          stressActive
+        />
+      </MantineProvider>,
+    );
+    expect(screen.getByTestId('rb2-stress-toggle')).toHaveAttribute('aria-pressed', 'true');
+  });
+});
