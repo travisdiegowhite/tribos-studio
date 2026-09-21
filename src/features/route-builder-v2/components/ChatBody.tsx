@@ -355,7 +355,8 @@ function surfaceText(option: RouteOptionSummary): string {
       typeof option.gravel_target_pct === 'number'
         ? ` (target ${option.gravel_target_pct}%)`
         : '';
-    return `~${option.gravel_actual_pct}% gravel${target}`;
+    const short = option.gravel_shortfall ? ' · short' : '';
+    return `~${option.gravel_actual_pct}% gravel${target}${short}`;
   }
   return option.surface_label ?? '';
 }

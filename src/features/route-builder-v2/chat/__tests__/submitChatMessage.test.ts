@@ -553,3 +553,60 @@ describe('submitChatMessage — error path', () => {
     expect(lastCall.text).toMatch(/hit an error/i);
   });
 });
+
+describe('submitChatMessage — missed gravel ask', () => {
+  it('owns the shortfall and says where the gravel is instead of offering to tweak', async () => {
+    const onGenerateFromPrompt = vi.fn().mockResolvedValue({
+      ok: true,
+      distance_km: 66.3,
+      elevation_gain_m: 520,
+      name: 'Gravel via CR 5',
+      gravel_actual_pct: 22,
+      gravel_target_pct: 50,
+      gravel_shortfall: true,
+      gravel_sparse: { radius_km: 13, direction_label: 'Northeast' },
+    });
+    const { args, append } = makeArgs({ input: 'lets do a 40 mile gravel loop', hasRoute: false, onGenerateFromPrompt });
+    await submitChatMessage(args);
+    const lastCall = append.mock.calls[append.mock.calls.length - 1][0];
+    expect(lastCall.text).toContain('~22% gravel');
+    expect(lastCall.text).toContain("That's short of the ~50% you asked for.");
+    expect(lastCall.text).toContain('Gravel is thin within 13.0 km of your start; the most is northeast.');
+    expect(lastCall.text).toContain('Try "more gravel"');
+    expect(lastCall.text).not.toContain('Want me to tweak it?');
+  });
+
+  it('does not invent a target for a plain gravel ask', async () => {
+    const onGenerateFromPrompt = vi.fn().mockResolvedValue({
+      ok: true,
+      distance_km: 60,
+      elevation_gain_m: 400,
+      gravel_actual_pct: 6,
+      gravel_target_pct: null,
+      gravel_shortfall: true,
+      gravel_sparse: { radius_km: 13, direction_label: null },
+    });
+    const { args, append } = makeArgs({ input: 'lets do a 40 mile gravel loop', hasRoute: false, onGenerateFromPrompt });
+    await submitChatMessage(args);
+    const lastCall = append.mock.calls[append.mock.calls.length - 1][0];
+    expect(lastCall.text).toContain("~6% gravel. That's not much gravel. Gravel is thin within 13.0 km of your start.");
+    expect(lastCall.text).not.toContain('asked for');
+  });
+
+  it('keeps the normal reply when the gravel ask was met', async () => {
+    const onGenerateFromPrompt = vi.fn().mockResolvedValue({
+      ok: true,
+      distance_km: 66.3,
+      elevation_gain_m: 520,
+      gravel_actual_pct: 47,
+      gravel_target_pct: 50,
+      gravel_shortfall: false,
+      gravel_sparse: null,
+    });
+    const { args, append } = makeArgs({ input: 'lets do a 40 mile gravel loop', hasRoute: false, onGenerateFromPrompt });
+    await submitChatMessage(args);
+    const lastCall = append.mock.calls[append.mock.calls.length - 1][0];
+    expect(lastCall.text).toContain('Want me to tweak it?');
+    expect(lastCall.text).not.toContain('short of');
+  });
+});

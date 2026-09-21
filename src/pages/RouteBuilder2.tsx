@@ -860,6 +860,7 @@ export default function RouteBuilder2() {
                 surface_label: c.surface_profile === 'gravel' ? 'gravel-biased' : undefined,
                 gravel_actual_pct: c.gravel_actual_pct,
                 gravel_target_pct: c.gravel_target_pct,
+                gravel_shortfall: c.gravel_shortfall,
                 quiet_pct: c.stress_summary?.quietPct ?? null,
                 rationale: c.rationale,
               }))
@@ -871,6 +872,9 @@ export default function RouteBuilder2() {
           name: best.name,
           familiarity_percent: best.familiarity_percent,
           gravel_actual_pct: best.gravel_actual_pct,
+          gravel_target_pct: best.gravel_target_pct,
+          gravel_shortfall: best.gravel_shortfall,
+          gravel_sparse: best.gravel_sparse,
           options,
         };
       } catch (e) {

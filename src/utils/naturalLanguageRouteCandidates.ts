@@ -28,7 +28,13 @@ import {
   buildRoutePlanningPrompt,
   parseRoutePlanningResponse,
 } from './naturalLanguagePrompt';
-import { buildGravelLoopCandidates, type GravelLoopRoute } from './gravelRouteBuilder';
+import {
+  buildGravelLoopCandidates,
+  findGravelWays,
+  bestGravelHeadings,
+  gravelRadiusKm,
+  type GravelLoopRoute,
+} from './gravelRouteBuilder';
 import { getAuthHeaders } from './authHeaders';
 import { reverseGeocodeRegion } from './geocoding.js';
 import { measureGravelPct } from './surfaceMeasurement';
@@ -58,6 +64,14 @@ export interface RouteCandidate {
   gravel_target_pct: number | null;
   /** Measured gravel+unpaved share (%) of the routed geometry; null if unknown. */
   gravel_actual_pct: number | null;
+  /** True when a gravel ask was measured and missed its target by more than GRAVEL_SHORTFALL_PTS. */
+  gravel_shortfall: boolean;
+  /**
+   * Where the gravel is when the best candidate came up short: the search
+   * radius and the heading with the most gravel (null when none was found).
+   * Same on every candidate of a generation.
+   */
+  gravel_sparse: { radius_km: number; direction_label: string | null } | null;
   /** Surface-tagged ways the router returned (BRouter); [] otherwise. */
   tagged_ways: TaggedWay[];
   /** Traffic-stress roll-up of the routed geometry; null if unmeasured. */
@@ -81,6 +95,31 @@ const W_FAMILIARITY = 0.15;
 const W_STRESS = 0.15;
 
 const sleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
+
+/** An explicit "N% gravel" ask is "missed" when the measured share is this many points under N. */
+const GRAVEL_SHORTFALL_PTS = 15;
+/**
+ * A plain "gravel loop" names no percentage. Riding paved miles to reach the
+ * gravel and using connectors is normal, so it is only "missed" when the
+ * result is barely gravel at all: under this share.
+ */
+const GRAVEL_IMPLIED_MIN_PCT = 20;
+/** What the builder aims for on a plain "gravel loop" (connectors dilute it). */
+const GRAVEL_IMPLIED_BUDGET_PCT = 50;
+/** Cap for the one corrective rebuild's gravel budget. */
+const GRAVEL_CORRECTION_MAX_PCT = 90;
+
+/**
+ * How far (points) a candidate's measured gravel fell below what the ask
+ * tolerates: an explicit N% less GRAVEL_SHORTFALL_PTS, or the implied
+ * minimum for a plain gravel ask. 0 when unmeasured or fine.
+ */
+function gravelMissOf(c: RouteCandidate): number {
+  if (c.gravel_actual_pct === null) return 0;
+  const tolerated =
+    c.gravel_target_pct !== null ? c.gravel_target_pct - GRAVEL_SHORTFALL_PTS : GRAVEL_IMPLIED_MIN_PCT;
+  return Math.max(0, tolerated - c.gravel_actual_pct);
+}
 
 // The iterative builder + waypoint router are untyped JS — cast once at module scope.
 const generateIterativeRouteLoose = generateIterativeRoute as unknown as (
@@ -137,6 +176,22 @@ function applyDistanceGuard(candidates: RouteCandidate[]): RouteCandidate[] {
   return [
     candidates.slice().sort((a, b) => Math.abs(ratio(a) - 1) - Math.abs(ratio(b) - 1))[0],
   ];
+}
+
+/**
+ * For a gravel ask, drop candidates whose measured gravel share is under a
+ * third of the explicit target (or of the implied minimum) when any
+ * candidate does better. Unmeasured ones stay (neutral). Never empties the
+ * list.
+ */
+function applyGravelFloor(candidates: RouteCandidate[]): RouteCandidate[] {
+  if (candidates.length <= 1) return candidates;
+  const kept = candidates.filter((c) => {
+    if (c.gravel_actual_pct === null) return true;
+    const floor = (c.gravel_target_pct ?? GRAVEL_IMPLIED_MIN_PCT) / 3;
+    return c.gravel_actual_pct >= floor;
+  });
+  return kept.length > 0 ? kept : candidates;
 }
 
 /** Backfill API-derived elevation on every candidate (cached, parallel). */
@@ -265,14 +320,21 @@ function scoreCandidate(
       actualBearing === null ? 0.5 : 1 - angularDiff(actualBearing, requestedBearing) / 180;
   }
 
-  // Gravel fit: full credit when no target was requested; a soft penalty for
-  // the gap when we both asked for a % and measured one; neutral if unmeasured.
+  // Gravel fit: a soft penalty for the gap when the rider asked for a % and
+  // we measured one; on a plain gravel ask, more gravel is simply better
+  // (full credit from 50% up); neutral if unmeasured; full credit when
+  // gravel was never asked for.
   let gravelMatch = 1;
   if (candidate.gravel_target_pct !== null) {
     gravelMatch =
       candidate.gravel_actual_pct === null
         ? 0.5
         : clamp01(1 - Math.abs(candidate.gravel_actual_pct - candidate.gravel_target_pct) / 100);
+  } else if (candidate.surface_profile === 'gravel') {
+    gravelMatch =
+      candidate.gravel_actual_pct === null
+        ? 0.5
+        : clamp01(0.5 + candidate.gravel_actual_pct / (2 * GRAVEL_IMPLIED_BUDGET_PCT));
   }
 
   const familiarity = (candidate.familiarity_percent ?? 0) / 100;
@@ -324,6 +386,8 @@ function candidateFromRoute(
     surface_profile: request.routeProfile,
     gravel_target_pct: request.gravelTargetPct ?? null,
     gravel_actual_pct: null,
+    gravel_shortfall: false,
+    gravel_sparse: null,
     tagged_ways: route.taggedWays ?? [],
     stress_summary: null,
     familiarity_percent: route.familiarityScore?.familiarityPercent ?? null,
@@ -551,7 +615,9 @@ export async function generatePlannedRouteCandidates(
   // gravel" is literally a mix, so Claude returns surfaceType 'mixed'. Key off
   // the target so the gravel-network path actually runs, and force the gravel
   // routing profile so the connectors are gravel too (not just the forced ways).
-  const gravelTargetPct = plan.gravelTargetPct ?? (plan.surfaceType === 'gravel' ? 50 : null);
+  // A plain "gravel loop" keeps a null target: the builder aims for
+  // GRAVEL_IMPLIED_BUDGET_PCT, but nothing is reported as "what you asked for".
+  const gravelTargetPct = plan.gravelTargetPct ?? null;
   const wantsGravel = (gravelTargetPct ?? 0) > 0 || plan.surfaceType === 'gravel';
   const routeProfile = wantsGravel ? 'gravel' : (context.profile as string) || 'road';
   const trafficTolerance = (context.trafficTolerance as TrafficTolerance | undefined) ?? null;
@@ -588,7 +654,7 @@ export async function generatePlannedRouteCandidates(
     }
     await familiarityAll(cands, accessToken);
     await stressAll(cands);
-    const guarded = applyDistanceGuard(cands);
+    const guarded = wantsGravel ? applyGravelFloor(applyDistanceGuard(cands)) : applyDistanceGuard(cands);
     for (const candidate of guarded) {
       candidate.score = scoreCandidate(candidate, requestedBearing, startLocation, trafficTolerance);
     }
@@ -596,18 +662,37 @@ export async function generatePlannedRouteCandidates(
     return guarded;
   };
 
-  // Gravel-network path: when gravel + a resolved direction, build the loop
-  // from real OSM gravel ways (waypoints ON the gravel force the router to ride
-  // it). Wins for gravel; falls through to Claude-town planning when the area
-  // is gravel-sparse.
-  if (wantsGravel && requestedBearing !== null) {
-    progress('gravel-network');
+  // Own the miss: flag every candidate that came up short and, when even the
+  // best did, say where the gravel is (the full-circle way search is cached,
+  // so this is free after the gravel-network path ran).
+  const annotateGravel = async (cands: RouteCandidate[]): Promise<RouteCandidate[]> => {
+    if (!wantsGravel || cands.length === 0) return cands;
+    for (const c of cands) c.gravel_shortfall = gravelMissOf(c) > 0;
+    if (!cands[0].gravel_shortfall) return cands;
+    const radius_km = Math.round(gravelRadiusKm(targetDistanceKm));
+    let direction_label: string | null = null;
+    try {
+      const ways = await findGravelWays(startLocation, null, gravelRadiusKm(targetDistanceKm));
+      const top = bestGravelHeadings(ways, 1)[0];
+      if (top) direction_label = getDirectionName(top.bearingDeg);
+    } catch {
+      direction_label = null;
+    }
+    for (const c of cands) c.gravel_sparse = { radius_km, direction_label };
+    return cands;
+  };
+
+  // Gravel-network path: for any gravel ask, build the loop from real OSM
+  // gravel ways (waypoints ON the gravel force the router to ride it). With
+  // no direction the builder heads where the gravel is. Wins for gravel;
+  // falls through to Claude-town planning when the area is gravel-sparse.
+  const buildGravelCandidates = async (targetPct: number): Promise<RouteCandidate[]> => {
     let gravelRoutes: GravelLoopRoute[] = [];
     try {
       gravelRoutes = await buildGravelLoopCandidates(startLocation, {
         targetDistanceKm,
         bearingDeg: requestedBearing,
-        gravelTargetPct: gravelTargetPct ?? 50,
+        gravelTargetPct: targetPct,
         goal,
         count: 3,
         preferences: routerPreferences(request),
@@ -615,31 +700,55 @@ export async function generatePlannedRouteCandidates(
     } catch {
       gravelRoutes = [];
     }
-    if (gravelRoutes.length >= 1) {
-      const gravelCandidates: RouteCandidate[] = [];
-      for (const gr of gravelRoutes) {
-        const route: GeneratedRouteResult = {
-          coordinates: gr.coordinates,
-          distanceKm: gr.distanceKm,
-          elevationGain: gr.elevationGain,
-          duration_s: gr.duration_s,
-          name: gr.name,
-          source: gr.source,
-          taggedWays: gr.taggedWays,
-          directionLabel,
-          rationale:
-            gr.gravelWaysUsed.length > 0
-              ? `Rides ${gr.gravelWaysUsed.length} gravel roads incl. ${gr.gravelWaysUsed.slice(0, 2).join(' & ')}`
-              : 'Strings together gravel roads in your direction',
-        };
-        const c = candidateFromRoute(route, request, requestedBearing, 'cw', requestedBearing);
-        if (c) gravelCandidates.push(c);
-      }
-      if (gravelCandidates.length >= 1) {
-        return finalize(gravelCandidates);
-      }
+    const out: RouteCandidate[] = [];
+    for (const gr of gravelRoutes) {
+      const route: GeneratedRouteResult = {
+        coordinates: gr.coordinates,
+        distanceKm: gr.distanceKm,
+        elevationGain: gr.elevationGain,
+        duration_s: gr.duration_s,
+        name: gr.name,
+        source: gr.source,
+        taggedWays: gr.taggedWays,
+        directionLabel: directionLabel ?? getDirectionName(gr.bearingDeg),
+        rationale:
+          gr.gravelWaysUsed.length > 0
+            ? `Rides ${gr.gravelWaysUsed.length} gravel roads incl. ${gr.gravelWaysUsed.slice(0, 2).join(' & ')}`
+            : requestedBearing !== null
+              ? 'Strings together gravel roads in your direction'
+              : 'Strings together the gravel roads nearest you',
+      };
+      const c = candidateFromRoute(route, request, requestedBearing, 'cw', gr.bearingDeg);
+      if (c) out.push(c);
     }
-    // else: gravel-sparse — fall through to Claude-town planning below.
+    return out;
+  };
+
+  // Gravel loops that came back the wrong size (thin gravel pulls the loop
+  // in) are kept and pitted against the Claude-town plans below rather than
+  // returned alone.
+  let gravelRanked: RouteCandidate[] = [];
+  if (wantsGravel) {
+    progress('gravel-network');
+    const budget = gravelTargetPct ?? GRAVEL_IMPLIED_BUDGET_PCT;
+    let ranked = await finalize(await buildGravelCandidates(budget));
+    // One corrective rebuild when the measured share missed what the ask
+    // tolerates: aim the gravel budget higher by the miss and keep whichever
+    // set scores better.
+    const miss = ranked.length > 0 ? gravelMissOf(ranked[0]) : 0;
+    if (miss > 0) {
+      const corrected = await finalize(
+        await buildGravelCandidates(
+          Math.min(GRAVEL_CORRECTION_MAX_PCT, budget + miss + (gravelTargetPct !== null ? GRAVEL_SHORTFALL_PTS : 0)),
+        ),
+      );
+      if (corrected.length > 0 && corrected[0].score > ranked[0].score) ranked = corrected;
+    }
+    const ratio = ranked.length > 0 ? ranked[0].snapshot.stats.distance_km / targetDistanceKm : 0;
+    if (ranked.length >= 1 && ratio >= DIST_LO && ratio <= DIST_HI) return annotateGravel(ranked);
+    gravelRanked = ranked;
+    // else: gravel-sparse or wrong-sized — Claude-town planning below, with
+    // whatever gravel loops there are still in the running.
   }
 
   // Build a per-plan iterative fallback when its waypoints can't be routed.
@@ -691,9 +800,9 @@ export async function generatePlannedRouteCandidates(
   }
 
   // Every plan failed (and so did the iterative fallbacks) — hand off entirely.
-  if (candidates.length === 0) {
+  if (candidates.length === 0 && gravelRanked.length === 0) {
     return generateRouteCandidatesFromNaturalLanguage(userRequest, context);
   }
 
-  return finalize(candidates);
+  return annotateGravel(await finalize([...candidates, ...gravelRanked]));
 }
