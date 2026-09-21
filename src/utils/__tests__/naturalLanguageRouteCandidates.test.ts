@@ -49,8 +49,13 @@ vi.mock('../surfaceMeasurement', () => ({
 }));
 
 const buildGravelLoopCandidates = vi.fn();
+const findGravelWays = vi.fn();
+const bestGravelHeadings = vi.fn();
 vi.mock('../gravelRouteBuilder', () => ({
   buildGravelLoopCandidates: (...a: unknown[]) => buildGravelLoopCandidates(...a),
+  findGravelWays: (...a: unknown[]) => findGravelWays(...a),
+  bestGravelHeadings: (...a: unknown[]) => bestGravelHeadings(...a),
+  gravelRadiusKm: (km: number) => Math.min(25, Math.max(3, (km / (2 * Math.PI)) * 1.3)),
 }));
 
 const scoreRoutePreference = vi.fn();
@@ -107,6 +112,10 @@ beforeEach(() => {
   reverseGeocodeRegion.mockReset();
   measureGravelPct.mockReset();
   buildGravelLoopCandidates.mockReset();
+  findGravelWays.mockReset();
+  findGravelWays.mockResolvedValue([]);
+  bestGravelHeadings.mockReset();
+  bestGravelHeadings.mockReturnValue([]);
   scoreRoutePreference.mockReset();
   enrichRouteElevation.mockReset();
   // Default: enrichment is a pass-through.
@@ -378,6 +387,7 @@ function gravelLoopOf(distanceKm: number, name: string, waysUsed: string[]) {
     duration_s: 9000,
     name,
     source: 'gravel_network' as const,
+    bearingDeg: 45,
     gravelWaysUsed: waysUsed,
     gravelChunkKm: distanceKm * 0.5,
   };
@@ -447,6 +457,104 @@ describe('generatePlannedRouteCandidates — gravel-network branch', () => {
     expect(buildGravelLoopCandidates).not.toHaveBeenCalled();
     expect(routeThroughWaypoints).toHaveBeenCalledTimes(3);
     expect(candidates[0].surface_profile).not.toBe('gravel');
+  });
+
+  it('runs the gravel network with no direction and labels the loop by where it went', async () => {
+    globalThis.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ success: true, content: 'PLAN_JSON' }),
+    });
+    parseRoutePlanningResponse.mockReturnValue({ ...PLAN, direction: null });
+    buildGravelLoopCandidates.mockResolvedValue([
+      { ...gravelLoopOf(70, 'Gravel via CR 5 & CR 7', ['CR 5', 'CR 7']), bearingDeg: 90 },
+    ]);
+    measureGravelPct.mockResolvedValue({ gravelPct: 46, distribution: { gravel: 46 } });
+
+    const candidates = await generatePlannedRouteCandidates('lets do a 40 mile gravel loop', {
+      biasCoord: [-105, 40],
+    });
+
+    expect(buildGravelLoopCandidates).toHaveBeenCalledTimes(1);
+    expect(buildGravelLoopCandidates.mock.calls[0][1]).toMatchObject({ bearingDeg: null, gravelTargetPct: 50 });
+    expect(routeThroughWaypoints).not.toHaveBeenCalled();
+    expect(candidates[0].source).toBe('gravel_network');
+    expect(candidates[0].direction_label).toBe('East');
+    expect(candidates[0].gravel_shortfall).toBe(false);
+    expect(candidates[0].gravel_sparse).toBeNull();
+  });
+
+  it('rebuilds once with a higher gravel budget when the measured share misses by more than 15 points', async () => {
+    mockClaudePlan();
+    buildGravelLoopCandidates
+      .mockResolvedValueOnce([gravelLoopOf(70, 'First try', ['A Rd'])])
+      .mockResolvedValueOnce([gravelLoopOf(71, 'Second try', ['B Rd'])]);
+    measureGravelPct
+      .mockResolvedValueOnce({ gravelPct: 20, distribution: { gravel: 20 } })
+      .mockResolvedValueOnce({ gravelPct: 45, distribution: { gravel: 45 } });
+
+    const candidates = await generatePlannedRouteCandidates('ne gravel loop', { biasCoord: [-105, 40] });
+
+    expect(buildGravelLoopCandidates).toHaveBeenCalledTimes(2);
+    expect(buildGravelLoopCandidates.mock.calls[1][1]).toMatchObject({ gravelTargetPct: 80 });
+    expect(candidates[0].name).toBe('Second try');
+    expect(candidates[0].gravel_actual_pct).toBe(45);
+    expect(candidates[0].gravel_shortfall).toBe(false);
+  });
+
+  it('does not rebuild when the miss is within 15 points', async () => {
+    mockClaudePlan();
+    buildGravelLoopCandidates.mockResolvedValue([gravelLoopOf(70, 'Fine', ['A Rd'])]);
+    measureGravelPct.mockResolvedValue({ gravelPct: 40, distribution: { gravel: 40 } });
+
+    await generatePlannedRouteCandidates('ne gravel loop', { biasCoord: [-105, 40] });
+
+    expect(buildGravelLoopCandidates).toHaveBeenCalledTimes(1);
+  });
+
+  it('owns a miss: flags the shortfall and says where the gravel is', async () => {
+    mockClaudePlan();
+    buildGravelLoopCandidates.mockResolvedValue([gravelLoopOf(70, 'Thin', ['A Rd'])]);
+    measureGravelPct.mockResolvedValue({ gravelPct: 10, distribution: { gravel: 10 } });
+    findGravelWays.mockResolvedValue([{ id: 1 }]);
+    bestGravelHeadings.mockReturnValue([{ bearingDeg: 90, gravelKm: 9, score: 9 }]);
+
+    const candidates = await generatePlannedRouteCandidates('ne gravel loop', { biasCoord: [-105, 40] });
+
+    expect(candidates[0].gravel_shortfall).toBe(true);
+    expect(candidates[0].gravel_sparse).toEqual({ radius_km: 15, direction_label: 'East' });
+    expect(findGravelWays).toHaveBeenCalledWith([-105, 40], null, expect.any(Number));
+  });
+
+  it('pits wrong-sized gravel loops against the town plans instead of returning them alone', async () => {
+    mockClaudePlan();
+    buildGravelLoopCandidates.mockResolvedValue([gravelLoopOf(26, 'Short gravel', ['A Rd'])]); // 26/72 = 0.36×
+    measureGravelPct.mockResolvedValue({ gravelPct: 40, distribution: { gravel: 40 } }); // within 15 pts: no rebuild
+    routeThroughWaypoints.mockImplementation(async (_s: unknown, names: string[]) =>
+      plannedRouteOf(70, names),
+    );
+
+    const candidates = await generatePlannedRouteCandidates('ne gravel loop', { biasCoord: [-105, 40] });
+
+    expect(buildGravelLoopCandidates).toHaveBeenCalledTimes(1);
+    expect(routeThroughWaypoints).toHaveBeenCalledTimes(3);
+    // The in-band town routes survive the distance guard; the 26 km loop does not.
+    expect(candidates.map((c) => c.name)).not.toContain('Short gravel');
+    expect(candidates.length).toBe(3);
+  });
+
+  it('drops a near-paved candidate when another meets the gravel floor', async () => {
+    mockClaudePlan();
+    buildGravelLoopCandidates.mockResolvedValue([
+      gravelLoopOf(70, 'Mostly paved', ['A Rd']),
+      gravelLoopOf(71, 'Real gravel', ['B Rd']),
+    ]);
+    measureGravelPct
+      .mockResolvedValueOnce({ gravelPct: 5, distribution: { gravel: 5 } })
+      .mockResolvedValueOnce({ gravelPct: 40, distribution: { gravel: 40 } });
+
+    const candidates = await generatePlannedRouteCandidates('ne gravel loop', { biasCoord: [-105, 40] });
+
+    expect(candidates.map((c) => c.name)).toEqual(['Real gravel']);
   });
 
   it('falls back to the Claude-town path when the area is gravel-sparse', async () => {

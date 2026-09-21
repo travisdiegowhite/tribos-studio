@@ -184,12 +184,29 @@ module · **[big]** new infra or an external dependency.
     counts, no geometry, no identity. Highest-confidence tier after explicit
     tags; extra candidate ways for `gravelRouteBuilder.findGravelWays`. A moat
     Strava/Komoot lack: measured surface on roads OSM has never tagged.
-15. **Make "mixed" real and close the loop** [medium]. `gravelTargetPct` slider
-    in the Build form; persist the measured `gravel_actual_pct` / `surface_mix`
-    on save (declared in `hooks/route-builder/types.ts`, written nowhere); one
-    correction pass when measured misses target by more than 15 points; the
-    inferred ways from C12 as chunk candidates so gravel-sparse areas still
-    find something.
+15. **Make "mixed" real and close the loop** [medium] — **half shipped (Phase
+    4b.1)**. What shipped, prompted by "Lets do a 40 mile gravel loop" from
+    Erie coming back 56 mi at ~5% gravel: the gravel-network path
+    (`gravelRouteBuilder.ts`) no longer needs a direction — with none it
+    searches the full circle and heads for the headings with the most gravel
+    (`bestGravelHeadings`); `findGravelWays` goes through the shared
+    three-mirror `overpassClient` and counts inferred gravel too (C12's
+    `tracktype=grade2..5`, untagged `highway=track`, confidence carried and
+    preferred lower than tagged), and when Overpass is slow or down BRouter
+    itself finds the gravel: gravel-profile spokes out from the start whose
+    tag rows say what unpaved roads they rode (`probeGravelWaysWithBRouter`,
+    started 3 s after Overpass, first non-empty wins); thin gravel no longer
+    shrinks the loop, `padLoopWaypoints` adds apexes at the loop radius;
+    wrong-sized gravel loops are pitted against the Claude-town plans rather
+    than returned alone; one correction pass when the measured share
+    misses the target by more than 15 points (budget raised by the miss,
+    better-scoring set wins); a gravel floor in the ranking (a candidate under
+    a third of the target loses to any that does better); and the chat owns
+    the miss (`gravel_shortfall`, `gravel_sparse`: "gravel is thin within
+    13 km of your start; the most is northeast") instead of "want me to tweak
+    it?". Still open: the `gravelTargetPct` slider in the Build form and
+    persisting `gravel_actual_pct` / `surface_mix` on save (declared in
+    `hooks/route-builder/types.ts`, written nowhere).
 16. **"Why is this gravel?" provenance tooltip** [quick, after 12] — **shipped
     (Phase 4a)**: inferred stretches are drawn dashed on the map, the summary
     bar shows `tagged 61% · inferred 27% · unmapped 12%`, and each legend

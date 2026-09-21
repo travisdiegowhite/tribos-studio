@@ -38,6 +38,12 @@ export type GenerateOutcome =
       familiarity_percent?: number | null;
       /** Measured gravel+unpaved share (%) of the applied route, when known. */
       gravel_actual_pct?: number | null;
+      /** Requested gravel share (%), when the rider stated one. */
+      gravel_target_pct?: number | null;
+      /** True when the applied route's gravel share missed the ask by a wide margin. */
+      gravel_shortfall?: boolean;
+      /** Where the gravel is when the ask was missed: search radius + best heading. */
+      gravel_sparse?: { radius_km: number; direction_label: string | null } | null;
       /**
        * All generated candidates (applied one first) when alternatives exist.
        * Indexes line up with the `aiSuggestions` store.
@@ -139,6 +145,23 @@ export async function submitChatMessage(args: SubmitChatMessageArgs): Promise<vo
             ? `, ~${result.gravel_actual_pct}% gravel`
             : '';
         const appliedStats = `${fmtKm(result.distance_km)}, ${fmtM(result.elevation_gain_m)} climbing${gravelNote}`;
+        // Own a missed gravel ask instead of offering to "tweak" it.
+        const shortfallNote = result.gravel_shortfall
+          ? (() => {
+              const target =
+                typeof result.gravel_target_pct === 'number'
+                  ? `the ~${result.gravel_target_pct}% you asked for`
+                  : 'what a gravel loop should be';
+              const where = result.gravel_sparse
+                ? ` Gravel is thin within ${fmtKm(result.gravel_sparse.radius_km)} of your start${
+                    result.gravel_sparse.direction_label
+                      ? `; the most is ${result.gravel_sparse.direction_label.toLowerCase()}`
+                      : ''
+                  }.`
+                : '';
+              return ` That's short of ${target}.${where} Try "more gravel", or start further out.`;
+            })()
+          : '';
         const hasAlternatives = (result.options?.length ?? 0) > 1;
 
         if (hasAlternatives && result.options) {
@@ -146,7 +169,7 @@ export async function submitChatMessage(args: SubmitChatMessageArgs): Promise<vo
             ? ` heading ${result.options[0].direction_label.toLowerCase()}`
             : '';
           const appliedName = result.name ? ` '${result.name}'` : ' the best match';
-          const assistantText = `Planned ${result.options.length} routes${heading} — applied${appliedName} (${appliedStats})${familiarityNote}. Tap a card to switch.`;
+          const assistantText = `Planned ${result.options.length} routes${heading} — applied${appliedName} (${appliedStats})${familiarityNote}. Tap a card to switch.${shortfallNote}`;
           append({
             role: 'assistant',
             text: assistantText,
@@ -173,7 +196,9 @@ export async function submitChatMessage(args: SubmitChatMessageArgs): Promise<vo
             await persistTurn(trimmed, `${assistantText} ${optionLines}`);
           }
         } else {
-          const assistantText = `Built you a ${fmtKm(result.distance_km)} route — ${fmtM(result.elevation_gain_m)} climbing${gravelNote}${familiarityNote}. Want me to tweak it?`;
+          const assistantText = result.gravel_shortfall
+            ? `Built you a ${fmtKm(result.distance_km)} route — ${fmtM(result.elevation_gain_m)} climbing${gravelNote}${familiarityNote}.${shortfallNote}`
+            : `Built you a ${fmtKm(result.distance_km)} route — ${fmtM(result.elevation_gain_m)} climbing${gravelNote}${familiarityNote}. Want me to tweak it?`;
           append({ role: 'assistant', text: assistantText });
           trackRb2('chat_route_generated', {
             input_length: trimmed.length,
