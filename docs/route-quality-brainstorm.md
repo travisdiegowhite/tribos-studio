@@ -204,7 +204,11 @@ module · **[big]** new infra or an external dependency.
     a third of the target loses to any that does better); and the chat owns
     the miss (`gravel_shortfall`, `gravel_sparse`: "gravel is thin within
     13 km of your start; the most is northeast") instead of "want me to tweak
-    it?". Still open: the `gravelTargetPct` slider in the Build form and
+    it?". A plain "gravel loop" names no percentage and keeps a null target:
+    riding paved miles to the gravel and using connectors is normal, so the
+    builder aims for 50% but the result is only "short" under 20%, and the
+    reply never quotes a number the rider did not say; an explicit "N%
+    gravel" is short below N − 15. Still open: the `gravelTargetPct` slider in the Build form and
     persisting `gravel_actual_pct` / `surface_mix` on save (declared in
     `hooks/route-builder/types.ts`, written nowhere).
 16. **"Why is this gravel?" provenance tooltip** [quick, after 12] — **shipped

@@ -96,10 +96,30 @@ const W_STRESS = 0.15;
 
 const sleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
 
-/** A gravel ask is "missed" when the measured share is this many points under target. */
+/** An explicit "N% gravel" ask is "missed" when the measured share is this many points under N. */
 const GRAVEL_SHORTFALL_PTS = 15;
+/**
+ * A plain "gravel loop" names no percentage. Riding paved miles to reach the
+ * gravel and using connectors is normal, so it is only "missed" when the
+ * result is barely gravel at all: under this share.
+ */
+const GRAVEL_IMPLIED_MIN_PCT = 20;
+/** What the builder aims for on a plain "gravel loop" (connectors dilute it). */
+const GRAVEL_IMPLIED_BUDGET_PCT = 50;
 /** Cap for the one corrective rebuild's gravel budget. */
 const GRAVEL_CORRECTION_MAX_PCT = 90;
+
+/**
+ * How far (points) a candidate's measured gravel fell below what the ask
+ * tolerates: an explicit N% less GRAVEL_SHORTFALL_PTS, or the implied
+ * minimum for a plain gravel ask. 0 when unmeasured or fine.
+ */
+function gravelMissOf(c: RouteCandidate): number {
+  if (c.gravel_actual_pct === null) return 0;
+  const tolerated =
+    c.gravel_target_pct !== null ? c.gravel_target_pct - GRAVEL_SHORTFALL_PTS : GRAVEL_IMPLIED_MIN_PCT;
+  return Math.max(0, tolerated - c.gravel_actual_pct);
+}
 
 // The iterative builder + waypoint router are untyped JS — cast once at module scope.
 const generateIterativeRouteLoose = generateIterativeRoute as unknown as (
@@ -160,14 +180,16 @@ function applyDistanceGuard(candidates: RouteCandidate[]): RouteCandidate[] {
 
 /**
  * For a gravel ask, drop candidates whose measured gravel share is under a
- * third of the target when any candidate does better. Unmeasured ones stay
- * (neutral). Never empties the list.
+ * third of the explicit target (or of the implied minimum) when any
+ * candidate does better. Unmeasured ones stay (neutral). Never empties the
+ * list.
  */
 function applyGravelFloor(candidates: RouteCandidate[]): RouteCandidate[] {
   if (candidates.length <= 1) return candidates;
   const kept = candidates.filter((c) => {
-    if (c.gravel_target_pct === null || c.gravel_actual_pct === null) return true;
-    return c.gravel_actual_pct >= c.gravel_target_pct / 3;
+    if (c.gravel_actual_pct === null) return true;
+    const floor = (c.gravel_target_pct ?? GRAVEL_IMPLIED_MIN_PCT) / 3;
+    return c.gravel_actual_pct >= floor;
   });
   return kept.length > 0 ? kept : candidates;
 }
@@ -298,14 +320,21 @@ function scoreCandidate(
       actualBearing === null ? 0.5 : 1 - angularDiff(actualBearing, requestedBearing) / 180;
   }
 
-  // Gravel fit: full credit when no target was requested; a soft penalty for
-  // the gap when we both asked for a % and measured one; neutral if unmeasured.
+  // Gravel fit: a soft penalty for the gap when the rider asked for a % and
+  // we measured one; on a plain gravel ask, more gravel is simply better
+  // (full credit from 50% up); neutral if unmeasured; full credit when
+  // gravel was never asked for.
   let gravelMatch = 1;
   if (candidate.gravel_target_pct !== null) {
     gravelMatch =
       candidate.gravel_actual_pct === null
         ? 0.5
         : clamp01(1 - Math.abs(candidate.gravel_actual_pct - candidate.gravel_target_pct) / 100);
+  } else if (candidate.surface_profile === 'gravel') {
+    gravelMatch =
+      candidate.gravel_actual_pct === null
+        ? 0.5
+        : clamp01(0.5 + candidate.gravel_actual_pct / (2 * GRAVEL_IMPLIED_BUDGET_PCT));
   }
 
   const familiarity = (candidate.familiarity_percent ?? 0) / 100;
@@ -586,7 +615,9 @@ export async function generatePlannedRouteCandidates(
   // gravel" is literally a mix, so Claude returns surfaceType 'mixed'. Key off
   // the target so the gravel-network path actually runs, and force the gravel
   // routing profile so the connectors are gravel too (not just the forced ways).
-  const gravelTargetPct = plan.gravelTargetPct ?? (plan.surfaceType === 'gravel' ? 50 : null);
+  // A plain "gravel loop" keeps a null target: the builder aims for
+  // GRAVEL_IMPLIED_BUDGET_PCT, but nothing is reported as "what you asked for".
+  const gravelTargetPct = plan.gravelTargetPct ?? null;
   const wantsGravel = (gravelTargetPct ?? 0) > 0 || plan.surfaceType === 'gravel';
   const routeProfile = wantsGravel ? 'gravel' : (context.profile as string) || 'road';
   const trafficTolerance = (context.trafficTolerance as TrafficTolerance | undefined) ?? null;
@@ -631,17 +662,12 @@ export async function generatePlannedRouteCandidates(
     return guarded;
   };
 
-  const shortfallOf = (c: RouteCandidate): number =>
-    c.gravel_target_pct !== null && c.gravel_actual_pct !== null
-      ? c.gravel_target_pct - c.gravel_actual_pct
-      : 0;
-
   // Own the miss: flag every candidate that came up short and, when even the
   // best did, say where the gravel is (the full-circle way search is cached,
   // so this is free after the gravel-network path ran).
   const annotateGravel = async (cands: RouteCandidate[]): Promise<RouteCandidate[]> => {
     if (!wantsGravel || cands.length === 0) return cands;
-    for (const c of cands) c.gravel_shortfall = shortfallOf(c) > GRAVEL_SHORTFALL_PTS;
+    for (const c of cands) c.gravel_shortfall = gravelMissOf(c) > 0;
     if (!cands[0].gravel_shortfall) return cands;
     const radius_km = Math.round(gravelRadiusKm(targetDistanceKm));
     let direction_label: string | null = null;
@@ -704,15 +730,17 @@ export async function generatePlannedRouteCandidates(
   let gravelRanked: RouteCandidate[] = [];
   if (wantsGravel) {
     progress('gravel-network');
-    const target = gravelTargetPct ?? 50;
-    let ranked = await finalize(await buildGravelCandidates(target));
-    // One corrective rebuild when the measured share missed the ask by more
-    // than GRAVEL_SHORTFALL_PTS: aim the gravel budget higher by the miss and
-    // keep whichever set scores better.
-    const miss = ranked.length > 0 ? shortfallOf(ranked[0]) : 0;
-    if (ranked.length > 0 && ranked[0].gravel_actual_pct !== null && miss > GRAVEL_SHORTFALL_PTS) {
+    const budget = gravelTargetPct ?? GRAVEL_IMPLIED_BUDGET_PCT;
+    let ranked = await finalize(await buildGravelCandidates(budget));
+    // One corrective rebuild when the measured share missed what the ask
+    // tolerates: aim the gravel budget higher by the miss and keep whichever
+    // set scores better.
+    const miss = ranked.length > 0 ? gravelMissOf(ranked[0]) : 0;
+    if (miss > 0) {
       const corrected = await finalize(
-        await buildGravelCandidates(Math.min(GRAVEL_CORRECTION_MAX_PCT, target + miss)),
+        await buildGravelCandidates(
+          Math.min(GRAVEL_CORRECTION_MAX_PCT, budget + miss + (gravelTargetPct !== null ? GRAVEL_SHORTFALL_PTS : 0)),
+        ),
       );
       if (corrected.length > 0 && corrected[0].score > ranked[0].score) ranked = corrected;
     }

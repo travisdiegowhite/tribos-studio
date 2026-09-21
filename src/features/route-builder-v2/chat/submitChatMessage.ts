@@ -148,10 +148,12 @@ export async function submitChatMessage(args: SubmitChatMessageArgs): Promise<vo
         // Own a missed gravel ask instead of offering to "tweak" it.
         const shortfallNote = result.gravel_shortfall
           ? (() => {
-              const target =
+              // An explicit "N% gravel" is quoted back; a plain "gravel loop"
+              // named no number, so none is invented.
+              const short =
                 typeof result.gravel_target_pct === 'number'
-                  ? `the ~${result.gravel_target_pct}% you asked for`
-                  : 'what a gravel loop should be';
+                  ? ` That's short of the ~${result.gravel_target_pct}% you asked for.`
+                  : " That's not much gravel.";
               const where = result.gravel_sparse
                 ? ` Gravel is thin within ${fmtKm(result.gravel_sparse.radius_km)} of your start${
                     result.gravel_sparse.direction_label
@@ -159,7 +161,7 @@ export async function submitChatMessage(args: SubmitChatMessageArgs): Promise<vo
                       : ''
                   }.`
                 : '';
-              return ` That's short of ${target}.${where} Try "more gravel", or start further out.`;
+              return `${short}${where} Try "more gravel", or start further out.`;
             })()
           : '';
         const hasAlternatives = (result.options?.length ?? 0) > 1;

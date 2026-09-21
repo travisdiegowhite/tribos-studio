@@ -542,6 +542,40 @@ describe('generatePlannedRouteCandidates — gravel-network branch', () => {
     expect(candidates.length).toBe(3);
   });
 
+  it('a plain "gravel loop" keeps a null target: 34% is fine, no rebuild, no shortfall', async () => {
+    globalThis.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ success: true, content: 'PLAN_JSON' }),
+    });
+    parseRoutePlanningResponse.mockReturnValue({ ...PLAN, direction: null, gravelTargetPct: null });
+    buildGravelLoopCandidates.mockResolvedValue([gravelLoopOf(70, 'Gravel loop', ['CR 5'])]);
+    measureGravelPct.mockResolvedValue({ gravelPct: 34, distribution: { gravel: 34 } });
+
+    const candidates = await generatePlannedRouteCandidates('lets do a 40 mile gravel loop', { biasCoord: [-105, 40] });
+
+    expect(buildGravelLoopCandidates).toHaveBeenCalledTimes(1);
+    expect(buildGravelLoopCandidates.mock.calls[0][1]).toMatchObject({ gravelTargetPct: 50 });
+    expect(candidates[0].gravel_target_pct).toBeNull();
+    expect(candidates[0].gravel_shortfall).toBe(false);
+  });
+
+  it('a plain "gravel loop" that is barely gravel is rebuilt once and flagged', async () => {
+    globalThis.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ success: true, content: 'PLAN_JSON' }),
+    });
+    parseRoutePlanningResponse.mockReturnValue({ ...PLAN, gravelTargetPct: null });
+    buildGravelLoopCandidates.mockResolvedValue([gravelLoopOf(70, 'Gravel loop', ['CR 5'])]);
+    measureGravelPct.mockResolvedValue({ gravelPct: 5, distribution: { gravel: 5 } });
+
+    const candidates = await generatePlannedRouteCandidates('ne gravel loop', { biasCoord: [-105, 40] });
+
+    expect(buildGravelLoopCandidates).toHaveBeenCalledTimes(2);
+    expect(buildGravelLoopCandidates.mock.calls[1][1]).toMatchObject({ gravelTargetPct: 65 });
+    expect(candidates[0].gravel_target_pct).toBeNull();
+    expect(candidates[0].gravel_shortfall).toBe(true);
+  });
+
   it('drops a near-paved candidate when another meets the gravel floor', async () => {
     mockClaudePlan();
     buildGravelLoopCandidates.mockResolvedValue([
