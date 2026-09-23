@@ -15,7 +15,7 @@
 
 import { getBRouterDirections as getBRouterDirectionsJs, BROUTER_PROFILES } from './brouter';
 import { measureRouteStress } from './roadAttributes';
-import { maxLtsForTolerance, type StressSummary, type TrafficTolerance } from './trafficStress';
+import { maxLtsForTolerance, type StressSummary, type FacilitySummary, type TrafficTolerance } from './trafficStress';
 import type { TaggedWay } from './wayTags';
 
 export interface RouteCandidateLike {
@@ -26,6 +26,7 @@ export interface RouteCandidateLike {
   profile?: string;
   taggedWays?: TaggedWay[] | null;
   stressSummary?: StressSummary | null;
+  facilitySummary?: FacilitySummary | null;
   alternates?: RouteCandidateLike[];
   [key: string]: unknown;
 }
@@ -43,6 +44,8 @@ const MIN_GAIN_KM = 0.3;
 const MIN_GAIN_SHARE = 0.2;
 /** Weight of the average stress term next to the km-over-tolerance term. */
 const STRESS_TERM_WEIGHT = 0.25;
+/** Lines whose calm metric is within this of the best are tied; bike-lane share decides. */
+const TIE_KM = 0.1;
 
 /** How much longer than the primary a calmer line may be. */
 export function detourAllowance(tolerance: TrafficTolerance | null | undefined): number {
@@ -119,14 +122,17 @@ export function pickCalmest(
   const primaryM = distanceMOf(primary);
   const maxM = primaryM > 0 ? primaryM * (1 + detourAllowance(tolerance)) : Infinity;
 
+  const facilityPct = (c: RouteCandidateLike) => c.facilitySummary?.facilityPct ?? 0;
   let bestIndex = primaryIndex;
   let best = before;
   candidates.forEach((c, i) => {
     if (i === primaryIndex || !c.stressSummary) return;
     if (distanceMOf(c) > maxM) return;
     const m = calmMetric(c.stressSummary, tolerance);
-    if (m < best) {
-      best = m;
+    // Clearly calmer wins; within TIE_KM the line with more bike lane /
+    // shoulder wins; an exact tie keeps the incumbent.
+    if (m < best - TIE_KM || (Math.abs(m - best) <= TIE_KM && facilityPct(c) > facilityPct(candidates[bestIndex]))) {
+      best = Math.min(m, best);
       bestIndex = i;
     }
   });
@@ -161,7 +167,7 @@ export async function measureCandidates<T extends RouteCandidateLike>(
           measureRouteStress(c.coordinates as Array<[number, number]>, { taggedWays: c.taggedWays ?? null }),
           timeout,
         ]);
-        return { ...c, stressSummary: result?.summary ?? null };
+        return { ...c, stressSummary: result?.summary ?? null, facilitySummary: result?.facility ?? null };
       } catch {
         return { ...c, stressSummary: null };
       } finally {

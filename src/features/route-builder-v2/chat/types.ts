@@ -24,6 +24,8 @@ export interface RouteOptionSummary {
   gravel_shortfall?: boolean;
   /** Share (%) of the mapped route on calm/comfortable roads (LTS 1–2). */
   quiet_pct?: number | null;
+  /** Share (%) of the mapped route on a protected cycleway, bike lane or shoulder. */
+  bike_lane_pct?: number | null;
   /** One-line "why this route" from the planner. */
   rationale?: string;
 }

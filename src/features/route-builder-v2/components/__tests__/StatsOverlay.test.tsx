@@ -1,4 +1,4 @@
-import { render, screen, fireEvent } from '@testing-library/react';
+import { render, screen, fireEvent, cleanup } from '@testing-library/react';
 import { MantineProvider } from '@mantine/core';
 import { describe, it, expect, vi } from 'vitest';
 import { StatsOverlay } from '../StatsOverlay';
@@ -214,5 +214,62 @@ describe('StatsOverlay target chip', () => {
     const chip = screen.getByTestId('rb2-stats-target');
     expect(chip).toHaveTextContent('8.0 km over 40');
     expect(chip).not.toHaveTextContent('Fix');
+  });
+});
+
+describe('StatsOverlay — BIKE LANES stat', () => {
+  const stats = { distance_km: 40, elevation_gain_m: 300, duration_s: 5400 };
+  const facility = {
+    totalKm: 40,
+    knownKm: 38,
+    kmByKind: { protected: 4, lane: 8, shoulder: 2, shared: 3, trail: 5, none: 16, unknown: 2 },
+    facilityKm: 14,
+    facilityPct: 37,
+  };
+  const renderWith = (props: Partial<StatsOverlayProps>) =>
+    render(
+      <MantineProvider>
+        <StatsOverlay stats={stats} {...props} />
+      </MantineProvider>,
+    );
+
+  it('shows the share and the km of each counted kind', () => {
+    renderWith({ facilitySummary: facility, stressStatus: 'ready' });
+    const cell = screen.getByTestId('rb2-stats-facility');
+    expect(cell).toHaveTextContent('Bike lanes');
+    expect(cell).toHaveTextContent('37%');
+    expect(cell).toHaveTextContent('4.0 km protected · 8.0 km lanes · 2.0 km shoulder');
+  });
+
+  it('renders in miles when imperial', () => {
+    renderWith({ facilitySummary: facility, stressStatus: 'ready', isImperial: true });
+    expect(screen.getByTestId('rb2-stats-facility')).toHaveTextContent('2.5 mi protected · 5.0 mi lanes · 1.2 mi shoulder');
+  });
+
+  it('says trail only / no bike lanes when nothing counts', () => {
+    renderWith({
+      facilitySummary: { ...facility, kmByKind: { ...facility.kmByKind, protected: 0, lane: 0, shoulder: 0 }, facilityKm: 0, facilityPct: 0 },
+    });
+    expect(screen.getByTestId('rb2-stats-facility')).toHaveTextContent('0%');
+    expect(screen.getByTestId('rb2-stats-facility')).toHaveTextContent('trail only');
+    cleanup();
+    renderWith({
+      facilitySummary: { ...facility, kmByKind: { ...facility.kmByKind, protected: 0, lane: 0, shoulder: 0, trail: 0 }, facilityKm: 0, facilityPct: 0 },
+    });
+    expect(screen.getByTestId('rb2-stats-facility')).toHaveTextContent('no bike lanes');
+  });
+
+  it('shows a placeholder while measuring and n/a when unavailable', () => {
+    renderWith({ stressStatus: 'loading' });
+    expect(screen.getByTestId('rb2-stats-facility')).toHaveTextContent('—');
+    cleanup();
+    renderWith({ stressStatus: 'unavailable' });
+    expect(screen.getByTestId('rb2-stats-facility')).toHaveTextContent('n/a');
+    expect(screen.getByTestId('rb2-stats-facility')).toHaveTextContent('road data unavailable');
+  });
+
+  it('lets the stat row wrap so five cells fit a narrow card', () => {
+    renderWith({ facilitySummary: facility });
+    expect(screen.getByTestId('rb2-stats-row')).toHaveStyle({ flexWrap: 'wrap' });
   });
 });

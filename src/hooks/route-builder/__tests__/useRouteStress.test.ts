@@ -62,7 +62,7 @@ describe('useRouteStress', () => {
     expect(measureRouteStress).toHaveBeenCalledWith(geomA.coordinates, { taggedWays: null });
     expect(r.current.status).toBe('ready');
     expect(r.current.result).toEqual(result);
-    expect(trackRb2).toHaveBeenCalledWith('stress_computed', expect.objectContaining({ quiet_pct: 100 }));
+    expect(trackRb2).toHaveBeenCalledWith('stress_computed', expect.objectContaining({ quiet_pct: 100, facility_pct: null }));
   });
 
   it('only fetches the settled geometry when it changes within the debounce', async () => {

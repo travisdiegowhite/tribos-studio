@@ -39,7 +39,7 @@ import { getAuthHeaders } from './authHeaders';
 import { reverseGeocodeRegion } from './geocoding.js';
 import { measureGravelPct } from './surfaceMeasurement';
 import { measureRouteStress } from './roadAttributes';
-import type { StressSummary, TrafficTolerance } from './trafficStress';
+import type { StressSummary, FacilitySummary, TrafficTolerance } from './trafficStress';
 import type { TaggedWay } from './wayTags';
 import { scoreRoutePreference } from './routeScoring';
 import { calculateBearing } from './routeUtils';
@@ -76,6 +76,8 @@ export interface RouteCandidate {
   tagged_ways: TaggedWay[];
   /** Traffic-stress roll-up of the routed geometry; null if unmeasured. */
   stress_summary: StressSummary | null;
+  /** Bike-lane / shoulder coverage of the routed geometry; null if unmeasured. */
+  facility_summary: FacilitySummary | null;
   familiarity_percent: number | null;
   /** Fidelity-to-request score in [0, 1]; candidates are returned best-first. */
   score: number;
@@ -152,8 +154,10 @@ async function stressAll(cands: RouteCandidate[]): Promise<void> {
         timeout,
       ]);
       candidate.stress_summary = result?.summary ?? null;
+      candidate.facility_summary = result?.facility ?? null;
     } catch {
       candidate.stress_summary = null;
+      candidate.facility_summary = null;
     } finally {
       if (timer) clearTimeout(timer);
     }
@@ -390,6 +394,7 @@ function candidateFromRoute(
     gravel_sparse: null,
     tagged_ways: route.taggedWays ?? [],
     stress_summary: null,
+    facility_summary: null,
     familiarity_percent: route.familiarityScore?.familiarityPercent ?? null,
     score: 0,
     requested: { distance_km: request.targetDistanceKm, bearing: requestedBearing },

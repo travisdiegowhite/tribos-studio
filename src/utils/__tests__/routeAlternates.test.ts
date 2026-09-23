@@ -163,3 +163,28 @@ describe('brouterCandidateProfiles / gatherCandidates', () => {
     expect(fetchBRouter.mock.calls[0][1]).toEqual({ profile: 'safety' });
   });
 });
+
+describe('pickCalmest — bike-lane tie-break', () => {
+  const facility = (facilityPct: number) => ({
+    totalKm: 20, knownKm: 20, kmByKind: { protected: 0, lane: 0, shoulder: 0, shared: 0, trail: 0, none: 0, unknown: 0 }, facilityKm: 0, facilityPct,
+  });
+  const primary = { coordinates: line(5), distance_m: 20000, source: 'stadia_maps', stressSummary: summary({ 1: 10, 3: 6, 4: 4 }, 0.5), facilitySummary: facility(10) };
+
+  it('within 0.1 km of calm, the line with more bike lanes wins the switch', () => {
+    const calmer = { ...primary, source: 'brouter', stressSummary: summary({ 1: 16, 2: 5, 3: 1 }, 0.1), facilitySummary: facility(5) };
+    const calmerWithLanes = { ...calmer, source: 'brouter-safety', facilitySummary: facility(40) };
+    expect(pickCalmest([primary, calmer, calmerWithLanes], 'medium').index).toBe(2);
+    expect(pickCalmest([primary, calmerWithLanes, calmer], 'medium').index).toBe(1);
+  });
+
+  it('a clearly calmer line still beats one with more bike lanes', () => {
+    const calmest = { ...primary, source: 'a', stressSummary: summary({ 1: 20 }, 0), facilitySummary: facility(0) };
+    const laned = { ...primary, source: 'b', stressSummary: summary({ 1: 16, 3: 4 }, 0.2), facilitySummary: facility(60) };
+    expect(pickCalmest([primary, laned, calmest], 'medium').index).toBe(2);
+  });
+
+  it('an exact tie with the primary keeps the primary, even with fewer bike lanes elsewhere equal', () => {
+    const same = { ...primary, source: 'brouter', facilitySummary: facility(10) };
+    expect(pickCalmest([primary, same], 'medium').index).toBe(0);
+  });
+});

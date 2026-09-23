@@ -85,6 +85,7 @@ export function useRouteStress(
           quiet_pct: next.summary.quietPct,
           lts4_km: next.summary.lts4Km,
           unknown_pct: next.summary.unknownPct,
+          facility_pct: next.facility?.facilityPct ?? null,
           source: next.source,
         });
       }

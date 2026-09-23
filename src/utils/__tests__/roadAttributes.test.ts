@@ -170,6 +170,11 @@ describe('analyzeRouteStress / measureRouteStress', () => {
     expect(result?.summary.quietPct).toBe(50);
     expect(result?.summary.lts4Km).toBeCloseTo(0.853, 2);
     expect(result?.summary.maxContinuousLts4Km).toBeCloseTo(0.853, 2);
+    // Facilities ride the same ways: the cycleway half is protected, the primary half has none.
+    expect(result?.facilities.slice(0, 10)).toEqual(Array(10).fill('protected'));
+    expect(result?.facilities.slice(10)).toEqual(Array(10).fill('none'));
+    expect(result?.facility.facilityPct).toBe(50);
+    expect(result?.facility.kmByKind.protected).toBeCloseTo(0.853, 2);
   });
 
   it('marks unmatched stretches as unknown (0)', () => {
@@ -178,6 +183,8 @@ describe('analyzeRouteStress / measureRouteStress', () => {
     expect(result?.ltsSegments.slice(0, 5)).toEqual(Array(5).fill(1));
     expect(result?.ltsSegments.slice(6)).toEqual(Array(14).fill(0));
     expect(result?.summary.unknownPct).toBeGreaterThan(60);
+    expect(result?.facilities.slice(6)).toEqual(Array(14).fill('unknown'));
+    expect(result?.facility.knownKm).toBeCloseTo(result!.summary.knownKm, 3);
   });
 
   it('builds a coloured feature collection grouped by LTS', () => {
