@@ -522,7 +522,10 @@ async function tryBRouterRouting(waypoints, options) {
     console.log(`🚴 Trying BRouter with profile: ${brouterProfile}`);
 
     const result = await getBRouterDirections(waypoints, {
-      profile: brouterProfile
+      profile: brouterProfile,
+      // With Tribos profiles on, the named profile is rendered at the
+      // rider's tolerance (brouter.js tribosForProfileName).
+      tolerance: trafficToleranceOf(preferences),
     });
 
     if (result && result.coordinates && result.coordinates.length > 0) {

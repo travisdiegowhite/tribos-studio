@@ -148,7 +148,7 @@ describe('brouterCandidateProfiles / gatherCandidates', () => {
     };
     const out = await gatherCandidates([[-105, 40], [-104.9, 40]], primary, { tolerance: 'low', fetchBRouter });
     expect(fetchBRouter).toHaveBeenCalledTimes(2);
-    expect(fetchBRouter.mock.calls[0][1]).toEqual({ profile: 'trekking' });
+    expect(fetchBRouter.mock.calls[0][1]).toEqual({ profile: 'trekking', tolerance: 'low' });
     expect(out.map((c) => c.source)).toEqual(['stadia_maps', 'stadia_maps', 'brouter']);
     expect('alternates' in out[0]).toBe(false);
     expect(out[2]).toMatchObject({ profile: 'trekking', distance_m: 21000, elevationGain: 50, confidence: 0.9 });
@@ -160,7 +160,7 @@ describe('brouterCandidateProfiles / gatherCandidates', () => {
     const fetchBRouter = vi.fn(async (_pts: unknown, _o: { profile: string }) => null);
     await gatherCandidates([[-105, 40], [-104.9, 40]], { coordinates: line(3), source: 'brouter', profile: 'trekking' }, { tolerance: 'low', fetchBRouter });
     expect(fetchBRouter).toHaveBeenCalledTimes(1);
-    expect(fetchBRouter.mock.calls[0][1]).toEqual({ profile: 'safety' });
+    expect(fetchBRouter.mock.calls[0][1]).toEqual({ profile: 'safety', tolerance: 'low' });
   });
 });
 

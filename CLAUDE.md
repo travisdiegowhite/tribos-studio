@@ -194,6 +194,7 @@ no cron may run more often than every 5 minutes. Nothing runs every minute.
 | `*/10 * * * *` | `proactive-insights-process` | generate user insights |
 | `30 * * * *` | `garmin-health-monitor` | Garmin SLI/SLO checks |
 | `45 * * * *` | `strava-health-monitor` | Strava SLI/SLO checks |
+| `15 * * * *` | `brouter-health-monitor` | self-hosted BRouter reachability + latency |
 | `0 * * * *` | `workout-preview-cron` | tomorrow's session push |
 | `0 */6 * * *` | `garmin-token-maintenance` | refresh Garmin tokens |
 | `0 */6 * * *` | `coros-token-maintenance` | refresh COROS tokens |
@@ -450,6 +451,35 @@ readiness numbers (`target_load`, `target_duration_min`, `workout_type`) onto
 `calendar_entries` by id, skipping pinned entries. Migration 070's backfill
 preserved ids, so the id is the join. The table itself is kept for now — do not
 drop it without approval and a soak period.
+
+### BRouter — self-hosted first, brouter.de as fallback (2026-09)
+
+`src/utils/brouter.js` is the only BRouter client. It walks an ordered server
+list `[VITE_BROUTER_URL, https://brouter.de]` (deduped) with a per-session
+circuit breaker (two failures → skipped five minutes) and returns the first
+route. The self-hosted server lives in `deploy/brouter/` (Fly.io app
+`tribos-brouter`, contiguous-US tiles) — `docs/brouter-self-host-runbook.md`
+is the deploy and operations guide.
+
+- **Tribos profiles** (`routing-profiles/tribos-road.brf`, `tribos-gravel.brf`)
+  are BRouter cost functions that read `maxspeed`, `lanes`, `shoulder`,
+  `cycleway*`, `estimated_traffic_class` and take the rider's Road comfort as
+  a parameter. `src/utils/brouterProfiles.ts` renders and uploads them at
+  runtime (`POST /brouter/profile` → `custom_…` id, cached per server). They
+  are **gated by `VITE_BROUTER_TRIBOS_PROFILES`** (default off); when on,
+  named-profile calls are upgraded transparently (trekking → road at the
+  rider's tolerance, safety → quiet, fastbike → direct, gravel → gravel).
+  Pass `tribos: false` where the rider's preferences must NOT steer the
+  request (`brouterTrace.ts` re-rides a drawn line to read its tags).
+- **Validate a profile change against a live server**, never by eye:
+  `node scripts/validate-brouter-profiles.mjs` (BRouter's parser is Java;
+  there is no offline lint). CI does not run it (network).
+- **Do not make BRouter the primary road router yet.** That is the Phase 3c
+  cutover (`VITE_BROUTER_PRIMARY_ROAD`), a separate PR after a week of green
+  `brouter-health-monitor` checks.
+- **Never call `createClient`/Realtime for this** — the health monitor uses
+  the `supabaseAdmin` singleton and one row in `system_health_checks`
+  (migration 126, apply by hand; the monitor is fail-soft without it).
 
 ### Garmin sync — dual stack, FROZEN (2026-07-14)
 

@@ -80,7 +80,7 @@ describe('traceTaggedWaysWithBRouter', () => {
     const fetchRoute = vi.fn().mockResolvedValue({ taggedWays: [{ id: -1, geometry: line(2), tags: {} }] });
     const result = await traceTaggedWaysWithBRouter(line(10), { fetchRoute, profile: 'gravel' });
     expect(result).toHaveLength(1);
-    expect(fetchRoute).toHaveBeenCalledWith(expect.any(Array), { profile: 'gravel' });
+    expect(fetchRoute).toHaveBeenCalledWith(expect.any(Array), { profile: 'gravel', tribos: false });
     expect(mockBRouter).not.toHaveBeenCalled();
   });
 });

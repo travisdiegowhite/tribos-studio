@@ -1,0 +1,11 @@
+# Fly.io builds deploy/brouter/Dockerfile with the repo root as its context
+# (docs/brouter-self-host-runbook.md). Only the profiles and the deploy
+# scripts belong in that context; everything else would be uploaded for
+# nothing (node_modules alone is hundreds of MB).
+*
+!routing-profiles/
+!routing-profiles/*.brf
+!deploy/
+!deploy/brouter/
+!deploy/brouter/*.sh
+!deploy/brouter/Dockerfile
