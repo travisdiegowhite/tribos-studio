@@ -197,7 +197,10 @@ export async function getStadiaMapsRoute(waypoints, options = {}) {
     userSpeed = null,
     // Explicit Valhalla use_hills override (0–1). Set when the rider gave an
     // elevation-gain target; wins over profile/goal-derived values.
-    useHills = null
+    useHills = null,
+    // How many alternate lines to ask for. Valhalla only returns them for
+    // two-location requests, so the field is sent only then.
+    alternates = 0
   } = options;
 
   const apiKey = import.meta.env.VITE_STADIA_API_KEY;
@@ -340,6 +343,9 @@ export async function getStadiaMapsRoute(waypoints, options = {}) {
     language: 'en-US',
     id: `tribos-${Date.now()}`
   };
+  if (alternates > 0 && locations.length === 2) {
+    requestBody.alternates = alternates;
+  }
 
   console.log('📊 Stadia Maps costing options:', JSON.stringify(costing_options.bicycle, null, 2));
 
@@ -377,97 +383,23 @@ export async function getStadiaMapsRoute(waypoints, options = {}) {
       throw new Error('No route found between waypoints');
     }
 
-    // Extract route data - process ALL legs for multi-waypoint routes
-    const trip = data.trip;
-
-    // Ferries are forbidden, 100%. `use_ferry = 0` only *avoids* ferries; when
-    // Valhalla crosses water by ferry anyway (no land route), reject the route
-    // so the caller falls back or fails rather than handing the rider a ferry.
-    if (valhallaTripUsesFerry(trip)) {
-      console.warn('⛔ Stadia Maps: route requires a ferry — rejecting (ferries forbidden)');
-      throw new Error(FERRY_REJECTED_REASON);
+    const primary = parseValhallaTrip(data.trip, profile);
+    // Valhalla alternates (two-location requests only). A ferry-using or
+    // malformed alternate is dropped, never fatal.
+    const alternateTrips = Array.isArray(data.alternates) ? data.alternates : [];
+    const parsedAlternates = [];
+    for (const alt of alternateTrips) {
+      if (!alt?.trip?.legs?.length) continue;
+      try {
+        parsedAlternates.push(parseValhallaTrip(alt.trip, profile));
+      } catch {
+        /* skip */
+      }
     }
 
-    console.log(`📍 Processing ${trip.legs.length} route leg(s) from Valhalla`);
-
-    // Combine all legs into single route
-    let coordinates = [];
-    let totalDistance = 0;
-    let totalDuration = 0;
-    // Global index of each leg's shape index 0, for resolving maneuver
-    // begin_shape_index (per-leg) into the concatenated coordinates array.
-    const legStartGlobal = [];
-
-    trip.legs.forEach((leg, index) => {
-      // Decode polyline for this leg
-      const legCoordinates = decodePolyline(leg.shape);
-
-      // Concatenate coordinates (skip first point of subsequent legs to avoid duplication)
-      if (index === 0) {
-        legStartGlobal.push(0);
-        coordinates = legCoordinates;
-      } else {
-        // Subsequent legs share their first point with the previous leg's last.
-        legStartGlobal.push(coordinates.length - 1);
-        coordinates = coordinates.concat(legCoordinates.slice(1));
-      }
-
-      // Sum up distance (meters) and duration (seconds).
-      // Valhalla emits leg.summary.length in KM; convert at boundary.
-      totalDistance += leg.summary.length * 1000;
-      totalDuration += leg.summary.time;
-    });
-
-    // Turn-by-turn cues resolved onto the concatenated line, with cumulative
-    // distance (maneuver.length is the distance covered BY the maneuver's
-    // segment, so the running sum before each maneuver is its position).
-    const cues = [];
-    let cueCumulativeKm = 0;
-    trip.legs.forEach((leg, index) => {
-      (leg.maneuvers || []).forEach((m) => {
-        const globalIdx = Math.min(
-          Math.max(legStartGlobal[index] + (m.begin_shape_index || 0), 0),
-          coordinates.length - 1,
-        );
-        cues.push({
-          type: m.type ?? 0,
-          direction: valhallaTypeToDirection(m.type ?? 0),
-          instruction: m.instruction || '',
-          streetNames: m.street_names || [],
-          distance_km: Math.round(cueCumulativeKm * 100) / 100,
-          coordinate: coordinates[globalIdx],
-        });
-        cueCumulativeKm += m.length || 0;
-      });
-    });
-
-    const distance_m = totalDistance;
-    const duration_s = totalDuration;
-
-    // Extract maneuver data for intersection/turn analysis
-    const maneuvers = extractManeuverData(trip);
-
-    // Derive traffic and quietness scores from road classification
-    const roadClassification = maneuvers.roadClassification;
-    const trafficScore = roadClassification ? roadClassification.arterialFraction : 0.5;
-    const quietnessScore = roadClassification ? (1 - roadClassification.arterialFraction) : 0.5;
-
-    console.log(`✅ Stadia Maps: Route generated - ${(distance_m / 1000).toFixed(2)} km, ${Math.round(duration_s / 60)} min, ${maneuvers.totalManeuvers} maneuvers`);
-
     return {
-      coordinates,
-      distance_m,
-      duration_s,
-      distance: distance_m, // legacy alias (meters)
-      duration: duration_s, // legacy alias (seconds)
-      confidence: 1.0,
-      source: 'stadia_maps',
-      profile,
-      cues,
-      maneuvers,
-      trafficScore,
-      quietnessScore,
-      roadClassification,
+      ...primary,
+      alternates: parsedAlternates,
       raw: data // Include raw response for debugging
     };
 
@@ -475,6 +407,104 @@ export async function getStadiaMapsRoute(waypoints, options = {}) {
     console.error('Stadia Maps routing failed:', error);
     throw error;
   }
+}
+
+/**
+ * One Valhalla `trip` → route result (legs concatenated, cues, maneuvers,
+ * road classification). Throws FERRY_REJECTED_REASON for a trip that
+ * crosses water by ferry. Shared by the primary trip and its alternates.
+ */
+function parseValhallaTrip(trip, profile) {
+
+  // Ferries are forbidden, 100%. `use_ferry = 0` only *avoids* ferries; when
+  // Valhalla crosses water by ferry anyway (no land route), reject the route
+  // so the caller falls back or fails rather than handing the rider a ferry.
+  if (valhallaTripUsesFerry(trip)) {
+    console.warn('⛔ Stadia Maps: route requires a ferry — rejecting (ferries forbidden)');
+    throw new Error(FERRY_REJECTED_REASON);
+  }
+
+  console.log(`📍 Processing ${trip.legs.length} route leg(s) from Valhalla`);
+
+  // Combine all legs into single route
+  let coordinates = [];
+  let totalDistance = 0;
+  let totalDuration = 0;
+  // Global index of each leg's shape index 0, for resolving maneuver
+  // begin_shape_index (per-leg) into the concatenated coordinates array.
+  const legStartGlobal = [];
+
+  trip.legs.forEach((leg, index) => {
+    // Decode polyline for this leg
+    const legCoordinates = decodePolyline(leg.shape);
+
+    // Concatenate coordinates (skip first point of subsequent legs to avoid duplication)
+    if (index === 0) {
+      legStartGlobal.push(0);
+      coordinates = legCoordinates;
+    } else {
+      // Subsequent legs share their first point with the previous leg's last.
+      legStartGlobal.push(coordinates.length - 1);
+      coordinates = coordinates.concat(legCoordinates.slice(1));
+    }
+
+    // Sum up distance (meters) and duration (seconds).
+    // Valhalla emits leg.summary.length in KM; convert at boundary.
+    totalDistance += leg.summary.length * 1000;
+    totalDuration += leg.summary.time;
+  });
+
+  // Turn-by-turn cues resolved onto the concatenated line, with cumulative
+  // distance (maneuver.length is the distance covered BY the maneuver's
+  // segment, so the running sum before each maneuver is its position).
+  const cues = [];
+  let cueCumulativeKm = 0;
+  trip.legs.forEach((leg, index) => {
+    (leg.maneuvers || []).forEach((m) => {
+      const globalIdx = Math.min(
+        Math.max(legStartGlobal[index] + (m.begin_shape_index || 0), 0),
+        coordinates.length - 1,
+      );
+      cues.push({
+        type: m.type ?? 0,
+        direction: valhallaTypeToDirection(m.type ?? 0),
+        instruction: m.instruction || '',
+        streetNames: m.street_names || [],
+        distance_km: Math.round(cueCumulativeKm * 100) / 100,
+        coordinate: coordinates[globalIdx],
+      });
+      cueCumulativeKm += m.length || 0;
+    });
+  });
+
+  const distance_m = totalDistance;
+  const duration_s = totalDuration;
+
+  // Extract maneuver data for intersection/turn analysis
+  const maneuvers = extractManeuverData(trip);
+
+  // Derive traffic and quietness scores from road classification
+  const roadClassification = maneuvers.roadClassification;
+  const trafficScore = roadClassification ? roadClassification.arterialFraction : 0.5;
+  const quietnessScore = roadClassification ? (1 - roadClassification.arterialFraction) : 0.5;
+
+  console.log(`✅ Stadia Maps: Route generated - ${(distance_m / 1000).toFixed(2)} km, ${Math.round(duration_s / 60)} min, ${maneuvers.totalManeuvers} maneuvers`);
+
+  return {
+    coordinates,
+    distance_m,
+    duration_s,
+    distance: distance_m, // legacy alias (meters)
+    duration: duration_s, // legacy alias (seconds)
+    confidence: 1.0,
+    source: 'stadia_maps',
+    profile,
+    cues,
+    maneuvers,
+    trafficScore,
+    quietnessScore,
+    roadClassification,
+  };
 }
 
 /**
