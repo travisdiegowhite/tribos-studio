@@ -5,6 +5,8 @@ import {
   bikeFacility,
   maxLtsForTolerance,
   summarizeStress,
+  facilityForTags,
+  summarizeFacilities,
   LTS_COLORS,
   LTS_LABELS,
 } from '../trafficStress';
@@ -137,5 +139,54 @@ describe('palette', () => {
       expect(LTS_COLORS[level]).toMatch(/^#/);
       expect(LTS_LABELS[level].length).toBeGreaterThan(0);
     }
+  });
+});
+
+describe('facilityForTags', () => {
+  it.each([
+    [{ highway: 'cycleway' }, 'protected'],
+    [{ highway: 'residential', cycleway: 'track' }, 'protected'],
+    [{ highway: 'secondary', 'cycleway:right': 'sidepath' }, 'protected'],
+    [{ highway: 'path', bicycle: 'designated' }, 'protected'],
+    [{ highway: 'path' }, 'trail'],
+    [{ highway: 'track', surface: 'gravel' }, 'trail'],
+    [{ highway: 'footway' }, 'trail'],
+    [{ highway: 'bridleway' }, 'trail'],
+    [{ highway: 'primary', cycleway: 'lane' }, 'lane'],
+    [{ highway: 'primary', 'cycleway:both': 'lane' }, 'lane'],
+    [{ highway: 'secondary', shoulder: 'yes' }, 'shoulder'],
+    [{ highway: 'secondary', 'shoulder:width': '1.5' }, 'shoulder'],
+    [{ highway: 'residential', cycleway: 'shared_lane' }, 'shared'],
+    [{ highway: 'residential' }, 'none'],
+    [{ highway: 'primary', cycleway: 'no' }, 'none'],
+  ] as const)('%o → %s', (tags, kind) => {
+    expect(facilityForTags({ ...tags })).toBe(kind);
+  });
+
+  it('is unknown without tags or a highway', () => {
+    expect(facilityForTags(null)).toBe('unknown');
+    expect(facilityForTags({})).toBe('unknown');
+    expect(facilityForTags({ surface: 'asphalt' })).toBe('unknown');
+  });
+});
+
+describe('summarizeFacilities', () => {
+  const line = Array.from({ length: 11 }, (_, i) => [-105 + i * 0.001, 40]);
+
+  it('weights by segment length and counts only protected + lane + shoulder toward the share', () => {
+    const kinds = ['protected', 'lane', 'lane', 'shoulder', 'trail', 'trail', 'shared', 'none', 'none', 'unknown'] as const;
+    const s = summarizeFacilities(kinds, line);
+    expect(s.totalKm).toBeCloseTo(0.853, 2);
+    expect(s.knownKm).toBeCloseTo(0.768, 2);
+    expect(s.facilityKm).toBeCloseTo(4 * 0.0853, 2);
+    expect(s.facilityPct).toBe(44); // 4 of 9 known
+    expect(s.kmByKind.trail).toBeCloseTo(2 * 0.0853, 2);
+    expect(s.kmByKind.unknown).toBeCloseTo(0.0853, 2);
+  });
+
+  it('falls back to equal weights and reports 0% for nothing known', () => {
+    expect(summarizeFacilities(['lane', 'none'], null).facilityPct).toBe(50);
+    expect(summarizeFacilities([], line).facilityPct).toBe(0);
+    expect(summarizeFacilities(['unknown', 'unknown'], null).facilityPct).toBe(0);
   });
 });

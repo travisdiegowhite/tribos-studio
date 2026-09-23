@@ -4,6 +4,14 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 const { stressResult } = vi.hoisted(() => ({
   stressResult: {
   ltsSegments: [1, 4] as Array<0 | 1 | 2 | 3 | 4>,
+  facilities: ['protected', 'none'] as Array<'protected' | 'lane' | 'shoulder' | 'shared' | 'trail' | 'none' | 'unknown'>,
+  facility: {
+    totalKm: 0.2,
+    knownKm: 0.2,
+    kmByKind: { protected: 0.1, lane: 0, shoulder: 0, shared: 0, trail: 0, none: 0.1, unknown: 0 },
+    facilityKm: 0.1,
+    facilityPct: 50,
+  },
   summary: {
     totalKm: 0.2,
     knownKm: 0.2,

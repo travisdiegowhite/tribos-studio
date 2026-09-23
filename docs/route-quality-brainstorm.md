@@ -56,7 +56,16 @@ module · **[big]** new infra or an external dependency.
    Candidates are scored by Overpass bike-infra overlap (protected cycleway
    1.0 → sharrow 0.2); the keyword heuristic `infrastructureValidator.js` is
    deleted. A `required` infra preference drops candidates scoring < 0.5
-   (never all of them).
+   (never all of them). Follow-up (2026-09-23): bike-lane / shoulder
+   **coverage is now a visible stat** computed from the corridor ways every
+   route already fetches, no Overpass: `facilityForTags` /
+   `summarizeFacilities` in `trafficStress.ts` split car-free ways into
+   `protected` (cycleway, cycle track beside the road, path signed for
+   bikes) and `trail` (tracks, footways, unsigned paths) and count only
+   protected + lane + shoulder. It rides on `RouteStressResult.facility`,
+   shows as a fifth **BIKE LANES** stat in the route card with the km of
+   each kind beneath, on the chat option cards ("38% bike lanes"), in the
+   `stress_computed` telemetry, and breaks ties in the alternates picker.
 
 ## Track B — make the router itself prefer bike lanes, shoulders, quiet roads
 

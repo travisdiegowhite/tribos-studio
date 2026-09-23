@@ -14,7 +14,7 @@ import {
   SURFACE_LABELS,
   computeSurfaceDistribution,
 } from '../../../utils/surfaceOverlay.js';
-import { LTS_COLORS, type StressSummary } from '../../../utils/trafficStress';
+import { LTS_COLORS, type StressSummary, type FacilitySummary } from '../../../utils/trafficStress';
 
 export interface RouteStats {
   distance_km: number;
@@ -47,6 +47,11 @@ export interface StatsOverlayProps {
   stressSummary?: StressSummary | null;
   /** Measurement state, so "still measuring" and "couldn't measure" read differently. */
   stressStatus?: 'idle' | 'loading' | 'ready' | 'unavailable';
+  /**
+   * Bike-lane / shoulder coverage (same measurement as stress). Drives the
+   * BIKE LANES stat; shares `stressStatus`.
+   */
+  facilitySummary?: FacilitySummary | null;
   /** Click handler for the QUIET ROADS stat: colours the map by stress. */
   onToggleStress?: () => void;
   /** Whether the stress overlay is currently shown (pressed styling). */
@@ -118,6 +123,7 @@ export function StatsOverlay({
   surfaceCoordinates = null,
   stressSummary = null,
   stressStatus = 'idle',
+  facilitySummary = null,
   onToggleStress,
   stressActive = false,
   onSave,
@@ -224,7 +230,7 @@ export function StatsOverlay({
           )}
         </Box>
       </Box>
-      <Box style={{ display: 'flex', gap: 18 }}>
+      <Box data-testid="rb2-stats-row" style={{ display: 'flex', flexWrap: 'wrap', gap: '8px 18px' }}>
         <StatCell label="Distance" value={formatDistanceCompact(stats.distance_km, isImperial)} />
         <StatCell label="Elevation" value={formatElevationCompact(stats.elevation_gain_m, isImperial)} />
         <StatCell label="Duration" value={formatDuration(stats.duration_s)} />
@@ -235,6 +241,7 @@ export function StatsOverlay({
           onToggle={onToggleStress}
           active={stressActive}
         />
+        <BikeLanesCell summary={facilitySummary} status={stressStatus} isImperial={isImperial} />
       </Box>
       {targetStatus && (
         <Box style={{ marginTop: 8 }}>
@@ -433,6 +440,106 @@ function QuietRoadsCell({
       >
         {body}
       </UnstyledButton>
+    </Tooltip>
+  );
+}
+
+/** Colour for the BIKE LANES value: never a warning colour, absence is not danger. */
+export function bikeLanesColor(facilityPct: number): string {
+  if (facilityPct >= 50) return LTS_COLORS[1];
+  if (facilityPct >= 25) return LTS_COLORS[2];
+  return RB2.textPrimary;
+}
+
+const FACILITY_DETAIL_ORDER = ['protected', 'lane', 'shoulder'] as const;
+const FACILITY_DETAIL_LABEL: Record<(typeof FACILITY_DETAIL_ORDER)[number], string> = {
+  protected: 'protected',
+  lane: 'lanes',
+  shoulder: 'shoulder',
+};
+
+/**
+ * The fifth stat: share of the mapped route on a protected cycleway, a bike
+ * lane or a rideable shoulder, with the km of each beneath. Trails (tracks,
+ * footways, unsigned paths) are reported separately and never counted.
+ */
+function BikeLanesCell({
+  summary,
+  status,
+  isImperial,
+}: {
+  summary: FacilitySummary | null;
+  status: 'idle' | 'loading' | 'ready' | 'unavailable';
+  isImperial: boolean;
+}) {
+  const measured = !!summary && summary.knownKm > 0;
+  const unmapped = !!summary && summary.knownKm === 0;
+  const failed = !summary && status === 'unavailable';
+  const value = measured ? `${summary!.facilityPct}%` : unmapped || failed ? 'n/a' : '—';
+  const color = measured ? bikeLanesColor(summary!.facilityPct) : RB2.textTertiary;
+  let detail: string | null = null;
+  if (measured) {
+    const parts = FACILITY_DETAIL_ORDER.filter((k) => summary!.kmByKind[k] > 0).map(
+      (k) => `${formatStressKm(summary!.kmByKind[k], isImperial)} ${FACILITY_DETAIL_LABEL[k]}`,
+    );
+    detail =
+      parts.length > 0
+        ? parts.join(' · ')
+        : summary!.kmByKind.trail > 0
+          ? 'trail only'
+          : 'no bike lanes';
+  } else if (failed) {
+    detail = 'road data unavailable';
+  } else if (unmapped) {
+    detail = 'no mapped roads';
+  }
+
+  return (
+    <Tooltip
+      label="Share of the mapped route on a protected cycleway, a bike lane or a rideable shoulder. Trails are not counted."
+      position="bottom"
+      withinPortal
+    >
+      <Box data-testid="rb2-stats-facility">
+        <Text
+          style={{
+            fontFamily: RB2_FONT.mono,
+            fontSize: 10,
+            letterSpacing: '0.12em',
+            textTransform: 'uppercase',
+            color: RB2.textTertiary,
+            lineHeight: 1.2,
+          }}
+        >
+          Bike lanes
+        </Text>
+        <Text
+          style={{
+            fontFamily: RB2_FONT.heading,
+            fontSize: 22,
+            fontWeight: 700,
+            color,
+            lineHeight: 1.1,
+            letterSpacing: '0.02em',
+          }}
+        >
+          {value}
+        </Text>
+        {detail && (
+          <Text
+            style={{
+              fontFamily: RB2_FONT.mono,
+              fontSize: 9,
+              letterSpacing: '0.04em',
+              color: RB2.textTertiary,
+              lineHeight: 1.2,
+              whiteSpace: 'nowrap',
+            }}
+          >
+            {detail}
+          </Text>
+        )}
+      </Box>
     </Tooltip>
   );
 }

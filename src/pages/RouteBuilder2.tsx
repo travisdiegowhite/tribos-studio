@@ -862,6 +862,7 @@ export default function RouteBuilder2() {
                 gravel_target_pct: c.gravel_target_pct,
                 gravel_shortfall: c.gravel_shortfall,
                 quiet_pct: c.stress_summary?.quietPct ?? null,
+                bike_lane_pct: c.facility_summary?.facilityPct ?? null,
                 rationale: c.rationale,
               }))
             : undefined;
@@ -1665,6 +1666,7 @@ export default function RouteBuilder2() {
         surfaceSegments={surfaceSegments}
         surfaceCoordinates={geometryForLayers?.coordinates ?? null}
         stressSummary={stressResult?.summary ?? null}
+        facilitySummary={stressResult?.facility ?? null}
         stressStatus={stress.status}
         onToggleStress={handleToggleStress}
         stressActive={visibility.stress}

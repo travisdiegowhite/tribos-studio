@@ -446,6 +446,7 @@ function RouteOptionCards({
               {option.direction_label ? ` · ${option.direction_label}` : ''}
               {surfaceText(option) ? ` · ${surfaceText(option)}` : ''}
               {typeof option.quiet_pct === 'number' ? ` · ${option.quiet_pct}% quiet roads` : ''}
+              {typeof option.bike_lane_pct === 'number' ? ` · ${option.bike_lane_pct}% bike lanes` : ''}
               {typeof option.familiarity_percent === 'number' && option.familiarity_percent > 0
                 ? ` · ${option.familiarity_percent}% familiar`
                 : ''}

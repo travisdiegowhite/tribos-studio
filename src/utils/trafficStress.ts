@@ -133,7 +133,7 @@ function parseLanes(tags: Record<string, string>, highway: string): number {
   return Number.isFinite(n) && n > 0 ? n : assumedLanes(highway);
 }
 
-type BikeFacility = 'separated' | 'lane' | 'shoulder' | 'shared' | 'none';
+export type BikeFacility = 'separated' | 'lane' | 'shoulder' | 'shared' | 'none';
 
 const CYCLEWAY_KEYS = ['cycleway', 'cycleway:both', 'cycleway:right', 'cycleway:left'];
 
@@ -322,5 +322,80 @@ export function summarizeStress(
     stressScore: knownKm > 0 ? Math.round((weightedStress / knownKm) * 1000) / 1000 : 0,
     lts4Km: round(kmByLts[4]),
     maxContinuousLts4Km: round(maxRun),
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Bike-lane / shoulder coverage: what a rider can point at on the map.
+//
+// `bikeFacility` treats every car-free way as `separated`, which is right
+// for stress but would let a gravel farm track count as a "bike lane". The
+// coverage stat therefore splits `separated` into `protected` (a cycleway,
+// a cycle track beside the road, a path signed for bikes) and `trail`
+// (tracks, footways, bridleways, unsigned paths) and counts only
+// protected + lane + shoulder.
+// ---------------------------------------------------------------------------
+
+export type FacilityKind = 'protected' | 'lane' | 'shoulder' | 'shared' | 'trail' | 'none' | 'unknown';
+
+const PROTECTED_CYCLEWAY_VALUES = new Set(['track', 'separate', 'sidepath']);
+
+export function facilityForTags(tags: Record<string, string> | null | undefined): FacilityKind {
+  if (!tags || !tags.highway) return 'unknown';
+  const facility = bikeFacility(tags);
+  if (facility !== 'separated') return facility;
+  if (tags.highway === 'cycleway') return 'protected';
+  if (tags.highway === 'path' && tags.bicycle === 'designated') return 'protected';
+  for (const key of CYCLEWAY_KEYS) {
+    const v = tags[key];
+    if (v && PROTECTED_CYCLEWAY_VALUES.has(v)) return 'protected';
+  }
+  return 'trail';
+}
+
+export interface FacilitySummary {
+  totalKm: number;
+  knownKm: number;
+  kmByKind: Record<FacilityKind, number>;
+  /** protected + lane + shoulder km. */
+  facilityKm: number;
+  /** Share (0–100) of the KNOWN distance on protected + lane + shoulder. */
+  facilityPct: number;
+}
+
+/**
+ * Distance-weighted roll-up of per-segment facility kinds. One entry per
+ * coordinate segment; equal weights when the lengths don't line up.
+ */
+export function summarizeFacilities(
+  kinds: ReadonlyArray<FacilityKind>,
+  coordinates: ReadonlyArray<ReadonlyArray<number>> | null,
+): FacilitySummary {
+  const kmByKind: Record<FacilityKind, number> = {
+    protected: 0, lane: 0, shoulder: 0, shared: 0, trail: 0, none: 0, unknown: 0,
+  };
+  const useLengths = Array.isArray(coordinates) && coordinates.length === kinds.length + 1;
+  let totalKm = 0;
+  for (let i = 0; i < kinds.length; i++) {
+    let km = 0.001;
+    if (useLengths && coordinates) {
+      const a = coordinates[i];
+      const b = coordinates[i + 1];
+      km = haversineMeters(a[1], a[0], b[1], b[0]) / 1000;
+    }
+    kmByKind[kinds[i] ?? 'unknown'] += km;
+    totalKm += km;
+  }
+  const round = (n: number) => Math.round(n * 1000) / 1000;
+  const knownKm = totalKm - kmByKind.unknown;
+  const facilityKm = kmByKind.protected + kmByKind.lane + kmByKind.shoulder;
+  const out: Record<FacilityKind, number> = { ...kmByKind };
+  for (const k of Object.keys(out) as FacilityKind[]) out[k] = round(out[k]);
+  return {
+    totalKm: round(totalKm),
+    knownKm: round(knownKm),
+    kmByKind: out,
+    facilityKm: round(facilityKm),
+    facilityPct: knownKm > 0 ? Math.round((facilityKm / knownKm) * 100) : 0,
   };
 }

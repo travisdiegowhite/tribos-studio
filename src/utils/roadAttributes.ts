@@ -31,10 +31,14 @@ import { traceTaggedWaysWithBRouter } from './brouterTrace';
 import {
   ltsForTags,
   summarizeStress,
+  facilityForTags,
+  summarizeFacilities,
   LTS_COLORS,
   LTS_LABELS,
   type Lts,
   type StressSummary,
+  type FacilityKind,
+  type FacilitySummary,
 } from './trafficStress';
 import {
   inferSurface,
@@ -82,6 +86,10 @@ export interface RouteStressResult {
   /** One LTS (0–4) per coordinate segment (`coordinates.length - 1`). */
   ltsSegments: Lts[];
   summary: StressSummary;
+  /** One bike-facility kind per coordinate segment, from the same ways. */
+  facilities: FacilityKind[];
+  /** Bike-lane / shoulder coverage roll-up (trafficStress.ts). */
+  facility: FacilitySummary;
   source: RoadAttributeSource;
 }
 
@@ -284,9 +292,12 @@ export function analyzeRouteStress(
   const matched = matchRouteWays(coordinates, corridor.ways) as Array<TaggedWay | null> | null;
   if (!matched) return null;
   const ltsSegments = matched.map((way) => (way ? ltsForTags(way.tags) : 0)) as Lts[];
+  const facilities = matched.map((way) => (way ? facilityForTags(way.tags) : 'unknown'));
   return {
     ltsSegments,
     summary: summarizeStress(ltsSegments, coordinates),
+    facilities,
+    facility: summarizeFacilities(facilities, coordinates),
     source: corridor.source,
   };
 }
