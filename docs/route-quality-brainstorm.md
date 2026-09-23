@@ -44,7 +44,8 @@ module · **[big]** new infra or an external dependency.
    gravel loop now measures its surface for free.
 2. **Read the Valhalla maneuver fields we skip** [quick]. `extractManeuverData`
    keeps `highway` / `road_class`; also read `rough` (unpaved) and `toll` where
-   present. Request `alternates` so there are candidates to re-rank (D17).
+   present. Requesting `alternates` for D17 — done (Phase 2b), two-location
+   requests only per Stadia.
 3. **Fix the costing plumbing** [quick] — **shipped (Phase 1)**: `'bike'` profile
    mapping in manual snap and generation; manual snap now reaches the
    `commuting` costing. Phase 2 closed the rest: manual snap now sends the
@@ -221,10 +222,20 @@ module · **[big]** new infra or an external dependency.
 ## Track D — corridor intelligence and re-ranking
 
 17. **Re-rank alternates by composite quality** [quick, after 5 and 11] —
-    **partly shipped (Phase 2)**: the existing 3-candidate chat ranking and the
-    legacy candidate ranker now include measured stress. Still open (Phase
-    2b): requesting Valhalla `alternates` / BRouter `alternativeidx` so there
-    are more candidates to rank. Original proposal:
+    **shipped (Phase 2 + 2b)**. Phase 2: the 3-candidate chat ranking and
+    the legacy candidate ranker include measured stress. Phase 2b
+    (`src/utils/routeAlternates.ts`, wired into `smartCyclingRouter` behind
+    an opt-in `alternates` flag used by manual snap/drag and whole-route
+    generation): the primary line is joined by Valhalla `alternates` (Stadia
+    returns them only for two-location requests, so rarely for a snapped
+    multi-waypoint route) and by BRouter whole-route lines (`trekking`, plus
+    `safety` for a "Quiet" rider) whose tag rows make their stress free;
+    every candidate is measured in parallel (4 s cap) and `pickCalmest`
+    switches only for a clear win (≥ 0.3 km or 20% less over-tolerance
+    stress) inside a detour allowance (low 25%, medium 15%). The snap toast
+    says when a quieter line was chosen; telemetry `alternates_considered`
+    / `alternate_selected`. Not applied to gravel routes or per-leg callers.
+    BRouter `alternativeidx` variants remain unused. Original proposal:
     Valhalla `alternates` plus BRouter `alternativeidx` 0–3; score `{ km at
     LTS ≥ 3, infra coverage, surface match to target, familiarity }` by rider
     weights. The cheapest "choose the best roads" and it gives before/after

@@ -270,6 +270,8 @@ export const useRouteManipulation = ({
 
       const waypointCoordinates = waypointsToSnap.map(wp => wp.position);
       let snappedCoordinates;
+      // Set when the router swapped in a calmer alternate line.
+      let quieterLine = null;
       // routeDistance_m and routeDuration_s are RAW from the routing API
       // (meters and seconds). They get converted at the boundary before
       // being written to the routeStats state below.
@@ -293,6 +295,9 @@ export const useRouteManipulation = ({
             ? { trafficTolerance, routingPreferences: { trafficTolerance } }
             : null,
           mapboxToken: mapboxToken,
+          // Gather alternate lines and keep the calmest the rider's Road
+          // comfort allows (routeAlternates.ts).
+          alternates: true,
         });
 
         if (smartRoute?.coordinates?.length > 0) {
@@ -302,6 +307,9 @@ export const useRouteManipulation = ({
           routingSource = smartRoute.source || 'smart';
           routeCues = Array.isArray(smartRoute.cues) && smartRoute.cues.length > 0
             ? smartRoute.cues
+            : null;
+          quieterLine = smartRoute.alternate && smartRoute.alternate.chosen_index > 0
+            ? smartRoute.alternate
             : null;
 
           console.log(`✅ Smart route generated via: ${routingSource}`);
@@ -390,9 +398,12 @@ export const useRouteManipulation = ({
       }
 
       if (!options.silent) {
+        const quieterNote = quieterLine
+          ? ` · quieter line chosen (${(quieterLine.km_over_before - quieterLine.km_over_after).toFixed(1)} km less high-stress, ${quieterLine.extra_km >= 0 ? '+' : '−'}${Math.abs(quieterLine.extra_km).toFixed(1)} km)`
+          : '';
         notifications.show({
           title: 'Route calculated',
-          message: `${distance_km.toFixed(1)} km route snapped to roads`,
+          message: `${distance_km.toFixed(1)} km route snapped to roads${quieterNote}`,
           color: 'green',
         });
       }

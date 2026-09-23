@@ -15,6 +15,7 @@ import {
 } from './graphHopper';
 import { trackRouteBuilder, truncateErrorMessage } from './routeBuilderTelemetry';
 import { fnv1a32, stableJson } from './stableHash';
+import { gatherCandidates, pickCalmest } from './routeAlternates';
 
 // Response cache + in-flight dedup. Identical requests are common (a re-snap
 // after a no-op toggle, AI candidates sharing segments, quick undo/redo) and
@@ -25,7 +26,7 @@ const ROUTE_CACHE_MAX = 30;
 const routeCache = new Map(); // key → { at, route }
 const inFlight = new Map(); // key → Promise
 
-function routeCacheKey(waypoints, { profile, trainingGoal, preferences, userSpeed, useHills }) {
+function routeCacheKey(waypoints, { profile, trainingGoal, preferences, userSpeed, useHills, alternates }) {
   const quantized = waypoints.map(([lng, lat]) => [
     Math.round(lng * 1e5) / 1e5,
     Math.round(lat * 1e5) / 1e5,
@@ -38,6 +39,7 @@ function routeCacheKey(waypoints, { profile, trainingGoal, preferences, userSpee
       preferences: preferences ?? null,
       userSpeed: userSpeed ?? null,
       useHills: useHills ?? null,
+      alternates: alternates === true,
     }),
   );
 }
@@ -120,7 +122,12 @@ async function computeSmartCyclingRoute(waypoints, options = {}) {
     mapboxToken = null,
     userSpeed = null,
     // Explicit Valhalla use_hills override (0–1) from an elevation target.
-    useHills = null
+    useHills = null,
+    // Opt-in: gather alternate lines (Valhalla alternates, BRouter trekking /
+    // safety) and keep the calmest the rider's traffic tolerance allows.
+    // Off by default so per-leg callers (iterative loops, AI edits) don't
+    // multiply BRouter calls.
+    alternates = false
   } = options;
 
   console.log('🧠 Smart cycling router: Finding optimal route...');
@@ -220,7 +227,8 @@ async function computeSmartCyclingRoute(waypoints, options = {}) {
         preferences,
         trainingGoal,
         userSpeed,
-        useHills
+        useHills,
+        alternates: alternates ? 2 : 0
       });
 
       if (stadiaResult && stadiaResult.coordinates && stadiaResult.coordinates.length > 10) {
@@ -228,11 +236,15 @@ async function computeSmartCyclingRoute(waypoints, options = {}) {
           ? `, ${stadiaResult.maneuvers.turnsPerKm.toFixed(1)} turns/km`
           : '';
         console.log(`✅ Stadia Maps route optimized for ${trainingGoal}${maneuverInfo}`);
-        return {
-          ...stadiaResult,
-          source: 'stadia_maps',
-          confidence: 1.0
-        };
+        return rerankByStress(
+          waypoints,
+          {
+            ...stadiaResult,
+            source: 'stadia_maps',
+            confidence: 1.0
+          },
+          { alternates, preferences },
+        );
       } else {
         console.warn('⚠️ Stadia Maps routing failed, falling back to BRouter');
         trackRouteBuilder('provider_fallback_chain_advanced', {
@@ -261,11 +273,15 @@ async function computeSmartCyclingRoute(waypoints, options = {}) {
 
     if (brouterResult && brouterResult.coordinates && brouterResult.coordinates.length > 10) {
       console.log('✅ BRouter provided cycling route (fallback)');
-      return {
-        ...brouterResult,
-        source: 'brouter',
-        confidence: 0.9
-      };
+      return rerankByStress(
+        waypoints,
+        {
+          ...brouterResult,
+          source: 'brouter',
+          confidence: 0.9
+        },
+        { alternates, preferences },
+      );
     }
   }
 
@@ -303,10 +319,61 @@ function trafficToleranceOf(preferences) {
 }
 
 /**
+ * With `alternates` on and a tolerance below 'high', gather the alternate
+ * lines for these waypoints (routeAlternates.ts), measure their stress and
+ * keep the calmest within the detour allowance. The result carries
+ * `alternate` metadata (which was chosen and what it gained) and the
+ * chosen line's `stressSummary`. Any failure returns the primary untouched.
+ */
+async function rerankByStress(waypoints, primary, { alternates, preferences }) {
+  const tolerance = trafficToleranceOf(preferences);
+  if (!alternates || tolerance === 'high') return stripAlternates(primary);
+  try {
+    const candidates = await gatherCandidates(waypoints, primary, { tolerance });
+    trackRouteBuilder('alternates_considered', {
+      count: candidates.length,
+      tolerance: tolerance ?? 'medium',
+    });
+    const pick = pickCalmest(candidates, tolerance);
+    const chosen = candidates[pick.index];
+    const alternate = {
+      chosen_index: pick.index,
+      considered: pick.considered,
+      km_over_before: pick.km_over_before,
+      km_over_after: pick.km_over_after,
+      extra_km: pick.extra_km,
+      source: chosen.source ?? null,
+    };
+    if (pick.index !== 0) {
+      console.log(
+        `🤫 Quieter line chosen (${chosen.source}): ${pick.km_over_before} → ${pick.km_over_after} km over tolerance, ${pick.extra_km >= 0 ? '+' : ''}${pick.extra_km} km`,
+      );
+      trackRouteBuilder('alternate_selected', {
+        chosen_source: chosen.source ?? null,
+        km_over_before: pick.km_over_before,
+        km_over_after: pick.km_over_after,
+        extra_km: pick.extra_km,
+      });
+    }
+    return { ...stripAlternates(chosen), alternate, stressSummary: chosen.stressSummary ?? null };
+  } catch (error) {
+    console.warn('Alternate re-rank failed, keeping primary:', error?.message ?? error);
+    return stripAlternates(primary);
+  }
+}
+
+/** The alternates array is transport only; never cache or return it. */
+function stripAlternates(route) {
+  if (!route || !('alternates' in route)) return route;
+  const { alternates: _drop, ...rest } = route;
+  return rest;
+}
+
+/**
  * Try Stadia Maps routing (hosted Valhalla - PRIMARY for all cycling)
  */
 async function tryStadiaMapsRouting(waypoints, options) {
-  const { profile, preferences, trainingGoal, userSpeed, useHills = null } = options;
+  const { profile, preferences, trainingGoal, userSpeed, useHills = null, alternates = 0 } = options;
   const startMs = Date.now();
   trackRouteBuilder('generation_routing_called', {
     provider: 'stadia',
@@ -322,7 +389,8 @@ async function tryStadiaMapsRouting(waypoints, options) {
       preferences: preferences,
       trainingGoal: trainingGoal,
       userSpeed: userSpeed,
-      useHills: useHills
+      useHills: useHills,
+      alternates
     });
 
     if (result && result.coordinates && result.coordinates.length > 0) {
@@ -349,7 +417,17 @@ async function tryStadiaMapsRouting(waypoints, options) {
         trafficScore: result.trafficScore,
         quietnessScore: result.quietnessScore,
         roadClassification: result.roadClassification || null,
-        infrastructureScore: result.infrastructureScore
+        infrastructureScore: result.infrastructureScore,
+        // Valhalla alternates (two-location requests only), same shape.
+        alternates: Array.isArray(result.alternates)
+          ? result.alternates.map((alt) => ({
+              ...alt,
+              distance_m: alt.distance_m ?? alt.distance,
+              duration_s: alt.duration_s ?? alt.duration,
+              source: 'stadia_maps',
+              profile,
+            }))
+          : []
       };
     }
 

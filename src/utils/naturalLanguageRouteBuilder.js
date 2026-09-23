@@ -76,6 +76,8 @@ export async function routeThroughWaypoints(startLocation, waypointNames, opts =
     trainingGoal: goal,
     preferences,
     mapboxToken: mapboxToken ?? import.meta.env.VITE_MAPBOX_TOKEN,
+    // Whole-route call: worth gathering alternate lines and keeping the calmest.
+    alternates: true,
   });
   if (!routeResult?.coordinates || routeResult.coordinates.length < 10) return null;
 
