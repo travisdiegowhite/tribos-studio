@@ -1,0 +1,40 @@
+# Fly.io app for the Tribos BRouter server. See docs/brouter-self-host-runbook.md.
+#
+#   fly launch --config deploy/brouter/fly.toml --no-deploy
+#   fly volumes create brouter_segments --size 5 --region den -a tribos-brouter
+#   fly deploy --config deploy/brouter/fly.toml
+app = "tribos-brouter"
+primary_region = "den"
+
+[build]
+  dockerfile = "Dockerfile"
+  # Build context is the repo root so routing-profiles/ is available.
+  # (fly deploy is run from the repo root; the dockerfile path is relative
+  # to this file.)
+
+[env]
+  JAVA_OPTS = "-Xmx1400M -Xms512M -DmaxRunningTime=60 -DuseRFCMimeType=false -DusePOSTRequests=false"
+  MAXTHREADS = "4"
+  RESYNC_INTERVAL_S = "604800"
+
+[mounts]
+  source = "brouter_segments"
+  destination = "/segments4"
+
+[http_service]
+  internal_port = 17777
+  force_https = true
+  auto_stop_machines = false
+  auto_start_machines = true
+  min_machines_running = 1
+
+  [[http_service.checks]]
+    interval = "60s"
+    timeout = "20s"
+    grace_period = "600s"
+    method = "GET"
+    path = "/brouter?lonlats=-105.2705,40.0150|-105.2500,40.0300&profile=trekking&alternativeidx=0&format=geojson"
+
+[[vm]]
+  size = "shared-cpu-2x"
+  memory = "2gb"

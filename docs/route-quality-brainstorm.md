@@ -109,7 +109,25 @@ module · **[big]** new infra or an external dependency.
    buffer the worst stretches above the rider's tolerance (~15 m) → reroute,
    at most 3 passes. The same mechanism powers per-rider "never route me here"
    (D20).
-7. **Self-hosted BRouter with Tribos profiles** [big, **chosen direction**].
+7. **Self-hosted BRouter with Tribos profiles** [big, **chosen direction**]
+   — **shipped (Phase 3a/3b), cutover pending (3c)**. `routing-profiles/
+   tribos-road.brf` and `tribos-gravel.brf` are trekking-derived cost
+   functions with `traffic_tolerance` (0 quiet / 1 balanced / 2 direct) and
+   `gravel_target` as parameters: arterials without a facility ×6/×3/×1.5,
+   with a lane ×2.5/×1.6/×1.1, protected ×1.6/×1.1/×1.3, busy secondaries
+   (fast or ≥ 4 lanes) ×3/×1.8/×1.2, `estimated_traffic_class ≥ 5` +0.5/+0.2/0,
+   paved ways in the gravel profile ×(1 + 1.5 × target). They also reference
+   `maxspeed`, `lanes`, `lit`, `sidewalk` so BRouter emits them in the tag
+   rows — every BRouter route's LTS improves for free. The client
+   (`brouterProfiles.ts`) renders them per rider and uploads them at runtime
+   (`POST /brouter/profile`, verified on brouter.de), so they work on the
+   public server today behind `VITE_BROUTER_TRIBOS_PROFILES` (off by
+   default). The server is `deploy/brouter/` on Fly.io (`den`, contiguous-US
+   tiles, weekly refresh) with `VITE_BROUTER_URL` first and brouter.de as
+   fallback, a circuit breaker in `brouter.js`, and an hourly
+   `brouter-health-monitor` cron. Runbook: `docs/brouter-self-host-runbook.md`.
+   Phase 3c (flip the flag, then `VITE_BROUTER_PRIMARY_ROAD`) waits on a week
+   of green checks. Original proposal:
    Vercel can't run it; deploy the `abrensch/brouter` container (Fly.io,
    Railway or a small VPS) with the `.rd5` segment tiles for served regions.
    `VITE_BROUTER_URL` points at it; `brouter.de` stays as the fallback.
@@ -182,14 +200,17 @@ module · **[big]** new infra or an external dependency.
     `surface` (already used by `mapboxRoadLookup.js`) as a secondary source,
     and `smoothness`, which BRouter's tag rows do not carry (the ladder
     handles it when Overpass is the source).
-13. **Learn surface from the rider's own rides** [medium]. In
+13. **Learn surface from the rider's own rides** [medium] — **dropped
+    (2026-09)**: the bike is not evidence of the road (see Sequencing, Phase
+    4b). Kept for the record. Original proposal: In
     `roadSegmentExtractor.js`: `GravelRide`, a gravel/mtb bike, or
     `surface_override` → `surface_observed='unpaved'` with source and count; a
     road-bike `Ride` → paved evidence. Two rides on a gravel bike over an
     untagged county road beats any tag heuristic. Also run extraction for
     FIT/GPX/COROS/Wahoo imports (the two biggest polyline sources per
     `unit-planning-brief.md`).
-14. **Community surface tally** [big, later]. `road_surface_observations
+14. **Community surface tally** [big, later] — **dropped with C13**; a vote
+    from a whole-ride label carries the same error. `road_surface_observations
     (osm_way_id, unpaved_votes, paved_votes, last_seen)`: anonymous per-way
     counts, no geometry, no identity. Highest-confidence tier after explicit
     tags; extra candidate ways for `gravelRouteBuilder.findGravelWays`. A moat
@@ -226,7 +247,8 @@ module · **[big]** new infra or an external dependency.
     bar shows `tagged 61% · inferred 27% · unmapped 12%`, and each legend
     swatch's tooltip lists the deciding tags with distance (`surface=gravel
     8.1 km · tracktype=grade3 2.4 km`). "You rode this on your gravel bike
-    4×" waits on C13. Trust is the P0 theme of `route-builder-review-2026-07.md`.
+    4×" is not coming (C13 dropped). Trust is the P0 theme of
+    `route-builder-review-2026-07.md`.
 
 ## Track D — corridor intelligence and re-ranking
 
@@ -286,12 +308,18 @@ Roll-up per route (`summarizeStress`): distance-weighted km per level,
    layer, stress in ranking (D17-lite), B10 "Road comfort" preference.
    **Phase 2b** (next): Valhalla `alternates` + BRouter `alternativeidx`
    re-ranking.
-3. **Phase 3** — the router obeys: B7 self-hosted BRouter + Tribos profiles, B6
+3. **Phase 3** — the router obeys: B7 self-hosted BRouter + Tribos profiles
+   (**3a/3b shipped**, flag-gated; 3c cutover after the soak), B6
    `exclude_polygons` repair, D20 avoid roads, B9 time-of-day.
 4. **Phase 4a** — shipped: C12 surface inference with confidence + C16
-   provenance, on the shared corridor fetch. **Phase 4b** — C13 (learn
-   surface from the rider's rides), C15 (make "mixed" real); C14 only once
-   C13 has data.
+   provenance, on the shared corridor fetch. **Phase 4b.1** — shipped (the
+   gravel loop fixes under C15). **C13 is dropped, not deferred**: the bike
+   a ride was logged on says nothing about the road — riders take gravel
+   bikes on pavement and road bikes on gravel all the time, so a whole-ride
+   label is wrong per segment and would poison the surface map. C14 (which
+   waited on C13's data) goes with it. Ride-derived surface evidence would
+   need per-segment sensor signals (vibration, speed variance), which no
+   connected provider exposes.
 5. Decide separately later: D18, D19, B8.
 
 ## Verification approach (every phase)

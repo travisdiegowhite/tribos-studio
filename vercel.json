@@ -21,6 +21,10 @@
       "schedule": "45 * * * *"
     },
     {
+      "path": "/api/brouter-health-monitor",
+      "schedule": "15 * * * *"
+    },
+    {
       "path": "/api/proactive-insights-process",
       "schedule": "*/10 * * * *"
     },
@@ -86,6 +90,9 @@
       "maxDuration": 60
     },
     "api/strava-health-monitor.js": {
+      "maxDuration": 60
+    },
+    "api/brouter-health-monitor.js": {
       "maxDuration": 60
     },
     "api/internal/backfill-strava-gap.js": {

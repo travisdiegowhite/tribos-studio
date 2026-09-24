@@ -33,7 +33,7 @@ export interface RouteCandidateLike {
 
 const getBRouterDirections = getBRouterDirectionsJs as unknown as (
   waypoints: Array<[number, number]>,
-  options: { profile: string },
+  options: { profile: string; tolerance?: TrafficTolerance | null },
 ) => Promise<Record<string, unknown> | null>;
 
 /** Per-candidate cap on the stress measurement so a slow re-ride can't stall a snap. */
@@ -213,7 +213,9 @@ export async function gatherCandidates(
   const brouterResults = await Promise.all(
     profiles.map(async (profile) => {
       try {
-        const r = await fetchBRouter(pts, { profile });
+        // The tolerance lets a Tribos-enabled client render trekking at the
+        // rider's comfort (safety stays the quiet variant).
+        const r = await fetchBRouter(pts, { profile, tolerance: options.tolerance ?? null });
         if (!r || !Array.isArray(r.coordinates) || (r.coordinates as unknown[]).length < 2) return null;
         const distance_m = (r.distance_m ?? r.distance) as number | undefined;
         const duration_s = (r.duration_s ?? r.duration) as number | undefined;

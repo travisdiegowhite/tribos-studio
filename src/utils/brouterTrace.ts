@@ -30,7 +30,7 @@ export const TRACE_MIN_SPACING_M = 500;
 
 type RouteFetcher = (
   coordinates: Array<[number, number]>,
-  options: { profile: string },
+  options: { profile: string; tribos?: false },
 ) => Promise<{ taggedWays?: TaggedWay[] | null } | null>;
 
 export interface TraceOptions {
@@ -92,7 +92,10 @@ export async function traceTaggedWaysWithBRouter(
   if (vias.length < 2) return null;
   const fetchRoute = options.fetchRoute ?? (getBRouterDirections as unknown as RouteFetcher);
   try {
-    const route = await fetchRoute(vias, { profile: options.profile ?? BROUTER_PROFILES.TREKKING });
+    // A re-ride reconstructs the line as drawn to read its tags; the rider's
+    // preferences must not steer it, so the stock profile is forced even
+    // when Tribos profiles are on.
+    const route = await fetchRoute(vias, { profile: options.profile ?? BROUTER_PROFILES.TREKKING, tribos: false });
     const ways = route?.taggedWays;
     if (!Array.isArray(ways) || ways.length === 0) return null;
     return ways;
