@@ -1,3 +1,6 @@
+> **Superseded (2026-09).** The live direction is the Podium palette on the zine layout, with black ink; see
+> `docs/DESIGN-OVERHAUL-PLAN-2026-09.md`. Kept for history until the rollout completes.
+
 # TRIBOS Design System — Implementation Spec
 
 **Document:** TB-001 · Visual Direction v1.0

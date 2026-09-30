@@ -22,8 +22,6 @@ export function RhythmStrip({ days }: { days: RhythmDay[] }) {
         style={{
           fontFamily: FONT.mono,
           fontSize: 10,
-          letterSpacing: '1px',
-          textTransform: 'uppercase',
           color: C.text3,
         }}
       >

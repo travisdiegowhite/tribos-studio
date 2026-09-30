@@ -9,6 +9,7 @@
  * and the node's FS chip are its citations (thesis P4).
  */
 
+import { titleCase } from './caseText';
 import { Suspense, lazy, useCallback, useEffect, useMemo, useState } from 'react';
 import { Box, Skeleton, Stack, Text } from '@mantine/core';
 import { useMediaQuery } from '@mantine/hooks';
@@ -38,40 +39,47 @@ import type { SpineData } from './types';
 const RidesMap = lazy(() => import('./RidesMap').then((m) => ({ default: m.RidesMap })));
 
 /**
- * `compact` drops the summary sentence: on the beats page Beat 1 and Beat 3
- * already carry the page's prose, and a third standing sentence above them
- * would be the information overload the redesign exists to remove.
+ * Page header, per the "Blend — Today" board: a quiet date line, then the
+ * day's summary sentence as the serif headline. `compact` (the beats page)
+ * drops the sentence — Beat 1 and Beat 3 already carry the page's prose.
+ * The race-countdown stamp is the page's one zine "moment", shown only when
+ * the athlete has an upcoming goal event.
  */
 function PageHeader({ data, compact = false }: { data: SpineData; compact?: boolean }) {
   const today = data.days[data.todayIndex];
   const [weekday, ...rest] = today.dateLabel.split(' ');
-  const datePortion = `${weekday} ${rest.join(' ')}`;
+  const datePortion = titleCase(`${weekday} ${rest.join(' ')}`);
+  const event = data.event;
+  const showCountdown = Boolean(event && event.daysToRace > 0 && event.daysToRace <= 120);
   return (
-    <Box style={{ marginBottom: 4 }}>
-      <Text style={{ fontFamily: FONT.mono, fontSize: 11, fontWeight: 500, letterSpacing: '3px', color: C.teal, marginBottom: 5 }}>
-        DEPARTMENT OF CYCLING INTELLIGENCE
-      </Text>
-      <Text
-        component="h1"
-        style={{ margin: 0, fontFamily: FONT.heading, fontWeight: 700, fontSize: 24, letterSpacing: '.04em', textTransform: 'uppercase', color: C.text3 }}
-      >
-        TODAY <span style={{ fontWeight: 600 }}>— {datePortion}</span>
-      </Text>
-      {/* The page hero: the sentence, full-width. The chart below is its citation. */}
-      {!compact && data.summaryLine && (
+    <Box style={{ marginBottom: 4, display: 'flex', alignItems: 'flex-end', gap: 24 }}>
+      <Box style={{ flexGrow: 1, minWidth: 0 }}>
+        <Text component="p" style={{ margin: 0, fontFamily: FONT.body, fontSize: 14, color: C.text3 }}>
+          Today, {datePortion}
+        </Text>
         <Text
+          component="h1"
           style={{
-            fontFamily: FONT.body,
-            fontSize: 20,
-            fontWeight: 600,
-            lineHeight: 1.35,
+            margin: '6px 0 0',
+            fontFamily: FONT.heading,
+            textTransform: 'uppercase',
+            fontWeight: 900,
+            fontSize: compact ? 32 : 46,
+            lineHeight: 0.95,
             color: C.text,
-            marginTop: 6,
-            maxWidth: 760,
+            maxWidth: 820,
           }}
         >
-          {data.summaryLine}
+          {!compact && data.summaryLine ? data.summaryLine : 'Today'}
         </Text>
+      </Box>
+      {showCountdown && event && (
+        <span className="tribos-stamp" style={{ marginRight: 12, flexShrink: 0 }} aria-label={`${event.daysToRace} days to ${event.name}`}>
+          <span style={{ fontSize: compact ? 22 : 30 }}>{event.daysToRace} days</span>
+          <span style={{ fontFamily: FONT.body, fontSize: 12, fontWeight: 600, textTransform: 'none', letterSpacing: 0, marginTop: 2 }}>
+            to {event.name}
+          </span>
+        </span>
       )}
     </Box>
   );
@@ -134,8 +142,8 @@ export default function TodaySpine() {
     if (error) {
       return (
         <Box style={{ border: `1px solid ${C.border}`, background: C.card, padding: 24 }}>
-          <Text style={{ fontFamily: FONT.mono, fontSize: 12, letterSpacing: '1px', color: C.coral }}>
-            COULDN’T LOAD YOUR TRAINING ARC. {error.toUpperCase()}
+          <Text style={{ fontFamily: FONT.body, fontSize: 15, color: C.coral }}>
+            Couldn’t load your training arc. {error}
           </Text>
           <Box
             component="button"
@@ -144,15 +152,15 @@ export default function TodaySpine() {
               marginTop: 14,
               border: `1.5px solid ${C.navy}`,
               background: C.navy,
-              color: '#fff',
-              fontFamily: FONT.mono,
-              fontSize: 10,
-              letterSpacing: '2px',
+              color: 'var(--color-bg)',
+              fontFamily: FONT.body,
+              fontSize: 14,
+              fontWeight: 500,
               padding: '8px 16px',
               cursor: 'pointer',
             }}
           >
-            RETRY
+            Retry
           </Box>
         </Box>
       );

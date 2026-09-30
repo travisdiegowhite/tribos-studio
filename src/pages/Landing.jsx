@@ -1,21 +1,20 @@
 import { Link } from 'react-router-dom';
-import { Box, Group, Text, Button, Anchor, Center, Container, Stack } from '@mantine/core';
+import { Button } from '@mantine/core';
 import SEO, { getOrganizationSchema, getWebSiteSchema } from '../components/SEO';
 
 // Landing sections — a short "about" page. The product itself is the front
 // door (/ lands guests in the route builder); this page lives at /welcome
-// for anyone who wants the pitch.
-import HeroSection from '../components/landing/HeroSection';
-import FeatureCards from '../components/landing/FeatureCards';
-import FinalCTA from '../components/landing/FinalCTA';
+// for anyone who wants the pitch. Layout follows the "Blend — landing" board
+// in docs/DESIGN-OVERHAUL-PLAN-2026-09.md.
+import LandingHero from '../components/landing/LandingHero';
+import WeekLedger from '../components/landing/WeekLedger';
+import CoachQuote from '../components/landing/CoachQuote';
 
-// Styles
 import '../components/landing/landing.css';
-import { Path } from '@phosphor-icons/react';
 
 function Landing() {
   return (
-    <>
+    <div className="lp-shell">
       <SEO
         title="tribos.studio - Cycling Route Builder, Coach & Training Platform"
         description="tribos is an AI route builder and cycling coach. Build routes free with no account; create a free account to sync Strava, Garmin, or Wahoo and get coaching from your real ride history."
@@ -28,109 +27,43 @@ function Landing() {
         }}
       />
 
-      {/* Fixed navigation */}
-      <Box className="landing-nav">
-        <Box py="sm" px={{ base: 'md', md: 'xl' }}>
-        <Group justify="space-between" align="center" wrap="nowrap">
-          <Group gap="sm" wrap="nowrap">
-            <Path size={22} color="var(--color-teal)" />
-            <Text
-              fw={700}
-              size="md"
-              style={{
-                color: 'var(--color-teal)',
-                letterSpacing: '-0.02em',
-                fontFamily: "'DM Mono', monospace",
-              }}
-            >
-              tribos.studio
-            </Text>
-          </Group>
-          <Group gap="sm" wrap="nowrap">
-            <Button
-              component={Link}
-              to="/auth"
-              size="sm"
-              variant="subtle"
-              color="teal"
-              visibleFrom="sm"
-            >
-              Log in
+      <header className="lp-nav">
+        <nav className="lp-wrap lp-nav-inner" aria-label="Main">
+          <Link to="/welcome" className="lp-wordmark">tribos</Link>
+          <div className="lp-nav-links">
+            <Link to="/ride/new" className="lp-nav-link lp-hide-narrow">Build a route</Link>
+            <a href="#coach" className="lp-nav-link lp-hide-narrow">How the coach works</a>
+            <Link to="/auth" className="lp-nav-link">Sign in</Link>
+            <Button component={Link} to="/auth?mode=signup" size="sm">
+              Start riding
             </Button>
-            <Button
-              component={Link}
-              to="/auth?mode=signup"
-              size="sm"
-              color="teal"
-            >
-              Create Free Account
-            </Button>
-          </Group>
-        </Group>
-        </Box>
-        {/* Retro stripe — brand signature (same bands as the app shell) */}
-        <Box style={{ display: 'flex', height: 3 }}>
-          <Box style={{ flex: 3, backgroundColor: '#2A8C82' }} />
-          <Box style={{ flex: 2, backgroundColor: '#C49A0A' }} />
-          <Box style={{ flex: 1, backgroundColor: '#F4F4F2' }} />
-          <Box style={{ flex: 2, backgroundColor: '#D4600A' }} />
-          <Box style={{ flex: 2, backgroundColor: '#C43C2A' }} />
-        </Box>
-      </Box>
+          </div>
+        </nav>
+      </header>
 
-      {/* Page content */}
-      <Box
-        style={{
-          background: 'var(--color-bg)',
-          minHeight: '100vh',
-        }}
-      >
-        <HeroSection />
-        <FeatureCards />
-        <FinalCTA />
+      <main>
+        <LandingHero />
+        <WeekLedger />
+        <CoachQuote />
+      </main>
 
-        {/* Footer */}
-        <Box
-          py={30}
-          px={{ base: 'md', md: 'xl' }}
-          style={{
-            borderTop: '1px solid var(--color-border)',
-          }}
-        >
-          <Container size="lg">
-            <Stack gap="sm">
-              <Center>
-                <Group gap="md">
-                  <Path size={20} color="var(--color-teal)" />
-                  <Text size="sm" style={{ color: 'var(--color-text-muted)' }}>
-                    tribos.studio
-                  </Text>
-                </Group>
-              </Center>
-              <Center>
-                <Group gap="lg">
-                  <Anchor href="/privacy" size="xs" style={{ color: 'var(--color-text-muted)' }}>
-                    Privacy
-                  </Anchor>
-                  <Anchor href="/terms" size="xs" style={{ color: 'var(--color-text-muted)' }}>
-                    Terms
-                  </Anchor>
-                  <Anchor href="/support" size="xs" style={{ color: 'var(--color-text-muted)' }}>
-                    Support
-                  </Anchor>
-                  <Anchor href="mailto:travis@tribos.studio" size="xs" style={{ color: 'var(--color-text-muted)' }}>
-                    Contact
-                  </Anchor>
-                  <Anchor href="mailto:travis@tribos.studio?subject=Abuse%20Report" size="xs" style={{ color: 'var(--color-text-muted)' }}>
-                    Report Abuse
-                  </Anchor>
-                </Group>
-              </Center>
-            </Stack>
-          </Container>
-        </Box>
-      </Box>
-    </>
+      <footer className="lp-wrap">
+        <div className="lp-footer">
+          <span className="lp-mark" aria-hidden="true">
+            <span style={{ background: 'var(--color-ink)' }} />
+            <span style={{ background: 'var(--color-signal)' }} />
+            <span style={{ background: 'var(--color-border)' }} />
+          </span>
+          <span>Travis makes tribos, built on ideas while riding Boulder County roads.</span>
+          <span style={{ flexGrow: 1 }} />
+          <a href="/privacy">Privacy</a>
+          <a href="/terms">Terms</a>
+          <a href="/support">Support</a>
+          <a href="mailto:travis@tribos.studio">Contact</a>
+          <a href="mailto:travis@tribos.studio?subject=Abuse%20Report">Report abuse</a>
+        </div>
+      </footer>
+    </div>
   );
 }
 

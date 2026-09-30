@@ -23,11 +23,11 @@ export function MetricBarRow({ label, value, maxValue = 1.0, displayValue, color
       }}>
         <span style={{
           color: 'var(--color-text-muted)',
-          fontFamily: "'Barlow', sans-serif",
+          fontFamily: "'Archivo', sans-serif",
         }}>{label}</span>
         <span style={{
           color: 'var(--color-text-primary)',
-          fontFamily: "'DM Mono', monospace",
+          fontFamily: "'Courier Prime', monospace",
           fontWeight: 500,
         }}>{displayValue}</span>
       </div>

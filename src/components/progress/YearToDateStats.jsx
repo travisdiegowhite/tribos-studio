@@ -57,7 +57,7 @@ function YearToDateStats({ ytdStats, formatDist, formatElev, formatTime, loading
     >
       <Text
         style={{
-          fontFamily: "'Barlow Condensed', sans-serif",
+          fontFamily: "'Archivo', sans-serif",
           fontSize: 13,
           fontWeight: 700,
           letterSpacing: '2px',
@@ -74,7 +74,7 @@ function YearToDateStats({ ytdStats, formatDist, formatElev, formatTime, loading
           <Box key={cell.label}>
             <Text
               style={{
-                fontFamily: "'Barlow Condensed', sans-serif",
+                fontFamily: "'Archivo', sans-serif",
                 fontSize: 10,
                 fontWeight: 700,
                 letterSpacing: '1.5px',
@@ -87,7 +87,7 @@ function YearToDateStats({ ytdStats, formatDist, formatElev, formatTime, loading
             </Text>
             <Text
               style={{
-                fontFamily: "'DM Mono', monospace",
+                fontFamily: "'Courier Prime', monospace",
                 fontSize: 18,
                 fontWeight: 700,
                 color: 'var(--color-text-primary)',

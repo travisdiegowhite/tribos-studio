@@ -1,59 +1,133 @@
 /* Global Styles for tribos.studio */
-/* "Department of Cycling Intelligence" — cooler base light, dark slate dark */
+/* Podium palette on the zine layout — white paper, black ink, magenta / cyan /
+   lime, one ultramarine accent, and zine moments (stamps, hand marks, tape).
+   Direction and rollout: docs/DESIGN-OVERHAUL-PLAN-2026-09.md */
 
 * {
   box-sizing: border-box;
 }
 
+/* ===== Fonts =====
+   Archivo (UI/body), Courier Prime (numbers, data, the coach) and Covered By
+   Your Grace (hand notes) load from Google Fonts in index.html. Tribos
+   Display is for headings and rubber stamps (.tribos-stamp):
+   Archivo (SIL OFL 1.1, see fonts/OFL-Archivo.txt) pinned at 62% width, weight
+   400–900, Latin subset, renamed so the condensed cut works as a plain family
+   name. Vite hashes it into /assets like any other build asset — no service
+   worker involved. */
+@font-face {
+  font-family: 'Tribos Display';
+  src: url('./fonts/tribos-display.woff2') format('woff2');
+  font-weight: 400 900;
+  font-style: normal;
+  font-display: swap;
+}
+
 /* ===== CSS Variables for Theme Switching ===== */
 
-/* Light theme (default) — Tribos brand system */
+/* Light theme (default) — white paper, black ink, magenta / cyan / lime, one blue accent */
 :root,
 :root[data-mantine-color-scheme='light'] {
+  /* ===== FONTS ===== */
+  --font-display: 'Tribos Display', 'Archivo', 'Arial Narrow', sans-serif;
+  --font-body: 'Archivo', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  --font-mono: 'Courier Prime', 'Courier New', ui-monospace, monospace;
+  --font-stamp: 'Tribos Display', 'Arial Narrow', sans-serif;
+  --font-hand: 'Covered By Your Grace', 'Comic Sans MS', cursive;
+
   /* ===== SURFACES ===== */
-  --color-bg: #F4F4F2;
-  --color-bg-secondary: #EBEBE8;
-  --color-card: #FFFFFF;
-  --color-border: #DDDDD8;
-  --color-nav-bg: #141410;
+  --color-bg: #FFFFFF;
+  --color-bg-secondary: #F8F8FA;
+  --color-card: #F3F3F6;
+  --color-border: #D6D6E0;
+  --color-nav-bg: #FFFFFF;
+  --color-nav-text: #0A0A14;
+  --color-nav-text-muted: #3C3C4A;
 
   /* ===== TEXT ===== */
-  --color-text-primary: #141410;
-  --color-text-secondary: #3D3C36;
-  --color-text-muted: #7A7970;
+  --color-text-primary: #0A0A14;   /* 15.0:1 on page */
+  --color-text-secondary: #3C3C4A; /* 7.6:1 */
+  --color-text-muted: #5E5E6E;     /* 4.5:1 even on bg-secondary */
 
-  /* ===== ACCENT: TEAL (Primary — CTAs, active states, links) ===== */
-  --color-teal: #2A8C82;
-  --color-teal-subtle: rgba(42, 140, 130, 0.10);
-  --color-teal-border: rgba(42, 140, 130, 0.22);
-  --color-teal-border-strong: rgba(42, 140, 130, 0.40);
+  /* ===== ROLES =====
+     ink    — text, lines, primary actions
+     signal — the one warm accent: active marks, CTAs, effort, stamps
+              (--color-signal for fills/marks, --color-signal-text for small text)
+     done   — ridden / completed, always with the hand-drawn tick
+     easy   — recovery/endurance and "planned"
+     moment — fluoro, for stamps and overprints on moments only; never text */
+  --color-ink: #0A0A14;
+  --color-ink-subtle: rgba(10, 10, 20, 0.07);
+  --color-ink-border: rgba(10, 10, 20, 0.28);
+  --color-ink-border-strong: rgba(10, 10, 20, 0.55);
+  --color-signal: #FF3DB8;
+  --color-signal-text: #C4007A;
+  --color-signal-subtle: rgba(255, 61, 184, 0.10);
+  --color-signal-border: rgba(255, 61, 184, 0.35);
+  --color-done: #2B2BFF;
+  --color-done-subtle: rgba(43, 43, 255, 0.10);
+  --color-done-border: rgba(43, 43, 255, 0.35);
 
-  /* ===== ACCENT: ORANGE (Effort — power, workouts, intensity) ===== */
-  --color-orange: #D4600A;
-  --color-orange-subtle: rgba(212, 96, 10, 0.10);
-  --color-orange-border: rgba(212, 96, 10, 0.22);
+  /* Accent — ultramarine, used sparingly: the active tab, links, endurance,
+     the done tick. Everything else is ink. */
+  --color-accent: #2B2BFF;
+  --color-accent-subtle: rgba(43, 43, 255, 0.08);
+  --tribos-on-accent: #FFFFFF;
+  --color-easy: #006DA8;
+  --color-easy-subtle: rgba(0, 109, 168, 0.10);
+  --color-easy-border: rgba(0, 109, 168, 0.35);
+  --color-highlight: #B6F500;
+  --color-highlight-subtle: rgba(182, 245, 0, 0.14);
+  --color-highlight-border: rgba(182, 245, 0, 0.45);
+  --color-stamp: #C4007A;
+  --color-stamp-subtle: rgba(255, 61, 184, 0.08);
+  --color-stamp-border: rgba(255, 61, 184, 0.35);
 
-  /* ===== ACCENT: GOLD (Achievement — optimal, CTL, gains) ===== */
-  --color-gold: #C49A0A;
-  --color-gold-subtle: rgba(196, 154, 10, 0.10);
-  --color-gold-border: rgba(196, 154, 10, 0.22);
+  /* Text on a filled button/badge of each role (see variantColorResolver) */
+  --tribos-on-ink: #FFFFFF;
+  --tribos-on-signal: #0A0A14;
+  --tribos-on-done: #FFFFFF;
+  --tribos-on-easy: #0A0A14;
+  --tribos-on-highlight: #0A0A14;
+  --tribos-on-stamp: #0A0A14;
 
-  /* ===== ACCENT: CORAL (Warning — fatigue, errors, overtraining) ===== */
-  --color-coral: #C43C2A;
-  --color-coral-subtle: rgba(196, 60, 42, 0.10);
-  --color-coral-border: rgba(196, 60, 42, 0.22);
+  /* ===== CHARTS (Today training arc and friends) ===== */
+  --chart-bar: #00C2FF;
+  --chart-bar-planned: #8FE2FF;
+  --chart-grid: #EAEAF0;
+  --chart-baseline: #D6D6E0;
+  --chart-fitness: #0A0A14;
+  --chart-fatigue: #FF3DB8;
+  --chart-future: #5E5E6E;
 
-  /* ===== SHADOWS ===== */
-  --shadow-sm: 0 1px 3px rgba(20, 16, 8, 0.07), 0 4px 12px rgba(20, 16, 8, 0.05);
-  --shadow-md: 0 2px 6px rgba(20, 16, 8, 0.08), 0 8px 24px rgba(20, 16, 8, 0.07);
+  /* ===== LEGACY ROLE NAMES → roles above =====
+     The teal/orange/gold/coral names are read in ~100 files; they resolve to
+     the role that job maps to. New code uses the role names. */
+  --color-teal: var(--color-ink);
+  --color-teal-subtle: var(--color-ink-subtle);
+  --color-teal-border: var(--color-ink-border);
+  --color-teal-border-strong: var(--color-ink-border-strong);
+  --color-orange: var(--color-signal-text);
+  --color-orange-subtle: var(--color-signal-subtle);
+  --color-orange-border: var(--color-signal-border);
+  --color-gold: var(--color-done);
+  --color-gold-subtle: var(--color-done-subtle);
+  --color-gold-border: var(--color-done-border);
+  --color-coral: var(--color-signal-text);
+  --color-coral-subtle: var(--color-signal-subtle);
+  --color-coral-border: var(--color-signal-border);
+
+  /* ===== SHADOWS — none: hierarchy comes from rules and type ===== */
+  --shadow-sm: none;
+  --shadow-md: none;
 
   /* ===== SEMANTIC ===== */
-  --color-success: var(--color-gold);
-  --color-warning: var(--color-coral);
-  --color-error: var(--color-coral);
-  --color-info: var(--color-teal);
+  --color-success: var(--color-done);
+  --color-warning: var(--color-signal-text);
+  --color-error: var(--color-signal-text);
+  --color-info: var(--color-easy);
 
-  /* ===== BACKWARD-COMPAT BRIDGE (old --tribos-* → new) ===== */
+  /* ===== BACKWARD-COMPAT BRIDGE (old --tribos-* → roles) ===== */
   --tribos-void: var(--color-bg);
   --tribos-nav: var(--color-bg-secondary);
   --tribos-panel: var(--color-bg-secondary);
@@ -62,240 +136,299 @@
   --tribos-card-bottom: var(--color-card);
   --tribos-card-hover: var(--color-bg);
   --tribos-elevated: var(--color-card);
-  --tribos-input: var(--color-bg);
+  --tribos-input: var(--color-card);
   --tribos-border-subtle: var(--color-border);
   --tribos-border-default: var(--color-border);
-  --tribos-border-hover: var(--color-text-primary);
-  --tribos-shadow-xs: 0 1px 2px rgba(20, 16, 8, 0.04);
-  --tribos-shadow-card: var(--shadow-sm);
-  --tribos-shadow-card-hover: var(--shadow-md);
+  --tribos-border-hover: var(--color-ink);
+  --tribos-shadow-xs: none;
+  --tribos-shadow-card: none;
+  --tribos-shadow-card-hover: none;
   --tribos-shadow-panel: none;
   --tribos-shadow-inset: none;
-  --tribos-shadow-sm: var(--shadow-sm);
-  --tribos-shadow-md: var(--shadow-md);
-  --tribos-shadow-lg: var(--shadow-md);
-  --tribos-shadow-focus: 0 0 0 2px rgba(42, 140, 130, 0.25);
-  --tribos-terracotta-500: var(--color-teal);
-  --tribos-terracotta-400: #3BA89D;
-  --tribos-terracotta-600: #1E6B63;
-  --tribos-terracotta-surface: var(--color-teal-subtle);
-  --tribos-terracotta-surface-strong: rgba(42, 140, 130, 0.18);
-  --tribos-terracotta-border: var(--color-teal-border);
-  --tribos-terracotta-border-strong: var(--color-teal-border-strong);
+  --tribos-shadow-sm: none;
+  --tribos-shadow-md: none;
+  --tribos-shadow-lg: none;
+  --tribos-shadow-focus: 0 0 0 2px var(--color-ink-border);
+  --tribos-terracotta-500: var(--color-ink);
+  --tribos-terracotta-400: #2A2A36;
+  --tribos-terracotta-600: #000000;
+  --tribos-terracotta-surface: var(--color-ink-subtle);
+  --tribos-terracotta-surface-strong: rgba(10, 10, 20, 0.14);
+  --tribos-terracotta-border: var(--color-ink-border);
+  --tribos-terracotta-border-strong: var(--color-ink-border-strong);
   --tribos-mauve-500: var(--color-text-muted);
-  --tribos-mauve-surface: rgba(122, 121, 112, 0.10);
-  --tribos-mauve-border: rgba(122, 121, 112, 0.25);
-  --tribos-teal-500: var(--color-teal);
-  --tribos-teal-surface: var(--color-teal-subtle);
-  --tribos-teal-border: var(--color-teal-border);
-  --tribos-sage-500: var(--color-gold);
-  --tribos-sage-surface: var(--color-gold-subtle);
-  --tribos-sage-border: var(--color-gold-border);
-  --tribos-gold-500: var(--color-coral);
-  --tribos-gold-surface: var(--color-coral-subtle);
-  --tribos-gold-border: var(--color-coral-border);
-  --tribos-sky-500: var(--color-orange);
-  --tribos-sky-surface: var(--color-orange-subtle);
-  --tribos-sky-border: var(--color-orange-border);
-  --tribos-dustyrose-500: var(--color-orange);
+  --tribos-mauve-surface: rgba(88, 88, 184, 0.10);
+  --tribos-mauve-border: rgba(88, 88, 184, 0.28);
+  --tribos-teal-500: var(--color-ink);
+  --tribos-teal-surface: var(--color-ink-subtle);
+  --tribos-teal-border: var(--color-ink-border);
+  --tribos-sage-500: var(--color-done);
+  --tribos-sage-surface: var(--color-done-subtle);
+  --tribos-sage-border: var(--color-done-border);
+  --tribos-gold-500: var(--color-signal-text);
+  --tribos-gold-surface: var(--color-signal-subtle);
+  --tribos-gold-border: var(--color-signal-border);
+  --tribos-sky-500: var(--color-easy);
+  --tribos-sky-surface: var(--color-easy-subtle);
+  --tribos-sky-border: var(--color-easy-border);
+  --tribos-dustyrose-500: var(--color-signal);
   --tribos-text-100: var(--color-text-primary);
   --tribos-text-200: var(--color-text-secondary);
   --tribos-text-300: var(--color-text-secondary);
   --tribos-text-400: var(--color-text-muted);
-  --tribos-text-500: #B0B0A8;
+  --tribos-text-500: #8A8A98;
   --tribos-text-600: var(--color-border);
   --tribos-bg-primary: var(--color-bg);
   --tribos-bg-secondary: var(--color-card);
   --tribos-bg-tertiary: var(--color-bg-secondary);
   --tribos-bg-elevated: var(--color-card);
   --tribos-border: var(--color-border);
-  --tribos-border-light: var(--color-text-primary);
-  --tribos-border-focus: rgba(42, 140, 130, 0.5);
+  --tribos-border-light: var(--color-ink);
+  --tribos-border-focus: var(--color-ink-border-strong);
   --tribos-text-primary: var(--color-text-primary);
   --tribos-text-secondary: var(--color-text-secondary);
   --tribos-text-muted: var(--color-text-muted);
-  --tribos-lime: var(--color-teal);
-  --tribos-lime-light: #3BA89D;
-  --tribos-lime-dark: #1E6B63;
-  --tribos-green-500: var(--color-teal);
-  --tribos-green-400: #3BA89D;
-  --tribos-green-600: #1E6B63;
-  --tribos-green-bright: #3BA89D;
-  --tribos-green-surface: var(--color-teal-subtle);
-  --tribos-green-surface-strong: rgba(42, 140, 130, 0.18);
-  --tribos-green-border: var(--color-teal-border);
-  --tribos-green-border-strong: var(--color-teal-border-strong);
+  --tribos-lime: var(--color-ink);
+  --tribos-lime-light: #2A2A36;
+  --tribos-lime-dark: #000000;
+  --tribos-green-500: var(--color-done);
+  --tribos-green-400: var(--color-done);
+  --tribos-green-600: var(--color-done);
+  --tribos-green-bright: var(--color-done);
+  --tribos-green-surface: var(--color-done-subtle);
+  --tribos-green-surface-strong: rgba(10, 10, 20, 0.18);
+  --tribos-green-border: var(--color-done-border);
+  --tribos-green-border-strong: rgba(10, 10, 20, 0.55);
   --tribos-green-glow: none;
-  --tribos-success: var(--color-gold);
-  --tribos-warning: var(--color-coral);
-  --tribos-error: var(--color-coral);
-  --tribos-info: var(--color-text-muted);
-  --tribos-amber-500: var(--color-coral);
-  --tribos-amber-400: #D45035;
-  --tribos-amber-surface: var(--color-coral-subtle);
-  --tribos-amber-border: var(--color-coral-border);
-  --tribos-blue-500: var(--color-text-muted);
-  --tribos-blue-400: #8E8D85;
-  --tribos-blue-surface: rgba(122, 121, 112, 0.10);
-  --tribos-blue-border: rgba(122, 121, 112, 0.25);
+  --tribos-success: var(--color-done);
+  --tribos-warning: var(--color-signal-text);
+  --tribos-error: var(--color-signal-text);
+  --tribos-info: var(--color-easy);
+  --tribos-amber-500: var(--color-signal-text);
+  --tribos-amber-400: var(--color-signal);
+  --tribos-amber-surface: var(--color-signal-subtle);
+  --tribos-amber-border: var(--color-signal-border);
+  --tribos-blue-500: var(--color-easy);
+  --tribos-blue-400: var(--color-easy);
+  --tribos-blue-surface: var(--color-easy-subtle);
+  --tribos-blue-border: var(--color-easy-border);
   --tribos-purple-500: var(--color-text-muted);
-  --tribos-purple-surface: rgba(122, 121, 112, 0.10);
-  --tribos-purple-border: rgba(122, 121, 112, 0.25);
-  --tribos-red-500: var(--color-coral);
-  --tribos-red-surface: var(--color-coral-subtle);
+  --tribos-purple-surface: rgba(88, 88, 184, 0.10);
+  --tribos-purple-border: rgba(88, 88, 184, 0.28);
+  --tribos-red-500: var(--color-signal-text);
+  --tribos-red-surface: var(--color-signal-subtle);
 
   /* Scrollbar */
-  --tribos-scrollbar-thumb: rgba(0, 0, 0, 0.12);
-  --tribos-scrollbar-thumb-hover: rgba(0, 0, 0, 0.2);
+  --tribos-scrollbar-thumb: rgba(10, 10, 20, 0.18);
+  --tribos-scrollbar-thumb-hover: rgba(10, 10, 20, 0.32);
 
-  /* Selection */
-  --tribos-selection-bg: rgba(42, 140, 130, 0.2);
-  --tribos-selection-color: #141410;
+  /* Selection — the highlighter */
+  --tribos-selection-bg: rgba(182, 245, 0, 0.35);
+  --tribos-selection-color: #0A0A14;
 
   /* Overlay */
-  --tribos-overlay: rgba(0, 0, 0, 0.4);
+  --tribos-overlay: rgba(10, 10, 20, 0.45);
 
   /* Mobile viewport height fix */
   --vh: 1vh;
 }
 
-/* Dark theme — warm dark system */
+/* Dark theme — a near-black page, white text, the same bright hues */
 :root[data-mantine-color-scheme='dark'] {
+  /* ===== FONTS ===== */
+  --font-display: 'Tribos Display', 'Archivo', 'Arial Narrow', sans-serif;
+  --font-body: 'Archivo', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  --font-mono: 'Courier Prime', 'Courier New', ui-monospace, monospace;
+  --font-stamp: 'Tribos Display', 'Arial Narrow', sans-serif;
+  --font-hand: 'Covered By Your Grace', 'Comic Sans MS', cursive;
+
   /* ===== SURFACES ===== */
-  --color-bg: #141410;
-  --color-bg-secondary: #1A1A16;
-  --color-card: #222220;
-  --color-border: #2E2E2A;
-  --color-nav-bg: #0E0E0C;
+  --color-bg: #0A0A14;
+  --color-bg-secondary: #111118;
+  --color-card: #1A1A22;
+  --color-border: #2C2C38;
+  --color-nav-bg: #0A0A14;
+  --color-nav-text: #FFFFFF;
+  --color-nav-text-muted: #C8C8D2;
 
   /* ===== TEXT ===== */
-  --color-text-primary: #E8E8E4;
-  --color-text-secondary: #B0B0A8;
-  --color-text-muted: #7A7970;
+  --color-text-primary: #FFFFFF;   /* 14.8:1 on page */
+  --color-text-secondary: #C8C8D2; /* 8.6:1 */
+  --color-text-muted: #A0A0AE;     /* 5.4:1 even on elevated */
 
-  /* ===== ACCENTS (lifted for dark) ===== */
-  --color-teal: #3BA89D;
-  --color-teal-subtle: rgba(59, 168, 157, 0.12);
-  --color-teal-border: rgba(59, 168, 157, 0.28);
-  --color-teal-border-strong: rgba(59, 168, 157, 0.45);
-  --color-orange: #E87020;
-  --color-orange-subtle: rgba(232, 112, 32, 0.12);
-  --color-orange-border: rgba(232, 112, 32, 0.28);
-  --color-gold: #D4AA1A;
-  --color-gold-subtle: rgba(212, 170, 26, 0.12);
-  --color-gold-border: rgba(212, 170, 26, 0.28);
-  --color-coral: #D45035;
-  --color-coral-subtle: rgba(212, 80, 53, 0.12);
-  --color-coral-border: rgba(212, 80, 53, 0.28);
+  /* ===== ROLES =====
+     ink    — text, lines, primary actions
+     signal — the one warm accent: active marks, CTAs, effort, stamps
+              (--color-signal for fills/marks, --color-signal-text for small text)
+     done   — ridden / completed, always with the hand-drawn tick
+     easy   — recovery/endurance and "planned"
+     moment — fluoro, for stamps and overprints on moments only; never text */
+  --color-ink: #FFFFFF;
+  --color-ink-subtle: rgba(255, 255, 255, 0.07);
+  --color-ink-border: rgba(255, 255, 255, 0.28);
+  --color-ink-border-strong: rgba(255, 255, 255, 0.55);
+  --color-signal: #FF3DB8;
+  --color-signal-text: #FF6FCB;
+  --color-signal-subtle: rgba(255, 61, 184, 0.10);
+  --color-signal-border: rgba(255, 61, 184, 0.35);
+  --color-done: #8C8CFF;
+  --color-accent: #8C8CFF;
+  --color-accent-subtle: rgba(140, 140, 255, 0.12);
+  --tribos-on-accent: #0A0A14;
+  --color-done-subtle: rgba(140, 140, 255, 0.10);
+  --color-done-border: rgba(140, 140, 255, 0.35);
+  --color-easy: #00C2FF;
+  --color-easy-subtle: rgba(0, 194, 255, 0.10);
+  --color-easy-border: rgba(0, 194, 255, 0.35);
+  --color-highlight: #B6F500;
+  --color-highlight-subtle: rgba(182, 245, 0, 0.14);
+  --color-highlight-border: rgba(182, 245, 0, 0.45);
+  --color-stamp: #FF6FCB;
+  --color-stamp-subtle: rgba(255, 61, 184, 0.08);
+  --color-stamp-border: rgba(255, 61, 184, 0.35);
 
-  /* ===== SHADOWS ===== */
-  --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.30), 0 4px 12px rgba(0, 0, 0, 0.20);
-  --shadow-md: 0 2px 6px rgba(0, 0, 0, 0.35), 0 8px 24px rgba(0, 0, 0, 0.25);
+  /* Text on a filled button/badge of each role (see variantColorResolver) */
+  --tribos-on-ink: #0A0A14;
+  --tribos-on-signal: #0A0A14;
+  --tribos-on-done: #0A0A14;
+  --tribos-on-easy: #0A0A14;
+  --tribos-on-highlight: #0A0A14;
+  --tribos-on-stamp: #0A0A14;
+
+  /* ===== CHARTS (Today training arc and friends) ===== */
+  --chart-bar: #00C2FF;
+  --chart-bar-planned: #8FE2FF;
+  --chart-grid: #1A1A22;
+  --chart-baseline: #2C2C38;
+  --chart-fitness: #FFFFFF;
+  --chart-fatigue: #FF3DB8;
+  --chart-future: #A0A0AE;
+
+  /* ===== LEGACY ROLE NAMES → roles above =====
+     The teal/orange/gold/coral names are read in ~100 files; they resolve to
+     the role that job maps to. New code uses the role names. */
+  --color-teal: var(--color-ink);
+  --color-teal-subtle: var(--color-ink-subtle);
+  --color-teal-border: var(--color-ink-border);
+  --color-teal-border-strong: var(--color-ink-border-strong);
+  --color-orange: var(--color-signal-text);
+  --color-orange-subtle: var(--color-signal-subtle);
+  --color-orange-border: var(--color-signal-border);
+  --color-gold: var(--color-done);
+  --color-gold-subtle: var(--color-done-subtle);
+  --color-gold-border: var(--color-done-border);
+  --color-coral: var(--color-signal-text);
+  --color-coral-subtle: var(--color-signal-subtle);
+  --color-coral-border: var(--color-signal-border);
+
+  /* ===== SHADOWS — none: hierarchy comes from rules and type ===== */
+  --shadow-sm: none;
+  --shadow-md: none;
 
   /* ===== SEMANTIC ===== */
-  --color-success: var(--color-gold);
-  --color-warning: var(--color-coral);
-  --color-error: var(--color-coral);
-  --color-info: var(--color-teal);
+  --color-success: var(--color-done);
+  --color-warning: var(--color-signal-text);
+  --color-error: var(--color-signal-text);
+  --color-info: var(--color-easy);
 
-  /* ===== BACKWARD-COMPAT BRIDGE ===== */
+  /* ===== BACKWARD-COMPAT BRIDGE (old --tribos-* → roles) ===== */
   --tribos-void: var(--color-bg);
   --tribos-nav: var(--color-bg-secondary);
   --tribos-panel: var(--color-bg);
   --tribos-card: var(--color-card);
   --tribos-card-top: var(--color-card);
   --tribos-card-bottom: var(--color-card);
-  --tribos-card-hover: #2A2A28;
-  --tribos-elevated: #2A2A28;
+  --tribos-card-hover: #24242E;
+  --tribos-elevated: #24242E;
   --tribos-input: var(--color-bg);
   --tribos-border-subtle: var(--color-bg-secondary);
   --tribos-border-default: var(--color-border);
-  --tribos-border-hover: var(--color-text-primary);
-  --tribos-shadow-xs: 0 1px 2px rgba(0, 0, 0, 0.2);
-  --tribos-shadow-card: var(--shadow-sm);
-  --tribos-shadow-card-hover: var(--shadow-md);
+  --tribos-border-hover: var(--color-ink);
+  --tribos-shadow-xs: none;
+  --tribos-shadow-card: none;
+  --tribos-shadow-card-hover: none;
   --tribos-shadow-panel: none;
   --tribos-shadow-inset: none;
-  --tribos-shadow-sm: var(--shadow-sm);
-  --tribos-shadow-md: var(--shadow-md);
-  --tribos-shadow-lg: var(--shadow-md);
-  --tribos-shadow-focus: 0 0 0 2px rgba(59, 168, 157, 0.3);
-  --tribos-terracotta-500: var(--color-teal);
-  --tribos-terracotta-400: #4CC0B5;
-  --tribos-terracotta-600: #2A8C82;
-  --tribos-terracotta-surface: var(--color-teal-subtle);
-  --tribos-terracotta-surface-strong: rgba(59, 168, 157, 0.20);
-  --tribos-terracotta-border: var(--color-teal-border);
-  --tribos-terracotta-border-strong: var(--color-teal-border-strong);
+  --tribos-shadow-sm: none;
+  --tribos-shadow-md: none;
+  --tribos-shadow-lg: none;
+  --tribos-shadow-focus: 0 0 0 2px var(--color-ink-border);
+  --tribos-terracotta-500: var(--color-ink);
+  --tribos-terracotta-400: #FFFFFF;
+  --tribos-terracotta-600: #C8C8D2;
+  --tribos-terracotta-surface: var(--color-ink-subtle);
+  --tribos-terracotta-surface-strong: rgba(255, 255, 255, 0.14);
+  --tribos-terracotta-border: var(--color-ink-border);
+  --tribos-terracotta-border-strong: var(--color-ink-border-strong);
   --tribos-mauve-500: var(--color-text-muted);
-  --tribos-mauve-surface: rgba(122, 121, 112, 0.10);
-  --tribos-mauve-border: rgba(122, 121, 112, 0.25);
-  --tribos-teal-500: var(--color-teal);
-  --tribos-teal-surface: var(--color-teal-subtle);
-  --tribos-teal-border: var(--color-teal-border);
-  --tribos-sage-500: var(--color-gold);
-  --tribos-sage-surface: var(--color-gold-subtle);
-  --tribos-sage-border: var(--color-gold-border);
-  --tribos-gold-500: var(--color-coral);
-  --tribos-gold-surface: var(--color-coral-subtle);
-  --tribos-gold-border: var(--color-coral-border);
-  --tribos-sky-500: var(--color-orange);
-  --tribos-sky-surface: var(--color-orange-subtle);
-  --tribos-sky-border: var(--color-orange-border);
-  --tribos-dustyrose-500: var(--color-orange);
+  --tribos-mauve-surface: rgba(158, 158, 200, 0.10);
+  --tribos-mauve-border: rgba(158, 158, 200, 0.28);
+  --tribos-teal-500: var(--color-ink);
+  --tribos-teal-surface: var(--color-ink-subtle);
+  --tribos-teal-border: var(--color-ink-border);
+  --tribos-sage-500: var(--color-done);
+  --tribos-sage-surface: var(--color-done-subtle);
+  --tribos-sage-border: var(--color-done-border);
+  --tribos-gold-500: var(--color-signal-text);
+  --tribos-gold-surface: var(--color-signal-subtle);
+  --tribos-gold-border: var(--color-signal-border);
+  --tribos-sky-500: var(--color-easy);
+  --tribos-sky-surface: var(--color-easy-subtle);
+  --tribos-sky-border: var(--color-easy-border);
+  --tribos-dustyrose-500: var(--color-signal);
   --tribos-text-100: var(--color-text-primary);
-  --tribos-text-200: #C8C8C0;
+  --tribos-text-200: var(--color-text-secondary);
   --tribos-text-300: var(--color-text-secondary);
   --tribos-text-400: var(--color-text-muted);
-  --tribos-text-500: #4A4A42;
-  --tribos-text-600: #2E2E2A;
-  --tribos-lime: var(--color-teal);
-  --tribos-lime-light: #4CC0B5;
-  --tribos-lime-dark: #2A8C82;
-  --tribos-green-500: var(--color-teal);
-  --tribos-green-400: #4CC0B5;
-  --tribos-green-600: #2A8C82;
-  --tribos-green-bright: #4CC0B5;
-  --tribos-green-surface: var(--color-teal-subtle);
-  --tribos-green-surface-strong: rgba(59, 168, 157, 0.20);
-  --tribos-green-border: var(--color-teal-border);
-  --tribos-green-border-strong: var(--color-teal-border-strong);
-  --tribos-green-glow: none;
-  --tribos-success: var(--color-gold);
-  --tribos-warning: var(--color-coral);
-  --tribos-error: var(--color-coral);
-  --tribos-info: var(--color-text-muted);
-  --tribos-amber-500: var(--color-coral);
-  --tribos-amber-400: #E06050;
-  --tribos-amber-surface: var(--color-coral-subtle);
-  --tribos-amber-border: var(--color-coral-border);
-  --tribos-blue-500: var(--color-text-muted);
-  --tribos-blue-400: #8E8D85;
-  --tribos-blue-surface: rgba(122, 121, 112, 0.10);
-  --tribos-blue-border: rgba(122, 121, 112, 0.25);
-  --tribos-purple-500: var(--color-text-muted);
-  --tribos-purple-surface: rgba(122, 121, 112, 0.10);
-  --tribos-purple-border: rgba(122, 121, 112, 0.25);
-  --tribos-red-500: var(--color-coral);
-  --tribos-red-surface: var(--color-coral-subtle);
+  --tribos-text-500: #5E5E6E;
+  --tribos-text-600: var(--color-border);
   --tribos-bg-primary: var(--color-bg);
   --tribos-bg-secondary: var(--color-card);
   --tribos-bg-tertiary: var(--color-bg-secondary);
-  --tribos-bg-elevated: #2A2A28;
+  --tribos-bg-elevated: #24242E;
   --tribos-border: var(--color-border);
-  --tribos-border-light: var(--color-text-primary);
-  --tribos-border-focus: rgba(59, 168, 157, 0.5);
+  --tribos-border-light: var(--color-ink);
+  --tribos-border-focus: var(--color-ink-border-strong);
   --tribos-text-primary: var(--color-text-primary);
-  --tribos-text-secondary: #C8C8C0;
+  --tribos-text-secondary: var(--color-text-secondary);
   --tribos-text-muted: var(--color-text-muted);
+  --tribos-lime: var(--color-ink);
+  --tribos-lime-light: #FFFFFF;
+  --tribos-lime-dark: #C8C8D2;
+  --tribos-green-500: var(--color-done);
+  --tribos-green-400: var(--color-done);
+  --tribos-green-600: var(--color-done);
+  --tribos-green-bright: var(--color-done);
+  --tribos-green-surface: var(--color-done-subtle);
+  --tribos-green-surface-strong: rgba(140, 140, 255, 0.18);
+  --tribos-green-border: var(--color-done-border);
+  --tribos-green-border-strong: rgba(140, 140, 255, 0.55);
+  --tribos-green-glow: none;
+  --tribos-success: var(--color-done);
+  --tribos-warning: var(--color-signal-text);
+  --tribos-error: var(--color-signal-text);
+  --tribos-info: var(--color-easy);
+  --tribos-amber-500: var(--color-signal-text);
+  --tribos-amber-400: var(--color-signal);
+  --tribos-amber-surface: var(--color-signal-subtle);
+  --tribos-amber-border: var(--color-signal-border);
+  --tribos-blue-500: var(--color-easy);
+  --tribos-blue-400: var(--color-easy);
+  --tribos-blue-surface: var(--color-easy-subtle);
+  --tribos-blue-border: var(--color-easy-border);
+  --tribos-purple-500: var(--color-text-muted);
+  --tribos-purple-surface: rgba(158, 158, 200, 0.10);
+  --tribos-purple-border: rgba(158, 158, 200, 0.28);
+  --tribos-red-500: var(--color-signal-text);
+  --tribos-red-surface: var(--color-signal-subtle);
 
   /* Scrollbar */
-  --tribos-scrollbar-thumb: rgba(255, 255, 255, 0.12);
-  --tribos-scrollbar-thumb-hover: rgba(255, 255, 255, 0.2);
+  --tribos-scrollbar-thumb: rgba(255, 255, 255, 0.18);
+  --tribos-scrollbar-thumb-hover: rgba(255, 255, 255, 0.32);
 
-  /* Selection */
-  --tribos-selection-bg: rgba(59, 168, 157, 0.25);
-  --tribos-selection-color: #E8E8E4;
+  /* Selection — the highlighter */
+  --tribos-selection-bg: rgba(182, 245, 0, 0.35);
+  --tribos-selection-color: #FFFFFF;
 
   /* Overlay */
   --tribos-overlay: rgba(0, 0, 0, 0.6);
@@ -315,12 +448,10 @@ body {
   padding: 0;
   background-color: var(--tribos-bg-primary);
   color: var(--tribos-text-primary);
-  font-family: 'Barlow', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial,
-    sans-serif;
+  font-family: var(--font-body);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   line-height: 1.5;
-  letter-spacing: -0.01em;
   transition: background-color 200ms ease, color 200ms ease;
 }
 
@@ -334,6 +465,142 @@ body {
 :root[data-mantine-color-scheme='dark'] body {
   background-color: var(--tribos-void) !important;
   color: var(--tribos-text-100);
+}
+
+/* ===== Headings =====
+   Tribos Display (Archivo at 62% width), heavy and in capitals — the zine
+   masthead voice. Body copy stays in normal-width Archivo. */
+.mantine-Title-root {
+  font-family: var(--font-display);
+  font-weight: 900;
+  text-transform: uppercase;
+  letter-spacing: -0.005em;
+}
+
+/* ===== Readable text for the bright Podium hues =====
+   Magenta, cyan and lime are fills. As text on white they fail contrast, so
+   Mantine's text, light-variant and outline colours for those palettes use a
+   deeper shade (light) or the bright one (dark). Fills are unchanged. The
+   `html` prefix outranks Mantine's own :root variables. */
+html:root[data-mantine-color-scheme='light'] {
+  --mantine-color-blue-text: #2B2BFF;
+  --mantine-color-blue-light-color: #2B2BFF;
+  --mantine-color-blue-outline: #2B2BFF;
+  --mantine-color-signal-text: #C4007A;
+  --mantine-color-signal-light-color: #C4007A;
+  --mantine-color-signal-outline: #C4007A;
+  --mantine-color-orange-text: #C4007A;
+  --mantine-color-orange-light-color: #C4007A;
+  --mantine-color-orange-outline: #C4007A;
+  --mantine-color-coral-text: #C4007A;
+  --mantine-color-coral-light-color: #C4007A;
+  --mantine-color-coral-outline: #C4007A;
+  --mantine-color-red-text: #C4007A;
+  --mantine-color-red-light-color: #C4007A;
+  --mantine-color-red-outline: #C4007A;
+  --mantine-color-stamp-text: #C4007A;
+  --mantine-color-stamp-light-color: #C4007A;
+  --mantine-color-stamp-outline: #C4007A;
+  --mantine-color-pink-text: #C4007A;
+  --mantine-color-pink-light-color: #C4007A;
+  --mantine-color-pink-outline: #C4007A;
+  --mantine-color-easy-text: #006DA8;
+  --mantine-color-easy-light-color: #006DA8;
+  --mantine-color-easy-outline: #006DA8;
+  --mantine-color-cyan-text: #006DA8;
+  --mantine-color-cyan-light-color: #006DA8;
+  --mantine-color-cyan-outline: #006DA8;
+  --mantine-color-moss-text: #526E00;
+  --mantine-color-moss-light-color: #526E00;
+  --mantine-color-moss-outline: #526E00;
+  --mantine-color-green-text: #526E00;
+  --mantine-color-green-light-color: #526E00;
+  --mantine-color-green-outline: #526E00;
+  --mantine-color-gold-text: #526E00;
+  --mantine-color-gold-light-color: #526E00;
+  --mantine-color-gold-outline: #526E00;
+  --mantine-color-moment-text: #526E00;
+  --mantine-color-moment-light-color: #526E00;
+  --mantine-color-moment-outline: #526E00;
+  --mantine-color-highlight-text: #526E00;
+  --mantine-color-highlight-light-color: #526E00;
+  --mantine-color-highlight-outline: #526E00;
+  --mantine-color-lime-text: #526E00;
+  --mantine-color-lime-light-color: #526E00;
+  --mantine-color-lime-outline: #526E00;
+}
+html:root[data-mantine-color-scheme='dark'] {
+  --mantine-color-blue-text: #8C8CFF;
+  --mantine-color-blue-light-color: #8C8CFF;
+  --mantine-color-blue-outline: #8C8CFF;
+  --mantine-color-signal-text: #FF6FCB;
+  --mantine-color-signal-light-color: #FF6FCB;
+  --mantine-color-signal-outline: #FF6FCB;
+  --mantine-color-orange-text: #FF6FCB;
+  --mantine-color-orange-light-color: #FF6FCB;
+  --mantine-color-orange-outline: #FF6FCB;
+  --mantine-color-coral-text: #FF6FCB;
+  --mantine-color-coral-light-color: #FF6FCB;
+  --mantine-color-coral-outline: #FF6FCB;
+  --mantine-color-red-text: #FF6FCB;
+  --mantine-color-red-light-color: #FF6FCB;
+  --mantine-color-red-outline: #FF6FCB;
+  --mantine-color-stamp-text: #FF6FCB;
+  --mantine-color-stamp-light-color: #FF6FCB;
+  --mantine-color-stamp-outline: #FF6FCB;
+  --mantine-color-pink-text: #FF6FCB;
+  --mantine-color-pink-light-color: #FF6FCB;
+  --mantine-color-pink-outline: #FF6FCB;
+  --mantine-color-easy-text: #00C2FF;
+  --mantine-color-easy-light-color: #00C2FF;
+  --mantine-color-easy-outline: #00C2FF;
+  --mantine-color-cyan-text: #00C2FF;
+  --mantine-color-cyan-light-color: #00C2FF;
+  --mantine-color-cyan-outline: #00C2FF;
+  --mantine-color-moss-text: #B6F500;
+  --mantine-color-moss-light-color: #B6F500;
+  --mantine-color-moss-outline: #B6F500;
+  --mantine-color-green-text: #B6F500;
+  --mantine-color-green-light-color: #B6F500;
+  --mantine-color-green-outline: #B6F500;
+  --mantine-color-gold-text: #B6F500;
+  --mantine-color-gold-light-color: #B6F500;
+  --mantine-color-gold-outline: #B6F500;
+  --mantine-color-moment-text: #B6F500;
+  --mantine-color-moment-light-color: #B6F500;
+  --mantine-color-moment-outline: #B6F500;
+  --mantine-color-highlight-text: #B6F500;
+  --mantine-color-highlight-light-color: #B6F500;
+  --mantine-color-highlight-outline: #B6F500;
+  --mantine-color-lime-text: #B6F500;
+  --mantine-color-lime-light-color: #B6F500;
+  --mantine-color-lime-outline: #B6F500;
+}
+
+/* ===== Moments =====
+   Zine marks, for moments only: at most one per app screen, two on the
+   landing page (race day, a countdown, a moved session, a new best). */
+.tribos-stamp {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  border: 3px double var(--color-signal-text);
+  color: var(--color-signal-text);
+  padding: 4px 12px;
+  font-family: var(--font-stamp);
+  font-weight: 900;
+  font-size: 20px;
+  line-height: 1;
+  letter-spacing: 0.01em;
+  text-transform: uppercase;
+  transform: rotate(-4deg);
+}
+
+.tribos-hand {
+  font-family: var(--font-hand);
+  font-weight: 400;
+  color: var(--color-signal-text);
+  line-height: 1.05;
 }
 
 /* Smooth transitions globally */
@@ -358,7 +625,7 @@ body {
   width: 32px;
   height: 32px;
   border: 2px solid var(--tribos-border);
-  border-top-color: #2A8C82;
+  border-top-color: var(--color-ink);
   border-radius: 50%;
   animation: spin 0.8s linear infinite;
 }
@@ -441,7 +708,7 @@ body {
 
 /* Mapbox controls for light theme */
 :root[data-mantine-color-scheme='light'] .mapboxgl-ctrl-attrib {
-  background-color: rgba(244, 244, 242, 0.9) !important;
+  background-color: rgba(255, 255, 255, 0.9) !important;
 }
 
 :root[data-mantine-color-scheme='light'] .mapboxgl-ctrl-group {
@@ -511,7 +778,7 @@ body {
 .mantine-DateInput-input:focus {
   border-color: var(--tribos-terracotta-border) !important;
   outline: none;
-  box-shadow: 0 0 0 2px rgba(42, 140, 130, 0.1) !important;
+  box-shadow: 0 0 0 2px var(--color-ink-subtle) !important;
 }
 
 /* Card/Paper hover effects */
@@ -539,18 +806,26 @@ body {
 
 .mantine-Tabs-tab[data-active] {
   color: var(--color-text-primary);
-  border-bottom: 2px solid var(--color-teal);
+  border-bottom: 2px solid var(--color-ink);
 }
 
 /* Pills variant: active tab needs white text on filled background */
 .mantine-Tabs-tab[data-active][data-active][data-variant="pills"] {
-  color: #FFFFFF;
+  color: var(--color-bg);
   border-bottom: none;
 }
 
 .mantine-Tabs-tab:focus-visible {
   outline: 2px solid var(--tribos-border-focus);
   outline-offset: -2px;
+}
+
+/* Segmented control: the active label sits on the ink indicator. (Nested
+   selectors in theme.js `styles` are ignored by Mantine's styles API, so the
+   state rule lives here.) */
+.mantine-SegmentedControl-label[data-active],
+.mantine-SegmentedControl-label[data-active]:hover {
+  color: var(--color-bg) !important;
 }
 
 /* ===== Link & Button Reset ===== */
@@ -570,29 +845,29 @@ button {
 /* Dark theme specific */
 :root[data-mantine-color-scheme='dark'] {
   --mantine-color-body: var(--tribos-void) !important;
-  --mantine-color-dark-9: #0E0E0C !important;
-  --mantine-color-dark-8: #141410 !important;
-  --mantine-color-dark-7: #1A1A16 !important;
-  --mantine-color-dark-6: #222220 !important;
-  --mantine-color-dark-5: #2A2A28 !important;
-  --mantine-color-dark-4: #343430 !important;
+  --mantine-color-dark-9: #050509 !important;
+  --mantine-color-dark-8: #0A0A14 !important;
+  --mantine-color-dark-7: #111118 !important;
+  --mantine-color-dark-6: #1A1A22 !important;
+  --mantine-color-dark-5: #24242E !important;
+  --mantine-color-dark-4: #2C2C38 !important;
 
   /* Override gray scale mid-tones for dark mode readability */
-  --mantine-color-gray-4: #7A7970 !important;
-  --mantine-color-gray-5: #96958D !important;
-  --mantine-color-gray-6: #96958D !important;
-  --mantine-color-text: #E8E8E4 !important;
-  --mantine-color-dimmed: #7A7970 !important;
+  --mantine-color-gray-4: #A0A0AE !important;
+  --mantine-color-gray-5: #A0A0AE !important;
+  --mantine-color-gray-6: #A0A0AE !important;
+  --mantine-color-text: #FFFFFF !important;
+  --mantine-color-dimmed: #A0A0AE !important;
 }
 
 /* Light theme specific */
 :root[data-mantine-color-scheme='light'] {
-  --mantine-color-body: #F4F4F2 !important;
-  --mantine-color-gray-0: #FAFAF8 !important;
-  --mantine-color-gray-1: #F4F4F2 !important;
-  --mantine-color-gray-2: #EBEBE8 !important;
-  --mantine-color-text: #141410 !important;
-  --mantine-color-dimmed: #7A7970 !important;
+  --mantine-color-body: #FFFFFF !important;
+  --mantine-color-gray-0: #F3F3F6 !important;
+  --mantine-color-gray-1: #FFFFFF !important;
+  --mantine-color-gray-2: #F8F8FA !important;
+  --mantine-color-text: #0A0A14 !important;
+  --mantine-color-dimmed: #5E5E6E !important;
 }
 
 /* Modal/Drawer overlays */
@@ -644,7 +919,7 @@ button {
 
 .recharts-text {
   fill: var(--tribos-text-muted);
-  font-family: 'DM Mono', monospace;
+  font-family: var(--font-mono);
   font-size: 12px;
 }
 
@@ -669,8 +944,8 @@ button {
 }
 
 .mantine-Badge-root {
-  font-weight: 500;
-  letter-spacing: 1px;
+  font-weight: 600;
+  letter-spacing: 0;
 }
 
 .mantine-Menu-item {
@@ -903,7 +1178,7 @@ button {
 }
 
 .tribos-discussion-item:hover {
-  border-color: rgba(42, 140, 130, 0.38) !important;
+  border-color: var(--color-ink-border-strong) !important;
 }
 
 .tribos-segment-card:hover {

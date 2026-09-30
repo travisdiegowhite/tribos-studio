@@ -41,15 +41,15 @@ describe('PlanWeekCard', () => {
     expect(bordered).toHaveLength(0);
   });
 
-  it('sends CHANGE PLAN to the browse tab rather than back to the calendar', () => {
+  it('sends Change plan to the browse tab rather than back to the calendar', () => {
     renderCard();
-    expect(screen.getByRole('link', { name: /CHANGE PLAN/ }).getAttribute('href')).toBe('/train?tab=browse');
+    expect(screen.getByRole('link', { name: /Change plan/ }).getAttribute('href')).toBe('/train?tab=browse');
   });
 
-  it('still offers BROWSE PLANS and the week sentence without a plan', () => {
+  it('still offers Browse plans and the week sentence without a plan', () => {
     renderCard({ activePlan: null, actualWeeklyStats: { totalTSS: 0, totalTime: 0 } });
     expect(screen.getByText('No active training plan')).toBeTruthy();
-    expect(screen.getByRole('link', { name: /BROWSE PLANS/ })).toBeTruthy();
+    expect(screen.getByRole('link', { name: /Browse plans/ })).toBeTruthy();
     expect(screen.getByText('Nothing logged yet this week.')).toBeTruthy();
   });
 });

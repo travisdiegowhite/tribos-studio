@@ -31,7 +31,7 @@ function WeekChart({ weekStats, loading, formatDist, formatElev }) {
       <Group justify="space-between" mb={10}>
         <Text
           style={{
-            fontFamily: "'Barlow Condensed', sans-serif",
+            fontFamily: "'Archivo', sans-serif",
             fontSize: 13,
             fontWeight: 700,
             letterSpacing: '2px',
@@ -43,7 +43,7 @@ function WeekChart({ weekStats, loading, formatDist, formatElev }) {
         </Text>
         <Text
           style={{
-            fontFamily: "'DM Mono', monospace",
+            fontFamily: "'Courier Prime', monospace",
             fontSize: 13,
             fontWeight: 500,
             color: 'var(--color-teal)',
@@ -65,7 +65,7 @@ function WeekChart({ weekStats, loading, formatDist, formatElev }) {
         <Box>
           <Text
             style={{
-              fontFamily: "'Barlow Condensed', sans-serif",
+              fontFamily: "'Archivo', sans-serif",
               fontSize: 11,
               fontWeight: 700,
               letterSpacing: '2px',
@@ -78,7 +78,7 @@ function WeekChart({ weekStats, loading, formatDist, formatElev }) {
           </Text>
           <Text
             style={{
-              fontFamily: "'DM Mono', monospace",
+              fontFamily: "'Courier Prime', monospace",
               fontSize: 20,
               fontWeight: 700,
               color: 'var(--color-text-primary)',
@@ -90,7 +90,7 @@ function WeekChart({ weekStats, loading, formatDist, formatElev }) {
         <Box>
           <Text
             style={{
-              fontFamily: "'Barlow Condensed', sans-serif",
+              fontFamily: "'Archivo', sans-serif",
               fontSize: 11,
               fontWeight: 700,
               letterSpacing: '2px',
@@ -103,7 +103,7 @@ function WeekChart({ weekStats, loading, formatDist, formatElev }) {
           </Text>
           <Text
             style={{
-              fontFamily: "'DM Mono', monospace",
+              fontFamily: "'Courier Prime', monospace",
               fontSize: 20,
               fontWeight: 700,
               color: 'var(--color-text-primary)',

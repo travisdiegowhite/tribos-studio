@@ -2,14 +2,14 @@ import { Box, Group, Text, UnstyledButton } from '@mantine/core';
 import { useMediaQuery } from '@mantine/hooks';
 
 const tabs = [
-  { value: 'calendar', label: 'CALENDAR' },
-  { value: 'coach', label: 'COACH' },
-  { value: 'race', label: 'RACE' },
-  { value: 'trends', label: 'TRENDS' },
-  { value: 'power', label: 'POWER' },
-  { value: 'history', label: 'HISTORY' },
-  { value: 'repeats', label: 'REPEATS' },
-  { value: 'insights', label: 'INSIGHTS' },
+  { value: 'calendar', label: 'Calendar' },
+  { value: 'coach', label: 'Coach' },
+  { value: 'race', label: 'Race' },
+  { value: 'trends', label: 'Trends' },
+  { value: 'power', label: 'Power' },
+  { value: 'history', label: 'History' },
+  { value: 'repeats', label: 'Repeats' },
+  { value: 'insights', label: 'Insights' },
 ];
 
 function SecondaryNavBar({ activeTab, onTabChange }) {
@@ -18,10 +18,11 @@ function SecondaryNavBar({ activeTab, onTabChange }) {
   return (
     <Box
       style={{
-        backgroundColor: '#141410',
-        padding: isMobile ? '0 8px' : '0 16px',
+        backgroundColor: 'var(--color-bg)',
+        borderBottom: '1px solid var(--color-border)',
+        padding: isMobile ? '0 8px' : 0,
         position: 'sticky',
-        top: 59, // below main nav (56px) + retro stripe (3px)
+        top: 60, // below the 60px masthead
         zIndex: 99,
         overflowX: 'auto',
         WebkitOverflowScrolling: 'touch',
@@ -39,19 +40,17 @@ function SecondaryNavBar({ activeTab, onTabChange }) {
               key={tab.value}
               onClick={() => onTabChange(tab.value)}
               style={{
-                padding: isMobile ? '12px 14px' : '12px 20px',
+                padding: isMobile ? '12px 14px' : '12px 18px 12px 0',
                 position: 'relative',
                 transition: 'color 150ms ease',
               }}
             >
               <Text
                 style={{
-                  fontFamily: "'Barlow Condensed', sans-serif",
-                  fontSize: isMobile ? 11 : 12,
-                  fontWeight: 700,
-                  letterSpacing: '1.5px',
-                  textTransform: 'uppercase',
-                  color: isActive ? '#FFFFFF' : '#9A9990',
+                  fontFamily: 'var(--font-body)',
+                  fontSize: isMobile ? 14 : 15,
+                  fontWeight: isActive ? 600 : 400,
+                  color: isActive ? 'var(--color-text-primary)' : 'var(--color-text-secondary)',
                   whiteSpace: 'nowrap',
                 }}
               >
@@ -61,11 +60,11 @@ function SecondaryNavBar({ activeTab, onTabChange }) {
                 <Box
                   style={{
                     position: 'absolute',
-                    bottom: 0,
-                    left: isMobile ? 14 : 20,
-                    right: isMobile ? 14 : 20,
+                    bottom: -1,
+                    left: isMobile ? 14 : 0,
+                    right: isMobile ? 14 : 18,
                     height: 2,
-                    backgroundColor: 'var(--color-teal)',
+                    backgroundColor: 'var(--color-ink)',
                   }}
                 />
               )}

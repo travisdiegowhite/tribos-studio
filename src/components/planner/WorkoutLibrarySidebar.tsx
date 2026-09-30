@@ -22,6 +22,7 @@ import { WORKOUT_LIBRARY, getWorkoutsByCategory } from '../../data/workoutLibrar
 import type { WorkoutCategory, FitnessLevel, WorkoutDefinition } from '../../types/training';
 import type { SidebarFilter, DragSource } from '../../types/planner';
 import { CaretDown, CaretRight, MagnifyingGlass } from '@phosphor-icons/react';
+import { WORKOUT_CATEGORY_PALETTE as CATEGORY_COLORS } from '../../utils/trainingPlans';
 
 interface WorkoutLibrarySidebarProps {
   filter: SidebarFilter;
@@ -63,21 +64,7 @@ const CATEGORY_LABELS: Record<WorkoutCategory, string> = {
   rest: 'Rest',
 };
 
-const CATEGORY_COLORS: Record<WorkoutCategory, string> = {
-  recovery: 'green',
-  endurance: 'blue',
-  tempo: 'yellow',
-  sweet_spot: 'orange',
-  threshold: 'red',
-  vo2max: 'grape',
-  anaerobic: 'pink',
-  climbing: 'teal',
-  racing: 'violet',
-  strength: 'indigo',
-  core: 'cyan',
-  flexibility: 'terracotta',
-  rest: 'gray',
-};
+// Category colours come from the one shared map in utils/trainingPlans.
 
 export function WorkoutLibrarySidebar({
   filter,
@@ -155,12 +142,12 @@ export function WorkoutLibrarySidebar({
         height: '100%',
         display: 'flex',
         flexDirection: 'column',
-        borderRight: isMobile ? 'none' : '1px solid var(--mantine-color-dark-4)',
-        backgroundColor: 'var(--mantine-color-dark-7)',
+        borderRight: isMobile ? 'none' : '1px solid var(--color-border)',
+        backgroundColor: 'var(--color-bg-secondary)',
       }}
     >
       {/* Header */}
-      <Box p="sm" style={{ borderBottom: '1px solid var(--mantine-color-dark-4)' }}>
+      <Box p="sm" style={{ borderBottom: '1px solid var(--color-border)' }}>
         <Text size="sm" fw={600} mb="xs">
           Workout Library
         </Text>
@@ -211,8 +198,8 @@ export function WorkoutLibrarySidebar({
                   style={{
                     width: '100%',
                     padding: '6px 8px',
-                    borderRadius: 4,
-                    backgroundColor: 'var(--mantine-color-dark-6)',
+                    borderRadius: 0,
+                    backgroundColor: 'var(--color-card)',
                   }}
                 >
                   <Group justify="space-between">
@@ -222,7 +209,7 @@ export function WorkoutLibrarySidebar({
                       ) : (
                         <CaretRight size={14} />
                       )}
-                      <Badge size="xs" color={CATEGORY_COLORS[category]} variant="filled">
+                      <Badge size="xs" color={CATEGORY_COLORS[category]} variant="light">
                         {CATEGORY_LABELS[category]}
                       </Badge>
                     </Group>
@@ -268,7 +255,7 @@ export function WorkoutLibrarySidebar({
       {/* Footer with count */}
       <Box
         p="xs"
-        style={{ borderTop: '1px solid var(--mantine-color-dark-4)' }}
+        style={{ borderTop: '1px solid var(--color-border)' }}
       >
         <Text size="xs" c="dimmed" ta="center">
           {filteredWorkouts.length} workouts available

@@ -41,11 +41,11 @@ import { ListChecks } from '@phosphor-icons/react';
 // The conditional CALENDAR tab is gone with the parallel surface it opened:
 // /train IS the calendar_entries calendar now, for everyone.
 const NAV_ITEMS = [
-  { path: '/today', label: 'TODAY' },
-  { path: '/ride', label: 'RIDE' },
-  { path: '/train', label: 'TRAIN' },
-  { path: '/progress', label: 'PROGRESS' },
-  { path: '/garage', label: 'GARAGE' },
+  { path: '/today', label: 'Today' },
+  { path: '/ride', label: 'Ride' },
+  { path: '/train', label: 'Train' },
+  { path: '/progress', label: 'Progress' },
+  { path: '/garage', label: 'Garage' },
 ];
 
 function AppShell({ children, fullWidth = false, hideNav = false }) {
@@ -133,14 +133,15 @@ function AppShell({ children, fullWidth = false, hideNav = false }) {
         paddingBottom: isMobile && !hideNav ? 64 : 0,
       }}
     >
-      {/* Header — dark nav bar */}
+      {/* Header — paper masthead over a single ink rule */}
       {!hideNav && (
         <>
           <Box
             component="header"
             style={{
               height: 60,
-              backgroundColor: '#141410',
+              backgroundColor: 'var(--color-nav-bg)',
+              borderBottom: '2px solid var(--color-ink)',
               position: 'sticky',
               top: 0,
               zIndex: 100,
@@ -157,19 +158,19 @@ function AppShell({ children, fullWidth = false, hideNav = false }) {
                 justifyContent: 'space-between',
               }}
             >
-              {/* Left: TRIBOS wordmark */}
+              {/* Left: wordmark */}
               <Link to="/today" style={{ textDecoration: 'none' }}>
                 <Text
-                  fw={700}
                   style={{
-                    fontFamily: "'Barlow Condensed', sans-serif",
-                    fontSize: 22,
-                    color: '#FFFFFF',
-                    letterSpacing: '0.08em',
+                    fontFamily: 'var(--font-display)',
+                    fontWeight: 900,
+                    fontSize: 32,
+                    lineHeight: 1,
+                    color: 'var(--color-nav-text)',
                     textTransform: 'uppercase',
                   }}
                 >
-                  TRIBOS
+                  tribos
                 </Text>
               </Link>
 
@@ -184,39 +185,27 @@ function AppShell({ children, fullWidth = false, hideNav = false }) {
                         component={Link}
                         to={item.path}
                         style={{
-                          padding: '0 28px',
+                          padding: '0 4px',
                           height: 60,
                           display: 'flex',
                           alignItems: 'center',
-                          position: 'relative',
                         }}
                       >
+                        {/* Active tab is a filled block of the blue accent, zine-masthead style */}
                         <Text
                           style={{
-                            fontFamily: "'Barlow Condensed', sans-serif",
+                            fontFamily: 'var(--font-body)',
+                            fontStretch: '75%',
                             fontSize: 16,
-                            fontWeight: 700,
-                            letterSpacing: '2px',
-                            textTransform: 'uppercase',
-                            color: active ? '#FFFFFF' : '#9A9990',
+                            fontWeight: 800,
+                            padding: '8px 14px',
+                            backgroundColor: active ? 'var(--color-accent)' : 'transparent',
+                            color: active ? 'var(--tribos-on-accent)' : 'var(--color-nav-text)',
                             transition: 'color 150ms ease',
                           }}
                         >
                           {item.label}
                         </Text>
-                        {/* Active indicator — 2px teal underline flush to bottom */}
-                        {active && (
-                          <Box
-                            style={{
-                              position: 'absolute',
-                              bottom: 0,
-                              left: 28,
-                              right: 28,
-                              height: 2,
-                              backgroundColor: 'var(--color-teal)',
-                            }}
-                          />
-                        )}
                       </UnstyledButton>
                     );
                   })}
@@ -252,7 +241,7 @@ function AppShell({ children, fullWidth = false, hideNav = false }) {
                         size="xs"
                         variant="subtle"
                         color="gray"
-                        style={{ color: '#9A9990' }}
+                        style={{ color: 'var(--color-nav-text-muted)' }}
                       >
                         About
                       </Button>
@@ -262,36 +251,25 @@ function AppShell({ children, fullWidth = false, hideNav = false }) {
                         size="xs"
                         variant="subtle"
                         color="gray"
-                        style={{ color: '#9A9990' }}
+                        style={{ color: 'var(--color-nav-text-muted)' }}
                       >
                         Log in
                       </Button>
                     </>
                   )}
-                  <Button component={Link} to="/auth" size="xs" color="teal">
-                    Create Free Account
+                  <Button
+                    component={Link}
+                    to="/auth"
+                    size="xs"
+                    style={{ backgroundColor: 'var(--color-nav-text)', color: 'var(--color-nav-bg)' }}
+                  >
+                    Create free account
                   </Button>
                 </Group>
               )}
             </Box>
           </Box>
 
-          {/* Retro stripe — brand signature */}
-          <Box
-            style={{
-              display: 'flex',
-              height: 3,
-              position: 'sticky',
-              top: 60,
-              zIndex: 99,
-            }}
-          >
-            <Box style={{ flex: 3, backgroundColor: '#2A8C82' }} />
-            <Box style={{ flex: 2, backgroundColor: '#C49A0A' }} />
-            <Box style={{ flex: 1, backgroundColor: '#F4F4F2' }} />
-            <Box style={{ flex: 2, backgroundColor: '#D4600A' }} />
-            <Box style={{ flex: 2, backgroundColor: '#C43C2A' }} />
-          </Box>
         </>
       )}
 
@@ -327,9 +305,11 @@ function NotificationBell({ gearAlerts = [], onDismissAlert, navigate }) {
             width: 36,
             height: 36,
             position: 'relative',
+            color: 'var(--color-nav-text)',
           }}
+          aria-label="Notifications"
         >
-          <Bell size={20} color={alertCount > 0 ? '#FFFFFF' : '#9A9990'} />
+          <Bell size={20} color="currentColor" weight={alertCount > 0 ? 'fill' : 'regular'} />
           {alertCount > 0 && (
             <Badge
               size="xs"
@@ -422,7 +402,7 @@ function AvatarDropdown({ initials, colorScheme, toggleColorScheme, onSignOut, n
             width: 38,
             height: 38,
             borderRadius: '50%',
-            backgroundColor: 'var(--color-teal)',
+            backgroundColor: 'var(--color-nav-text)',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
@@ -431,10 +411,10 @@ function AvatarDropdown({ initials, colorScheme, toggleColorScheme, onSignOut, n
         >
           <Text
             style={{
-              fontFamily: "'Barlow Condensed', sans-serif",
-              fontSize: 15,
-              fontWeight: 700,
-              color: '#FFFFFF',
+              fontFamily: "'Archivo', sans-serif",
+              fontSize: 13,
+              fontWeight: 600,
+              color: 'var(--color-nav-bg)',
               letterSpacing: '0.5px',
               lineHeight: 1,
             }}
@@ -497,7 +477,8 @@ function MobileBottomNav({ isActive }) {
         left: 0,
         right: 0,
         height: 64,
-        backgroundColor: '#141410',
+        backgroundColor: 'var(--color-nav-bg)',
+        borderTop: '1px solid var(--color-ink)',
         zIndex: 100,
         display: 'flex',
         justifyContent: 'space-around',
@@ -517,8 +498,8 @@ function MobileBottomNav({ isActive }) {
               flexDirection: 'column',
               alignItems: 'center',
               justifyContent: 'center',
-              // Five tabs on a 390px screen: tighter padding and tracking than
-              // the desktop bar so PROGRESS and GARAGE both fit un-wrapped.
+              // Five tabs on a 390px screen: tighter padding than the desktop
+              // bar so Progress and Garage both fit un-wrapped.
               padding: '8px 4px',
               flex: 1,
               gap: 2,
@@ -526,27 +507,25 @@ function MobileBottomNav({ isActive }) {
               position: 'relative',
             }}
           >
-            {/* Active indicator — top bar */}
+            {/* Active indicator — 2px ink bar sitting on the top rule */}
             {active && (
               <Box
                 style={{
                   position: 'absolute',
-                  top: 0,
+                  top: -1,
                   left: '25%',
                   right: '25%',
                   height: 2,
-                  backgroundColor: 'var(--color-teal)',
+                  backgroundColor: 'var(--color-ink)',
                 }}
               />
             )}
             <Text
               style={{
-                fontFamily: "'Barlow Condensed', sans-serif",
-                fontSize: 13,
-                fontWeight: 700,
-                letterSpacing: '1.5px',
-                textTransform: 'uppercase',
-                color: active ? '#FFFFFF' : '#9A9990',
+                fontFamily: 'var(--font-body)',
+                fontSize: 14,
+                fontWeight: active ? 600 : 400,
+                color: active ? 'var(--color-nav-text)' : 'var(--color-nav-text-muted)',
                 whiteSpace: 'nowrap',
               }}
             >

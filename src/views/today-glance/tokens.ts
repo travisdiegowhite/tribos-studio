@@ -1,27 +1,37 @@
 /**
- * Brand tokens for the Today glance, per the redesign spec. Zero border radius
- * everywhere; Barlow Condensed headings, DM Mono data labels, Barlow body.
- * Kept local to the glance so it can diverge from the rest of Today without
- * touching the live view.
+ * Brand tokens for the Today surfaces (spine + glance). Every value is a CSS
+ * variable from src/styles/global.css, so Today follows the theme — light
+ * paper or the dark ink page — like the rest of the app. Zero border radius
+ * everywhere; Tribos Display headings, Courier Prime data, Archivo body.
+ *
+ * These strings work anywhere CSS does: inline styles, template-literal
+ * borders, and SVG fill/stroke attributes. Mapbox paint properties can't read
+ * CSS variables — use MAP_COLORS there.
  */
 
 export const C = {
-  base: '#F4F4F2',
-  secondary: '#EBEBE8',
-  border: '#DDDDD8',
-  card: '#FFFFFF',
-  text: '#141410',
-  text2: '#3D3C36',
-  text3: '#7A7970',
-  teal: '#2A8C82', // primary / CTA / route line
-  orange: '#D4600A', // effort / interval work segments
-  gold: '#C49A0A', // achievement / optimal
-  coral: '#C43C2A', // warnings / fatigue
-  navy: '#141410',
+  base: 'var(--color-bg)',
+  secondary: 'var(--color-bg-secondary)',
+  border: 'var(--color-border)',
+  card: 'var(--color-card)',
+  text: 'var(--color-text-primary)',
+  text2: 'var(--color-text-secondary)',
+  text3: 'var(--color-text-muted)',
+  teal: 'var(--color-ink)', // primary / CTA / emphasis (legacy key → ink)
+  orange: 'var(--color-signal)', // effort / interval work segments (→ signal)
+  gold: 'var(--color-done)', // achievement / ridden (→ done, moss)
+  coral: 'var(--color-signal-text)', // warnings / fatigue (→ signal text)
+  navy: 'var(--color-ink)',
+} as const;
+
+/** Literal colours for Mapbox paint, which can't resolve CSS variables. */
+export const MAP_COLORS = {
+  route: '#FF3DB8', // signal — reads on both light-v11 and dark-v11 tiles
+  effort: '#B6F500', // moment fluoro for interval segments
 } as const;
 
 export const FONT = {
-  heading: "'Barlow Condensed', 'Barlow', sans-serif",
-  mono: "'DM Mono', monospace",
-  body: "'Barlow', sans-serif",
+  heading: "'Tribos Display', 'Archivo', sans-serif",
+  mono: "'Courier Prime', monospace",
+  body: "'Archivo', sans-serif",
 } as const;

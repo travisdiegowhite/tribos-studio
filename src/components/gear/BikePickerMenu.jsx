@@ -9,7 +9,7 @@ const SURFACES = [
   { value: 'indoor', label: 'Trainer' },
 ];
 
-const MONO = "'DM Mono', monospace";
+const MONO = "'Courier Prime', monospace";
 
 /**
  * One ride, which bike: a chip that opens a menu of the rider's bikes and,

@@ -2528,7 +2528,7 @@ function RouteBuilder() {
             label: {
               fontWeight: 600,
               '&[data-active]': {
-                color: '#fff',
+                color: 'var(--tribos-on-ink)',
               },
             },
           }}

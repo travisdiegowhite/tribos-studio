@@ -178,7 +178,7 @@ function StatusBar({ ctl, atl, tsb, ctlDeltaPct, weekRides, weekPlanned, loading
       >
         <Text
           style={{
-            fontFamily: "'Barlow Condensed', sans-serif",
+            fontFamily: "'Archivo', sans-serif",
             fontSize: 12,
             fontWeight: 700,
             letterSpacing: '2px',
@@ -190,7 +190,7 @@ function StatusBar({ ctl, atl, tsb, ctlDeltaPct, weekRides, weekPlanned, loading
         </Text>
         <Text
           style={{
-            fontFamily: "'DM Mono', monospace",
+            fontFamily: "'Courier Prime', monospace",
             fontSize: 13,
             fontWeight: 600,
             color: 'var(--color-text-secondary)',
@@ -219,7 +219,7 @@ function StatusBar({ ctl, atl, tsb, ctlDeltaPct, weekRides, weekPlanned, loading
           >
             <Text
               style={{
-                fontFamily: "'Barlow Condensed', sans-serif",
+                fontFamily: "'Archivo', sans-serif",
                 fontSize: 14,
                 fontWeight: 700,
                 letterSpacing: '2px',
@@ -233,7 +233,7 @@ function StatusBar({ ctl, atl, tsb, ctlDeltaPct, weekRides, weekPlanned, loading
             {cell.sublabel && (
               <Text
                 style={{
-                  fontFamily: "'DM Mono', monospace",
+                  fontFamily: "'Courier Prime', monospace",
                   fontSize: 12,
                   color: '#7A7970',
                   letterSpacing: '0.5px',
@@ -245,7 +245,7 @@ function StatusBar({ ctl, atl, tsb, ctlDeltaPct, weekRides, weekPlanned, loading
             )}
             <Text
               style={{
-                fontFamily: "'DM Mono', monospace",
+                fontFamily: "'Courier Prime', monospace",
                 fontSize: 24,
                 fontWeight: 700,
                 color: cell.color,
@@ -258,7 +258,7 @@ function StatusBar({ ctl, atl, tsb, ctlDeltaPct, weekRides, weekPlanned, loading
             {cell.status && (
               <Text
                 style={{
-                  fontFamily: "'Barlow Condensed', sans-serif",
+                  fontFamily: "'Archivo', sans-serif",
                   fontSize: 14,
                   fontWeight: 600,
                   letterSpacing: '0.5px',
@@ -304,7 +304,7 @@ function StatusBar({ ctl, atl, tsb, ctlDeltaPct, weekRides, weekPlanned, loading
         style={{
           display: 'block',
           marginTop: 6,
-          fontFamily: "'DM Mono', monospace",
+          fontFamily: "'Courier Prime', monospace",
           fontSize: 11,
           letterSpacing: '0.5px',
           color: 'var(--color-text-muted)',
@@ -322,7 +322,7 @@ function StatusBar({ ctl, atl, tsb, ctlDeltaPct, weekRides, weekPlanned, loading
         size="md"
         styles={{
           title: {
-            fontFamily: "'Barlow Condensed', sans-serif",
+            fontFamily: "'Archivo', sans-serif",
             fontSize: 18,
             fontWeight: 700,
             letterSpacing: '1.5px',
@@ -344,7 +344,7 @@ function StatusBar({ ctl, atl, tsb, ctlDeltaPct, weekRides, weekPlanned, loading
               <Box key={item.key} style={{ borderTop: '0.5px solid var(--color-border)', paddingTop: 10 }}>
                 <Text
                   style={{
-                    fontFamily: "'Barlow Condensed', sans-serif",
+                    fontFamily: "'Archivo', sans-serif",
                     fontSize: 14,
                     fontWeight: 700,
                     letterSpacing: '2px',
@@ -354,7 +354,7 @@ function StatusBar({ ctl, atl, tsb, ctlDeltaPct, weekRides, weekPlanned, loading
                 >
                   {item.title}
                 </Text>
-                <Text style={{ fontFamily: "'DM Mono', monospace", fontSize: 12, color: '#7A7970', marginBottom: 4 }}>
+                <Text style={{ fontFamily: "'Courier Prime', monospace", fontSize: 12, color: '#7A7970', marginBottom: 4 }}>
                   {item.longName}
                 </Text>
                 <Text size="sm" style={{ color: 'var(--color-text-secondary)', lineHeight: 1.5 }}>

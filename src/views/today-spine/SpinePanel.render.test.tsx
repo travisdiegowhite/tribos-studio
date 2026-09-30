@@ -65,9 +65,9 @@ describe('SpinePanel render', () => {
   it('renders the chart, legend and node without crashing', () => {
     const data = assembleSpine(input());
     renderPanel(data);
-    expect(screen.getByText('TRAINING ARC')).toBeTruthy();
+    expect(screen.getByText('Last six weeks, next ones planned')).toBeTruthy();
     expect(screen.getByText('Hygiene Loop')).toBeTruthy();
-    expect(screen.getByText('FORM')).toBeTruthy();
+    expect(screen.getByText('Form')).toBeTruthy();
     // Sentence-first: the state word is rendered with the FS value as a chip.
     expect(screen.getByText('Coasting — load and recovery canceling out')).toBeTruthy();
     expect(screen.getByText('+4')).toBeTruthy();
@@ -91,13 +91,13 @@ describe('SpinePanel render', () => {
   it('renders a future selection as a planned day', () => {
     const data = assembleSpine(input());
     renderPanel(data, () => {}, data.todayIndex + 5);
-    expect(screen.getByText(/01 · PLANNED ·/)).toBeTruthy();
-    expect(screen.getByText('◂ TODAY')).toBeTruthy();
+    expect(screen.getByText(/Planned ·/)).toBeTruthy();
+    expect(screen.getByText('◂ Today')).toBeTruthy();
   });
 
   it('shows the SET A GOAL affordance when no event is set', () => {
     const data = assembleSpine(input({ event: null }));
     renderPanel(data);
-    expect(screen.getByText('SET A GOAL →')).toBeTruthy();
+    expect(screen.getByText('Set a goal →')).toBeTruthy();
   });
 });

@@ -57,7 +57,7 @@ function SegmentIntelligence({ segments, loading }) {
       <Group justify="space-between" mb={14}>
         <Text
           style={{
-            fontFamily: "'Barlow Condensed', sans-serif",
+            fontFamily: "'Archivo', sans-serif",
             fontSize: 13,
             fontWeight: 700,
             letterSpacing: '2px',
@@ -75,7 +75,7 @@ function SegmentIntelligence({ segments, loading }) {
           size="compact-xs"
           rightSection={<CaretRight size={12} />}
           style={{
-            fontFamily: "'Barlow Condensed', sans-serif",
+            fontFamily: "'Archivo', sans-serif",
             fontSize: 11,
             fontWeight: 700,
             letterSpacing: '1.5px',
@@ -97,7 +97,7 @@ function SegmentIntelligence({ segments, loading }) {
             <Box>
               <Text
                 style={{
-                  fontFamily: "'Barlow Condensed', sans-serif",
+                  fontFamily: "'Archivo', sans-serif",
                   fontSize: 10,
                   fontWeight: 700,
                   letterSpacing: '1.5px',
@@ -110,7 +110,7 @@ function SegmentIntelligence({ segments, loading }) {
               </Text>
               <Text
                 style={{
-                  fontFamily: "'DM Mono', monospace",
+                  fontFamily: "'Courier Prime', monospace",
                   fontSize: 18,
                   fontWeight: 700,
                   color: 'var(--color-teal)',
@@ -123,7 +123,7 @@ function SegmentIntelligence({ segments, loading }) {
             <Box>
               <Text
                 style={{
-                  fontFamily: "'Barlow Condensed', sans-serif",
+                  fontFamily: "'Archivo', sans-serif",
                   fontSize: 10,
                   fontWeight: 700,
                   letterSpacing: '1.5px',
@@ -136,7 +136,7 @@ function SegmentIntelligence({ segments, loading }) {
               </Text>
               <Text
                 style={{
-                  fontFamily: "'DM Mono', monospace",
+                  fontFamily: "'Courier Prime', monospace",
                   fontSize: 18,
                   fontWeight: 700,
                   color: 'var(--color-text-primary)',
@@ -153,7 +153,7 @@ function SegmentIntelligence({ segments, loading }) {
             <Box>
               <Text
                 style={{
-                  fontFamily: "'Barlow Condensed', sans-serif",
+                  fontFamily: "'Archivo', sans-serif",
                   fontSize: 10,
                   fontWeight: 700,
                   letterSpacing: '1.5px',
@@ -182,7 +182,7 @@ function SegmentIntelligence({ segments, loading }) {
             <Box mt={8}>
               <Text
                 style={{
-                  fontFamily: "'Barlow Condensed', sans-serif",
+                  fontFamily: "'Archivo', sans-serif",
                   fontSize: 10,
                   fontWeight: 700,
                   letterSpacing: '1.5px',

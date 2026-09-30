@@ -106,7 +106,7 @@ export function GlanceRail({
     <Stack gap={16} style={{ height: '100%' }}>
       {/* Workout title + stats */}
       <Box>
-        <Text style={{ fontFamily: FONT.heading, fontSize: 28, fontWeight: 700, lineHeight: 1.05, color: C.text }}>
+        <Text style={{ fontFamily: FONT.heading, fontSize: 28, fontWeight: 900, textTransform: 'uppercase', lineHeight: 1.05, color: C.text }}>
           {prescription?.title ?? 'Rest day'}
         </Text>
         {statsLine && (

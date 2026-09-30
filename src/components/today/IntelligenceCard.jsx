@@ -32,7 +32,7 @@ function IntelligenceCard({ workout, plan, routeMatch, loading, formatDist }) {
       >
         <Text
           style={{
-            fontFamily: "'Barlow Condensed', sans-serif",
+            fontFamily: "'Archivo', sans-serif",
             fontSize: 11,
             fontWeight: 700,
             letterSpacing: '2px',
@@ -81,7 +81,7 @@ function IntelligenceCard({ workout, plan, routeMatch, loading, formatDist }) {
       >
         <Text
           style={{
-            fontFamily: "'Barlow Condensed', sans-serif",
+            fontFamily: "'Archivo', sans-serif",
             fontSize: 11,
             fontWeight: 700,
             letterSpacing: '2px',
@@ -123,7 +123,7 @@ function IntelligenceCard({ workout, plan, routeMatch, loading, formatDist }) {
         <Box style={{ padding: 16, borderRight: isMobile ? 'none' : '0.5px solid var(--color-border)' }}>
           <Text
             style={{
-              fontFamily: "'Barlow Condensed', sans-serif",
+              fontFamily: "'Archivo', sans-serif",
               fontSize: 11,
               fontWeight: 700,
               letterSpacing: '2px',
@@ -148,7 +148,7 @@ function IntelligenceCard({ workout, plan, routeMatch, loading, formatDist }) {
             {workout.duration_minutes && (
               <Text
                 style={{
-                  fontFamily: "'DM Mono', monospace",
+                  fontFamily: "'Courier Prime', monospace",
                   fontSize: 16,
                   color: 'var(--color-text-secondary)',
                 }}
@@ -159,7 +159,7 @@ function IntelligenceCard({ workout, plan, routeMatch, loading, formatDist }) {
             {(workout.target_rss ?? workout.target_tss) > 0 && (
               <Text
                 style={{
-                  fontFamily: "'DM Mono', monospace",
+                  fontFamily: "'Courier Prime', monospace",
                   fontSize: 16,
                   color: 'var(--color-text-muted)',
                 }}
@@ -176,7 +176,7 @@ function IntelligenceCard({ workout, plan, routeMatch, loading, formatDist }) {
             <>
               <Text
                 style={{
-                  fontFamily: "'Barlow Condensed', sans-serif",
+                  fontFamily: "'Archivo', sans-serif",
                   fontSize: 11,
                   fontWeight: 700,
                   letterSpacing: '2px',
@@ -205,14 +205,14 @@ function IntelligenceCard({ workout, plan, routeMatch, loading, formatDist }) {
                   variant="light"
                   color="teal"
                   size="sm"
-                  style={{ fontFamily: "'DM Mono', monospace" }}
+                  style={{ fontFamily: "'Courier Prime', monospace" }}
                 >
                   {routeMatch.matchScore}% MATCH
                 </Badge>
                 {routeMatch.activity?.distance && formatDist && (
                   <Text
                     style={{
-                      fontFamily: "'DM Mono', monospace",
+                      fontFamily: "'Courier Prime', monospace",
                       fontSize: 14,
                       color: 'var(--color-text-muted)',
                     }}
@@ -226,7 +226,7 @@ function IntelligenceCard({ workout, plan, routeMatch, loading, formatDist }) {
             <>
               <Text
                 style={{
-                  fontFamily: "'Barlow Condensed', sans-serif",
+                  fontFamily: "'Archivo', sans-serif",
                   fontSize: 11,
                   fontWeight: 700,
                   letterSpacing: '2px',

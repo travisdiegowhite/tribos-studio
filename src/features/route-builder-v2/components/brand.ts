@@ -38,7 +38,7 @@ export const RB2 = {
 } as const;
 
 export const RB2_FONT = {
-  heading: "'Barlow Condensed', sans-serif",
-  body: "'Barlow', sans-serif",
-  mono: "'DM Mono', monospace",
+  heading: "'Archivo', sans-serif",
+  body: "'Archivo', sans-serif",
+  mono: "'Courier Prime', monospace",
 } as const;

@@ -25,7 +25,7 @@ const MOBILE_MAP_HEIGHT = 260;
 const DESKTOP_MAP_HEIGHT = 440;
 
 const eyebrowStyle = {
-  fontFamily: "'DM Mono', monospace",
+  fontFamily: "'Courier Prime', monospace",
   fontSize: 10,
   fontWeight: 500,
   letterSpacing: '2px',
@@ -34,7 +34,7 @@ const eyebrowStyle = {
 };
 
 const linkButtonStyle = {
-  fontFamily: "'DM Mono', monospace",
+  fontFamily: "'Courier Prime', monospace",
   fontSize: 11,
   letterSpacing: '1.5px',
   textTransform: 'uppercase',
@@ -173,7 +173,7 @@ function RideMapCard({
                 textOverflow: 'ellipsis',
                 whiteSpace: 'nowrap',
               }}
-              chipStyle={{ fontFamily: "'DM Mono', monospace", color: 'var(--color-text-muted)', flexWrap: 'wrap' }}
+              chipStyle={{ fontFamily: "'Courier Prime', monospace", color: 'var(--color-text-muted)', flexWrap: 'wrap' }}
             />
           </Box>
 

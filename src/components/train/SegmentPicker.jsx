@@ -133,9 +133,10 @@ function SegmentCard({ segment, selected, onSelect, formatDistance, editing, onE
               lineClamp={2}
               style={{
                 fontFamily: FONT.heading,
+                textTransform: 'uppercase',
                 fontSize: 17,
                 lineHeight: 1.1,
-                fontWeight: 600,
+                fontWeight: 900,
                 color: segment.generic ? C.text3 : C.text,
                 fontStyle: segment.generic ? 'italic' : 'normal',
               }}

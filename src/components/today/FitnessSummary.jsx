@@ -95,7 +95,7 @@ function FitnessSummary({ tfi, afi, formScore, lastRideRss, ctlDeltaPct }) {
       ) : error ? (
         <Text
           style={{
-            fontFamily: "'Barlow', sans-serif",
+            fontFamily: "'Archivo', sans-serif",
             fontSize: 14,
             color: 'var(--color-text-muted)',
             fontStyle: 'italic',
@@ -106,7 +106,7 @@ function FitnessSummary({ tfi, afi, formScore, lastRideRss, ctlDeltaPct }) {
       ) : (
         <Text
           style={{
-            fontFamily: "'Barlow', sans-serif",
+            fontFamily: "'Archivo', sans-serif",
             fontSize: 16,
             fontWeight: 500,
             lineHeight: 1.55,

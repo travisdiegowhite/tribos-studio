@@ -42,8 +42,9 @@ function ValueWord({ word, color }: { word: string; color: string }) {
     <Text
       style={{
         fontFamily: FONT.heading,
+        textTransform: 'uppercase',
         fontSize: 22,
-        fontWeight: 700,
+        fontWeight: 900,
         lineHeight: 1.1,
         color,
       }}
@@ -83,7 +84,7 @@ export function FitnessRow({
           <FitnessSparkline history={state.fitnessHistory} empty={state.fitnessEmpty} height={34} />
         </Box>
         <Group justify="space-between" align="baseline">
-          <Text style={{ fontFamily: FONT.heading, fontSize: 18, fontWeight: 600, color: state.fitnessColor }}>
+          <Text style={{ fontFamily: FONT.heading, fontSize: 18, fontWeight: 900, textTransform: 'uppercase', color: state.fitnessColor }}>
             {state.fitnessWord}
           </Text>
           <Text style={{ fontFamily: FONT.mono, fontSize: 12, color: C.text3 }}>

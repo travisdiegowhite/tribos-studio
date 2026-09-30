@@ -4,6 +4,7 @@
  * deltas/sparklines) into ready-to-render strings and colors. No React.
  */
 
+import { titleCase } from './caseText';
 import { C } from './tokens';
 import { sparklinePoints } from './spineGeometry';
 import { formStateText, formPhrase } from '../../utils/todayVocabulary';
@@ -92,10 +93,11 @@ export function buildNodeVM(
   const last7 = days.slice(Math.max(0, i - 6), i + 1);
   const atlSpark = sparklinePoints(last7.map((x) => x.afi));
 
-  const headerPrefix = isToday ? 'TODAY · ' : isFuture ? 'PLANNED · ' : '';
+  const headerPrefix = isToday ? 'Today · ' : isFuture ? 'Planned · ' : '';
+  const dateText = titleCase(d.dateLabel);
   return {
-    headerLabel: `01 · ${headerPrefix}${d.dateLabel}`,
-    headerDate: `${headerPrefix}${d.dateLabel}`,
+    headerLabel: `${headerPrefix}${dateText}`,
+    headerDate: `${headerPrefix}${dateText}`,
     isToday,
     isFuture,
     activity: d.activity,

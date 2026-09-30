@@ -766,7 +766,7 @@ function HistoricalInsights({ userId, activities, ftp }) {
           loading={rebuilding}
           onClick={handleRebuildSnapshots}
           style={{
-            fontFamily: "'Barlow Condensed', sans-serif",
+            fontFamily: "'Archivo', sans-serif",
             fontSize: 11,
             fontWeight: 700,
             letterSpacing: '1.5px',

@@ -13,7 +13,7 @@ import { use, useMemo } from 'react';
 import Map, { Source, Layer, Marker } from 'react-map-gl';
 import { Box, Text } from '@mantine/core';
 import 'mapbox-gl/dist/mapbox-gl.css';
-import { C, FONT } from './tokens';
+import { C, FONT, MAP_COLORS } from './tokens';
 import { formatDistanceKm, formatElevationM, type UnitsPreference } from './units';
 import { HeroRecentRides } from './HeroRecentRides';
 import type { TodayRoute } from './types';
@@ -112,7 +112,7 @@ export function HeroMap({ routePromise, recentRoutesPromise, units, height }: He
               id="glance-route-line"
               type="line"
               layout={{ 'line-cap': 'round', 'line-join': 'round' }}
-              paint={{ 'line-color': C.teal, 'line-width': 4, 'line-opacity': 0.95 }}
+              paint={{ 'line-color': MAP_COLORS.route, 'line-width': 4, 'line-opacity': 0.95 }}
             />
           </Source>
         )}
@@ -122,7 +122,7 @@ export function HeroMap({ routePromise, recentRoutesPromise, units, height }: He
               id="glance-intervals-line"
               type="line"
               layout={{ 'line-cap': 'round', 'line-join': 'round' }}
-              paint={{ 'line-color': C.orange, 'line-width': 5, 'line-opacity': 1 }}
+              paint={{ 'line-color': MAP_COLORS.effort, 'line-width': 5, 'line-opacity': 1 }}
             />
           </Source>
         )}

@@ -27,7 +27,7 @@ export function SuggestedRail({ today, coachPromise }: SuggestedRailProps) {
     <Stack gap={16} style={{ height: '100%' }}>
       {/* Generate CTA */}
       <Box>
-        <Text style={{ fontFamily: FONT.heading, fontSize: 26, fontWeight: 700, lineHeight: 1.05, color: C.text }}>
+        <Text style={{ fontFamily: FONT.heading, fontSize: 26, fontWeight: 900, textTransform: 'uppercase', lineHeight: 1.05, color: C.text }}>
           {firstRun ? 'Let’s build your first route' : 'No workout today — here’s a spin on roads you know'}
         </Text>
         <Text style={{ fontFamily: FONT.body, fontSize: 14, color: C.text2, marginTop: 6, marginBottom: 14 }}>

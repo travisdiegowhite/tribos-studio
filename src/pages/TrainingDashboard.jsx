@@ -991,13 +991,13 @@ function TrainingDashboard() {
             actions={
               <>
                 <Button
-                  variant={todayHealthMetrics ? 'light' : 'filled'}
-                  color="violet"
+                  variant={todayHealthMetrics ? 'subtle' : 'outline'}
+                  color={todayHealthMetrics ? 'moss' : 'ink'}
                   size="xs"
                   leftSection={<Heart size={14} />}
                   onClick={() => setHealthCheckInOpen(true)}
                 >
-                  {todayHealthMetrics ? 'Check-in ✓' : 'Body Check-in'}
+                  {todayHealthMetrics ? 'Checked in ✓' : 'Body check-in'}
                 </Button>
                 <Menu shadow="md" width={280} position="bottom-end">
                   <Menu.Target>

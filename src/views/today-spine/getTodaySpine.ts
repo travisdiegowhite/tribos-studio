@@ -206,29 +206,29 @@ function labelActivity(opts: {
         [dur, todaysWorkout.targetRss > 0 ? `~${Math.round(todaysWorkout.targetRss)} stress` : null]
           .filter(Boolean)
           .join(' · ') || 'planned',
-      tagColor: '#ffffff',
+      tagColor: 'var(--color-bg)',
     };
   }
   if (rss <= 0) {
-    return { tag: 'REST', name: plannedName ?? 'Recovery day', meta: 'off the bike', tagColor: '#dfeae6' };
+    return { tag: 'REST', name: plannedName ?? 'Recovery day', meta: 'off the bike', tagColor: 'color-mix(in srgb, var(--color-bg) 80%, var(--color-text-muted))' };
   }
   const min = durationSec > 0 ? Math.round(durationSec / 60) : Math.round(rss * 1.4);
   const meta = [formatDur(min), `${Math.round(rss)} stress`].filter(Boolean).join(' · ');
   if (rss < 45) {
-    return { tag: 'EASY', name: realName ?? plannedName ?? 'Recovery spin', meta, tagColor: '#d3efe1' };
+    return { tag: 'EASY', name: realName ?? plannedName ?? 'Recovery spin', meta, tagColor: 'color-mix(in srgb, var(--color-bg) 70%, var(--color-easy))' };
   }
   if (rss < 70) {
     return {
       tag: 'STEADY',
       name: realName ?? plannedName ?? ENDURANCE_NAMES[index % ENDURANCE_NAMES.length],
       meta,
-      tagColor: '#d3efe1',
+      tagColor: 'color-mix(in srgb, var(--color-bg) 70%, var(--color-easy))',
     };
   }
   if (rss < 88) {
-    return { tag: 'BRISK', name: realName ?? plannedName ?? 'Tempo blocks', meta, tagColor: '#ffe1a0' };
+    return { tag: 'BRISK', name: realName ?? plannedName ?? 'Tempo blocks', meta, tagColor: 'color-mix(in srgb, var(--color-bg) 65%, var(--color-signal))' };
   }
-  return { tag: 'HARD', name: realName ?? plannedName ?? 'Threshold 4×8', meta, tagColor: '#ffcf8f' };
+  return { tag: 'HARD', name: realName ?? plannedName ?? 'Threshold 4×8', meta, tagColor: 'color-mix(in srgb, var(--color-bg) 50%, var(--color-signal))' };
 }
 
 // ── pure assembler ───────────────────────────────────────────────────────────

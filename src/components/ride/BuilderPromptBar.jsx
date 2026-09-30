@@ -32,7 +32,7 @@ function BuilderPromptBar({ todayWorkout, medianDistanceKm, formatDist }) {
             <Path size={18} color="var(--color-teal)" />
             <Text
               style={{
-                fontFamily: "'Barlow Condensed', sans-serif",
+                fontFamily: "'Archivo', sans-serif",
                 fontSize: 13,
                 fontWeight: 700,
                 letterSpacing: '2px',
@@ -45,7 +45,7 @@ function BuilderPromptBar({ todayWorkout, medianDistanceKm, formatDist }) {
           </Group>
           <Text
             style={{
-              fontFamily: "'Barlow', sans-serif",
+              fontFamily: "'Archivo', sans-serif",
               fontSize: 14,
               color: '#9A9990',
               lineHeight: 1.4,
@@ -61,7 +61,7 @@ function BuilderPromptBar({ todayWorkout, medianDistanceKm, formatDist }) {
           color="teal"
           rightSection={<ArrowRight size={16} />}
           style={{
-            fontFamily: "'Barlow Condensed', sans-serif",
+            fontFamily: "'Archivo', sans-serif",
             fontWeight: 700,
             letterSpacing: '1.5px',
             textTransform: 'uppercase',

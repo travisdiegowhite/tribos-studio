@@ -25,12 +25,12 @@ export function MetricScoreBadge({ label, score, size = 'sm' }: Props) {
       minWidth: isLg ? 100 : 64,
     }}>
       <span style={{
-        fontFamily: "'Barlow Condensed', sans-serif",
+        fontFamily: "'Archivo', sans-serif",
         fontSize: isLg ? 11 : 10, letterSpacing: '0.5px',
         textTransform: 'uppercase', opacity: 0.8, fontWeight: 700,
       }}>{label}</span>
       <span style={{
-        fontFamily: "'DM Mono', monospace",
+        fontFamily: "'Courier Prime', monospace",
         fontSize: isLg ? 40 : 24, fontWeight: 500, lineHeight: 1,
       }}>{Math.round(score)}</span>
     </div>

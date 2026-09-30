@@ -272,8 +272,7 @@ export function CoachPanel({ data, onScheduleChanged }: CoachPanelProps) {
     <Box
       style={{
         background: C.card,
-        border: `1.5px solid ${C.teal}`,
-        boxShadow: '0 1px 3px rgba(20,16,8,.07),0 4px 12px rgba(20,16,8,.05)',
+        border: `1px solid ${C.border}`,
         display: 'flex',
         flexDirection: 'column',
       }}
@@ -281,26 +280,19 @@ export function CoachPanel({ data, onScheduleChanged }: CoachPanelProps) {
       <style>{`@keyframes spine-tbob{0%,80%,100%{transform:translateY(0);opacity:.35}40%{transform:translateY(-4px);opacity:1}}`}</style>
 
       <Group justify="space-between" align="center" style={{ padding: '13px 16px 11px', borderBottom: `1px solid ${C.border}` }}>
-        <Group gap={9} align="center">
-          <Text style={{ fontFamily: FONT.mono, fontSize: 10, fontWeight: 500, letterSpacing: '2px', color: C.text3 }}>04</Text>
-          <span style={{ width: 6, height: 6, borderRadius: '50%', background: C.gold, display: 'inline-block' }} />
-          <Text style={{ fontFamily: FONT.mono, fontSize: 11, fontWeight: 500, letterSpacing: '2px', color: C.text }}>
-            COACH
-          </Text>
-        </Group>
-        <Text style={{ fontFamily: FONT.mono, fontSize: 10, letterSpacing: '1px', color: C.text3 }}>AI · LIVE</Text>
+        <Text style={{ fontFamily: FONT.body, fontSize: 13, fontWeight: 600, color: C.text2 }}>From your coach</Text>
       </Group>
 
       {/* Recommendation */}
       <Box style={{ padding: '13px 16px 0' }}>
-        <Box style={{ borderLeft: `3px solid ${C.teal}`, background: 'rgba(42,140,130,.10)', padding: '11px 13px' }}>
-          <Text style={{ fontFamily: FONT.mono, fontSize: 9, fontWeight: 500, letterSpacing: '2px', color: C.teal, marginBottom: 5 }}>
-            TODAY’S CALL
+        <Box>
+          <Text style={{ fontFamily: FONT.body, fontSize: 13, fontWeight: 600, color: C.text3, marginBottom: 4 }}>
+            Today’s call
           </Text>
-          <Text style={{ fontFamily: FONT.heading, fontWeight: 700, fontSize: 18, letterSpacing: '.03em', textTransform: 'uppercase', color: C.text }}>
+          <Text style={{ fontFamily: FONT.heading, fontWeight: 900, textTransform: 'uppercase', fontSize: 24, lineHeight: 1.15, color: C.text }}>
             {coach.recTitle}
           </Text>
-          <Text style={{ fontFamily: FONT.body, fontSize: 15, lineHeight: 1.5, color: C.text2, marginTop: 3 }}>
+          <Text style={{ fontFamily: FONT.mono, fontStyle: 'italic', fontSize: 19, lineHeight: 1.42, color: C.text, marginTop: 8 }}>
             {take ?? coach.oneLineTake ?? coach.recBody}
           </Text>
         </Box>
@@ -332,8 +324,8 @@ export function CoachPanel({ data, onScheduleChanged }: CoachPanelProps) {
               style={{
                 alignSelf: mine ? 'flex-end' : 'flex-start',
                 maxWidth: '82%',
-                background: mine ? C.base : 'rgba(42,140,130,.10)',
-                border: `1px solid ${mine ? C.border : 'rgba(42,140,130,.22)'}`,
+                background: mine ? C.base : 'var(--color-ink-subtle)',
+                border: `1px solid ${mine ? C.border : 'var(--color-ink-border)'}`,
                 padding: '8px 11px',
               }}
             >
@@ -344,7 +336,7 @@ export function CoachPanel({ data, onScheduleChanged }: CoachPanelProps) {
           );
         })}
         {typing && (
-          <Box style={{ alignSelf: 'flex-start', background: 'rgba(42,140,130,.10)', border: '1px solid rgba(42,140,130,.22)', padding: '9px 12px', display: 'flex', gap: 4, alignItems: 'center' }}>
+          <Box style={{ alignSelf: 'flex-start', background: 'var(--color-ink-subtle)', border: '1px solid var(--color-ink-border)', padding: '9px 12px', display: 'flex', gap: 4, alignItems: 'center' }}>
             {[0, 0.2, 0.4].map((d) => (
               <span
                 key={d}
@@ -362,7 +354,7 @@ export function CoachPanel({ data, onScheduleChanged }: CoachPanelProps) {
       {/* Input / consent gate */}
       <Box style={{ padding: '10px 16px 14px', borderTop: `1px solid ${C.border}` }}>
         {consent === false ? (
-          <Box style={{ borderLeft: `3px solid ${C.teal}`, background: 'rgba(42,140,130,.10)', padding: '10px 12px' }}>
+          <Box style={{ borderLeft: `3px solid ${C.teal}`, background: 'var(--color-ink-subtle)', padding: '10px 12px' }}>
             <Text style={{ fontFamily: FONT.body, fontSize: 13, color: C.text2, marginBottom: 6 }}>
               Coach reviews your training data to explain your progress.{' '}
               <Anchor component={Link} to="/privacy#ai" style={{ color: C.teal, fontSize: 13 }}>
@@ -374,9 +366,9 @@ export function CoachPanel({ data, onScheduleChanged }: CoachPanelProps) {
               component="button"
               onClick={grantConsent}
               disabled={consentGranting}
-              style={{ border: 'none', background: C.navy, color: '#fff', fontFamily: FONT.mono, fontSize: 10, letterSpacing: '2px', padding: '8px 14px', cursor: 'pointer' }}
+              style={{ border: 'none', background: C.navy, color: 'var(--color-bg)', fontFamily: FONT.body, fontSize: 14, fontWeight: 500, padding: '8px 14px', cursor: 'pointer' }}
             >
-              {consentGranting ? 'ENABLING…' : 'ENABLE COACH'}
+              {consentGranting ? 'Enabling…' : 'Enable coach'}
             </Box>
           </Box>
         ) : (
@@ -417,7 +409,7 @@ export function CoachPanel({ data, onScheduleChanged }: CoachPanelProps) {
                 component="button"
                 onClick={() => send(draft)}
                 disabled={!draft.trim() || typing}
-                style={{ border: `1.5px solid ${C.navy}`, background: C.navy, color: '#fff', padding: '0 16px', fontFamily: FONT.mono, fontSize: 10, letterSpacing: '2px', cursor: !draft.trim() || typing ? 'default' : 'pointer', minHeight: 36 }}
+                style={{ border: `1.5px solid ${C.navy}`, background: C.navy, color: 'var(--color-bg)', padding: '0 16px', fontFamily: FONT.body, fontSize: 14, fontWeight: 500, cursor: !draft.trim() || typing ? 'default' : 'pointer', minHeight: 36 }}
               >
                 ASK
               </Box>

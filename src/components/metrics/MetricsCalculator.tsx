@@ -14,7 +14,7 @@ export function MetricsCalculator() {
     <Stack gap="md">
       <div>
         <Text style={{
-          fontFamily: "'Barlow Condensed', sans-serif",
+          fontFamily: "'Archivo', sans-serif",
           fontSize: 20, fontWeight: 700, letterSpacing: '0.04em',
           textTransform: 'uppercase',
           color: 'var(--color-text-primary)',
@@ -30,13 +30,13 @@ export function MetricsCalculator() {
       <Tabs defaultValue="efi">
         <Tabs.List>
           <Tabs.Tab value="efi">
-            <Text style={{ fontFamily: "'DM Mono', monospace", fontSize: 13, fontWeight: 600 }}>EFI</Text>
+            <Text style={{ fontFamily: "'Courier Prime', monospace", fontSize: 13, fontWeight: 600 }}>EFI</Text>
           </Tabs.Tab>
           <Tabs.Tab value="twl">
-            <Text style={{ fontFamily: "'DM Mono', monospace", fontSize: 13, fontWeight: 600 }}>TWL</Text>
+            <Text style={{ fontFamily: "'Courier Prime', monospace", fontSize: 13, fontWeight: 600 }}>TWL</Text>
           </Tabs.Tab>
           <Tabs.Tab value="tcas">
-            <Text style={{ fontFamily: "'DM Mono', monospace", fontSize: 13, fontWeight: 600 }}>TCAS</Text>
+            <Text style={{ fontFamily: "'Courier Prime', monospace", fontSize: 13, fontWeight: 600 }}>TCAS</Text>
           </Tabs.Tab>
         </Tabs.List>
 

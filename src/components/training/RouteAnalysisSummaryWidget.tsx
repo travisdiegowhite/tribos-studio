@@ -67,7 +67,7 @@ const cardStyle = {
 };
 
 const monoStyle = {
-  fontFamily: "'DM Mono', monospace",
+  fontFamily: "'Courier Prime', monospace",
   letterSpacing: '1.5px',
   textTransform: 'uppercase' as const,
   color: 'var(--color-text-muted)',

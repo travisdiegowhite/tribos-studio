@@ -218,7 +218,7 @@ export function Map({
       >
         <Text
           style={{
-            fontFamily: "'DM Mono', monospace",
+            fontFamily: "'Courier Prime', monospace",
             fontSize: 13,
             letterSpacing: '0.08em',
             textTransform: 'uppercase',

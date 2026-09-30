@@ -20,12 +20,12 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import Map, { Layer, Marker, Source } from 'react-map-gl';
 import 'mapbox-gl/dist/mapbox-gl.css';
-import { Box, Group, Text } from '@mantine/core';
+import { Box, Group, Text, useComputedColorScheme } from '@mantine/core';
 import { Link } from 'react-router-dom';
 import ColoredRouteMap from '../../components/ColoredRouteMap.jsx';
 import { decodePolyline } from '../today/shared/decodePolyline';
 import { filterRidesNearLatest } from '../today/shared/recentRides';
-import { C, FONT } from './tokens';
+import { C, FONT, MAP_COLORS } from './tokens';
 import type { LatestRideMap, RecentRide, WeekRollup } from './types';
 import type { UnitsPreference } from './units';
 
@@ -63,13 +63,12 @@ function ViewTab({ active, onClick, children }: { active: boolean; onClick: () =
       style={{
         background: 'none',
         border: 'none',
-        borderBottom: `2px solid ${active ? C.gold : 'transparent'}`,
+        borderBottom: `2px solid ${active ? C.teal : 'transparent'}`,
         padding: '2px 0 3px',
         cursor: 'pointer',
-        fontFamily: FONT.mono,
-        fontSize: 10,
-        fontWeight: 500,
-        letterSpacing: '1.5px',
+        fontFamily: FONT.body,
+        fontSize: 13,
+        fontWeight: active ? 600 : 400,
         color: active ? C.text : C.text3,
       }}
     >
@@ -101,17 +100,15 @@ function OverlayChip({ label, value, unit }: { label: string; value: string; uni
   return (
     <Box
       style={{
-        background: 'rgba(20,16,8,.72)',
-        backdropFilter: 'blur(8px)',
-        WebkitBackdropFilter: 'blur(8px)',
-        border: '1px solid rgba(255,255,255,.12)',
+        background: C.card,
+        border: `1px solid ${C.border}`,
         padding: '7px 10px',
       }}
     >
-      <Text style={{ fontFamily: FONT.mono, fontSize: 8, letterSpacing: '1px', color: '#9a988f' }}>{label}</Text>
-      <Text style={{ fontFamily: FONT.mono, fontWeight: 500, fontSize: 16, color: C.base }}>
+      <Text style={{ fontFamily: FONT.body, fontSize: 11, color: C.text3 }}>{label}</Text>
+      <Text style={{ fontFamily: FONT.mono, fontWeight: 500, fontSize: 16, color: C.text }}>
         {value}
-        {unit && <span style={{ fontSize: 10, color: '#9a988f' }}> {unit}</span>}
+        {unit && <span style={{ fontSize: 11, color: C.text3 }}> {unit}</span>}
       </Text>
     </Box>
   );
@@ -119,8 +116,8 @@ function OverlayChip({ label, value, unit }: { label: string; value: string; uni
 
 function EmptyCanvas({ height, message }: { height: number; message: string }) {
   return (
-    <Box style={{ flex: 1, minHeight: height, background: C.navy, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-      <Text style={{ fontFamily: FONT.mono, fontSize: 11, letterSpacing: '1px', color: '#7A7970' }}>{message}</Text>
+    <Box style={{ flex: 1, minHeight: height, background: C.secondary, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+      <Text style={{ fontFamily: FONT.body, fontSize: 14, color: C.text3 }}>{message}</Text>
     </Box>
   );
 }
@@ -136,6 +133,9 @@ export function RidesMap({
   focusOnMount = false,
 }: RidesMapProps) {
   const [mapLoaded, setMapLoaded] = useState(false);
+  // Paper tiles on the light page, dark tiles on the ink page.
+  const colorScheme = useComputedColorScheme('light');
+  const mapStyle = colorScheme === 'dark' ? 'mapbox://styles/mapbox/dark-v11' : 'mapbox://styles/mapbox/light-v11';
   const rootRef = useRef<HTMLDivElement>(null);
   // LAST RIDE leads when the newest ride has streams to colour; a polyline-only
   // ride draws as a plain line, which the week overlay already does better.
@@ -197,7 +197,7 @@ export function RidesMap({
   const highlightLabel = highlighted
     ? `${
         highlighted.name.length > 24 ? `${highlighted.name.slice(0, 23)}…` : highlighted.name
-      } · ${new Date(highlighted.startDate).toLocaleDateString('en-GB', { weekday: 'short' })}`.toUpperCase()
+      } · ${new Date(highlighted.startDate).toLocaleDateString('en-GB', { weekday: 'short' })}`
     : null;
 
   const distanceLabel =
@@ -219,38 +219,31 @@ export function RidesMap({
       style={{
         background: C.card,
         border: `1.5px solid ${C.border}`,
-        boxShadow: '0 1px 3px rgba(20,16,8,.07),0 4px 12px rgba(20,16,8,.05)',
         display: 'flex',
         flexDirection: 'column',
         scrollMarginTop: 72,
       }}
     >
       <Group justify="space-between" align="center" style={{ padding: '13px 16px 11px' }}>
-        <Group gap={9} align="center">
-          <Text style={{ fontFamily: FONT.mono, fontSize: 10, fontWeight: 500, letterSpacing: '2px', color: C.text3 }}>03</Text>
-          <span style={{ width: 5, height: 5, background: C.gold, display: 'inline-block' }} />
-          <Text style={{ fontFamily: FONT.mono, fontSize: 11, fontWeight: 500, letterSpacing: '2px', color: C.text }}>
-            WHERE YOU RIDE
-          </Text>
-        </Group>
+        <Text style={{ fontFamily: FONT.body, fontSize: 13, fontWeight: 600, color: C.text2 }}>Where you ride</Text>
         {latestRide ? (
           <Group gap={14} align="center">
             <ViewTab active={view === 'last'} onClick={() => setView('last')}>
-              LAST RIDE
+              Last ride
             </ViewTab>
             <ViewTab active={view === 'week'} onClick={() => setView('week')}>
-              THIS WEEK
+              This week
             </ViewTab>
           </Group>
         ) : (
-          <Text style={{ fontFamily: FONT.mono, fontSize: 10, letterSpacing: '1px', color: C.text3 }}>
-            {ridesForMap.length > 0 ? `LAST ${ridesForMap.length} RIDES` : 'NO RIDES'}
+          <Text style={{ fontFamily: FONT.body, fontSize: 13, color: C.text3 }}>
+            {ridesForMap.length > 0 ? `Last ${ridesForMap.length} rides` : 'No rides'}
           </Text>
         )}
       </Group>
 
       {!MAPBOX_TOKEN ? (
-        <EmptyCanvas height={height} message="MAP REQUIRES CONFIGURATION" />
+        <EmptyCanvas height={height} message="The map needs a Mapbox token to show here." />
       ) : showLastRide && latestRide ? (
         // Desktop: the card is stretched to the coach panel's height, so the
         // map grows into it (`height` is the floor). Behind the phone's
@@ -274,35 +267,34 @@ export function RidesMap({
             style={{ padding: '10px 16px', borderTop: `1px solid ${C.border}` }}
           >
             <Text
-              style={{ fontFamily: FONT.mono, fontSize: 10, letterSpacing: '1px', color: C.text3, minWidth: 0 }}
+              style={{ fontFamily: FONT.body, fontSize: 13, color: C.text3, minWidth: 0 }}
               lineClamp={1}
             >
-              {`${latestRide.name} · ${lastRideDate}`.toUpperCase()}
+              {`${latestRide.name} · ${lastRideDate}`}
             </Text>
             <Link
               to={fullAnalysisHref(latestRide.id)}
               style={{
-                fontFamily: FONT.mono,
-                fontSize: 10,
-                letterSpacing: '1.5px',
+                fontFamily: FONT.body,
+                fontSize: 13,
                 color: C.teal,
                 textDecoration: 'underline',
                 textUnderlineOffset: 3,
                 whiteSpace: 'nowrap',
               }}
             >
-              FULL ANALYSIS →
+              Full analysis →
             </Link>
           </Group>
         </Box>
       ) : decoded.length === 0 ? (
-        <EmptyCanvas height={height} message="NO RIDES WITH ROUTE DATA YET" />
+        <EmptyCanvas height={height} message="No rides with route data yet." />
       ) : (
-        <Box style={{ position: 'relative', flex: 1, minHeight: height, background: C.navy, overflow: 'hidden' }}>
+        <Box style={{ position: 'relative', flex: 1, minHeight: height, background: C.secondary, overflow: 'hidden' }}>
           <Map
             initialViewState={initialViewState}
             style={{ width: '100%', height: '100%' }}
-            mapStyle="mapbox://styles/mapbox/dark-v11"
+            mapStyle={mapStyle}
             mapboxAccessToken={MAPBOX_TOKEN}
             onLoad={() => setMapLoaded(true)}
             interactive={false}
@@ -317,14 +309,14 @@ export function RidesMap({
                     <Layer
                       id={`spine-route-shadow-${ride.id}`}
                       type="line"
-                      paint={{ 'line-color': C.teal, 'line-width': 8, 'line-opacity': 0.16, 'line-blur': 4 }}
+                      paint={{ 'line-color': MAP_COLORS.route, 'line-width': 8, 'line-opacity': 0.16, 'line-blur': 4 }}
                       layout={{ 'line-cap': 'round', 'line-join': 'round' }}
                     />
                     {/* solid line */}
                     <Layer
                       id={`spine-route-line-${ride.id}`}
                       type="line"
-                      paint={{ 'line-color': C.teal, 'line-width': 3, 'line-opacity': isRecent ? 0.95 : 0.35 }}
+                      paint={{ 'line-color': MAP_COLORS.route, 'line-width': 3, 'line-opacity': isRecent ? 0.95 : 0.35 }}
                       layout={{ 'line-cap': 'round', 'line-join': 'round' }}
                     />
                   </Source>
@@ -348,9 +340,9 @@ export function RidesMap({
           </Map>
 
           <Box style={{ position: 'absolute', left: 14, bottom: 14, display: 'flex', gap: 10 }}>
-            <OverlayChip label="THIS WEEK" value={distanceLabel.value} unit={distanceLabel.unit} />
-            <OverlayChip label="ELEV" value={elevLabel.value} unit={elevLabel.unit} />
-            <OverlayChip label="RIDES" value={String(weekRollup.rideCount)} />
+            <OverlayChip label="This week" value={distanceLabel.value} unit={distanceLabel.unit} />
+            <OverlayChip label="Elevation" value={elevLabel.value} unit={elevLabel.unit} />
+            <OverlayChip label="Rides" value={String(weekRollup.rideCount)} />
           </Box>
 
           {highlightLabel && (
@@ -359,15 +351,13 @@ export function RidesMap({
                 position: 'absolute',
                 right: 14,
                 top: 12,
-                background: 'rgba(20,16,8,.72)',
-                backdropFilter: 'blur(8px)',
-                WebkitBackdropFilter: 'blur(8px)',
-                border: '1px solid rgba(255,255,255,.12)',
+                background: C.card,
+                border: `1px solid ${C.border}`,
                 padding: '5px 9px',
               }}
             >
-              <Text style={{ fontFamily: FONT.mono, fontSize: 9, letterSpacing: '1px', color: C.base }}>
-                <span style={{ display: 'inline-block', width: 12, height: 2, background: C.teal, verticalAlign: 'middle', marginRight: 6 }} />
+              <Text style={{ fontFamily: FONT.body, fontSize: 12, color: C.text }}>
+                <span style={{ display: 'inline-block', width: 12, height: 2, background: MAP_COLORS.route, verticalAlign: 'middle', marginRight: 6 }} />
                 {highlightLabel}
               </Text>
             </Box>

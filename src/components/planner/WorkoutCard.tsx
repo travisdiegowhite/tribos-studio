@@ -7,6 +7,7 @@ import { Box, Text, Badge, Group, Tooltip } from '@mantine/core';
 import type { WorkoutDefinition, WorkoutCategory } from '../../types/training';
 import type { DragSource } from '../../types/planner';
 import { Clock, DotsSixVertical, Fire } from '@phosphor-icons/react';
+import { WORKOUT_CATEGORY_PALETTE as CATEGORY_COLORS } from '../../utils/trainingPlans';
 
 interface WorkoutCardProps {
   workout: WorkoutDefinition;
@@ -20,39 +21,7 @@ interface WorkoutCardProps {
   onDragEnd?: () => void;
 }
 
-// Category colors matching existing design system
-const CATEGORY_COLORS: Record<WorkoutCategory | string, string> = {
-  recovery: 'green',
-  endurance: 'blue',
-  tempo: 'yellow',
-  sweet_spot: 'orange',
-  threshold: 'red',
-  vo2max: 'grape',
-  anaerobic: 'pink',
-  climbing: 'teal',
-  racing: 'violet',
-  strength: 'indigo',
-  core: 'cyan',
-  flexibility: 'terracotta',
-  rest: 'gray',
-};
-
-// Category icons
-const CATEGORY_ICONS: Record<WorkoutCategory | string, string> = {
-  recovery: '🌿',
-  endurance: '🚴',
-  tempo: '⚡',
-  sweet_spot: '🍯',
-  threshold: '🔥',
-  vo2max: '💨',
-  anaerobic: '💥',
-  climbing: '⛰️',
-  racing: '🏁',
-  strength: '💪',
-  core: '🎯',
-  flexibility: '🧘',
-  rest: '😴',
-};
+// Category colours come from the one shared map in utils/trainingPlans.
 
 export function WorkoutCard({
   workout,
@@ -66,7 +35,6 @@ export function WorkoutCard({
   onDragEnd,
 }: WorkoutCardProps) {
   const color = CATEGORY_COLORS[workout.category] || 'gray';
-  const icon = CATEGORY_ICONS[workout.category] || '🚴';
 
   const handleDragStart = (e: React.DragEvent) => {
     e.dataTransfer.effectAllowed = 'move';
@@ -107,28 +75,28 @@ export function WorkoutCard({
           onDragEnd={handleDragEnd}
           style={{
             padding: '6px 10px',
-            borderRadius: 6,
-            backgroundColor: `var(--mantine-color-${color}-9)`,
-            borderLeft: `4px solid var(--mantine-color-${color}-5)`,
+            borderRadius: 0,
+            backgroundColor: 'var(--color-card)',
+            border: '1px solid var(--color-border)',
+            borderTop: `2px solid var(--mantine-color-${color}-5)`,
             cursor: 'grab',
             opacity: isDragging ? 0.5 : 1,
           }}
         >
           <Group gap={6} wrap="nowrap">
-            <Text size="sm">{icon}</Text>
-            <Text size="xs" fw={600} c="white" lineClamp={1}>
+            <Text size="xs" fw={600} lineClamp={1} style={{ color: 'var(--color-text-primary)' }}>
               {workout.name}
             </Text>
           </Group>
           {(showDuration || showTSS) && (
             <Group gap="xs" mt={4}>
               {showDuration && (
-                <Text size="xs" c="gray.4">
+                <Text size="xs" c="dimmed">
                   {workout.duration}m
                 </Text>
               )}
               {showTSS && (
-                <Text size="xs" c="gray.4">
+                <Text size="xs" c="dimmed">
                   {workout.targetTSS}
                 </Text>
               )}
@@ -146,9 +114,10 @@ export function WorkoutCard({
       onDragEnd={handleDragEnd}
       style={{
         padding: '10px 12px',
-        borderRadius: 8,
-        backgroundColor: `var(--mantine-color-${color}-9)`,
-        borderLeft: `4px solid var(--mantine-color-${color}-5)`,
+        borderRadius: 0,
+        backgroundColor: 'var(--color-card)',
+        border: '1px solid var(--color-border)',
+        borderTop: `2px solid var(--mantine-color-${color}-5)`,
         cursor: 'grab',
         opacity: isDragging ? 0.5 : 1,
         transition: 'transform 0.1s, box-shadow 0.1s',
@@ -156,29 +125,28 @@ export function WorkoutCard({
       className="tribos-workout-card"
     >
       <Group gap={8} wrap="nowrap" mb={6}>
-        <DotsSixVertical size={14} style={{ opacity: 0.5, flexShrink: 0, color: 'var(--mantine-color-gray-5)' }} />
-        <Text size="sm">{icon}</Text>
-        <Text size="sm" fw={600} c="white" lineClamp={1} style={{ flex: 1 }}>
+        <DotsSixVertical size={14} style={{ opacity: 0.5, flexShrink: 0, color: 'var(--color-text-muted)' }} />
+        <Text size="sm" fw={600} lineClamp={1} style={{ flex: 1, color: 'var(--color-text-primary)' }}>
           {workout.name}
         </Text>
       </Group>
 
       <Group gap="xs" ml={22}>
-        <Badge size="xs" color={color} variant="filled">
+        <Badge size="xs" color={color} variant="light">
           {workout.category.replace('_', ' ')}
         </Badge>
         {showDuration && (
           <Group gap={2}>
-            <Clock size={12} color="var(--mantine-color-gray-5)" />
-            <Text size="xs" c="gray.4">
+            <Clock size={12} color="var(--color-text-muted)" />
+            <Text size="xs" c="dimmed">
               {workout.duration}min
             </Text>
           </Group>
         )}
         {showTSS && (
           <Group gap={2}>
-            <Fire size={12} color="var(--mantine-color-gray-5)" />
-            <Text size="xs" c="gray.4">
+            <Fire size={12} color="var(--color-text-muted)" />
+            <Text size="xs" c="dimmed">
               {workout.targetTSS} stress
             </Text>
           </Group>
@@ -191,10 +159,10 @@ export function WorkoutCard({
           variant="light"
           color={
             workout.difficulty === 'advanced'
-              ? 'red'
+              ? 'signal'
               : workout.difficulty === 'intermediate'
-              ? 'yellow'
-              : 'green'
+              ? 'moss'
+              : 'easy'
           }
           ml={22}
           mt={6}

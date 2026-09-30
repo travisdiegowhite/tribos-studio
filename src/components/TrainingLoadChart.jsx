@@ -113,19 +113,19 @@ const TrainingLoadChart = ({ data }) => {
       <Group gap="md" mb="md">
         <Box>
           <Badge color="gold" variant="light" size="sm">Fitness (TFI)</Badge>
-          <Text style={{ fontFamily: "'DM Mono', monospace", fontSize: 10, color: '#7A7970', marginTop: 2 }}>
+          <Text style={{ fontFamily: "'Courier Prime', monospace", fontSize: 10, color: '#7A7970', marginTop: 2 }}>
             Aerobic base — built over ~6 weeks
           </Text>
         </Box>
         <Box>
           <Badge color="coral" variant="light" size="sm">Fatigue (AFI)</Badge>
-          <Text style={{ fontFamily: "'DM Mono', monospace", fontSize: 10, color: '#7A7970', marginTop: 2 }}>
+          <Text style={{ fontFamily: "'Courier Prime', monospace", fontSize: 10, color: '#7A7970', marginTop: 2 }}>
             Recent fatigue — last 7–10 days
           </Text>
         </Box>
         <Box>
           <Badge color="teal" variant="light" size="sm">Form (FS)</Badge>
-          <Text style={{ fontFamily: "'DM Mono', monospace", fontSize: 10, color: '#7A7970', marginTop: 2 }}>
+          <Text style={{ fontFamily: "'Courier Prime', monospace", fontSize: 10, color: '#7A7970', marginTop: 2 }}>
             Freshness — how ready you are today
           </Text>
         </Box>
@@ -205,7 +205,7 @@ const TrainingLoadChart = ({ data }) => {
         </LineChart>
       </ResponsiveContainer>
 
-      <Text style={{ fontFamily: "'DM Mono', monospace", fontSize: 10, color: '#7A7970', marginTop: 6 }}>
+      <Text style={{ fontFamily: "'Courier Prime', monospace", fontSize: 10, color: '#7A7970', marginTop: 6 }}>
         RSS = Daily ride stress | FTP = Your current threshold power
       </Text>
     </Card>

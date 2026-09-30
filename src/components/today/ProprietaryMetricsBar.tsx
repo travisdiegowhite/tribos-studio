@@ -179,7 +179,7 @@ function MetricCell({
       }}
     >
       <Text style={{
-        fontFamily: "'Barlow Condensed', sans-serif",
+        fontFamily: "'Archivo', sans-serif",
         fontSize: 14, fontWeight: 700, letterSpacing: '2px',
         textTransform: 'uppercase',
         color: 'var(--color-text-muted)',
@@ -194,7 +194,7 @@ function MetricCell({
       {hasData ? (
         <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
           <Text style={{
-            fontFamily: "'DM Mono', monospace",
+            fontFamily: "'Courier Prime', monospace",
             fontSize: 24, fontWeight: 700,
             color: color || 'var(--color-text-primary)',
             lineHeight: 1.2,
@@ -203,7 +203,7 @@ function MetricCell({
           </Text>
           {badge && (
             <Text style={{
-              fontFamily: "'DM Mono', monospace",
+              fontFamily: "'Courier Prime', monospace",
               fontSize: 13, fontWeight: 600,
               color: 'var(--color-text-muted)',
             }}>
@@ -214,7 +214,7 @@ function MetricCell({
       ) : (
         <div>
           <Text style={{
-            fontFamily: "'Barlow', sans-serif",
+            fontFamily: "'Archivo', sans-serif",
             fontSize: 14, color: 'var(--color-text-muted)',
             lineHeight: 1.4,
           }}>
@@ -223,7 +223,7 @@ function MetricCell({
           <Anchor
             href={emptyLink}
             size="xs"
-            style={{ fontFamily: "'Barlow Condensed', sans-serif", letterSpacing: '0.5px' }}
+            style={{ fontFamily: "'Archivo', sans-serif", letterSpacing: '0.5px' }}
           >
             Set up →
           </Anchor>
@@ -232,7 +232,7 @@ function MetricCell({
 
       {hasData && status && (
         <Text style={{
-          fontFamily: "'Barlow Condensed', sans-serif",
+          fontFamily: "'Archivo', sans-serif",
           fontSize: 14, fontWeight: 600, letterSpacing: '0.5px',
           color: colorToVar(status.color as 'teal' | 'orange' | 'gold' | 'coral' | 'muted'),
           marginTop: 4,
@@ -243,7 +243,7 @@ function MetricCell({
 
       {description && (
         <Text style={{
-          fontFamily: "'Barlow', sans-serif",
+          fontFamily: "'Archivo', sans-serif",
           fontSize: 12.5, color: 'var(--color-text-muted)',
           marginTop: 8,
           lineHeight: 1.4,
@@ -302,7 +302,7 @@ function EFIDetail({ efi }: { efi: NonNullable<MetricsData['efi']> }) {
           <MetricBarRow label="Consistency" value={efi.cf} displayValue={`${(efi.cf * 100).toFixed(0)}%`} color="#D4600A" />
         </div>
       </div>
-      <Anchor href="/learn/metrics" size="xs" style={{ fontFamily: "'Barlow Condensed', sans-serif" }}>
+      <Anchor href="/learn/metrics" size="xs" style={{ fontFamily: "'Archivo', sans-serif" }}>
         Learn how EFI is calculated →
       </Anchor>
     </DetailBox>
@@ -320,7 +320,7 @@ function TCASDetail({ tcas }: { tcas: NonNullable<MetricsData['tcas']> }) {
           <MetricBarRow label="Training Age Adj" value={tcas.taa - 1} maxValue={1.0} displayValue={`${tcas.taa.toFixed(2)}×`} color="#D4600A" />
         </div>
       </div>
-      <Anchor href="/learn/metrics" size="xs" style={{ fontFamily: "'Barlow Condensed', sans-serif" }}>
+      <Anchor href="/learn/metrics" size="xs" style={{ fontFamily: "'Archivo', sans-serif" }}>
         Learn how TCAS is calculated →
       </Anchor>
     </DetailBox>

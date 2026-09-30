@@ -1,79 +1,332 @@
-/* ===== Landing Page (/welcome) ===== */
+/* ===== Landing Page (/welcome) — Podium palette on the zine layout =====
+   Layout only; colours and type come from the global tokens. */
 
-/* Section reveal */
-.landing-step {
-  opacity: 0;
-  transform: translateY(20px);
-  transition: opacity 0.6s ease-out, transform 0.6s ease-out;
+.lp-shell {
+  background: var(--color-bg);
+  color: var(--color-text-primary);
+  min-height: 100vh;
 }
 
-.landing-step.visible {
-  opacity: 1;
-  transform: translateY(0);
+.lp-wrap {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 0 24px;
 }
 
-/* Staggered children within a section */
-.landing-step .step-title {
-  opacity: 0;
-  transform: translateY(12px);
-  transition: opacity 0.4s ease-out, transform 0.4s ease-out;
-  transition-delay: 0.1s;
-}
-
-.landing-step .step-desc {
-  opacity: 0;
-  transform: translateY(12px);
-  transition: opacity 0.4s ease-out, transform 0.4s ease-out;
-  transition-delay: 0.2s;
-}
-
-.landing-step .step-content {
-  opacity: 0;
-  transform: translateY(16px);
-  transition: opacity 0.5s ease-out, transform 0.5s ease-out;
-  transition-delay: 0.3s;
-}
-
-.landing-step.visible .step-title,
-.landing-step.visible .step-desc,
-.landing-step.visible .step-content {
-  opacity: 1;
-  transform: translateY(0);
-}
-
-/* ===== Scroll cue ===== */
-
-.scroll-prompt {
-  animation: scrollBounce 2s ease-in-out infinite;
-}
-
-@keyframes scrollBounce {
-  0%, 100% { transform: translateY(0); opacity: 0.6; }
-  50% { transform: translateY(6px); opacity: 1; }
-}
-
-/* ===== Fixed Nav ===== */
-
-.landing-nav {
-  position: fixed;
+/* ---- Nav ---- */
+.lp-nav {
+  position: sticky;
   top: 0;
-  left: 0;
-  right: 0;
   z-index: 200;
-  background: var(--tribos-nav);
+  background: var(--color-bg);
+  border-bottom: 1px solid var(--color-border);
 }
 
-/* ===== Reduced Motion ===== */
+.lp-nav-inner {
+  height: 76px;
+  display: flex;
+  align-items: center;
+  gap: 32px;
+}
 
+.lp-wordmark {
+  font-family: var(--font-display);
+  font-weight: 900;
+  font-size: 36px;
+  line-height: 1;
+  text-transform: uppercase;
+  color: var(--color-text-primary);
+  text-decoration: none;
+}
+
+.lp-nav-links {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 28px;
+}
+
+.lp-nav-link {
+  font-size: 15px;
+  color: var(--color-text-primary);
+  text-decoration: none;
+}
+
+.lp-nav-link:hover {
+  color: var(--color-signal-text);
+}
+
+/* ---- Hero ---- */
+.lp-hero {
+  padding: 80px 0 96px;
+  display: grid;
+  grid-template-columns: minmax(0, 1.05fr) minmax(0, 1fr);
+  gap: 64px;
+  align-items: start;
+}
+
+.lp-hero-title {
+  margin: 0;
+  font-family: var(--font-display);
+  font-weight: 900;
+  font-size: clamp(52px, 8vw, 104px);
+  line-height: 0.9;
+  text-transform: uppercase;
+  color: var(--color-ink);
+}
+
+.lp-lede {
+  margin: 0;
+  font-size: 19px;
+  line-height: 1.55;
+  color: var(--color-text-secondary);
+  max-width: 520px;
+}
+
+.lp-sheet {
+  background: var(--color-card);
+  border: 1px solid var(--color-border);
+  padding: 28px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  transform: rotate(0.6deg);
+}
+
+.lp-sheet-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  border-bottom: 1px solid var(--color-ink);
+  padding-bottom: 10px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--color-text-secondary);
+}
+
+.lp-route {
+  position: relative;
+}
+
+.lp-route svg {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+.lp-route-line {
+  stroke-dasharray: 1;
+  stroke-dashoffset: 1;
+  animation: lp-draw 1.6s ease-out 0.1s forwards;
+}
+
+@keyframes lp-draw {
+  to { stroke-dashoffset: 0; }
+}
+
+.lp-note-climb {
+  position: absolute;
+  font-size: 24px;
+  transform: rotate(-4deg);
+}
+
+.lp-stats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 24px;
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  font-size: 17px;
+}
+
+.lp-coach-note {
+  margin: 0;
+  font-family: var(--font-mono);
+  font-size: 16px;
+  line-height: 1.5;
+  color: var(--color-ink);
+  border-top: 1px solid var(--color-border);
+  padding-top: 14px;
+}
+
+/* Riso-style overprint on paper; on the dark page multiply would vanish. */
+.lp-overprint { mix-blend-mode: multiply; }
+:root[data-mantine-color-scheme='dark'] .lp-overprint { mix-blend-mode: normal; }
+
+
+/* ---- Week ledger ---- */
+.lp-week {
+  border-top: 1px solid var(--color-ink);
+  padding: 72px 0;
+  display: grid;
+  grid-template-columns: 380px minmax(0, 1fr);
+  gap: 64px;
+}
+
+.lp-h2 {
+  margin: 0;
+  font-family: var(--font-display);
+  font-weight: 900;
+  font-size: 56px;
+  line-height: 0.92;
+  text-transform: uppercase;
+}
+
+/* The week is a taped sheet, typed in Courier */
+.lp-ledger-sheet {
+  position: relative;
+  background: var(--color-card);
+  border: 1px solid var(--color-ink);
+  padding: 28px 32px 20px;
+  transform: rotate(-0.5deg);
+}
+
+.lp-ledger-sheet::before {
+  content: '';
+  position: absolute;
+  top: -12px;
+  left: 42%;
+  width: 130px;
+  height: 26px;
+  background: var(--color-highlight);
+  opacity: 0.55;
+  transform: rotate(-2deg);
+}
+
+.lp-ledger {
+  width: 100%;
+  border-collapse: collapse;
+  font-family: var(--font-mono);
+  font-size: 15px;
+  color: var(--color-ink);
+}
+
+.lp-ledger caption {
+  caption-side: bottom;
+  text-align: left;
+  padding-top: 10px;
+  font-size: 13px;
+  color: var(--color-text-muted);
+}
+
+.lp-ledger th {
+  text-align: left;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--color-text-secondary);
+  padding: 10px 12px 10px 0;
+  border-bottom: 1px solid var(--color-ink);
+}
+
+.lp-ledger td {
+  padding: 13px 12px 13px 0;
+  border-bottom: 1px dashed var(--color-ink-border-strong);
+  vertical-align: baseline;
+}
+
+.lp-ledger .num {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+  padding-right: 24px;
+}
+
+.lp-ledger th.num {
+  text-align: right;
+}
+
+/* ---- Coach quote — the lime block ---- */
+.lp-coach {
+  background: var(--color-highlight);
+  color: var(--tribos-on-highlight);
+}
+
+.lp-coach-label {
+  font-family: var(--font-display);
+  font-weight: 900;
+  font-size: 40px;
+  line-height: 0.95;
+  text-transform: uppercase;
+}
+
+.lp-coach-quote {
+  margin: 0;
+  font-family: var(--font-mono);
+  font-weight: 700;
+  font-size: 24px;
+  line-height: 1.45;
+}
+
+.lp-coach-inner {
+  padding: 72px 24px 80px;
+  display: grid;
+  grid-template-columns: 380px minmax(0, 640px);
+  gap: 64px;
+}
+
+.lp-coach a {
+  color: inherit;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+/* The lime block keeps its dark text in both schemes. */
+
+/* ---- Footer ---- */
+.lp-footer {
+  padding: 36px 0;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 16px 28px;
+  font-size: 14px;
+  color: var(--color-text-secondary);
+}
+
+.lp-footer a {
+  color: var(--color-text-secondary);
+  text-decoration: none;
+}
+
+.lp-footer a:hover {
+  color: var(--color-signal-text);
+}
+
+.lp-mark {
+  display: flex;
+  flex-direction: column;
+  width: 48px;
+  height: 15px;
+  flex-shrink: 0;
+}
+
+.lp-mark span { flex-grow: 1; }
+
+/* ---- Narrow screens ---- */
+@media (max-width: 900px) {
+  .lp-hero,
+  .lp-week,
+  .lp-coach-inner {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 40px;
+  }
+  .lp-hero { padding: 48px 0 64px; }
+  .lp-week { padding: 56px 0; }
+  .lp-sheet { transform: none; }
+  .lp-nav-links .lp-hide-narrow { display: none; }
+  .lp-h2 { font-size: 34px; }
+}
+
+@media (max-width: 520px) {
+  .lp-nav-inner { gap: 16px; }
+  .lp-nav-links { gap: 16px; }
+  .lp-ledger .note-col { display: none; }
+}
+
+/* ---- Reduced motion ---- */
 @media (prefers-reduced-motion: reduce) {
-  .landing-step,
-  .landing-step .step-title,
-  .landing-step .step-desc,
-  .landing-step .step-content,
-  .scroll-prompt {
-    opacity: 1 !important;
-    transform: none !important;
-    transition: none !important;
-    animation: none !important;
+  .lp-route-line {
+    animation: none;
+    stroke-dashoffset: 0;
   }
 }

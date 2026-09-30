@@ -39,7 +39,7 @@ export function TCASCalculator() {
 
       <Text size="sm" c="dimmed" style={{ fontStyle: 'italic' }}>{insight}</Text>
 
-      <Text size="xs" fw={600} c="dimmed" style={{ fontFamily: "'Barlow Condensed', sans-serif", textTransform: 'uppercase', letterSpacing: '1px' }}>
+      <Text size="xs" fw={600} c="dimmed" style={{ fontFamily: "'Archivo', sans-serif", textTransform: 'uppercase', letterSpacing: '1px' }}>
         Fitness trajectory
       </Text>
       <SliderRow label="Fitness (TFI) now" value={ctlNow} onChange={setCtlNow} min={0} max={120} />
@@ -47,7 +47,7 @@ export function TCASCalculator() {
       <SliderRow label="Avg weekly hours" value={avgWeeklyHours} onChange={setAvgWeeklyHours} min={2} max={20} />
       <SliderRow label="Years of training" value={yearsTraining} onChange={setYearsTraining} min={0} max={25} />
 
-      <Text size="xs" fw={600} c="dimmed" style={{ fontFamily: "'Barlow Condensed', sans-serif", textTransform: 'uppercase', letterSpacing: '1px' }}>
+      <Text size="xs" fw={600} c="dimmed" style={{ fontFamily: "'Archivo', sans-serif", textTransform: 'uppercase', letterSpacing: '1px' }}>
         Adaptation signals
       </Text>
       <SliderRow label="Efficiency Factor now" value={efNow} onChange={setEfNow} min={0.8} max={2.5} step={0.05} />
@@ -60,12 +60,12 @@ export function TCASCalculator() {
       <Accordion>
         <Accordion.Item value="formula">
           <Accordion.Control>
-            <Text size="sm" fw={600} style={{ fontFamily: "'Barlow Condensed', sans-serif" }}>
+            <Text size="sm" fw={600} style={{ fontFamily: "'Archivo', sans-serif" }}>
               How is TCAS calculated?
             </Text>
           </Accordion.Control>
           <Accordion.Panel>
-            <Text size="xs" c="dimmed" style={{ fontFamily: "'DM Mono', monospace", lineHeight: 1.8 }}>
+            <Text size="xs" c="dimmed" style={{ fontFamily: "'Courier Prime', monospace", lineHeight: 1.8 }}>
               TCAS = clamp((0.55 × HE + 0.45 × AQ) × TAA × 50, 0, 100){'\n\n'}
               HE: Hours Efficiency = FV / (weekly_hours × 0.30){'\n'}
               AQ: Adaptation Quality = 0.40×EFT + 0.30×ADI + 0.30×PPD{'\n'}
@@ -88,7 +88,7 @@ function SliderRow({ label, value, onChange, min, max, step = 1 }: {
     <div>
       <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
         <Text size="xs" c="dimmed">{label}</Text>
-        <Text size="xs" fw={600} style={{ fontFamily: "'DM Mono', monospace" }}>{value}</Text>
+        <Text size="xs" fw={600} style={{ fontFamily: "'Courier Prime', monospace" }}>{value}</Text>
       </div>
       <Slider value={value} onChange={onChange} min={min} max={max} step={step} size="xs" />
     </div>

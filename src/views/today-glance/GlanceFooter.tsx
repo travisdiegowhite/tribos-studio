@@ -1,5 +1,5 @@
 /**
- * GlanceFooter — thin DM Mono links that deep-link to the surfaces that
+ * GlanceFooter — thin Courier Prime links that deep-link to the surfaces that
  * absorbed the old Today's heavy modules: Adjust route → Builder, Full
  * workout → terrain/interval detail, Talk to coach → the coach command bar.
  */
