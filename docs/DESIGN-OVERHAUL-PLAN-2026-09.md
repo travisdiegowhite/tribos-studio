@@ -1,7 +1,7 @@
 # Visual overhaul — Podium palette on the zine layout (2026-09)
 
 **Status:** tokens, type, app shell, landing, Today and calendar are built together on `claude/vigilant-bohr-qe01u4` (preview only, not merged); phase 5 (sweep) not started.
-**Design canvas:** Tribos — New Look Exploration (private claude.ai artifact). The reference is the row **"Podium palette × zine layout"**: boards `PodiumZine-Tokens`, `PodiumZine-Landing`, `PodiumZine-Today`, `PodiumZine-Calendar`, `PodiumZine-TodayMobile`.
+**Design canvas:** Tribos — New Look Exploration (private claude.ai artifact). The reference is the row **"Black ink, blue accent"**: boards `InkZine-Tokens`, `InkZine-Landing`, `InkZine-Today`, `InkZine-Calendar`, `InkZine-TodayMobile`. (The row above it, "Podium palette × zine layout", used ultramarine for all ink; seen live, it was too loud.)
 **Supersedes:** the look in `docs/TRIBOS-DESIGN-SYSTEM.md` (TB-001, "Department of Cycling Intelligence"), and "the blend" (closed PR #997).
 
 ## Why
@@ -20,7 +20,7 @@ The current UI is competent, but it reads as AI-made. The audit behind that judg
 
 ## The direction in one paragraph
 
-The zine layout, printed in Podium's colours. A white page with pale-lavender sheets, ultramarine ink for text and lines, and three bright hues that each have one job: magenta for effort, CTAs, stamps and hand notes; cyan for recovery and chart bars; lime for highlights, overprints and the coach block. Headings are Tribos Display (Archivo at 62% width) in heavy capitals, the UI is Archivo, and numbers, logs and the coach's voice are Courier Prime. Rubber stamps, tape and marker notes stay, for moments only. There are no drop shadows, gradients, emoji or icon boxes, and nothing is orange or red, so tribos never reads as Strava, Zwift or TrainerRoad.
+The zine layout, printed in Podium's colours. A white page with neutral grey sheets, near-black ink for text and lines, ultramarine as a sparing accent (the active tab, endurance, the done tick), and three bright hues that each have one job: magenta for effort, CTAs, stamps and hand notes; cyan for recovery and chart bars; lime for highlights, overprints and the coach block. Headings are Tribos Display (Archivo at 62% width) in heavy capitals, the UI is Archivo, and numbers, logs and the coach's voice are Courier Prime. Rubber stamps, tape and marker notes stay, for moments only. There are no drop shadows, gradients, emoji or icon boxes, and nothing is orange or red, so tribos never reads as Strava, Zwift or TrainerRoad.
 
 **How we got here (2026-09-28/30).** Four paper-and-ink directions (Ride Zine on sand, black on off-white, the blend, the zine-leaning blend) were built or drawn and rejected as too retro and too quiet. Three fresh directions followed (Race Kit, Topo, Podium). The pick was Podium's palette on the zine-leaning layout.
 
@@ -28,10 +28,11 @@ The zine layout, printed in Podium's colours. A white page with pale-lavender sh
 
 | Role | Light | Dark | Replaces |
 |---|---|---|---|
-| Page / tint / sheet | `#FFFFFF` / `#F6F6FF` / `#F0F0FF` | `#0A0A14` / `#111120` / `#1A1A2E` (elevated `#24243C`) | `--color-bg*`, `--color-card` |
-| Rule | `#C8C8F4`; ink for emphasis | `#2E2E4A` | `--color-border` |
-| Ink (text, lines, primary actions) | ultramarine `#2B2BFF` | `#FFFFFF` | `--color-text-primary`, `--color-teal` |
-| Secondary / muted text | `#4545D0` / `#5858B8` | `#C8C8E8` / `#9E9EC8` | `--color-text-secondary/-muted` |
+| Page / tint / sheet | `#FFFFFF` / `#F8F8FA` / `#F3F3F6` | `#0A0A14` / `#111118` / `#1A1A22` (elevated `#24242E`) | `--color-bg*`, `--color-card` |
+| Rule | `#D6D6E0`; ink for emphasis | `#2C2C38` | `--color-border` |
+| Ink (text, lines, primary actions) | `#0A0A14` | `#FFFFFF` | `--color-text-primary`, `--color-teal` |
+| Accent (active tab, endurance, done tick) | ultramarine `#2B2BFF` | `#8C8CFF` | new |
+| Secondary / muted text | `#3C3C4A` / `#5E5E6E` | `#C8C8D2` / `#A0A0AE` | `--color-text-secondary/-muted` |
 | Signal (fills, stamps) / signal text | magenta `#FF3DB8` / `#C4007A` | `#FF3DB8` / `#FF6FCB` | `--color-orange` (→ signal text), `--color-coral` |
 | Done (with the hand tick) | `#2B2BFF` | `#8C8CFF` | `--color-gold`, success |
 | Easy (recovery, planned) text / fill | `#006DA8` / cyan `#00C2FF` | `#00C2FF` | info |
@@ -57,7 +58,7 @@ Each phase is one PR, shipped to everyone. There is no feature gate: this is a p
 - **Type.** Tribos Display headings in capitals; Archivo, Courier Prime and a marker hand load from Google Fonts. Inline font names across `src/` (including the share-card canvas) use Archivo and Courier Prime.
 - **Tribos Display** is a self-hosted static Archivo at 62% width (40 KB) in `src/styles/fonts/`, used for headings and `.tribos-stamp`.
 - **Moment utilities.** `.tribos-stamp` and `.tribos-hand` in `global.css`.
-- **App shell.** A white masthead over a 2px ultramarine rule, a "TRIBOS" wordmark in Tribos Display, and condensed Archivo tabs where the active one is a filled ultramarine block. The five-band stripe is gone.
+- **App shell.** A white masthead over a 2px ink rule, a "TRIBOS" wordmark in Tribos Display, and condensed Archivo tabs where the active one is a filled ultramarine block (the accent). The five-band stripe is gone.
 
 ### Phase 2 — Landing (`/welcome`), as `PodiumZine-Landing` (built)
 

@@ -94,7 +94,7 @@ export const TRAINING_ZONES: TrainingZonesMap = {
 // aerobic work, moss for tempo, signal reds for threshold and above.
 export const WORKOUT_CATEGORY_PALETTE: Record<string, string> = {
   recovery: 'easy',
-  endurance: 'ink',
+  endurance: 'blue',
   tempo: 'moss',
   sweet_spot: 'moss',
   threshold: 'signal',
@@ -104,7 +104,7 @@ export const WORKOUT_CATEGORY_PALETTE: Record<string, string> = {
   racing: 'signal',
   hill_repeats: 'signal',
   intervals: 'signal',
-  long_ride: 'ink',
+  long_ride: 'blue',
   strength: 'ink',
   core: 'ink',
   flexibility: 'gray',
@@ -118,7 +118,7 @@ export const WORKOUT_TYPES: WorkoutTypesMap = {
     description: 'Complete rest or very light activity',
     defaultTSS: 0,
     defaultDuration: 0,
-    color: '#9E9EC8',
+    color: '#A0A0AE',
     icon: '🛌'
   },
   recovery: {
@@ -239,7 +239,7 @@ export const TRAINING_PHASES: TrainingPhasesMap = {
     description: 'Reduce load for adaptation',
     focus: 'Rest and regeneration',
     primaryZones: [1, 2],
-    color: '#9E9EC8'
+    color: '#A0A0AE'
   }
 };
 
@@ -632,7 +632,7 @@ export function getPowerZone(power: number, ftp: number): TrainingZone | null {
  */
 export function getZoneColor(zone: number | string): string {
   const zoneData = TRAINING_ZONES[zone];
-  return zoneData?.color || '#9E9EC8';
+  return zoneData?.color || '#A0A0AE';
 }
 
 /**

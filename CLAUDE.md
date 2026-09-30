@@ -243,10 +243,11 @@ Run all tests: `npm run test:run`
 
 ## Design System
 
-Mantine UI 8 with a custom theme in `src/theme.js` and tokens in `src/styles/global.css`. Design language: **Podium palette on the zine layout**: white paper, ultramarine ink, three bright hues, condensed capitals and zine moments. The direction, token table and rollout are in `docs/DESIGN-OVERHAUL-PLAN-2026-09.md`; the canvas boards `PodiumZine-*` are the visual reference. The old TB-001 spec (`docs/TRIBOS-DESIGN-SYSTEM.md`) is superseded.
+Mantine UI 8 with a custom theme in `src/theme.js` and tokens in `src/styles/global.css`. Design language: **Podium palette on the zine layout, black ink**: white paper, near-black ink, three bright hues, one ultramarine accent, condensed capitals and zine moments. The direction, token table and rollout are in `docs/DESIGN-OVERHAUL-PLAN-2026-09.md`; the canvas boards `InkZine-*` ("Black ink, blue accent") are the visual reference. The old TB-001 spec (`docs/TRIBOS-DESIGN-SYSTEM.md`) is superseded.
 
 - **Roles, not hues.** Use these role variables in new code:
-  - `--color-ink` (ultramarine `#2B2BFF`) is for text, lines and primary actions.
+  - `--color-ink` (near-black `#0A0A14`) is for text, lines and primary actions.
+  - `--color-accent` (ultramarine `#2B2BFF`) is used sparingly: the active nav tab, endurance sessions, the done tick. Mantine `color="blue"` / `"indigo"` map to it. Don't spread it to text or borders — the full-blue version was too loud.
   - `--color-signal` (magenta `#FF3DB8`) is for effort, CTAs, stamps and hand notes. It is a fill; use `--color-signal-text` (`#C4007A`) for text.
   - `--color-done` (`#2B2BFF`) always comes with the hand-drawn tick.
   - `--color-easy` (`#006DA8` text; cyan `#00C2FF` fills and chart bars) is for recovery and "planned".
@@ -258,7 +259,7 @@ Mantine UI 8 with a custom theme in `src/theme.js` and tokens in `src/styles/glo
   - **Archivo** is the UI and body face.
   - **Courier Prime** is for numbers, logs and the coach's voice.
   - **Covered By Your Grace** is only for hand notes (`.tribos-hand`).
-- **Surfaces.** Page `#FFFFFF`, sheets `#F0F0FF`, rules `#C8C8F4`. Flat, `borderRadius: 0`, **no shadows** and no gradients (`variant="gradient"` renders flat). Hierarchy comes from rules and type.
+- **Surfaces.** Page `#FFFFFF`, sheets `#F3F3F6`, rules `#D6D6E0`. Flat, `borderRadius: 0`, **no shadows** and no gradients (`variant="gradient"` renders flat). Hierarchy comes from rules and type.
 - **Dark mode.** The page is `#0A0A14` and text is white, with magenta, cyan and lime accents. Text on filled buttons and badges comes from `--tribos-on-{ink,signal,done,easy,highlight,stamp}` via the theme's `variantColorResolver`. Don't hard-code `#fff` on a colored fill.
 - **Moments.** Stamps, tape and marker notes are for moments only: one per app screen, two on the landing page.
 

@@ -191,7 +191,7 @@ function AppShell({ children, fullWidth = false, hideNav = false }) {
                           alignItems: 'center',
                         }}
                       >
-                        {/* Active tab is a filled block of ink, zine-masthead style */}
+                        {/* Active tab is a filled block of the blue accent, zine-masthead style */}
                         <Text
                           style={{
                             fontFamily: 'var(--font-body)',
@@ -199,8 +199,8 @@ function AppShell({ children, fullWidth = false, hideNav = false }) {
                             fontSize: 16,
                             fontWeight: 800,
                             padding: '8px 14px',
-                            backgroundColor: active ? 'var(--color-ink)' : 'transparent',
-                            color: active ? 'var(--tribos-on-ink)' : 'var(--color-nav-text)',
+                            backgroundColor: active ? 'var(--color-accent)' : 'transparent',
+                            color: active ? 'var(--tribos-on-accent)' : 'var(--color-nav-text)',
                             transition: 'color 150ms ease',
                           }}
                         >

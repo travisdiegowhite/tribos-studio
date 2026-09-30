@@ -1,13 +1,14 @@
 import { createTheme, defaultVariantColorsResolver, parseThemeColor } from '@mantine/core';
 
 // Design tokens for tribos.studio
-// Podium palette on the zine layout — white paper, ultramarine ink and three
-// bright hues. Tribos Display (condensed Archivo, headings and stamps) /
+// Podium palette on the zine layout — white paper, black ink, three bright
+// hues and one ultramarine accent. Tribos Display (condensed Archivo, headings and stamps) /
 // Archivo (UI) / Courier Prime (numbers, the coach), plus a marker hand.
 // Direction + rollout: docs/DESIGN-OVERHAUL-PLAN-2026-09.md
 //
 // Roles (the legacy teal/orange/gold/coral keys below resolve to these):
-//   ink    — text, lines, primary actions
+//   ink    — near-black: text, lines, primary actions
+//   accent — ultramarine, sparingly: active tab, links, endurance, the tick
 //   signal — magenta: effort, CTAs, stamps, hand notes, warnings
 //   done   — ridden/completed, always with the hand-drawn tick
 //   easy   — cyan: recovery and "planned"
@@ -56,7 +57,7 @@ const NO_SHADOWS = {
 export const lightTokens = {
   colors: {
     // Roles
-    ink: '#2B2BFF',
+    ink: '#0A0A14',
     signal: '#FF3DB8',
     signalText: '#C4007A',
     done: '#2B2BFF',
@@ -66,38 +67,38 @@ export const lightTokens = {
     stamp: '#C4007A',
 
     // Primary accent (legacy key names kept; values are the ink role)
-    accent: '#2B2BFF',
-    terracotta: '#2B2BFF',
-    terracottaLight: '#4A4AFF',
+    accent: '#0A0A14',
+    terracotta: '#0A0A14',
+    terracottaLight: '#2A2A36',
     terracottaDark: '#000000',
 
     // Legacy brand keys → roles
-    teal: '#2B2BFF',       // → ink (primary, links, active)
+    teal: '#0A0A14',       // → ink (primary, links, active)
     orange: '#FF3DB8',     // → signal (effort)
     gold: '#2B2BFF',       // → done (achievement, ridden)
     coral: '#C4007A',      // → signal text (warning, errors)
 
     // Legacy accent names (backward compat)
-    mauve: '#5858B8',
+    mauve: '#5E5E6E',
     sage: '#2B2BFF',
     dustyRose: '#FF3DB8',
     skyPale: '#006DA8',
 
     // Backgrounds — paper
     bgPrimary: '#FFFFFF',
-    bgSecondary: '#F6F6FF',
-    bgTertiary: '#F6F6FF',
-    bgElevated: '#F0F0FF',
+    bgSecondary: '#F8F8FA',
+    bgTertiary: '#F8F8FA',
+    bgElevated: '#F3F3F6',
 
     // Borders
-    border: '#C8C8F4',
-    borderLight: '#C8C8F4',
-    borderFocus: 'rgba(43, 43, 255, 0.55)',
+    border: '#D6D6E0',
+    borderLight: '#D6D6E0',
+    borderFocus: 'rgba(10, 10, 20, 0.55)',
 
     // Text
-    textPrimary: '#2B2BFF',
-    textSecondary: '#4545D0',
-    textMuted: '#5858B8',
+    textPrimary: '#0A0A14',
+    textSecondary: '#3C3C4A',
+    textMuted: '#5E5E6E',
 
     // Semantic
     success: '#2B2BFF',
@@ -113,17 +114,17 @@ export const lightTokens = {
     zone4: '#FF3DB8', // Threshold — magenta
     zone5: '#C4007A', // VO2max — deep magenta
     zone6: '#0A0A14', // Anaerobic — black
-    zone7: '#C8C8F4', // Rest/Neuromuscular — rule colour
+    zone7: '#D6D6E0', // Rest/Neuromuscular — rule colour
 
     // Legacy aliases (backward compat)
-    electricLime: '#2B2BFF',
-    electricLimeLight: '#4A4AFF',
+    electricLime: '#0A0A14',
+    electricLimeLight: '#2A2A36',
     electricLimeDark: '#000000',
   },
 
   shadows: {
     ...NO_SHADOWS,
-    focus: '0 0 0 2px rgba(43, 43, 255, 0.28)',
+    focus: '0 0 0 2px rgba(10, 10, 20, 0.28)',
   },
 };
 
@@ -143,34 +144,34 @@ export const darkTokens = {
     accent: '#FFFFFF',
     terracotta: '#FFFFFF',
     terracottaLight: '#FFFFFF',
-    terracottaDark: '#C8C8E8',
+    terracottaDark: '#C8C8D2',
 
     teal: '#FFFFFF',
     orange: '#FF3DB8',
     gold: '#8C8CFF',
     coral: '#FF6FCB',
 
-    mauve: '#9E9EC8',
+    mauve: '#A0A0AE',
     sage: '#8C8CFF',
     dustyRose: '#FF3DB8',
     skyMuted: '#00C2FF',
 
     // Backgrounds — ink
     bgPrimary: '#0A0A14',
-    bgSecondary: '#111120',
-    bgTertiary: '#1A1A2E',
-    bgElevated: '#24243C',
+    bgSecondary: '#111118',
+    bgTertiary: '#1A1A22',
+    bgElevated: '#24242E',
 
     // Borders
-    border: '#2E2E4A',
-    borderLight: '#111120',
+    border: '#2C2C38',
+    borderLight: '#111118',
     borderFocus: 'rgba(255, 255, 255, 0.5)',
 
     // Text — paper hierarchy
     textPrimary: '#FFFFFF',
-    textSecondary: '#C8C8E8',
-    textMuted: '#9E9EC8',
-    textDim: '#5858B8',
+    textSecondary: '#C8C8D2',
+    textMuted: '#A0A0AE',
+    textDim: '#5E5E6E',
 
     // Semantic
     success: '#8C8CFF',
@@ -185,12 +186,12 @@ export const darkTokens = {
     zone4: '#FF6FCB', // Threshold
     zone5: '#FF3DB8', // VO2max
     zone6: '#FFFFFF', // Anaerobic
-    zone7: '#2E2E4A', // Rest — rule colour
+    zone7: '#2C2C38', // Rest — rule colour
 
     // Legacy aliases
     electricLime: '#FFFFFF',
     electricLimeLight: '#FFFFFF',
-    electricLimeDark: '#C8C8E8',
+    electricLimeDark: '#C8C8D2',
   },
 
   shadows: {
@@ -256,6 +257,11 @@ export function getThemeTokens(colorScheme) {
 // Mantine colour ramps. Index 5 is the base shade; dark mode fills use
 // shade 1 (pale) with dark text — see variantColorResolver.
 const INK = [
+  '#F3F3F6', '#E4E4EA', '#C9C9D3', '#9C9CAA', '#6A6A7A',
+  '#0A0A14', '#1E1E2A', '#050509', '#030306', '#000000',
+];
+// Ultramarine — an accent only: the active tab, links, endurance, the tick.
+const ACCENT = [
   '#EEEEFF', '#DCDCFF', '#B8B8FF', '#8C8CFF', '#5C5CFF',
   '#2B2BFF', '#2020D6', '#1818A8', '#10107A', '#08084D',
 ];
@@ -299,7 +305,8 @@ const FILLED_TEXT_ROLE = {
   ink: 'ink', teal: 'ink', terracotta: 'ink',
   signal: 'signal', orange: 'signal', coral: 'signal', red: 'signal', stamp: 'stamp',
   moss: 'done', green: 'done', gold: 'done',
-  easy: 'easy', blue: 'easy',
+  easy: 'easy', cyan: 'easy',
+  accent: 'accent', blue: 'accent', indigo: 'accent',
   moment: 'highlight', highlight: 'highlight',
 };
 
@@ -330,7 +337,7 @@ export const theme = createTheme({
   autoContrast: true,
   luminanceThreshold: 0.35,
   variantColorResolver,
-  black: '#2B2BFF',
+  black: '#0A0A14',
   white: '#FFFFFF',
 
   colors: {
@@ -349,29 +356,32 @@ export const theme = createTheme({
     orange: SIGNAL,
     coral: SIGNAL,
     red: SIGNAL,
-    blue: EASY,
+    blue: ACCENT,
+    indigo: ACCENT,
+    accent: ACCENT,
+    cyan: EASY,
     dark: [
       '#FFFFFF',  // 0 — primary text
-      '#E2E2F4',  // 1 — secondary text
-      '#C8C8E8',  // 2 — tertiary text
-      '#9E9EC8',  // 3 — muted text
-      '#2E2E4A',  // 4 — borders
-      '#24243C',  // 5 — elevated
-      '#1A1A2E',  // 6 — card
-      '#111120',  // 7 — surface
+      '#E2E2E8',  // 1 — secondary text
+      '#C8C8D2',  // 2 — tertiary text
+      '#A0A0AE',  // 3 — muted text
+      '#2C2C38',  // 4 — borders
+      '#24242E',  // 5 — elevated
+      '#1A1A22',  // 6 — card
+      '#111118',  // 7 — surface
       '#0A0A14',  // 8 — page
       '#050509',  // 9 — deep
     ],
     gray: [
-      '#F6F6FF',  // 0 — tint
+      '#F8F8FA',  // 0 — tint
       '#FFFFFF',  // 1 — page
-      '#F0F0FF',  // 2 — sheet
-      '#C8C8F4',  // 3 — rule
-      '#C8C8F4',  // 4 — rule
-      '#5858B8',  // 5 — muted text
-      '#4545D0',  // 6 — secondary text
-      '#2B2BFF',  // 7 — ink (ultramarine)
-      '#1818A8',  // 8 — deep ink
+      '#F3F3F6',  // 2 — sheet
+      '#D6D6E0',  // 3 — rule
+      '#D6D6E0',  // 4 — rule
+      '#5E5E6E',  // 5 — muted text
+      '#3C3C4A',  // 6 — secondary text
+      '#0A0A14',  // 7 — ink (ultramarine)
+      '#1E1E2A',  // 8 — deep ink
       '#0A0A14',  // 9 — black
     ],
   },
@@ -415,20 +425,21 @@ export const theme = createTheme({
     fontBody: FONT_BODY,
     fontMono: FONT_MONO,
     colorBg: '#FFFFFF',
-    colorBgSecondary: '#F6F6FF',
-    colorCard: '#F0F0FF',
-    colorBorder: '#C8C8F4',
+    colorBgSecondary: '#F8F8FA',
+    colorCard: '#F3F3F6',
+    colorBorder: '#D6D6E0',
     colorNavBg: '#FFFFFF',
-    colorInk: '#2B2BFF',
+    colorInk: '#0A0A14',
     colorSignal: '#FF3DB8',
     colorDone: '#2B2BFF',
+    colorAccent: '#2B2BFF',
     colorEasy: '#006DA8',
     colorHighlight: '#B6F500',
     colorStamp: '#C4007A',
     // Legacy names
-    colorTeal: '#2B2BFF',
+    colorTeal: '#0A0A14',
     colorOrange: '#FF3DB8',
-    colorGold: '#2B2BFF',
+    colorGold: '#0A0A14',
     colorCoral: '#C4007A',
   },
 
