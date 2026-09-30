@@ -94,12 +94,12 @@ function WeekSummaryGrid({ actualWeeklyStats, plannedWorkouts, formatTime, loadi
 
   const metrics = [
     {
-      label: 'STRESS',
+      label: 'Stress',
       value: plannedTSS > 0 ? `${Math.round(weeklyTSS)}/${Math.round(plannedTSS)}` : String(Math.round(weeklyTSS)),
     },
-    { label: 'TIME', value: formattedTime },
-    { label: 'WORKOUTS', value: `${completedCount}/${plannedCount}` },
-    { label: 'COMPLIANCE', value: plannedCount > 0 ? `${compliance}%` : '--' },
+    { label: 'Time', value: formattedTime },
+    { label: 'Workouts', value: `${completedCount}/${plannedCount}` },
+    { label: 'Compliance', value: plannedCount > 0 ? `${compliance}%` : '--' },
   ];
 
   return (
@@ -109,7 +109,7 @@ function WeekSummaryGrid({ actualWeeklyStats, plannedWorkouts, formatTime, loadi
         color="var(--color-text-primary)"
         metrics={metrics}
         sentenceStyle={{ fontSize: isMobile ? 16 : 18 }}
-        chipStyle={{ fontFamily: "'DM Mono', monospace", color: 'var(--color-text-muted)', flexWrap: 'wrap' }}
+        chipStyle={{ fontFamily: "'Courier Prime', monospace", color: 'var(--color-text-muted)', flexWrap: 'wrap' }}
       />
     </Box>
   );

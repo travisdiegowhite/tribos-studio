@@ -18,7 +18,7 @@ interface Beat1RecapProps {
 
 export function Beat1Recap({ vm, onSeeMap }: Beat1RecapProps) {
   return (
-    <BeatCard label="LAST RIDE" accent={C.teal}>
+    <BeatCard label="Last ride" accent={C.teal}>
       <BeatSentence>{vm.line}</BeatSentence>
       <RouteTrace polyline={vm.polyline} tier={vm.tier} />
       {vm.polyline && onSeeMap && (
@@ -32,10 +32,8 @@ export function Beat1Recap({ vm, onSeeMap }: Beat1RecapProps) {
               border: 'none',
               padding: 0,
               cursor: 'pointer',
-              fontFamily: FONT.mono,
-              fontSize: 11,
-              letterSpacing: '1.5px',
-              textTransform: 'uppercase',
+              fontFamily: FONT.body,
+              fontSize: 14,
               color: C.teal,
               textDecoration: 'underline',
               textUnderlineOffset: 3,

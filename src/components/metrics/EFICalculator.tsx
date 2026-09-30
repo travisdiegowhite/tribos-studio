@@ -78,12 +78,12 @@ export function EFICalculator() {
       <Accordion>
         <Accordion.Item value="formula">
           <Accordion.Control>
-            <Text size="sm" fw={600} style={{ fontFamily: "'Barlow Condensed', sans-serif" }}>
+            <Text size="sm" fw={600} style={{ fontFamily: "'Archivo', sans-serif" }}>
               How is EFI calculated?
             </Text>
           </Accordion.Control>
           <Accordion.Panel>
-            <Text size="xs" c="dimmed" style={{ fontFamily: "'DM Mono', monospace", lineHeight: 1.8 }}>
+            <Text size="xs" c="dimmed" style={{ fontFamily: "'Courier Prime', monospace", lineHeight: 1.8 }}>
               EFI = (0.30 × VF + 0.40 × IFS + 0.30 × CF) × 100{'\n\n'}
               VF: Volume Fidelity — planned-vs-actual RSS ratio with 0.85–1.10 sweet spot{'\n'}
               IFS: Intensity Fidelity — Zone distribution match (Z2 weighted highest){'\n'}
@@ -103,7 +103,7 @@ function SliderRow({ label, value, onChange, min, max }: {
     <div>
       <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
         <Text size="xs" c="dimmed">{label}</Text>
-        <Text size="xs" fw={600} style={{ fontFamily: "'DM Mono', monospace" }}>{value}</Text>
+        <Text size="xs" fw={600} style={{ fontFamily: "'Courier Prime', monospace" }}>{value}</Text>
       </div>
       <Slider value={value} onChange={onChange} min={min} max={max} size="xs" />
     </div>

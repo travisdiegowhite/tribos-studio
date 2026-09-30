@@ -99,17 +99,17 @@ const PALETTES: Record<CardTheme, Palette> = {
 // back to a system font mid-render (fonts are already page-loaded from
 // Google Fonts in index.html; this resolves from cache).
 const FONT_SPECS = [
-  '800 64px "Barlow Condensed"',
-  '600 22px "Barlow Condensed"',
-  '600 28px "Barlow Condensed"',
-  '600 46px Barlow',
-  '700 26px Barlow',
-  '300 17px "DM Mono"',
-  '400 24px "DM Mono"',
-  '400 26px "DM Mono"',
-  '400 36px "DM Mono"',
-  '500 48px "DM Mono"',
-  '500 92px "DM Mono"',
+  '800 64px "Archivo"',
+  '600 22px "Archivo"',
+  '600 28px "Archivo"',
+  '600 46px "Archivo"',
+  '700 26px "Archivo"',
+  '300 17px "Courier Prime"',
+  '400 24px "Courier Prime"',
+  '400 26px "Courier Prime"',
+  '400 36px "Courier Prime"',
+  '500 48px "Courier Prime"',
+  '500 92px "Courier Prime"',
 ];
 
 export async function renderShareCard(
@@ -166,11 +166,11 @@ export async function renderShareCard(
 
   // ── Header ──────────────────────────────────────────────────────────
   ctx.fillStyle = palette.text;
-  ctx.font = '800 64px "Barlow Condensed"';
+  ctx.font = '800 64px "Archivo"';
   drawLetterSpaced(ctx, 'TRIBOS', PADDING_X, 104, 4);
 
   ctx.fillStyle = palette.muted;
-  ctx.font = '600 22px "Barlow Condensed"';
+  ctx.font = '600 22px "Archivo"';
   drawLetterSpaced(ctx, 'DEPARTMENT OF CYCLING INTELLIGENCE', PADDING_X, 140, 4);
 
   ctx.fillStyle = palette.accent;
@@ -179,14 +179,14 @@ export async function renderShareCard(
   // ── Title block ─────────────────────────────────────────────────────
   const name = typeof ride.name === 'string' && ride.name.trim() ? ride.name.trim() : 'Untitled activity';
   ctx.fillStyle = palette.text;
-  ctx.font = '600 46px Barlow';
+  ctx.font = '600 46px "Archivo"';
   ctx.fillText(truncateToWidth(ctx, name, CONTENT_W), PADDING_X, 248);
 
   const dateLine = [formatCardDate(ride.start_date_local as string | undefined), getActivityNoun(ride as ActivityLike).toUpperCase()]
     .filter(Boolean)
     .join(' · ');
   ctx.fillStyle = palette.muted;
-  ctx.font = '400 26px "DM Mono"';
+  ctx.font = '400 26px "Courier Prime"';
   ctx.fillText(dateLine, PADDING_X, 296);
 
   // ── Map / stats ─────────────────────────────────────────────────────
@@ -212,7 +212,7 @@ export async function renderShareCard(
   ctx.fillRect(PADDING_X, footerRuleY, CONTENT_W, 2);
 
   ctx.fillStyle = palette.muted;
-  ctx.font = '400 24px "DM Mono"';
+  ctx.font = '400 24px "Courier Prime"';
   ctx.fillText('tribos.studio', PADDING_X, footerBaseline);
 
   drawProviderAttribution(ctx, ride, theme, palette, footerBaseline);
@@ -284,7 +284,7 @@ function drawStatsGrid(
   primary.forEach((stat, i) => {
     const x = PADDING_X + i * colW;
     ctx.fillStyle = palette.muted;
-    ctx.font = '600 28px "Barlow Condensed"';
+    ctx.font = '600 28px "Archivo"';
     drawLetterSpaced(ctx, stat.label, x, top_y + 44, 3);
     drawStatValue(ctx, stat, x, top_y + 140, colW - 32, 92, palette);
     if (i > 0) {
@@ -298,7 +298,7 @@ function drawStatsGrid(
     secondary.forEach((stat, i) => {
       const x = PADDING_X + i * colW;
       ctx.fillStyle = palette.muted;
-      ctx.font = '600 22px "Barlow Condensed"';
+      ctx.font = '600 22px "Archivo"';
       drawLetterSpaced(ctx, stat.label, x, secTop + 26, 3);
       drawStatValue(ctx, stat, x, secTop + 82, colW - 32, 48, palette);
     });
@@ -328,7 +328,7 @@ function drawStatsStacked(
 
     const x = PADDING_X + 40;
     ctx.fillStyle = palette.muted;
-    ctx.font = '600 28px "Barlow Condensed"';
+    ctx.font = '600 28px "Archivo"';
     drawLetterSpaced(ctx, stat.label, x, y + 44, 3);
     drawStatValue(ctx, stat, x, y + rowH - 96, CONTENT_W - 40, isStory ? 128 : 110, palette);
     y += rowH;
@@ -339,7 +339,7 @@ function drawStatsStacked(
       .map((s) => `${s.label} ${s.value}${s.unit ? ` ${s.unit}` : ''}`)
       .join('   ·   ');
     ctx.fillStyle = palette.secondary;
-    ctx.font = '400 26px "DM Mono"';
+    ctx.font = '400 26px "Courier Prime"';
     ctx.fillText(truncateToWidth(ctx, line, CONTENT_W), PADDING_X, y + 30);
   }
 }
@@ -354,15 +354,15 @@ function drawStatValue(
   fontSize_px: number,
   palette: Palette,
 ) {
-  const unitFont = `400 ${Math.max(20, Math.round(fontSize_px * 0.4))}px "DM Mono"`;
+  const unitFont = `400 ${Math.max(20, Math.round(fontSize_px * 0.4))}px "Courier Prime"`;
   ctx.font = unitFont;
   const unitW = stat.unit ? ctx.measureText(stat.unit).width + 12 : 0;
 
   let size = fontSize_px;
-  ctx.font = `500 ${size}px "DM Mono"`;
+  ctx.font = `500 ${size}px "Courier Prime"`;
   while (size > 24 && ctx.measureText(stat.value).width + unitW > maxWidth_px) {
     size -= 4;
-    ctx.font = `500 ${size}px "DM Mono"`;
+    ctx.font = `500 ${size}px "Courier Prime"`;
   }
 
   ctx.fillStyle = palette.text;
@@ -382,7 +382,7 @@ function drawMapAttribution(
   region: { x: number; y: number; w: number; h: number },
 ) {
   const text = '© Mapbox © OpenStreetMap';
-  ctx.font = '300 17px "DM Mono"';
+  ctx.font = '300 17px "Courier Prime"';
   const textW = ctx.measureText(text).width;
   const pad = 8;
   const boxW = textW + pad * 2;
@@ -411,9 +411,9 @@ function drawProviderAttribution(
     const stravaColor = theme === 'dark' ? '#FFFFFF' : STRAVA_ORANGE;
     const logoSize = 28;
 
-    ctx.font = '700 26px Barlow';
+    ctx.font = '700 26px "Archivo"';
     const stravaW = measureLetterSpaced(ctx, 'STRAVA', 2);
-    ctx.font = '400 24px "DM Mono"';
+    ctx.font = '400 24px "Courier Prime"';
     const poweredW = ctx.measureText('POWERED BY').width;
 
     let x = rightEdge - stravaW;
@@ -432,11 +432,11 @@ function drawProviderAttribution(
     ctx.restore();
 
     ctx.fillStyle = stravaColor;
-    ctx.font = '700 26px Barlow';
+    ctx.font = '700 26px "Archivo"';
     drawLetterSpaced(ctx, 'STRAVA', x, baseline_y, 2);
   } else if (provider === 'garmin') {
     ctx.fillStyle = palette.muted;
-    ctx.font = '400 24px "DM Mono"';
+    ctx.font = '400 24px "Courier Prime"';
     const text = 'POWERED BY GARMIN';
     ctx.fillText(text, rightEdge - ctx.measureText(text).width, baseline_y);
   }

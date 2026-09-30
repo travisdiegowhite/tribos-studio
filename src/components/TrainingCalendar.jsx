@@ -22,7 +22,7 @@ import { notifications } from '@mantine/notifications';
 import { useMediaQuery } from '@mantine/hooks';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
-import { WORKOUT_TYPES, TRAINING_PHASES, calculateTSS, estimateTSS } from '../utils/trainingPlans';
+import { WORKOUT_TYPES, WORKOUT_CATEGORY_PALETTE, TRAINING_PHASES, calculateTSS, estimateTSS } from '../utils/trainingPlans';
 import { isPowerSport } from '../utils/sportType';
 import { getWorkoutById } from '../data/workoutLibrary';
 import { resolvePlannedWorkoutShape } from '../lib/training/plannedWorkoutShape';
@@ -40,11 +40,12 @@ import {
 import RaceGoalModal from './RaceGoalModal';
 import { StravaLogo, STRAVA_ORANGE } from './StravaBranding';
 import { FuelBadge } from './fueling';
+import HandTick from './ui/HandTick';
 import { useCrossTraining, ACTIVITY_CATEGORIES } from '../hooks/useCrossTraining';
 import CrossTrainingModal from './CrossTrainingModal';
 import { WorkoutModal } from './planner/WorkoutModal';
 import { WorkoutLibrarySidebar } from './planner/WorkoutLibrarySidebar';
-import { ArrowsLeftRight, Barbell, Bicycle, CalendarBlank, CalendarX, CaretDown, CaretLeft, CaretRight, Check, Circle, Cloud, CloudLightning, CloudRain, CloudSun, DotsSixVertical, Heartbeat, Moon, Path, PencilSimple, PersonSimpleRun, PersonSimpleWalk, Plus, Snowflake, Sun, Trash, Trophy, Wind, X } from '@phosphor-icons/react';
+import { Barbell, Bicycle, CalendarBlank, CalendarX, CaretDown, CaretLeft, CaretRight, Check, Circle, Cloud, CloudLightning, CloudRain, CloudSun, DotsSixVertical, Heartbeat, Moon, Path, PencilSimple, PersonSimpleRun, PersonSimpleWalk, Plus, Snowflake, Sun, Trash, Trophy, Wind, X } from '@phosphor-icons/react';
 import { useWeatherForecast } from '../hooks/useWeatherForecast';
 import { useRouteBuilderStore } from '../stores/routeBuilderStore';
 import { getWeatherSeverity, formatTemperature } from '../utils/weather';
@@ -1055,7 +1056,7 @@ const TrainingCalendar = ({ activePlan, rides = [], formatDistance: formatDistan
                   size="compact-xs"
                   leftSection={sidebarOpen ? <CaretLeft size={14} /> : <CaretRight size={14} />}
                   onClick={() => setSidebarOpen((o) => !o)}
-                  style={{ fontFamily: 'var(--font-mono, monospace)', letterSpacing: '0.05em', textTransform: 'uppercase' }}
+                 
                 >
                   Library
                 </Button>
@@ -1081,7 +1082,7 @@ const TrainingCalendar = ({ activePlan, rides = [], formatDistance: formatDistan
                 size="compact-xs"
                 leftSection={<CalendarX size={14} />}
                 onClick={() => setAvailabilitySettingsOpen(true)}
-                style={{ fontFamily: 'var(--font-mono, monospace)', letterSpacing: '0.05em', textTransform: 'uppercase' }}
+               
               >
                 Availability
               </Button>
@@ -1093,12 +1094,12 @@ const TrainingCalendar = ({ activePlan, rides = [], formatDistance: formatDistan
                 size="compact-xs"
                 leftSection={<Trash size={14} />}
                 onClick={openClearModal}
-                style={{ fontFamily: 'var(--font-mono, monospace)', letterSpacing: '0.05em', textTransform: 'uppercase' }}
+               
               >
                 Clear
               </Button>
             </Tooltip>
-            <Button variant="subtle" size="compact-xs" onClick={goToToday} style={{ fontFamily: 'var(--font-mono, monospace)', letterSpacing: '0.05em', textTransform: 'uppercase' }}>
+            <Button variant="subtle" size="compact-xs" onClick={goToToday}>
               Today
             </Button>
             <ActionIcon variant="subtle" onClick={previousWeek}>
@@ -1123,13 +1124,12 @@ const TrainingCalendar = ({ activePlan, rides = [], formatDistance: formatDistan
             p="xs"
             mb="xs"
             style={{
-              border: '1.5px solid var(--color-accent, #2F6F62)',
-              backgroundColor: 'rgba(47, 111, 98, 0.08)',
+              border: '1px solid var(--color-ink)',
+              backgroundColor: 'var(--color-ink-subtle)',
             }}
           >
             <Text size="sm" style={{ minWidth: 0 }}>
-              <Text span fw={700} tt="uppercase" size="xs"
-                style={{ fontFamily: 'var(--font-mono, monospace)', letterSpacing: '0.08em' }}>
+              <Text span fw={600} size="xs">
                 Coach{' '}
               </Text>
               <Text span fw={600}>
@@ -1164,13 +1164,12 @@ const TrainingCalendar = ({ activePlan, rides = [], formatDistance: formatDistan
               p="xs"
               mb="xs"
               style={{
-                border: '1.5px solid var(--color-warning, #D4600A)',
-                backgroundColor: 'rgba(212, 96, 10, 0.08)',
+                border: '1px solid var(--color-signal)',
+                backgroundColor: 'var(--color-signal-subtle)',
               }}
             >
               <Text size="sm" style={{ minWidth: 0 }}>
-                <Text span fw={700} tt="uppercase" size="xs"
-                  style={{ fontFamily: 'var(--font-mono, monospace)', letterSpacing: '0.08em' }}>
+                <Text span fw={600} size="xs">
                   Moving{' '}
                 </Text>
                 <Text span fw={600}>{heldWorkout.name}</Text>
@@ -1258,28 +1257,21 @@ const TrainingCalendar = ({ activePlan, rides = [], formatDistance: formatDistan
                   dayTSS += activity.estimated_tss || 0;
                 });
 
-                // Determine border color based on workout completion and race goals
-                let borderColor = isToday ? 'var(--color-teal)' : 'var(--color-bg-secondary)';
-                let backgroundColor = isToday ? `${'var(--color-teal)'}15` : isPast ? 'var(--color-bg-secondary)' : 'var(--color-bg-secondary)';
+                // Day-cell state, per the blend calendar board: flat sheets
+                // divided by rules. Today is outlined in ink; a race gets a
+                // signal rule (and a stamp below); ridden sessions carry the
+                // moss hand tick and missed ones are struck through, so state
+                // never rests on a fill colour alone.
+                let borderColor = isToday ? 'var(--color-ink)' : 'var(--color-border)';
+                let borderWidth = isToday ? 2 : 1;
+                const backgroundColor = isPast && !isToday ? 'var(--color-bg-secondary)' : 'var(--color-card)';
+                const isMissed = Boolean(
+                  workout && isPast && !isToday && !workout.completed && workout.workout_type !== 'rest'
+                );
 
-                // Race day gets special styling
-                if (raceGoal) {
-                  const priorityColors = {
-                    'A': { border: '#fa5252', bg: 'rgba(250, 82, 82, 0.15)' },
-                    'B': { border: '#fd7e14', bg: 'rgba(253, 126, 20, 0.15)' },
-                    'C': { border: '#868e96', bg: 'rgba(134, 142, 150, 0.15)' },
-                  };
-                  const colors = priorityColors[raceGoal.priority] || priorityColors['B'];
-                  borderColor = colors.border;
-                  backgroundColor = colors.bg;
-                } else if (workout && isPast) {
-                  if (workout.completed) {
-                    borderColor = '#51cf66';
-                    backgroundColor = 'rgba(81, 207, 102, 0.15)';
-                  } else if (workout.workout_type !== 'rest') {
-                    borderColor = '#ff6b6b';
-                    backgroundColor = 'rgba(255, 107, 107, 0.15)';
-                  }
+                if (raceGoal && raceGoal.priority !== 'C') {
+                  borderColor = 'var(--color-signal)';
+                  borderWidth = 2;
                 }
 
                 // Check if this date is a drop target (use formatLocalDate for consistent comparison)
@@ -1299,8 +1291,8 @@ const TrainingCalendar = ({ activePlan, rides = [], formatDistance: formatDistan
                     onDrop={(e) => handleDrop(e, date)}
                     style={{
                       minHeight: 110,
-                      backgroundColor: isDropTarget ? 'rgba(132, 216, 99, 0.3)' : backgroundColor,
-                      border: isDropTarget ? `2px dashed ${'var(--color-teal)'}` : `2px solid ${borderColor}`,
+                      backgroundColor: isDropTarget ? 'var(--color-ink-subtle)' : backgroundColor,
+                      border: isDropTarget ? '2px dashed var(--color-ink)' : `${borderWidth}px solid ${borderColor}`,
                       opacity: isPast && !workout?.completed && !dayRides.length ? 0.7 : 1,
                       cursor: hasDraggableWorkout ? 'grab' : (activePlan ? 'pointer' : 'default'),
                       transition: 'background-color 0.2s, border 0.2s',
@@ -1384,10 +1376,9 @@ const TrainingCalendar = ({ activePlan, rides = [], formatDistance: formatDistan
                         <Box>
                           {/* Workout type with icon */}
                           <Group gap={4} mb={4}>
-                            <Text size="lg">{WORKOUT_TYPES[workout.workout_type]?.icon || '🚴'}</Text>
                             <Badge
                               size="sm"
-                              color={WORKOUT_TYPES[workout.workout_type]?.color || 'gray'}
+                              color={WORKOUT_CATEGORY_PALETTE[workout.workout_type] || 'gray'}
                               variant={workout.completed ? 'filled' : 'light'}
                             >
                               {WORKOUT_TYPES[workout.workout_type]?.name || workout.workout_type}
@@ -1399,10 +1390,19 @@ const TrainingCalendar = ({ activePlan, rides = [], formatDistance: formatDistan
                             fw={600}
                             lineClamp={1}
                             mb={2}
-                            style={{ color: workout.completed ? 'var(--color-text-secondary)' : 'var(--color-text-primary)' }}
+                            style={{
+                              color: workout.completed || isMissed ? 'var(--color-text-secondary)' : 'var(--color-text-primary)',
+                              textDecoration: isMissed ? 'line-through' : undefined,
+                            }}
                           >
                             {getWorkoutById(workout.workout_id)?.name || WORKOUT_TYPES[workout.workout_type]?.name || 'Workout'}
                           </Text>
+                          {workout.completed && (
+                            <Group gap={4} mb={2}>
+                              <HandTick size={14} />
+                              <Text size="xs" fw={500} style={{ color: 'var(--color-done)' }}>Ridden</Text>
+                            </Group>
+                          )}
                           {/* Duration and TSS - prominent */}
                           <Group gap={8}>
                             {workout.target_duration > 0 && (
@@ -1443,15 +1443,13 @@ const TrainingCalendar = ({ activePlan, rides = [], formatDistance: formatDistan
                               position="bottom"
                               withArrow
                             >
-                              <Badge
-                                size="xs"
-                                variant="light"
-                                color="yellow"
-                                leftSection={<ArrowsLeftRight size={10} />}
-                                style={{ cursor: 'help' }}
+                              <Text
+                                className="tribos-hand"
+                                span
+                                style={{ fontSize: 17, cursor: 'help', display: 'inline-block' }}
                               >
-                                Adjusted
-                              </Badge>
+                                {workout.original_scheduled_date ? 'moved here' : 'swapped'}
+                              </Text>
                             </Tooltip>
                           )}
 
@@ -1497,10 +1495,7 @@ const TrainingCalendar = ({ activePlan, rides = [], formatDistance: formatDistan
 
                       {/* Rest day indicator */}
                       {workout && workout.workout_type === 'rest' && !raceGoal && (
-                        <Group gap={4}>
-                          <Text size="lg">😴</Text>
-                          <Text size="xs" c="dimmed" fw={500}>Rest Day</Text>
-                        </Group>
+                        <Text size="xs" c="dimmed" fw={500}>Rest</Text>
                       )}
 
                       {/* Race Goal indicator */}
@@ -1510,34 +1505,17 @@ const TrainingCalendar = ({ activePlan, rides = [], formatDistance: formatDistan
                           multiline
                           w={200}
                         >
-                          <Paper
-                            p={4}
-                            style={{
-                              backgroundColor: raceGoal.priority === 'A' ? 'rgba(250, 82, 82, 0.2)' :
-                                              raceGoal.priority === 'B' ? 'rgba(253, 126, 20, 0.2)' : 'rgba(134, 142, 150, 0.2)',
-                              cursor: 'pointer',
-                            }}
+                          <Box
+                            style={{ cursor: 'pointer' }}
                             onClick={(e) => {
                               e.stopPropagation();
                               openRaceGoalModal(raceGoal, date);
                             }}
                           >
-                            <Group gap={4} wrap="nowrap">
-                              <Trophy
-                                size={14}
-                                style={{
-                                  color: raceGoal.priority === 'A' ? '#fa5252' :
-                                         raceGoal.priority === 'B' ? '#fd7e14' : '#868e96'
-                                }}
-                              />
-                              <Badge
-                                size="xs"
-                                color={raceGoal.priority === 'A' ? 'red' : raceGoal.priority === 'B' ? 'orange' : 'gray'}
-                                variant="filled"
-                              >
-                                {raceGoal.priority}
-                              </Badge>
-                            </Group>
+                            {/* The race stamp — the calendar's one zine moment */}
+                            <span className="tribos-stamp" style={{ fontSize: 15, padding: '2px 8px', margin: '2px 0 4px' }}>
+                              Race day · {raceGoal.priority}
+                            </span>
                             <Text
                               size="xs"
                               fw={600}
@@ -1552,7 +1530,7 @@ const TrainingCalendar = ({ activePlan, rides = [], formatDistance: formatDistan
                                 {raceGoal.race_type.replace('_', ' ')}
                               </Text>
                             )}
-                          </Paper>
+                          </Box>
                         </Tooltip>
                       )}
 
@@ -1661,10 +1639,10 @@ const TrainingCalendar = ({ activePlan, rides = [], formatDistance: formatDistan
             {/* Legend */}
             <Stack gap="xs" mt="md">
               <Group gap="xs">
-                <Text size="xs" style={{ color: 'var(--color-text-muted)' }} fw={600}>Workout Types:</Text>
+                <Text size="xs" style={{ color: 'var(--color-text-muted)' }} fw={600}>Workout types</Text>
                 {Object.entries(WORKOUT_TYPES).slice(1, 6).map(([key, type]) => (
                   <Group gap={4} key={key}>
-                    <Text size="lg">{type.icon}</Text>
+                    <span style={{ width: 10, height: 10, background: type.color, display: 'inline-block' }} />
                     <Text size="xs" style={{ color: 'var(--color-text-secondary)' }}>{type.name}</Text>
                   </Group>
                 ))}
@@ -1672,22 +1650,10 @@ const TrainingCalendar = ({ activePlan, rides = [], formatDistance: formatDistan
 
               {/* Race goals legend */}
               <Group gap="md">
-                <Text size="xs" style={{ color: 'var(--color-text-muted)' }} fw={600}>Race Priority:</Text>
-                <Group gap={4}>
-                  <Trophy size={14} style={{ color: '#fa5252' }} />
-                  <Badge size="xs" color="red" variant="filled">A</Badge>
-                  <Text size="xs" style={{ color: 'var(--color-text-secondary)' }}>Main Goal</Text>
-                </Group>
-                <Group gap={4}>
-                  <Trophy size={14} style={{ color: '#fd7e14' }} />
-                  <Badge size="xs" color="orange" variant="filled">B</Badge>
-                  <Text size="xs" style={{ color: 'var(--color-text-secondary)' }}>Important</Text>
-                </Group>
-                <Group gap={4}>
-                  <Trophy size={14} style={{ color: '#868e96' }} />
-                  <Badge size="xs" color="gray" variant="filled">C</Badge>
-                  <Text size="xs" style={{ color: 'var(--color-text-secondary)' }}>Training</Text>
-                </Group>
+                <Text size="xs" style={{ color: 'var(--color-text-muted)' }} fw={600}>Race priority</Text>
+                <Text size="xs" style={{ color: 'var(--color-text-secondary)' }}>
+                  A · main goal &nbsp;·&nbsp; B · important &nbsp;·&nbsp; C · training race
+                </Text>
                 <Button
                   size="xs"
                   variant="light"
@@ -1696,23 +1662,22 @@ const TrainingCalendar = ({ activePlan, rides = [], formatDistance: formatDistan
                   ml="auto"
                   onClick={() => openRaceGoalModal(null, null)}
                 >
-                  Add Race Goal
+                  Add race goal
                 </Button>
               </Group>
 
               {activePlan && (
                 <Group gap="md">
-                  <Text size="xs" style={{ color: 'var(--color-text-muted)' }} fw={600}>Status:</Text>
+                  <Text size="xs" style={{ color: 'var(--color-text-muted)' }} fw={600}>Status</Text>
                   <Group gap={4}>
-                    <div style={{ width: 12, height: 12, borderRadius: 2, backgroundColor: '#51cf66', border: '1px solid #51cf66' }} />
-                    <Text size="xs" style={{ color: 'var(--color-text-secondary)' }}>Completed</Text>
+                    <HandTick size={14} />
+                    <Text size="xs" style={{ color: 'var(--color-text-secondary)' }}>Ridden</Text>
                   </Group>
                   <Group gap={4}>
-                    <div style={{ width: 12, height: 12, borderRadius: 2, backgroundColor: 'rgba(255, 107, 107, 0.15)', border: '2px solid #ff6b6b' }} />
-                    <Text size="xs" style={{ color: 'var(--color-text-secondary)' }}>Missed</Text>
+                    <Text size="xs" style={{ color: 'var(--color-text-secondary)', textDecoration: 'line-through' }}>Missed</Text>
                   </Group>
                   <Group gap={4}>
-                    <div style={{ width: 12, height: 12, borderRadius: 2, backgroundColor: `${'var(--color-teal)'}15`, border: `2px solid ${'var(--color-teal)'}` }} />
+                    <div style={{ width: 12, height: 12, background: 'var(--color-card)', border: '2px solid var(--color-ink)' }} />
                     <Text size="xs" style={{ color: 'var(--color-text-secondary)' }}>Today</Text>
                   </Group>
                   <Text size="xs" c="dimmed" ml="auto">Drag workouts to move • Click to edit</Text>
@@ -1894,11 +1859,8 @@ const TrainingCalendar = ({ activePlan, rides = [], formatDistance: formatDistan
                 >
                   <Text
                     size="xs"
-                    fw={700}
-                    tt="uppercase"
+                    fw={600}
                     style={{
-                      fontFamily: 'var(--font-mono, monospace)',
-                      letterSpacing: '0.08em',
                       minWidth: 64,
                       color: 'var(--color-text-muted)',
                     }}

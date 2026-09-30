@@ -105,7 +105,7 @@ function RestCard({ today, units }: { today: Today; units: UnitsPreference }) {
   const navigate = useNavigate();
   return (
     <Box style={{ border: `1px solid ${C.border}`, background: C.card, padding: 20 }}>
-      <Text style={{ fontFamily: FONT.heading, fontSize: 28, fontWeight: 700, color: C.text }}>
+      <Text style={{ fontFamily: FONT.heading, fontSize: 28, fontWeight: 900, textTransform: 'uppercase', color: C.text }}>
         Rest day
       </Text>
       <Text style={{ fontFamily: FONT.body, fontSize: 14, color: C.text2, marginTop: 6, marginBottom: 16 }}>
@@ -146,7 +146,7 @@ function FirstRunStatsNote({ today, isMobile }: { today: Today; isMobile: boolea
   const navigate = useNavigate();
   const note = (
     <Box style={{ border: `1px solid ${C.border}`, background: C.card, padding: 20 }}>
-      <Text style={{ fontFamily: FONT.heading, fontSize: 18, fontWeight: 700, color: C.text }}>
+      <Text style={{ fontFamily: FONT.heading, fontSize: 18, fontWeight: 900, textTransform: 'uppercase', color: C.text }}>
         No riding history yet
       </Text>
       <Text style={{ fontFamily: FONT.body, fontSize: 14, lineHeight: 1.5, color: C.text2, marginTop: 6 }}>

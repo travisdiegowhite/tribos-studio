@@ -48,7 +48,7 @@ export function ClearanceBand({ state }: { state: TodayAthleteState }) {
           style={{
             fontFamily: FONT.heading,
             fontSize: 15,
-            fontWeight: 600,
+            fontWeight: 900,
             textTransform: 'uppercase',
             letterSpacing: '0.5px',
             color: state.formColor,

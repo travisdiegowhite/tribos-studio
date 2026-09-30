@@ -170,8 +170,8 @@ export default function FatigueCheckinCard({ onComplete }: FatigueCheckinCardPro
         borderColor: 'var(--tribos-border-default)',
       }}
     >
-      <Text size="sm" fw={700} tt="uppercase" ff="monospace" c="dimmed" mb="md">
-        Morning Readiness
+      <Text size="sm" fw={600} c="dimmed" mb="md">
+        Morning readiness
       </Text>
 
       <Stack gap="md">

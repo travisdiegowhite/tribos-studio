@@ -57,9 +57,9 @@ function renderColumn(overrides: Partial<AssembleInput> = {}) {
 describe('BeatsColumn', () => {
   it('renders the beats in order, one card each', () => {
     renderColumn();
-    expect(screen.getByText('LAST RIDE')).toBeTruthy();
-    expect(screen.getByText("TODAY'S CALL")).toBeTruthy();
-    expect(screen.getByText('ROUTE')).toBeTruthy();
+    expect(screen.getByText('Last ride')).toBeTruthy();
+    expect(screen.getByText("Today's call")).toBeTruthy();
+    expect(screen.getByText('Route')).toBeTruthy();
   });
 
   it('keeps the instrument view behind the door until it is asked for', () => {

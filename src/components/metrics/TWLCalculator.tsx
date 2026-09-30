@@ -30,24 +30,24 @@ export function TWLCalculator() {
         backgroundColor: 'var(--color-card)',
       }}>
         <div style={{ textAlign: 'center' }}>
-          <Text style={{ fontFamily: "'Barlow Condensed', sans-serif", fontSize: 11, color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: '1px' }}>
+          <Text style={{ fontFamily: "'Archivo', sans-serif", fontSize: 11, color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: '1px' }}>
             Base RSS
           </Text>
-          <Text style={{ fontFamily: "'DM Mono', monospace", fontSize: 28, fontWeight: 700, color: 'var(--color-text-muted)' }}>
+          <Text style={{ fontFamily: "'Courier Prime', monospace", fontSize: 28, fontWeight: 700, color: 'var(--color-text-muted)' }}>
             {baseTSS}
           </Text>
         </div>
-        <Text style={{ fontFamily: "'DM Mono', monospace", fontSize: 20, color: 'var(--color-text-muted)' }}>→</Text>
+        <Text style={{ fontFamily: "'Courier Prime', monospace", fontSize: 20, color: 'var(--color-text-muted)' }}>→</Text>
         <div style={{ textAlign: 'center' }}>
-          <Text style={{ fontFamily: "'Barlow Condensed', sans-serif", fontSize: 11, color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: '1px' }}>
+          <Text style={{ fontFamily: "'Archivo', sans-serif", fontSize: 11, color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: '1px' }}>
             TWL
           </Text>
-          <Text style={{ fontFamily: "'DM Mono', monospace", fontSize: 28, fontWeight: 700, color: '#2A8C82' }}>
+          <Text style={{ fontFamily: "'Courier Prime', monospace", fontSize: 28, fontWeight: 700, color: '#2A8C82' }}>
             {Math.round(result.twl)}
           </Text>
         </div>
         {result.overagePercent > 0 && (
-          <Text style={{ fontFamily: "'DM Mono', monospace", fontSize: 14, color: 'var(--color-text-muted)' }}>
+          <Text style={{ fontFamily: "'Courier Prime', monospace", fontSize: 14, color: 'var(--color-text-muted)' }}>
             +{result.overagePercent}% terrain
           </Text>
         )}
@@ -55,7 +55,7 @@ export function TWLCalculator() {
 
       {/* Multiplier breakdown */}
       <div>
-        <Text size="xs" fw={600} c="dimmed" mb={8} style={{ fontFamily: "'Barlow Condensed', sans-serif", textTransform: 'uppercase', letterSpacing: '1px' }}>
+        <Text size="xs" fw={600} c="dimmed" mb={8} style={{ fontFamily: "'Archivo', sans-serif", textTransform: 'uppercase', letterSpacing: '1px' }}>
           Terrain multiplier: {result.mTerrain.toFixed(3)}×
         </Text>
         <MetricBarRow label={`Climbing (VAM ${result.vam} m/hr)`} value={result.alphaComponent} maxValue={0.15} displayValue={`+${(result.alphaComponent * 100).toFixed(1)}%`} color="#2A8C82" />
@@ -73,12 +73,12 @@ export function TWLCalculator() {
       <Accordion>
         <Accordion.Item value="formula">
           <Accordion.Control>
-            <Text size="sm" fw={600} style={{ fontFamily: "'Barlow Condensed', sans-serif" }}>
+            <Text size="sm" fw={600} style={{ fontFamily: "'Archivo', sans-serif" }}>
               How is TWL calculated?
             </Text>
           </Accordion.Control>
           <Accordion.Panel>
-            <Text size="xs" c="dimmed" style={{ fontFamily: "'DM Mono', monospace", lineHeight: 1.8 }}>
+            <Text size="xs" c="dimmed" style={{ fontFamily: "'Courier Prime', monospace", lineHeight: 1.8 }}>
               TWL = RSS × M_terrain{'\n'}
               M_terrain = 1 + (α × VAM_norm) + (β × GVI) + (γ × ALT){'\n\n'}
               α = 0.10 (climbing rate){'\n'}
@@ -100,7 +100,7 @@ function SliderRow({ label, value, onChange, min, max, step = 1 }: {
     <div>
       <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
         <Text size="xs" c="dimmed">{label}</Text>
-        <Text size="xs" fw={600} style={{ fontFamily: "'DM Mono', monospace" }}>{value}</Text>
+        <Text size="xs" fw={600} style={{ fontFamily: "'Courier Prime', monospace" }}>{value}</Text>
       </div>
       <Slider value={value} onChange={onChange} min={min} max={max} step={step} size="xs" />
     </div>

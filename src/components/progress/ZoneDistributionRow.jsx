@@ -59,7 +59,7 @@ function ZoneDistributionRow({ zones, totalTime }) {
             {/* Zone label */}
             <Text
               style={{
-                fontFamily: "'DM Mono', monospace",
+                fontFamily: "'Courier Prime', monospace",
                 fontSize: 12,
                 fontWeight: 700,
                 color,
@@ -96,7 +96,7 @@ function ZoneDistributionRow({ zones, totalTime }) {
             {/* Zone name */}
             <Text
               style={{
-                fontFamily: "'Barlow Condensed', sans-serif",
+                fontFamily: "'Archivo', sans-serif",
                 fontSize: 10,
                 fontWeight: 700,
                 letterSpacing: '1.5px',
@@ -111,7 +111,7 @@ function ZoneDistributionRow({ zones, totalTime }) {
             {/* Percentage and time */}
             <Text
               style={{
-                fontFamily: "'DM Mono', monospace",
+                fontFamily: "'Courier Prime', monospace",
                 fontSize: 12,
                 color: 'var(--color-text-secondary)',
                 width: 40,
@@ -123,7 +123,7 @@ function ZoneDistributionRow({ zones, totalTime }) {
             </Text>
             <Text
               style={{
-                fontFamily: "'DM Mono', monospace",
+                fontFamily: "'Courier Prime', monospace",
                 fontSize: 11,
                 color: 'var(--color-text-muted)',
                 width: 50,

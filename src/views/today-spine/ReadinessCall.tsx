@@ -29,11 +29,11 @@ export interface ReadinessVerdict {
 
 /** Rule id → the word on the card. The engine decides; this only labels. */
 const HEADINGS: Record<string, string> = {
-  'RDY-3-skip': "TODAY'S CALL — REST",
-  'RDY-3-modify': "TODAY'S CALL — GO SHORTER",
-  'RDY-3-cut': "TODAY'S CALL — START AND SEE",
-  'RDY-4-trust-rider': "TODAY'S CALL — EASY",
-  'RDY-2-hrv-band': "TODAY'S CALL — EASY",
+  'RDY-3-skip': "Today's call — rest",
+  'RDY-3-modify': "Today's call — go shorter",
+  'RDY-3-cut': "Today's call — start and see",
+  'RDY-4-trust-rider': "Today's call — easy",
+  'RDY-2-hrv-band': "Today's call — easy",
 };
 
 /**
@@ -110,33 +110,33 @@ export function useReadiness(): ReadinessState {
 export function ReadinessCall({ verdict }: { verdict: ReadinessVerdict | null }) {
   if (!verdict) return null;
 
-  const heading = HEADINGS[verdict.id] || "TODAY'S CALL";
+  const heading = HEADINGS[verdict.id] || "Today's call";
   const note = CONFIDENCE_NOTE[verdict.confidence];
 
   return (
     <Box
       style={{
-        border: `1px solid ${C.orange}`,
-        borderLeftWidth: 3,
-        background: C.card,
-        padding: '14px 16px',
+        borderTop: `2px solid ${C.orange}`,
+        borderBottom: `1px solid ${C.border}`,
+        padding: '12px 0 14px',
       }}
     >
       <Text
         style={{
-          fontFamily: FONT.mono,
-          fontSize: 10,
+          fontFamily: FONT.body,
+          fontSize: 13,
           fontWeight: 600,
-          letterSpacing: '2px',
-          color: C.orange,
+          color: C.coral,
           marginBottom: 6,
         }}
       >
         {heading}
       </Text>
-      <Text style={{ fontSize: 15, lineHeight: 1.5, color: C.text }}>{verdict.personaLine}</Text>
+      <Text style={{ fontFamily: FONT.mono, fontStyle: 'italic', fontSize: 20, lineHeight: 1.4, color: C.text }}>
+        {verdict.personaLine}
+      </Text>
       {note && (
-        <Text style={{ fontFamily: FONT.mono, fontSize: 10, color: C.text3, marginTop: 8 }}>
+        <Text style={{ fontFamily: FONT.body, fontSize: 13, color: C.text3, marginTop: 8 }}>
           {note}
         </Text>
       )}

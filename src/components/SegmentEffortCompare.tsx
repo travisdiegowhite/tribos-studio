@@ -118,7 +118,7 @@ function CompareRepeatsLink({ segmentId, name, onCompareRepeats }: { segmentId: 
       onClick={() => onCompareRepeats(segmentId)}
       aria-label={`Compare repeats of ${name}`}
       style={{
-        fontFamily: "'DM Mono', monospace",
+        fontFamily: "'Courier Prime', monospace",
         fontSize: 10,
         letterSpacing: '1.5px',
         textTransform: 'uppercase',

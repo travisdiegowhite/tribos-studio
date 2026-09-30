@@ -367,7 +367,7 @@ function Progress() {
             >
               <Text
                 style={{
-                  fontFamily: "'DM Mono', monospace",
+                  fontFamily: "'Courier Prime', monospace",
                   fontSize: 12,
                   letterSpacing: '1px',
                   color: 'var(--color-text-primary)',
@@ -419,7 +419,7 @@ function Progress() {
             <Group justify="space-between" mb={14}>
               <Text
                 style={{
-                  fontFamily: "'Barlow Condensed', sans-serif",
+                  fontFamily: "'Archivo', sans-serif",
                   fontSize: 13,
                   fontWeight: 700,
                   letterSpacing: '2px',
@@ -438,7 +438,7 @@ function Progress() {
                     size="compact-xs"
                     onClick={() => setZoneTimeFilter(period)}
                     style={{
-                      fontFamily: "'DM Mono', monospace",
+                      fontFamily: "'Courier Prime', monospace",
                       fontSize: 11,
                       fontWeight: 600,
                     }}
@@ -463,7 +463,7 @@ function Progress() {
             >
               <Text
                 style={{
-                  fontFamily: "'Barlow Condensed', sans-serif",
+                  fontFamily: "'Archivo', sans-serif",
                   fontSize: 13,
                   fontWeight: 700,
                   letterSpacing: '2px',

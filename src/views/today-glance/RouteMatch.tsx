@@ -48,7 +48,7 @@ export function RouteMatch({ routePromise, units, heroState }: RouteMatchProps) 
         Route
       </Text>
       <Group gap={10} align="baseline">
-        <Text style={{ fontFamily: FONT.heading, fontSize: 17, fontWeight: 600, color: C.text }}>
+        <Text style={{ fontFamily: FONT.heading, fontSize: 17, fontWeight: 900, textTransform: 'uppercase', color: C.text }}>
           {route.name}
         </Text>
         <Text style={{ fontFamily: FONT.mono, fontSize: 13, color: C.text3 }}>

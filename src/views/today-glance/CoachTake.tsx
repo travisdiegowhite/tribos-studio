@@ -25,7 +25,7 @@ interface CoachTakeBoxProps {
 
 export function CoachTakeBox({ coachPromise, personaName }: CoachTakeBoxProps) {
   return (
-    <Box style={{ backgroundColor: '#FBF6F2', borderLeft: `3px solid ${C.teal}`, padding: '10px 12px' }}>
+    <Box style={{ backgroundColor: 'var(--color-bg-secondary)', borderLeft: `3px solid ${C.teal}`, padding: '10px 12px' }}>
       <Group gap={6} mb={4} align="center">
         <Sparkle size={12} color={C.teal} weight="fill" />
         <Text

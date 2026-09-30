@@ -393,7 +393,7 @@ export function GlanceCoach({ today, maxMessages = 4 }: GlanceCoachProps) {
               <Box
                 key={m.id}
                 style={{
-                  backgroundColor: isCoach ? '#FBF6F2' : C.base,
+                  backgroundColor: isCoach ? 'var(--color-bg-secondary)' : C.base,
                   borderLeft: `2px solid ${isCoach ? C.teal : C.border}`,
                   padding: '8px 12px',
                 }}
@@ -474,7 +474,7 @@ export function GlanceCoach({ today, maxMessages = 4 }: GlanceCoachProps) {
 
       {/* Input — or the consent gate when smart features aren't enabled yet. */}
       {consent === false ? (
-        <Box style={{ borderLeft: `3px solid ${C.teal}`, background: '#FBF6F2', padding: '10px 12px' }}>
+        <Box style={{ borderLeft: `3px solid ${C.teal}`, background: 'var(--color-bg-secondary)', padding: '10px 12px' }}>
           <Group gap={8} align="center" mb={6}>
             <ShieldCheck size={16} color={C.teal} />
             <Text style={{ fontFamily: FONT.body, fontSize: 13, color: C.text2 }}>

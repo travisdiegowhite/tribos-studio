@@ -1,4 +1,5 @@
 import { describe, it, expect } from 'vitest';
+import { CHART } from './tokens';
 import {
   xPast,
   xFuture,
@@ -84,8 +85,8 @@ describe('buildChart', () => {
 
   it('emits solid past bars and hollow dashed future bars', () => {
     const chart = buildChart(makeDays(), 42, null, dates);
-    expect(chart.bars.some((b) => b.fill === '#e9e6dd')).toBe(true);
-    expect(chart.bars.some((b) => b.stroke === '#e0c9a3' && b.dash === '2 2')).toBe(true);
+    expect(chart.bars.some((b) => b.fill === CHART.tssBar)).toBe(true);
+    expect(chart.bars.some((b) => b.stroke === CHART.plannedBarStroke && b.dash === '2 2')).toBe(true);
   });
 
   it('finds a peak inside the projection window', () => {

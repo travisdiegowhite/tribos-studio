@@ -24,7 +24,7 @@ describe('ReadinessCall', () => {
     // MantineProvider emits its own responsive <style> block, so assert on
     // what the component contributes rather than on an empty container.
     draw(null);
-    expect(screen.queryByText(/TODAY'S CALL/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/Today's call/)).not.toBeInTheDocument();
     expect(screen.queryByText(/rest day/i)).not.toBeInTheDocument();
   });
 
@@ -35,7 +35,7 @@ describe('ReadinessCall', () => {
 
   it('labels the call so the answer is readable without reading the sentence', () => {
     draw(verdict());
-    expect(screen.getByText("TODAY'S CALL — REST")).toBeInTheDocument();
+    expect(screen.getByText("Today's call — rest")).toBeInTheDocument();
   });
 
   it('names the confidence when the research is not settled', () => {
@@ -50,7 +50,7 @@ describe('ReadinessCall', () => {
 
   it('falls back to a plain heading for a rule id it does not know', () => {
     draw(verdict({ id: 'RDY-9-future' }));
-    expect(screen.getByText("TODAY'S CALL")).toBeInTheDocument();
+    expect(screen.getByText("Today's call")).toBeInTheDocument();
   });
 
   it('shows the claim only through the persona line — no metric jargon leaks', () => {

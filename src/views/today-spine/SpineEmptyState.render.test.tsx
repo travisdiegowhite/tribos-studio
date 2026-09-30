@@ -14,9 +14,9 @@ describe('SpineEmptyState render', () => {
       </MantineProvider>,
     );
     expect(screen.getByText(/No training history yet/i)).toBeTruthy();
-    const connect = screen.getByText('CONNECT A SERVICE');
+    const connect = screen.getByText('Connect a service');
     expect(connect.closest('a')?.getAttribute('href')).toBe('/settings');
-    const plan = screen.getByText('PLAN A RIDE');
+    const plan = screen.getByText('Plan a ride');
     expect(plan.closest('a')?.getAttribute('href')).toBe('/ride/new');
   });
 });

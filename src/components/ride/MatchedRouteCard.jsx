@@ -48,7 +48,7 @@ function MatchedRouteCard({ match, formatDist, formatElev, onClick }) {
             variant="light"
             color={getMatchColor(score)}
             size="sm"
-            style={{ fontFamily: "'DM Mono', monospace", flexShrink: 0 }}
+            style={{ fontFamily: "'Courier Prime', monospace", flexShrink: 0 }}
           >
             {score}%
           </Badge>
@@ -60,7 +60,7 @@ function MatchedRouteCard({ match, formatDist, formatElev, onClick }) {
             <Box>
               <Text
                 style={{
-                  fontFamily: "'Barlow Condensed', sans-serif",
+                  fontFamily: "'Archivo', sans-serif",
                   fontSize: 10,
                   fontWeight: 700,
                   letterSpacing: '1.5px',
@@ -73,7 +73,7 @@ function MatchedRouteCard({ match, formatDist, formatElev, onClick }) {
               </Text>
               <Text
                 style={{
-                  fontFamily: "'DM Mono', monospace",
+                  fontFamily: "'Courier Prime', monospace",
                   fontSize: 14,
                   fontWeight: 600,
                   color: 'var(--color-text-primary)',
@@ -87,7 +87,7 @@ function MatchedRouteCard({ match, formatDist, formatElev, onClick }) {
             <Box>
               <Text
                 style={{
-                  fontFamily: "'Barlow Condensed', sans-serif",
+                  fontFamily: "'Archivo', sans-serif",
                   fontSize: 10,
                   fontWeight: 700,
                   letterSpacing: '1.5px',
@@ -100,7 +100,7 @@ function MatchedRouteCard({ match, formatDist, formatElev, onClick }) {
               </Text>
               <Text
                 style={{
-                  fontFamily: "'DM Mono', monospace",
+                  fontFamily: "'Courier Prime', monospace",
                   fontSize: 14,
                   fontWeight: 600,
                   color: 'var(--color-text-primary)',
@@ -114,7 +114,7 @@ function MatchedRouteCard({ match, formatDist, formatElev, onClick }) {
             <Box>
               <Text
                 style={{
-                  fontFamily: "'Barlow Condensed', sans-serif",
+                  fontFamily: "'Archivo', sans-serif",
                   fontSize: 10,
                   fontWeight: 700,
                   letterSpacing: '1.5px',

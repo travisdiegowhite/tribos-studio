@@ -47,15 +47,8 @@ function PlanProgressBar({ activePlan, plannedWorkouts, loading, frameless = fal
             variant="light"
             color="teal"
             size="compact-sm"
-            style={{
-              fontFamily: "'Barlow Condensed', sans-serif",
-              fontWeight: 700,
-              letterSpacing: '1.5px',
-              textTransform: 'uppercase',
-              fontSize: 11,
-            }}
           >
-            BROWSE PLANS
+            Browse plans
           </Button>
         </Group>
       </Box>
@@ -97,11 +90,10 @@ function PlanProgressBar({ activePlan, plannedWorkouts, loading, frameless = fal
         <Group gap="sm">
           <Text
             style={{
-              fontFamily: "'Barlow Condensed', sans-serif",
-              fontSize: 15,
-              fontWeight: 700,
-              letterSpacing: '1px',
+              fontFamily: 'var(--font-display)',
               textTransform: 'uppercase',
+              fontSize: 22,
+              fontWeight: 900,
               color: 'var(--color-text-primary)',
             }}
           >
@@ -112,7 +104,6 @@ function PlanProgressBar({ activePlan, plannedWorkouts, loading, frameless = fal
               variant="light"
               color="teal"
               size="sm"
-              style={{ fontFamily: "'Barlow Condensed', sans-serif", textTransform: 'uppercase' }}
             >
               {currentPhase}
             </Badge>
@@ -122,7 +113,7 @@ function PlanProgressBar({ activePlan, plannedWorkouts, loading, frameless = fal
           {totalWeeks > 0 && (
             <Text
               style={{
-                fontFamily: "'DM Mono', monospace",
+                fontFamily: "'Courier Prime', monospace",
                 fontSize: 12,
                 color: 'var(--color-text-muted)',
               }}
@@ -135,7 +126,7 @@ function PlanProgressBar({ activePlan, plannedWorkouts, loading, frameless = fal
               <Trophy size={14} color="var(--color-gold)" />
               <Text
                 style={{
-                  fontFamily: "'DM Mono', monospace",
+                  fontFamily: "'Courier Prime', monospace",
                   fontSize: 12,
                   fontWeight: 600,
                   color: 'var(--color-gold)',
@@ -154,15 +145,8 @@ function PlanProgressBar({ activePlan, plannedWorkouts, loading, frameless = fal
             color="gray"
             size="compact-xs"
             rightSection={<CaretRight size={12} />}
-            style={{
-              fontFamily: "'Barlow Condensed', sans-serif",
-              fontSize: 11,
-              fontWeight: 700,
-              letterSpacing: '1.5px',
-              textTransform: 'uppercase',
-            }}
           >
-            CHANGE PLAN
+            Change plan
           </Button>
         </Group>
       </Group>

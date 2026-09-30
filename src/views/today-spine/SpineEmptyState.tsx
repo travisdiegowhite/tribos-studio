@@ -13,9 +13,9 @@ import { C, FONT } from './tokens';
 const actionStyle: CSSProperties = {
   display: 'inline-block',
   border: `1.5px solid ${C.navy}`,
-  fontFamily: FONT.mono,
-  fontSize: 10,
-  letterSpacing: '2px',
+  fontFamily: FONT.body,
+  fontSize: 14,
+  fontWeight: 500,
   padding: '9px 16px',
   textDecoration: 'none',
 };
@@ -25,22 +25,20 @@ export function SpineEmptyState() {
     <Box
       style={{
         background: C.card,
-        border: `1.5px solid ${C.teal}`,
-        boxShadow: '0 1px 3px rgba(20,16,8,.07),0 4px 12px rgba(20,16,8,.05)',
+        border: `1px solid ${C.border}`,
         padding: '36px 28px 32px',
         textAlign: 'center',
       }}
     >
-      <Text style={{ fontFamily: FONT.mono, fontSize: 10, fontWeight: 500, letterSpacing: '2px', color: C.teal, marginBottom: 10 }}>
-        02 · TRAINING ARC
+      <Text style={{ fontFamily: FONT.body, fontSize: 13, fontWeight: 600, color: C.text3, marginBottom: 10 }}>
+        Your training arc
       </Text>
       <Text
         style={{
           fontFamily: FONT.heading,
-          fontWeight: 700,
-          fontSize: 24,
-          letterSpacing: '.04em',
           textTransform: 'uppercase',
+          fontWeight: 900,
+          fontSize: 30,
           color: C.text,
           marginBottom: 8,
         }}
@@ -52,11 +50,11 @@ export function SpineEmptyState() {
         itself: six weeks of fitness behind you, your plan and goal event ahead.
       </Text>
       <Group justify="center" gap={10}>
-        <Box component={Link} to="/settings" style={{ ...actionStyle, background: C.navy, color: '#fff' }}>
-          CONNECT A SERVICE
+        <Box component={Link} to="/settings" style={{ ...actionStyle, background: C.navy, color: 'var(--color-bg)' }}>
+          Connect a service
         </Box>
         <Box component={Link} to="/ride/new" style={{ ...actionStyle, background: 'transparent', color: C.navy }}>
-          PLAN A RIDE
+          Plan a ride
         </Box>
       </Group>
     </Box>

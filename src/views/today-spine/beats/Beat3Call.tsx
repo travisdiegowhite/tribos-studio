@@ -17,15 +17,13 @@ interface Beat3CallProps {
 
 export function Beat3Call({ vm, personaName }: Beat3CallProps) {
   return (
-    <BeatCard label="TODAY'S CALL" accent={C.orange}>
+    <BeatCard label="Today's call" accent={C.orange}>
       <BeatSentence>{vm.line}</BeatSentence>
       <WorkoutSilhouette session={vm.session} />
       <Text
         style={{
-          fontFamily: FONT.mono,
-          fontSize: 10,
-          letterSpacing: '1px',
-          textTransform: 'uppercase',
+          fontFamily: FONT.body,
+          fontSize: 13,
           color: C.text3,
         }}
       >

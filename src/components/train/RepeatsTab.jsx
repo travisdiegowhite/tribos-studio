@@ -268,7 +268,7 @@ function RepeatsTabInner({ anchorRide, activities, userId, initialSegmentId = nu
 
   const rideDescription = anchorRide ? (
     <Group gap="md" align="baseline" wrap="wrap" px={16} py={14}>
-      <Text lineClamp={1} style={{ fontFamily: FONT.heading, fontSize: 22, fontWeight: 600, lineHeight: 1.1, color: C.text }}>
+      <Text lineClamp={1} style={{ fontFamily: FONT.heading, fontSize: 22, fontWeight: 900, textTransform: 'uppercase', lineHeight: 1.1, color: C.text }}>
         {anchor?.name ?? anchorRide.name}
       </Text>
       <Text style={noteStyle}>
@@ -337,7 +337,7 @@ function RepeatsTabInner({ anchorRide, activities, userId, initialSegmentId = nu
             </Text>
           }
         >
-          <Text px={16} pt={12} lineClamp={1} style={{ fontFamily: FONT.heading, fontSize: 20, fontWeight: 600, lineHeight: 1.1, color: C.text }}>
+          <Text px={16} pt={12} lineClamp={1} style={{ fontFamily: FONT.heading, fontSize: 20, fontWeight: 900, textTransform: 'uppercase', lineHeight: 1.1, color: C.text }}>
             {anchor.name}
           </Text>
           {empty ? (

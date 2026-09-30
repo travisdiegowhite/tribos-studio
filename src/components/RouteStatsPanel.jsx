@@ -284,13 +284,13 @@ function TWLProjection({ stats, hasETA, personalizedETA }) {
         position="top"
       >
         <Box style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
-          <Text size="xs" c="dimmed" style={{ fontFamily: "'Barlow Condensed', sans-serif", textTransform: 'uppercase', letterSpacing: '1px' }}>
+          <Text size="xs" c="dimmed" style={{ fontFamily: "'Archivo', sans-serif", textTransform: 'uppercase', letterSpacing: '1px' }}>
             Est. load
           </Text>
-          <Text size="sm" c="dimmed" style={{ fontFamily: "'DM Mono', monospace" }}>
+          <Text size="sm" c="dimmed" style={{ fontFamily: "'Courier Prime', monospace" }}>
             RSS ~{estimatedTSS}
           </Text>
-          <Text size="sm" fw={700} style={{ fontFamily: "'DM Mono', monospace", color: 'var(--color-teal)' }}>
+          <Text size="sm" fw={700} style={{ fontFamily: "'Courier Prime', monospace", color: 'var(--color-teal)' }}>
             TWL ~{Math.round(twlResult.twl)}
           </Text>
           <Badge size="xs" variant="light" color="orange">

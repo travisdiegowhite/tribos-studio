@@ -134,9 +134,8 @@ export default function FuelBadge({
   if (variant === 'text') {
     const content = (
       <Group gap={4} style={{ cursor: showTooltip ? 'help' : 'default' }}>
-        <Text size={size}>🍌</Text>
         <Text size={size} c="dimmed">
-          {plan.carbs.totalGramsMin}-{plan.carbs.totalGramsMax}g
+          Fuel {plan.carbs.totalGramsMin}–{plan.carbs.totalGramsMax}g
         </Text>
       </Group>
     );

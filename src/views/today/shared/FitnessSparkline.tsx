@@ -63,7 +63,7 @@ export function FitnessSparkline({
             top: '50%',
             left: '50%',
             transform: 'translate(-50%, -50%)',
-            fontFamily: "'DM Mono', monospace",
+            fontFamily: "'Courier Prime', monospace",
             fontSize: 9,
             fontWeight: 700,
             letterSpacing: '1px',

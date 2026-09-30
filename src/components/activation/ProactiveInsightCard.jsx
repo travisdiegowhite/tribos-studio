@@ -112,7 +112,7 @@ export default function ProactiveInsightCard() {
             size="xs"
             fw={600}
             tt="uppercase"
-            ff="'DM Mono', monospace"
+            ff="'Courier Prime', monospace"
             lts={1}
             style={{ color: 'var(--color-teal, #2A8C82)' }}
           >

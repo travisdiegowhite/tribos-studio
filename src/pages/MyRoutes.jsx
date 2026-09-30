@@ -581,7 +581,7 @@ function MyRoutes() {
               size="sm"
               onClick={() => setViewMode('workouts')}
               style={{
-                fontFamily: "'Barlow Condensed', sans-serif",
+                fontFamily: "'Archivo', sans-serif",
                 fontWeight: 700,
                 letterSpacing: '1.5px',
                 textTransform: 'uppercase',
@@ -596,7 +596,7 @@ function MyRoutes() {
               size="sm"
               onClick={() => setViewMode('all')}
               style={{
-                fontFamily: "'Barlow Condensed', sans-serif",
+                fontFamily: "'Archivo', sans-serif",
                 fontWeight: 700,
                 letterSpacing: '1.5px',
                 textTransform: 'uppercase',
@@ -631,7 +631,7 @@ function MyRoutes() {
                 >
                   <Text
                     style={{
-                      fontFamily: "'Barlow Condensed', sans-serif",
+                      fontFamily: "'Archivo', sans-serif",
                       fontSize: 13,
                       fontWeight: 700,
                       letterSpacing: '2px',
@@ -666,7 +666,7 @@ function MyRoutes() {
                 >
                   <Text
                     style={{
-                      fontFamily: "'Barlow Condensed', sans-serif",
+                      fontFamily: "'Archivo', sans-serif",
                       fontSize: 13,
                       fontWeight: 700,
                       letterSpacing: '2px',
@@ -717,7 +717,7 @@ function MyRoutes() {
                       <Plus size={20} color="var(--color-text-muted)" />
                       <Text
                         style={{
-                          fontFamily: "'Barlow Condensed', sans-serif",
+                          fontFamily: "'Archivo', sans-serif",
                           fontSize: 12,
                           fontWeight: 700,
                           letterSpacing: '1.5px',

@@ -5,20 +5,20 @@
  * track). Zero border radius everywhere per the design system.
  */
 
-export { C, FONT } from '../today-glance/tokens';
+export { C, FONT, MAP_COLORS } from '../today-glance/tokens';
 
-/** Chart-only neutrals from docs/today-view (kept out of the brand palette). */
+/** Chart colours (CSS variables from global.css, so the arc follows the theme). */
 export const CHART = {
-  tssBar: '#e9e6dd',
-  plannedBarStroke: '#e0c9a3',
-  gridline: '#efeee9',
-  baseline: '#dcdad3',
-  ringTrack: '#EBEBE8',
-  pastLine: '#141410',
-  futureLine: '#7A7970',
-  axisMuted: '#9a988f',
-  axisFuture: '#c0a878',
-  ink: '#0e0e0b',
+  tssBar: 'var(--chart-bar)',
+  plannedBarStroke: 'var(--chart-bar-planned)',
+  gridline: 'var(--chart-grid)',
+  baseline: 'var(--chart-baseline)',
+  ringTrack: 'var(--color-bg-secondary)',
+  pastLine: 'var(--chart-fitness)',
+  futureLine: 'var(--chart-future)',
+  axisMuted: 'var(--color-text-muted)',
+  axisFuture: 'var(--chart-future)',
+  ink: 'var(--color-ink)',
 } as const;
 
 /** Vertical week gridlines from the prototype (SVG x positions). */

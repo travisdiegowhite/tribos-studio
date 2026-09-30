@@ -25,9 +25,9 @@ interface FitnessNodeProps {
 }
 
 const HALO_STRONG =
-  '0 1px 3px rgba(244,244,242,1), 0 0 3px rgba(244,244,242,1), 0 0 6px rgba(244,244,242,.8)';
-const HALO_MED = '0 1px 2px rgba(244,244,242,1), 0 0 4px rgba(244,244,242,.85)';
-const HALO_SOFT = '0 1px 1px rgba(244,244,242,.85)';
+  '0 1px 3px var(--color-bg), 0 0 3px var(--color-bg), 0 0 6px color-mix(in srgb, var(--color-bg) 80%, transparent)';
+const HALO_MED = '0 1px 2px var(--color-bg), 0 0 4px color-mix(in srgb, var(--color-bg) 85%, transparent)';
+const HALO_SOFT = '0 1px 1px color-mix(in srgb, var(--color-bg) 85%, transparent)';
 
 export function FitnessNode({
   vm,
@@ -45,7 +45,7 @@ export function FitnessNode({
         width: '100%',
         background: C.card,
         border: `1.5px solid ${C.teal}`,
-        boxShadow: '0 6px 18px rgba(42,140,130,.16)',
+        boxShadow: 'none',
       }
     : {
         position: 'absolute',
@@ -53,11 +53,11 @@ export function FitnessNode({
         top: 52,
         transform: 'translateX(-50%)',
         width: 236,
-        background: 'rgba(255,255,255,.18)',
+        background: 'color-mix(in srgb, var(--color-bg) 18%, transparent)',
         backdropFilter: 'blur(6px) saturate(1.05)',
         WebkitBackdropFilter: 'blur(6px) saturate(1.05)',
         border: `1.5px solid ${C.teal}`,
-        boxShadow: '0 12px 30px rgba(20,16,8,.16)',
+        boxShadow: 'none',
       };
 
   return (
@@ -67,8 +67,8 @@ export function FitnessNode({
         onPointerDown={compact ? undefined : onHeaderPointerDown}
         style={{
           padding: '7px 12px 8px',
-          borderBottom: '1px solid rgba(255,255,255,.32)',
-          background: 'rgba(42,140,130,.62)',
+          borderBottom: '1px solid color-mix(in srgb, var(--color-bg) 32%, transparent)',
+          background: C.navy,
           cursor: compact ? 'default' : 'grab',
         }}
       >
@@ -78,8 +78,7 @@ export function FitnessNode({
               fontFamily: FONT.mono,
               fontSize: 8.5,
               fontWeight: 500,
-              letterSpacing: '1px',
-              color: 'rgba(255,255,255,.88)',
+              color: 'color-mix(in srgb, var(--color-bg) 88%, transparent)',
               whiteSpace: 'nowrap',
             }}
           >
@@ -90,18 +89,17 @@ export function FitnessNode({
               onPointerDown={(e) => e.stopPropagation()}
               onClick={onSnapToday}
               style={{
-                border: '1px solid rgba(255,255,255,.55)',
-                background: 'rgba(255,255,255,.16)',
-                color: '#fff',
+                border: '1px solid color-mix(in srgb, var(--color-bg) 55%, transparent)',
+                background: 'color-mix(in srgb, var(--color-bg) 16%, transparent)',
+                color: 'var(--color-bg)',
                 fontFamily: FONT.mono,
                 fontSize: 8,
                 fontWeight: 500,
-                letterSpacing: '1.5px',
                 padding: '2px 7px',
                 cursor: 'pointer',
               }}
             >
-              {vm.isFuture ? '◂ TODAY' : 'TODAY ▸'}
+              {vm.isFuture ? '◂ Today' : 'Today ▸'}
             </button>
           )}
         </div>
@@ -112,9 +110,8 @@ export function FitnessNode({
               fontFamily: FONT.mono,
               fontSize: 8,
               fontWeight: 500,
-              letterSpacing: '.5px',
               color: vm.activity.tagColor,
-              border: '1px solid rgba(255,255,255,.5)',
+              border: '1px solid color-mix(in srgb, var(--color-bg) 50%, transparent)',
               padding: '1px 5px',
             }}
           >
@@ -126,8 +123,7 @@ export function FitnessNode({
               fontFamily: FONT.body,
               fontWeight: 600,
               fontSize: 12.5,
-              color: '#fff',
-              letterSpacing: '.01em',
+              color: 'var(--color-bg)',
               whiteSpace: 'nowrap',
               overflow: 'hidden',
               textOverflow: 'ellipsis',
@@ -141,7 +137,7 @@ export function FitnessNode({
               flex: 'none',
               fontFamily: FONT.mono,
               fontSize: 9,
-              color: 'rgba(255,255,255,.82)',
+              color: 'color-mix(in srgb, var(--color-bg) 82%, transparent)',
             }}
           >
             {vm.activity.meta}
@@ -176,13 +172,12 @@ export function FitnessNode({
                 fontFamily: FONT.mono,
                 fontSize: 9,
                 fontWeight: 500,
-                letterSpacing: '1.5px',
-                color: '#45443f',
+                color: C.text2,
                 textShadow: HALO_SOFT,
                 marginBottom: 4,
               }}
             >
-              FORM
+              Form
             </div>
             <MetricCitation
               sentence={vm.stateText}
@@ -192,12 +187,11 @@ export function FitnessNode({
                 fontFamily: FONT.body,
                 fontSize: 17,
                 lineHeight: 1.25,
-                letterSpacing: '.01em',
                 textShadow: HALO_STRONG,
               }}
               chipStyle={{
                 fontFamily: FONT.mono,
-                color: '#45443f',
+                color: C.text2,
                 textShadow: HALO_SOFT,
               }}
             />
@@ -205,13 +199,12 @@ export function FitnessNode({
               style={{
                 fontFamily: FONT.mono,
                 fontSize: 8.5,
-                letterSpacing: '1px',
-                color: '#c9c7c0',
+                color: C.text3,
                 marginTop: 10,
                 textAlign: 'center',
               }}
             >
-              SEE THE TREND →
+              See the trend →
             </div>
           </div>
         ) : (
@@ -221,15 +214,14 @@ export function FitnessNode({
                 fontFamily: FONT.mono,
                 fontSize: 9,
                 fontWeight: 500,
-                letterSpacing: '1.5px',
                 color: C.text3,
                 marginBottom: 10,
               }}
             >
-              TREND · {vm.headerDate}
+              Trend · {vm.headerDate}
             </div>
             <TrendRow
-              label="FITNESS · TFI · 42-DAY"
+              label="Fitness · TFI · 42-day"
               value={vm.ctl}
               delta={vm.ctlDelta}
               deltaColor={vm.ctlDeltaColor}
@@ -237,7 +229,7 @@ export function FitnessNode({
               stroke={CHART.pastLine}
             />
             <TrendRow
-              label="FATIGUE · AFI · 7-DAY"
+              label="Fatigue · AFI · 7-day"
               value={vm.atl}
               delta={vm.atlDelta}
               deltaColor={vm.atlDeltaColor}
@@ -253,7 +245,7 @@ export function FitnessNode({
                 paddingTop: 6,
               }}
             >
-              <span style={{ fontFamily: FONT.mono, fontSize: 9, color: CHART.axisMuted }}>WK VOLUME</span>
+              <span style={{ fontFamily: FONT.body, fontSize: 11, color: CHART.axisMuted }}>Week volume</span>
               <span style={{ fontFamily: FONT.mono, fontWeight: 500, fontSize: 13, color: C.text, textShadow: HALO_MED }}>
                 {vm.volLabel}
               </span>
@@ -262,13 +254,12 @@ export function FitnessNode({
               style={{
                 fontFamily: FONT.mono,
                 fontSize: 8.5,
-                letterSpacing: '1px',
-                color: '#c9c7c0',
+                color: C.text3,
                 marginTop: 10,
                 textAlign: 'center',
               }}
             >
-              BACK
+              Back
             </div>
           </div>
         )}
@@ -295,7 +286,7 @@ function TrendRow({
   return (
     <div style={{ marginBottom: 12 }}>
       <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', marginBottom: 3 }}>
-        <span style={{ fontFamily: FONT.mono, fontSize: 9, color: CHART.axisMuted }}>{label}</span>
+        <span style={{ fontFamily: FONT.body, fontSize: 11, color: CHART.axisMuted }}>{label}</span>
         <span style={{ fontFamily: FONT.mono, fontWeight: 500, fontSize: 13, color: C.text }}>
           {value} <span style={{ color: deltaColor, fontSize: 10 }}>{delta}</span>
         </span>

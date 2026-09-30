@@ -20,6 +20,7 @@ import {
 } from './spineGeometry';
 import { FitnessNode } from './FitnessNode';
 import type { NodeVM } from './nodeView';
+import { titleCase } from './caseText';
 import { C, CHART, FONT, GRIDLINE_XS } from './tokens';
 import type { SpineData } from './types';
 
@@ -155,29 +156,26 @@ export function SpinePanel({
       style={{
         background: C.card,
         border: `1.5px solid ${C.border}`,
-        boxShadow: '0 1px 3px rgba(20,16,8,.07),0 4px 12px rgba(20,16,8,.05)',
       }}
     >
-      {/* Panel header */}
-      <Group justify="space-between" align="center" style={{ padding: '13px 18px 4px' }}>
-        <Group gap={9} align="center">
-          <Text style={{ fontFamily: FONT.mono, fontSize: 10, fontWeight: 500, letterSpacing: '2px', color: C.text3 }}>
-            02
-          </Text>
-          <span style={{ width: 5, height: 5, background: C.orange, display: 'inline-block' }} />
-          <Text style={{ fontFamily: FONT.mono, fontSize: 11, fontWeight: 500, letterSpacing: '2px', color: C.text }}>
-            TRAINING ARC
-          </Text>
-        </Group>
+      {/* Panel header — a plain label over the legend, per the blend board */}
+      <Group
+        justify="space-between"
+        align="baseline"
+        style={{ padding: '12px 0 8px', margin: '0 18px', borderBottom: `1px solid ${C.border}` }}
+      >
+        <Text style={{ fontFamily: FONT.body, fontSize: 13, fontWeight: 600, color: C.text2 }}>
+          Last six weeks, next ones planned
+        </Text>
         <Group
           gap={16}
           align="center"
-          style={{ fontFamily: FONT.mono, fontSize: 10, letterSpacing: '1px', color: C.text3 }}
+          style={{ fontFamily: FONT.body, fontSize: 13, color: C.text2 }}
           visibleFrom="sm"
         >
-          <LegendKey swatch={<span style={{ width: 16, height: 2, background: CHART.pastLine }} />} label="FITNESS" />
-          <LegendKey swatch={<span style={{ width: 16, height: 0, borderTop: `2px dashed ${C.text3}` }} />} label="PROJECTED" />
-          <LegendKey swatch={<span style={{ width: 10, height: 10, background: CHART.tssBar }} />} label="DAILY STRESS" />
+          <LegendKey swatch={<span style={{ width: 16, height: 2, background: CHART.pastLine }} />} label="Fitness" />
+          <LegendKey swatch={<span style={{ width: 16, height: 0, borderTop: `2px dashed ${C.text3}` }} />} label="Projected" />
+          <LegendKey swatch={<span style={{ width: 10, height: 10, background: CHART.tssBar }} />} label="Daily stress" />
         </Group>
       </Group>
 
@@ -194,7 +192,7 @@ export function SpinePanel({
           aria-valuemin={0}
           aria-valuemax={lastIndex}
           aria-valuenow={selectedIndex}
-          aria-valuetext={selDay.dateLabel}
+          aria-valuetext={titleCase(selDay.dateLabel)}
           style={{ position: 'relative', cursor: interactive ? 'ew-resize' : 'default', touchAction: 'none' }}
         >
           <svg
@@ -219,7 +217,7 @@ export function SpinePanel({
             <line x1={24 * k} y1={BASELINE_Y} x2={vbW - 24 * k} y2={BASELINE_Y} stroke={CHART.baseline} strokeWidth="1.5" />
 
             {/* selected week band */}
-            <rect x={sel.bandX} y="19" width="14" height={BASELINE_Y - 19} fill="rgba(42,140,130,.09)" />
+            <rect x={sel.bandX} y="19" width="14" height={BASELINE_Y - 19} fill="var(--color-ink-subtle)" />
 
             {/* TSS bars */}
             {chart.bars.map((b, i) => (
@@ -256,8 +254,8 @@ export function SpinePanel({
               <>
                 <line x1={chart.peak.x} y1="27" x2={chart.peak.x} y2={BASELINE_Y} stroke={C.gold} strokeWidth="1.2" strokeDasharray="3 3" />
                 <circle cx={chart.peak.x} cy={chart.peak.y} r="4.5" fill={C.gold} />
-                <text x={chart.peak.labelX} y="37" style={{ fontFamily: FONT.mono, fontWeight: 500, fontSize: 9, fill: C.gold, letterSpacing: '1px' }}>
-                  PEAK
+                <text x={chart.peak.labelX} y="37" style={{ fontFamily: FONT.mono, fontWeight: 500, fontSize: 9, fill: C.gold }}>
+                  Peak
                 </text>
               </>
             )}
@@ -270,7 +268,7 @@ export function SpinePanel({
                 <text
                   x={chart.event.x - 31}
                   y="37"
-                  style={{ fontFamily: FONT.mono, fontWeight: 500, fontSize: 8, fill: '#fff', letterSpacing: '.5px' }}
+                  style={{ fontFamily: FONT.mono, fontWeight: 500, fontSize: 8, fill: 'var(--color-bg)' }}
                 >
                   {eventShortLabel(event.name)}
                 </text>
@@ -280,7 +278,7 @@ export function SpinePanel({
                     x={chart.event.x - 3}
                     y="51"
                     textAnchor="end"
-                    style={{ fontFamily: FONT.mono, fontWeight: 500, fontSize: 8, fill: C.coral, letterSpacing: '.5px' }}
+                    style={{ fontFamily: FONT.mono, fontWeight: 500, fontSize: 8, fill: C.coral }}
                   >
                     {chart.event.daysOut}d →
                   </text>
@@ -302,9 +300,9 @@ export function SpinePanel({
                   x={1004 * k + 38}
                   y="37"
                   textAnchor="middle"
-                  style={{ fontFamily: FONT.mono, fontWeight: 500, fontSize: 8, fill: C.coral, letterSpacing: '.5px', opacity: 0.85 }}
+                  style={{ fontFamily: FONT.mono, fontWeight: 500, fontSize: 8, fill: C.coral, opacity: 0.85 }}
                 >
-                  SET A GOAL →
+                  Set a goal →
                 </text>
               </g>
             )}
@@ -317,22 +315,22 @@ export function SpinePanel({
 
             {/* date flag */}
             <rect x={sel.labelX} y="13" width="88" height="17" fill={C.teal} />
-            <text x={sel.labelTX} y="25" textAnchor="middle" style={{ fontFamily: FONT.mono, fontWeight: 500, fontSize: 9, fill: '#fff', letterSpacing: '1px' }}>
-              {selDay.dateLabel}
+            <text x={sel.labelTX} y="25" textAnchor="middle" style={{ fontFamily: FONT.mono, fontWeight: 500, fontSize: 9, fill: 'var(--color-bg)' }}>
+              {titleCase(selDay.dateLabel)}
             </text>
 
             {/* selected point dot */}
-            <circle cx={sel.selX} cy={sel.selY} r="5.5" fill={C.teal} stroke="#fff" strokeWidth="2" />
+            <circle cx={sel.selX} cy={sel.selY} r="5.5" fill={C.teal} stroke="var(--color-card)" strokeWidth="2" />
 
             {/* axis labels */}
-            <text x={40 * k} y="277" style={{ fontFamily: FONT.mono, fontWeight: 500, fontSize: 9, fill: CHART.axisMuted, letterSpacing: '1px' }}>
-              6 WK AGO
+            <text x={40 * k} y="277" style={{ fontFamily: FONT.mono, fontWeight: 500, fontSize: 9, fill: CHART.axisMuted }}>
+              6 weeks ago
             </text>
-            <text x={380 * k} y="277" style={{ fontFamily: FONT.mono, fontWeight: 500, fontSize: 9, fill: CHART.axisMuted, letterSpacing: '1px' }}>
-              PAST
+            <text x={380 * k} y="277" style={{ fontFamily: FONT.mono, fontWeight: 500, fontSize: 9, fill: CHART.axisMuted }}>
+              Past
             </text>
-            <text x={880 * k} y="277" style={{ fontFamily: FONT.mono, fontWeight: 500, fontSize: 9, fill: CHART.axisFuture, letterSpacing: '1px' }}>
-              NEXT {futureWeeks} WEEKS · PLANNED
+            <text x={880 * k} y="277" style={{ fontFamily: FONT.mono, fontWeight: 500, fontSize: 9, fill: CHART.axisFuture }}>
+              Next {futureWeeks} weeks, planned
             </text>
           </svg>
 

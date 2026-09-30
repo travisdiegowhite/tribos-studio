@@ -65,40 +65,40 @@ beforeEach(() => {
 describe('RidesMap — zone 03 views', () => {
   it('opens on LAST RIDE with the colored map and strip when the newest ride has streams', () => {
     renderZone();
-    expect(screen.getByRole('button', { name: 'LAST RIDE' }).getAttribute('aria-pressed')).toBe('true');
+    expect(screen.getByRole('button', { name: 'Last ride' }).getAttribute('aria-pressed')).toBe('true');
     expect(screen.getByTestId('map').getAttribute('data-style')).toContain('outdoors');
     expect(screen.getByTestId('ride-metric-strip')).toBeTruthy();
     expect(screen.getByText(/zones · FTP 250 W/)).toBeTruthy();
-    expect(screen.getByText(/FLAGSTAFF LOOP · /)).toBeTruthy();
-    expect(screen.queryByText('THIS WEEK', { selector: 'p' })).toBeNull();
+    expect(screen.getByText(/Flagstaff loop · /)).toBeTruthy();
+    expect(screen.queryByText('This week', { selector: 'p' })).toBeNull();
   });
 
-  it('switches to THIS WEEK: the dark overlay with the week chips', () => {
+  it('switches to This week: the week map with its chips', () => {
     renderZone();
-    fireEvent.click(screen.getByRole('button', { name: 'THIS WEEK' }));
-    expect(screen.getByTestId('map').getAttribute('data-style')).toContain('dark');
-    expect(screen.getByText('THIS WEEK', { selector: 'p' })).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: 'This week' }));
+    expect(screen.getByTestId('map').getAttribute('data-style')).toContain('light');
+    expect(screen.getByText('This week', { selector: 'p' })).toBeTruthy();
     expect(screen.getByText('120')).toBeTruthy();
     expect(screen.queryByTestId('ride-metric-strip')).toBeNull();
   });
 
   it('defaults to THIS WEEK for a polyline-only ride but still offers LAST RIDE', () => {
     renderZone({ latestRide: latest({ streams: null, hasStreamTrack: false }) });
-    expect(screen.getByRole('button', { name: 'THIS WEEK' }).getAttribute('aria-pressed')).toBe('true');
-    expect(screen.getByTestId('map').getAttribute('data-style')).toContain('dark');
-    fireEvent.click(screen.getByRole('button', { name: 'LAST RIDE' }));
+    expect(screen.getByRole('button', { name: 'This week' }).getAttribute('aria-pressed')).toBe('true');
+    expect(screen.getByTestId('map').getAttribute('data-style')).toContain('light');
+    fireEvent.click(screen.getByRole('button', { name: 'Last ride' }));
     expect(screen.getByTestId('map').getAttribute('data-style')).toContain('outdoors');
   });
 
   it('shows no toggle and the plain ride count without a drawable ride', () => {
     renderZone({ latestRide: null });
-    expect(screen.queryByRole('button', { name: 'LAST RIDE' })).toBeNull();
-    expect(screen.getByText('LAST 1 RIDES')).toBeTruthy();
+    expect(screen.queryByRole('button', { name: 'Last ride' })).toBeNull();
+    expect(screen.getByText('Last 1 rides')).toBeTruthy();
   });
 
   it('links FULL ANALYSIS to /train with the ride selected', () => {
     renderZone();
-    const link = screen.getByRole('link', { name: /FULL ANALYSIS/ });
+    const link = screen.getByRole('link', { name: /Full analysis/ });
     expect(link.getAttribute('href')).toBe('/train?tab=history&ride=r1');
     expect(fullAnalysisHref('a b')).toBe('/train?tab=history&ride=a%20b');
   });
@@ -117,7 +117,7 @@ describe('RidesMap — zone 03 views', () => {
 
   it('drops the strip when compact and opens on LAST RIDE when focused', () => {
     renderZone({ compact: true, focusOnMount: true, latestRide: latest({ streams: null, hasStreamTrack: false }) });
-    expect(screen.getByRole('button', { name: 'LAST RIDE' }).getAttribute('aria-pressed')).toBe('true');
+    expect(screen.getByRole('button', { name: 'Last ride' }).getAttribute('aria-pressed')).toBe('true');
     expect(screen.queryByTestId('ride-metric-strip')).toBeNull();
   });
 });

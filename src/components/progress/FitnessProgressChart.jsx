@@ -377,7 +377,7 @@ export default function FitnessProgressChart() {
       <Group justify="space-between" mb={14}>
         <Text
           style={{
-            fontFamily: "'Barlow Condensed', sans-serif",
+            fontFamily: "'Archivo', sans-serif",
             fontSize: 13,
             fontWeight: 700,
             letterSpacing: '2px',

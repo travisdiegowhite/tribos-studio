@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="theme-color" content="#F4F4F2" />
+    <meta name="theme-color" content="#FFFFFF" />
     <meta name="description" content="Smart cycling training app with intelligent route planning, training analytics, and seamless sync for Strava, Garmin, and Wahoo. Your complete bike training planner." />
     <meta name="keywords" content="cycling training app, smart cycling routes, bike training planner, cycling analytics, strava integration, garmin connect, wahoo sync" />
     <meta name="mobile-web-app-capable" content="yes" />
@@ -39,8 +39,10 @@
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 
-    <!-- Barlow Condensed (headings) + Barlow (body) + DM Mono (data) -->
-    <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700;800&family=Barlow:wght@400;500;600&family=DM+Mono:wght@300;400;500&display=swap" rel="stylesheet" />
+    <!-- Archivo (UI/body) + Courier Prime (numbers, logs, the coach) + Covered
+         By Your Grace (hand notes). Tribos Display — Archivo at 62% width, for
+         headings and stamps — is self-hosted: see src/styles/global.css. -->
+    <link href="https://fonts.googleapis.com/css2?family=Archivo:ital,wdth,wght@0,62..125,400..900;1,100,400..700&family=Courier+Prime:ital,wght@0,400;0,700;1,400&family=Covered+By+Your+Grace&display=swap" rel="stylesheet" />
 
     <!-- Mapbox GL CSS -->
     <link href="https://api.mapbox.com/mapbox-gl-js/v3.7.0/mapbox-gl.css" rel="stylesheet" />
@@ -50,7 +52,7 @@
       html, body {
         margin: 0;
         padding: 0;
-        background-color: #F4F4F2;
+        background-color: #FFFFFF;
       }
 
       #root {
@@ -64,7 +66,7 @@
         left: 0;
         right: 0;
         bottom: 0;
-        background-color: #F4F4F2;
+        background-color: #FFFFFF;
         display: flex;
         align-items: center;
         justify-content: center;
@@ -75,15 +77,15 @@
       .initial-loader-spinner {
         width: 40px;
         height: 40px;
-        border: 3px solid #DDDDD8;
-        border-top-color: #2A8C82;
+        border: 3px solid #C8C8F4;
+        border-top-color: #2B2BFF;
         border-radius: 50%;
         animation: spin 1s linear infinite;
       }
 
       .initial-loader-text {
-        color: #7A7970;
-        font-family: 'Barlow', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+        color: #5858B8;
+        font-family: 'Archivo', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
         font-size: 14px;
       }
 

@@ -181,7 +181,7 @@ export default function RaceDayGuide({
         <Group justify="space-between" align="center">
           <Group gap="xs">
             <Trophy size={18} weight="bold" style={{ color: tokens.colors.terracotta }} />
-            <Text size="sm" fw={700} style={{ color: 'var(--color-text-primary)', fontFamily: "'Barlow Condensed', sans-serif", textTransform: 'uppercase', letterSpacing: '1px' }}>
+            <Text size="sm" fw={700} style={{ color: 'var(--color-text-primary)', fontFamily: "'Archivo', sans-serif", textTransform: 'uppercase', letterSpacing: '1px' }}>
               Race Day Guide
             </Text>
           </Group>
@@ -202,20 +202,20 @@ export default function RaceDayGuide({
             <Group gap="lg">
               <Box style={{ textAlign: 'center' }}>
                 <Text size="xs" c="dimmed">Distance</Text>
-                <Text size="sm" fw={700} style={{ fontFamily: "'DM Mono', monospace" }}>{distLabel}</Text>
+                <Text size="sm" fw={700} style={{ fontFamily: "'Courier Prime', monospace" }}>{distLabel}</Text>
               </Box>
               <Box style={{ textAlign: 'center' }}>
                 <Text size="xs" c="dimmed">Elevation</Text>
-                <Text size="sm" fw={700} style={{ fontFamily: "'DM Mono', monospace" }}>{elevLabel} ↗</Text>
+                <Text size="sm" fw={700} style={{ fontFamily: "'Courier Prime', monospace" }}>{elevLabel} ↗</Text>
               </Box>
               <Box style={{ textAlign: 'center' }}>
                 <Text size="xs" c="dimmed">Race ETA</Text>
-                <Text size="sm" fw={700} style={{ fontFamily: "'DM Mono', monospace", color: tokens.colors.terracotta }}>{etaFormatted}</Text>
+                <Text size="sm" fw={700} style={{ fontFamily: "'Courier Prime', monospace", color: tokens.colors.terracotta }}>{etaFormatted}</Text>
               </Box>
               {targetFormatted && (
                 <Box style={{ textAlign: 'center' }}>
                   <Text size="xs" c="dimmed">Target</Text>
-                  <Text size="sm" fw={700} style={{ fontFamily: "'DM Mono', monospace", color: 'var(--color-teal)' }}>{targetFormatted}</Text>
+                  <Text size="sm" fw={700} style={{ fontFamily: "'Courier Prime', monospace", color: 'var(--color-teal)' }}>{targetFormatted}</Text>
                 </Box>
               )}
             </Group>
@@ -246,7 +246,7 @@ export default function RaceDayGuide({
                     borderLeft: `3px solid ${seg.color}`,
                   }}
                 >
-                  <Text size="xs" fw={600} style={{ fontFamily: "'DM Mono', monospace", minWidth: 45, color: seg.color }}>
+                  <Text size="xs" fw={600} style={{ fontFamily: "'Courier Prime', monospace", minWidth: 45, color: seg.color }}>
                     {seg.cumulativeKm}{useImperial ? 'mi' : 'km'}
                   </Text>
                   <Badge size="xs" variant="light" color={seg.type === 'climb' || seg.type === 'rise' ? 'orange' : seg.type === 'descent' || seg.type === 'downhill' ? 'teal' : 'gray'}>
@@ -255,7 +255,7 @@ export default function RaceDayGuide({
                   <Text size="xs" c="dimmed" style={{ flex: 1 }}>
                     {seg.cue}
                   </Text>
-                  <Text size="xs" style={{ fontFamily: "'DM Mono', monospace", color: 'var(--color-text-secondary)' }}>
+                  <Text size="xs" style={{ fontFamily: "'Courier Prime', monospace", color: 'var(--color-text-secondary)' }}>
                     {formatTime(seg.cumulativeSeconds)}
                   </Text>
                   {seg.fuelHere && (
@@ -411,7 +411,7 @@ function SectionHeader({ icon, title, expanded, onClick }) {
         <Group gap={6}>
           <Box style={{ color: tokens.colors.terracotta }}>{icon}</Box>
           <Text size="xs" fw={700} style={{
-            fontFamily: "'Barlow Condensed', sans-serif",
+            fontFamily: "'Archivo', sans-serif",
             textTransform: 'uppercase',
             letterSpacing: '1px',
             color: 'var(--color-text-primary)',
@@ -433,7 +433,7 @@ function NutritionTimelineItem({ time, description, icon }) {
     <Group gap="sm" align="flex-start" wrap="nowrap">
       <Box style={{ color: tokens.colors.terracotta, marginTop: 2 }}>{icon}</Box>
       <Box>
-        <Text size="xs" fw={700} style={{ fontFamily: "'DM Mono', monospace", color: tokens.colors.terracotta }}>
+        <Text size="xs" fw={700} style={{ fontFamily: "'Courier Prime', monospace", color: tokens.colors.terracotta }}>
           {time}
         </Text>
         <Text size="xs" c="dimmed">{description}</Text>
@@ -456,7 +456,7 @@ function LogisticsItem({ label, value, detail }) {
     >
       <Group justify="space-between" mb={2}>
         <Text size="xs" fw={600} style={{ color: 'var(--color-text-primary)' }}>{label}</Text>
-        <Text size="xs" fw={700} style={{ fontFamily: "'DM Mono', monospace", color: tokens.colors.terracotta }}>{value}</Text>
+        <Text size="xs" fw={700} style={{ fontFamily: "'Courier Prime', monospace", color: tokens.colors.terracotta }}>{value}</Text>
       </Group>
       <Text size="xs" c="dimmed">{detail}</Text>
     </Box>

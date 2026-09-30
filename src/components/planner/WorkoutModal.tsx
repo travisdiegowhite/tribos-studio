@@ -63,6 +63,7 @@ import { workoutStructureToCycling } from '../../utils/trainingPlanExport';
 import { fitStructureToDuration } from '../../lib/training/plannedWorkoutShape';
 import posthog from 'posthog-js';
 import { WORKOUT_LIBRARY, getWorkoutById } from '../../data/workoutLibrary';
+import { WORKOUT_CATEGORY_PALETTE as CATEGORY_COLORS } from '../../utils/trainingPlans';
 
 // ============================================================
 // TYPES
@@ -118,21 +119,7 @@ const ZONE_NAMES: Record<number | string, string> = {
   7: 'Sprint',
 };
 
-const CATEGORY_COLORS: Record<string, string> = {
-  recovery: 'green',
-  endurance: 'blue',
-  tempo: 'yellow',
-  sweet_spot: 'orange',
-  threshold: 'red',
-  vo2max: 'grape',
-  climbing: 'teal',
-  anaerobic: 'pink',
-  racing: 'red',
-  strength: 'cyan',
-  core: 'indigo',
-  flexibility: 'violet',
-  rest: 'gray',
-};
+// Category colours come from the one shared map in utils/trainingPlans.
 
 const CATEGORY_ICONS: Record<string, string> = {
   recovery: '🌿',

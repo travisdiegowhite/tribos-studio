@@ -82,7 +82,7 @@ function ForumMarkdown({ children, size = 'sm' }) {
           code: ({ children }) => (
             <code
               style={{
-                fontFamily: "'DM Mono', monospace",
+                fontFamily: "'Courier Prime', monospace",
                 fontSize: '0.9em',
                 padding: '0.1em 0.3em',
                 borderRadius: 2,

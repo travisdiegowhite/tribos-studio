@@ -152,7 +152,7 @@ export default function GetStartedGuide() {
             size="sm"
             fw={700}
             tt="uppercase"
-            ff="'DM Mono', monospace"
+            ff="'Courier Prime', monospace"
             lts={1}
             style={{ color: 'var(--color-text-primary)' }}
           >

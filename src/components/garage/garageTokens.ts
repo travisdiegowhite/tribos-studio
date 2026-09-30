@@ -9,9 +9,9 @@ import type { CSSProperties } from 'react';
 import type { WearLevel } from '../../lib/gear/wearSeries';
 
 export const FONT = {
-  display: "'Barlow Condensed', sans-serif",
-  body: "'Barlow', sans-serif",
-  mono: "'DM Mono', monospace",
+  display: "'Archivo', sans-serif",
+  body: "'Archivo', sans-serif",
+  mono: "'Courier Prime', monospace",
 };
 
 export const SURFACE_COLOR = {
@@ -38,7 +38,7 @@ export function levelSubtle(level: WearLevel): string {
   }
 }
 
-/** DM Mono 11px uppercase, 1px tracking — the app's data-label recipe. */
+/** Courier Prime 11px uppercase, 1px tracking — the app's data-label recipe. */
 export const monoLabel: CSSProperties = {
   fontFamily: FONT.mono,
   fontSize: 11,

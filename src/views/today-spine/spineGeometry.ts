@@ -17,6 +17,7 @@
  * TFI/AFI range rather than the prototype's hard-coded 40→66 CTL window, so a
  * rider whose fitness sits at 20 or 95 still gets a sensibly-framed curve.
  */
+import { CHART } from './tokens';
 
 export const SPINE_VIEW = { w: 1144, h: 288 } as const;
 
@@ -198,7 +199,7 @@ export function buildChart(
         x: xPast(i, pastDays, widthPx) - 4,
         y: BASELINE_Y - h,
         h,
-        fill: '#e9e6dd',
+        fill: CHART.tssBar,
         stroke: 'none',
         dash: '',
       });
@@ -214,7 +215,7 @@ export function buildChart(
         y: BASELINE_Y - h,
         h,
         fill: 'none',
-        stroke: '#e0c9a3',
+        stroke: CHART.plannedBarStroke,
         dash: '2 2',
       });
     }
