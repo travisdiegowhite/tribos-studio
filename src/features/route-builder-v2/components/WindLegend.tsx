@@ -16,9 +16,9 @@ export interface WindLegendProps {
 }
 
 const KEYS: Array<{ color: string; label: string }> = [
-  { color: '#C43C2A', label: 'Headwind' },
-  { color: '#2A8C82', label: 'Tailwind' },
-  { color: '#C49A0A', label: 'Crosswind' },
+  { color: '#FF3DB8', label: 'Headwind' },
+  { color: '#00C2FF', label: 'Tailwind' },
+  { color: '#94C700', label: 'Crosswind' },
 ];
 
 export function WindLegend({ weather, isMobile = false }: WindLegendProps) {

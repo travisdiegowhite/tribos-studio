@@ -40,15 +40,16 @@ import { useSegmentLibrary } from '../../hooks/useSegmentLibrary';
 import type { SegmentSummary, SegmentDetail, WorkoutMatch, SegmentProfile } from '../../hooks/useSegmentLibrary';
 import RouteAnalysisPanel from './RouteAnalysisPanel';
 import { ArrowsClockwise, Check, Clock, Heartbeat, Lightning, MapTrifold, Mountains, Path, PencilSimple, RoadHorizon, SquaresFour, Target, TrendUp, WarningCircle, X } from '@phosphor-icons/react';
+import { getBaseMapStyle } from '../../utils/mapPalette';
 
 const MAPBOX_TOKEN = (import.meta as any).env.VITE_MAPBOX_TOKEN;
 
 // Segment type colors (reused from RouteAnalysisPanel)
 const SEGMENT_COLORS: Record<string, string> = {
-  flat: '#2A8C82',
-  climb: '#C43C2A',
-  descent: '#2A8C82',
-  rolling: '#D4600A',
+  flat: '#00C2FF',
+  climb: '#FF3DB8',
+  descent: '#00C2FF',
+  rolling: '#94C700',
 };
 
 // Power zone display names and colors
@@ -380,7 +381,7 @@ function SegmentDetailModal({
             <Map
               initialViewState={initialViewState}
               style={{ width: '100%', height: '100%' }}
-              mapStyle="mapbox://styles/mapbox/dark-v11"
+              mapStyle={getBaseMapStyle()}
               mapboxAccessToken={MAPBOX_TOKEN}
               onLoad={() => setMapLoaded(true)}
             >
@@ -402,7 +403,7 @@ function SegmentDetailModal({
               {coords.length > 0 && (
                 <Marker longitude={coords[0][0]} latitude={coords[0][1]} anchor="bottom">
                   <div style={{
-                    backgroundColor: '#2A8C82',
+                    backgroundColor: '#2B2BFF',
                     color: 'white',
                     width: 24,
                     height: 24,
@@ -424,7 +425,7 @@ function SegmentDetailModal({
               {coords.length > 1 && (
                 <Marker longitude={coords[coords.length - 1][0]} latitude={coords[coords.length - 1][1]} anchor="bottom">
                   <div style={{
-                    backgroundColor: '#C43C2A',
+                    backgroundColor: '#0A0A14',
                     color: 'white',
                     width: 24,
                     height: 24,
@@ -893,7 +894,7 @@ function SegmentMapView({
                     cursor: 'pointer',
                     borderRadius: 0,
                     backgroundColor: selectedId === seg.id ? 'rgba(42, 140, 130, 0.12)' : 'transparent',
-                    borderLeft: selectedId === seg.id ? '3px solid #2A8C82' : '3px solid transparent',
+                    borderLeft: selectedId === seg.id ? '3px solid #2B2BFF' : '3px solid transparent',
                     transition: 'background-color 150ms',
                   }}
                 >
@@ -915,7 +916,7 @@ function SegmentMapView({
         <Map
           ref={mapRef}
           initialViewState={initialViewState}
-          mapStyle="mapbox://styles/mapbox/dark-v11"
+          mapStyle={getBaseMapStyle()}
           mapboxAccessToken={MAPBOX_TOKEN}
           interactiveLayerIds={['segments-base']}
           onMouseMove={handleMouseMove}

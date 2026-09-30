@@ -323,7 +323,7 @@ function RouteBuilder() {
   // Basemap style state (persisted to localStorage)
   const [mapStyleId, setMapStyleId] = useLocalStorage({
     key: 'tribos-route-builder-basemap',
-    defaultValue: 'dark',
+    defaultValue: 'light',
   });
   const currentMapStyle = BASEMAP_STYLES.find(s => s.id === mapStyleId)?.style || BASEMAP_STYLES[0].style;
 

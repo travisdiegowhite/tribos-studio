@@ -18,6 +18,7 @@ import { formatDistanceKm, formatElevationM, type UnitsPreference } from './unit
 import { HeroRecentRides } from './HeroRecentRides';
 import type { TodayRoute } from './types';
 import type { RecentRide } from '../today/shared/recentRides';
+import { getBaseMapStyle } from '../../utils/mapPalette';
 
 const MAPBOX_TOKEN = import.meta.env.VITE_MAPBOX_TOKEN;
 
@@ -101,7 +102,7 @@ export function HeroMap({ routePromise, recentRoutesPromise, units, height }: He
       <Map
         initialViewState={{ bounds, fitBoundsOptions: { padding: 36 } }}
         style={{ width: '100%', height: '100%' }}
-        mapStyle="mapbox://styles/mapbox/dark-v11"
+        mapStyle={getBaseMapStyle()}
         mapboxAccessToken={MAPBOX_TOKEN}
         interactive={false}
         attributionControl={false}

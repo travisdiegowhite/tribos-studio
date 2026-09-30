@@ -10,11 +10,11 @@ import { fetchOverpassElements } from './overpassClient';
 
 // Surface type colors (solid = paved, semi-transparent for visual distinction)
 export const SURFACE_COLORS = {
-  paved:   '#3D8B50', // teal
-  gravel:  '#D4820A', // gold
-  unpaved: '#C17C60', // terracotta
-  mixed:   '#B8A0C4', // mauve
-  unknown: '#9A9C90', // text muted
+  paved:   '#0A0A14', // ink
+  gravel:  '#94C700', // lime
+  unpaved: '#FF3DB8', // magenta
+  mixed:   '#00C2FF', // cyan
+  unknown: '#9C9CAA', // text muted
 };
 
 export const SURFACE_LABELS = {

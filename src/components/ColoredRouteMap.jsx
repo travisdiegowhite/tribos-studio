@@ -70,12 +70,12 @@ const COLOR_MODES = {
  * the top quarter, which made half of most rides read as two flat colors.
  */
 const EFFORT_RAMP = [
-  [0.0, '#2A8C82'],  // teal — easiest
-  [0.2, '#5E9C6A'],  // sage
-  [0.4, '#C49A0A'],  // gold
-  [0.6, '#D4600A'],  // orange
-  [0.8, '#C43C2A'],  // coral
-  [1.0, '#7A1810'],  // deep red — hardest
+  [0.0, '#00C2FF'],  // cyan — easiest
+  [0.2, '#2B2BFF'],  // ultramarine
+  [0.4, '#FF75CB'],  // light magenta
+  [0.6, '#FF3DB8'],  // magenta
+  [0.8, '#C4007A'],  // deep magenta
+  [1.0, '#0A0A14'],  // ink — hardest
 ];
 
 const COLOR_SCALES = {
@@ -83,11 +83,11 @@ const COLOR_SCALES = {
   power: EFFORT_RAMP,
   heartRate: EFFORT_RAMP,
   elevation: [
-    [0.0, '#2A8C82'],  // teal — low
-    [0.25, '#5E9C6A'], // sage
-    [0.5, '#C49A0A'],  // gold
-    [0.75, '#D4600A'], // orange
-    [1.0, '#C43C2A'],  // coral — high
+    [0.0, '#00C2FF'],  // cyan — low
+    [0.25, '#2B2BFF'], // ultramarine
+    [0.5, '#FF75CB'],  // light magenta
+    [0.75, '#FF3DB8'], // magenta
+    [1.0, '#C4007A'],  // deep magenta — high
   ],
 };
 
@@ -372,8 +372,8 @@ const FOG_3D = {
 
 // Under the colored segments: a dark outline so warm segment colors keep
 // their edge against the light basemap.
-const ROUTE_OUTLINE_COLOR = '#1f2a26';
-const ROUTE_COLOR = '#1f6f68';
+const ROUTE_OUTLINE_COLOR = '#FFFFFF';
+const ROUTE_COLOR = '#FF3DB8';
 
 const DEFAULT_MAP_HEIGHT = 440;
 // Room for the floating controls (top-right) and the stats card (bottom-left)

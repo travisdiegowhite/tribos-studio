@@ -6,6 +6,7 @@ import { tokens } from '../theme';
 import { ViewOnStravaLink, PoweredByStrava, STRAVA_ORANGE } from './StravaBranding';
 import { PoweredByGarmin } from './GarminBranding';
 import { ArrowSquareOut, MapPin, Path } from '@phosphor-icons/react';
+import { getBaseMapStyle } from '../utils/mapPalette';
 
 const MAPBOX_TOKEN = import.meta.env.VITE_MAPBOX_TOKEN;
 
@@ -78,11 +79,11 @@ function getActivityColor(activity, index) {
   // Color palette for rides - recent rides are brighter
   // Note: Must use hex colors, not CSS variables, as Mapbox GL doesn't support CSS variables
   const colors = [
-    '#2A8C82', // Teal - most recent
-    '#2A8C82', // Teal
-    '#D4600A', // Orange
-    '#7A7970', // Muted
-    '#C49A0A', // Gold
+    '#FF3DB8', // Magenta - most recent
+    '#FF3DB8', // Magenta
+    '#2B2BFF', // Accent blue
+    '#9C9CAA', // Muted
+    '#00C2FF', // Cyan
   ];
 
   return colors[index % colors.length];
@@ -309,7 +310,7 @@ const RecentRidesMap = ({ activities = [], loading = false, formatDist, formatEl
           <Map
             initialViewState={initialViewState}
             style={{ width: '100%', height: '100%' }}
-            mapStyle="mapbox://styles/mapbox/dark-v11"
+            mapStyle={getBaseMapStyle()}
             mapboxAccessToken={MAPBOX_TOKEN}
             onLoad={handleMapLoad}
             interactive={true}

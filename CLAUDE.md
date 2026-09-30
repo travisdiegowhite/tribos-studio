@@ -262,6 +262,7 @@ Mantine UI 8 with a custom theme in `src/theme.js` and tokens in `src/styles/glo
 - **Surfaces.** Page `#FFFFFF`, sheets `#F3F3F6`, rules `#D6D6E0`. Flat, `borderRadius: 0`, **no shadows** and no gradients (`variant="gradient"` renders flat). Hierarchy comes from rules and type.
 - **Dark mode.** The page is `#0A0A14` and text is white, with magenta, cyan and lime accents. Text on filled buttons and badges comes from `--tribos-on-{ink,signal,done,easy,highlight,stamp}` via the theme's `variantColorResolver`. Don't hard-code `#fff` on a colored fill.
 - **Moments.** Stamps, tape and marker notes are for moments only: one per app screen, two on the landing page.
+- **Maps.** The basemap follows the colour scheme (`getBaseMapStyle()` → Mapbox `light-v11` / `dark-v11`; the route builders default to Light). The route line is magenta with a white casing, and the selection highlight is lime. Start markers use the blue accent and end markers use ink. The colours live in `src/utils/mapPalette.ts`; route zone colours are in `src/components/ui/zoneColors.js`. Gradient, surface, traffic-stress and wind overlays use the same hues, with no orange or red.
 
 ## External Integrations
 

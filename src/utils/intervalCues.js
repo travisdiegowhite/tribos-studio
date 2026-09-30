@@ -840,18 +840,18 @@ function generateTempoSegments(coordinates, totalDistance, startDistance, target
 export function getZoneColor(zone) {
   // Handle null/undefined zones (off-bike workouts)
   if (zone === null || zone === undefined) {
-    return '#9ca3af'; // grey
+    return '#9C9CAA'; // grey
   }
 
   const colors = {
-    1: '#3D8B50',   // sage - recovery
-    2: '#3D8B50',   // teal - endurance
-    3: '#D4820A',   // gold - tempo
-    3.5: '#D4820A', // gold - sweet spot
-    4: '#3A5A8C',   // terracotta - threshold
-    5: '#3A5A8C',   // terracotta - VO2 max
-    6: '#6B7F94',   // mauve - anaerobic
-    7: '#8B6B5A',   // dusty rose - neuromuscular/sprint
+    1: '#00C2FF',   // cyan - recovery
+    2: '#2B2BFF',   // ultramarine - endurance
+    3: '#94C700',   // lime - tempo
+    3.5: '#E8C800', // yellow - sweet spot
+    4: '#FF3DB8',   // magenta - threshold
+    5: '#0A0A14',   // ink - VO2 max
+    6: '#C4007A',   // deep magenta - anaerobic
+    7: '#5E5E6E',   // graphite - neuromuscular/sprint
   };
 
   // Try exact match first
@@ -861,7 +861,7 @@ export function getZoneColor(zone) {
 
   // For other decimal zones, round to nearest and interpolate
   const roundedZone = Math.round(zone);
-  return colors[roundedZone] || '#9ca3af';
+  return colors[roundedZone] || '#9C9CAA';
 }
 
 /**
