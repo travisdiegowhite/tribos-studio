@@ -35,10 +35,10 @@ export function ElevationHoverMarker({ geometry }: ElevationHoverMarkerProps) {
         style={{
           width: 16,
           height: 16,
-          backgroundColor: '#D4600A',
+          backgroundColor: '#FF3DB8',
           borderRadius: '50%',
           border: '3px solid #FFFFFF',
-          boxShadow: '0 0 0 2px #D4600A, 0 2px 12px rgba(212, 96, 10, 0.6)',
+          boxShadow: '0 0 0 2px #FF3DB8, 0 2px 12px rgba(255, 61, 184, 0.6)',
           pointerEvents: 'none',
         }}
       />

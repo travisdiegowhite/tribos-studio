@@ -192,8 +192,8 @@ describe('alignEffort and lookups', () => {
   });
 
   it('cycles the palette', () => {
-    expect(repeatColor(0)).toBe('#2A8C82');
-    expect(repeatColor(8)).toBe('#2A8C82');
+    expect(repeatColor(0)).toBe('#FF3DB8');
+    expect(repeatColor(8)).toBe('#FF3DB8');
     expect(repeatColor(1)).not.toBe(repeatColor(2));
   });
 });

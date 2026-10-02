@@ -32,6 +32,7 @@ import 'mapbox-gl/dist/mapbox-gl.css';
 import { Box, Text } from '@mantine/core';
 import { X } from '@phosphor-icons/react';
 import { MAPBOX_TOKEN, BASEMAP_STYLES, WAYPOINT_COLORS } from '../../../components/RouteBuilder';
+import { MAP_PALETTE } from '../../../utils/mapPalette';
 import type { Coordinate } from '../../../types/geo';
 import type { MapController, UseMapInteractionReturn } from '../../../hooks/route-builder';
 import { nearestInsertIndex } from './lineInsert';
@@ -310,10 +311,9 @@ export function Map({
               id="rb2-route-glow"
               type="line"
               paint={{
-                'line-color': '#2A8C82',
-                'line-width': 18,
-                'line-opacity': 0.25,
-                'line-blur': 6,
+                'line-color': '#FFFFFF',
+                'line-width': 10,
+                'line-opacity': 0.9,
               }}
               layout={{ 'line-cap': 'round', 'line-join': 'round' }}
             />
@@ -322,7 +322,7 @@ export function Map({
             <Layer
               id="rb2-route-line"
               type="line"
-              paint={{ 'line-color': '#2A8C82', 'line-width': 5, 'line-opacity': 1 }}
+              paint={{ 'line-color': MAP_PALETTE.route, 'line-width': 5, 'line-opacity': 1 }}
               layout={{ 'line-cap': 'round', 'line-join': 'round' }}
             />
           )}
@@ -341,7 +341,7 @@ export function Map({
           <Layer
             id="rb2-clip-highlight-line"
             type="line"
-            paint={{ 'line-color': '#D4600A', 'line-width': 7, 'line-opacity': 0.95 }}
+            paint={{ 'line-color': MAP_PALETTE.highlight, 'line-width': 7, 'line-opacity': 0.95 }}
             layout={{ 'line-cap': 'round', 'line-join': 'round' }}
           />
         </Source>

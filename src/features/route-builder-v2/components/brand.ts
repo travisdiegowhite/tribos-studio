@@ -9,30 +9,32 @@
 
 export const RB2 = {
   // Surfaces
-  bgBase: '#F4F4F2',
-  bgSecondary: '#EBEBE8',
-  border: '#DDDDD8',
+  bgBase: '#F3F3F6',
+  bgSecondary: '#EAEAF0',
+  border: '#D6D6E0',
   cardBg: '#FFFFFF',
-  navDark: '#141410',
+  navDark: '#0A0A14',
 
   // Text
-  textPrimary: '#141410',
-  textSecondary: '#3D3C36',
-  textTertiary: '#7A7970',
+  textPrimary: '#0A0A14',
+  textSecondary: '#3C3C4A',
+  textTertiary: '#6A6A7A',
   // Muted grey for disabled icon buttons — visibly present (so controls don't
   // look "missing") but clearly inactive. Sits between border and textTertiary.
-  textDisabled: '#B5B4AC',
+  textDisabled: '#B8B8C4',
   textInverse: '#FFFFFF',
 
-  // Accents
-  teal: '#2A8C82',
-  tealHover: '#247770',
-  orange: '#D4600A',
-  gold: '#C49A0A',
-  coral: '#C43C2A',
+  // Accents — the site palette. The old key names stay so call sites don't
+  // change: "teal" is the primary action (ink), "orange" the effort magenta,
+  // "gold" the lime-family highlight, "coral" magenta text for warnings.
+  teal: '#0A0A14',
+  tealHover: '#2A2A36',
+  orange: '#FF3DB8',
+  gold: '#6E9600',
+  coral: '#C4007A',
 
   // Misc
-  focusRing: 'rgba(42, 140, 130, 0.4)',
+  focusRing: 'rgba(43, 43, 255, 0.4)',
   shadowCard: '0 1px 2px rgba(20, 20, 16, 0.06), 0 2px 8px rgba(20, 20, 16, 0.05)',
   shadowOverlay: '0 4px 12px rgba(20, 20, 16, 0.12), 0 8px 24px rgba(20, 20, 16, 0.08)',
 } as const;

@@ -27,9 +27,9 @@ export interface WindArrowsLayerProps {
   maxArrows?: number;
 }
 
-const HEAD = '#C43C2A'; // coral
-const TAIL = '#2A8C82'; // teal
-const CROSS = '#C49A0A'; // gold
+const HEAD = '#FF3DB8'; // magenta — headwind
+const TAIL = '#00C2FF'; // cyan — tailwind
+const CROSS = '#94C700'; // lime — crosswind
 
 const bearingFn = calculateBearing as (
   lat1: number,

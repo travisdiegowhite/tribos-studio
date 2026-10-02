@@ -452,7 +452,7 @@ export default function RouteBuilder2() {
   // Basemap choice — persisted so the map opens on the user's preferred style.
   const [basemapId, setBasemapId] = useLocalStorage<string>({
     key: 'rb2-basemap',
-    defaultValue: 'dark',
+    defaultValue: 'light',
   });
   const basemapStyle =
     BASEMAP_STYLES.find((s: { id: string }) => s.id === basemapId)?.style ??

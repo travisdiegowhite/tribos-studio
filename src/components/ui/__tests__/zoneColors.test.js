@@ -93,7 +93,7 @@ describe('ROUTE_ZONE_COLORS', () => {
     }
   });
 
-  it('ramps cool → hot with effort', () => {
+  it('uses the site palette, with the hardest efforts going dark', () => {
     const hue = (hex) => {
       const [r, g, b] = toRgb(hex).map((v) => v / 255);
       const max = Math.max(r, g, b);
@@ -102,11 +102,31 @@ describe('ROUTE_ZONE_COLORS', () => {
       const h = max === r ? ((g - b) / d) % 6 : max === g ? (b - r) / d + 2 : (r - g) / d + 4;
       return (h * 60 + 360) % 360;
     };
-    expect(hue(ROUTE_ZONE_COLORS[1])).toBeGreaterThan(180); // recovery — blue
-    expect(hue(ROUTE_ZONE_COLORS[2])).toBeGreaterThan(90); //  endurance — green
-    expect(hue(ROUTE_ZONE_COLORS[2])).toBeLessThan(180);
-    expect(hue(ROUTE_ZONE_COLORS[3])).toBeLessThan(70); //     tempo — yellow
-    expect(hue(ROUTE_ZONE_COLORS[4])).toBeLessThan(30); //     threshold — coral
+    const lightness = (hex) => toLab(toRgb(hex))[0];
+    expect(hue(ROUTE_ZONE_COLORS[1])).toBeGreaterThan(180); // recovery — cyan
+    expect(hue(ROUTE_ZONE_COLORS[1])).toBeLessThan(210);
+    expect(hue(ROUTE_ZONE_COLORS[2])).toBeGreaterThan(225); // endurance — ultramarine
+    expect(hue(ROUTE_ZONE_COLORS[2])).toBeLessThan(255);
+    expect(hue(ROUTE_ZONE_COLORS[3])).toBeGreaterThan(65); //  tempo — lime
+    expect(hue(ROUTE_ZONE_COLORS[3])).toBeLessThan(100);
+    expect(hue(ROUTE_ZONE_COLORS[4])).toBeGreaterThan(300); // threshold — magenta
+    expect(lightness(ROUTE_ZONE_COLORS[5])).toBeLessThan(15); // VO2max — ink
+  });
+
+  it('has no orange or red', () => {
+    const hue = (hex) => {
+      const [r, g, b] = toRgb(hex).map((v) => v / 255);
+      const max = Math.max(r, g, b);
+      const d = max - Math.min(r, g, b);
+      if (d === 0) return null;
+      const h = max === r ? ((g - b) / d) % 6 : max === g ? (b - r) / d + 2 : (r - g) / d + 4;
+      return (h * 60 + 360) % 360;
+    };
+    for (const c of [...Object.values(ROUTE_ZONE_COLORS), DEFAULT_ROUTE_COLOR]) {
+      const h = hue(c);
+      if (h === null) continue;
+      expect(h > 45 && h < 345, `${c} hue ${h.toFixed(0)} is orange/red`).toBe(true);
+    }
   });
 
   it('falls back to the default route color for an unknown zone', () => {

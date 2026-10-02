@@ -31,7 +31,9 @@ export const ZONE_COLORS = {
  * Parchment to Bone palette so they pop against the muted geological
  * basemap. The route is data, not brand.
  *
- * One distinct hue per zone, ramped cool → hot with effort. Earlier versions
+ * One distinct color per zone, in the site palette (cyan, ultramarine, lime,
+ * magenta), with the hardest efforts going dark (ink, deep magenta, graphite).
+ * No orange or red, so the map matches the rest of tribos. Earlier versions
  * bucketed neighbours onto a shared color (Z1 with Z2, Z3 with Z3.5, Z6 with
  * Z7), which read as a bug the moment the overlay legend listed those zones
  * as separate rows with identical swatches. Keep every value distinct.
@@ -44,14 +46,14 @@ export const ZONE_COLORS = {
  * ΔE ≈ 13 at band opacity, which the zoneColors test enforces.
  */
 export const ROUTE_ZONE_COLORS = {
-  1: '#3E9BE8', // Z1 Recovery — blue
-  2: '#21C46A', // Z2 Endurance — green
-  3: '#D9D22B', // Z3 Tempo — yellow
-  3.5: '#F2871B', // Z3.5 Sweet Spot — orange
-  4: '#FF6B4A', // Z4 Threshold — coral
-  5: '#F5259B', // Z5 VO2max — magenta
-  6: '#A93FFF', // Z6 Anaerobic — purple
-  7: '#6A35D9', // Z7 Neuromuscular — violet
+  1: '#00C2FF', // Z1 Recovery — cyan
+  2: '#2B2BFF', // Z2 Endurance — ultramarine
+  3: '#94C700', // Z3 Tempo — lime
+  3.5: '#E8C800', // Z3.5 Sweet Spot — yellow
+  4: '#FF3DB8', // Z4 Threshold — magenta
+  5: '#0A0A14', // Z5 VO2max — ink
+  6: '#C4007A', // Z6 Anaerobic — deep magenta
+  7: '#5E5E6E', // Z7 Neuromuscular — graphite
 };
 
 /**
@@ -59,7 +61,7 @@ export const ROUTE_ZONE_COLORS = {
  * Z4 Threshold — the two never appear together (the plain route line is
  * hidden while the interval overlay paints).
  */
-export const DEFAULT_ROUTE_COLOR = '#FF6B4A';
+export const DEFAULT_ROUTE_COLOR = '#FF3DB8';
 
 /**
  * Zone names for display

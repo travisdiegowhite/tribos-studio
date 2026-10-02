@@ -36,13 +36,13 @@ describe('WindArrowsLayer', () => {
     render(<WindArrowsLayer coordinates={eastRoute} windDegrees={90} windSpeed={20} />);
     const arrows = screen.getAllByTestId('rb2-wind-arrow');
     expect(arrows.length).toBeGreaterThan(0);
-    arrows.forEach((a) => expect(a.getAttribute('data-wind-color')).toBe('#C43C2A'));
+    arrows.forEach((a) => expect(a.getAttribute('data-wind-color')).toBe('#FF3DB8'));
   });
 
   it('colors a tail stretch as tailwind (teal)', () => {
     // Heading east with wind FROM the west (270°) → tailwind everywhere.
     render(<WindArrowsLayer coordinates={eastRoute} windDegrees={270} windSpeed={20} />);
     const arrows = screen.getAllByTestId('rb2-wind-arrow');
-    arrows.forEach((a) => expect(a.getAttribute('data-wind-color')).toBe('#2A8C82'));
+    arrows.forEach((a) => expect(a.getAttribute('data-wind-color')).toBe('#00C2FF'));
   });
 });

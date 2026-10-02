@@ -59,6 +59,7 @@ export const CYCLOSM_STYLE = {
 
 // Basemap style options
 export const BASEMAP_STYLES = [
+  { id: 'light', label: 'Light', style: 'mapbox://styles/mapbox/light-v11' },
   { id: 'dark', label: 'Dark', style: 'mapbox://styles/mapbox/dark-v11' },
   { id: 'outdoors', label: 'Outdoors', style: 'mapbox://styles/mapbox/outdoors-v12' },
   { id: 'satellite', label: 'Satellite', style: 'mapbox://styles/mapbox/satellite-streets-v12' },
@@ -77,7 +78,7 @@ export const ROUTE_PROFILES = [
 
 // Waypoint marker colors
 export const WAYPOINT_COLORS = {
-  start: '#2A8C82', // Teal
-  end: '#C43C2A',   // Coral
-  waypoint: '#2A8C82', // Teal
+  start: '#2B2BFF', // accent blue
+  end: '#0A0A14',   // ink
+  waypoint: '#0A0A14', // ink
 };

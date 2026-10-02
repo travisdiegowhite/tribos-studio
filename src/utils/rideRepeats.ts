@@ -85,14 +85,14 @@ export interface FindRepeatsOptions {
 
 /** Categorical colours for overlaid efforts — distinct from the zone palette. */
 export const REPEAT_PALETTE: readonly string[] = [
-  '#2A8C82', // teal
-  '#D4600A', // orange
-  '#4A6FA5', // slate blue
-  '#C49A0A', // gold
-  '#C43C2A', // coral
-  '#7B5EA7', // grape
-  '#5E9C6A', // moss
-  '#8C6A4A', // brown
+  '#FF3DB8', // magenta
+  '#2B2BFF', // ultramarine
+  '#00C2FF', // cyan
+  '#94C700', // lime
+  '#0A0A14', // ink
+  '#C4007A', // deep magenta
+  '#006DA8', // deep cyan
+  '#9C9CAA', // grey
 ];
 
 export function repeatColor(index: number): string {

@@ -121,7 +121,7 @@ export function TrafficStressLayer({
         id="rb2-stress-line"
         type="line"
         paint={{
-          'line-color': featureCollection ? ['get', 'color'] : '#9A9C90',
+          'line-color': featureCollection ? ['get', 'color'] : '#9C9CAA',
           'line-width': 5,
           'line-opacity': 0.9,
         }}

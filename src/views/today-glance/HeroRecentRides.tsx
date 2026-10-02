@@ -19,6 +19,7 @@ import {
   filterRidesNearLatest,
   type RecentRide,
 } from '../today/shared/recentRides';
+import { getBaseMapStyle } from '../../utils/mapPalette';
 
 const MAPBOX_TOKEN = import.meta.env.VITE_MAPBOX_TOKEN;
 
@@ -110,7 +111,7 @@ export function HeroRecentRides({ recentRoutesPromise, height }: HeroRecentRides
       <Map
         initialViewState={initialViewState}
         style={{ width: '100%', height: '100%' }}
-        mapStyle="mapbox://styles/mapbox/dark-v11"
+        mapStyle={getBaseMapStyle()}
         mapboxAccessToken={MAPBOX_TOKEN}
         interactive={false}
         attributionControl={false}

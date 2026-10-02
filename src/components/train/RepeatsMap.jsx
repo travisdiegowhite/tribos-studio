@@ -81,7 +81,7 @@ function RepeatsMap({ anchor, efforts, hoverX, height = 420 }) {
             id="repeats-anchor-line"
             type="line"
             layout={{ 'line-cap': 'round', 'line-join': 'round' }}
-            paint={{ 'line-color': '#1f2a26', 'line-width': 7, 'line-opacity': 0.22 }}
+            paint={{ 'line-color': '#0A0A14', 'line-width': 7, 'line-opacity': 0.22 }}
           />
         </Source>
 

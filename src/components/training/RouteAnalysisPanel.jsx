@@ -33,15 +33,16 @@ import { tokens } from '../../theme';
 import { useAuth } from '../../contexts/AuthContext';
 import { supabase } from '../../lib/supabase';
 import { ArrowsClockwise, Calendar, CaretRight, ChartBar, Check, Clock, DownloadSimple, Funnel, MapTrifold, Mountains, Path, Play, Target, TrendUp, WarningCircle, X } from '@phosphor-icons/react';
+import { getBaseMapStyle } from '../../utils/mapPalette';
 
 const MAPBOX_TOKEN = import.meta.env.VITE_MAPBOX_TOKEN;
 
 // Segment type colors for map
 const SEGMENT_COLORS = {
-  flat: '#2A8C82',      // Teal
-  climb: '#C43C2A',     // Coral
-  descent: '#2A8C82',   // Teal
-  rolling: '#D4600A',   // Orange
+  flat: '#00C2FF',      // Cyan
+  climb: '#FF3DB8',     // Magenta
+  descent: '#00C2FF',   // Cyan
+  rolling: '#94C700',   // Lime
   interval: '#7A7970',  // Muted
 };
 
@@ -270,7 +271,7 @@ function RouteMapModal({ opened, onClose, activity, analysis, workoutType }) {
           <Map
             initialViewState={initialViewState}
             style={{ width: '100%', height: '100%' }}
-            mapStyle="mapbox://styles/mapbox/dark-v11"
+            mapStyle={getBaseMapStyle()}
             mapboxAccessToken={MAPBOX_TOKEN}
             onLoad={() => setMapLoaded(true)}
           >
@@ -308,7 +309,7 @@ function RouteMapModal({ opened, onClose, activity, analysis, workoutType }) {
             {coords.length > 0 && (
               <Marker longitude={coords[0][0]} latitude={coords[0][1]} anchor="bottom">
                 <div style={{
-                  backgroundColor: '#2A8C82',
+                  backgroundColor: '#2B2BFF',
                   color: 'white',
                   width: 28,
                   height: 28,
@@ -330,7 +331,7 @@ function RouteMapModal({ opened, onClose, activity, analysis, workoutType }) {
             {coords.length > 1 && (
               <Marker longitude={coords[coords.length - 1][0]} latitude={coords[coords.length - 1][1]} anchor="bottom">
                 <div style={{
-                  backgroundColor: '#C43C2A',
+                  backgroundColor: '#0A0A14',
                   color: 'white',
                   width: 28,
                   height: 28,

@@ -28,11 +28,11 @@ export type Lts = 0 | 1 | 2 | 3 | 4;
 export type TrafficTolerance = 'low' | 'medium' | 'high';
 
 export const LTS_COLORS: Record<Lts, string> = {
-  1: '#3D8B50', // moss
-  2: '#507052', // sage
-  3: '#D4820A', // ochre
-  4: '#C17C60', // terracotta
-  0: '#9A9C90', // muted
+  1: '#00C2FF', // cyan — quiet
+  2: '#2B2BFF', // ultramarine
+  3: '#FF3DB8', // magenta
+  4: '#C4007A', // deep magenta — busiest
+  0: '#9C9CAA', // muted
 };
 
 export const LTS_LABELS: Record<Lts, string> = {

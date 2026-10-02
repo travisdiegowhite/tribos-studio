@@ -2,6 +2,7 @@ import { useMemo, useState, useCallback } from 'react';
 import { Box, Text, Group, Skeleton } from '@mantine/core';
 import Map, { Source, Layer } from 'react-map-gl';
 import 'mapbox-gl/dist/mapbox-gl.css';
+import { getBaseMapStyle, MAP_PALETTE } from '../../utils/mapPalette';
 
 const MAPBOX_TOKEN = import.meta.env.VITE_MAPBOX_TOKEN;
 
@@ -171,7 +172,7 @@ export default function RoutePreviewMap({
           fitBoundsOptions: { padding: 30 },
         }}
         style={{ width: '100%', height: '100%' }}
-        mapStyle="mapbox://styles/mapbox/dark-v11"
+        mapStyle={getBaseMapStyle()}
         mapboxAccessToken={MAPBOX_TOKEN}
         onLoad={handleLoad}
         interactive={interactive}
@@ -188,7 +189,7 @@ export default function RoutePreviewMap({
               id="route-preview-line"
               type="line"
               paint={{
-                'line-color': showTerrain ? '#9A9C90' : '#2A8C82',
+                'line-color': showTerrain ? MAP_PALETTE.muted : MAP_PALETTE.route,
                 'line-width': showTerrain ? 4 : 3,
                 'line-opacity': showTerrain ? 0.35 : 0.9,
               }}
