@@ -42,6 +42,8 @@ const MetricsCalculatorPage = lazy(() => import('./pages/MetricsCalculatorPage.t
 const RouteBuilder2 = lazy(() => import('./pages/RouteBuilder2.tsx'));
 const SharedRoute = lazy(() => import('./pages/SharedRoute.tsx'));
 const RouteBuilder2HarnessDev = lazy(() => import('./pages/RouteBuilder2HarnessDev.tsx'));
+// Owner-only parts and shop tool inventory; everything lives in src/features/shop/.
+const ShopRoutes = lazy(() => import('./features/shop/index.ts').then((m) => ({ default: m.ShopRoutes })));
 
 // Dev harness gate: only mount when running in dev. The route doesn't exist in
 // production builds.
@@ -435,6 +437,16 @@ function AppRoutes() {
         element={
           <ProtectedRoute>
             <InternalMetricsAudit />
+          </ProtectedRoute>
+        }
+      />
+
+      {/* ===== SHOP (owner-only) ===== */}
+      <Route
+        path="/shop/*"
+        element={
+          <ProtectedRoute>
+            <ShopRoutes />
           </ProtectedRoute>
         }
       />
