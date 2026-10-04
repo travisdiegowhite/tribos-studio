@@ -9,6 +9,7 @@
 // Garmin's own SDK supports every device they make by definition.
 
 import { computePerRideAnalytics } from './advancedRideAnalytics.js';
+import { computeRideDurability } from './durability.js';
 import { buildFitCoachContext } from './fitCoachContext.js';
 
 // @garmin/fitsdk is ESM-only ("type": "module" in its package.json).
@@ -222,6 +223,16 @@ export async function parseFitFile(fitBuffer) {
             });
           } catch (analyticsError) {
             console.warn('⚠️ Advanced ride analytics failed (non-fatal):', analyticsError.message);
+          }
+
+          // Durability (Coaching Bible Phase 4) needs time-aligned power and
+          // HR, which the filtered streams above are not — it resamples
+          // allDataPoints itself.
+          try {
+            const durability = computeRideDurability(allDataPoints);
+            if (durability) rideAnalytics = { ...(rideAnalytics || {}), durability };
+          } catch (durabilityError) {
+            console.warn('⚠️ Durability analytics failed (non-fatal):', durabilityError.message);
           }
 
           // Diagnostic: a FIT file that decoded successfully but produced

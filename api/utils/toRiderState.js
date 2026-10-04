@@ -34,6 +34,7 @@
 import { efTrendFrom, pdTrendFrom, ageFromProfile, weeksUntil, pickGoalRace } from './coachingBible.js';
 import { sportTypeOfActivity } from './sportTypes.js';
 import { buildReadiness } from './readiness.js';
+import { freshVsFatiguedDrop, latestDecoupling } from './durability.js';
 
 const DAY_MS = 86400000;
 
@@ -100,10 +101,10 @@ export async function fetchRiderStateData(supabase, userId, now = new Date()) {
       (e) => (console.error(`toRiderState ${label}:`, e.message), null)
     );
 
-  const [profile, coachSettings, load, activities, calendar, strength, checkins, hrv, strengthHistory] =
+  const [profile, coachSettings, load, activities, calendar, strength, checkins, hrv, strengthHistory, durabilityRides] =
     await Promise.all([
     safe(
-      supabase.from('user_profiles').select('date_of_birth, birth_year, metrics_age, ftp').eq('id', userId).maybeSingle(),
+      supabase.from('user_profiles').select('date_of_birth, birth_year, metrics_age, ftp, weight_kg').eq('id', userId).maybeSingle(),
       'user_profiles'
     ),
     safe(
@@ -188,11 +189,26 @@ export async function fetchRiderStateData(supabase, userId, now = new Date()) {
         .limit(400),
       'strength activities'
     ),
+    // Durability: 90 days of the per-ride block fitParser stores (Phase 4).
+    // Only the durability key, not the whole ride_analytics document.
+    safe(
+      supabase
+        .from('activities')
+        .select('start_date, type, sport_type, durability:ride_analytics->durability')
+        .eq('user_id', userId)
+        .is('duplicate_of', null)
+        .or('is_hidden.eq.false,is_hidden.is.null')
+        .not('ride_analytics->durability', 'is', null)
+        .gte('start_date', sinceIso(90))
+        .order('start_date', { ascending: false })
+        .limit(300),
+      'durability activities'
+    ),
   ]);
 
   return {
     profile, coachSettings, load, activities, calendar, strength, strengthHistory,
-    checkins,
+    checkins, durabilityRides,
     // health_metrics names the day metric_date; readiness.js speaks `date`.
     hrv: (hrv || []).map((r) => ({ date: r.metric_date, hrv_ms: r.hrv_ms })),
   };
@@ -376,6 +392,8 @@ export function toRiderState(data, { raceGoals = [], evidenceSignals = null, tod
   const loadRows = d.load || [];
   const latestLoad = loadRows.length > 0 ? loadRows[loadRows.length - 1] : null;
 
+  const durabilityRides = (d.durabilityRides || []).filter(isCyclingActivity);
+
   const goalRace = pickGoalRace(raceGoals);
   const counts = sessionCounts(d.calendar);
 
@@ -428,9 +446,11 @@ export function toRiderState(data, { raceGoals = [], evidenceSignals = null, tod
     // contract's "20–60 min" is 20 min here. Flagged rather than fudged.
     pdLongTrend: pdTrendFrom(evidenceSignals, ['p1200']),
 
-    // durability — Phase 4
-    freshVsFatiguedDrop5min: null,
-    longRideDecoupling: null,
+    // durability — Phase 4 (durability.js). Rides from FIT files only: the
+    // Strava path stores no per-second streams, so a Strava-only athlete
+    // stays null here and DUR-4 says so rather than guessing.
+    freshVsFatiguedDrop5min: freshVsFatiguedDrop(durabilityRides, d.profile?.weight_kg ?? null),
+    longRideDecoupling: latestDecoupling(durabilityRides, todayStr),
 
     // readiness
     ...buildReadiness({ checkins: d.checkins || [], hrv: d.hrv || [], todayStr }),
