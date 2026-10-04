@@ -272,7 +272,7 @@ export const SESSION_RULES = {
         "maunder2021",
         "barsumyan2025"
       ],
-      "decides": "Steady Z2 (65–75 % FTP) with a late 15–20 min block at 88–95 % after ≥ 20 kJ/kg. NOT YET APPLIED: freshVsFatiguedDrop5min is null until the bible's Phase 4 lands.",
+      "decides": "Steady Z2 (65–75 % FTP) with a late 15–20 min block at 88–95 % after ≥ 20 kJ/kg. NOT YET APPLIED: Phase 4 now fills freshVsFatiguedDrop5min, but the designer does not design endurance-family days yet; DUR-3 carries this prescription through the coach instead.",
       "params": {
         "late_effort_after_kj_per_kg": 20,
         "late_effort_min": [
