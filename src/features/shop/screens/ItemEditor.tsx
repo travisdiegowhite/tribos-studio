@@ -1,40 +1,22 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Link, useNavigate, useParams } from 'react-router-dom';
+import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import {
-  Autocomplete, Box, Button, FileButton, Group, Modal, NumberInput, SegmentedControl, Select, SimpleGrid, Stack, TagsInput, Text,
-  TextInput, Textarea,
+  ActionIcon, Autocomplete, Box, Button, FileButton, Group, Loader, Modal, NumberInput, SegmentedControl, Select, SimpleGrid, Stack,
+  TagsInput, Text, TextInput, Textarea,
 } from '@mantine/core';
 import { notifications } from '@mantine/notifications';
-import { Camera, Plus, X } from '@phosphor-icons/react';
-import { shopPath } from '../host';
+import { Barcode, Camera, Microphone, MicrophoneSlash, Plus, Sparkle, X } from '@phosphor-icons/react';
+import { shopPath, useShopUser } from '../host';
 import { useShop } from '../state/ShopProvider';
-import { useSignedPhotoUrls } from '../data/photos';
+import { useDictation } from '../state/useDictation';
+import { uploadPendingPhoto, useSignedPhotoUrls } from '../data/photos';
+import { identifyItem } from '../data/identify';
+import { parseScan } from '../logic/scan';
 import { treeSelectData } from '../logic/tree';
+import { Scanner } from '../ui/Scanner';
 import { CONDITIONS, type Condition, type ItemDraft, type ShopItem } from '../types';
+import { applyIdentified, blank, type FormState } from '../logic/itemForm';
 import { EmptyState, Eyebrow, ItemLabel, ShopPage, Thumb } from '../ui/primitives';
-
-interface FormState {
-  name: string;
-  category_id: string | null;
-  location_id: string | null;
-  quantity: number | string;
-  min_quantity: number | string;
-  brand: string;
-  model: string;
-  mpn: string;
-  upc: string;
-  condition: Condition;
-  compatibility: string[];
-  tags: string[];
-  unit_cost: number | string;
-  purchased_on: string;
-  notes: string;
-}
-
-const blank = (keep?: Partial<FormState>): FormState => ({
-  name: '', category_id: null, location_id: null, quantity: 1, min_quantity: '', brand: '', model: '', mpn: '', upc: '',
-  condition: 'new', compatibility: [], tags: [], unit_cost: '', purchased_on: '', notes: '', ...keep,
-});
 
 function fromItem(i: ShopItem): FormState {
   return {
@@ -66,11 +48,21 @@ function toDraft(f: FormState): ItemDraft {
 
 export default function ItemEditor() {
   const { displayId } = useParams();
+  const [params] = useSearchParams();
   const { items, categories, locations, saveItem, addLocation } = useShop();
+  const user = useShopUser();
   const navigate = useNavigate();
   const editing = displayId ? items.find((i) => i.display_id.toLowerCase() === displayId.toLowerCase()) : undefined;
 
-  const [form, setForm] = useState<FormState>(() => (editing ? fromItem(editing) : blank()));
+  // ?upc= arrives from the scanner's "Add it".
+  const [form, setForm] = useState<FormState>(() => (editing ? fromItem(editing) : blank({ upc: params.get('upc') || '' })));
+  // A photo already uploaded for identification; attached on save.
+  const [pendingPhoto, setPendingPhoto] = useState<{ path: string; file: File } | null>(null);
+  const [describe, setDescribe] = useState('');
+  const [identifying, setIdentifying] = useState(false);
+  const [identified, setIdentified] = useState<string | null>(null);
+  const [scanOpen, setScanOpen] = useState(false);
+  const [touched, setTouched] = useState({ quantity: false, condition: false });
   const [photo, setPhoto] = useState<File | null>(null);
   const [photoPreview, setPhotoPreview] = useState<string | null>(null);
   const [dropPhoto, setDropPhoto] = useState(false);
@@ -85,12 +77,54 @@ export default function ItemEditor() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [editingId]);
 
+  const previewFile = photo || pendingPhoto?.file || null;
   useEffect(() => {
-    if (!photo) { setPhotoPreview(null); return undefined; }
-    const url = URL.createObjectURL(photo);
+    if (!previewFile) { setPhotoPreview(null); return undefined; }
+    const url = URL.createObjectURL(previewFile);
     setPhotoPreview(url);
     return () => URL.revokeObjectURL(url);
-  }, [photo]);
+  }, [previewFile]);
+
+  const runIdentify = async (input: { transcript?: string; photoPath?: string }) => {
+    if (!input.transcript && !input.photoPath) return;
+    setIdentifying(true);
+    setIdentified(null);
+    try {
+      const draft = await identifyItem(input);
+      setForm((f) => applyIdentified(f, draft, {
+        quantity: !touched.quantity && !editing,
+        condition: !touched.condition && !editing,
+      }));
+      const filledFrom = input.photoPath && input.transcript ? 'photo and description' : input.photoPath ? 'photo' : 'description';
+      setIdentified(draft.name || draft.brand
+        ? `Filled from your ${filledFrom} (${draft.confidence} confidence) — check before saving.`
+        : `Couldn't tell what that is from the ${filledFrom}. Try a closer photo or say the name.`);
+    } catch (err) {
+      notifications.show({ title: 'Could not identify it', message: err instanceof Error ? err.message : 'Try again', color: 'red' });
+    } finally {
+      setIdentifying(false);
+    }
+  };
+
+  const snapAndIdentify = async (file: File | null) => {
+    if (!file || !user) return;
+    setIdentifying(true);
+    try {
+      const path = await uploadPendingPhoto(user.id, file);
+      setPendingPhoto({ path, file });
+      setPhoto(null);
+      setDropPhoto(false);
+      await runIdentify({ photoPath: path, transcript: describe.trim() || undefined });
+    } catch (err) {
+      notifications.show({ title: 'Photo not uploaded', message: err instanceof Error ? err.message : 'Try again', color: 'red' });
+      setIdentifying(false);
+    }
+  };
+
+  const dictation = useDictation((text) => {
+    setDescribe(text);
+    runIdentify({ transcript: text, photoPath: pendingPhoto?.path });
+  });
 
   const categoryOptions = useMemo(() => treeSelectData(categories), [categories]);
   const locationOptions = useMemo(() => treeSelectData(locations), [locations]);
@@ -113,7 +147,12 @@ export default function ItemEditor() {
     if (!canSave) return;
     setSaving(true);
     try {
-      const saved = await saveItem(toDraft(form), { id: editing?.id, photo, removePhoto: dropPhoto && !photo });
+      const saved = await saveItem(toDraft(form), {
+        id: editing?.id,
+        photo,
+        photoPath: photo ? null : pendingPhoto?.path ?? null,
+        removePhoto: dropPhoto && !photo && !pendingPhoto,
+      });
       notifications.show({
         title: editing ? `${saved.display_id} saved` : `Labelled ${saved.display_id}`,
         message: saved.name,
@@ -123,6 +162,9 @@ export default function ItemEditor() {
         // Batch entry: same shelf, same category, fresh everything else.
         setForm(blank({ category_id: form.category_id, location_id: form.location_id, condition: form.condition }));
         setPhoto(null);
+        setPendingPhoto(null);
+        setDescribe('');
+        setIdentified(null);
         setSaving(false);
         window.scrollTo({ top: 0 });
       } else {
@@ -151,17 +193,57 @@ export default function ItemEditor() {
                 </Box>
               : <Thumb size={96} />}
             <Stack gap={6}>
-              <FileButton onChange={(f) => { setPhoto(f); setDropPhoto(false); }} accept="image/jpeg,image/png,image/webp,image/*" capture="environment">
+              <FileButton onChange={(f) => { setPhoto(f); setPendingPhoto(null); setDropPhoto(false); }} accept="image/jpeg,image/png,image/webp,image/*" capture="environment">
                 {(props) => <Button {...props} variant="default" leftSection={<Camera size={16} />}>{shownPhoto ? 'Replace photo' : 'Add photo'}</Button>}
               </FileButton>
               {shownPhoto && (
                 <Button variant="subtle" color="gray" size="compact-sm" leftSection={<X size={14} />}
-                  onClick={() => { setPhoto(null); setDropPhoto(true); }}>
+                  onClick={() => { setPhoto(null); setPendingPhoto(null); setDropPhoto(true); }}>
                   Remove photo
                 </Button>
               )}
             </Stack>
           </Group>
+
+          <Box style={{ border: '1px solid var(--color-border)', padding: 12 }}>
+            <Eyebrow accent="var(--color-highlight)">{editing ? 'Fill the blanks' : 'Quick add'}</Eyebrow>
+            <Stack gap="xs">
+              <Text size="sm" style={{ color: 'var(--color-text-secondary)' }}>
+                Snap the part or its packaging, or say what it is (&ldquo;two Shimano 11-speed chains, drawer 2&rdquo;). Empty fields get filled in.
+              </Text>
+              <Group gap="xs" wrap="wrap">
+                <FileButton onChange={snapAndIdentify} accept="image/jpeg,image/png,image/webp,image/*" capture="environment" disabled={identifying}>
+                  {(props) => <Button {...props} leftSection={<Sparkle size={16} />} disabled={identifying}>Snap &amp; identify</Button>}
+                </FileButton>
+                {dictation.supported && (
+                  <Button variant={dictation.listening ? 'filled' : 'default'} color={dictation.listening ? 'pink' : undefined}
+                    leftSection={dictation.listening ? <MicrophoneSlash size={16} /> : <Microphone size={16} />}
+                    onClick={dictation.listening ? dictation.stop : dictation.start} disabled={identifying}>
+                    {dictation.listening ? 'Stop' : 'Say it'}
+                  </Button>
+                )}
+              </Group>
+              <Group gap="xs" wrap="nowrap" align="flex-start">
+                <TextInput
+                  style={{ flex: 1 }}
+                  placeholder={dictation.supported ? 'Or type it…' : 'Describe it…'}
+                  value={dictation.listening ? dictation.interim : describe}
+                  onChange={(e) => setDescribe(e.currentTarget.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') { e.preventDefault(); runIdentify({ transcript: describe.trim(), photoPath: pendingPhoto?.path }); }
+                  }}
+                  readOnly={dictation.listening}
+                />
+                <Button variant="default" disabled={identifying || !describe.trim()}
+                  onClick={() => runIdentify({ transcript: describe.trim(), photoPath: pendingPhoto?.path })}>
+                  Fill in
+                </Button>
+              </Group>
+              {identifying && <Group gap={6}><Loader size="xs" color="dark" /><Text size="xs">Identifying…</Text></Group>}
+              {!identifying && identified && <Text size="xs" style={{ color: 'var(--color-text-secondary)' }}>{identified}</Text>}
+              {dictation.error && <Text size="xs" style={{ color: 'var(--color-signal-text)' }}>{dictation.error}</Text>}
+            </Stack>
+          </Box>
 
           <Box>
             <Eyebrow>What it is</Eyebrow>
@@ -178,11 +260,17 @@ export default function ItemEditor() {
                 <TextInput label="Part number (MPN)" value={form.mpn} onChange={(e) => set('mpn', e.currentTarget.value)}
                   styles={{ input: { fontFamily: 'var(--font-mono)' } }} />
                 <TextInput label="UPC / EAN" inputMode="numeric" value={form.upc} onChange={(e) => set('upc', e.currentTarget.value)}
-                  styles={{ input: { fontFamily: 'var(--font-mono)' } }} />
+                  styles={{ input: { fontFamily: 'var(--font-mono)' } }}
+                  rightSection={
+                    <ActionIcon variant="subtle" color="gray" aria-label="Scan barcode" onClick={() => setScanOpen(true)}>
+                      <Barcode size={18} />
+                    </ActionIcon>
+                  } />
               </SimpleGrid>
               <Box>
                 <Text size="sm" fw={500} mb={4}>Condition</Text>
-                <SegmentedControl fullWidth value={form.condition} onChange={(v) => set('condition', v as Condition)}
+                <SegmentedControl fullWidth value={form.condition}
+                  onChange={(v) => { set('condition', v as Condition); setTouched((t) => ({ ...t, condition: true })); }}
                   data={CONDITIONS.map((c) => ({ value: c, label: c[0].toUpperCase() + c.slice(1) }))} />
               </Box>
             </Stack>
@@ -198,7 +286,8 @@ export default function ItemEditor() {
                 <Button variant="default" leftSection={<Plus size={14} />} onClick={() => setNewLocOpen(true)}>New</Button>
               </Group>
               <SimpleGrid cols={2} spacing="sm">
-                <NumberInput label="Quantity" min={0} allowDecimal={false} value={form.quantity} onChange={(v) => set('quantity', v)} />
+                <NumberInput label="Quantity" min={0} allowDecimal={false} value={form.quantity}
+                  onChange={(v) => { set('quantity', v); setTouched((t) => ({ ...t, quantity: true })); }} />
                 <NumberInput label="Alert at or below" min={0} allowDecimal={false} placeholder="No alert"
                   value={form.min_quantity} onChange={(v) => set('min_quantity', v)} />
               </SimpleGrid>
@@ -235,6 +324,17 @@ export default function ItemEditor() {
           </Group>
         </Stack>
       </form>
+
+      <Modal opened={scanOpen} onClose={() => setScanOpen(false)} title="Scan the barcode" centered size="lg">
+        {scanOpen && (
+          <Scanner onResult={(raw) => {
+            const r = parseScan(raw);
+            if (r.kind === 'barcode') set('upc', r.code);
+            else notifications.show({ title: 'Not a product barcode', message: raw, color: 'gray' });
+            setScanOpen(false);
+          }} />
+        )}
+      </Modal>
 
       <NewLocationModal
         opened={newLocOpen}

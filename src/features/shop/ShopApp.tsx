@@ -13,6 +13,8 @@ import ItemScreen from './screens/ItemScreen';
 import ItemEditor from './screens/ItemEditor';
 import SetupScreen from './screens/SetupScreen';
 import TransferScreen from './screens/TransferScreen';
+import ScanScreen from './screens/ScanScreen';
+import LabelsScreen from './screens/LabelsScreen';
 import { ShopPage } from './ui/primitives';
 
 export default function ShopApp() {
@@ -51,6 +53,8 @@ function ShopRoutes() {
       <Route path="items/:displayId/edit" element={<ItemEditor />} />
       <Route path="setup" element={<SetupScreen />} />
       <Route path="transfer" element={<TransferScreen />} />
+      <Route path="scan" element={<ScanScreen />} />
+      <Route path="labels" element={<LabelsScreen />} />
       <Route path="*" element={<Navigate to={shopPath()} replace />} />
     </Routes>
   );

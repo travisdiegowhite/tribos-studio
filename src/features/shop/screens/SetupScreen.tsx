@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useState } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import { ActionIcon, Box, Button, Group, Modal, Stack, Tabs, Text, TextInput } from '@mantine/core';
 import { notifications } from '@mantine/notifications';
-import { PencilSimple, Plus, Trash } from '@phosphor-icons/react';
+import { PencilSimple, Plus, Printer, Trash } from '@phosphor-icons/react';
+import { shopPath } from '../host';
 import { useShop } from '../state/ShopProvider';
 import { flattenTree, subtreeIds, type TreeNode } from '../logic/tree';
 import { suggestPrefix } from '../logic/search';
@@ -60,7 +61,15 @@ export default function SetupScreen() {
             <Text size="sm" c="dimmed">
               Nest them as deep as you like: Garage › Tool cabinet › Drawer 2. {unplaced > 0 && `${unplaced} item${unplaced === 1 ? '' : 's'} not placed yet.`}
             </Text>
-            <Group><Button leftSection={<Plus size={16} />} onClick={() => setDialog({ kind: 'add', tree: 'location', parent: null })}>Add location</Button></Group>
+            <Group gap="xs">
+              <Button leftSection={<Plus size={16} />} onClick={() => setDialog({ kind: 'add', tree: 'location', parent: null })}>Add location</Button>
+              {shop.locations.length > 0 && (
+                <Button component={Link} to={shopPath(`labels?locs=${shop.locations.map((l) => l.id).join(',')}`)} variant="default"
+                  leftSection={<Printer size={16} />}>
+                  Shelf labels
+                </Button>
+              )}
+            </Group>
             {shop.locations.length === 0 ? (
               <EmptyState title="No locations yet">
                 <Text size="sm">Start with the rooms (Garage, Basement), then add shelves and bins inside them.</Text>

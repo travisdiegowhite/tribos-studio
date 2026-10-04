@@ -26,6 +26,28 @@ export function shopPath(sub = ''): string {
   return clean ? `${SHOP_BASE_PATH}/${clean}` : SHOP_BASE_PATH;
 }
 
+/**
+ * Absolute URL for a shop page, as printed into QR labels. A phone's own
+ * camera opens it straight to the item. Pin VITE_SHOP_PUBLIC_ORIGIN so labels
+ * printed from a preview deploy still point at production; the in-app scanner
+ * reads the label out of any origin, so a future domain change only affects
+ * native-camera scans of old labels.
+ */
+export function shopPublicUrl(sub = ''): string {
+  const origin = ((import.meta.env.VITE_SHOP_PUBLIC_ORIGIN as string | undefined) || window.location.origin).replace(/\/+$/, '');
+  return `${origin}${shopPath(sub)}`;
+}
+
+/** Bearer header for the shop's server endpoints (/api/shop-*). */
+export async function shopAuthHeaders(): Promise<Record<string, string>> {
+  const { data } = await supabase.auth.getSession();
+  const token = data.session?.access_token;
+  return token ? { Authorization: `Bearer ${token}` } : {};
+}
+
+/** Where the shop's server endpoints live. */
+export const SHOP_API_BASE = '/api';
+
 /** Where a visitor without access, or the "back" arrow, lands. */
 export const SHOP_EXIT_PATH = '/garage';
 
