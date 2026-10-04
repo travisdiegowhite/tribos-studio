@@ -30,7 +30,8 @@ import LifecycleOverlays from './LifecycleOverlays.jsx';
 import { useGear } from '../hooks/useGear.ts';
 import { useActivation } from '../hooks/useActivation.ts';
 import { formatDistance } from '../utils/units';
-import { ListChecks } from '@phosphor-icons/react';
+import { ListChecks, Wrench } from '@phosphor-icons/react';
+import { isShopOwner } from '../features/shop/owner.ts';
 
 // Primary navigation: TODAY · RIDE · TRAIN · PROGRESS · GARAGE.
 // GARAGE is the gear tracker (bikes, parts, wear); /gear redirects to it.
@@ -229,6 +230,7 @@ function AppShell({ children, fullWidth = false, hideNav = false }) {
                     navigate={navigate}
                     showChecklist={guideIsDismissed && !guideIsComplete}
                     onUndismissGuide={undismissGuide}
+                    showShop={isShopOwner(user?.email)}
                   />
                 </Group>
               ) : (
@@ -392,8 +394,8 @@ function NotificationBell({ gearAlerts = [], onDismissAlert, navigate }) {
   );
 }
 
-// Avatar with dropdown menu (Settings, Gear, Cafe, Dark mode, Sign out)
-function AvatarDropdown({ initials, colorScheme, toggleColorScheme, onSignOut, navigate, showChecklist, onUndismissGuide }) {
+// Avatar with dropdown menu (Settings, Cafe, Shop for its owner, Dark mode, Sign out)
+function AvatarDropdown({ initials, colorScheme, toggleColorScheme, onSignOut, navigate, showChecklist, onUndismissGuide, showShop }) {
   return (
     <Menu shadow="md" width={220} position="bottom-end" offset={8}>
       <Menu.Target>
@@ -437,6 +439,14 @@ function AvatarDropdown({ initials, colorScheme, toggleColorScheme, onSignOut, n
         >
           Cafe
         </Menu.Item>
+        {showShop && (
+          <Menu.Item
+            leftSection={<Wrench size={18} />}
+            onClick={() => navigate('/shop')}
+          >
+            Shop
+          </Menu.Item>
+        )}
         {showChecklist && (
           <Menu.Item
             leftSection={<ListChecks size={18} />}
