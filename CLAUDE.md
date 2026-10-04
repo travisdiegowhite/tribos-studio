@@ -494,6 +494,23 @@ is the deploy and operations guide.
   the `supabaseAdmin` singleton and one row in `system_health_checks`
   (migration 126, apply by hand; the monitor is fail-soft without it).
 
+### Shop inventory — a self-contained feature (2026-10)
+
+`/garage/shop` is a parts-and-tools inventory, owner-only for now. It is
+deliberately built so it can be spun off as its own app — see
+`docs/shop-inventory.md`.
+
+- **All code lives in `src/features/shop/`.** Only `host.tsx` may import tribos
+  code (Supabase client, auth, `AppShell`, the owner check). `boundary.test.ts`
+  fails on any other import that leaves the folder, or on an unlisted npm
+  package. Route new tribos dependencies through `host.tsx`; do not widen the
+  test.
+- **Tables are `shop_*` (migration 127), with no foreign key to any tribos
+  table.** The future Garage link-up (install a spare on a bike) goes in tribos
+  code outside the folder and stores a loose reference, never an FK.
+- `display_id` labels are printed on stickers: never relabel an item, and never
+  reuse a number.
+
 ### Garmin sync — dual stack, FROZEN (2026-07-14)
 
 Garmin sync works in production and the decision is to **not touch it**. The

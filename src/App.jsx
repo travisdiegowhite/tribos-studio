@@ -34,6 +34,8 @@ const Settings = lazy(() => import('./pages/Settings.jsx'));
 const CommunityPage = lazy(() => import('./pages/CommunityPage.jsx'));
 const GaragePage = lazy(() => import('./pages/GaragePage.tsx'));
 const BikeDetailPage = lazy(() => import('./pages/BikeDetailPage.tsx'));
+// Shop inventory (parts + shop tools) — self-contained feature, owner-only; see docs/shop-inventory.md
+const ShopApp = lazy(() => import('./features/shop/ShopApp.tsx'));
 const Admin = lazy(() => import('./pages/Admin.jsx'));
 const InternalMetricsAudit = lazy(() => import('./pages/InternalMetricsAudit.tsx'));
 const MyRoutes = lazy(() => import('./pages/MyRoutes.jsx'));
@@ -373,6 +375,15 @@ function AppRoutes() {
         element={
           <ProtectedRoute>
             <GaragePage />
+          </ProtectedRoute>
+        }
+      />
+      {/* Static segment outranks /garage/:gearId, so this never collides with a bike id. */}
+      <Route
+        path="/garage/shop/*"
+        element={
+          <ProtectedRoute>
+            <ShopApp />
           </ProtectedRoute>
         }
       />

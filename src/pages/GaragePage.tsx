@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Box, Button, Collapse, Container, Group, SimpleGrid, Stack, Text, Title, UnstyledButton } from '@mantine/core';
 import { notifications } from '@mantine/notifications';
-import { Bicycle, CaretDown, CaretRight, Plus } from '@phosphor-icons/react';
+import { Bicycle, CaretDown, CaretRight, Plus, Toolbox } from '@phosphor-icons/react';
 import { useAuth } from '../contexts/AuthContext.jsx';
 import { useUserPreferences } from '../contexts/UserPreferencesContext.jsx';
 import { useGear, type GearItem } from '../hooks/useGear';
@@ -13,6 +13,7 @@ import { BikeCard } from '../components/garage/BikeCard';
 import { Eyebrow } from '../components/garage/Eyebrow';
 import { FONT } from '../components/garage/garageTokens';
 import { trackGear } from '../utils/gearTelemetry';
+import { canUseShop, shopPath } from '../features/shop/host';
 
 /**
  * /garage — the bikes, what's on them, and what's due.
@@ -58,7 +59,12 @@ export default function GaragePage() {
               <Title order={1} style={{ color: 'var(--color-text-primary)' }}>Garage</Title>
               <Text style={{ color: 'var(--color-text-secondary)' }}>Your bikes, what&rsquo;s on them, and what&rsquo;s due.</Text>
             </Box>
-            <Button leftSection={<Plus size={16} />} onClick={() => setAddOpen(true)}>Add a bike</Button>
+            <Group gap="xs">
+              {canUseShop(user?.email) && (
+                <Button variant="default" leftSection={<Toolbox size={16} />} onClick={() => navigate(shopPath())}>Shop</Button>
+              )}
+              <Button leftSection={<Plus size={16} />} onClick={() => setAddOpen(true)}>Add a bike</Button>
+            </Group>
           </Group>
 
           <AddGearModal opened={addOpen} onClose={() => setAddOpen(false)} onSave={handleCreate} />
