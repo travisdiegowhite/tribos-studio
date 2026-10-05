@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { ActionIcon, Box, Button, Group, Modal, SimpleGrid, Stack, Text } from '@mantine/core';
 import { notifications } from '@mantine/notifications';
-import { Minus, PencilSimple, Plus, Trash } from '@phosphor-icons/react';
+import { Minus, PencilSimple, Plus, Printer, Trash } from '@phosphor-icons/react';
 import { shopPath } from '../host';
 import { useShop } from '../state/ShopProvider';
 import { fetchItemEvents } from '../data/shopApi';
@@ -72,9 +72,14 @@ export default function ItemScreen() {
       title={item.name}
       subtitle={<ItemLabel id={item.display_id} size="md" />}
       actions={
-        <Button component={Link} to={shopPath(`items/${item.display_id}/edit`)} variant="default" leftSection={<PencilSimple size={16} />}>
-          Edit
-        </Button>
+        <>
+          <Button component={Link} to={shopPath(`labels?items=${item.display_id}`)} variant="default" leftSection={<Printer size={16} />}>
+            Label
+          </Button>
+          <Button component={Link} to={shopPath(`items/${item.display_id}/edit`)} variant="default" leftSection={<PencilSimple size={16} />}>
+            Edit
+          </Button>
+        </>
       }
     >
       <Group align="flex-start" gap="lg" wrap="wrap">

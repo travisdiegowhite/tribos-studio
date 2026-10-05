@@ -18,7 +18,10 @@ interface ShopState {
   locations: ShopLocation[];
   items: ShopItem[];
   reload: () => Promise<void>;
-  saveItem: (draft: ItemDraft, opts?: { id?: string; photo?: File | null; removePhoto?: boolean }) => Promise<ShopItem>;
+  saveItem: (
+    draft: ItemDraft,
+    opts?: { id?: string; photo?: File | null; photoPath?: string | null; removePhoto?: boolean },
+  ) => Promise<ShopItem>;
   setQuantity: (item: ShopItem, quantity: number) => Promise<void>;
   deleteItem: (item: ShopItem) => Promise<void>;
   addCategory: (name: string, parentId: string | null, prefix: string | null) => Promise<ShopCategory>;
@@ -77,11 +80,12 @@ export function ShopProvider({ children }: { children: ReactNode }) {
     const uid = requireUser();
     let item = opts.id ? await api.updateItem(opts.id, draft) : await api.createItem(uid, draft);
     const oldPhoto = item.photo_path;
-    if (opts.photo) {
-      // The path needs the item id, so the photo goes up after the row exists.
-      const path = await uploadItemPhoto(uid, item.id, opts.photo);
+    if (opts.photo || opts.photoPath) {
+      // A fresh file goes up after the row exists (its path carries the item
+      // id); a photo already uploaded for identification is just attached.
+      const path = opts.photoPath || await uploadItemPhoto(uid, item.id, opts.photo!);
       item = await api.updateItem(item.id, { photo_path: path });
-      if (oldPhoto) await removePhoto(oldPhoto);
+      if (oldPhoto && oldPhoto !== path) await removePhoto(oldPhoto);
     } else if (opts.removePhoto && oldPhoto) {
       item = await api.updateItem(item.id, { photo_path: null });
       await removePhoto(oldPhoto);

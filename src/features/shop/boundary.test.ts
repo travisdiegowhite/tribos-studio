@@ -21,6 +21,8 @@ const ALLOWED_PACKAGES = [
   '@mantine/notifications',
   '@phosphor-icons/react',
   '@supabase/supabase-js',
+  'html5-qrcode', // camera scanning (loaded on demand)
+  'qrcode', // QR label generation
   'vitest',
   'node:fs',
   'node:path',

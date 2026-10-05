@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { Box, Button, Chip, Group, Menu, Select, SimpleGrid, Stack, Text, TextInput, UnstyledButton } from '@mantine/core';
-import { DotsThreeVertical, FileArrowUp, MagnifyingGlass, MapPin, Plus, X } from '@phosphor-icons/react';
+import { DotsThreeVertical, FileArrowUp, MagnifyingGlass, MapPin, Plus, Printer, Scan, X } from '@phosphor-icons/react';
 import { shopPath } from '../host';
 import { useShop } from '../state/ShopProvider';
 import { filterItems, inventoryStats, isLowStock, type SortKey } from '../logic/search';
@@ -69,6 +69,7 @@ export default function ShopHome() {
       back={shopHomeBack}
       actions={
         <>
+          <Button component={Link} to={shopPath('scan')} variant="default" leftSection={<Scan size={16} />}>Scan</Button>
           <Button component={Link} to={shopPath('items/new')} leftSection={<Plus size={16} />}>Add item</Button>
           <Menu position="bottom-end" withinPortal>
             <Menu.Target>
@@ -76,6 +77,7 @@ export default function ShopHome() {
             </Menu.Target>
             <Menu.Dropdown>
               <Menu.Item component={Link} to={shopPath('setup')} leftSection={<MapPin size={16} />}>Locations &amp; categories</Menu.Item>
+              <Menu.Item component={Link} to={shopPath('labels')} leftSection={<Printer size={16} />}>Print labels</Menu.Item>
               <Menu.Item component={Link} to={shopPath('transfer')} leftSection={<FileArrowUp size={16} />}>Import / export CSV</Menu.Item>
             </Menu.Dropdown>
           </Menu>

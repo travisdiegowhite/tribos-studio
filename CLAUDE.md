@@ -509,7 +509,10 @@ deliberately built so it can be spun off as its own app — see
   table.** The future Garage link-up (install a spare on a bike) goes in tribos
   code outside the folder and stores a loose reference, never an FK.
 - `display_id` labels are printed on stickers: never relabel an item, and never
-  reuse a number.
+  reuse a number. QR labels encode `…/garage/shop/items/<label>` and
+  `…/garage/shop/?loc=<id>` — keep those routes working, or old stickers break.
+- The only server code is `api/shop-identify.js` + `api/utils/shop/`
+  (owner-gated Claude identify; writes nothing).
 
 ### Garmin sync — dual stack, FROZEN (2026-07-14)
 

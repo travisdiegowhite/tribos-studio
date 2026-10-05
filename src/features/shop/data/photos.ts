@@ -32,6 +32,19 @@ export async function uploadItemPhoto(userId: string, itemId: string, file: File
   return path;
 }
 
+/**
+ * Upload before the item exists (snap-and-identify): the photo goes under
+ * {user}/pending/ and the editor attaches that path on save. A cancelled
+ * draft leaves an orphan object; cheap, and never visible to anyone else.
+ */
+export async function uploadPendingPhoto(userId: string, file: File): Promise<string> {
+  const blob = await shrinkPhoto(file);
+  const path = `${userId}/pending/${Date.now()}.jpg`;
+  const { error } = await supabase.storage.from(BUCKET).upload(path, blob, { contentType: 'image/jpeg', upsert: false });
+  if (error) throw new Error(`Photo upload failed: ${error.message}`);
+  return path;
+}
+
 export async function removePhoto(path: string): Promise<void> {
   // Best effort: an orphaned object costs pennies, a thrown error here would
   // block the delete the user actually asked for.
