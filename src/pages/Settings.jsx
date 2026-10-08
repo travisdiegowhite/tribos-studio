@@ -563,7 +563,7 @@ function Settings() {
         title: next ? 'Strava auto-import on' : 'Strava auto-import off',
         message: next
           ? 'New Strava activities will sync to your library.'
-          : 'New Strava activities will be ignored. Garmin/Wahoo stays primary. Existing activities are not affected.',
+          : 'Only virtual rides (Zwift etc.) will import from Strava. Garmin/Wahoo stays primary. Existing activities are not affected.',
         color: next ? 'teal' : 'gray',
       });
     } catch (err) {
@@ -2001,7 +2001,7 @@ function Settings() {
                       </Text>
                       <Text size="sm" style={{ color: 'var(--color-text-secondary)' }}>
                         {(garminStatus.connected || wahooStatus.connected)
-                          ? 'Off by default while Garmin or Wahoo is connected — those provide richer FIT data and stay your primary source. Turn this on to also import Strava-only rides (e.g. Zwift sessions).'
+                          ? 'Off by default while Garmin or Wahoo is connected — those provide richer FIT data and stay your primary source. Virtual rides (Zwift etc.) still import from Strava, since Garmin does not pass them on. Turn this on to import all Strava activities.'
                           : 'New Strava rides import automatically. Turn off if you want to import them manually.'}
                       </Text>
                     </Box>

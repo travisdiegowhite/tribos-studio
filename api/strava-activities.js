@@ -6,6 +6,7 @@ import { setupCors } from './utils/cors.js';
 import { checkForDuplicate, mergeActivityData } from './utils/activityDedup.js';
 import { extractAndStoreActivitySegments } from './utils/roadSegmentExtractor.js';
 import { reportStravaApiFailure } from './utils/stravaAppStatus.js';
+import { isVirtualStravaActivity } from './utils/stravaVirtualGate.js';
 
 // User-facing message when Strava has deactivated the API application itself.
 // Surfacing it beats the bare "Strava API error: 403" users saw during the
@@ -211,14 +212,9 @@ async function syncActivities(req, res, userId, page, perPage) {
   const { importSource = 'strava_dashboard_sync' } = req.body;
 
   try {
-    if (await shouldSkipStravaIngest(userId)) {
-      return res.status(200).json({
-        success: false,
-        skipped: true,
-        reason: 'strava_auto_sync_disabled',
-        message: 'Strava auto-import is disabled because Garmin or Wahoo is your primary source. Toggle it on in Settings if you want to import Strava activities anyway.'
-      });
-    }
+    // Garmin/Wahoo primary with Strava auto-import off: import only the
+    // virtual rides Garmin never delivers (see utils/stravaVirtualGate.js).
+    const virtualOnly = await shouldSkipStravaIngest(userId);
 
     const accessToken = await getValidAccessToken(userId);
 
@@ -250,7 +246,7 @@ async function syncActivities(req, res, userId, page, perPage) {
     // Filter to supported activity types (cycling + running)
     const SUPPORTED_TYPES = ['Ride', 'VirtualRide', 'GravelRide', 'MountainBikeRide', 'EBikeRide', 'Run', 'VirtualRun', 'TrailRun'];
     const supportedActivities = activities.filter(a =>
-      SUPPORTED_TYPES.includes(a.type)
+      SUPPORTED_TYPES.includes(a.type) && (!virtualOnly || isVirtualStravaActivity(a))
     );
 
     const cyclingCount = supportedActivities.filter(a => ['Ride', 'VirtualRide', 'GravelRide', 'MountainBikeRide', 'EBikeRide'].includes(a.type)).length;
@@ -288,14 +284,9 @@ async function syncAllActivities(req, res, userId) {
   const { startPage = 1, pagesPerChunk = 5, after, before, importSource = 'strava_settings_sync' } = req.body;
 
   try {
-    if (await shouldSkipStravaIngest(userId)) {
-      return res.status(200).json({
-        success: false,
-        skipped: true,
-        reason: 'strava_auto_sync_disabled',
-        message: 'Strava auto-import is disabled because Garmin or Wahoo is your primary source. Toggle it on in Settings if you want to import Strava activities anyway.'
-      });
-    }
+    // Garmin/Wahoo primary with Strava auto-import off: import only the
+    // virtual rides Garmin never delivers (see utils/stravaVirtualGate.js).
+    const virtualOnly = await shouldSkipStravaIngest(userId);
 
     const accessToken = await getValidAccessToken(userId);
 
@@ -365,7 +356,7 @@ async function syncAllActivities(req, res, userId) {
       // Filter to supported activity types (cycling + running)
       const SUPPORTED_TYPES = ['Ride', 'VirtualRide', 'GravelRide', 'MountainBikeRide', 'EBikeRide', 'Run', 'VirtualRun', 'TrailRun'];
       const supportedActivities = activities.filter(a =>
-        SUPPORTED_TYPES.includes(a.type)
+        SUPPORTED_TYPES.includes(a.type) && (!virtualOnly || isVirtualStravaActivity(a))
       );
 
       // Store with deduplication
