@@ -7,7 +7,7 @@
  * Falls back to false when flags are missing or malformed. Always safe to call.
  */
 
-export type FeatureFlagName = 'event_anchored_planner';
+export type FeatureFlagName = 'event_anchored_planner' | 'season_planner';
 
 interface ProfileLike {
   feature_flags?: Record<string, unknown> | null;
@@ -22,8 +22,12 @@ interface ProfileLike {
 // uses the static generator (the visible path) and the sequencer UI/cron stay dormant.
 // A user who has explicitly opted in (feature_flags.event_anchored_planner === true) still
 // gets it.
+//
+// season_planner gates the Season tab on /train (docs/season-planner-build-plan.md).
+// Off by default; opt in with feature_flags.season_planner = true.
 const FLAG_DEFAULTS: Record<FeatureFlagName, boolean> = {
   event_anchored_planner: false,
+  season_planner: false,
 };
 
 /**

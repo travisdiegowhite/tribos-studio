@@ -66,6 +66,11 @@ describe('buildRaceDemand', () => {
     });
   });
 
+  it('returns null for running races (bike long rides do not scale to a run)', () => {
+    expect(buildRaceDemand({ ...THE_RAD, race_type: 'marathon', goal_time_minutes: 240 })).toBeNull();
+    expect(buildRaceDemand({ ...THE_RAD, race_type: 'triathlon' })).not.toBeNull();
+  });
+
   it('falls back to priority for tier, and A for junk', () => {
     expect(buildRaceDemand(THE_RAD).tier).toBe('A');
     expect(buildRaceDemand({ ...THE_RAD, priority: 'B' }).tier).toBe('B');

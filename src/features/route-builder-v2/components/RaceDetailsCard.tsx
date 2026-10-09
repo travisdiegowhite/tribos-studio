@@ -9,7 +9,7 @@
 import { Box, Group, NumberInput, Select, Text, TextInput, UnstyledButton } from '@mantine/core';
 import { RB2, RB2_FONT } from './brand';
 import { useRouteBuilderStore } from '../../../stores/routeBuilderStore';
-import { RACE_TYPES } from '../../../utils/raceTypes';
+import { BIKE_RACE_TYPES } from '../../../utils/raceTypes';
 
 const inputStyles = { input: { borderRadius: 0 } } as const;
 const labelStyle = {
@@ -52,7 +52,7 @@ export function RaceDetailsCard() {
       <Select
         size="xs"
         placeholder="Racing this route? Pick a type"
-        data={RACE_TYPES as Array<{ value: string; label: string }>}
+        data={BIKE_RACE_TYPES as Array<{ value: string; label: string }>}
         value={raceType}
         onChange={(v) => setRaceType(v)}
         clearable
