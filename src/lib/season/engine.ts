@@ -24,8 +24,11 @@
  *     race (the earlier ones are springboards) and `focusConfirmed` is false
  *     so the UI can ask the athlete which one matters more.
  *   - A block that follows another block is a FOLLOW-ON. Its verdict comes from
- *     the gap since the previous block, not from a full build: A races 4+
- *     weeks apart are normal in a real season.
+ *     the gap since the previous block, not from a full build: it is On
+ *     track when the previous block's recovery and this race's taper both
+ *     fit in the gap (3 weeks road→road, 6 weeks marathon→marathon).
+ *   - Taper, peak and recovery lengths come from each race's profile
+ *     (raceProfile.ts), so a crit and Unbound 200 are approached differently.
  *   - Races on the same date form one event day (e.g. a run/bike combo
  *     entered as two races); the lower-priority one rides along.
  *
@@ -40,22 +43,26 @@
 export const SEASON_WEEKS = 52;
 /** The first weeks of every season are Recover. They also clip the first block's build. */
 export const SEASON_START_RECOVER_WEEKS = 4;
-/** Taper covers the focus race's week and the week before it (w-1, w). */
-export const TAPER_WEEKS = 2;
-/** Peak sits directly before the taper (w-3, w-2). */
-export const PEAK_WEEKS = 2;
-/** A full build sits directly before the peak (w-9 … w-4). */
+/**
+ * Taper, peak and recovery lengths come from each race's profile (see
+ * raceProfile.ts: short / medium / long / ultra by expected effort). A race
+ * passed without one gets this default: taper w-1..w, peak w-3..w-2, two
+ * weeks of recovery.
+ */
+export const DEFAULT_RACE_PROFILE: RaceProfile = { band: 'long', taperWeeks: 2, peakWeeks: 2, recoverWeeks: 2 };
+/** A full build sits directly before the peak, e.g. w-9 … w-4 with the default profile. */
 export const FULL_BUILD_WEEKS = 6;
-/** Recover after the last race of a block (w+1, w+2). */
-export const RECOVER_WEEKS_AFTER_A = 2;
 /** First block of the season: at least this many build weeks (but less than full) is Tight; fewer is a Conflict. */
 export const MIN_TIGHT_BUILD_WEEKS = 3;
-/** A races this many weeks apart (or fewer) share one block and one build. */
+/**
+ * A races this many weeks apart (or fewer) share one block and one build.
+ * A race whose recovery is longer than this (an ultra) makes the next race in
+ * its block Tight.
+ */
 export const A_BLOCK_MAX_GAP_WEEKS = 2;
-/** A follow-on block this many weeks (or more) after the previous one is On track; closer is Tight. */
-export const FOLLOW_ON_ON_TRACK_GAP_WEEKS = 4;
-/** A B/C race this many weeks (or fewer) before or after an A race interacts with it. */
-export const NEAR_A_RACE_WEEKS = 2;
+// Follow-on blocks and B/C proximity have no fixed week counts: a race is
+// clear of another when the earlier one's recovery and the later one's taper
+// both fit in the gap between them.
 
 /**
  * When phases overlap, the higher rank wins. Recover outranks Peak so that,
@@ -88,6 +95,15 @@ export type Priority = 'A' | 'B' | 'C';
 export type Phase = 'recover' | 'base' | 'build' | 'peak' | 'taper';
 export type Verdict = 'on_track' | 'tight' | 'conflict';
 export type Sport = 'bike' | 'run' | 'multi';
+export type ProfileBand = 'short' | 'medium' | 'long' | 'ultra';
+
+/** How a race is approached and recovered from. Taper weeks include the race week. */
+export interface RaceProfile {
+  band: ProfileBand;
+  taperWeeks: number;
+  peakWeeks: number;
+  recoverWeeks: number;
+}
 
 export interface SeasonRaceInput {
   id: string;
@@ -100,6 +116,8 @@ export interface SeasonRaceInput {
   sport?: Sport | null;
   /** The athlete marked this A race as the most important one in its block. */
   focus?: boolean | null;
+  /** From raceProfile.ts; DEFAULT_RACE_PROFILE when absent. */
+  profile?: RaceProfile | null;
 }
 
 export interface SeasonInput {
@@ -126,6 +144,7 @@ export interface SeasonRaceResult {
   date: string;
   priority: Priority;
   sport: Sport;
+  profile: RaceProfile;
   /** Week index, or null when the race is outside the season. */
   week: number | null;
   verdict: Verdict;
@@ -248,6 +267,7 @@ interface PlacedRace {
   date: string;
   priority: Priority;
   sport: Sport;
+  profile: RaceProfile;
   focus: boolean;
   week: number;
   inWindow: boolean;
@@ -259,6 +279,8 @@ interface Block {
   focusConfirmed: boolean;
   firstWeek: number;
   lastWeek: number;
+  /** The longest recovery among the block's races. */
+  recoverWeeks: number;
   buildWeeks: number;
   previous: Block | null;
 }
@@ -283,6 +305,7 @@ export function computeSeason(input: SeasonInput): SeasonPlan {
         date: r.date,
         priority: normalizePriority(r.priority),
         sport: r.sport ?? 'bike',
+        profile: r.profile ?? DEFAULT_RACE_PROFILE,
         focus: r.focus === true,
         week,
         inWindow: week >= 0 && week < weeks,
@@ -304,12 +327,13 @@ export function computeSeason(input: SeasonInput): SeasonPlan {
   assign(0, SEASON_START_RECOVER_WEEKS - 1, 'recover');
 
   for (const block of blocks) {
+    const { taperWeeks, peakWeeks } = block.focus.profile;
     const wf = block.focus.week;
-    const taperStart = wf - TAPER_WEEKS + 1;
-    const peakStart = taperStart - PEAK_WEEKS;
+    const taperStart = wf - taperWeeks + 1;
+    const peakStart = taperStart - peakWeeks;
     const buildEnd = peakStart - 1;
     const fullBuildStart = buildEnd - FULL_BUILD_WEEKS + 1;
-    const previousFloor = block.previous ? block.previous.lastWeek + RECOVER_WEEKS_AFTER_A + 1 : -Infinity;
+    const previousFloor = block.previous ? block.previous.lastWeek + block.previous.recoverWeeks + 1 : -Infinity;
     const buildStart = Math.max(fullBuildStart, SEASON_START_RECOVER_WEEKS, previousFloor);
     block.buildWeeks = Math.max(0, buildEnd - buildStart + 1);
 
@@ -318,7 +342,7 @@ export function computeSeason(input: SeasonInput): SeasonPlan {
     assign(taperStart, wf, 'taper');
     // Every week from the block's first race to its last is a race week.
     assign(block.firstWeek, block.lastWeek, 'taper');
-    assign(block.lastWeek + 1, block.lastWeek + RECOVER_WEEKS_AFTER_A, 'recover');
+    assign(block.lastWeek + 1, block.lastWeek + block.recoverWeeks, 'recover');
   }
 
   const blockOf = new Map<string, Block>();
@@ -337,6 +361,7 @@ export function computeSeason(input: SeasonInput): SeasonPlan {
       date: r.date,
       priority: r.priority,
       sport: r.sport,
+      profile: r.profile,
       week: r.inWindow ? r.week : null,
       verdict: c.verdict,
       reason: c.reason,
@@ -376,6 +401,7 @@ function groupBlocks(aRaces: PlacedRace[]): Block[] {
       focusConfirmed: races.length === 1 || Boolean(chosen),
       firstWeek: races[0].week,
       lastWeek: races[races.length - 1].week,
+      recoverWeeks: Math.max(...races.map((r) => r.profile.recoverWeeks)),
       buildWeeks: 0,
       previous,
     };
@@ -393,19 +419,39 @@ function outOfWindow(r: PlacedRace): Candidate {
   };
 }
 
+function weeksText(n: number): string {
+  return n === 1 ? '1 week' : `${n} weeks`;
+}
+
 /** Readiness of a block, judged on its focus race. */
 function judgeFocus(block: Block): Candidate {
   const f = block.focus;
+
+  // Inside the block: a race that follows an ultra comes before you've recovered.
+  for (let i = 1; i < block.races.length; i++) {
+    const earlier = block.races[i - 1];
+    const later = block.races[i];
+    if (earlier.profile.recoverWeeks > A_BLOCK_MAX_GAP_WEEKS) {
+      return {
+        verdict: 'tight',
+        reason: `${later.name} is only ${weeksText(later.week - earlier.week)} after ${earlier.name}, before you've recovered from it.`,
+        gapWeeks: earlier.week - later.week,
+        relatedRaceId: earlier.id,
+      };
+    }
+  }
+
   const prev = block.previous;
   if (prev) {
     const gap = block.firstWeek - prev.lastWeek;
     const prevName = prev.focus.name;
     const base = { gapWeeks: -gap, relatedRaceId: prev.focus.id };
-    if (gap < FOLLOW_ON_ON_TRACK_GAP_WEEKS) {
+    // Clear when the previous block's recovery and this race's taper both fit in the gap.
+    if (gap < prev.recoverWeeks + f.profile.taperWeeks) {
       return {
         ...base,
         verdict: 'tight',
-        reason: `${f.name} is only ${gap} weeks after ${prevName}: time to recover and sharpen, not to rebuild.`,
+        reason: `${f.name} is ${weeksText(gap)} after ${prevName}: you go straight from recovering into the taper.`,
       };
     }
     if (block.buildWeeks >= FULL_BUILD_WEEKS) {
@@ -415,7 +461,7 @@ function judgeFocus(block: Block): Candidate {
     return {
       ...base,
       verdict: 'on_track',
-      reason: `${f.name} is ${gap} weeks after ${prevName}: recover, then carry that form into it${rebuild}.`,
+      reason: `${f.name} is ${weeksText(gap)} after ${prevName}: recover, then carry that form into it${rebuild}.`,
     };
   }
 
@@ -427,11 +473,11 @@ function judgeFocus(block: Block): Candidate {
       relatedRaceId: null,
     };
   }
-  const weeksText = block.buildWeeks === 1 ? '1 build week' : `${block.buildWeeks} build weeks`;
+  const buildText = block.buildWeeks === 1 ? '1 build week' : `${block.buildWeeks} build weeks`;
   if (block.buildWeeks >= MIN_TIGHT_BUILD_WEEKS) {
     return {
       verdict: 'tight',
-      reason: `Only ${weeksText} before ${f.name} because the season starts too close to it.`,
+      reason: `Only ${buildText} before ${f.name} because the season starts too close to it.`,
       gapWeeks: null,
       relatedRaceId: null,
     };
@@ -441,7 +487,7 @@ function judgeFocus(block: Block): Candidate {
     reason:
       block.buildWeeks === 0
         ? `No room to build for ${f.name} because the season starts too close to it.`
-        : `Only ${weeksText} before ${f.name} because the season starts too close to it; that's not enough to arrive ready.`,
+        : `Only ${buildText} before ${f.name} because the season starts too close to it; that's not enough to arrive ready.`,
     gapWeeks: null,
     relatedRaceId: null,
   };
@@ -453,12 +499,11 @@ function judgeBlockRace(r: PlacedRace, block: Block): Candidate {
 
   // A second A race in the block: it shares the focus race's readiness.
   const gap = block.focus.week - r.week;
-  const when = Math.abs(gap) === 1 ? '1 week' : `${Math.abs(gap)} weeks`;
   const role =
     gap > 0
-      ? `A springboard into ${block.focus.name}, ${when} later`
+      ? `A springboard into ${block.focus.name}, ${weeksText(gap)} later`
       : gap < 0
-        ? `Rides the form from ${block.focus.name}, ${when} earlier`
+        ? `Rides the form from ${block.focus.name}, ${weeksText(-gap)} earlier`
         : `Shares race week with ${block.focus.name}`;
   const ask = block.focusConfirmed ? '' : ` Confirm which race matters more.`;
   return {
@@ -498,28 +543,33 @@ function judgeSupportRace(r: PlacedRace, placed: PlacedRace[], aRaces: PlacedRac
         gapWeeks: 0,
         relatedRaceId: a.id,
       });
-    } else if (gap > 0 && gap <= NEAR_A_RACE_WEEKS) {
-      const when = gap === 1 ? '1 week' : `${gap} weeks`;
+    } else if (gap > 0 && gap <= a.profile.taperWeeks) {
       consider(
         r.priority === 'B'
           ? {
               verdict: 'conflict',
-              reason: `${r.name} lands in the taper for ${a.name}, ${when} later.`,
+              reason: `${r.name} lands in the taper for ${a.name}, ${weeksText(gap)} later.`,
               gapWeeks: gap,
               relatedRaceId: a.id,
             }
           : {
               verdict: 'tight',
-              reason: `${r.name} lands in the taper for ${a.name}, ${when} later; ride it easy.`,
+              reason: `${r.name} lands in the taper for ${a.name}, ${weeksText(gap)} later; ride it easy.`,
               gapWeeks: gap,
               relatedRaceId: a.id,
             },
       );
-    } else if (gap < 0 && -gap <= NEAR_A_RACE_WEEKS) {
-      const when = gap === -1 ? '1 week' : `${-gap} weeks`;
+    } else if (gap > 0 && gap < r.profile.recoverWeeks + a.profile.taperWeeks) {
       consider({
         verdict: 'tight',
-        reason: `${r.name} comes ${when} after ${a.name}, while you're still recovering.`,
+        reason: `Recovery from ${r.name} runs into the taper for ${a.name}, ${weeksText(gap)} later.`,
+        gapWeeks: gap,
+        relatedRaceId: a.id,
+      });
+    } else if (gap < 0 && -gap <= a.profile.recoverWeeks) {
+      consider({
+        verdict: 'tight',
+        reason: `${r.name} comes ${weeksText(-gap)} after ${a.name}, while you're still recovering.`,
         gapWeeks: gap,
         relatedRaceId: a.id,
       });

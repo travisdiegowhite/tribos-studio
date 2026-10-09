@@ -48,41 +48,57 @@ Notes:
 
 `src/lib/season/engine.ts` imports nothing. Every rule is a named constant at the top.
 
-**Phase rules** (per A block, in date order). **(Gate 1, 2026-10-09)**
+**Race profiles.** **(Gate 1b, 2026-10-09)** Taper, peak and recovery lengths come from each race's profile, built by `src/lib/season/raceProfile.ts` (pure). They follow how long and hard a race is, more than its name: a 50 km gravel race and Unbound 200 share `race_type='gravel'`.
 
-**A blocks:**
+1. **Expected hours.**
+   - The goal time if set.
+   - Otherwise distance ÷ speed: bike types use `estimateGoalDurationMin` from `raceDemand.ts`; run and multisport types use a pace table.
+   - Otherwise a per-type default.
+2. **Effort hours** = expected hours × sport load factor (bike 1.0, multi 1.0, run 2.5). Running costs more recovery per hour.
+3. **Band:** taper weeks include the race week.
+
+| Band | Effort h | Examples | Taper | Peak | Recover |
+|---|---|---|---|---|---|
+| short | < 1.5 | crit, CX, TT, 5K, sprint tri | 1 | 1 | 1 |
+| medium | 1.5–4 | road race, XC MTB, 10K, olympic tri | 2 | 2 | 1 |
+| long | 4–8 | 100-mi gravel, century, BWR, half marathon, 70.3 | 2 | 2 | 2 |
+| ultra | ≥ 8 | Unbound 200, marathon, Ironman, ultra run | 3 | 2 | 3 |
+
+A race passed without a profile gets `DEFAULT_RACE_PROFILE`: taper 2, peak 2, recover 2. The build is 6 weeks for every band.
+
+**A blocks.** **(Gate 1)**
 - A races at most 2 weeks apart (`A_BLOCK_MAX_GAP_WEEKS`) form one **block** that shares a single build.
-- One race in the block is the **focus**. It defaults to the *last* race, with the earlier ones as springboards, and `focusConfirmed = false` so the UI asks the athlete which race matters more. The athlete's pick is passed in as `focus: true`.
-- Where to store that pick is a Phase 2 schema question; `race_goals` has no column for it.
+- One race in the block is its **focus**. It defaults to the *last* race, with the earlier ones as springboards, and `focusConfirmed = false` so the UI asks which race matters more. The athlete's pick arrives as `focus: true`, stored as `race_goals.is_focus` (Phase 2).
 
-**Phases, aimed at the block's focus race at week `w`:**
-- Taper `w-1`..`w`, plus every week from the block's first race to its last.
-- Peak `w-3`..`w-2`.
-- Build `w-9`..`w-4`.
-- Recover the 2 weeks after the block's last race.
-- The first 4 weeks of the season are Recover.
-- Everything else is Base.
+**Phases**, aimed at the block's focus race at week `w`, using its profile:
+- **Taper:** the last `taper` weeks up to and including `w`, plus every week from the block's first race to its last.
+- **Peak:** the `peak` weeks before the taper.
+- **Build:** 6 weeks before the peak.
+- **Recover:** the block's longest `recover` after its last race.
+- **Season start:** the first 4 weeks are Recover.
+- **Base:** everything else.
+- **Floor:** the build starts no earlier than the end of the previous block's recovery, and no earlier than the end of the season-start Recover.
+- **Overlaps:** Taper > Recover > Peak > Build > Base. Recovery after a race comes before sharpening for the next one.
 
-**Floors and overlaps:**
-- The build starts no earlier than the end of the previous block's recovery, and no earlier than the end of the season-start Recover.
-- When phases overlap, Taper > Recover > Peak > Build > Base. Recovery after a race comes before sharpening for the next one.
-
-**Verdict rules:**
+**Verdict rules.**
 
 **First block of the season**, judged on its build:
 
 | Build weeks | Verdict |
 |---|---|
-| 6 (full, `FULL_BUILD_WEEKS`) | On track |
+| 6 (`FULL_BUILD_WEEKS`) | On track |
 | 3–5 | Tight |
 | fewer than 3 | Conflict |
 
-**Follow-on block** (any later block), judged on the gap since the previous block, not on a full build. Close A races are a normal season.
+**Follow-on block** (any later block): there is no fixed week count. It is **On track when `gap ≥ recover(previous block) + taper(this race)`**, i.e. the recovery and the taper both fit in the gap. The sentence notes any rebuild weeks. Otherwise it is **Tight**: "you go straight from recovering into the taper." Typical minimums:
 
-| Gap | Verdict |
+| Sequence | Minimum gap |
 |---|---|
-| 4+ weeks (`FOLLOW_ON_ON_TRACK_GAP_WEEKS`) | On track ("recover, then carry that form into it", noting any rebuild weeks) |
-| 3 weeks | Tight (recover and sharpen, no rebuild) |
+| Road race → road race | 3 weeks |
+| 100-mi gravel → 100-mi gravel | 4 weeks |
+| Marathon → marathon | 6 weeks |
+
+**Inside a block:** a race following an ultra (recovery > 2 weeks) is Tight, because it comes before you've recovered.
 
 **Other A races in a block** share the focus race's verdict, with a springboard / rides-the-form sentence.
 
@@ -90,20 +106,26 @@ Notes:
 
 **B or C race near an A race:**
 - In the same week but on another day → Conflict.
-- B 1–2 weeks before → Conflict (it lands in the taper).
-- C 1–2 weeks before → Tight (ride it easy).
-- B or C 1–2 weeks after → Tight (still recovering).
+- Within the A race's taper (`gap ≤ taper(A)`): B → Conflict, C → Tight (ride it easy).
+- Earlier, but `gap < recover(B/C) + taper(A)` → Tight (its recovery runs into the taper).
+- After the A race, within `recover(A)` → Tight (still recovering).
 
 **General:**
 - Outside the plan window → Conflict.
 - When several rules hit one race, the worst verdict wins.
-- On-track races still get a sentence (tune-up, sharpener, base check, recovery).
-- What every verdict carries: `buildWeeks`, `gapWeeks`, `relatedRaceId`, and for A races `blockFocusId` and `focusConfirmed`.
+- On-track races still get a sentence.
+- What every result carries: `sport`, `profile`, `buildWeeks`, `gapWeeks`, `relatedRaceId`, and for A races `blockFocusId` and `focusConfirmed`.
 
-**Sport:**
-- Races carry `sport` (`bike` / `run` / `multi`, default `bike`).
-- Every rule is sport-agnostic, so a run A race weighs the same as a bike A race.
-- `race_goals.race_type` has no running types today; adding them (and mapping `race_type` → `sport`) is part of Phase 2/4.
+**Sport.** Races carry `sport` (`bike` / `run` / `multi`, from `race_type` or set explicitly). Priority rules are identical across sports; only the profile differs, via the load factor and pace tables.
+
+**Phase 2 schema/UI follow-ups from Gate 1b:**
+- **Migration 128:** `race_goals.is_focus boolean not null default false`.
+- **New race types in `src/utils/raceTypes.js`**, each entry tagged with `sport`:
+  - run: `run_5k`, `run_10k`, `half_marathon`, `marathon`, `trail_run`, `ultra_run`;
+  - multi: `duathlon`;
+  - relabel `triathlon` from "Triathlon (Bike)".
+  - The route builders (`RouteBuilder.jsx`, `RaceDetailsCard.tsx`) filter to bike/multi.
+  - `race_type` is free TEXT, so no migration is needed for this.
 
 **Weekly hours:** typical hours × the phase multiplier:
 
@@ -212,7 +234,8 @@ These are implemented in `src/lib/season/engine.test.ts`. The plan starts Monday
 | Baseline | Both A races On track; State RR is a mid-build tune-up | ✅ |
 | Squeeze (June A +3 wk) | **Amended:** Fall A is an On-track follow-on with a 3-week rebuild; the diff lists the build change | ✅ |
 | Collapse (June A +6 wk) | **Amended:** Fall A is an On-track follow-on, no rebuild | ✅ |
-| Follow-on 3 weeks after an A race | Tight | ✅ |
+| Follow-on where the recovery and taper overlap (3 wk, default profile) | Tight | ✅ |
+| (Gate 1b) Race profiles: road 3 wk On track; 100-mi gravel 3 wk Tight / 4 On track; marathon 5 Tight / 6 On track; crit 1-week taper; long B race recovery into a taper → Tight | as above | ✅ |
 | A block (A races ≤ 2 weeks apart) | One shared build; focus defaults to the later race; asks to confirm | ✅ |
 | Same-date combo (run + bike) | The lower-priority race rides along, On track | ✅ |
 | Travis's 2026 season | No conflicts | ✅ |

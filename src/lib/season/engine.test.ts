@@ -13,6 +13,7 @@ import {
   type SeasonRaceInput,
   type SeasonPlan,
 } from './engine';
+import { profileForRace } from './raceProfile';
 
 // Fixture from the build plan: season starts Monday 2026-10-05, with the
 // mockup's sample season. Week indexes: crit 23, gravel 27, June A 36,
@@ -166,7 +167,9 @@ describe('acceptance fixtures', () => {
   it('A follow-on only 3 weeks after the previous A race → Tight', () => {
     const p = plan(withDate('june-a', '2027-08-21'));
     expect(race(p, 'fall-a')).toMatchObject({ verdict: 'tight', gapWeeks: -3, relatedRaceId: 'june-a' });
-    expect(race(p, 'fall-a').reason).toContain('recover and sharpen');
+    expect(race(p, 'fall-a').reason).toBe(
+      'Fall Gravel is 3 weeks after June Gravel: you go straight from recovering into the taper.',
+    );
   });
 
   it('B in taper: State RR 1 week before the fall A → Conflict naming the A race', () => {
@@ -383,6 +386,75 @@ describe("Travis's 2026 season (race_goals, 2026-10-09)", () => {
 
   it('treats Summer Vibes as a follow-on 7 weeks after BWR', () => {
     expect(race(p, 'vibes')).toMatchObject({ verdict: 'on_track', buildWeeks: 1, relatedRaceId: 'bwr', gapWeeks: -7 });
+  });
+});
+
+describe('race profiles in the engine', () => {
+  const at = (week: number, extra: Partial<SeasonRaceInput> & { id: string }): SeasonRaceInput => ({
+    name: extra.id,
+    date: addDaysToDate(START, week * 7 + 5),
+    priority: 'A',
+    ...extra,
+  });
+  const run = (races: SeasonRaceInput[]) => computeSeason({ startDate: START, typicalWeeklyHours: 8, races });
+
+  it('road race → road race 3 weeks apart is On track (1-week recovery + 2-week taper)', () => {
+    const road = profileForRace({ race_type: 'road_race' }).profile;
+    const p = run([at(20, { id: 'r1', profile: road }), at(23, { id: 'r2', profile: road })]);
+    expect(race(p, 'r2').verdict).toBe('on_track');
+  });
+
+  it('100-mile gravel → 100-mile gravel 3 weeks apart is Tight, 4 is On track', () => {
+    const gravel = profileForRace({ race_type: 'gravel', distance_km: 160 }).profile;
+    expect(gravel.band).toBe('long');
+    expect(race(run([at(20, { id: 'g1', profile: gravel }), at(23, { id: 'g2', profile: gravel })]), 'g2').verdict).toBe('tight');
+    expect(race(run([at(20, { id: 'g1', profile: gravel }), at(24, { id: 'g2', profile: gravel })]), 'g2').verdict).toBe('on_track');
+  });
+
+  it('marathon → marathon needs 6 weeks', () => {
+    const marathon = profileForRace({ race_type: 'marathon' }).profile;
+    expect(marathon.band).toBe('ultra');
+    const gapOf = (g: number) => race(run([at(20, { id: 'm1', profile: marathon }), at(20 + g, { id: 'm2', profile: marathon })]), 'm2');
+    expect(gapOf(5).verdict).toBe('tight');
+    expect(gapOf(6).verdict).toBe('on_track');
+  });
+
+  it('an A race 2 weeks after an ultra in the same block is Tight', () => {
+    const ultra = profileForRace({ race_type: 'gravel', distance_km: 320 }).profile;
+    expect(ultra.band).toBe('ultra');
+    const p = run([at(20, { id: 'u', name: 'Unbound', profile: ultra }), at(22, { id: 'n', name: 'Next', profile: ultra })]);
+    expect(race(p, 'n')).toMatchObject({ verdict: 'tight', blockFocusId: 'n' });
+    expect(race(p, 'n').reason).toBe("Next is only 2 weeks after Unbound, before you've recovered from it.");
+  });
+
+  it('a crit A race has a 1-week taper and peak', () => {
+    const crit = profileForRace({ race_type: 'criterium' }).profile;
+    const p = run([at(20, { id: 'c', profile: crit })]);
+    // Build 13–18, peak 19, taper (race week) 20, recover 21.
+    expect(p.schedule.slice(12, 23).map((w) => w.phase)).toEqual([
+      'base', 'build', 'build', 'build', 'build', 'build', 'build', 'peak', 'taper', 'recover', 'base',
+    ]);
+  });
+
+  it('a long B race whose recovery runs into an A taper is Tight', () => {
+    const gravel = profileForRace({ race_type: 'gravel', distance_km: 160 }).profile;
+    const road = profileForRace({ race_type: 'road_race' }).profile;
+    const p = run([
+      at(20, { id: 'a', name: 'A Race', profile: road }),
+      at(17, { id: 'b', name: 'Big B', priority: 'B', profile: gravel }),
+    ]);
+    expect(race(p, 'b')).toMatchObject({ verdict: 'tight', gapWeeks: 3, relatedRaceId: 'a' });
+    expect(race(p, 'b').reason).toBe('Recovery from Big B runs into the taper for A Race, 3 weeks later.');
+    // A short B race at the same spot is fine.
+    const crit = profileForRace({ race_type: 'criterium' }).profile;
+    const q = run([at(20, { id: 'a', profile: road }), at(17, { id: 'b', priority: 'B', profile: crit })]);
+    expect(race(q, 'b').verdict).toBe('on_track');
+  });
+
+  it('after a crit A race, a B race 2 weeks later is clear (1-week recovery)', () => {
+    const crit = profileForRace({ race_type: 'criterium' }).profile;
+    const p = run([at(20, { id: 'a', profile: crit }), at(22, { id: 'b', priority: 'B', profile: crit })]);
+    expect(race(p, 'b').verdict).toBe('on_track');
   });
 });
 
