@@ -96,8 +96,8 @@ describe('phases', () => {
     expect(p.schedule).toHaveLength(52);
   });
 
-  it('lets taper and peak win over a previous A race\'s recovery', () => {
-    // A races 4 weeks apart: weeks 20 and 24. The second's peak (21–22) lands on the first's recovery.
+  it('gives the weeks after an A race to recovery before the next race\'s peak', () => {
+    // A races 4 weeks apart: weeks 20 and 24. The second's peak (21–22) would land on the first's recovery.
     const p = computeSeason({
       startDate: START,
       typicalWeeklyHours: 8,
@@ -107,10 +107,9 @@ describe('phases', () => {
       ],
     });
     expect(p.schedule.slice(19, 25).map((w) => w.phase)).toEqual([
-      'taper', 'taper', 'peak', 'peak', 'taper', 'taper',
+      'taper', 'taper', 'recover', 'recover', 'taper', 'taper',
     ]);
-    expect(race(p, 'a2').verdict).toBe('conflict');
-    expect(race(p, 'a2').relatedRaceId).toBe('a1');
+    expect(race(p, 'a2')).toMatchObject({ verdict: 'on_track', gapWeeks: -4, relatedRaceId: 'a1' });
   });
 
   it('applies phase multipliers to the typical hours', () => {
@@ -134,12 +133,15 @@ describe('acceptance fixtures', () => {
     expect(race(p, 'gravel-b').verdict).toBe('on_track');
   });
 
-  it('Squeeze second A: June A 3 weeks later → fall A build drops to 3 → Tight', () => {
+  // Amended 2026-10-09: A races 4+ weeks apart are a normal season, so the
+  // plan's original "Squeeze → Tight" and "Collapse → Conflict" cases are now
+  // On track follow-ons. The diff still reports the shorter build.
+  it('Squeeze second A: June A 3 weeks later → fall A is a follow-on with a 3-week rebuild', () => {
     const before = plan();
     const after = plan(withDate('june-a', '2027-07-10'));
-    expect(race(after, 'fall-a')).toMatchObject({ verdict: 'tight', buildWeeks: 3, relatedRaceId: 'june-a' });
+    expect(race(after, 'fall-a')).toMatchObject({ verdict: 'on_track', buildWeeks: 3, relatedRaceId: 'june-a' });
     expect(race(after, 'fall-a').reason).toBe(
-      'Only 3 build weeks before Fall Gravel because recovery from June Gravel eats into it.',
+      'Fall Gravel is 9 weeks after June Gravel: recover, then carry that form into it, with a 3-week rebuild.',
     );
 
     const diff = diffPlans(before, after);
@@ -147,14 +149,24 @@ describe('acceptance fixtures', () => {
       { raceId: 'june-a', name: 'June Gravel', fromDate: 'Sat, Jun 19, 2027', toDate: 'Sat, Jul 10, 2027', weeks: 3 },
     ]);
     expect(diff.buildChanges).toEqual([{ raceId: 'fall-a', name: 'Fall Gravel', fromWeeks: 6, toWeeks: 3 }]);
-    expect(diff.verdictChanges).toContainEqual(
-      expect.objectContaining({ raceId: 'fall-a', from: 'on_track', to: 'tight' }),
+    // State RR (week 41) is now 2 weeks after the moved June A race.
+    expect(diff.verdictChanges).toEqual([
+      expect.objectContaining({ raceId: 'state-rr', from: 'on_track', to: 'tight' }),
+    ]);
+  });
+
+  it('Collapse: June A 6 weeks later → fall A still On track, no rebuild', () => {
+    const p = plan(withDate('june-a', '2027-07-31'));
+    expect(race(p, 'fall-a')).toMatchObject({ verdict: 'on_track', buildWeeks: 0 });
+    expect(race(p, 'fall-a').reason).toBe(
+      'Fall Gravel is 6 weeks after June Gravel: recover, then carry that form into it.',
     );
   });
 
-  it('Collapse: June A 6 weeks later → fall A Conflict', () => {
-    const p = plan(withDate('june-a', '2027-07-31'));
-    expect(race(p, 'fall-a')).toMatchObject({ verdict: 'conflict', buildWeeks: 0 });
+  it('A follow-on only 3 weeks after the previous A race → Tight', () => {
+    const p = plan(withDate('june-a', '2027-08-21'));
+    expect(race(p, 'fall-a')).toMatchObject({ verdict: 'tight', gapWeeks: -3, relatedRaceId: 'june-a' });
+    expect(race(p, 'fall-a').reason).toContain('recover and sharpen');
   });
 
   it('B in taper: State RR 1 week before the fall A → Conflict naming the A race', () => {
@@ -219,7 +231,7 @@ describe('rule gaps decided 2026-10-09', () => {
       typicalWeeklyHours: 8,
       races: [{ id: 'early', name: 'Early A', date: addDaysToDate(START, 10 * 7 + 5), priority: 'A' }],
     });
-    expect(race(p, 'early')).toMatchObject({ verdict: 'tight', buildWeeks: 3, relatedRaceId: null });
+    expect(race(p, 'early')).toMatchObject({ verdict: 'tight', buildWeeks: 3, relatedRaceId: null, focusConfirmed: true });
     expect(race(p, 'early').reason).toContain('the season starts too close');
   });
 
@@ -267,6 +279,110 @@ describe('rule gaps decided 2026-10-09', () => {
     for (const r of plan().races) {
       if (r.buildWeeks !== null) expect(r.buildWeeks).toBeLessThanOrEqual(FULL_BUILD_WEEKS);
     }
+  });
+});
+
+describe('A blocks (back-to-back A races)', () => {
+  const twoAs = (focus?: 'a1' | 'a2'): SeasonPlan =>
+    computeSeason({
+      startDate: START,
+      typicalWeeklyHours: 8,
+      races: [
+        { id: 'a1', name: 'Springboard', date: addDaysToDate(START, 20 * 7 + 5), priority: 'A', focus: focus === 'a1' },
+        { id: 'a2', name: 'Main Event', date: addDaysToDate(START, 21 * 7 + 5), priority: 'A', focus: focus === 'a2' },
+      ],
+    });
+
+  it('shares one build and defaults the focus to the later race, unconfirmed', () => {
+    const p = twoAs();
+    expect(race(p, 'a2')).toMatchObject({ verdict: 'on_track', buildWeeks: 6, blockFocusId: 'a2', focusConfirmed: false });
+    expect(race(p, 'a1')).toMatchObject({ verdict: 'on_track', buildWeeks: 6, blockFocusId: 'a2', gapWeeks: 1 });
+    expect(race(p, 'a1').reason).toBe(
+      'A springboard into Main Event, 1 week later; one build covers both. Confirm which race matters more.',
+    );
+    // Build 12–17, peak 18–19, taper 20–21, recover 22–23.
+    expect(p.schedule.slice(12, 24).map((w) => w.phase)).toEqual([
+      'build', 'build', 'build', 'build', 'build', 'build', 'peak', 'peak', 'taper', 'taper', 'recover', 'recover',
+    ]);
+  });
+
+  it('aims the block at the race the athlete marked as the focus', () => {
+    const p = twoAs('a1');
+    expect(race(p, 'a1')).toMatchObject({ blockFocusId: 'a1', focusConfirmed: true });
+    expect(race(p, 'a2').reason).toBe('Rides the form from Springboard, 1 week earlier; one build covers both.');
+    // Build 11–16, peak 17–18, taper 19–20, race week 21, recover 22–23.
+    expect(p.schedule.slice(11, 24).map((w) => w.phase)).toEqual([
+      'build', 'build', 'build', 'build', 'build', 'build', 'peak', 'peak', 'taper', 'taper', 'taper', 'recover', 'recover',
+    ]);
+  });
+
+  it('groups A races 2 weeks apart but not 3', () => {
+    const at = (gap: number) =>
+      computeSeason({
+        startDate: START,
+        typicalWeeklyHours: 8,
+        races: [
+          { id: 'a1', name: 'One', date: addDaysToDate(START, 20 * 7), priority: 'A' },
+          { id: 'a2', name: 'Two', date: addDaysToDate(START, (20 + gap) * 7), priority: 'A' },
+        ],
+      });
+    expect(race(at(2), 'a1').blockFocusId).toBe('a2');
+    expect(race(at(3), 'a1').blockFocusId).toBe('a1');
+  });
+});
+
+describe('event days and sport', () => {
+  it('a lower-priority race on the same date as an A race rides along (run/bike combo)', () => {
+    const p = computeSeason({
+      startDate: START,
+      typicalWeeklyHours: 8,
+      races: [
+        { id: 'bike', name: 'Combo Bike', date: '2027-06-19', priority: 'A', sport: 'bike' },
+        { id: 'run', name: 'Combo Run', date: '2027-06-19', priority: 'B', sport: 'run' },
+      ],
+    });
+    expect(race(p, 'run')).toMatchObject({ verdict: 'on_track', relatedRaceId: 'bike', sport: 'run' });
+    expect(race(p, 'run').reason).toBe('Part of the same event day as Combo Bike.');
+  });
+
+  it('judges a run A race exactly like a bike A race', () => {
+    const asSport = (sport: 'bike' | 'run' | 'multi') =>
+      plan(BASE_RACES.map((r) => ({ ...r, sport }))).races.map(({ sport: _s, ...rest }) => rest);
+    expect(asSport('run')).toEqual(asSport('bike'));
+    expect(asSport('multi')).toEqual(asSport('bike'));
+  });
+
+  it('defaults sport to bike', () => {
+    expect(plan().races.every((r) => r.sport === 'bike')).toBe(true);
+  });
+});
+
+describe("Travis's 2026 season (race_goals, 2026-10-09)", () => {
+  const p = computeSeason({
+    startDate: '2026-01-05',
+    typicalWeeklyHours: 8,
+    races: [
+      { id: 'omw', name: 'Old Man Winter', date: '2026-02-01', priority: 'B' },
+      { id: 'roubaix', name: 'Boulder Roubaix', date: '2026-04-26', priority: 'A' },
+      { id: 'bwr', name: 'BWR San Diego', date: '2026-05-03', priority: 'A' },
+      { id: 'vibes', name: 'Summer Vibes', date: '2026-06-20', priority: 'A' },
+      { id: 'vibe-run', name: 'Summer Vibe Run', date: '2026-06-20', priority: 'B', sport: 'run' },
+      { id: 'ned', name: 'Ned Gravel', date: '2026-07-12', priority: 'B' },
+      { id: 'rad', name: 'The Rad', date: '2026-09-26', priority: 'A' },
+    ],
+  });
+
+  it('has no conflicts', () => {
+    expect(p.races.filter((r) => r.verdict !== 'on_track')).toEqual([]);
+  });
+
+  it('treats Roubaix + BWR as one block and asks which matters more', () => {
+    expect(race(p, 'roubaix')).toMatchObject({ blockFocusId: 'bwr', focusConfirmed: false });
+    expect(race(p, 'bwr')).toMatchObject({ buildWeeks: 6, focusConfirmed: false });
+  });
+
+  it('treats Summer Vibes as a follow-on 7 weeks after BWR', () => {
+    expect(race(p, 'vibes')).toMatchObject({ verdict: 'on_track', buildWeeks: 1, relatedRaceId: 'bwr', gapWeeks: -7 });
   });
 });
 

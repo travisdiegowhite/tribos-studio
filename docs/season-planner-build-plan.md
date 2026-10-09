@@ -48,26 +48,62 @@ Notes:
 
 `src/lib/season/engine.ts` imports nothing. Every rule is a named constant at the top.
 
-**Phase rules** (per A race at week `w`, in date order):
-- Taper `w-1`..`w`, Peak `w-3`..`w-2`, Build `w-9`..`w-4`, Recover `w+1`..`w+2`.
-- The first 4 weeks of the season are Recover. Everything else is Base.
-- **(P0)** The build starts no earlier than the end of the previous A race's recovery, **and** no earlier than the end of the season-start Recover.
-- **(P0)** When phases overlap, Taper > Peak > Recover > Build > Base.
+**Phase rules** (per A block, in date order). **(Gate 1, 2026-10-09)**
+
+**A blocks:**
+- A races at most 2 weeks apart (`A_BLOCK_MAX_GAP_WEEKS`) form one **block** that shares a single build.
+- One race in the block is the **focus**. It defaults to the *last* race, with the earlier ones as springboards, and `focusConfirmed = false` so the UI asks the athlete which race matters more. The athlete's pick is passed in as `focus: true`.
+- Where to store that pick is a Phase 2 schema question; `race_goals` has no column for it.
+
+**Phases, aimed at the block's focus race at week `w`:**
+- Taper `w-1`..`w`, plus every week from the block's first race to its last.
+- Peak `w-3`..`w-2`.
+- Build `w-9`..`w-4`.
+- Recover the 2 weeks after the block's last race.
+- The first 4 weeks of the season are Recover.
+- Everything else is Base.
+
+**Floors and overlaps:**
+- The build starts no earlier than the end of the previous block's recovery, and no earlier than the end of the season-start Recover.
+- When phases overlap, Taper > Recover > Peak > Build > Base. Recovery after a race comes before sharpening for the next one.
 
 **Verdict rules:**
-- **A race:**
-  - On track with a full build (`FULL_BUILD_WEEKS` = 6);
-  - Tight with 3–5 build weeks;
-  - Conflict with fewer than 3.
-- **B or C race near an A race:**
-  - **(P0)** In the same week as an A race → Conflict.
-  - B 1–2 weeks before an A race → Conflict (it lands in the taper).
-  - C 1–2 weeks before an A race → Tight (ride it easy).
-  - B or C 1–2 weeks after an A race → Tight (still recovering).
-- **Outside the plan window** → Conflict.
-- **(P0)** When several rules hit one race, the worst verdict wins and its reason is used.
-- **(P0)** On-track races still get a sentence: mid-build tune-up, peak sharpener, base fitness check, or early-season recovery.
-- **What every verdict carries:** `buildWeeks`, `gapWeeks` and `relatedRaceId`.
+
+**First block of the season**, judged on its build:
+
+| Build weeks | Verdict |
+|---|---|
+| 6 (full, `FULL_BUILD_WEEKS`) | On track |
+| 3–5 | Tight |
+| fewer than 3 | Conflict |
+
+**Follow-on block** (any later block), judged on the gap since the previous block, not on a full build. Close A races are a normal season.
+
+| Gap | Verdict |
+|---|---|
+| 4+ weeks (`FOLLOW_ON_ON_TRACK_GAP_WEEKS`) | On track ("recover, then carry that form into it", noting any rebuild weeks) |
+| 3 weeks | Tight (recover and sharpen, no rebuild) |
+
+**Other A races in a block** share the focus race's verdict, with a springboard / rides-the-form sentence.
+
+**Event day:** a lower-priority race on the **same date** as a higher-priority one is one event (e.g. a run/bike combo), so it's On track.
+
+**B or C race near an A race:**
+- In the same week but on another day → Conflict.
+- B 1–2 weeks before → Conflict (it lands in the taper).
+- C 1–2 weeks before → Tight (ride it easy).
+- B or C 1–2 weeks after → Tight (still recovering).
+
+**General:**
+- Outside the plan window → Conflict.
+- When several rules hit one race, the worst verdict wins.
+- On-track races still get a sentence (tune-up, sharpener, base check, recovery).
+- What every verdict carries: `buildWeeks`, `gapWeeks`, `relatedRaceId`, and for A races `blockFocusId` and `focusConfirmed`.
+
+**Sport:**
+- Races carry `sport` (`bike` / `run` / `multi`, default `bike`).
+- Every rule is sport-agnostic, so a run A race weighs the same as a bike A race.
+- `race_goals.race_type` has no running types today; adding them (and mapping `race_type` → `sport`) is part of Phase 2/4.
 
 **Weekly hours:** typical hours × the phase multiplier:
 
@@ -174,8 +210,12 @@ These are implemented in `src/lib/season/engine.test.ts`. The plan starts Monday
 | Case | Expected | Status |
 |---|---|---|
 | Baseline | Both A races On track; State RR is a mid-build tune-up | ✅ |
-| Squeeze (June A +3 wk) | Fall A build 3 → Tight; the diff lists the build and verdict changes | ✅ |
-| Collapse (June A +6 wk) | Fall A → Conflict | ✅ |
+| Squeeze (June A +3 wk) | **Amended:** Fall A is an On-track follow-on with a 3-week rebuild; the diff lists the build change | ✅ |
+| Collapse (June A +6 wk) | **Amended:** Fall A is an On-track follow-on, no rebuild | ✅ |
+| Follow-on 3 weeks after an A race | Tight | ✅ |
+| A block (A races ≤ 2 weeks apart) | One shared build; focus defaults to the later race; asks to confirm | ✅ |
+| Same-date combo (run + bike) | The lower-priority race rides along, On track | ✅ |
+| Travis's 2026 season | No conflicts | ✅ |
 | B in taper | Conflict, naming the A race | ✅ |
 | C in taper | Tight | ✅ |
 | Post-A | Tight (recovering) | ✅ |
