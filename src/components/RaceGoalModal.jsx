@@ -34,7 +34,9 @@ const RACE_TYPES = BASE_RACE_TYPES.map(t => {
   const emojiMap = {
     road_race: '🚴', criterium: '🔄', time_trial: '⏱️', gran_fondo: '🏔️',
     century: '💯', gravel: '🪨', cyclocross: '🌲', mtb: '🏔️',
-    triathlon: '🏊', other: '🎯',
+    run_5k: '🏃', run_10k: '🏃', half_marathon: '🏃', marathon: '🏃',
+    trail_run: '⛰️', ultra_run: '⛰️',
+    triathlon: '🏊', duathlon: '🏃', other: '🎯',
   };
   return { ...t, label: `${emojiMap[t.value] || '🎯'} ${t.label}` };
 });

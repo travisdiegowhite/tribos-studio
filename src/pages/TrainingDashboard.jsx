@@ -1,5 +1,5 @@
 // Training Dashboard - Updated Dec 2024
-import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useMemo, useCallback, useRef, lazy, Suspense } from 'react';
 import {
   Container,
   Text,
@@ -31,6 +31,7 @@ import { tokens, depth } from '../theme';
 import AppShell from '../components/AppShell.jsx';
 import { useAuth } from '../contexts/AuthContext.jsx';
 import { useActivation } from '../hooks/useActivation';
+import { useFeatureFlag } from '../hooks/useFeatureFlag';
 import { useGear } from '../hooks/useGear';
 import { trackGear } from '../utils/gearTelemetry';
 import { parsePlanStartDate, formatLocalDate, getTodayString, activityDateKey, weekRangeKeys } from '../utils/dateUtils';
@@ -82,6 +83,9 @@ import { useCrossTraining } from '../hooks/useCrossTraining';
 import { Barbell, Bicycle, Calendar, CaretDown, CaretRight, ChartBar, ChartLine, ChatCircle, Clock, DotsThree, DownloadSimple, FileArrowUp, FileZip, Fire, Gear, Heart, Heartbeat, Lightning, Medal, Moon, Mountains, Path, PersonSimpleRun, Sparkle, Target, TrendDown, TrendUp, Trophy, UploadSimple, Watch } from '@phosphor-icons/react';
 import PlanWeekCard from '../components/train/PlanWeekCard.jsx';
 import SecondaryNavBar from '../components/train/SecondaryNavBar.jsx';
+
+// Season planner (behind the season_planner flag): loaded only when opened.
+const SeasonTab = lazy(() => import('../components/season/SeasonTab'));
 import RideMapCard from '../components/train/RideMapCard.jsx';
 import RepeatsTab from '../components/train/RepeatsTab.jsx';
 import { rideHasGps, selectGpsRide } from '../utils/rideGeo';
@@ -110,7 +114,8 @@ function TrainingDashboard() {
   // Read tab from URL query parameter, default to 'calendar'
   // Note: 'plans' tab moved to /planner page, 'today' moved to /today, 'routes' moved to /ride
   const urlTab = searchParams.get('tab');
-  const validTabs = ['coach', 'race', 'trends', 'power', 'history', 'repeats', 'insights', 'calendar', 'browse'];
+  const validTabs = ['coach', 'race', 'trends', 'power', 'history', 'repeats', 'insights', 'calendar', 'browse', 'season'];
+  const seasonEnabled = useFeatureFlag('season_planner');
   const initialTab = validTabs.includes(urlTab) ? urlTab : 'calendar';
   const [activeTab, setActiveTab] = useState(initialTab);
   // Keep the active tab in sync with the ?tab= param so deep links and CTAs
@@ -1060,7 +1065,7 @@ function TrainingDashboard() {
           {/* Secondary Nav Bar — the page's tabs, directly under the header so
               they read as the page's top-level navigation rather than sitting
               below the ride map. */}
-          <SecondaryNavBar activeTab={activeTab} onTabChange={setActiveTab} />
+          <SecondaryNavBar activeTab={activeTab} onTabChange={setActiveTab} showSeason={seasonEnabled} />
 
           {/* Plan strip + this week's plan-vs-actual, one card */}
           <PlanWeekCard
@@ -1113,6 +1118,13 @@ function TrainingDashboard() {
                 refreshKey={calendarRefreshKey}
                 onPlanUpdated={handlePlanUpdated}
               />
+            )}
+
+            {/* SEASON TAB (season_planner flag) */}
+            {activeTab === 'season' && seasonEnabled && (
+              <Suspense fallback={null}>
+                <SeasonTab />
+              </Suspense>
             )}
 
             {/* BROWSE PLANS TAB (reached via "Browse Plans" CTAs) */}

@@ -12,8 +12,12 @@ const tabs = [
   { value: 'insights', label: 'Insights' },
 ];
 
-function SecondaryNavBar({ activeTab, onTabChange }) {
+// Shown only when the season_planner flag is on.
+const SEASON_TAB = { value: 'season', label: 'Season' };
+
+function SecondaryNavBar({ activeTab, onTabChange, showSeason = false }) {
   const isMobile = useMediaQuery('(max-width: 768px)');
+  const visibleTabs = showSeason ? [tabs[0], SEASON_TAB, ...tabs.slice(1)] : tabs;
 
   return (
     <Box
@@ -33,7 +37,7 @@ function SecondaryNavBar({ activeTab, onTabChange }) {
         wrap="nowrap"
         style={{ minWidth: isMobile ? 'max-content' : undefined }}
       >
-        {tabs.map((tab) => {
+        {visibleTabs.map((tab) => {
           const isActive = activeTab === tab.value;
           return (
             <UnstyledButton

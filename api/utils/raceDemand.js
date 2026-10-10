@@ -40,6 +40,11 @@ const SPEED_KMH_BY_TYPE = {
   other: 26,
 };
 
+// Running race types (added for the season planner). The arc's demand model
+// scales BIKE long rides toward the race duration, which is meaningless for
+// a run, so a running race yields no demand (the historical plan).
+const RUN_RACE_TYPES = new Set(['run_5k', 'run_10k', 'half_marathon', 'marathon', 'trail_run', 'ultra_run']);
+
 // Climbing cost: ≈ +5 min per 1000 m of elevation gain.
 const MIN_PER_METER_GAIN = 1 / 200;
 
@@ -97,6 +102,7 @@ export function buildRaceDemand(race) {
   if (!race) return null;
   const raceDate = String(race.race_date || '').slice(0, 10);
   if (!YMD_RE.test(raceDate)) return null;
+  if (RUN_RACE_TYPES.has(race.race_type ?? '')) return null;
   const goalDurationMin = estimateGoalDurationMin(race);
   if (!goalDurationMin) return null;
   const tierRaw = race.tier || race.priority || 'A';

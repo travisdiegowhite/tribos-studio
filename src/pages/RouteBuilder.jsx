@@ -65,7 +65,7 @@ import WaypointList from '../components/RouteBuilder/WaypointList.jsx';
 import useRouteManipulation from '../hooks/useRouteManipulation';
 import { parseGpxFile } from '../utils/gpxParser';
 import { DateInput } from '@mantine/dates';
-import { RACE_TYPES } from '../utils/raceTypes';
+import { BIKE_RACE_TYPES } from '../utils/raceTypes';
 import { calculatePersonalizedETA } from '../utils/personalizedETA';
 import { queryPOIsAlongRoute, POI_CATEGORIES } from '../utils/routePOIService';
 import RoutePOILayer from '../components/RouteBuilder/RoutePOILayer.jsx';
@@ -2798,7 +2798,7 @@ function RouteBuilder() {
               placeholder="Select race type"
               value={raceType}
               onChange={setRaceType}
-              data={RACE_TYPES}
+              data={BIKE_RACE_TYPES}
               size="xs"
               variant="filled"
               styles={{ label: { color: 'var(--color-text-muted)', fontSize: 'var(--mantine-font-size-xs)' } }}
@@ -4440,7 +4440,7 @@ function RouteBuilder() {
                           placeholder="Select race type"
                           value={raceType}
                           onChange={setRaceType}
-                          data={RACE_TYPES}
+                          data={BIKE_RACE_TYPES}
                           size="xs"
                           variant="filled"
                           styles={{ label: { color: 'var(--color-text-muted)', fontSize: 'var(--mantine-font-size-xs)' } }}
