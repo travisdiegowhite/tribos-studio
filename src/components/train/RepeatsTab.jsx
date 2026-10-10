@@ -7,8 +7,9 @@
  * squares, zero radius):
  *   01 WHAT TO COMPARE — the anchor: the ride on the map card above, or a
  *      segment from the athlete's library picked from a grid of shapes.
- *   02 ON THE MAP — a tall map of every effort, then their traces of one
- *      metric against distance along the anchor, with axes and a legend.
+ *   02 ON THE MAP — a tall map of every effort, then one metric compared
+ *      along the anchor: a sector grid (GRID, the default) or binned step
+ *      traces (LINES), with a legend.
  *   03 EFFORTS — a sortable table; a row toggles its ride on and off.
  *
  * Matching and alignment are pure (src/utils/rideRepeats.ts) and run in a
@@ -24,6 +25,7 @@ import { useSegmentNamer } from '../../hooks/useSegmentNamer';
 import { anchorFromRide, anchorFromSegment, effortPointAt, repeatBests } from '../../utils/rideRepeats';
 import { C, FONT } from '../../views/today-spine/tokens';
 import EffortsTable, { formatDuration, formatShortDate } from './EffortsTable';
+import RepeatsGrid from './RepeatsGrid';
 import RepeatsMap from './RepeatsMap';
 import RepeatsStrip from './RepeatsStrip';
 import SegmentPicker from './SegmentPicker';
@@ -167,6 +169,9 @@ function RepeatsTabInner({ anchorRide, activities, userId, initialSegmentId = nu
   const [selectedIds, setSelectedIds] = useState(null);
   const [metric, setMetric] = useState('power');
   const [hoverX, setHoverX] = useState(null);
+  const [view, setView] = useState('grid');
+  // The effort drawn in colour in LINES; null = the anchor ride, else the first.
+  const [focusId, setFocusId] = useState(null);
 
   // A deep link that arrives after mount (the ride modal's "compare repeats").
   useEffect(() => {
@@ -203,6 +208,7 @@ function RepeatsTabInner({ anchorRide, activities, userId, initialSegmentId = nu
   useEffect(() => {
     setSelectedIds(null);
     setHoverX(null);
+    setFocusId(null);
   }, [anchorKey]);
 
   const selectedSet = useMemo(() => {
@@ -237,6 +243,11 @@ function RepeatsTabInner({ anchorRide, activities, userId, initialSegmentId = nu
     () => selectedEfforts.filter((e) => e.rows).map((e) => ({ id: e.id, color: e.color, rows: e.rows })),
     [selectedEfforts],
   );
+  const gridEfforts = useMemo(
+    () => selectedEfforts.map((e) => ({ id: e.id, color: e.color, label: formatShortDate(e.startDate), rows: e.rows })),
+    [selectedEfforts],
+  );
+  const lineFocus = focusId ?? (series.some((s) => s.id === anchorRide?.id) ? anchorRide.id : (series[0]?.id ?? null));
   const elevationRows = useMemo(
     () => selectedEfforts.find((e) => e.rows?.some((r) => r.elevation_m != null))?.rows ?? null,
     [selectedEfforts],
@@ -352,7 +363,19 @@ function RepeatsTabInner({ anchorRide, activities, userId, initialSegmentId = nu
               </Box>
 
               <Group justify="space-between" align="center" wrap="wrap" gap="sm" px={16} py={10} style={{ borderTop: `1px solid ${C.border}` }}>
-                <Text style={eyebrowStyle}>Traces · distance along the {anchor.kind === 'segment' ? 'segment' : 'ride'}</Text>
+                <Group gap={14} align="center" wrap="wrap">
+                  <Text style={eyebrowStyle}>
+                    {view === 'grid' ? 'Sectors' : 'Traces'} · distance along the {anchor.kind === 'segment' ? 'segment' : 'ride'}
+                  </Text>
+                  <Group gap={10} align="center" role="group" aria-label="Comparison view">
+                    <ViewTab active={view === 'grid'} onClick={() => setView('grid')}>
+                      GRID
+                    </ViewTab>
+                    <ViewTab active={view === 'lines'} onClick={() => setView('lines')}>
+                      LINES
+                    </ViewTab>
+                  </Group>
+                </Group>
                 {availableMetrics.length > 0 ? (
                   <Group gap={14} align="center" role="group" aria-label="Trace metric">
                     {availableMetrics.map((m) => (
@@ -365,21 +388,41 @@ function RepeatsTabInner({ anchorRide, activities, userId, initialSegmentId = nu
                   <Text style={noteStyle}>No measured rides shown</Text>
                 )}
               </Group>
-              <RepeatsStrip
-                series={series}
-                metric={activeMetric}
-                unit={metricDef?.unit ?? ''}
-                xMaxKm={anchor.lengthKm}
-                elevationRows={elevationRows}
-                hoverX={hoverX}
-                onHoverX={setHoverX}
-                height={isMobile ? 150 : 220}
-              />
+              {view === 'grid' ? (
+                <RepeatsGrid
+                  efforts={gridEfforts}
+                  metric={activeMetric}
+                  unit={metricDef?.unit ?? ''}
+                  xMaxKm={anchor.lengthKm}
+                  elevationRows={elevationRows}
+                  hoverX={hoverX}
+                  onHoverX={setHoverX}
+                />
+              ) : (
+                <RepeatsStrip
+                  series={series}
+                  metric={activeMetric}
+                  unit={metricDef?.unit ?? ''}
+                  xMaxKm={anchor.lengthKm}
+                  elevationRows={elevationRows}
+                  hoverX={hoverX}
+                  onHoverX={setHoverX}
+                  focusId={lineFocus}
+                  height={isMobile ? 150 : 220}
+                />
+              )}
               <Group gap="md" wrap="wrap" px={16} py={10} style={{ borderTop: `1px solid ${C.border}` }} data-testid="repeats-legend">
                 {selectedEfforts.map((e) => {
                   const readout = readoutFor(e);
                   return (
-                    <Group key={e.id} gap={6} align="center" wrap="nowrap">
+                    <Group
+                      key={e.id}
+                      gap={6}
+                      align="center"
+                      wrap="nowrap"
+                      onPointerEnter={view === 'lines' && e.rows ? () => setFocusId(e.id) : undefined}
+                      style={view === 'lines' && e.rows ? { cursor: 'default', opacity: e.id === lineFocus ? 1 : 0.6 } : undefined}
+                    >
                       <span style={{ width: 10, height: 10, background: e.color, display: 'inline-block', flexShrink: 0 }} />
                       <Text style={{ ...mono, fontSize: 10, letterSpacing: '0.5px', color: C.text2 }}>
                         {formatShortDate(e.startDate)}
