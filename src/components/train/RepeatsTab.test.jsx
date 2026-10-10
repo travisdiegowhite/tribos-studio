@@ -121,7 +121,15 @@ describe('RepeatsTab', () => {
     expect(screen.getByTestId('source-repeat-b')).toBeTruthy();
     expect(screen.getByTestId('source-repeat-c')).toBeTruthy();
     expect(screen.queryByTestId('repeat-row-far')).toBeNull();
-    // Traces only for the measured rides, with a value axis in the metric's unit.
+    // The sector grid by default: rows only for the measured rides' values.
+    expect(screen.getByTestId('repeats-grid')).toBeTruthy();
+    expect(screen.getByTestId('repeats-cell-a-0').textContent).toBe('200');
+    expect(screen.getByTestId('repeats-cell-b-0').textContent).toBe('250');
+    expect(screen.getByTestId('repeats-cell-c-0').textContent).toBe('·');
+    expect(screen.getByText('AVG W')).toBeTruthy();
+    // LINES: traces only for the measured rides, with a value axis in the metric's unit.
+    fireEvent.click(screen.getByRole('button', { name: 'LINES' }));
+    expect(screen.queryByTestId('repeats-grid')).toBeNull();
     expect(screen.getByTestId('repeat-trace-a')).toBeTruthy();
     expect(screen.getByTestId('repeat-trace-b')).toBeTruthy();
     expect(screen.queryByTestId('repeat-trace-c')).toBeNull();
@@ -138,6 +146,8 @@ describe('RepeatsTab', () => {
     await screen.findByTestId('repeats-list');
     fireEvent.click(screen.getByTestId('repeat-row-b'));
     expect(screen.queryByTestId('source-repeat-b')).toBeNull();
+    expect(screen.queryByTestId('repeats-cell-b-0')).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: 'LINES' }));
     expect(screen.queryByTestId('repeat-trace-b')).toBeNull();
     expect(screen.getByTestId('source-repeat-a')).toBeTruthy();
     fireEvent.click(screen.getByRole('button', { name: /Show Sep 3, 26/ }));
@@ -148,8 +158,10 @@ describe('RepeatsTab', () => {
     renderTab();
     await screen.findByTestId('repeats-list');
     fireEvent.click(screen.getByRole('button', { name: 'HEART RATE' }));
+    expect(screen.getByText('AVG bpm')).toBeTruthy();
+    expect(screen.queryByText('AVG W')).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: 'LINES' }));
     expect(screen.getByText('bpm')).toBeTruthy();
-    expect(screen.queryByText('W')).toBeNull();
   });
 
   it('opens the full analysis on the chosen effort without toggling its row', async () => {

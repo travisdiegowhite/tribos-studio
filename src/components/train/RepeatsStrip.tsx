@@ -1,10 +1,15 @@
 /**
  * RepeatsStrip — several efforts' traces of one metric against distance
- * along the anchor, one line per effort in its identity colour, with the
- * anchor's elevation faint behind. The sibling of RideMetricStrip: same
- * hand-rolled SVG, same scrub contract (pointer position reported as km so
- * the map markers and the list readouts key off one number), but many lines
- * instead of one zone-coloured fill.
+ * along the anchor, with the anchor's elevation faint behind. The sibling of
+ * RideMetricStrip: same hand-rolled SVG, same scrub contract (pointer
+ * position reported as km so the map markers and the list readouts key off
+ * one number), but many lines instead of one zone-coloured fill.
+ *
+ * The stored streams are RDP-simplified (a long straight can be two
+ * instantaneous samples), so each trace is binned into short stretches and
+ * drawn as flat steps — never a line interpolated between far-apart samples.
+ * One effort is drawn in its colour; the rest sit muted behind it, with the
+ * median of the efforts as a dashed step.
  */
 import {
   useCallback,
@@ -15,10 +20,18 @@ import {
 import { Box, Text } from "@mantine/core";
 import type { StreamRow } from "../../utils/streamChartData";
 import { niceTicks } from "../../utils/streamChartData";
+import {
+  binEffort,
+  lineBinCount,
+  sectorBounds,
+  sectorMedians,
+  type SectorBin,
+  type SectorKey,
+} from "../../utils/repeatSectors";
 
 export type RepeatMetric = "power" | "heartRate" | "speed";
 
-const ROW_KEY: Record<RepeatMetric, keyof StreamRow> = {
+const ROW_KEY: Record<RepeatMetric, SectorKey> = {
   power: "power",
   heartRate: "heartRate",
   speed: "speed_kmh",
@@ -42,6 +55,8 @@ export interface RepeatsStripProps {
   height?: number;
   /** Unit printed at the top of the value axis ("W", "bpm", "km/h"). */
   unit?: string;
+  /** The effort drawn in its colour; others are muted. Defaults to the first. */
+  focusId?: string | null;
 }
 
 /** Width of the value-axis gutter, px. */
@@ -52,29 +67,38 @@ const VIEW_H = 100;
 const TOP_PAD = 0.1;
 const ELEVATION_BAND = 0.34;
 const ELEVATION_FILL = "var(--tribos-text-muted, #8a8f8a)";
+const MUTED_STROKE = "var(--tribos-text-muted, #8a8f8a)";
+/** Samples a bin needs before it is drawn. */
+const MIN_BIN_SAMPLES = 2;
 
-/** Contiguous non-null runs projected to view space, as one path string. */
-function pathFor(
-  rows: StreamRow[],
-  key: keyof StreamRow,
+/**
+ * Binned values as flat steps: each filled bin is a horizontal run across
+ * its stretch, joined vertically to a filled neighbour; a blank bin lifts
+ * the pen.
+ */
+function stepPathFor(
+  means: Array<number | null>,
+  edges: number[],
   xToView: (x: number) => number,
   yToView: (v: number) => number,
 ): string {
   const parts: string[] = [];
   let penDown = false;
-  for (const row of rows) {
-    const v = row[key];
+  means.forEach((v, i) => {
     if (v == null) {
       penDown = false;
-      continue;
+      return;
     }
-    parts.push(
-      `${penDown ? "L" : "M"}${xToView(row.x).toFixed(1)} ${yToView(v as number).toFixed(1)}`,
-    );
+    const y = yToView(v).toFixed(1);
+    if (penDown) parts.push(`V${y}`);
+    else parts.push(`M${xToView(edges[i]).toFixed(1)} ${y}`);
+    parts.push(`H${xToView(edges[i + 1]).toFixed(1)}`);
     penDown = true;
-  }
+  });
   return parts.join(" ");
 }
+
+const meansOf = (bins: SectorBin[]) => bins.map((b) => b.mean);
 
 function areaFor(
   rows: StreamRow[],
@@ -102,6 +126,7 @@ export default function RepeatsStrip({
   onHoverX,
   height = 132,
   unit = "",
+  focusId = null,
 }: RepeatsStripProps) {
   const boxRef = useRef<HTMLDivElement | null>(null);
   const key = ROW_KEY[metric];
@@ -127,15 +152,22 @@ export default function RepeatsStrip({
       }
     }
 
-    const values: number[] = [];
-    for (const s of series)
-      for (const r of s.rows) if (r[key] != null) values.push(r[key] as number);
+    const edges = sectorBounds(xMax, lineBinCount(xMax));
+    const binned = series.map((s) => ({
+      id: s.id,
+      color: s.color,
+      means: meansOf(binEffort(s.rows, key, edges, MIN_BIN_SAMPLES)),
+    }));
+    const values = binned.flatMap((b) =>
+      b.means.filter((v): v is number => v != null),
+    );
     if (values.length < 2) {
       return {
         xMax,
         xToView,
         yToView: null as ((v: number) => number) | null,
         paths: [] as Array<{ id: string; color: string; d: string }>,
+        medianPath: "",
         elevationArea,
         xTicks: niceTicks(0, xMax, 6),
         yTicks: [] as Array<{ value: number; top: number }>,
@@ -149,20 +181,31 @@ export default function RepeatsStrip({
     const ySpan = dataMax - yMin || 1;
     const yToView = (v: number) =>
       VIEW_H * (1 - TOP_PAD) - ((v - yMin) / ySpan) * VIEW_H * (1 - TOP_PAD);
-    const paths = series
-      .map((s) => ({
-        id: s.id,
-        color: s.color,
-        d: pathFor(s.rows, key, xToView, yToView),
+    const paths = binned
+      .map((b) => ({
+        id: b.id,
+        color: b.color,
+        d: stepPathFor(b.means, edges, xToView, yToView),
       }))
       .filter((p) => p.d.length > 0);
+    const medianPath =
+      paths.length > 2
+        ? stepPathFor(
+            sectorMedians(
+              binned.map((b) => b.means.map((mean) => ({ mean, n: 0 }))),
+            ),
+            edges,
+            xToView,
+            yToView,
+          )
+        : "";
     const xTicks = niceTicks(0, xMax, 6).filter((t) => t >= 0 && t <= xMax);
     // Value-axis ticks as a fraction of the height from the top, so the
     // labels sit where the lines are whatever the box's pixel height.
     const yTicks = niceTicks(yMin, dataMax, 4)
       .filter((t) => t >= yMin && t <= dataMax)
       .map((t) => ({ value: t, top: yToView(t) / VIEW_H }));
-    return { xMax, xToView, yToView, paths, elevationArea, xTicks, yTicks };
+    return { xMax, xToView, yToView, paths, medianPath, elevationArea, xTicks, yTicks };
   }, [series, key, metric, xMaxKm, elevationRows]);
 
   const xFromClientX = useCallback(
@@ -182,6 +225,11 @@ export default function RepeatsStrip({
     [xFromClientX, onHoverX],
   );
   const handleLeave = useCallback(() => onHoverX(null), [onHoverX]);
+
+  const focus =
+    focusId != null && model.paths.some((p) => p.id === focusId)
+      ? focusId
+      : (model.paths[0]?.id ?? null);
 
   const cursorX =
     hoverX != null && Number.isFinite(hoverX) ? model.xToView(hoverX) : null;
@@ -283,19 +331,37 @@ export default function RepeatsStrip({
               fillOpacity={0.18}
             />
           )}
-          {model.paths.map((p) => (
+          {model.medianPath && (
             <path
-              key={p.id}
-              data-testid={`repeat-trace-${p.id}`}
-              d={p.d}
+              data-testid="repeat-trace-median"
+              d={model.medianPath}
               fill="none"
-              stroke={p.color}
-              strokeWidth={1.6}
-              strokeOpacity={0.9}
+              stroke="var(--tribos-text-primary, #222)"
+              strokeWidth={1}
+              strokeOpacity={0.45}
+              strokeDasharray="4 3"
               vectorEffect="non-scaling-stroke"
-              strokeLinejoin="round"
             />
-          ))}
+          )}
+          {/* Focused trace last, so it sits on top of the muted ones. */}
+          {[...model.paths]
+            .sort((a, b) => Number(a.id === focus) - Number(b.id === focus))
+            .map((p) => {
+              const focused = p.id === focus;
+              return (
+                <path
+                  key={p.id}
+                  data-testid={`repeat-trace-${p.id}`}
+                  d={p.d}
+                  fill="none"
+                  stroke={focused ? p.color : MUTED_STROKE}
+                  strokeWidth={focused ? 2.2 : 1.2}
+                  strokeOpacity={focused ? 1 : 0.4}
+                  vectorEffect="non-scaling-stroke"
+                  strokeLinejoin="miter"
+                />
+              );
+            })}
           {cursorX != null && (
             <line
               x1={cursorX}
