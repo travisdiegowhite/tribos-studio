@@ -4,7 +4,8 @@
  * Reads (never writes, in this phase):
  *   - season_plans: the athlete's saved season covering today, if any;
  *   - race_goals in the season window (races live there, not in a season table);
- *   - fitness_snapshots.weekly_hours for the typical-hours median.
+ *   - fitness_snapshots.weekly_hours: the typical-hours median (last 8 weeks)
+ *     and the hours actually ridden in the season's past weeks.
  *
  * The engine runs client-side on every change; see src/lib/season/engine.ts.
  */
@@ -13,8 +14,9 @@ import { useEffect, useMemo, useState } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { supabase } from '../lib/supabase';
 import { getTodayString } from '../utils/dateUtils';
-import { computeSeason, typicalWeeklyHours, type SeasonPlan } from '../lib/season/engine';
+import { computeSeason, mondayOf, typicalWeeklyHours, type SeasonPlan } from '../lib/season/engine';
 import {
+  DEFAULT_SEASON_WEEKS,
   DEFAULT_WEEKLY_HOURS,
   defaultSeasonStart,
   seasonEndDate,
@@ -41,6 +43,8 @@ export interface SeasonPlanState {
   /** The saved season_plans row, or null when showing the default season. */
   savedPlan: SeasonPlanRow | null;
   hoursSource: HoursSource;
+  /** Hours ridden per finished week, keyed by the week's Monday. */
+  ridden: Record<string, number>;
   todayLocal: string;
 }
 
@@ -53,7 +57,8 @@ export function useSeasonPlan(): SeasonPlanState {
     savedPlan: SeasonPlanRow | null;
     races: RaceGoalRow[];
     history: (number | null)[];
-  }>({ loading: true, error: null, savedPlan: null, races: [], history: [] });
+    ridden: Record<string, number>;
+  }>({ loading: true, error: null, savedPlan: null, races: [], history: [], ridden: {} });
 
   useEffect(() => {
     let active = true;
@@ -72,7 +77,7 @@ export function useSeasonPlan(): SeasonPlanState {
         // A missing table (migration 128 not applied) degrades to the default season.
         const savedPlan = !planError && plans?.[0] ? (plans[0] as SeasonPlanRow) : null;
         const startDate = savedPlan?.start_date ?? defaultSeasonStart(todayLocal);
-        const weeks = savedPlan?.weeks ?? 52;
+        const weeks = savedPlan?.weeks ?? DEFAULT_SEASON_WEEKS;
 
         const raceQuery = (columns: string) =>
           supabase
@@ -93,7 +98,14 @@ export function useSeasonPlan(): SeasonPlanState {
           .eq('user_id', user.id)
           .lt('snapshot_week', todayLocal)
           .order('snapshot_week', { ascending: false })
-          .limit(8);
+          .limit(16);
+        // Finished weeks inside the season window are drawn as what was ridden.
+        const thisMonday = mondayOf(todayLocal);
+        const ridden: Record<string, number> = {};
+        for (const s of snapshots ?? []) {
+          const week = String(s.snapshot_week).slice(0, 10);
+          if (s.weekly_hours != null && week >= startDate && week < thisMonday) ridden[week] = Number(s.weekly_hours);
+        }
 
         if (!active) return;
         setState({
@@ -101,8 +113,9 @@ export function useSeasonPlan(): SeasonPlanState {
           error: null,
           savedPlan,
           races: (races ?? []) as unknown as RaceGoalRow[],
-          // Newest last, as typicalWeeklyHours expects.
+          // Newest last, as typicalWeeklyHours expects (it reads the last 8).
           history: (snapshots ?? []).map((s) => (s.weekly_hours == null ? null : Number(s.weekly_hours))).reverse(),
+          ridden,
         });
       } catch (err) {
         if (!active) return;
@@ -126,11 +139,11 @@ export function useSeasonPlan(): SeasonPlanState {
       ? null
       : computeSeason({
           startDate: savedPlan?.start_date ?? defaultSeasonStart(todayLocal),
-          weeks: savedPlan?.weeks ?? 52,
+          weeks: savedPlan?.weeks ?? DEFAULT_SEASON_WEEKS,
           races: toSeasonRaces(state.races),
           typicalWeeklyHours: hours,
         });
 
-    return { loading: state.loading, error: state.error, plan, savedPlan, hoursSource, todayLocal };
+    return { loading: state.loading, error: state.error, plan, savedPlan, hoursSource, ridden: state.ridden, todayLocal };
   }, [state, todayLocal]);
 }
