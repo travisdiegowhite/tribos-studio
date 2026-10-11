@@ -294,6 +294,23 @@ The coach is called only on request, never on a move. The engine's own sentence 
 
 **Cost:** each web search is up to 5 queries at $10 per 1,000, plus Sonnet tokens.
 
+## Training section cleanup (2026-10-11)
+
+After the six phases, `/train` was cut from ten tabs to five:
+
+| Tab | What's in it | Old `?tab=` values that redirect here |
+|---|---|---|
+| Calendar | the calendar, plus the plan-week card and the ride map; training plans open in a drawer (header menu, or `browse=1`) | `calendar`, `browse` |
+| Season | the season planner, for everyone (the `season_planner` flag and the feature-flag module are gone); the **Race details** view is the former Race tab | `season`, `race` |
+| Coach | the check-in | `coach` |
+| Progress | fitness (load chart, ramp rate, health, durability, records), the former `/progress` page's zones, key trends, year to date and segments, then power and insights | `trends`, `power`, `insights`; `/progress` |
+| Rides | ride history, with a **Repeats** view; the ride map shows the selected or anchor ride | `history`, `repeats` |
+
+- The redirects live in `src/components/train/trainTabs.ts` (tested). `ride=` and `segment=` deep links still work.
+- The duplicate fitness chart (`FitnessProgressChart`) and zone chart (`ZoneDistributionChart`) were removed; the rest of `/progress` lives on as `src/components/train/ProgressSections.jsx`.
+- The Progress item left the top nav: Today · Ride · Train · Garage.
+- Step 3 (splitting `TrainingDashboard.jsx` into per-tab files) is next.
+
 ## Sequencing and gates
 
 1. **Audit:** done; see the audit doc.

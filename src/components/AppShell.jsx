@@ -44,7 +44,6 @@ const NAV_ITEMS = [
   { path: '/today', label: 'Today' },
   { path: '/ride', label: 'Ride' },
   { path: '/train', label: 'Train' },
-  { path: '/progress', label: 'Progress' },
   { path: '/garage', label: 'Garage' },
 ];
 
@@ -101,10 +100,7 @@ function AppShell({ children, fullWidth = false, hideNav = false }) {
       );
     }
     if (item.path === '/train') {
-      return location.pathname.startsWith('/train') || location.pathname === '/planner';
-    }
-    if (item.path === '/progress') {
-      return location.pathname === '/progress';
+      return location.pathname.startsWith('/train') || location.pathname === '/planner' || location.pathname === '/progress';
     }
     if (item.path === '/garage') {
       // /gear is the legacy path; it redirects here but may still be mid-transition.

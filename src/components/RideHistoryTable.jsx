@@ -570,7 +570,7 @@ const RideHistoryTable = ({
           fullWidth
           mt="sm"
           rightSection={<CaretRight size={16} />}
-          onClick={() => navigate('/training?tab=history')}
+          onClick={() => navigate('/train?tab=rides')}
         >
           View all {visibleRidesCount} activities
         </Button>

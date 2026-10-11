@@ -1,23 +1,12 @@
 import { Box, Group, Text, UnstyledButton } from '@mantine/core';
 import { useMediaQuery } from '@mantine/hooks';
 
-const tabs = [
-  { value: 'calendar', label: 'Calendar' },
-  { value: 'coach', label: 'Coach' },
-  { value: 'race', label: 'Race' },
-  { value: 'trends', label: 'Trends' },
-  { value: 'power', label: 'Power' },
-  { value: 'history', label: 'History' },
-  { value: 'repeats', label: 'Repeats' },
-  { value: 'insights', label: 'Insights' },
-];
+import { TRAIN_TABS, TRAIN_TAB_LABELS } from './trainTabs';
 
-// Shown only when the season_planner flag is on.
-const SEASON_TAB = { value: 'season', label: 'Season' };
+const tabs = TRAIN_TABS.map((value) => ({ value, label: TRAIN_TAB_LABELS[value] }));
 
-function SecondaryNavBar({ activeTab, onTabChange, showSeason = false }) {
+function SecondaryNavBar({ activeTab, onTabChange }) {
   const isMobile = useMediaQuery('(max-width: 768px)');
-  const visibleTabs = showSeason ? [tabs[0], SEASON_TAB, ...tabs.slice(1)] : tabs;
 
   return (
     <Box
@@ -37,14 +26,14 @@ function SecondaryNavBar({ activeTab, onTabChange, showSeason = false }) {
         wrap="nowrap"
         style={{ minWidth: isMobile ? 'max-content' : undefined }}
       >
-        {visibleTabs.map((tab) => {
+        {tabs.map((tab) => {
           const isActive = activeTab === tab.value;
           return (
             <UnstyledButton
               key={tab.value}
               onClick={() => onTabChange(tab.value)}
               style={{
-                padding: isMobile ? '12px 14px' : '12px 18px 12px 0',
+                padding: isMobile ? '12px 11px' : '12px 18px 12px 0',
                 position: 'relative',
                 transition: 'color 150ms ease',
               }}
@@ -65,8 +54,8 @@ function SecondaryNavBar({ activeTab, onTabChange, showSeason = false }) {
                   style={{
                     position: 'absolute',
                     bottom: -1,
-                    left: isMobile ? 14 : 0,
-                    right: isMobile ? 14 : 18,
+                    left: isMobile ? 11 : 0,
+                    right: isMobile ? 11 : 18,
                     height: 2,
                     backgroundColor: 'var(--color-ink)',
                   }}

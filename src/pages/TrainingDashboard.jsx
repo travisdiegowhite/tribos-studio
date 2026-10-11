@@ -4,6 +4,8 @@ import {
   Container,
   Text,
   Card,
+  Drawer,
+  SegmentedControl,
   SimpleGrid,
   Stack,
   Group,
@@ -31,7 +33,8 @@ import { tokens, depth } from '../theme';
 import AppShell from '../components/AppShell.jsx';
 import { useAuth } from '../contexts/AuthContext.jsx';
 import { useActivation } from '../hooks/useActivation';
-import { useFeatureFlag } from '../hooks/useFeatureFlag';
+import { resolveTrainTab } from '../components/train/trainTabs';
+import ProgressSections from '../components/train/ProgressSections.jsx';
 import { useGear } from '../hooks/useGear';
 import { trackGear } from '../utils/gearTelemetry';
 import { parsePlanStartDate, formatLocalDate, getTodayString, activityDateKey, weekRangeKeys } from '../utils/dateUtils';
@@ -50,9 +53,8 @@ import HealthCheckInModal from '../components/HealthCheckInModal.jsx';
 import FitUploadModal from '../components/FitUploadModal.jsx';
 import BulkGpxUploadModal from '../components/BulkGpxUploadModal.jsx';
 import { TrainingMetricsSkeleton } from '../components/LoadingSkeletons.jsx';
-import { SupplementWorkoutModal, TrainingPlanExportItems, RaceTab } from '../components/training';
+import { SupplementWorkoutModal, TrainingPlanExportItems } from '../components/training';
 import PowerDurationCurve from '../components/PowerDurationCurve.jsx';
-import ZoneDistributionChart from '../components/ZoneDistributionChart.jsx';
 import RampRateAlert from '../components/RampRateAlert.jsx';
 import RideAnalysisModal from '../components/RideAnalysisModal.jsx';
 import { WorkoutModal } from '../components/planner/WorkoutModal';
@@ -106,21 +108,29 @@ function TrainingDashboard() {
   const isMobile = useMediaQuery('(max-width: 768px)');
   const [loading, setLoading] = useState(true);
 
-  // Read tab from URL query parameter, default to 'calendar'
-  // Note: 'plans' tab moved to /planner page, 'today' moved to /today, 'routes' moved to /ride
-  const urlTab = searchParams.get('tab');
-  const validTabs = ['coach', 'race', 'trends', 'power', 'history', 'repeats', 'insights', 'calendar', 'browse', 'season'];
-  const seasonEnabled = useFeatureFlag('season_planner');
-  const initialTab = validTabs.includes(urlTab) ? urlTab : 'calendar';
-  const [activeTab, setActiveTab] = useState(initialTab);
-  // Keep the active tab in sync with the ?tab= param so deep links and CTAs
-  // (e.g. "Browse Plans" → ?tab=browse) work even when already on this page.
+  // Five tabs (Calendar · Season · Coach · Progress · Rides); old ?tab= values
+  // redirect through resolveTrainTab (src/components/train/trainTabs.ts).
+  const urlTabState = resolveTrainTab(searchParams);
+  const urlTabKey = `${urlTabState.tab}|${urlTabState.view}|${urlTabState.browse}`;
+  const [activeTab, setActiveTab] = useState(urlTabState.tab);
+  // Season: the season view or one race's details. Rides: history or repeats.
+  const [seasonView, setSeasonView] = useState(urlTabState.tab === 'season' ? urlTabState.view : null);
+  const [rideView, setRideView] = useState(urlTabState.tab === 'rides' ? urlTabState.view : null);
+  // The plan browser opens as a drawer over the calendar (old ?tab=browse links land here).
+  const [browseOpen, setBrowseOpen] = useState(urlTabState.browse);
+  // Keep the tab in sync with the URL so deep links and CTAs work even when already on this page.
   useEffect(() => {
-    if (urlTab && validTabs.includes(urlTab) && urlTab !== activeTab) {
-      setActiveTab(urlTab);
-    }
+    setActiveTab(urlTabState.tab);
+    if (urlTabState.tab === 'season') setSeasonView(urlTabState.view);
+    if (urlTabState.tab === 'rides') setRideView(urlTabState.view);
+    if (urlTabState.browse) setBrowseOpen(true);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [urlTab]);
+  }, [urlTabKey]);
+  const selectTab = useCallback((tab) => {
+    setActiveTab(tab);
+    if (tab !== 'season') setSeasonView(null);
+    if (tab !== 'rides') setRideView(null);
+  }, []);
   const [activities, setActivities] = useState([]);
   const [speedProfile, setSpeedProfile] = useState(null);
   const [unitsPreference, setUnitsPreference] = useState('imperial');
@@ -182,8 +192,8 @@ function TrainingDashboard() {
   // The map card starts collapsed; REPEATS overlays rides on the anchor
   // ride shown there, so opening that tab asks the card to unfold.
   useEffect(() => {
-    if (activeTab === 'repeats') setMapOpenSignal((n) => n + 1);
-  }, [activeTab]);
+    if (activeTab === 'rides' && rideView === 'repeats') setMapOpenSignal((n) => n + 1);
+  }, [activeTab, rideView]);
   const mapCardRef = useRef(null);
   const gpsRides = useMemo(() => visibleActivities.filter(rideHasGps), [visibleActivities]);
   const mapSel = useMemo(() => selectGpsRide(gpsRides, mapRideId), [gpsRides, mapRideId]);
@@ -801,12 +811,12 @@ function TrainingDashboard() {
     setMapRideId(gpsRides[mapSel.index + 1]?.id ?? null);
   }, [gpsRides, mapSel.index]);
 
-  // `/train?tab=history&ride=<id>` (the Today card's "full analysis" link):
+  // `/train?tab=rides&ride=<id>` (the Today card's "full analysis" link):
   // once the activities are in, put that ride on the map and open the modal
   // — once. The ref keeps a later `activities` replacement (gear merge, hide)
   // from re-opening it after the athlete closed it.
   const urlRideId = searchParams.get('ride');
-  // `/train?tab=repeats&segment=<id>` (the ride modal's "compare repeats"):
+  // `/train?tab=rides&view=repeats&segment=<id>` (the ride modal's "compare repeats"):
   // the REPEATS tab opens anchored on that segment.
   const urlSegmentId = searchParams.get('segment');
   const consumedUrlRide = useRef(null);
@@ -1029,6 +1039,10 @@ function TrainingDashboard() {
                         <Menu.Divider />
                       </>
                     )}
+                    <Menu.Item leftSection={<Calendar size={16} />} onClick={() => setBrowseOpen(true)}>
+                      Browse training plans
+                    </Menu.Item>
+                    <Menu.Divider />
                     <Menu.Label>Import activities</Menu.Label>
                     {/* Strava and Garmin bulk exports go through the same
                         modal — it tells them apart itself. */}
@@ -1060,9 +1074,10 @@ function TrainingDashboard() {
           {/* Secondary Nav Bar — the page's tabs, directly under the header so
               they read as the page's top-level navigation rather than sitting
               below the ride map. */}
-          <SecondaryNavBar activeTab={activeTab} onTabChange={setActiveTab} showSeason={seasonEnabled} />
+          <SecondaryNavBar activeTab={activeTab} onTabChange={selectTab} />
 
-          {/* Plan strip + this week's plan-vs-actual, one card */}
+          {/* Plan strip + this week's plan-vs-actual, one card (Calendar only) */}
+          {activeTab === 'calendar' && (
           <PlanWeekCard
             activePlan={activePlan}
             plannedWorkouts={plannedWorkouts}
@@ -1070,9 +1085,10 @@ function TrainingDashboard() {
             formatTime={formatTime}
             loading={loading}
           />
+          )}
 
-          {/* The ride map: newest GPS ride by default, or the HISTORY pick */}
-          {mapSel.ride && (
+          {/* The ride map: newest GPS ride by default, or the RIDES pick. Calendar and Rides only. */}
+          {mapSel.ride && (activeTab === 'calendar' || activeTab === 'rides') && (
             <div ref={mapCardRef}>
               <RideMapCard
                 ride={mapSel.ride}
@@ -1081,7 +1097,7 @@ function TrainingDashboard() {
                 formatElevation={formatElev}
                 formatTime={formatTime}
                 title={
-                  activeTab === 'history' ? 'Selected ride' : activeTab === 'repeats' ? 'Anchor ride' : 'Latest ride'
+                  activeTab === 'rides' ? (rideView === 'repeats' ? 'Anchor ride' : 'Selected ride') : 'Latest ride'
                 }
                 hasNewer={mapSel.hasNewer}
                 hasOlder={mapSel.hasOlder}
@@ -1115,22 +1131,18 @@ function TrainingDashboard() {
               />
             )}
 
-            {/* SEASON TAB (season_planner flag) */}
-            {activeTab === 'season' && seasonEnabled && (
+            {/* SEASON TAB — races, the season profile, and one race's details */}
+            {activeTab === 'season' && (
               <Suspense fallback={null}>
-                <SeasonTab isImperial={isImperial} />
+                <SeasonTab
+                  isImperial={isImperial}
+                  view={seasonView === 'race' ? 'race' : 'season'}
+                  onViewChange={(v) => setSeasonView(v === 'race' ? 'race' : null)}
+                  trainingContext={trainingContext}
+                  formatDist={formatDist}
+                  formatElev={formatElev}
+                />
               </Suspense>
-            )}
-
-            {/* BROWSE PLANS TAB (reached via "Browse Plans" CTAs) */}
-            {activeTab === 'browse' && (
-              <TrainingPlanBrowser
-                activePlan={activePlan}
-                onPlanActivated={async (plan) => {
-                  await handlePlanUpdated();
-                  if (plan) setActiveTab('calendar');
-                }}
-              />
             )}
 
             {/* COACH TAB */}
@@ -1143,81 +1155,101 @@ function TrainingDashboard() {
               />
             )}
 
-            {/* RACE TAB */}
-            {activeTab === 'race' && (
-              <RaceTab
-                trainingContext={trainingContext}
-                isImperial={isImperial}
-                formatDist={formatDist}
-                formatElev={formatElev}
-              />
+            {/* PROGRESS TAB — fitness, the year, zones and power, insights */}
+            {activeTab === 'progress' && (
+              <Stack gap="xl">
+                <TrendsTab
+                  dailyTSSData={dailyTSSData}
+                  trainingMetrics={trainingMetrics}
+                  activities={visibleActivities}
+                  speedProfile={speedProfile}
+                  formatDist={formatDist}
+                  formatElev={formatElev}
+                  isImperial={isImperial}
+                  ftp={ftp}
+                  weight={userWeight}
+                  healthHistory={healthHistory}
+                  onOpenCheckIn={handleOpenCheckIn}
+                />
+                <ProgressSections />
+                <PowerTab
+                  ftp={ftp}
+                  powerZones={powerZones}
+                  navigate={navigate}
+                  activities={visibleActivities}
+                  weight={userWeight}
+                />
+                <HistoricalInsights userId={user?.id} activities={visibleActivities} ftp={ftp} />
+              </Stack>
             )}
 
-            {/* TRENDS TAB */}
-            {activeTab === 'trends' && (
-              <TrendsTab
-                dailyTSSData={dailyTSSData}
-                trainingMetrics={trainingMetrics}
-                activities={visibleActivities}
-                speedProfile={speedProfile}
-                formatDist={formatDist}
-                formatElev={formatElev}
-                isImperial={isImperial}
-                ftp={ftp}
-                weight={userWeight}
-                healthHistory={healthHistory}
-                onOpenCheckIn={handleOpenCheckIn}
-              />
-            )}
-
-            {/* POWER TAB */}
-            {activeTab === 'power' && (
-              <PowerTab
-                ftp={ftp}
-                powerZones={powerZones}
-                navigate={navigate}
-                activities={visibleActivities}
-                weight={userWeight}
-              />
-            )}
-
-            {/* HISTORY TAB */}
-            {activeTab === 'history' && (
-              <RideHistoryTable
-                rides={activities}
-                formatDistance={formatDist}
-                formatElevation={formatElev}
-                ftp={ftp}
-                maxRows={Infinity}
-                onViewRide={handleSelectMapRide}
-                selectedRideId={mapSel.ride?.id ?? null}
-                onHideRide={handleHideRide}
-                bikes={bikes}
-                onAssignBike={handleAssignBike}
-                onSetSurface={handleSetSurface}
-              />
-            )}
-
-            {/* REPEATS TAB — every ride along the anchor ride or a segment, overlaid */}
-            {activeTab === 'repeats' && (
-              <RepeatsTab
-                anchorRide={mapSel.ride}
-                activities={visibleActivities}
-                userId={user?.id}
-                initialSegmentId={urlSegmentId}
-                formatDistance={formatDist}
-                formatSpeed={formatSpd}
-                onOpenRide={handleViewRide}
-              />
-            )}
-
-            {/* INSIGHTS TAB */}
-            {activeTab === 'insights' && (
-              <HistoricalInsights userId={user?.id} activities={visibleActivities} ftp={ftp} />
+            {/* RIDES TAB — the ride list, or every ride along the anchor ride / a segment */}
+            {activeTab === 'rides' && (
+              <Stack gap="md">
+                <SegmentedControl
+                  radius={0}
+                  size="xs"
+                  value={rideView === 'repeats' ? 'repeats' : 'history'}
+                  onChange={(v) => setRideView(v === 'repeats' ? 'repeats' : null)}
+                  data={[
+                    { value: 'history', label: 'History' },
+                    { value: 'repeats', label: 'Repeats' },
+                  ]}
+                  style={{ alignSelf: 'flex-start' }}
+                />
+                {rideView === 'repeats' ? (
+                  <RepeatsTab
+                    anchorRide={mapSel.ride}
+                    activities={visibleActivities}
+                    userId={user?.id}
+                    initialSegmentId={urlSegmentId}
+                    formatDistance={formatDist}
+                    formatSpeed={formatSpd}
+                    onOpenRide={handleViewRide}
+                  />
+                ) : (
+                  <RideHistoryTable
+                    rides={activities}
+                    formatDistance={formatDist}
+                    formatElevation={formatElev}
+                    ftp={ftp}
+                    maxRows={Infinity}
+                    onViewRide={handleSelectMapRide}
+                    selectedRideId={mapSel.ride?.id ?? null}
+                    onHideRide={handleHideRide}
+                    bikes={bikes}
+                    onAssignBike={handleAssignBike}
+                    onSetSurface={handleSetSurface}
+                  />
+                )}
+              </Stack>
             )}
           </Box>
         </Stack>
       </Container>
+
+      {/* Training plans, over the calendar ("Browse training plans", or an old ?tab=browse link) */}
+      <Drawer
+        opened={browseOpen}
+        onClose={() => setBrowseOpen(false)}
+        position="right"
+        size="xl"
+        radius={0}
+        title="Training plans"
+      >
+        {browseOpen && (
+          <TrainingPlanBrowser
+            activePlan={activePlan}
+            onPlanActivated={async (plan) => {
+              await handlePlanUpdated();
+              if (plan) {
+                setBrowseOpen(false);
+                selectTab('calendar');
+              }
+            }}
+          />
+        )}
+      </Drawer>
 
       {/* Health Check-in Modal */}
       <HealthCheckInModal
@@ -1373,13 +1405,6 @@ const TrendsTab = React.memo(function TrendsTab({ dailyTSSData, trainingMetrics,
           </Box>
         )}
       </Card>
-
-      {/* Zone Distribution */}
-      <ZoneDistributionChart
-        activities={activities}
-        ftp={ftp}
-        timeRange="7"
-      />
 
       {/* Aerobic Decoupling */}
       <AerobicDecoupling

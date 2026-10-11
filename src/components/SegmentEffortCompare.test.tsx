@@ -75,6 +75,6 @@ describe('SegmentEffortCompare', () => {
   });
 
   it('links to the REPEATS tab anchored on the segment', () => {
-    expect(compareRepeatsHref('abc/1')).toBe('/train?tab=repeats&segment=abc%2F1');
+    expect(compareRepeatsHref('abc/1')).toBe('/train?tab=rides&view=repeats&segment=abc%2F1');
   });
 });
