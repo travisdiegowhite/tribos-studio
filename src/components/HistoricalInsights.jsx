@@ -4,18 +4,14 @@
  */
 import React, { useState, useEffect, useMemo } from 'react';
 import {
-  Card,
   Text,
-  Title,
   Stack,
   Group,
   SimpleGrid,
-  Select,
   Badge,
   Loader,
   Box,
   Paper,
-  ThemeIcon,
   Alert,
   Button,
   SegmentedControl,
@@ -33,11 +29,10 @@ import {
   Tooltip,
   Legend,
   ResponsiveContainer,
-  ReferenceLine,
 } from 'recharts';
 import { supabase } from '../lib/supabase';
-import { tokens } from '../theme';
-import { ArrowsClockwise, ChartLine, Fire, TrendDown, TrendUp, Trophy, WarningCircle } from '@phosphor-icons/react';
+import { StatRow, TONE, display, mono, tooltipStyle, useChartColors } from './train/progressUi.jsx';
+import { ArrowsClockwise, TrendDown, TrendUp, WarningCircle } from '@phosphor-icons/react';
 import { computeWeeklySnapshots, overlayServerLoadOnWeeklySnapshots } from '../utils/computeFitnessSnapshots';
 import { getISOWeek, getISOWeekYear } from '../utils/isoWeek';
 import { selectTimeTicks } from '../utils/timeAxisTicks';
@@ -77,21 +72,23 @@ function YearOverYearChart({ snapshots, selectedYears }) {
     return Array.from(uniqueYears).sort((a, b) => b - a);
   }, [snapshots]);
 
-  const colors = ['#C49A0A', '#2A8C82', '#C43C2A', '#7A7970', '#D4600A'];
+  const CHART = useChartColors();
+  // Newest year in ink, the year before in signal, older years in cyan / grey.
+  const colors = [CHART.fitness, CHART.fatigue, CHART.bar, CHART.future];
 
   if (chartData.length === 0) {
     return (
-      <Card withBorder p="md">
+      <Box>
         <Text c="dimmed" ta="center">No data available for comparison</Text>
-      </Card>
+      </Box>
     );
   }
 
   return (
-    <Card withBorder p="md">
+    <Box>
       <Group justify="space-between" mb="md">
-        <Title order={4}>Year-over-Year Fitness</Title>
-        <Badge color="blue" variant="light">Week of Year Comparison</Badge>
+        <Text style={{ ...display, fontSize: 15 }}>Year-over-Year Fitness</Text>
+        <Text style={{ ...mono, fontSize: 11, color: 'var(--color-text-muted)' }}>WEEK OF YEAR</Text>
       </Group>
 
       <ResponsiveContainer width="100%" height={300}>
@@ -109,11 +106,7 @@ function YearOverYearChart({ snapshots, selectedYears }) {
             label={{ value: 'Fitness (TFI)', angle: -90, position: 'insideLeft' }}
           />
           <Tooltip
-            contentStyle={{
-              backgroundColor: 'var(--color-bg-secondary)',
-              border: `1px solid ${'var(--tribos-border)'}`,
-              borderRadius: 8
-            }}
+            contentStyle={tooltipStyle}
             formatter={(value, name) => [Math.round(value), name.replace('ctl_', '')]}
           />
           <Legend />
@@ -131,7 +124,7 @@ function YearOverYearChart({ snapshots, selectedYears }) {
           ))}
         </LineChart>
       </ResponsiveContainer>
-    </Card>
+    </Box>
   );
 }
 
@@ -139,6 +132,7 @@ function YearOverYearChart({ snapshots, selectedYears }) {
  * Seasonal Pattern Chart - Average CTL by month
  */
 function SeasonalPatternChart({ snapshots }) {
+  const CHART = useChartColors();
   const monthlyData = useMemo(() => {
     if (!snapshots || snapshots.length === 0) return [];
 
@@ -165,12 +159,12 @@ function SeasonalPatternChart({ snapshots }) {
   const lowMonth = monthlyData.reduce((min, m) => (m.avgCtl > 0 && m.avgCtl < min.avgCtl) ? m : min, { avgCtl: Infinity });
 
   return (
-    <Card withBorder p="md">
+    <Box>
       <Group justify="space-between" mb="md">
-        <Title order={4}>Seasonal Training Pattern</Title>
+        <Text style={{ ...display, fontSize: 15 }}>Seasonal Training Pattern</Text>
         <Group gap="xs">
-          <Badge color="green" variant="light">Peak: {peakMonth.month}</Badge>
-          <Badge color="orange" variant="light">Low: {lowMonth.month}</Badge>
+          <Text style={{ ...mono, fontSize: 11 }}>PEAK {peakMonth.month.toUpperCase()}</Text>
+          <Text style={{ ...mono, fontSize: 11, color: 'var(--color-text-muted)' }}>LOW {lowMonth.month.toUpperCase()}</Text>
         </Group>
       </Group>
 
@@ -187,25 +181,21 @@ function SeasonalPatternChart({ snapshots }) {
             tick={{ fontSize: 12 }}
           />
           <Tooltip
-            contentStyle={{
-              backgroundColor: 'var(--color-bg-secondary)',
-              border: `1px solid ${'var(--tribos-border)'}`,
-              borderRadius: 8
-            }}
+            contentStyle={tooltipStyle}
             formatter={(value, name) => {
               if (name === 'avgCtl') return [value, 'Avg fitness'];
               if (name === 'avgHours') return [value, 'Avg Hours/Week'];
               return [value, name];
             }}
           />
-          <Bar dataKey="avgCtl" fill="#C49A0A" name="avgCtl" radius={[4, 4, 0, 0]} />
+          <Bar dataKey="avgCtl" fill={CHART.bar} name="avgCtl" />
         </BarChart>
       </ResponsiveContainer>
 
       <Text size="xs" c="dimmed" ta="center" mt="xs">
         Based on {snapshots?.length || 0} weeks of data
       </Text>
-    </Card>
+    </Box>
   );
 }
 
@@ -215,6 +205,7 @@ function SeasonalPatternChart({ snapshots }) {
 const PROGRESSION_RANGES = { All: null, '5y': 5, '2y': 2, '1y': 1 };
 
 function FitnessProgressionChart({ snapshots }) {
+  const CHART = useChartColors();
   const [range, setRange] = useState('All');
 
   const chartData = useMemo(() => {
@@ -263,13 +254,14 @@ function FitnessProgressionChart({ snapshots }) {
   }
 
   return (
-    <Card withBorder p="md">
+    <Box>
       <Group justify="space-between" mb="md">
-        <Title order={4}>Long-term Fitness Progression</Title>
+        <Text style={{ ...display, fontSize: 15 }}>Long-term Fitness Progression</Text>
         <Group gap="sm">
           {yearOverYear != null && (
             <Badge
-              color={yearOverYear >= 0 ? 'green' : 'red'}
+              color={yearOverYear >= 0 ? 'ink' : 'signal'}
+              radius={0}
               variant="light"
               leftSection={yearOverYear >= 0 ? <TrendUp size={14} /> : <TrendDown size={14} />}
             >
@@ -288,11 +280,7 @@ function FitnessProgressionChart({ snapshots }) {
       <ResponsiveContainer width="100%" height={300}>
         <AreaChart data={visibleData}>
           <defs>
-            <linearGradient id="ctlGradient" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="5%" stopColor="#C49A0A" stopOpacity={0.3}/>
-              <stop offset="95%" stopColor="#C49A0A" stopOpacity={0}/>
-            </linearGradient>
-          </defs>
+                      </defs>
           <CartesianGrid strokeDasharray="3 3" stroke={'var(--tribos-border)'} />
           <XAxis
             dataKey="date"
@@ -307,24 +295,21 @@ function FitnessProgressionChart({ snapshots }) {
             tick={{ fontSize: 12 }}
           />
           <Tooltip
-            contentStyle={{
-              backgroundColor: 'var(--color-bg-secondary)',
-              border: `1px solid ${'var(--tribos-border)'}`,
-              borderRadius: 0
-            }}
+            contentStyle={tooltipStyle}
             labelFormatter={(date) => `Week of ${parseLocalDate(date).toLocaleDateString()}`}
             formatter={(value, name) => [Math.round(value), name.toUpperCase()]}
           />
           <Area
             type="monotone"
             dataKey="ctl"
-            stroke="#C49A0A"
-            fill="url(#ctlGradient)"
+            stroke={CHART.fitness}
+            fill={CHART.fitness}
+            fillOpacity={0.08}
             strokeWidth={2}
           />
         </AreaChart>
       </ResponsiveContainer>
-    </Card>
+    </Box>
   );
 }
 
@@ -353,15 +338,12 @@ function PeakFitnessCard({ snapshots }) {
   const percentOfPeak = peakCtl > 0 ? Math.round((currentCtl / peakCtl) * 100) : 0;
 
   return (
-    <Card withBorder p="md">
+    <Box>
       <Group justify="space-between" mb="md">
         <Group gap="xs">
-          <ThemeIcon color="yellow" variant="light" size="lg">
-            <Trophy size={20} />
-          </ThemeIcon>
-          <Title order={4}>Peak Fitness Periods</Title>
+          <Text style={{ ...display, fontSize: 15 }}>Peak Fitness Periods</Text>
         </Group>
-        <Badge color="blue" variant="light">
+        <Badge color="ink" variant="outline" radius={0}>
           Current: {percentOfPeak}% of peak
         </Badge>
       </Group>
@@ -372,13 +354,13 @@ function PeakFitnessCard({ snapshots }) {
           const isRecent = (new Date() - date) < 90 * 24 * 60 * 60 * 1000;
 
           return (
-            <Paper key={peak.week} p="sm" withBorder style={{
-              borderColor: i === 0 ? tokens.colors.accent : 'var(--tribos-border)',
-              backgroundColor: i === 0 ? `${tokens.colors.accent}10` : 'transparent'
+            <Paper key={peak.week} p="sm" style={{
+              border: `1px solid ${i === 0 ? 'var(--color-ink)' : 'var(--color-border)'}`,
+              backgroundColor: 'transparent'
             }}>
               <Group justify="space-between">
                 <Group gap="sm">
-                  <Text fw={700} size="lg" c={i === 0 ? 'blue' : 'dimmed'}>
+                  <Text fw={700} size="lg" style={{ ...mono, color: i === 0 ? 'var(--color-text-primary)' : 'var(--color-text-muted)' }}>
                     #{i + 1}
                   </Text>
                   <Box>
@@ -391,17 +373,17 @@ function PeakFitnessCard({ snapshots }) {
                   </Box>
                 </Group>
                 <Group gap="xs">
-                  <Badge size="lg" color={i === 0 ? 'yellow' : 'gray'} variant="light">
+                  <Badge size="lg" color={i === 0 ? 'ink' : 'gray'} variant={i === 0 ? 'filled' : 'outline'} radius={0}>
                     Fitness {peak.ctl}
                   </Badge>
-                  {isRecent && <Badge color="green" size="xs">Recent</Badge>}
+                  {isRecent && <Badge color="easy" variant="outline" radius={0} size="xs">Recent</Badge>}
                 </Group>
               </Group>
             </Paper>
           );
         })}
       </Stack>
-    </Card>
+    </Box>
   );
 }
 
@@ -409,6 +391,7 @@ function PeakFitnessCard({ snapshots }) {
  * Training Volume Comparison
  */
 function VolumeComparisonChart({ snapshots }) {
+  const CHART = useChartColors();
   const yearlyStats = useMemo(() => {
     if (!snapshots || snapshots.length === 0) return [];
 
@@ -442,8 +425,8 @@ function VolumeComparisonChart({ snapshots }) {
   }, [snapshots]);
 
   return (
-    <Card withBorder p="md">
-      <Title order={4} mb="md">Annual Training Volume</Title>
+    <Box>
+      <Text style={{ ...display, fontSize: 15 }} mb="md">Annual Training Volume</Text>
 
       <ResponsiveContainer width="100%" height={250}>
         <BarChart data={yearlyStats}>
@@ -467,30 +450,24 @@ function VolumeComparisonChart({ snapshots }) {
             label={{ value: 'Peak fitness', angle: 90, position: 'insideRight' }}
           />
           <Tooltip
-            contentStyle={{
-              backgroundColor: 'var(--color-bg-secondary)',
-              border: `1px solid ${'var(--tribos-border)'}`,
-              borderRadius: 8
-            }}
+            contentStyle={tooltipStyle}
           />
           <Legend />
           <Bar
             yAxisId="hours"
             dataKey="totalHours"
-            fill="#2A8C82"
+            fill={CHART.fitness}
             name="Total Hours"
-            radius={[4, 4, 0, 0]}
           />
           <Bar
             yAxisId="ctl"
             dataKey="peakCtl"
-            fill="#C49A0A"
+            fill={CHART.bar}
             name="Peak fitness"
-            radius={[4, 4, 0, 0]}
           />
         </BarChart>
       </ResponsiveContainer>
-    </Card>
+    </Box>
   );
 }
 
@@ -530,33 +507,19 @@ function QuickStats({ snapshots, activities }) {
   if (!stats) return null;
 
   return (
-    <SimpleGrid cols={{ base: 2, sm: 4 }} spacing="md">
-      <Paper p="md" withBorder>
-        <Text size="xs" c="dimmed" tt="uppercase">Current fitness (TFI)</Text>
-        <Text size="xl" fw={700}>{stats.currentCtl}</Text>
-        <Text size="xs" c="dimmed">{stats.percentOfPeak}% of peak</Text>
-      </Paper>
-
-      <Paper p="md" withBorder>
-        <Text size="xs" c="dimmed" tt="uppercase">All-time Peak</Text>
-        <Text size="xl" fw={700} c="yellow">{stats.peakCtl}</Text>
-        <Text size="xs" c="dimmed">Highest recorded</Text>
-      </Paper>
-
-      <Paper p="md" withBorder>
-        <Text size="xs" c="dimmed" tt="uppercase">vs Last Year</Text>
-        <Text size="xl" fw={700} c={stats.vsLastYear >= 0 ? 'green' : 'red'}>
-          {stats.vsLastYear !== null ? `${stats.vsLastYear >= 0 ? '+' : ''}${stats.vsLastYear}` : 'N/A'}
-        </Text>
-        <Text size="xs" c="dimmed">Same time last year</Text>
-      </Paper>
-
-      <Paper p="md" withBorder>
-        <Text size="xs" c="dimmed" tt="uppercase">Data Span</Text>
-        <Text size="xl" fw={700}>{stats.totalYears} years</Text>
-        <Text size="xs" c="dimmed">{stats.weeksOfData} weeks tracked</Text>
-      </Paper>
-    </SimpleGrid>
+    <StatRow
+      stats={[
+        { label: 'Current fitness (TFI)', value: String(stats.currentCtl), note: `${stats.percentOfPeak}% of peak` },
+        { label: 'All-time peak', value: String(stats.peakCtl), note: 'highest recorded' },
+        {
+          label: 'vs last year',
+          value: stats.vsLastYear !== null ? `${stats.vsLastYear >= 0 ? '+' : ''}${stats.vsLastYear}` : 'N/A',
+          color: stats.vsLastYear !== null && stats.vsLastYear < 0 ? TONE.warn : TONE.neutral,
+          note: 'same time last year',
+        },
+        { label: 'Data span', value: `${stats.totalYears} years`, note: `${stats.weeksOfData} weeks tracked` },
+      ]}
+    />
   );
 }
 
@@ -720,18 +683,18 @@ function HistoricalInsights({ userId, activities, ftp }) {
 
   if (isLoading) {
     return (
-      <Card withBorder p="xl">
+      <Box py="md">
         <Stack align="center" gap="md">
           <Loader size="lg" />
           <Text c="dimmed">Loading historical data...</Text>
         </Stack>
-      </Card>
+      </Box>
     );
   }
 
   if (error && snapshots.length === 0) {
     return (
-      <Alert color="red" icon={<WarningCircle />} title="Error loading data">
+      <Alert color="signal" variant="outline" radius={0} icon={<WarningCircle />} title="Error loading data">
         {error}
       </Alert>
     );
@@ -739,18 +702,15 @@ function HistoricalInsights({ userId, activities, ftp }) {
 
   if (snapshots.length === 0) {
     return (
-      <Card withBorder p="xl">
+      <Box py="md">
         <Stack align="center" gap="md">
-          <ThemeIcon size={60} radius="xl" color="gray" variant="light">
-            <ChartLine size={30} />
-          </ThemeIcon>
-          <Title order={3}>No Historical Data Yet</Title>
+          <Text style={{ ...display, fontSize: 18 }}>No historical data yet</Text>
           <Text c="dimmed" ta="center" maw={400}>
             Sync activities from Strava, Garmin, or Wahoo to see your fitness history.
             Data will appear here as soon as activities are imported.
           </Text>
         </Stack>
-      </Card>
+      </Box>
     );
   }
 
@@ -766,7 +726,7 @@ function HistoricalInsights({ userId, activities, ftp }) {
           loading={rebuilding}
           onClick={handleRebuildSnapshots}
           style={{
-            fontFamily: "'Archivo', sans-serif",
+            fontFamily: 'var(--font-body)',
             fontSize: 11,
             fontWeight: 700,
             letterSpacing: '1.5px',

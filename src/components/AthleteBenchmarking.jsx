@@ -1,21 +1,7 @@
 import { useMemo, useState } from 'react';
-import {
-  Card,
-  Text,
-  Group,
-  Badge,
-  Stack,
-  Box,
-  Paper,
-  SimpleGrid,
-  Progress,
-  Tooltip,
-  SegmentedControl,
-  Table,
-  Select,
-} from '@mantine/core';
-import { tokens } from '../theme';
-import { ChartBar, Fire, Lightning, Mountains, Trophy, Users } from '@phosphor-icons/react';
+import { Badge, Box, Group, SegmentedControl, Stack, Table, Text, Tooltip } from '@mantine/core';
+import { StatRow, SubHeading, kicker, mono } from './train/progressUi.jsx';
+import { ChartBar, Fire, Lightning, Mountains, Trophy } from '@phosphor-icons/react';
 
 /**
  * Athlete Benchmarking Component
@@ -86,7 +72,6 @@ const RIDER_TYPES = {
   sprinter: {
     name: 'Sprinter',
     description: 'Explosive power specialist - dominates short efforts',
-    color: 'pink',
     icon: Lightning,
     profile: {
       // 5s/5min ratio > 3.5
@@ -100,7 +85,6 @@ const RIDER_TYPES = {
   pursuiter: {
     name: 'Pursuiter',
     description: 'Strong in 3-8 minute efforts - good track rider',
-    color: 'orange',
     icon: Fire,
     profile: {
       sprintRatio: { min: 2.8, max: 3.5 },
@@ -112,7 +96,6 @@ const RIDER_TYPES = {
   timeTrial: {
     name: 'Time Trialist',
     description: 'Excellent sustained power - specialist against the clock',
-    color: 'blue',
     icon: ChartBar,
     profile: {
       sprintRatio: { min: 2.2, max: 3.0 },
@@ -124,7 +107,6 @@ const RIDER_TYPES = {
   climber: {
     name: 'Climber',
     description: 'High power-to-weight - excels on long ascents',
-    color: 'green',
     icon: Mountains,
     profile: {
       sprintRatio: { min: 2.0, max: 2.8 },
@@ -137,7 +119,6 @@ const RIDER_TYPES = {
   allRounder: {
     name: 'All-Rounder',
     description: 'Balanced power profile - competitive in most situations',
-    color: 'grape',
     icon: Trophy,
     profile: {
       sprintRatio: { min: 2.5, max: 3.5 },
@@ -227,11 +208,12 @@ function determineRiderType(powerProfile, weight) {
  * Get category label from W/kg for FTP
  */
 function getFTPCategory(wkg) {
-  if (wkg >= 5.8) return { category: 'World Class', color: 'yellow' };
-  if (wkg >= 5.0) return { category: 'Elite', color: 'red' };
-  if (wkg >= 4.2) return { category: 'Competitive', color: 'orange' };
-  if (wkg >= 3.5) return { category: 'Trained', color: 'terracotta' };
-  if (wkg >= 2.8) return { category: 'Recreational', color: 'blue' };
+  // Role colours only: the top tiers in signal, the middle in ink, the rest muted.
+  if (wkg >= 5.8) return { category: 'World Class', color: 'signal' };
+  if (wkg >= 5.0) return { category: 'Elite', color: 'signal' };
+  if (wkg >= 4.2) return { category: 'Competitive', color: 'ink' };
+  if (wkg >= 3.5) return { category: 'Trained', color: 'ink' };
+  if (wkg >= 2.8) return { category: 'Recreational', color: 'easy' };
   return { category: 'Untrained', color: 'gray' };
 }
 
@@ -320,147 +302,104 @@ const AthleteBenchmarking = ({ activities, ftp, weight, gender = 'male', age = 3
 
   if (!analysis) {
     return (
-      <Card withBorder p="xl">
-        <Text style={{ color: 'var(--color-text-muted)' }} ta="center">
+      <Box>
+        <SubHeading>Benchmarking</SubHeading>
+        <Text size="sm" style={{ color: 'var(--color-text-secondary)' }}>
           Enter your weight in Settings to see how you compare to other cyclists.
         </Text>
-      </Card>
+      </Box>
     );
   }
 
-  const RiderIcon = analysis.riderTypeData?.icon || Trophy;
+  const DURATIONS = [
+    { duration: 5, label: '5 seconds (sprint)' },
+    { duration: 60, label: '1 minute (anaerobic)' },
+    { duration: 300, label: '5 minutes (VO2max)' },
+    { duration: 1200, label: '20 minutes (threshold)' },
+    { duration: 3600, label: '60 minutes (FTP)' },
+  ];
 
   return (
-    <Card>
-      <Group justify="space-between" mb="md" wrap="wrap">
-        <Group gap="sm">
-          <Users size={20} color={'var(--color-teal)'} />
-          <Text size="sm" fw={600} style={{ color: 'var(--color-text-primary)' }}>
-            Athlete Benchmarking
-          </Text>
-        </Group>
-        <SegmentedControl
-          size="xs"
-          value={viewMode}
-          onChange={setViewMode}
-          data={[
-            { label: 'Percentiles', value: 'percentiles' },
-            { label: 'Profile', value: 'profile' },
-          ]}
-        />
-      </Group>
+    <Box>
+      <SubHeading
+        aside={
+          <SegmentedControl
+            size="xs"
+            radius={0}
+            value={viewMode}
+            onChange={setViewMode}
+            data={[
+              { label: 'Percentiles', value: 'percentiles' },
+              { label: 'Profile', value: 'profile' },
+            ]}
+          />
+        }
+      >
+        Benchmarking
+      </SubHeading>
 
-      {/* Rider Type & Category Summary */}
-      <SimpleGrid cols={{ base: 1, sm: 3 }} spacing="sm" mb="md">
-        <Paper
-          p="md"
-          style={{
-            backgroundColor: 'var(--color-bg-secondary)',
-            border: `1px solid var(--mantine-color-${analysis.riderTypeData?.color || 'gray'}-7)`,
-          }}
-        >
-          <Group gap="sm" mb="xs">
-            <RiderIcon size={24} color={`var(--mantine-color-${analysis.riderTypeData?.color || 'gray'}-5)`} />
-            <Box>
-              <Text size="lg" fw={700} c={analysis.riderTypeData?.color}>
-                {analysis.riderTypeData?.name || 'Unknown'}
-              </Text>
-              <Text size="xs" c="dimmed">Rider Type</Text>
-            </Box>
-          </Group>
-          <Text size="xs" c="dimmed">
-            {analysis.riderTypeData?.description}
-          </Text>
-        </Paper>
-
-        <Paper p="md" style={{ backgroundColor: 'var(--color-bg-secondary)' }}>
-          <Text size="xs" c="dimmed" mb="xs">FTP Category</Text>
-          <Badge size="lg" color={analysis.ftpCategory.color} variant="filled">
-            {analysis.ftpCategory.category}
-          </Badge>
-          <Text size="lg" fw={700} mt="xs">
-            {analysis.wkgProfile[3600] || '--'} W/kg
-          </Text>
-        </Paper>
-
-        <Paper p="md" style={{ backgroundColor: 'var(--color-bg-secondary)' }}>
-          <Text size="xs" c="dimmed" mb="xs">Overall Percentile</Text>
-          <Text size="2rem" fw={700} c="terracotta">
-            Top {100 - analysis.avgPercentile}%
-          </Text>
-          <Text size="xs" c="dimmed">
-            Compared to {gender === 'female' ? 'female' : 'male'} cyclists
-          </Text>
-        </Paper>
-      </SimpleGrid>
+      <StatRow
+        minWidth={150}
+        stats={[
+          {
+            label: 'Rider type',
+            value: (analysis.riderTypeData?.name || 'Unknown').toUpperCase(),
+            note: analysis.riderTypeData?.description,
+          },
+          { label: 'FTP category', value: `${analysis.wkgProfile[3600] || '--'} W/kg`, note: analysis.ftpCategory.category },
+          {
+            label: 'Overall',
+            value: `Top ${100 - analysis.avgPercentile}%`,
+            note: `of ${gender === 'female' ? 'female' : 'male'} cyclists`,
+          },
+        ]}
+      />
 
       {viewMode === 'percentiles' ? (
-        /* Percentile View */
-        <Stack gap="sm">
-          <Text size="xs" fw={600} c="dimmed">Power Percentiles by Duration</Text>
-
-          {[
-            { duration: 5, label: '5 seconds (Sprint)' },
-            { duration: 60, label: '1 minute (Anaerobic)' },
-            { duration: 300, label: '5 minutes (VO2max)' },
-            { duration: 1200, label: '20 minutes (Threshold)' },
-            { duration: 3600, label: '60 minutes (FTP)' },
-          ].map(({ duration, label }) => (
-            <Paper key={duration} p="sm" style={{ backgroundColor: 'var(--color-bg-secondary)' }}>
-              <Group justify="space-between" mb="xs">
-                <Box>
-                  <Text size="sm" fw={500}>{label}</Text>
-                  <Text size="xs" c="dimmed">
-                    {analysis.powerProfile[duration] || '--'}W
-                    ({analysis.wkgProfile[duration] || '--'} W/kg)
-                  </Text>
+        <Box mt="md">
+          <Text style={kicker} mb={4}>Power percentiles by duration</Text>
+          <Box style={{ borderTop: '1px solid var(--color-border)' }}>
+            {DURATIONS.map(({ duration, label }) => {
+              const pct = analysis.percentiles[duration] || 0;
+              return (
+                <Box key={duration} style={{ borderBottom: '1px solid var(--color-border)', padding: '8px 0' }}>
+                  <Group justify="space-between" wrap="nowrap" mb={6}>
+                    <Box style={{ minWidth: 0 }}>
+                      <Text size="sm" fw={600}>{label}</Text>
+                      <Text style={{ ...mono, fontSize: 12, color: 'var(--color-text-muted)' }}>
+                        {analysis.powerProfile[duration] || '--'}W · {analysis.wkgProfile[duration] || '--'} W/kg
+                      </Text>
+                    </Box>
+                    <Text style={{ ...mono, fontSize: 14, fontWeight: 700, color: pct >= 85 ? 'var(--color-signal-text)' : undefined }}>
+                      Top {100 - pct}%
+                    </Text>
+                  </Group>
+                  <Box style={{ height: 6, backgroundColor: 'var(--color-bg-secondary)' }}>
+                    <Box style={{ height: 6, width: `${pct}%`, backgroundColor: pct >= 85 ? 'var(--color-signal)' : 'var(--color-ink)' }} />
+                  </Box>
                 </Box>
-                <Badge color={getPercentileColor(analysis.percentiles[duration])} variant="light">
-                  Top {100 - (analysis.percentiles[duration] || 0)}%
-                </Badge>
-              </Group>
-              <Progress
-                value={analysis.percentiles[duration] || 0}
-                color={getPercentileColor(analysis.percentiles[duration])}
-                size="md"
-                radius="xl"
-              />
-            </Paper>
-          ))}
-        </Stack>
+              );
+            })}
+          </Box>
+        </Box>
       ) : (
-        /* Profile View - Strengths & Weaknesses */
-        <Stack gap="md">
+        <Stack gap="md" mt="md">
           {analysis.riderTypeData && (
             <>
-              <Paper p="md" style={{ backgroundColor: 'var(--color-bg-secondary)' }}>
-                <Text size="sm" fw={600} c="green" mb="sm">Strengths</Text>
-                <Group gap="xs">
-                  {analysis.riderTypeData.strengths.map((s, i) => (
-                    <Badge key={i} color="green" variant="light" size="sm">
-                      {s}
-                    </Badge>
-                  ))}
-                </Group>
-              </Paper>
-
-              <Paper p="md" style={{ backgroundColor: 'var(--color-bg-secondary)' }}>
-                <Text size="sm" fw={600} c="red" mb="sm">Areas to Improve</Text>
-                <Group gap="xs">
-                  {analysis.riderTypeData.weaknesses.map((w, i) => (
-                    <Badge key={i} color="red" variant="light" size="sm">
-                      {w}
-                    </Badge>
-                  ))}
-                </Group>
-              </Paper>
+              <Box>
+                <Text style={kicker} mb={4}>Strengths</Text>
+                <Text size="sm">{analysis.riderTypeData.strengths.join(' · ')}</Text>
+              </Box>
+              <Box>
+                <Text style={kicker} mb={4}>Areas to improve</Text>
+                <Text size="sm">{analysis.riderTypeData.weaknesses.join(' · ')}</Text>
+              </Box>
             </>
           )}
 
-          {/* Benchmark Table */}
-          <Paper p="md" style={{ backgroundColor: 'var(--color-bg-secondary)' }}>
-            <Text size="sm" fw={600} mb="sm">FTP Benchmark Categories (W/kg)</Text>
-            <Table striped highlightOnHover size="sm">
+          <Box>
+            <Text style={kicker} mb={4}>FTP benchmark categories (W/kg)</Text>
+            <Table size="sm" withRowBorders style={{ fontFamily: 'var(--font-mono)' }}>
               <Table.Thead>
                 <Table.Tr>
                   <Table.Th>Category</Table.Th>
@@ -477,7 +416,7 @@ const AthleteBenchmarking = ({ activities, ftp, weight, gender = 'male', age = 3
                   { cat: 'Recreational', male: '2.8-3.5', female: '2.4-3.0' },
                   { cat: 'Untrained', male: '<2.8', female: '<2.4' },
                 ].map(row => (
-                  <Table.Tr key={row.cat}>
+                  <Table.Tr key={row.cat} style={row.cat === analysis.ftpCategory.category ? { fontWeight: 700 } : undefined}>
                     <Table.Td>{row.cat}</Table.Td>
                     <Table.Td>{row.male}</Table.Td>
                     <Table.Td>{row.female}</Table.Td>
@@ -485,14 +424,14 @@ const AthleteBenchmarking = ({ activities, ftp, weight, gender = 'male', age = 3
                 ))}
               </Table.Tbody>
             </Table>
-          </Paper>
+          </Box>
         </Stack>
       )}
 
-      <Text size="xs" c="dimmed" mt="md">
+      <Text size="xs" c="var(--color-text-muted)" mt="md">
         Benchmarks based on Hunter/Coggan power profiling. Percentiles adjusted for age and gender.
       </Text>
-    </Card>
+    </Box>
   );
 };
 
@@ -500,12 +439,11 @@ const AthleteBenchmarking = ({ activities, ftp, weight, gender = 'male', age = 3
  * Get color based on percentile
  */
 function getPercentileColor(percentile) {
+  // Role ramps: top 15% in signal, above median in ink, the rest easy / muted.
   if (!percentile) return 'gray';
-  if (percentile >= 95) return 'yellow';
-  if (percentile >= 85) return 'red';
-  if (percentile >= 70) return 'orange';
-  if (percentile >= 50) return 'terracotta';
-  if (percentile >= 30) return 'blue';
+  if (percentile >= 85) return 'signal';
+  if (percentile >= 50) return 'ink';
+  if (percentile >= 30) return 'easy';
   return 'gray';
 }
 

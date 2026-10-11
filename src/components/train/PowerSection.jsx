@@ -3,10 +3,11 @@ import AthleteBenchmarking from '../AthleteBenchmarking.jsx';
 import CriticalPowerModel from '../CriticalPowerModel.jsx';
 import EmptyState from '../EmptyState.jsx';
 import PowerDurationCurve from '../PowerDurationCurve.jsx';
-import { Box, Button, Card, Group, Paper, Progress, Stack, Text } from '@mantine/core';
+import { Box, Button, Group, Stack, Text } from '@mantine/core';
+import { SubHeading, kicker, mono } from './progressUi.jsx';
 import { Lightning } from '@phosphor-icons/react';
 import { TRAINING_ZONES } from '../../utils/trainingPlans';
-import { zoneColor } from '../../utils/rideZones';
+import { getRouteZoneColor as zoneColor } from '../ui/zoneColors';
 
 // ============================================================================
 // POWER — the power section of the Progress tab (moved from TrainingDashboard.jsx)
@@ -14,8 +15,9 @@ import { zoneColor } from '../../utils/rideZones';
 const PowerSection = React.memo(function PowerSection({ ftp, powerZones, navigate, activities, weight }) {
   // Names/ranges local; plain-language descriptions come from the canonical
   // zone table so every surface explains a zone the same way.
-  // Colors come from the shared zone palette (src/utils/rideZones.ts) so
-  // the ride map paints the same Z1–Z7.
+  // Colors come from the brand zone palette (src/components/ui/zoneColors.js:
+  // cyan, ultramarine, lime, magenta, ink — no orange or red), the same one
+  // the workout overlay paints.
   const zones = [
     { zone: 1, name: 'Recovery', range: '< 55%', color: zoneColor(1), description: TRAINING_ZONES[1]?.description },
     { zone: 2, name: 'Endurance', range: '55-75%', color: zoneColor(2), description: TRAINING_ZONES[2]?.description },
@@ -33,7 +35,6 @@ const PowerSection = React.memo(function PowerSection({ ftp, powerZones, navigat
     return (
       <EmptyState
         icon={Lightning}
-        iconColor="yellow"
         title="Set Your FTP"
         description="Enter your Functional Threshold Power to see personalized power zones and training recommendations."
         primaryAction={{
@@ -45,7 +46,7 @@ const PowerSection = React.memo(function PowerSection({ ftp, powerZones, navigat
   }
 
   return (
-    <Stack gap="lg">
+    <Stack gap="xl">
       {/* Power Duration Curve */}
       {hasPowerData && (
         <PowerDurationCurve
@@ -55,44 +56,33 @@ const PowerSection = React.memo(function PowerSection({ ftp, powerZones, navigat
         />
       )}
 
-      {/* FTP Display */}
-      <Paper
-        p="lg"
-        style={{
-          background: 'linear-gradient(135deg, rgba(212, 168, 67, 0.15), transparent)',
-          border: '1px solid rgba(212, 168, 67, 0.3)',
-        }}
-      >
-        <Group justify="space-between" align="center">
+      {/* FTP: the anchor for every zone */}
+      <Box style={{ borderTop: '1px solid var(--color-border)', borderBottom: '1px solid var(--color-border)', padding: '12px 0' }}>
+        <Group justify="space-between" align="center" wrap="wrap" gap="sm">
           <Box>
-            <Text size="sm" c="dimmed">Current FTP</Text>
-            <Group gap="sm" align="baseline">
-              <Text size="3rem" fw={700} style={{ color: '#D4820A' }}>
-                {ftp}W
-              </Text>
+            <Text style={kicker}>Current FTP</Text>
+            <Group gap="sm" align="baseline" wrap="wrap">
+              <Text style={{ ...mono, fontSize: 44, fontWeight: 700, lineHeight: 1.1 }}>{ftp}W</Text>
               {weight && (
-                <Text size="lg" c="dimmed">
-                  ({(ftp / weight).toFixed(2)} W/kg — watts per kilogram)
+                <Text style={{ ...mono, fontSize: 16, color: 'var(--color-text-secondary)' }}>
+                  {(ftp / weight).toFixed(2)} W/kg
                 </Text>
               )}
             </Group>
-            <Text size="sm" c="dimmed" mt={4}>
+            <Text size="sm" c="var(--color-text-secondary)" mt={4}>
               Your FTP — the anchor for all your zones and intensity targets.
             </Text>
-            <Text size="xs" c="dimmed" mt="xs">
-              Last updated: Manual entry
-            </Text>
           </Box>
-          <Button variant="light" color="yellow" onClick={() => navigate('/settings')}>
+          <Button variant="outline" radius={0} size="xs" onClick={() => navigate('/settings')}>
             Update FTP
           </Button>
         </Group>
-      </Paper>
+      </Box>
 
-      {/* Power Zones */}
-      <Card withBorder p="md">
-        <Text fw={600} mb="md">Power Zones</Text>
-        <Stack gap="sm">
+      {/* Power zones */}
+      <Box>
+        <SubHeading>Power zones</SubHeading>
+        <Box style={{ borderTop: '1px solid var(--color-border)' }}>
           {zones.map((z) => {
             const zoneData = powerZones?.[`z${z.zone}`];
             const watts = zoneData
@@ -104,37 +94,38 @@ const PowerSection = React.memo(function PowerSection({ ftp, powerZones, navigat
               : null;
 
             return (
-              <Group key={z.zone} gap="md">
-                <Box w={30} ta="center">
-                  <Text fw={700} style={{ color: z.color }}>Z{z.zone}</Text>
+              <Group
+                key={z.zone}
+                gap="md"
+                wrap="nowrap"
+                align="flex-start"
+                style={{ borderBottom: '1px solid var(--color-border)', padding: '8px 0' }}
+              >
+                <Box w={34} style={{ flexShrink: 0 }}>
+                  <Text style={{ ...mono, fontWeight: 700 }}>Z{z.zone}</Text>
+                  <Box style={{ height: 4, backgroundColor: z.color, marginTop: 2 }} />
                 </Box>
-                <Box style={{ flex: 1 }}>
-                  <Group justify="space-between" mb={4}>
-                    <Text size="sm">{z.name}</Text>
-                    <Text size="sm" c="dimmed">{z.range}</Text>
+                <Box style={{ flex: 1, minWidth: 0 }}>
+                  <Group justify="space-between" wrap="nowrap" gap="xs">
+                    <Text size="sm" fw={600}>{z.name}</Text>
+                    <Text style={{ ...mono, fontSize: 12, color: 'var(--color-text-muted)' }}>{z.range}</Text>
                   </Group>
                   {z.description && (
-                    <Text size="xs" c="dimmed" mb={4}>
+                    <Text size="xs" c="var(--color-text-secondary)">
                       {z.description}
                     </Text>
                   )}
-                  <Progress
-                    value={watts ? (z.zone / 7) * 100 : 0}
-                    color={z.color}
-                    size="sm"
-                    radius="xl"
-                  />
                 </Box>
-                <Box w={90} ta="right">
-                  <Text size="sm" fw={watts ? 600 : 400} c={watts ? undefined : 'dimmed'}>
+                <Box w={86} ta="right" style={{ flexShrink: 0 }}>
+                  <Text style={{ ...mono, fontSize: 14, fontWeight: watts ? 700 : 400, color: watts ? undefined : 'var(--color-text-muted)' }}>
                     {watts ? `${watts}W` : '-- W'}
                   </Text>
                 </Box>
               </Group>
             );
           })}
-        </Stack>
-      </Card>
+        </Box>
+      </Box>
 
       {/* Critical Power Model */}
       <CriticalPowerModel

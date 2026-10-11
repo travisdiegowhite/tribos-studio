@@ -47,35 +47,20 @@ function SegmentIntelligence({ segments, loading }) {
     .map(([type]) => type)[0] || null;
 
   return (
-    <Box
-      style={{
-        border: '1px solid var(--color-border)',
-        backgroundColor: 'var(--color-card)',
-        padding: 16,
-      }}
-    >
+    <Box>
       <Group justify="space-between" mb={14}>
-        <Text
-          style={{
-            fontFamily: "'Archivo', sans-serif",
-            fontSize: 13,
-            fontWeight: 700,
-            letterSpacing: '2px',
-            textTransform: 'uppercase',
-            color: 'var(--color-text-muted)',
-          }}
-        >
-          SEGMENTS
+        <Text size="sm" c="var(--color-text-secondary)">
+          Stretches of road you ride again and again.
         </Text>
         <Button
           component={Link}
-          to="/train?tab=routes"
+          to="/train?tab=rides&view=repeats"
           variant="subtle"
           color="gray"
           size="compact-xs"
           rightSection={<CaretRight size={12} />}
           style={{
-            fontFamily: "'Archivo', sans-serif",
+            fontFamily: 'var(--font-body)',
             fontSize: 11,
             fontWeight: 700,
             letterSpacing: '1.5px',
@@ -97,7 +82,7 @@ function SegmentIntelligence({ segments, loading }) {
             <Box>
               <Text
                 style={{
-                  fontFamily: "'Archivo', sans-serif",
+                  fontFamily: 'var(--font-body)',
                   fontSize: 10,
                   fontWeight: 700,
                   letterSpacing: '1.5px',
@@ -110,10 +95,10 @@ function SegmentIntelligence({ segments, loading }) {
               </Text>
               <Text
                 style={{
-                  fontFamily: "'Courier Prime', monospace",
+                  fontFamily: 'var(--font-mono)',
                   fontSize: 18,
                   fontWeight: 700,
-                  color: 'var(--color-teal)',
+                  color: 'var(--color-text-primary)',
                   lineHeight: 1.2,
                 }}
               >
@@ -123,7 +108,7 @@ function SegmentIntelligence({ segments, loading }) {
             <Box>
               <Text
                 style={{
-                  fontFamily: "'Archivo', sans-serif",
+                  fontFamily: 'var(--font-body)',
                   fontSize: 10,
                   fontWeight: 700,
                   letterSpacing: '1.5px',
@@ -136,7 +121,7 @@ function SegmentIntelligence({ segments, loading }) {
               </Text>
               <Text
                 style={{
-                  fontFamily: "'Courier Prime', monospace",
+                  fontFamily: 'var(--font-mono)',
                   fontSize: 18,
                   fontWeight: 700,
                   color: 'var(--color-text-primary)',
@@ -153,7 +138,7 @@ function SegmentIntelligence({ segments, loading }) {
             <Box>
               <Text
                 style={{
-                  fontFamily: "'Archivo', sans-serif",
+                  fontFamily: 'var(--font-body)',
                   fontSize: 10,
                   fontWeight: 700,
                   letterSpacing: '1.5px',
@@ -182,7 +167,7 @@ function SegmentIntelligence({ segments, loading }) {
             <Box mt={8}>
               <Text
                 style={{
-                  fontFamily: "'Archivo', sans-serif",
+                  fontFamily: 'var(--font-body)',
                   fontSize: 10,
                   fontWeight: 700,
                   letterSpacing: '1.5px',

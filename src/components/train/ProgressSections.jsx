@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from 'react';
-import { Stack, Box, Text, SimpleGrid, Skeleton, Group, Button } from '@mantine/core';
-import { useMediaQuery } from '@mantine/hooks';
+import { Box, Button, SegmentedControl, Skeleton, Text } from '@mantine/core';
+import { SubHeading, mono } from './progressUi.jsx';
 import { useAuth } from '../../contexts/AuthContext.jsx';
 import { supabase } from '../../lib/supabase';
 import { formatDistance, formatElevation } from '../../utils/units';
@@ -52,15 +52,12 @@ function formatHoursMinutes(seconds) {
 }
 
 /**
- * The former /progress page's sections, shown in the Progress tab on /train
- * (training cleanup, 2026-10): zone distribution, key trends, year to date and
- * segment intelligence. The fitness chart it used to open with duplicated the
- * tab's own load chart, so it is not repeated here. Still loads its own data;
- * sharing the dashboard's is a later step.
+ * Data for the former /progress page's blocks, now spread through the Progress
+ * tab on /train: zone distribution, key trends, year to date and segments.
+ * Still loads its own activities; sharing the dashboard's is a later step.
  */
-function ProgressSections() {
+export function useProgressSectionsData() {
   const { user } = useAuth();
-  const isMobile = useMediaQuery('(max-width: 768px)');
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState(null);
   const [reloadKey, setReloadKey] = useState(0);
@@ -341,143 +338,92 @@ function ProgressSections() {
     };
   }, [activities]);
 
-  if (loading) {
-    return (
-      <Stack gap={14}>
-        <Skeleton height={150} />
-        <Skeleton height={150} />
-      </Stack>
-    );
-  }
+  return {
+    loading,
+    loadError,
+    retryLoad,
+    empty: !loading && !loadError && activities.length === 0,
+    zoneData,
+    zoneTimeFilter,
+    setZoneTimeFilter,
+    trendInsights,
+    ytdStats,
+    segments,
+    segmentsLoading,
+    formatDist,
+    formatElev,
+  };
+}
 
-  if (loadError) {
-    return (
-      <Box
-              style={{
-                border: '1px solid var(--color-border)',
-                backgroundColor: 'var(--color-card)',
-                padding: 24,
-              }}
-            >
-              <Text
-                style={{
-                  fontFamily: "'Courier Prime', monospace",
-                  fontSize: 12,
-                  letterSpacing: '1px',
-                  color: 'var(--color-text-primary)',
-                }}
-              >
-                COULDN&apos;T LOAD YOUR PROGRESS DATA. {String(loadError).toUpperCase()}
-              </Text>
-              <Button mt={14} color="dark" size="xs" onClick={retryLoad}>
-                RETRY
-              </Button>
-            </Box>
-    );
-  }
-
-  // First-run: no activities yet → an honest empty state instead of a page of zeros
-  if (activities.length === 0) {
-    // The tab's fitness section already shows the empty state.
-    return null;
-  }
-
+/** Loading / error states shared by the blocks (render nothing once loaded). */
+export function ProgressDataStatus({ data }) {
+  if (data.loading) return <Skeleton height={120} />;
+  if (!data.loadError) return null;
   return (
-        <Stack gap={14}>
-          {/* Zone Distribution */}
-          <Box
-            style={{
-              border: '1px solid var(--color-border)',
-              backgroundColor: 'var(--color-card)',
-              padding: 20,
-            }}
-          >
-            <Group justify="space-between" mb={14}>
-              <Text
-                style={{
-                  fontFamily: "'Archivo', sans-serif",
-                  fontSize: 13,
-                  fontWeight: 700,
-                  letterSpacing: '2px',
-                  textTransform: 'uppercase',
-                  color: 'var(--color-text-primary)',
-                }}
-              >
-                ZONE DISTRIBUTION
-              </Text>
-              <Group gap={4}>
-                {['7', '30', '90'].map((period) => (
-                  <Button
-                    key={period}
-                    variant={zoneTimeFilter === period ? 'filled' : 'subtle'}
-                    color={zoneTimeFilter === period ? 'dark' : 'gray'}
-                    size="compact-xs"
-                    onClick={() => setZoneTimeFilter(period)}
-                    style={{
-                      fontFamily: "'Courier Prime', monospace",
-                      fontSize: 11,
-                      fontWeight: 600,
-                    }}
-                  >
-                    {period}D
-                  </Button>
-                ))}
-              </Group>
-            </Group>
-
-            <ZoneDistributionRow zones={zoneData.zones} totalTime={zoneData.totalTime} />
-          </Box>
-
-          {/* Key Trends */}
-          {trendInsights.length > 0 && (
-            <Box
-              style={{
-                border: '1px solid var(--color-border)',
-                backgroundColor: 'var(--color-card)',
-                padding: 20,
-              }}
-            >
-              <Text
-                style={{
-                  fontFamily: "'Archivo', sans-serif",
-                  fontSize: 13,
-                  fontWeight: 700,
-                  letterSpacing: '2px',
-                  textTransform: 'uppercase',
-                  color: 'var(--color-text-primary)',
-                  marginBottom: 10,
-                }}
-              >
-                KEY TRENDS
-              </Text>
-
-              {trendInsights.map((insight, i) => (
-                <TrendInsightRow
-                  key={i}
-                  title={insight.title}
-                  detail={insight.detail}
-                  sentiment={insight.sentiment}
-                />
-              ))}
-            </Box>
-          )}
-
-          {/* Two-column: YTD stats + Segment Intelligence */}
-          <SimpleGrid cols={isMobile ? 1 : 2} spacing={14}>
-            <YearToDateStats
-              ytdStats={ytdStats}
-              formatDist={formatDist}
-              formatElev={formatElev}
-              formatTime={formatTimeFromSeconds}
-              loading={loading}
-            />
-            <SegmentIntelligence
-              segments={segments}
-              loading={segmentsLoading}
-            />
-          </SimpleGrid>
-        </Stack>
+    <Box style={{ border: '1px solid var(--color-border)', padding: 16 }}>
+      <Text style={{ ...mono, fontSize: 12, letterSpacing: '0.06em', textTransform: 'uppercase' }}>
+        Couldn&apos;t load your progress data. {String(data.loadError)}
+      </Text>
+      <Button mt={12} size="xs" radius={0} onClick={data.retryLoad}>
+        Retry
+      </Button>
+    </Box>
   );
 }
 
-export default ProgressSections;
+const ready = (data) => !data.loading && !data.loadError && !data.empty;
+
+/** Zone distribution with the 7/30/90-day toggle. */
+export function ZonesBlock({ data }) {
+  if (!ready(data)) return null;
+  return (
+    <Box>
+      <SubHeading
+        aside={
+          <SegmentedControl
+            size="xs"
+            radius={0}
+            value={data.zoneTimeFilter}
+            onChange={data.setZoneTimeFilter}
+            data={['7', '30', '90'].map((d) => ({ value: d, label: `${d}D` }))}
+            styles={{ label: { fontFamily: 'var(--font-mono)' } }}
+          />
+        }
+      >
+        Zone distribution
+      </SubHeading>
+      <ZoneDistributionRow zones={data.zoneData.zones} totalTime={data.zoneData.totalTime} />
+    </Box>
+  );
+}
+
+/** Plain-language trend sentences. */
+export function KeyTrendsBlock({ data }) {
+  if (!ready(data) || data.trendInsights.length === 0) return null;
+  return (
+    <Box>
+      <SubHeading>Key trends</SubHeading>
+      {data.trendInsights.map((insight, i) => (
+        <TrendInsightRow key={i} title={insight.title} detail={insight.detail} sentiment={insight.sentiment} />
+      ))}
+    </Box>
+  );
+}
+
+export function YearBlock({ data }) {
+  if (!ready(data)) return null;
+  return (
+    <YearToDateStats
+      ytdStats={data.ytdStats}
+      formatDist={data.formatDist}
+      formatElev={data.formatElev}
+      formatTime={formatTimeFromSeconds}
+      loading={data.loading}
+    />
+  );
+}
+
+export function SegmentsBlock({ data }) {
+  if (!ready(data)) return null;
+  return <SegmentIntelligence segments={data.segments} loading={data.segmentsLoading} />;
+}

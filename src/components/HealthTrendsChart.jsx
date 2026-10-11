@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { Card, Text, Group, Badge, SegmentedControl, SimpleGrid, Stack, Tooltip, Box } from '@mantine/core';
+import { Text, Group, SegmentedControl, SimpleGrid, Stack, Tooltip, Box, UnstyledButton } from '@mantine/core';
 import {
   LineChart,
   Line,
@@ -10,7 +10,7 @@ import {
   ResponsiveContainer,
   ReferenceLine,
 } from 'recharts';
-import { tokens } from '../theme';
+import { SubHeading, kicker, mono, tooltipStyle, useChartColors } from './train/progressUi.jsx';
 import { Heart, Heartbeat, Moon, Speedometer } from '@phosphor-icons/react';
 
 // Metric configuration
@@ -19,7 +19,7 @@ const METRICS = {
     key: 'sleep_hours',
     label: 'Sleep',
     unit: 'hrs',
-    color: '#C49A0A',
+    color: 'bar', // chart key (progressUi CHART): cyan
     icon: Moon,
     domain: [0, 12],
     goodRange: [7, 9],
@@ -28,7 +28,7 @@ const METRICS = {
     key: 'hrv',
     label: 'HRV (heart-rate variability)',
     unit: 'ms',
-    color: '#2A8C82',
+    color: 'fitness', // ink
     icon: Heartbeat,
     domain: [0, 'auto'],
     description: 'Higher is better',
@@ -37,7 +37,7 @@ const METRICS = {
     key: 'resting_hr',
     label: 'Resting HR',
     unit: 'bpm',
-    color: '#C43C2A',
+    color: 'fatigue', // magenta
     icon: Heart,
     domain: [40, 100],
     description: 'Lower is better (when fit)',
@@ -46,7 +46,7 @@ const METRICS = {
     key: 'readiness',
     label: 'Readiness',
     unit: '%',
-    color: '#7A7970',
+    color: 'future', // grey
     icon: Speedometer,
     domain: [0, 100],
   },
@@ -58,6 +58,8 @@ const METRICS = {
  */
 const HealthTrendsChart = ({ data, onOpenCheckIn }) => {
   const [timeRange, setTimeRange] = useState('30');
+  const CHART = useChartColors();
+  const col = (metric) => CHART[metric.color];
   const [activeMetrics, setActiveMetrics] = useState(['sleep', 'hrv', 'readiness']);
 
   // Process data for chart
@@ -130,70 +132,55 @@ const HealthTrendsChart = ({ data, onOpenCheckIn }) => {
     const isGarmin = dataPoint?.source === 'garmin';
 
     return (
-      <Card withBorder p="xs" style={{ backgroundColor: 'var(--color-bg-secondary)' }}>
+      <Box style={tooltipStyle} p={8}>
         <Group justify="space-between" mb="xs">
           <Text size="xs" fw={600} style={{ color: 'var(--color-text-primary)' }}>{label}</Text>
           {isGarmin && (
-            <Badge size="xs" variant="light" color="blue">Garmin</Badge>
+            <Text style={{ ...mono, fontSize: 10, color: 'var(--color-text-muted)' }}>GARMIN</Text>
           )}
         </Group>
         {payload.map((entry, index) => (
           <Group key={index} justify="space-between" gap="md">
-            <Text size="xs" style={{ color: entry.color }}>{entry.name}:</Text>
-            <Text size="xs" fw={600} style={{ color: 'var(--color-text-primary)' }}>
+            <Text size="xs" style={{ color: 'var(--color-text-secondary)' }}>{entry.name}</Text>
+            <Text size="xs" fw={700} style={{ ...mono, color: 'var(--color-text-primary)' }}>
               {entry.value != null ? `${entry.value}${METRICS[Object.keys(METRICS).find(k => METRICS[k].label === entry.name)]?.unit || ''}` : '—'}
             </Text>
           </Group>
         ))}
-      </Card>
+      </Box>
     );
   };
 
   // Empty state
   if (!chartData || chartData.length === 0) {
     return (
-      <Card withBorder p="xl">
-        <Stack align="center" gap="md">
-          <Heartbeat size={48} style={{ color: 'var(--color-text-muted)' }} />
-          <Text style={{ color: 'var(--color-text-muted)' }} ta="center">
+      <Box>
+        <SubHeading>Health</SubHeading>
+        <Stack gap="xs" align="flex-start">
+          <Text size="sm" style={{ color: 'var(--color-text-secondary)' }}>
             No health data recorded yet.
           </Text>
-          <Text size="sm" style={{ color: 'var(--color-text-muted)' }} ta="center">
+          <Text size="sm" style={{ color: 'var(--color-text-muted)' }}>
             Use the Body Check-in to log your daily health metrics, or connect Garmin for automatic sync.
           </Text>
           {onOpenCheckIn && (
-            <Badge
-              size="lg"
-              variant="light"
-              color="teal"
-              style={{ cursor: 'pointer' }}
-              onClick={onOpenCheckIn}
-            >
-              Open Body Check-in
-            </Badge>
+            <UnstyledButton onClick={onOpenCheckIn} style={{ fontWeight: 700, textDecoration: 'underline', fontSize: 14 }}>
+              Open body check-in
+            </UnstyledButton>
           )}
         </Stack>
-      </Card>
+      </Box>
     );
   }
 
   return (
-    <Card>
-      <Group justify="space-between" mb="md" wrap="wrap">
-        <Group gap="xs">
-          <Text size="sm" fw={600} style={{ color: 'var(--color-text-primary)' }}>
-            Health Trends
-          </Text>
-          {stats && stats.garminPercent > 0 && (
-            <Tooltip label={`${stats.garminDays} of ${stats.totalDays} days from Garmin`}>
-              <Badge size="xs" variant="light" color="blue">
-                {stats.garminPercent}% Garmin
-              </Badge>
-            </Tooltip>
-          )}
-        </Group>
+    <Box>
+      <SubHeading
+        aside={
         <SegmentedControl
           size="xs"
+          radius={0}
+          styles={{ label: { fontFamily: 'var(--font-mono)' } }}
           value={timeRange}
           onChange={setTimeRange}
           data={[
@@ -202,7 +189,17 @@ const HealthTrendsChart = ({ data, onOpenCheckIn }) => {
             { label: '90d', value: '90' },
           ]}
         />
-      </Group>
+        }
+      >
+        Health
+        {stats && stats.garminPercent > 0 && (
+          <Tooltip label={`${stats.garminDays} of ${stats.totalDays} days from Garmin`}>
+            <Text component="span" style={{ ...mono, fontSize: 11, fontWeight: 400, color: 'var(--color-text-muted)', marginLeft: 8, textTransform: 'none' }}>
+              {stats.garminPercent}% Garmin
+            </Text>
+          </Tooltip>
+        )}
+      </SubHeading>
 
       {/* Metric toggles */}
       <Group gap="xs" mb="md">
@@ -210,22 +207,25 @@ const HealthTrendsChart = ({ data, onOpenCheckIn }) => {
           const Icon = metric.icon;
           const isActive = activeMetrics.includes(key);
           return (
-            <Badge
+            <UnstyledButton
               key={key}
-              leftSection={<Icon size={12} />}
-              variant={isActive ? 'light' : 'outline'}
-              color={isActive ? undefined : 'gray'}
-              size="sm"
-              style={{
-                cursor: 'pointer',
-                backgroundColor: isActive ? `${metric.color}20` : undefined,
-                color: isActive ? metric.color : 'var(--color-text-muted)',
-                borderColor: isActive ? metric.color : undefined,
-              }}
               onClick={() => toggleMetric(key)}
+              aria-pressed={isActive}
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 6,
+                padding: '3px 8px',
+                border: `1px solid ${isActive ? 'var(--color-ink)' : 'var(--color-border)'}`,
+                color: isActive ? 'var(--color-text-primary)' : 'var(--color-text-muted)',
+                fontSize: 12,
+                fontWeight: 600,
+              }}
             >
+              <Box style={{ width: 12, borderTop: `2px ${metric.color === 'future' ? 'dashed' : 'solid'} ${isActive ? col(metric) : 'var(--color-border)'}` }} />
+              <Icon size={12} />
               {metric.label}
-            </Badge>
+            </UnstyledButton>
           );
         })}
       </Group>
@@ -234,33 +234,33 @@ const HealthTrendsChart = ({ data, onOpenCheckIn }) => {
       {stats && (
         <SimpleGrid cols={{ base: 2, sm: 4 }} mb="md">
           {activeMetrics.includes('sleep') && stats.avgSleep && (
-            <Box p="xs" style={{ borderRadius: tokens.radius.md, backgroundColor: 'var(--color-bg-secondary)' }}>
-              <Text size="xs" style={{ color: 'var(--color-text-muted)' }}>Avg Sleep</Text>
-              <Text size="lg" fw={600} style={{ color: METRICS.sleep.color }}>
+            <Box p="xs" style={{ borderTop: '1px solid var(--color-border)' }}>
+              <Text style={kicker}>Avg Sleep</Text>
+              <Text style={{ ...mono, fontSize: 20, fontWeight: 700, color: 'var(--color-text-primary)' }}>
                 {stats.avgSleep} <Text span size="xs" style={{ color: 'var(--color-text-muted)' }}>hrs</Text>
               </Text>
             </Box>
           )}
           {activeMetrics.includes('hrv') && stats.avgHrv && (
-            <Box p="xs" style={{ borderRadius: tokens.radius.md, backgroundColor: 'var(--color-bg-secondary)' }}>
-              <Text size="xs" style={{ color: 'var(--color-text-muted)' }}>Avg HRV</Text>
-              <Text size="lg" fw={600} style={{ color: METRICS.hrv.color }}>
+            <Box p="xs" style={{ borderTop: '1px solid var(--color-border)' }}>
+              <Text style={kicker}>Avg HRV</Text>
+              <Text style={{ ...mono, fontSize: 20, fontWeight: 700, color: 'var(--color-text-primary)' }}>
                 {stats.avgHrv} <Text span size="xs" style={{ color: 'var(--color-text-muted)' }}>ms</Text>
               </Text>
             </Box>
           )}
           {activeMetrics.includes('rhr') && stats.avgRhr && (
-            <Box p="xs" style={{ borderRadius: tokens.radius.md, backgroundColor: 'var(--color-bg-secondary)' }}>
-              <Text size="xs" style={{ color: 'var(--color-text-muted)' }}>Avg Resting HR</Text>
-              <Text size="lg" fw={600} style={{ color: METRICS.rhr.color }}>
+            <Box p="xs" style={{ borderTop: '1px solid var(--color-border)' }}>
+              <Text style={kicker}>Avg Resting HR</Text>
+              <Text style={{ ...mono, fontSize: 20, fontWeight: 700, color: 'var(--color-text-primary)' }}>
                 {stats.avgRhr} <Text span size="xs" style={{ color: 'var(--color-text-muted)' }}>bpm</Text>
               </Text>
             </Box>
           )}
           {activeMetrics.includes('readiness') && stats.latestReadiness && (
-            <Box p="xs" style={{ borderRadius: tokens.radius.md, backgroundColor: 'var(--color-bg-secondary)' }}>
-              <Text size="xs" style={{ color: 'var(--color-text-muted)' }}>Latest Readiness</Text>
-              <Text size="lg" fw={600} style={{ color: METRICS.readiness.color }}>
+            <Box p="xs" style={{ borderTop: '1px solid var(--color-border)' }}>
+              <Text style={kicker}>Latest Readiness</Text>
+              <Text style={{ ...mono, fontSize: 20, fontWeight: 700, color: 'var(--color-text-primary)' }}>
                 {Math.round(stats.latestReadiness)} <Text span size="xs" style={{ color: 'var(--color-text-muted)' }}>%</Text>
               </Text>
             </Box>
@@ -271,21 +271,21 @@ const HealthTrendsChart = ({ data, onOpenCheckIn }) => {
       {/* Main chart */}
       <ResponsiveContainer width="100%" height={280}>
         <LineChart data={chartData} margin={{ top: 5, right: 20, left: 0, bottom: 5 }}>
-          <CartesianGrid strokeDasharray="3 3" stroke={'var(--color-bg-secondary)'} />
+          <CartesianGrid strokeDasharray="3 3" stroke={CHART.grid} vertical={false} />
           <XAxis
             dataKey="formattedDate"
-            tick={{ fontSize: 12, fill: 'var(--color-text-muted)' }}
-            interval="preserveStartEnd"
+            tick={{ fontSize: 11, fill: CHART.axis, fontFamily: 'var(--font-mono)' }}
+            interval="preserveStartEnd" minTickGap={28}
           />
           <YAxis
             yAxisId="left"
-            tick={{ fontSize: 12, fill: 'var(--color-text-muted)' }}
+            tick={{ fontSize: 11, fill: CHART.axis, fontFamily: 'var(--font-mono)' }}
             domain={[0, 'auto']}
           />
           <YAxis
             yAxisId="right"
             orientation="right"
-            tick={{ fontSize: 12, fill: 'var(--color-text-muted)' }}
+            tick={{ fontSize: 11, fill: CHART.axis, fontFamily: 'var(--font-mono)' }}
             domain={[0, 100]}
           />
           <RechartsTooltip content={<CustomTooltip />} />
@@ -293,8 +293,8 @@ const HealthTrendsChart = ({ data, onOpenCheckIn }) => {
           {/* Reference line for good sleep range */}
           {activeMetrics.includes('sleep') && (
             <>
-              <ReferenceLine yAxisId="left" y={7} stroke={METRICS.sleep.color} strokeDasharray="3 3" strokeOpacity={0.3} />
-              <ReferenceLine yAxisId="left" y={9} stroke={METRICS.sleep.color} strokeDasharray="3 3" strokeOpacity={0.3} />
+              <ReferenceLine yAxisId="left" y={7} stroke={col(METRICS.sleep)} strokeDasharray="3 3" strokeOpacity={0.3} />
+              <ReferenceLine yAxisId="left" y={9} stroke={col(METRICS.sleep)} strokeDasharray="3 3" strokeOpacity={0.3} />
             </>
           )}
 
@@ -303,9 +303,9 @@ const HealthTrendsChart = ({ data, onOpenCheckIn }) => {
               yAxisId="left"
               type="monotone"
               dataKey="sleep_hours"
-              stroke={METRICS.sleep.color}
+              stroke={col(METRICS.sleep)}
               strokeWidth={2}
-              dot={{ fill: METRICS.sleep.color, strokeWidth: 0, r: 3 }}
+              dot={{ fill: col(METRICS.sleep), strokeWidth: 0, r: 3 }}
               activeDot={{ r: 5 }}
               name="Sleep"
               connectNulls
@@ -317,9 +317,9 @@ const HealthTrendsChart = ({ data, onOpenCheckIn }) => {
               yAxisId="left"
               type="monotone"
               dataKey="hrv"
-              stroke={METRICS.hrv.color}
+              stroke={col(METRICS.hrv)}
               strokeWidth={2}
-              dot={{ fill: METRICS.hrv.color, strokeWidth: 0, r: 3 }}
+              dot={{ fill: col(METRICS.hrv), strokeWidth: 0, r: 3 }}
               activeDot={{ r: 5 }}
               name="HRV"
               connectNulls
@@ -331,9 +331,9 @@ const HealthTrendsChart = ({ data, onOpenCheckIn }) => {
               yAxisId="left"
               type="monotone"
               dataKey="resting_hr"
-              stroke={METRICS.rhr.color}
+              stroke={col(METRICS.rhr)}
               strokeWidth={2}
-              dot={{ fill: METRICS.rhr.color, strokeWidth: 0, r: 3 }}
+              dot={{ fill: col(METRICS.rhr), strokeWidth: 0, r: 3 }}
               activeDot={{ r: 5 }}
               name="Resting HR"
               connectNulls
@@ -345,9 +345,10 @@ const HealthTrendsChart = ({ data, onOpenCheckIn }) => {
               yAxisId="right"
               type="monotone"
               dataKey="readiness"
-              stroke={METRICS.readiness.color}
+              stroke={col(METRICS.readiness)}
               strokeWidth={2}
-              dot={{ fill: METRICS.readiness.color, strokeWidth: 0, r: 3 }}
+              strokeDasharray="5 4"
+              dot={{ fill: col(METRICS.readiness), strokeWidth: 0, r: 3 }}
               activeDot={{ r: 5 }}
               name="Readiness"
               connectNulls
@@ -359,7 +360,7 @@ const HealthTrendsChart = ({ data, onOpenCheckIn }) => {
       <Text size="xs" style={{ color: 'var(--color-text-muted)' }} mt="xs">
         Sleep reference lines show optimal 7-9 hour range. Readiness uses right axis (0-100%).
       </Text>
-    </Card>
+    </Box>
   );
 };
 

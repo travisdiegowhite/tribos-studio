@@ -48,33 +48,13 @@ function YearToDateStats({ ytdStats, formatDist, formatElev, formatTime, loading
   ];
 
   return (
-    <Box
-      style={{
-        border: '1px solid var(--color-border)',
-        backgroundColor: 'var(--color-card)',
-        padding: 16,
-      }}
-    >
-      <Text
-        style={{
-          fontFamily: "'Archivo', sans-serif",
-          fontSize: 13,
-          fontWeight: 700,
-          letterSpacing: '2px',
-          textTransform: 'uppercase',
-          color: 'var(--color-text-muted)',
-          marginBottom: 14,
-        }}
-      >
-        YEAR TO DATE
-      </Text>
-
+    <Box>
       <SimpleGrid cols={2} spacing="sm">
         {cells.map((cell) => (
           <Box key={cell.label}>
             <Text
               style={{
-                fontFamily: "'Archivo', sans-serif",
+                fontFamily: 'var(--font-body)',
                 fontSize: 10,
                 fontWeight: 700,
                 letterSpacing: '1.5px',
@@ -87,7 +67,7 @@ function YearToDateStats({ ytdStats, formatDist, formatElev, formatTime, loading
             </Text>
             <Text
               style={{
-                fontFamily: "'Courier Prime', monospace",
+                fontFamily: 'var(--font-mono)',
                 fontSize: 18,
                 fontWeight: 700,
                 color: 'var(--color-text-primary)',

@@ -1,10 +1,11 @@
 import { Group, Text, Box } from '@mantine/core';
 
+// Role colours: good news in ink, neutral muted, attention and urgent in signal.
 const DOT_COLORS = {
-  positive: 'var(--color-teal)',
-  neutral: 'var(--color-gold)',
-  attention: 'var(--color-orange)',
-  urgent: 'var(--color-coral, #9E5A3C)',
+  positive: 'var(--color-ink)',
+  neutral: 'var(--color-text-muted)',
+  attention: 'var(--color-signal)',
+  urgent: 'var(--color-signal-text)',
 };
 
 function TrendInsightRow({ title, detail, sentiment }) {
@@ -16,7 +17,6 @@ function TrendInsightRow({ title, detail, sentiment }) {
         style={{
           width: 8,
           height: 8,
-          borderRadius: '50%',
           backgroundColor: dotColor,
           flexShrink: 0,
           marginTop: 5,
