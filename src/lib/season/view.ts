@@ -26,6 +26,14 @@ export interface RaceGoalRow extends RaceProfileSource {
   priority: string | null;
   is_focus?: boolean | null;
   status?: string | null;
+  // The rest of the row, carried so a save can hand syncRaceEntry the full
+  // race (it rebuilds the calendar copy's details from what it is given).
+  location?: string | null;
+  course_description?: string | null;
+  goal_power_watts?: number | null;
+  goal_placement?: string | null;
+  notes?: string | null;
+  route_id?: string | null;
 }
 
 /** Statuses that take a race off the plan. */

@@ -149,14 +149,49 @@ All dates are pre-formatted, e.g. "Sat, Jun 19, 2027".
 
 The browser runs the engine on every move. The server imports the same file (`await import('../src/lib/season/engine.ts')`) for saves and coach payloads.
 
-## Year view UI
+## Year view UI — "the season as a ride" (built 2026-10-10)
 
-- **Calendar card:** month labels, a race marker lane, the 52-cell phase band, weekly hours bars and the today line. It scrolls horizontally below about 940 px.
-- **Race list:** priority, name, date, discipline/distance, verdict chip and sentence, and earlier/later buttons. The selection is shared with the calendar.
-- **Coach panel:** persona label, the selected race, the coach message, an "Also affected" list and an ask box.
-- **Add a race:** a manual form, plus search in phase 6.
+The first read-only version (a 52-cell phase band with weekly bars) looked too much like TrainingPeaks' Annual Training Plan. Travis picked the "ride" direction from a mockup, and that replaced it.
 
-**Interaction.** Every move re-runs the engine locally and redraws. After a debounce of about 1 s, it saves to `race_goals` via `syncRaceEntry` and appends a `season_plan_events` row. Reset reverts to `discussed_snapshot`. At phone width the sidebar stacks under the calendar.
+**The profile:** `src/components/season/SeasonProfile.tsx` draws the year as a course.
+- **The ridge:** weekly hours. Ridden weeks (from `fitness_snapshots`) are inked in; the plan is a dashed ridge over ground coloured by phase.
+- **Today:** a "YOU ARE HERE" marker.
+- **Races:** flags on the ridge. Goal races are pennants; target and tune-up races are diamonds, magenta when in conflict.
+- **Coach notes:** up to three hand-lettered notes (`pickNotes`). The order is the first conflict, then a block's springboard, then the recovery valley after the next goal race.
+- **On a phone** it scrolls sideways, opening at today.
+
+**The window:** rolling, 8 weeks back + 52 ahead (`defaultSeasonStart`). Fixed seasons are still an open question.
+
+**Vocabulary on the surface** (the engine keeps its names):
+- priorities read **Goal / Target / Tune-up**;
+- phases read **Recover · Base · Climb · Sharpen · Descend**.
+
+**Race list and selected-race panel:** the panel shows the verdict, the engine's sentence, the taper/recover profile and linked races. On a phone it stacks under the profile.
+
+**Parked:** the "race tickets" mockup. Travis likes it; it needs a home (Race tab or a race-week card on Today).
+
+## Editing (Phase 4, built 2026-10-11)
+
+**Controls** for an upcoming race, in the selected-race panel:
+- **Week earlier / Week later:** keeps the weekday.
+- **Goal / Target / Tune-up.**
+- **This one matters more:** on a goal race in a back-to-back block; writes `race_goals.is_focus` and clears it on the rest of the block.
+- **Edit details and Add race:** the existing `RaceGoalModal`.
+- **Remove:** with an inline confirm.
+- Past races show no controls.
+
+**How a change flows:**
+- Edits apply to local rows (`src/lib/season/edits.ts`, pure), so the engine re-runs and every verdict updates on the click.
+- Changed races save together about 1 s after the last click (`useSeasonPlan`, `src/lib/season/seasonWrites.ts`):
+  - the `race_goals` row, then `syncRaceEntry` with the **full row**;
+  - then one `season_plan_events` row per change, against the athlete's `season_plans` record (created on first edit).
+- Several clicks collapse into one event and one message.
+- **Every save reports:** a toast with tap-to-undo, or a red toast saying what failed with the race put back. Leaving the tab saves anything pending.
+
+**Rebuild block: deferred.**
+- Nothing builds a training block toward a race any more (the coach's `buildArc` path was removed in the calendar rebuild).
+- No active plan targets an upcoming race.
+- A future "Plan toward this race" needs its own server endpoint writing to `calendar_entries` that respects pinned days.
 
 **(P0) Visual language** follows `docs/DESIGN-OVERHAUL-PLAN-2026-09.md`, not TB-001. There is no orange or red.
 
@@ -221,7 +256,7 @@ Guards:
 1. **Audit:** done; see the audit doc.
 2. **Engine + tests, no UI:** `src/lib/season/engine.ts`, `engine.test.ts`, `scripts/season-print.mjs`. **Gate:** phases and verdicts look right on Travis's real races.
 3. **Schema + read-only year view** behind `season_planner`. **Gate:** visual review.
-4. **Editing:** add, move, re-prioritize, remove, debounced save, event log and Rebuild block. **Gate:** no date shifts in America/Denver vs UTC.
+4. **Editing:** built — add, move, re-prioritize, block focus, remove, debounced save, event log. Rebuild block deferred. **Gate:** no date shifts in America/Denver vs UTC (edits tests pass under Denver, UTC and UTC+14); re-plan well under 100 ms.
 5. **Coach panel.** **Gate:** 10 sample replies across On track / Tight / Conflict.
 6. **Race search.** **Gate:** 5 real searches.
 
