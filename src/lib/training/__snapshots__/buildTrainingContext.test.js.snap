@@ -1,0 +1,95 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`buildTrainingContext > an athlete with a plan, races and rides 1`] = `
+"TODAY'S DATE: Wednesday, October 14, 2026
+(Any references to days of the week in conversation history may be outdated - always use today's date above as the reference point)
+FTP: 250W
+Training Load - Fitness (TFI): 62, Fatigue (AFI): 71, Form Score (FS): -9
+Form Status: productive - Building fitness
+This week: 4 rides, 1 runs, 1 other sessions, 0 mi, 10h 0m
+
+--- Recent Activities ---
+1. Tue, Oct 13: Ride 2026-10-13, (Ride), 31 mi, 2h 0m, 190W avg, 127 RSS
+2. Sun, Oct 11: Ride 2026-10-11, (Ride), 56 mi, 4h 0m, 190W avg, 253 RSS
+3. Fri, Oct 9: Ride 2026-10-09, (Run), 5 mi, 0h 43m, 37 RSS
+4. Fri, Oct 2: Ride 2026-10-02, (Ride), 31 mi, 2h 0m, 190W avg, 127 RSS
+Activity history available for analysis (use query_fitness_history tool for historical comparisons)
+
+--- Upcoming Race Goals ---
+IMPORTANT: The athlete has 2 upcoming race(s). Training should be periodized around these events.
+
+1. Boulder Roubaix - A-RACE (MAIN GOAL)
+   Date: Sunday, April 25, 2027
+   Time Until: ~28 weeks (exact day counts are in DAYS_UNTIL — use those)
+   Type: road race
+   Distance: 60 mi
+   Goal Time: 3h 0m
+
+2. Ned Gravel - B-Race (Important)
+   Date: Sunday, July 11, 2027
+   Time Until: ~39 weeks (exact day counts are in DAYS_UNTIL — use those)
+   Type: gravel
+   Distance: 70 mi
+   Elevation: 3937 ft
+   Course: Rolling dirt
+
+--- Race Preparation Guidance (PER-RACE — each line applies ONLY to the named race; never apply one race's phase to another) ---
+Boulder Roubaix (A-priority): BASE/EARLY BUILD — build aerobic base and address limiters.
+Ned Gravel (B-priority): BASE/EARLY BUILD — build aerobic base and address limiters.
+
+--- Recent Cross-Training Activities ---
+IMPORTANT: The athlete does cross-training beyond cycling. Consider this when recommending workouts and recovery.
+Total cross-training RSS (last 14 days): 0
+Activities breakdown:
+- Strength: 1 session, 45 minutes total
+
+Recent activities:
+- undefined: undefined (45min, intensity undefined/10, ~0 RSS)
+
+--- Active Training Plan ---
+Plan: Gravel Base
+Methodology: polarized
+Goal: gravel
+Current Week: 6 of 12 (Build Phase)
+Overall Plan Compliance: 82% (18 of 48 total plan workouts)
+
+You can suggest plan adjustments based on the athlete's current form, compliance, and feedback. Consider:
+- If compliance is low, suggest reducing volume or intensity
+- If Form Score is very negative (fatigued), recommend recovery
+- If Form Score is very positive (fresh), suggest adding intensity
+- Consider the current training phase when making recommendations
+- PRIORITIZE upcoming race goals when planning workouts and recovery
+
+--- Recent Race Results (Completed) ---
+Use these past results to assess the athlete's race fitness, compare progress, and provide context for upcoming races.
+
+1. Fall Classic (September 20, 2026)
+   Type: gravel
+   Actual Time: 3h 20m
+   Placement: 12th
+   Notes: Felt strong
+
+--- TRAINING CALENDAR (PLANNED WORKOUTS) ---
+IMPORTANT: These are the workouts currently scheduled on the athlete's training calendar. Reference this when discussing their schedule, suggesting changes, or advising on load management.
+
+This Week:
+  Monday Oct 12: [SKIPPED] Intervals, 75min, ~85 RSS
+  Thursday Oct 15: [UPCOMING] Endurance, 90min, ~70 RSS
+  Summary: 0 completed, 1 upcoming, ~155 total planned RSS
+  Weekly Compliance: 0% (0 of 1 past-due workouts completed)
+  NOTE: Only workouts with dates BEFORE today count as missed. UPCOMING workouts are not yet due — do not treat them as failures.
+
+--- TODAY'S WORKOUT RECOMMENDATION ---
+IMPORTANT: The dashboard is showing the athlete's PLANNED workout from their training plan. Your advice should be consistent with this. If you believe the athlete should do something different, explain why you're deviating from the plan.
+Primary: Sweet Spot 3x15 (unknown)
+Category: sweet_spot
+Reason: Fitness is building
+Source: Training Plan
+Training Gaps: no Z2 ride this week
+Alternatives: Endurance 2h"
+`;
+
+exports[`buildTrainingContext > an athlete with no data 1`] = `
+"TODAY'S DATE: Wednesday, October 14, 2026
+(Any references to days of the week in conversation history may be outdated - always use today's date above as the reference point)"
+`;
