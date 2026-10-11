@@ -258,17 +258,41 @@ The coach is called only on request, never on a move. The engine's own sentence 
 
 **After a reply**, the version the coach was shown becomes `discussed_snapshot` (`{ plan, rows: [{ id, race_date, priority, is_focus }] }`) and `discussed_at`. **Reset to what we discussed** puts date, priority and focus back through the normal edit path, so it saves, toasts and offers Undo like any other edit. Races added or removed since are left alone, and the toast names them.
 
-## Race search v1 (phase 6)
+## Race search (Phase 6, built 2026-10-11)
 
-1. Search `race_directory` first (`ILIKE` name + date window + distance from the rider).
-2. If there are fewer than 3 hits, a Vercel `api/` function asks Claude with web search for structured candidates. Check the tool name and pricing against current docs when this phase starts.
-3. Show the candidates as "unconfirmed", with source links.
-4. The rider confirms or edits them. Only confirmed races are written to `race_goals` and upserted into `race_directory` (which bumps `confirmed_count`).
+"Add race" on the Season tab opens **Find a race** before the form.
 
-Guards:
-- per-user rate limit;
-- never auto-add a race;
-- the confirmed date wins.
+| Piece | File |
+|---|---|
+| Directory table | `database/migrations/129_race_directory.sql` (apply by hand, then `npm run audit:schema`) |
+| Endpoint | `api/race-search.js`: actions `directory`, `web`, `confirm` |
+| Search, validation, dedupe | `api/utils/raceSearch.js` |
+| Browser client + prefill | `src/lib/season/raceSearch.ts` |
+| Modal | `src/components/season/RaceSearchModal.tsx` |
+| Gate samples | `scripts/race-search-samples.mjs` (needs `ANTHROPIC_API_KEY`) |
+
+**How it works:**
+1. **Typing** searches `race_directory`, which holds races other athletes saved. It matches the name key (lowercase, no years or punctuation) with `ILIKE`, covers upcoming races up to 18 months out, and sorts the most-confirmed first. There's no AI call and no AI quota.
+2. **Search (or Enter)** also asks the web when the directory has fewer than 3 matches; otherwise a "Search the web" button offers it.
+   - The web search uses `claude-sonnet-5-5` with `web_search_20260209` (up to 5 queries) and a strict `report_races` tool, so the model can't skip fields.
+   - Sonnet 5.5 rejects forced tool choice, so the prompt asks for exactly one call. A prose answer gets one follow-up asking for the report, and `pause_turn` is resumed up to 3 times.
+3. **Candidates are kept only when a page backs them up:**
+   - the link's site is one the search actually returned;
+   - the date is real and upcoming;
+   - the race type is known.
+   An unannounced date is marked as last year's date.
+4. **Picking a result** opens `RaceGoalModal` prefilled, with no id. The source link and any date caveat go into notes. **Nothing is saved until the athlete saves the form.**
+5. **After the save,** `confirm` reads the athlete's own saved `race_goals` row (scoped by `user_id`) and adds it to the directory:
+   - Duplicates are matched on the same name key within ±3 days, and within 25 km when both rows have coordinates.
+   - A match bumps `confirmed_count`, and the athlete's date wins.
+   - The directory never takes a raw web candidate.
+
+**Guards:**
+- Web search: 5 per 10 minutes and 20 per day per athlete, plus the shared daily AI quota.
+- The directory is read-only to athletes; only the server writes.
+- It never adds a race automatically.
+
+**Cost:** each web search is up to 5 queries at $10 per 1,000, plus Sonnet tokens.
 
 ## Sequencing and gates
 
@@ -277,7 +301,7 @@ Guards:
 3. **Schema + read-only year view** behind `season_planner`. **Gate:** visual review.
 4. **Editing:** built — add, move, re-prioritize, block focus, remove, debounced save, event log. Rebuild block deferred. **Gate:** no date shifts in America/Denver vs UTC (edits tests pass under Denver, UTC and UTC+14); re-plan well under 100 ms.
 5. **Coach panel:** built: ask on request, a "since we last talked" list, Reset, logging. **Gate:** 10 sample replies across On track / Tight / Conflict (`node scripts/season-coach-samples.mjs`).
-6. **Race search.** **Gate:** 5 real searches.
+6. **Race search:** built: directory first, then a web search; the athlete confirms in the race form. **Gate:** 5 real searches (`node scripts/race-search-samples.mjs`), and migration 129 applied.
 
 ## Acceptance tests
 

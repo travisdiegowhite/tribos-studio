@@ -18,6 +18,8 @@ import { useSeasonPlan, type HoursSource, type SaveStatus, type SeasonActions, t
 import { dayNumber, formatSeasonDate, type Priority, type SeasonPlan, type SeasonRaceResult, type Verdict } from '../../lib/season/engine';
 import { PHASE_LABEL, PRIORITY_ROLE, seasonEndDate, todayWeekIndex, type RaceGoalRow } from '../../lib/season/view';
 import RaceGoalModal from '../RaceGoalModal';
+import { confirmFoundRace, toPrefill, type FoundRaceSource, type RacePrefill } from '../../lib/season/raceSearch';
+import RaceSearchModal from './RaceSearchModal';
 import SeasonCoachPanel from './SeasonCoachPanel';
 import SeasonProfile, { SeasonProfileLegend } from './SeasonProfile';
 
@@ -311,8 +313,11 @@ export function SeasonView({
 }: SeasonPlanState & { isImperial?: boolean }) {
   const isNarrow = useMediaQuery('(max-width: 900px)');
   const [selectedId, setSelectedId] = useState<string | null>(null);
-  // The race form: null = closed, 'new' = add a race, otherwise the race being edited.
-  const [form, setForm] = useState<'new' | RaceGoalRow | null>(null);
+  // Add race starts with a search; the race form opens for a blank race ('new'),
+  // a race found by search (prefilled, no id yet) or the race being edited.
+  const [searching, setSearching] = useState(false);
+  const [form, setForm] = useState<'new' | RacePrefill | RaceGoalRow | null>(null);
+  const [foundSource, setFoundSource] = useState<FoundRaceSource | null>(null);
 
   const selected = useMemo(() => {
     if (!plan) return null;
@@ -383,7 +388,7 @@ export function SeasonView({
             </span>
           )}
           {actions && (
-            <Button radius={0} size="sm" onClick={() => void actions.flush().then(() => setForm('new'))}>
+            <Button radius={0} size="sm" onClick={() => void actions.flush().then(() => setSearching(true))}>
               Add race
             </Button>
           )}
@@ -411,7 +416,7 @@ export function SeasonView({
             Add your races as goal (A), target (B) or tune-up (C) and the season fills in around them.
           </Text>
           {actions && (
-            <Button mt="md" radius={0} onClick={() => void actions.flush().then(() => setForm('new'))}>
+            <Button mt="md" radius={0} onClick={() => void actions.flush().then(() => setSearching(true))}>
               Add race
             </Button>
           )}
@@ -437,14 +442,38 @@ export function SeasonView({
       )}
 
       {/* The existing race form, for new races and full edits. Mounted only while open. */}
+      {searching && (
+        <RaceSearchModal
+          todayLocal={todayLocal}
+          isImperial={isImperial}
+          onClose={() => setSearching(false)}
+          onManual={() => {
+            setSearching(false);
+            setFoundSource(null);
+            setForm('new');
+          }}
+          onPick={(found) => {
+            const { prefill, source } = toPrefill(found);
+            setSearching(false);
+            setFoundSource(source);
+            setForm(prefill);
+          }}
+        />
+      )}
       {form !== null && (
         <RaceGoalModal
           opened
-          onClose={() => setForm(null)}
+          onClose={() => {
+            setForm(null);
+            setFoundSource(null);
+          }}
           raceGoal={form === 'new' ? null : form}
           isImperial={isImperial}
-          onSaved={() => {
+          onSaved={(saved?: { id?: string }) => {
+            // A race found by search: share the athlete's saved version with the race list.
+            if (foundSource && saved?.id) void confirmFoundRace(saved.id, foundSource);
             setForm(null);
+            setFoundSource(null);
             actions?.reload();
           }}
         />
