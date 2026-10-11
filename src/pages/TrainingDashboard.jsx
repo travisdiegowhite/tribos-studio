@@ -1123,7 +1123,7 @@ function TrainingDashboard() {
             {/* SEASON TAB (season_planner flag) */}
             {activeTab === 'season' && seasonEnabled && (
               <Suspense fallback={null}>
-                <SeasonTab />
+                <SeasonTab isImperial={isImperial} />
               </Suspense>
             )}
 

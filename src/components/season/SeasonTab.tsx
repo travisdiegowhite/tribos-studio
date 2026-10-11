@@ -1,21 +1,23 @@
 /**
  * Season tab (/train?tab=season, behind the season_planner flag).
  *
- * Read-only season view: the year drawn as a ride (SeasonProfile — ridden
+ * Season view: the year drawn as a ride (SeasonProfile — ridden
  * weeks inked in, the plan as a dashed ridge over phase-coloured terrain, races
  * as flags), with a race list showing each race's verdict and the engine's sentence.
  * Every date, phase and verdict comes from src/lib/season/engine.ts; this file
- * only draws them. Editing (move, re-prioritize, pick a block's focus) and the
- * coach's commentary arrive in later phases — see docs/season-planner-build-plan.md.
+ * only draws them and offers the edits (move a week, priority, the race that
+ * matters most in a block, remove, add / full edit through RaceGoalModal).
+ * Saving lives in useSeasonPlan. The coach's commentary arrives in a later
+ * phase — see docs/season-planner-build-plan.md.
  */
 
 import { useMemo, useState, type CSSProperties } from 'react';
-import { Box, Button, Group, Loader, Stack, Text, UnstyledButton } from '@mantine/core';
+import { Box, Button, Group, Loader, SegmentedControl, Stack, Text, UnstyledButton } from '@mantine/core';
 import { useMediaQuery } from '@mantine/hooks';
-import { useNavigate } from 'react-router-dom';
-import { useSeasonPlan, type HoursSource, type SeasonPlanState } from '../../hooks/useSeasonPlan';
-import { dayNumber, formatSeasonDate, type SeasonPlan, type SeasonRaceResult, type Verdict } from '../../lib/season/engine';
-import { PHASE_LABEL, PRIORITY_ROLE, seasonEndDate, todayWeekIndex } from '../../lib/season/view';
+import { useSeasonPlan, type HoursSource, type SaveStatus, type SeasonActions, type SeasonPlanState } from '../../hooks/useSeasonPlan';
+import { dayNumber, formatSeasonDate, type Priority, type SeasonPlan, type SeasonRaceResult, type Verdict } from '../../lib/season/engine';
+import { PHASE_LABEL, PRIORITY_ROLE, seasonEndDate, todayWeekIndex, type RaceGoalRow } from '../../lib/season/view';
+import RaceGoalModal from '../RaceGoalModal';
 import SeasonProfile, { SeasonProfileLegend } from './SeasonProfile';
 
 // ─── Visual language (docs/season-planner-build-plan.md, "Year view UI") ────
@@ -136,10 +138,107 @@ function RaceRow({
   );
 }
 
-function RacePanel({ race, plan }: { race: SeasonRaceResult | null; plan: SeasonPlan }) {
+const SAVE_STATUS_TEXT: Record<SaveStatus, string> = {
+  idle: '',
+  pending: 'Unsaved changes…',
+  saving: 'Saving…',
+  saved: 'Saved',
+  error: 'Not saved',
+};
+
+const PRIORITY_OPTIONS = (['A', 'B', 'C'] as Priority[]).map((p) => ({ value: p, label: PRIORITY_ROLE[p] }));
+
+interface PanelEditing {
+  actions: SeasonActions;
+  saveStatus: SaveStatus;
+  onEditDetails: () => void;
+}
+
+function RaceEditor({ race, editing }: { race: SeasonRaceResult; editing: PanelEditing }) {
+  const [confirmRemove, setConfirmRemove] = useState(false);
+  const [removing, setRemoving] = useState(false);
+  const { actions, saveStatus } = editing;
+  // A goal race in a back-to-back block that isn't (confirmed as) the one that matters most.
+  const canFocus =
+    race.priority === 'A' && race.blockFocusId !== null && (race.blockFocusId !== race.id || race.focusConfirmed === false);
+  const small = { radius: 0, size: 'xs', color: 'dark', variant: 'outline' } as const;
+
+  return (
+    <Stack gap="sm" mt="md" pt="md" style={{ borderTop: '1px solid var(--color-border)' }}>
+      <Group gap="xs" wrap="wrap">
+        <Button {...small} onClick={() => actions.move(race.id, -1)} aria-label={`Move ${race.name} one week earlier`}>
+          ← Week earlier
+        </Button>
+        <Button {...small} onClick={() => actions.move(race.id, 1)} aria-label={`Move ${race.name} one week later`}>
+          Week later →
+        </Button>
+      </Group>
+      <SegmentedControl
+        size="xs"
+        radius={0}
+        value={race.priority}
+        onChange={(v) => actions.setPriority(race.id, v as Priority)}
+        data={PRIORITY_OPTIONS}
+        aria-label="Race priority"
+      />
+      {canFocus && (
+        <Button {...small} variant="filled" onClick={() => actions.setFocus(race.id)}>
+          This one matters more
+        </Button>
+      )}
+      <Group gap="xs" justify="space-between" wrap="wrap">
+        <Group gap="xs">
+          <Button {...small} variant="subtle" onClick={editing.onEditDetails}>
+            Edit details
+          </Button>
+          {confirmRemove ? (
+            <>
+              <Button
+                {...small}
+                variant="filled"
+                loading={removing}
+                onClick={async () => {
+                  setRemoving(true);
+                  const ok = await actions.remove(race.id);
+                  setRemoving(false);
+                  if (!ok) setConfirmRemove(false);
+                }}
+              >
+                Remove {race.name}
+              </Button>
+              <Button {...small} variant="subtle" onClick={() => setConfirmRemove(false)}>
+                Cancel
+              </Button>
+            </>
+          ) : (
+            <Button {...small} variant="subtle" onClick={() => setConfirmRemove(true)}>
+              Remove
+            </Button>
+          )}
+        </Group>
+        <Text size="xs" c={saveStatus === 'error' ? 'var(--color-signal-text)' : 'var(--color-text-muted)'} style={mono} aria-live="polite">
+          {SAVE_STATUS_TEXT[saveStatus]}
+        </Text>
+      </Group>
+    </Stack>
+  );
+}
+
+function RacePanel({
+  race,
+  plan,
+  todayLocal,
+  editing,
+}: {
+  race: SeasonRaceResult | null;
+  plan: SeasonPlan;
+  todayLocal: string;
+  editing: PanelEditing | null;
+}) {
   if (!race) return null;
   const related = race.relatedRaceId ? plan.races.find((r) => r.id === race.relatedRaceId) : null;
   const p = race.profile;
+  const past = race.date < todayLocal;
   return (
     <Box style={{ border: '1px solid var(--color-border)', padding: 16 }}>
       <Text size="xs" c="var(--color-text-muted)" style={{ ...mono, letterSpacing: '0.08em', textTransform: 'uppercase' }}>
@@ -172,10 +271,17 @@ function RacePanel({ race, plan }: { race: SeasonRaceResult | null; plan: Season
         )}
         {race.focusConfirmed === false && (
           <Text size="xs" c="var(--color-text-secondary)">
-            These back-to-back goal races share one build, aimed at the last one. Choosing which race matters more comes with editing.
+            These back-to-back goal races share one build, aimed at the last one until you pick the race that matters more.
           </Text>
         )}
       </Stack>
+
+      {editing && !past && <RaceEditor key={race.id} race={race} editing={editing} />}
+      {past && (
+        <Text size="xs" c="var(--color-text-muted)" mt="md">
+          This race is in the past.
+        </Text>
+      )}
 
       <Box mt="md" pt="md" style={{ borderTop: '1px solid var(--color-border)' }}>
         <Text size="xs" c="var(--color-text-muted)">
@@ -188,15 +294,28 @@ function RacePanel({ race, plan }: { race: SeasonRaceResult | null; plan: Season
 
 // ─── Tab ────────────────────────────────────────────────────────────────────
 
-export default function SeasonTab() {
-  return <SeasonView {...useSeasonPlan()} />;
+export default function SeasonTab({ isImperial = false }: { isImperial?: boolean }) {
+  return <SeasonView {...useSeasonPlan()} isImperial={isImperial} />;
 }
 
 /** The tab's presentation, separate from data loading so it can be rendered from fixtures. */
-export function SeasonView({ loading, error, plan, savedPlan, hoursSource, ridden, todayLocal }: SeasonPlanState) {
+export function SeasonView({
+  loading,
+  error,
+  plan,
+  savedPlan,
+  hoursSource,
+  ridden,
+  todayLocal,
+  rows,
+  actions,
+  saveStatus = 'idle',
+  isImperial = false,
+}: SeasonPlanState & { isImperial?: boolean }) {
   const isNarrow = useMediaQuery('(max-width: 900px)');
-  const navigate = useNavigate();
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  // The race form: null = closed, 'new' = add a race, otherwise the race being edited.
+  const [form, setForm] = useState<'new' | RaceGoalRow | null>(null);
 
   const selected = useMemo(() => {
     if (!plan) return null;
@@ -217,7 +336,7 @@ export function SeasonView({ loading, error, plan, savedPlan, hoursSource, ridde
   if (error || !plan) {
     return (
       <Box py="lg">
-        <Text fw={700}>Couldn't load your season.</Text>
+        <Text fw={700}>Couldn&apos;t load your season.</Text>
         <Text size="sm" c="var(--color-text-secondary)">
           {error ?? 'Try again in a moment.'}
         </Text>
@@ -228,6 +347,18 @@ export function SeasonView({ loading, error, plan, savedPlan, hoursSource, ridde
   const conflicts = plan.races.filter((r) => r.verdict === 'conflict').length;
   const todayWeek = todayWeekIndex(plan, todayLocal);
   const todayPos = (dayNumber(todayLocal) - dayNumber(plan.startDate)) / 7;
+  const editing: PanelEditing | null =
+    actions && selected
+      ? {
+          actions,
+          saveStatus,
+          onEditDetails: () => {
+            const row = rows?.find((r) => r.id === selected.id) ?? null;
+            void actions.flush().then(() => setForm(row));
+          },
+        }
+      : null;
+  const panel = <RacePanel race={selected} plan={plan} todayLocal={todayLocal} editing={editing} />;
 
   return (
     <Stack gap="lg" py="md">
@@ -241,11 +372,18 @@ export function SeasonView({ loading, error, plan, savedPlan, hoursSource, ridde
             Planned around <span style={mono}>{plan.typicalWeeklyHours}h</span> a week, from {HOURS_SOURCE_TEXT[hoursSource]}.
           </Text>
         </Box>
-        {conflicts > 0 && (
-          <span className="tribos-stamp" style={{ fontSize: 16 }}>
-            {conflicts} conflict{conflicts === 1 ? '' : 's'}
-          </span>
-        )}
+        <Group gap="md" align="center">
+          {conflicts > 0 && (
+            <span className="tribos-stamp" style={{ fontSize: 16 }}>
+              {conflicts} conflict{conflicts === 1 ? '' : 's'}
+            </span>
+          )}
+          {actions && (
+            <Button color="dark" radius={0} size="sm" onClick={() => void actions.flush().then(() => setForm('new'))}>
+              Add race
+            </Button>
+          )}
+        </Group>
       </Group>
 
       <Stack gap="sm">
@@ -268,9 +406,11 @@ export function SeasonView({ loading, error, plan, savedPlan, hoursSource, ridde
           <Text size="sm" c="var(--color-text-secondary)" mt={4}>
             Add your races as goal (A), target (B) or tune-up (C) and the season fills in around them.
           </Text>
-          <Button mt="md" color="dark" radius={0} onClick={() => navigate('/train?tab=race')}>
-            Add races
-          </Button>
+          {actions && (
+            <Button mt="md" color="dark" radius={0} onClick={() => void actions.flush().then(() => setForm('new'))}>
+              Add race
+            </Button>
+          )}
         </Box>
       ) : (
         <Box
@@ -282,14 +422,28 @@ export function SeasonView({ loading, error, plan, savedPlan, hoursSource, ridde
           }}
         >
           {/* On a phone the selected race stacks directly under the profile, above the list. */}
-          {isNarrow && <RacePanel race={selected} plan={plan} />}
+          {isNarrow && panel}
           <Box style={{ borderTop: '1px solid var(--color-ink)' }}>
             {plan.races.map((r) => (
               <RaceRow key={r.id} race={r} selected={r.id === selected?.id} onSelect={() => setSelectedId(r.id)} />
             ))}
           </Box>
-          {!isNarrow && <RacePanel race={selected} plan={plan} />}
+          {!isNarrow && panel}
         </Box>
+      )}
+
+      {/* The existing race form, for new races and full edits. Mounted only while open. */}
+      {form !== null && (
+        <RaceGoalModal
+          opened
+          onClose={() => setForm(null)}
+          raceGoal={form === 'new' ? null : form}
+          isImperial={isImperial}
+          onSaved={() => {
+            setForm(null);
+            actions?.reload();
+          }}
+        />
       )}
     </Stack>
   );
