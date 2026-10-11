@@ -1,6 +1,8 @@
 import React, { useMemo } from 'react';
-import { Card, Text, Group, Stack, Badge, ThemeIcon } from '@mantine/core';
-import { Clock, Lightning, Medal, Mountains, Path, TrendUp } from '@phosphor-icons/react';
+import { Box, Group, Text } from '@mantine/core';
+import HandTick from './ui/HandTick.jsx';
+import { StatRow, SubHeading, kicker, mono } from './train/progressUi.jsx';
+import { Lightning, Mountains, Path } from '@phosphor-icons/react';
 
 /**
  * Personal Records Card
@@ -36,7 +38,6 @@ const PersonalRecordsCard = ({ rides = [], formatDistance, formatElevation }) =>
           type: 'Longest Ride',
           value: formatDistance(getDistance(longestRide)),
           icon: Path,
-          color: 'blue'
         });
       }
     }
@@ -48,7 +49,6 @@ const PersonalRecordsCard = ({ rides = [], formatDistance, formatElevation }) =>
           type: 'Most Climbing',
           value: formatElevation(getElevation(mostElevation)),
           icon: Mountains,
-          color: 'orange'
         });
       }
     }
@@ -60,7 +60,6 @@ const PersonalRecordsCard = ({ rides = [], formatDistance, formatElevation }) =>
           type: 'Highest Avg Power',
           value: `${Math.round(getPower(highestPower))}W`,
           icon: Lightning,
-          color: 'yellow'
         });
       }
     }
@@ -76,89 +75,61 @@ const PersonalRecordsCard = ({ rides = [], formatDistance, formatElevation }) =>
 
   if (!records) {
     return (
-      <Card withBorder p="md">
-        <Group gap="xs" mb="sm">
-          <ThemeIcon size="lg" color="yellow" variant="light">
-            <Medal size={20} />
-          </ThemeIcon>
-          <Text size="lg" fw={600}>Personal Records</Text>
-        </Group>
-        <Text size="sm" c="dimmed">Complete some rides to see your PRs!</Text>
-      </Card>
+      <Box>
+        <SubHeading>Personal records</SubHeading>
+        <Text size="sm" c="var(--color-text-secondary)">Complete some rides to see your PRs.</Text>
+      </Box>
     );
   }
 
+  const lifetime = [
+    records.longestRide && { label: 'Longest ride', value: records.longestRide },
+    records.mostElevation && { label: 'Most climbing', value: records.mostElevation },
+    records.highestPower && { label: 'Avg power PR', value: records.highestPower },
+    records.longestDuration && { label: 'Longest duration', value: records.longestDuration },
+  ].filter(Boolean);
+
   return (
-    <Card withBorder p="md">
-      <Stack gap="sm">
-        <Group gap="xs">
-          <ThemeIcon size="lg" color="yellow" variant="light">
-            <Medal size={20} />
-          </ThemeIcon>
-          <Text size="lg" fw={600}>Personal Records</Text>
-        </Group>
+    <Box>
+      <SubHeading
+        aside={
+          records.recentPRs.length > 0 ? (
+            <Text style={{ ...mono, fontSize: 12, color: 'var(--color-signal-text)' }}>
+              {records.recentPRs.length} new PR{records.recentPRs.length > 1 ? 's' : ''} this month
+            </Text>
+          ) : null
+        }
+      >
+        Personal records
+      </SubHeading>
 
-        {/* Recent PRs */}
-        {records.recentPRs.length > 0 ? (
-          <>
-            <Badge color="yellow" variant="light" size="sm">
-              {records.recentPRs.length} new PR{records.recentPRs.length > 1 ? 's' : ''} this month!
-            </Badge>
+      {records.recentPRs.length > 0 ? (
+        <Box mb="sm" style={{ borderTop: '1px solid var(--color-border)' }}>
+          {records.recentPRs.slice(0, 3).map((pr, index) => (
+            <Group key={index} justify="space-between" wrap="nowrap" style={{ borderBottom: '1px solid var(--color-border)', padding: '6px 0' }}>
+              <Group gap="xs" wrap="nowrap">
+                <HandTick size={16} title="New this month" />
+                <Text size="sm" fw={600}>{pr.type}</Text>
+              </Group>
+              <Text style={{ ...mono, fontSize: 14, fontWeight: 700 }}>{pr.value}</Text>
+            </Group>
+          ))}
+        </Box>
+      ) : (
+        <Text size="sm" c="var(--color-text-secondary)" mb="sm">
+          No new PRs this month. Keep pushing.
+        </Text>
+      )}
 
-            <Stack gap="xs">
-              {records.recentPRs.slice(0, 3).map((pr, index) => (
-                <Group
-                  key={index}
-                  justify="space-between"
-                  p="xs"
-                  style={{
-                    backgroundColor: 'rgba(168, 191, 168, 0.1)',
-                    borderRadius: 4
-                  }}
-                >
-                  <Group gap="xs">
-                    <pr.icon size={14} color="#2A8C82" />
-                    <Text size="sm" fw={500}>{pr.type}</Text>
-                  </Group>
-                  <Text size="sm" fw={600} c="teal">{pr.value}</Text>
-                </Group>
-              ))}
-            </Stack>
-          </>
-        ) : (
-          <Text size="sm" c="dimmed">No new PRs this month. Keep pushing!</Text>
-        )}
-
-        {/* Lifetime Bests */}
-        <Text size="xs" c="dimmed" mt="xs">Lifetime Bests</Text>
-        <Group gap="lg" wrap="wrap">
-          {records.longestRide && (
-            <div>
-              <Text size="xs" c="dimmed">Longest Ride</Text>
-              <Text size="sm" fw={600}>{records.longestRide}</Text>
-            </div>
-          )}
-          {records.mostElevation && (
-            <div>
-              <Text size="xs" c="dimmed">Most Climbing</Text>
-              <Text size="sm" fw={600}>{records.mostElevation}</Text>
-            </div>
-          )}
-          {records.highestPower && (
-            <div>
-              <Text size="xs" c="dimmed">Avg Power PR</Text>
-              <Text size="sm" fw={600}>{records.highestPower}</Text>
-            </div>
-          )}
-          {records.longestDuration && (
-            <div>
-              <Text size="xs" c="dimmed">Longest Duration</Text>
-              <Text size="sm" fw={600}>{records.longestDuration}</Text>
-            </div>
-          )}
-        </Group>
-      </Stack>
-    </Card>
+      {lifetime.length > 0 && (
+        <>
+          <Text style={kicker} mb={4}>
+            Lifetime bests
+          </Text>
+          <StatRow stats={lifetime} minWidth={120} />
+        </>
+      )}
+    </Box>
   );
 };
 

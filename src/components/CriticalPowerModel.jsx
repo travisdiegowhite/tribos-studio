@@ -1,18 +1,5 @@
 import { useMemo, useState } from 'react';
-import {
-  Card,
-  Text,
-  Group,
-  Badge,
-  Stack,
-  Box,
-  Paper,
-  SimpleGrid,
-  Tooltip,
-  Progress,
-  SegmentedControl,
-  Alert,
-} from '@mantine/core';
+import { Box, Group, SegmentedControl, Text, Tooltip } from '@mantine/core';
 import {
   LineChart,
   Line,
@@ -22,11 +9,9 @@ import {
   Tooltip as RechartsTooltip,
   ResponsiveContainer,
   ReferenceLine,
-  Area,
-  AreaChart,
 } from 'recharts';
-import { tokens } from '../theme';
-import { BatteryMedium, Clock, Fire, Info, Lightning } from '@phosphor-icons/react';
+import { BatteryMedium } from '@phosphor-icons/react';
+import { StatRow, SubHeading, mono, tooltipStyle, useChartColors } from './train/progressUi.jsx';
 
 /**
  * Critical Power Model Component
@@ -177,6 +162,7 @@ export function predictDurationForPower(cp, wPrime, power) {
  */
 const CriticalPowerModel = ({ activities, ftp, weight }) => {
   const [viewMode, setViewMode] = useState('overview'); // 'overview' or 'predictions'
+  const CHART = useChartColors();
 
   // Extract best efforts from activities
   const cpModel = useMemo(() => {
@@ -257,203 +243,147 @@ const CriticalPowerModel = ({ activities, ftp, weight }) => {
     }));
   }, [cpModel, weight]);
 
-  // Custom tooltip
+  // Custom tooltip: flat, ruled, numbers in Courier
   const CustomTooltip = ({ active, payload }) => {
     if (!active || !payload || payload.length === 0) return null;
     const data = payload[0].payload;
-
+    const row = (label, value) => (
+      <Group justify="space-between" gap="md" wrap="nowrap">
+        <Text size="xs" c="var(--color-text-secondary)">{label}</Text>
+        <Text size="xs" fw={700} style={mono}>{value}</Text>
+      </Group>
+    );
     return (
-      <Card withBorder p="xs" style={{ backgroundColor: 'var(--color-bg-secondary)' }}>
-        <Text size="xs" fw={600} mb="xs">{data.label}</Text>
-        <Group gap="md">
-          <Box>
-            <Text size="xs" c="dimmed">Power</Text>
-            <Text size="sm" fw={600}>{data.power}W</Text>
-          </Box>
-          {data.wkg && (
-            <Box>
-              <Text size="xs" c="dimmed">W/kg</Text>
-              <Text size="sm" fw={600}>{data.wkg}</Text>
-            </Box>
-          )}
-          <Box>
-            <Text size="xs" c="dimmed">% CP</Text>
-            <Text size="sm" fw={600}>{data.percentCP}%</Text>
-          </Box>
-        </Group>
-      </Card>
+      <Box style={tooltipStyle} p={8}>
+        <Text size="xs" fw={700} mb={4}>{data.label}</Text>
+        {row('Power', `${data.power}W`)}
+        {data.wkg && row('W/kg', data.wkg)}
+        {row('% CP', `${data.percentCP}%`)}
+      </Box>
     );
   };
 
   if (!cpModel) {
     return (
-      <Card withBorder p="xl">
-        <Text style={{ color: 'var(--color-text-muted)' }} ta="center">
-          Not enough power data to calculate Critical Power model.
-          Connect a power meter to see your CP and W' values.
+      <Box>
+        <SubHeading>Critical power</SubHeading>
+        <Text size="sm" style={{ color: 'var(--color-text-secondary)' }}>
+          Not enough power data to calculate a critical power model. Connect a power meter to see your CP and
+          W&prime; values.
         </Text>
-      </Card>
+      </Box>
     );
   }
 
-  return (
-    <Card>
-      <Group justify="space-between" mb="md" wrap="wrap">
-        <Group gap="sm">
-          <BatteryMedium size={20} color={tokens.colors.zone5} />
-          <Text size="sm" fw={600} style={{ color: 'var(--color-text-primary)' }}>
-            Critical Power Model
-          </Text>
-          {cpModel.model === 'estimated' && (
-            <Tooltip label="Estimated from FTP - actual values may differ">
-              <Badge color="yellow" variant="light" size="xs">Estimated</Badge>
-            </Tooltip>
-          )}
-        </Group>
-        <SegmentedControl
-          size="xs"
-          value={viewMode}
-          onChange={setViewMode}
-          data={[
-            { label: 'Overview', value: 'overview' },
-            { label: 'Predictions', value: 'predictions' },
-          ]}
-        />
-      </Group>
+  const axisTick = { fontSize: 11, fill: CHART.axis, fontFamily: 'var(--font-mono)' };
 
-      {/* The gloss leads: what this model is, before any tile uses its terms. */}
-      <Text size="xs" c="dimmed" mb="md">
+  return (
+    <Box>
+      <SubHeading
+        aside={
+          <SegmentedControl
+            size="xs"
+            radius={0}
+            value={viewMode}
+            onChange={setViewMode}
+            data={[
+              { label: 'Overview', value: 'overview' },
+              { label: 'Predictions', value: 'predictions' },
+            ]}
+          />
+        }
+      >
+        Critical power
+        {cpModel.model === 'estimated' && (
+          <Tooltip label="Estimated from FTP - actual values may differ">
+            <Text component="span" style={{ ...mono, fontSize: 11, fontWeight: 400, color: 'var(--color-text-muted)', marginLeft: 8, textTransform: 'none' }}>
+              estimated
+            </Text>
+          </Tooltip>
+        )}
+      </SubHeading>
+
+      {/* The gloss leads: what this model is, before any number uses its terms. */}
+      <Text size="xs" c="var(--color-text-secondary)" mb="sm">
         Critical Power (CP) is the hardest pace you can hold for a long effort. Above
-        it you drain a small "sprint battery" (W&prime;) that recharges when you ease off.
+        it you drain a small &quot;sprint battery&quot; (W&prime;) that recharges when you ease off.
       </Text>
 
-      {/* Key Metrics */}
-      <SimpleGrid cols={{ base: 2, sm: 4 }} spacing="sm" mb="md">
-        <Paper p="sm" style={{ backgroundColor: 'var(--color-bg-secondary)' }}>
-          <Group gap="xs" mb={2}>
-            <Lightning size={14} color={tokens.colors.zone4} />
-            <Text size="xs" c="dimmed">Critical Power</Text>
-          </Group>
-          <Text size="lg" fw={700} c="orange">{cpModel.cp}W</Text>
-          {weight && <Text size="xs" c="dimmed">{(cpModel.cp / weight).toFixed(2)} W/kg</Text>}
-        </Paper>
-
-        <Paper p="sm" style={{ backgroundColor: 'var(--color-bg-secondary)' }}>
-          <Group gap="xs" mb={2}>
-            <BatteryMedium size={14} color={tokens.colors.zone5} />
-            <Text size="xs" c="dimmed">Sprint battery (W&prime;)</Text>
-          </Group>
-          <Text size="lg" fw={700} c="red">{(cpModel.wPrime / 1000).toFixed(1)} kJ</Text>
-          <Text size="xs" c="dimmed">Energy available above CP</Text>
-        </Paper>
-
-        <Paper p="sm" style={{ backgroundColor: 'var(--color-bg-secondary)' }}>
-          <Group gap="xs" mb={2}>
-            <Clock size={14} color={tokens.colors.zone2} />
-            <Text size="xs" c="dimmed">Time to empty at 120% of CP</Text>
-          </Group>
-          <Text size="lg" fw={700} c="blue">
-            {Math.round(predictDurationForPower(cpModel.cp, cpModel.wPrime, cpModel.cp * 1.2) / 60)}m
-          </Text>
-          <Text size="xs" c="dimmed">{Math.round(cpModel.cp * 1.2)}W effort</Text>
-        </Paper>
-
-        <Paper p="sm" style={{ backgroundColor: 'var(--color-bg-secondary)' }}>
-          <Group gap="xs" mb={2}>
-            <Fire size={14} color={tokens.colors.zone3} />
-            <Text size="xs" c="dimmed">CP vs FTP</Text>
-          </Group>
-          <Text size="lg" fw={700} c="yellow">
-            {ftp ? Math.round((cpModel.cp / ftp) * 100) : '--'}%
-          </Text>
-          <Text size="xs" c="dimmed">CP is typically 93-97%</Text>
-        </Paper>
-      </SimpleGrid>
+      <StatRow
+        minWidth={130}
+        stats={[
+          { label: 'Critical power', value: `${cpModel.cp}W`, note: weight ? `${(cpModel.cp / weight).toFixed(2)} W/kg` : undefined },
+          { label: 'Sprint battery (W′)', value: `${(cpModel.wPrime / 1000).toFixed(1)} kJ`, note: 'energy above CP' },
+          {
+            label: 'Empty at 120% CP',
+            value: `${Math.round(predictDurationForPower(cpModel.cp, cpModel.wPrime, cpModel.cp * 1.2) / 60)}m`,
+            note: `${Math.round(cpModel.cp * 1.2)}W effort`,
+          },
+          { label: 'CP vs FTP', value: `${ftp ? Math.round((cpModel.cp / ftp) * 100) : '--'}%`, note: 'typically 93–97%' },
+        ]}
+      />
 
       {viewMode === 'overview' ? (
         <>
-          {/* Power-Duration Curve */}
-          <ResponsiveContainer width="100%" height={250}>
-            <LineChart data={powerDurationData} margin={{ top: 5, right: 20, left: 0, bottom: 5 }}>
-              <CartesianGrid strokeDasharray="3 3" stroke={'var(--color-bg-secondary)'} />
-              <XAxis
-                dataKey="label"
-                tick={{ fontSize: 12, fill: 'var(--color-text-muted)' }}
-              />
-              <YAxis
-                tick={{ fontSize: 12, fill: 'var(--color-text-muted)' }}
-                domain={['auto', 'auto']}
-                label={{
-                  value: 'Watts',
-                  angle: -90,
-                  position: 'insideLeft',
-                  style: { fill: 'var(--color-text-muted)', fontSize: 12 }
-                }}
-              />
-              <RechartsTooltip content={<CustomTooltip />} />
+          <Box mt="md">
+            <ResponsiveContainer width="100%" height={250}>
+              <LineChart data={powerDurationData} margin={{ top: 5, right: 12, left: 0, bottom: 5 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke={CHART.grid} vertical={false} />
+                <XAxis dataKey="label" tick={axisTick} stroke={CHART.baseline} />
+                <YAxis
+                  tick={axisTick}
+                  stroke={CHART.baseline}
+                  width={44}
+                  domain={['auto', 'auto']}
+                  label={{ value: 'Watts', angle: -90, position: 'insideLeft', style: { fill: CHART.axis, fontSize: 11 } }}
+                />
+                <RechartsTooltip content={<CustomTooltip />} />
+                <ReferenceLine
+                  y={cpModel.cp}
+                  stroke={CHART.fitness}
+                  strokeDasharray="5 5"
+                  label={{ value: `CP ${cpModel.cp}W`, position: 'right', fill: CHART.fitness, fontSize: 11 }}
+                />
+                <Line type="monotone" dataKey="power" stroke={CHART.fatigue} strokeWidth={2} dot={{ fill: CHART.fatigue, r: 2.5 }} />
+              </LineChart>
+            </ResponsiveContainer>
+          </Box>
 
-              {/* CP Reference Line */}
-              <ReferenceLine
-                y={cpModel.cp}
-                stroke={tokens.colors.zone4}
-                strokeDasharray="5 5"
-                label={{
-                  value: `CP: ${cpModel.cp}W`,
-                  position: 'right',
-                  fill: tokens.colors.zone4,
-                  fontSize: 11
-                }}
-              />
-
-              <Line
-                type="monotone"
-                dataKey="power"
-                stroke="#D4600A"
-                strokeWidth={2}
-                dot={{ fill: '#D4600A', r: 3 }}
-              />
-            </LineChart>
-          </ResponsiveContainer>
-
-          {/* Model Explanation */}
-          <Alert color="blue" variant="light" icon={<Info size={16} />} mt="md">
-            <Text size="xs">
-              <strong>Critical Power (CP)</strong> is the highest power you can sustain for extended periods.
-              <strong> W' (W Prime)</strong> is your anaerobic work capacity above CP - like a "battery" of {(cpModel.wPrime / 1000).toFixed(1)} kJ
-              that depletes during hard efforts and recharges during recovery.
-            </Text>
-          </Alert>
+          <Text size="xs" mt="sm" c="var(--color-text-secondary)">
+            <strong>Critical Power (CP)</strong> is the highest power you can sustain for extended periods.
+            <strong> W&prime; (W Prime)</strong> is your anaerobic work capacity above CP — a &quot;battery&quot; of{' '}
+            {(cpModel.wPrime / 1000).toFixed(1)} kJ that depletes during hard efforts and recharges during recovery.
+          </Text>
         </>
       ) : (
-        /* Predictions View */
-        <Stack gap="sm">
+        /* Predictions */
+        <Box mt="md" style={{ borderTop: '1px solid var(--color-border)' }}>
           {predictions?.map((p) => (
-            <Paper key={p.duration} p="sm" style={{ backgroundColor: 'var(--color-bg-secondary)' }}>
-              <Group justify="space-between">
-                <Box>
-                  <Text size="sm" fw={600}>{p.label}</Text>
-                  <Text size="xs" c="dimmed">Maximum sustainable power</Text>
+            <Group key={p.duration} justify="space-between" wrap="nowrap" style={{ borderBottom: '1px solid var(--color-border)', padding: '8px 0' }}>
+              <Box>
+                <Text size="sm" fw={700}>{p.label}</Text>
+                <Text size="xs" c="var(--color-text-muted)">Maximum sustainable power</Text>
+              </Box>
+              <Group gap="md" wrap="nowrap">
+                <Box ta="right">
+                  <Text style={{ ...mono, fontSize: 18, fontWeight: 700 }}>{p.power}W</Text>
+                  {p.wkg && <Text style={{ ...mono, fontSize: 11, color: 'var(--color-text-muted)' }}>{p.wkg} W/kg</Text>}
                 </Box>
-                <Group gap="md">
-                  <Box ta="right">
-                    <Text size="lg" fw={700} c="orange">{p.power}W</Text>
-                    {p.wkg && <Text size="xs" c="dimmed">{p.wkg} W/kg</Text>}
+                <Box ta="right" w={64}>
+                  <Box style={{ height: 6, backgroundColor: 'var(--color-bg-secondary)' }}>
+                    <Box style={{ height: 6, width: `${Math.max(0, Math.min(100, p.percentCP - 80))}%`, backgroundColor: 'var(--color-signal)' }} />
                   </Box>
-                  <Box ta="right" w={60}>
-                    <Progress value={Math.min(100, p.percentCP - 80)} color="orange" size="sm" />
-                    <Text size="xs" c="dimmed">{p.percentCP}% CP</Text>
-                  </Box>
-                </Group>
+                  <Text style={{ ...mono, fontSize: 11, color: 'var(--color-text-muted)' }}>{p.percentCP}% CP</Text>
+                </Box>
               </Group>
-            </Paper>
+            </Group>
           ))}
-
-          <Text size="xs" c="dimmed" ta="center" mt="sm">
+          <Text size="xs" c="var(--color-text-muted)" mt="sm">
             Predictions from your critical-power model.
           </Text>
-        </Stack>
+        </Box>
       )}
-    </Card>
+    </Box>
   );
 };
 
@@ -461,33 +391,23 @@ const CriticalPowerModel = ({ activities, ftp, weight }) => {
  * W' Balance Indicator - shows current W' status during/after a ride
  */
 export function WPrimeBalanceGauge({ wBalancePercent, wPrimeKJ }) {
-  const getColor = (pct) => {
-    if (pct > 75) return 'green';
-    if (pct > 50) return 'terracotta';
-    if (pct > 25) return 'yellow';
-    if (pct > 10) return 'orange';
-    return 'red';
-  };
+  // Plenty left in ink, running low in signal (no hues outside the roles).
+  const fill = wBalancePercent > 50 ? 'var(--color-ink)' : wBalancePercent > 25 ? 'var(--color-easy)' : 'var(--color-signal)';
 
   return (
     <Tooltip label={`Sprint battery: ${wBalancePercent.toFixed(0)}% of ${wPrimeKJ.toFixed(1)} kJ remaining`}>
-      <Paper p="xs" style={{ backgroundColor: 'var(--color-bg-secondary)' }}>
+      <Box p="xs" style={{ border: '1px solid var(--color-border)' }}>
         <Group gap="xs" mb={4}>
           <BatteryMedium size={14} />
           <Text size="xs">Battery remaining</Text>
         </Group>
-        <Progress
-          value={wBalancePercent}
-          color={getColor(wBalancePercent)}
-          size="lg"
-          radius="xl"
-          striped={wBalancePercent < 25}
-          animated={wBalancePercent < 10}
-        />
-        <Text size="sm" fw={600} ta="center" mt={4}>
+        <Box style={{ height: 10, backgroundColor: 'var(--color-bg-secondary)' }}>
+          <Box style={{ height: 10, width: `${Math.max(0, Math.min(100, wBalancePercent))}%`, backgroundColor: fill }} />
+        </Box>
+        <Text size="sm" fw={700} ta="center" mt={4} style={mono}>
           {wBalancePercent.toFixed(0)}%
         </Text>
-      </Paper>
+      </Box>
     </Tooltip>
   );
 }

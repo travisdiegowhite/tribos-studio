@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { Box, Card, Text, Group, Badge, SegmentedControl } from '@mantine/core';
+import { Box, Text, Group, SegmentedControl } from '@mantine/core';
 import {
   LineChart,
   Line,
@@ -9,11 +9,10 @@ import {
   YAxis,
   CartesianGrid,
   Tooltip,
-  Legend,
   ResponsiveContainer,
   ReferenceLine,
 } from 'recharts';
-import { tokens } from '../theme';
+import { mono, tooltipStyle, useChartColors } from './train/progressUi.jsx';
 
 /**
  * Training Load Chart Component
@@ -21,6 +20,7 @@ import { tokens } from '../theme';
  */
 const TrainingLoadChart = ({ data }) => {
   const [timeRange, setTimeRange] = useState('30'); // 7, 30, or 90 days
+  const CHART = useChartColors();
 
   // Process data for chart
   const chartData = useMemo(() => {
@@ -62,153 +62,111 @@ const TrainingLoadChart = ({ data }) => {
     }));
   }, [data, timeRange]);
 
-  // Custom tooltip
+  // Custom tooltip: flat, ruled, numbers in Courier
   const CustomTooltip = ({ active, payload, label }) => {
     if (!active || !payload || payload.length === 0) return null;
 
     return (
-      <Card withBorder p="xs" style={{ backgroundColor: 'var(--color-bg-secondary)' }}>
-        <Text size="xs" fw={600} mb="xs" style={{ color: 'var(--color-text-primary)' }}>{label}</Text>
+      <Box style={tooltipStyle} p={8}>
+        <Text size="xs" fw={700} mb={4} style={{ color: 'var(--color-text-primary)' }}>{label}</Text>
         {payload.map((entry, index) => (
-          <Group key={index} justify="space-between" gap="md">
-            <Text size="xs" style={{ color: entry.color }}>{entry.name}:</Text>
-            <Text size="xs" fw={600} style={{ color: 'var(--color-text-primary)' }}>{entry.value}</Text>
+          <Group key={index} justify="space-between" gap="md" wrap="nowrap">
+            <Text size="xs" style={{ color: 'var(--color-text-secondary)' }}>{entry.name}</Text>
+            <Text size="xs" fw={700} style={{ ...mono, color: 'var(--color-text-primary)' }}>{entry.value}</Text>
           </Group>
         ))}
-      </Card>
+      </Box>
     );
   };
 
   if (!chartData || chartData.length === 0) {
     return (
-      <Card withBorder p="xl">
-        <Text style={{ color: 'var(--color-text-muted)' }} ta="center">
+      <Box style={{ borderTop: '1px solid var(--color-border)', padding: '16px 0' }}>
+        <Text style={{ color: 'var(--color-text-muted)' }}>
           No training data available. Import your rides to see your training load metrics.
         </Text>
-      </Card>
+      </Box>
     );
   }
 
+  const axisTick = { fontSize: 11, fill: CHART.axis, fontFamily: 'var(--font-mono)' };
+  const LINES = [
+    { key: 'ctl', name: 'Fitness (TFI)', color: CHART.fitness, note: 'Aerobic base — built over ~6 weeks' },
+    { key: 'atl', name: 'Fatigue (AFI)', color: CHART.fatigue, note: 'Recent fatigue — last 7–10 days' },
+    { key: 'tsb', name: 'Form (FS)', color: CHART.form, dash: '5 4', note: 'Freshness — how ready you are today' },
+  ];
+
   return (
-    <Card>
-      <Group justify="space-between" mb="md" wrap="wrap">
-        <Text size="sm" fw={600} style={{ color: 'var(--color-text-primary)' }}>
-          Training Load Over Time
-        </Text>
-        <Group gap="xs">
-          <SegmentedControl
-            size="xs"
-            value={timeRange}
-            onChange={setTimeRange}
-            data={[
-              { label: '7 days', value: '7' },
-              { label: '30 days', value: '30' },
-              { label: '90 days', value: '90' }
-            ]}
-          />
+    <Box>
+      <Group justify="space-between" mb="sm" wrap="wrap" gap="xs">
+        {/* Legend with plain-language sublabels */}
+        <Group gap="lg" wrap="wrap">
+          {LINES.map((l) => (
+            <Box key={l.key}>
+              <Group gap={6} wrap="nowrap">
+                <Box style={{ width: 18, borderTop: `2px ${l.dash ? 'dashed' : 'solid'} ${l.color}` }} />
+                <Text size="xs" fw={700} style={{ color: 'var(--color-text-primary)' }}>{l.name}</Text>
+              </Group>
+              <Text style={{ ...mono, fontSize: 10, color: 'var(--color-text-muted)', marginTop: 2 }}>{l.note}</Text>
+            </Box>
+          ))}
         </Group>
+        <SegmentedControl
+          size="xs"
+          radius={0}
+          value={timeRange}
+          onChange={setTimeRange}
+          data={[
+            { label: '7D', value: '7' },
+            { label: '30D', value: '30' },
+            { label: '90D', value: '90' }
+          ]}
+          styles={{ label: { fontFamily: 'var(--font-mono)' } }}
+        />
       </Group>
 
-      {/* Legend with plain-language sublabels */}
-      <Group gap="md" mb="md">
-        <Box>
-          <Badge color="gold" variant="light" size="sm">Fitness (TFI)</Badge>
-          <Text style={{ fontFamily: "'Courier Prime', monospace", fontSize: 10, color: '#7A7970', marginTop: 2 }}>
-            Aerobic base — built over ~6 weeks
-          </Text>
-        </Box>
-        <Box>
-          <Badge color="coral" variant="light" size="sm">Fatigue (AFI)</Badge>
-          <Text style={{ fontFamily: "'Courier Prime', monospace", fontSize: 10, color: '#7A7970', marginTop: 2 }}>
-            Recent fatigue — last 7–10 days
-          </Text>
-        </Box>
-        <Box>
-          <Badge color="teal" variant="light" size="sm">Form (FS)</Badge>
-          <Text style={{ fontFamily: "'Courier Prime', monospace", fontSize: 10, color: '#7A7970', marginTop: 2 }}>
-            Freshness — how ready you are today
-          </Text>
-        </Box>
-      </Group>
-
-      {/* Daily TSS Bar Chart */}
-      <ResponsiveContainer width="100%" height={120}>
-        <AreaChart data={chartData} margin={{ top: 5, right: 20, left: 0, bottom: 5 }}>
-          <CartesianGrid strokeDasharray="3 3" stroke={'var(--color-bg-secondary)'} />
-          <XAxis
-            dataKey="formattedDate"
-            tick={{ fontSize: 12, fill: 'var(--color-text-muted)' }}
-            interval="preserveStartEnd"
-          />
-          <YAxis tick={{ fontSize: 12, fill: 'var(--color-text-muted)' }} />
+      {/* Daily RSS */}
+      <ResponsiveContainer width="100%" height={110}>
+        <AreaChart data={chartData} margin={{ top: 5, right: 12, left: 0, bottom: 5 }}>
+          <CartesianGrid strokeDasharray="3 3" stroke={CHART.grid} vertical={false} />
+          <XAxis dataKey="formattedDate" tick={axisTick} interval="preserveStartEnd" minTickGap={28} stroke={CHART.baseline} />
+          <YAxis tick={axisTick} stroke={CHART.baseline} width={36} />
           <Tooltip content={<CustomTooltip />} />
-          <Area
-            type="monotone"
-            dataKey="tss"
-            stroke="#2A8C82"
-            fill="#2A8C82"
-            fillOpacity={0.3}
-            name="Daily RSS"
-          />
+          <Area type="monotone" dataKey="tss" stroke={CHART.bar} fill={CHART.bar} fillOpacity={0.35} name="Daily RSS" />
         </AreaChart>
       </ResponsiveContainer>
-
-      <Text size="xs" style={{ color: 'var(--color-text-muted)' }} mb="lg" mt="xs">
-        Daily Ride Stress (RSS)
+      <Text size="xs" style={{ color: 'var(--color-text-muted)' }} mb="md" mt={4}>
+        Daily ride stress (RSS)
       </Text>
 
-      {/* CTL/ATL/TSB Line Chart */}
+      {/* Fitness / fatigue / form */}
       <ResponsiveContainer width="100%" height={220}>
-        <LineChart data={chartData} margin={{ top: 5, right: 20, left: 0, bottom: 5 }}>
-          <CartesianGrid strokeDasharray="3 3" stroke={'var(--color-bg-secondary)'} />
-          <XAxis
-            dataKey="formattedDate"
-            tick={{ fontSize: 12, fill: 'var(--color-text-muted)' }}
-            interval="preserveStartEnd"
-          />
-          <YAxis tick={{ fontSize: 12, fill: 'var(--color-text-muted)' }} />
+        <LineChart data={chartData} margin={{ top: 5, right: 12, left: 0, bottom: 5 }}>
+          <CartesianGrid strokeDasharray="3 3" stroke={CHART.grid} vertical={false} />
+          <XAxis dataKey="formattedDate" tick={axisTick} interval="preserveStartEnd" minTickGap={28} stroke={CHART.baseline} />
+          <YAxis tick={axisTick} stroke={CHART.baseline} width={36} />
           <Tooltip content={<CustomTooltip />} />
-          <Legend wrapperStyle={{ fontSize: 13 }} />
-
-          {/* Reference line at TSB = 0 */}
-          <ReferenceLine y={0} stroke={'var(--color-text-muted)'} strokeDasharray="3 3" />
-
-          {/* CTL - Chronic Training Load (Fitness) */}
-          <Line
-            type="monotone"
-            dataKey="ctl"
-            stroke="#C49A0A"
-            strokeWidth={2}
-            dot={false}
-            name="Fitness (TFI)"
-          />
-
-          {/* ATL - Acute Training Load (Fatigue) */}
-          <Line
-            type="monotone"
-            dataKey="atl"
-            stroke="#C43C2A"
-            strokeWidth={2}
-            dot={false}
-            name="Fatigue (AFI)"
-          />
-
-          {/* TSB - Training Stress Balance (Form) */}
-          <Line
-            type="monotone"
-            dataKey="tsb"
-            stroke="#2A8C82"
-            strokeWidth={2}
-            dot={false}
-            name="Form (FS)"
-          />
+          {/* Form = 0: fresh above, tired below */}
+          <ReferenceLine y={0} stroke={CHART.baseline} />
+          {LINES.map((l) => (
+            <Line
+              key={l.key}
+              type="monotone"
+              dataKey={l.key}
+              stroke={l.color}
+              strokeWidth={2}
+              strokeDasharray={l.dash}
+              dot={false}
+              name={l.name}
+            />
+          ))}
         </LineChart>
       </ResponsiveContainer>
 
-      <Text style={{ fontFamily: "'Courier Prime', monospace", fontSize: 10, color: '#7A7970', marginTop: 6 }}>
-        RSS = Daily ride stress | FTP = Your current threshold power
+      <Text style={{ ...mono, fontSize: 10, color: 'var(--color-text-muted)', marginTop: 6 }}>
+        RSS = daily ride stress · FTP = your current threshold power
       </Text>
-    </Card>
+    </Box>
   );
 };
 

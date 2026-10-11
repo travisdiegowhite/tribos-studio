@@ -1,17 +1,5 @@
 import { useMemo } from 'react';
-import {
-  Card,
-  Text,
-  Group,
-  Badge,
-  Stack,
-  Box,
-  Paper,
-  SimpleGrid,
-  Progress,
-  Tooltip,
-  Alert,
-} from '@mantine/core';
+import { Badge, Box, Group, Text, Tooltip } from '@mantine/core';
 import {
   LineChart,
   Line,
@@ -22,8 +10,8 @@ import {
   ResponsiveContainer,
   ReferenceLine,
 } from 'recharts';
-import { tokens } from '../theme';
-import { Check, Heart, Info, TrendDown, TrendUp, Warning } from '@phosphor-icons/react';
+import { StatRow, SubHeading, TONE, kicker, mono, tooltipStyle, useChartColors } from './train/progressUi.jsx';
+import { Check, Heart, Info, TrendUp, Warning } from '@phosphor-icons/react';
 
 /**
  * Aerobic Decoupling Analysis Component
@@ -170,6 +158,8 @@ export function estimateDecouplingFromActivity(activity) {
  * Shows decoupling analysis for recent activities
  */
 const AerobicDecoupling = ({ activities, timeRange = 90 }) => {
+  const CHART = useChartColors();
+  const axisTick = { fontSize: 11, fill: CHART.axis, fontFamily: 'var(--font-mono)' };
   // Analyze activities for decoupling trends
   const analysis = useMemo(() => {
     if (!activities || activities.length === 0) return null;
@@ -228,220 +218,130 @@ const AerobicDecoupling = ({ activities, timeRange = 90 }) => {
     };
   }, [activities, timeRange]);
 
-  // Custom tooltip
+  // Custom tooltip: flat, ruled, numbers in Courier
   const CustomTooltip = ({ active, payload }) => {
     if (!active || !payload || payload.length === 0) return null;
     const data = payload[0].payload;
-
+    const row = (label, value) => (
+      <Group justify="space-between" gap="md" wrap="nowrap">
+        <Text size="xs" c="var(--color-text-secondary)">{label}</Text>
+        <Text size="xs" fw={700} style={mono}>{value}</Text>
+      </Group>
+    );
     return (
-      <Card withBorder p="xs" style={{ backgroundColor: 'var(--color-bg-secondary)' }}>
-        <Text size="xs" fw={600} mb="xs">{data.name}</Text>
-        <SimpleGrid cols={2} spacing="xs">
-          <Box>
-            <Text size="xs" c="dimmed">EF</Text>
-            <Text size="sm" fw={600}>{data.ef}</Text>
-          </Box>
-          <Box>
-            <Text size="xs" c="dimmed">Decoupling</Text>
-            <Text size="sm" fw={600}>{data.decoupling}%</Text>
-          </Box>
-          <Box>
-            <Text size="xs" c="dimmed">Avg Power</Text>
-            <Text size="sm">{data.avgPower}W</Text>
-          </Box>
-          <Box>
-            <Text size="xs" c="dimmed">Avg HR</Text>
-            <Text size="sm">{data.avgHR} bpm</Text>
-          </Box>
-        </SimpleGrid>
-      </Card>
+      <Box style={tooltipStyle} p={8}>
+        <Text size="xs" fw={700} mb={4}>{data.name}</Text>
+        {row('EF', data.ef)}
+        {row('Decoupling', `${data.decoupling}%`)}
+        {row('Avg power', `${data.avgPower}W`)}
+        {row('Avg HR', `${data.avgHR} bpm`)}
+      </Box>
     );
   };
 
   if (!analysis) {
     return (
-      <Card withBorder p="xl">
-        <Text style={{ color: 'var(--color-text-muted)' }} ta="center">
-          No activities with both power and heart rate data available.
-          Use a power meter and HR monitor together to track aerobic efficiency.
+      <Box>
+        <SubHeading>Aerobic efficiency</SubHeading>
+        <Text size="sm" style={{ color: 'var(--color-text-secondary)' }}>
+          No activities with both power and heart rate data available. Use a power meter and HR monitor together
+          to track aerobic efficiency.
         </Text>
-      </Card>
+      </Box>
     );
   }
 
-  const StatusIcon = analysis.interpretation?.icon || Info;
+  // Decoupling status → role tone (good news in ink, drift in signal)
+  const status = analysis.interpretation?.status;
+  const tone = ['moderate', 'high', 'very_high'].includes(status) ? TONE.warn : TONE.neutral;
+  const markerPct = Math.min(Math.max(analysis.avgDecoupling, 0) / 20 * 100, 100);
 
   return (
-    <Card>
-      <Group justify="space-between" mb="md" wrap="wrap">
-        <Group gap="sm">
-          <Heart size={20} color="#2A8C82" />
-          <Text size="sm" fw={600} style={{ color: 'var(--color-text-primary)' }}>
-            Aerobic Efficiency
+    <Box>
+      <SubHeading
+        aside={
+          <Text style={{ ...mono, fontSize: 13, fontWeight: 700, color: tone }}>
+            {analysis.avgDecoupling}% avg drift
           </Text>
-        </Group>
-        <Badge color={analysis.interpretation?.color || 'gray'} variant="light">
-          {analysis.avgDecoupling}% avg drift
-        </Badge>
-      </Group>
+        }
+      >
+        Aerobic efficiency
+      </SubHeading>
 
-      {/* The gloss leads (hoisted from the old footer): say what this measures
-          before any number uses the terms. */}
-      <Text size="xs" c="dimmed" mb="md">
+      {/* The gloss leads: say what this measures before any number uses the terms. */}
+      <Text size="xs" c="var(--color-text-secondary)" mb="sm">
         Efficiency (EF) = Effective Power (EP) / Heart Rate — how much power each
-        heartbeat buys you. Higher is better. "Drift" (decoupling) is how much your
+        heartbeat buys you. Higher is better. &quot;Drift&quot; (decoupling) is how much your
         heart rate rose at the same power as a ride went on — lower means a stronger
         aerobic base.
       </Text>
 
-      {/* Summary Metrics */}
-      <SimpleGrid cols={{ base: 2, sm: 4 }} spacing="sm" mb="md">
-        <Paper p="sm" style={{ backgroundColor: 'var(--color-bg-secondary)' }}>
-          <Group gap="xs" mb={2}>
-            <Heart size={14} color="#2A8C82" />
-            <Text size="xs" c="dimmed">Avg EF</Text>
-          </Group>
-          <Text size="lg" fw={700}>{analysis.avgEF}</Text>
-          <Text size="xs" c="dimmed">watts per heartbeat</Text>
-        </Paper>
+      <StatRow
+        minWidth={130}
+        stats={[
+          { label: 'Avg EF', value: String(analysis.avgEF), note: 'watts per heartbeat' },
+          { label: 'Avg decoupling', value: `${analysis.avgDecoupling}%`, color: tone, note: analysis.interpretation?.message },
+          {
+            label: 'EF trend',
+            value: `${analysis.efTrend > 0 ? '+' : ''}${analysis.efTrend}%`,
+            color: analysis.efTrend < 0 ? TONE.warn : TONE.neutral,
+            note: 'vs older rides',
+          },
+          { label: 'Rides analysed', value: String(analysis.count), note: `last ${timeRange} days` },
+        ]}
+      />
 
-        <Paper p="sm" style={{ backgroundColor: 'var(--color-bg-secondary)' }}>
-          <Group gap="xs" mb={2}>
-            <StatusIcon size={14} color={`var(--mantine-color-${analysis.interpretation?.color}-5)`} />
-            <Text size="xs" c="dimmed">Avg Decoupling</Text>
-          </Group>
-          <Text size="lg" fw={700} c={analysis.interpretation?.color}>
-            {analysis.avgDecoupling}%
-          </Text>
-          <Text size="xs" c="dimmed">{analysis.interpretation?.message}</Text>
-        </Paper>
-
-        <Paper p="sm" style={{ backgroundColor: 'var(--color-bg-secondary)' }}>
-          <Group gap="xs" mb={2}>
-            {analysis.efTrend > 0 ? (
-              <TrendUp size={14} color={'var(--tribos-success)'} />
-            ) : (
-              <TrendDown size={14} color={'var(--tribos-error)'} />
-            )}
-            <Text size="xs" c="dimmed">EF Trend</Text>
-          </Group>
-          <Text size="lg" fw={700} c={analysis.efTrend > 0 ? 'green' : 'red'}>
-            {analysis.efTrend > 0 ? '+' : ''}{analysis.efTrend}%
-          </Text>
-          <Text size="xs" c="dimmed">vs older rides</Text>
-        </Paper>
-
-        <Paper p="sm" style={{ backgroundColor: 'var(--color-bg-secondary)' }}>
-          <Text size="xs" c="dimmed" mb={2}>Activities Analyzed</Text>
-          <Text size="lg" fw={700}>{analysis.count}</Text>
-          <Text size="xs" c="dimmed">Last {timeRange} days</Text>
-        </Paper>
-      </SimpleGrid>
-
-      {/* Efficiency Factor Trend Chart */}
+      {/* Efficiency factor trend */}
       {analysis.activities.length > 3 && (
-        <ResponsiveContainer width="100%" height={200}>
-          <LineChart data={analysis.activities} margin={{ top: 5, right: 20, left: 0, bottom: 5 }}>
-            <CartesianGrid strokeDasharray="3 3" stroke={'var(--color-bg-secondary)'} />
-            <XAxis
-              dataKey="formattedDate"
-              tick={{ fontSize: 12, fill: 'var(--color-text-muted)' }}
-              interval="preserveStartEnd"
-            />
-            <YAxis
-              tick={{ fontSize: 12, fill: 'var(--color-text-muted)' }}
-              domain={['auto', 'auto']}
-              label={{
-                value: 'EF (W/bpm)',
-                angle: -90,
-                position: 'insideLeft',
-                style: { fill: 'var(--color-text-muted)', fontSize: 12 }
-              }}
-            />
-            <RechartsTooltip content={<CustomTooltip />} />
-
-            {/* Average EF reference line */}
-            <ReferenceLine
-              y={analysis.avgEF}
-              stroke={'var(--color-teal)'}
-              strokeDasharray="5 5"
-            />
-
-            <Line
-              type="monotone"
-              dataKey="ef"
-              stroke="#2A8C82"
-              strokeWidth={2}
-              dot={{ fill: '#2A8C82', r: 3 }}
-            />
-          </LineChart>
-        </ResponsiveContainer>
-      )}
-
-      {/* Interpretation Alert */}
-      {analysis.interpretation && (
-        <Alert
-          color={analysis.interpretation.color}
-          variant="light"
-          icon={<StatusIcon size={16} />}
-          mt="md"
-        >
-          <Text size="sm" fw={500}>{analysis.interpretation.message}</Text>
-          <Text size="xs" mt={4}>{analysis.interpretation.description}</Text>
-        </Alert>
-      )}
-
-      {/* Decoupling Scale */}
-      <Paper p="sm" mt="md" style={{ backgroundColor: 'var(--color-bg-secondary)' }}>
-        <Text size="xs" fw={500} mb="sm">Decoupling Scale</Text>
-        <Box>
-          <Group justify="space-between" mb={4}>
-            <Text size="xs" c="dimmed">Excellent</Text>
-            <Text size="xs" c="dimmed">Moderate</Text>
-            <Text size="xs" c="dimmed">High</Text>
-          </Group>
-          <Box style={{ position: 'relative', height: 8 }}>
-            <Progress.Root size="lg" radius="xl">
-              <Progress.Section value={15} color="green" />
-              <Progress.Section value={10} color="blue" />
-              <Progress.Section value={25} color="yellow" />
-              <Progress.Section value={25} color="orange" />
-              <Progress.Section value={25} color="red" />
-            </Progress.Root>
-            {/* Marker for current average */}
-            <Box
-              style={{
-                position: 'absolute',
-                left: `${Math.min(analysis.avgDecoupling / 20 * 100, 100)}%`,
-                top: -6,
-                transform: 'translateX(-50%)',
-              }}
-            >
-              <Box
-                style={{
-                  width: 0,
-                  height: 0,
-                  borderLeft: '6px solid transparent',
-                  borderRight: '6px solid transparent',
-                  borderTop: `8px solid ${'var(--color-text-primary)'}`,
-                }}
+        <Box mt="md">
+          <ResponsiveContainer width="100%" height={200}>
+            <LineChart data={analysis.activities} margin={{ top: 5, right: 12, left: 0, bottom: 5 }}>
+              <CartesianGrid strokeDasharray="3 3" stroke={CHART.grid} vertical={false} />
+              <XAxis dataKey="formattedDate" tick={axisTick} interval="preserveStartEnd" minTickGap={28} stroke={CHART.baseline} />
+              <YAxis
+                tick={axisTick}
+                stroke={CHART.baseline}
+                domain={['auto', 'auto']}
+                width={44}
+                label={{ value: 'EF (W/bpm)', angle: -90, position: 'insideLeft', style: { fill: CHART.axis, fontSize: 11 } }}
               />
-            </Box>
-          </Box>
-          <Group justify="space-between" mt={4}>
-            <Text size="xs" c="dimmed">0%</Text>
-            <Text size="xs" c="dimmed">5%</Text>
-            <Text size="xs" c="dimmed">10%</Text>
-            <Text size="xs" c="dimmed">15%</Text>
-            <Text size="xs" c="dimmed">20%+</Text>
-          </Group>
+              <RechartsTooltip content={<CustomTooltip />} />
+              {/* Average EF */}
+              <ReferenceLine y={analysis.avgEF} stroke={CHART.baseline} strokeDasharray="5 5" />
+              <Line type="monotone" dataKey="ef" stroke={CHART.fitness} strokeWidth={2} dot={{ fill: CHART.fitness, r: 2.5 }} />
+            </LineChart>
+          </ResponsiveContainer>
         </Box>
-      </Paper>
+      )}
 
-      <Text size="xs" c="dimmed" mt="md">
-        Track efficiency over time to see aerobic fitness improvements.
-      </Text>
-    </Card>
+      {/* What it means */}
+      {analysis.interpretation && (
+        <Box mt="sm" style={{ borderLeft: `3px solid ${tone === TONE.warn ? 'var(--color-signal)' : 'var(--color-ink)'}`, paddingLeft: 10 }}>
+          <Text size="sm" fw={700}>{analysis.interpretation.message}</Text>
+          <Text size="xs" mt={2} c="var(--color-text-secondary)">{analysis.interpretation.description}</Text>
+        </Box>
+      )}
+
+      {/* Decoupling scale: 0–5% is a strong base; drift above that in signal */}
+      <Box mt="md">
+        <Text style={kicker} mb={6}>Decoupling scale</Text>
+        <Box style={{ position: 'relative', height: 10, display: 'flex' }}>
+          <Box style={{ width: '25%', backgroundColor: 'var(--color-ink)' }} />
+          <Box style={{ width: '25%', backgroundColor: 'var(--color-easy)' }} />
+          <Box style={{ width: '25%', backgroundColor: 'var(--color-signal-subtle)' }} />
+          <Box style={{ width: '25%', backgroundColor: 'var(--color-signal)' }} />
+          <Box
+            aria-hidden
+            style={{ position: 'absolute', left: `calc(${markerPct}% - 1.5px)`, top: -4, bottom: -4, width: 3, backgroundColor: 'var(--color-text-primary)', outline: '1px solid var(--color-bg)' }}
+          />
+        </Box>
+        <Group justify="space-between" mt={4}>
+          {['0%', '5%', '10%', '15%', '20%+'].map((t) => (
+            <Text key={t} style={{ ...mono, fontSize: 10, color: 'var(--color-text-muted)' }}>{t}</Text>
+          ))}
+        </Group>
+      </Box>
+    </Box>
   );
 };
 
@@ -454,7 +354,7 @@ export function EfficiencyBadge({ avgPower, avgHR }) {
 
   return (
     <Tooltip label={`Efficiency Factor: ${ef} W/bpm - Power divided by Heart Rate`}>
-      <Badge color="pink" variant="light" size="sm" leftSection={<Heart size={10} />}>
+      <Badge color="ink" variant="outline" radius={0} size="sm" leftSection={<Heart size={10} />}>
         EF {ef}
       </Badge>
     </Tooltip>

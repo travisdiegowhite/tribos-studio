@@ -1,16 +1,5 @@
 import { useMemo, useState } from 'react';
-import {
-  Card,
-  Text,
-  Group,
-  Badge,
-  SegmentedControl,
-  Stack,
-  Box,
-  SimpleGrid,
-  Paper,
-  Tooltip,
-} from '@mantine/core';
+import { Box, Group, SegmentedControl, Stack, Text, Tooltip } from '@mantine/core';
 import {
   LineChart,
   Line,
@@ -21,8 +10,7 @@ import {
   ResponsiveContainer,
   ReferenceLine,
 } from 'recharts';
-import { tokens } from '../theme';
-import { Lightning, TrendUp, Trophy } from '@phosphor-icons/react';
+import { SubHeading, TONE, kicker, mono, tooltipStyle, useChartColors } from './train/progressUi.jsx';
 
 /**
  * Power Duration Curve Component
@@ -31,6 +19,7 @@ import { Lightning, TrendUp, Trophy } from '@phosphor-icons/react';
  */
 const PowerDurationCurve = ({ activities, ftp, weight }) => {
   const [timeRange, setTimeRange] = useState('90'); // 42, 90, 365, all
+  const CHART = useChartColors();
 
   // Standard durations to track (in seconds)
   const STANDARD_DURATIONS = [
@@ -163,235 +152,193 @@ const PowerDurationCurve = ({ activities, ftp, weight }) => {
     const twentyToFiveRatio = bests.twentyMin ? bests.twentyMin / bests.fiveMin : 0;
 
     if (bests.sprint5s && bests.sprint5s / bests.fiveMin > 2.2) {
-      return { type: 'Sprinter', color: 'pink', description: 'Explosive power specialist' };
+      return { type: 'Sprinter', description: 'Explosive power specialist' };
     } else if (fiveToOneRatio < 0.75) {
-      return { type: 'Pursuiter', color: 'orange', description: 'Strong in 3-5 minute efforts' };
+      return { type: 'Pursuiter', description: 'Strong in 3-5 minute efforts' };
     } else if (twentyToFiveRatio > 0.9) {
-      return { type: 'Time Trialist', color: 'blue', description: 'Excellent sustained power' };
+      return { type: 'Time Trialist', description: 'Excellent sustained power' };
     } else if (bests.sixtyMin && bests.sixtyMin / bests.fiveMin > 0.8) {
-      return { type: 'Climber', color: 'green', description: 'Strong endurance climber' };
+      return { type: 'Climber', description: 'Strong endurance climber' };
     } else {
-      return { type: 'All-Rounder', color: 'grape', description: 'Balanced power profile' };
+      return { type: 'All-Rounder', description: 'Balanced power profile' };
     }
   }, [powerCurveData]);
 
-  // Custom tooltip
+  // Custom tooltip: flat, ruled, numbers in Courier
   const CustomTooltip = ({ active, payload }) => {
     if (!active || !payload || payload.length === 0) return null;
     const data = payload[0].payload;
 
     return (
-      <Card withBorder p="xs" style={{ backgroundColor: 'var(--color-bg-secondary)' }}>
-        <Text size="xs" fw={600} mb="xs" style={{ color: 'var(--color-text-primary)' }}>
-          {data.name}
-        </Text>
+      <Box style={tooltipStyle} p={8}>
+        <Text size="xs" fw={700} mb={4}>{data.name}</Text>
         {data.current && (
-          <Group justify="space-between" gap="md">
-            <Text size="xs" c="yellow">Current:</Text>
-            <Text size="xs" fw={600} style={{ color: 'var(--color-text-primary)' }}>
+          <Group justify="space-between" gap="md" wrap="nowrap">
+            <Text size="xs" c="var(--color-text-secondary)">Current</Text>
+            <Text size="xs" fw={700} style={mono}>
               {data.current}W {data.currentWkg && `(${data.currentWkg} W/kg)`}
             </Text>
           </Group>
         )}
         {data.previous && (
-          <Group justify="space-between" gap="md">
-            <Text size="xs" c="dimmed">Previous:</Text>
-            <Text size="xs" c="dimmed">{data.previous}W</Text>
+          <Group justify="space-between" gap="md" wrap="nowrap">
+            <Text size="xs" c="var(--color-text-muted)">Previous</Text>
+            <Text size="xs" style={{ ...mono, color: 'var(--color-text-muted)' }}>{data.previous}W</Text>
           </Group>
         )}
         {data.improvement !== null && data.improvement !== 0 && (
-          <Group justify="space-between" gap="md">
-            <Text size="xs" c={data.improvement > 0 ? 'green' : 'red'}>
-              {data.improvement > 0 ? '+' : ''}{data.improvement}W
-            </Text>
-          </Group>
+          <Text size="xs" style={{ ...mono, color: data.improvement > 0 ? TONE.neutral : TONE.warn }}>
+            {data.improvement > 0 ? '+' : ''}{data.improvement}W
+          </Text>
         )}
-      </Card>
+      </Box>
     );
   };
 
   if (!powerCurveData.current || powerCurveData.current.length === 0) {
     return (
-      <Card withBorder p="xl">
-        <Text style={{ color: 'var(--color-text-muted)' }} ta="center">
+      <Box>
+        <SubHeading>Power duration curve</SubHeading>
+        <Text size="sm" style={{ color: 'var(--color-text-secondary)' }}>
           No power data available. Connect a power meter to see your power duration curve.
         </Text>
-      </Card>
+      </Box>
     );
   }
 
+  const axisTick = { fontSize: 11, fill: CHART.axis, fontFamily: 'var(--font-mono)' };
+
   return (
-    <Card>
-      <Group justify="space-between" mb="md" wrap="wrap">
-        <Group gap="sm">
-          <Lightning size={20} color={tokens.colors.zone4} />
-          <Text size="sm" fw={600} style={{ color: 'var(--color-text-primary)' }}>
-            Power Duration Curve
+    <Box>
+      <SubHeading
+        aside={
+          <SegmentedControl
+            size="xs"
+            radius={0}
+            value={timeRange}
+            onChange={setTimeRange}
+            styles={{ label: { fontFamily: 'var(--font-mono)' } }}
+            data={[
+              { label: '42D', value: '42' },
+              { label: '90D', value: '90' },
+              { label: '1Y', value: '365' },
+              { label: 'ALL', value: 'all' },
+            ]}
+          />
+        }
+      >
+        Power duration curve
+      </SubHeading>
+
+      <Group gap="sm" mb="sm" wrap="wrap">
+        {riderType && (
+          <Text style={{ ...mono, fontSize: 12, border: '1px solid var(--color-ink)', padding: '1px 6px' }}>
+            {riderType.type.toUpperCase()}
           </Text>
-          {riderType && (
-            <Badge color={riderType.color} variant="light" size="sm">
-              {riderType.type}
-            </Badge>
-          )}
-          {!powerCurveData.usingRealData && (
-            <Tooltip
-              multiline
-              w={240}
-              label="Estimated from each ride's average and max power. Upload activities with full power data (FIT files) for true best-effort numbers."
-            >
-              <Badge color="gray" variant="outline" size="sm">
-                Estimated
-              </Badge>
-            </Tooltip>
-          )}
-        </Group>
-        <SegmentedControl
-          size="xs"
-          value={timeRange}
-          onChange={setTimeRange}
-          data={[
-            { label: '42 days', value: '42' },
-            { label: '90 days', value: '90' },
-            { label: '1 year', value: '365' },
-            { label: 'All time', value: 'all' },
-          ]}
-        />
+        )}
+        {!powerCurveData.usingRealData && (
+          <Tooltip
+            multiline
+            w={240}
+            label="Estimated from each ride's average and max power. Upload activities with full power data (FIT files) for true best-effort numbers."
+          >
+            <Text style={{ ...mono, fontSize: 12, color: 'var(--color-text-muted)', border: '1px dashed var(--color-border)', padding: '1px 6px' }}>
+              ESTIMATED
+            </Text>
+          </Tooltip>
+        )}
       </Group>
 
-      {/* The gloss leads: what this chart is, before the term-heavy tiles. */}
-      <Text size="xs" c="dimmed" mb="md">
+      {/* The gloss leads: what this chart is, before the term-heavy numbers. */}
+      <Text size="xs" c="var(--color-text-secondary)" mb="sm">
         Your best efforts at each duration, across recent rides — a snapshot of what
         you can do from a few seconds to an hour.
       </Text>
 
-      {/* Key Power Metrics */}
-      <SimpleGrid cols={{ base: 3, sm: 6 }} spacing="xs" mb="md">
-        <PowerMetricCard
-          label="5s"
-          value={powerCurveData.bests.sprint5s}
-          weight={weight}
-          color="pink"
-        />
-        <PowerMetricCard
-          label="1m"
-          value={powerCurveData.bests.oneMin}
-          weight={weight}
-          color="red"
-        />
-        <PowerMetricCard
-          label="5m"
-          value={powerCurveData.bests.fiveMin}
-          weight={weight}
-          color="orange"
-        />
-        <PowerMetricCard
-          label="20m"
-          value={powerCurveData.bests.twentyMin}
-          weight={weight}
-          ftp={ftp}
-          color="yellow"
-        />
-        <PowerMetricCard
-          label="60m"
-          value={powerCurveData.bests.sixtyMin}
-          weight={weight}
-          color="green"
-        />
-        <PowerMetricCard
-          label="FTP"
-          value={ftp}
-          weight={weight}
-          color="blue"
-          isFtp
-        />
-      </SimpleGrid>
+      {/* Key power numbers */}
+      <Box
+        mb="md"
+        style={{
+          display: 'grid',
+          gridTemplateColumns: 'repeat(auto-fit, minmax(84px, 1fr))',
+          borderTop: '1px solid var(--color-border)',
+          borderBottom: '1px solid var(--color-border)',
+        }}
+      >
+        <PowerMetricCard label="5s" value={powerCurveData.bests.sprint5s} weight={weight} />
+        <PowerMetricCard label="1m" value={powerCurveData.bests.oneMin} weight={weight} />
+        <PowerMetricCard label="5m" value={powerCurveData.bests.fiveMin} weight={weight} />
+        <PowerMetricCard label="20m" value={powerCurveData.bests.twentyMin} weight={weight} ftp={ftp} />
+        <PowerMetricCard label="60m" value={powerCurveData.bests.sixtyMin} weight={weight} />
+        <PowerMetricCard label="FTP" value={ftp} weight={weight} isFtp />
+      </Box>
 
-      {/* Power Curve Chart */}
+      {/* Power curve: current period in signal (effort), previous dashed */}
       <ResponsiveContainer width="100%" height={280}>
-        <LineChart data={powerCurveData.current} margin={{ top: 5, right: 20, left: 0, bottom: 5 }}>
-          <CartesianGrid strokeDasharray="3 3" stroke={'var(--color-bg-secondary)'} />
-          <XAxis
-            dataKey="duration"
-            tick={{ fontSize: 12, fill: 'var(--color-text-muted)' }}
-          />
+        <LineChart data={powerCurveData.current} margin={{ top: 5, right: 12, left: 0, bottom: 5 }}>
+          <CartesianGrid strokeDasharray="3 3" stroke={CHART.grid} vertical={false} />
+          <XAxis dataKey="duration" tick={axisTick} stroke={CHART.baseline} />
           <YAxis
-            tick={{ fontSize: 12, fill: 'var(--color-text-muted)' }}
-            label={{
-              value: 'Watts',
-              angle: -90,
-              position: 'insideLeft',
-              style: { textAnchor: 'middle', fill: 'var(--color-text-muted)', fontSize: 12 }
-            }}
+            tick={axisTick}
+            stroke={CHART.baseline}
+            width={44}
+            label={{ value: 'Watts', angle: -90, position: 'insideLeft', style: { textAnchor: 'middle', fill: CHART.axis, fontSize: 11 } }}
           />
           <RechartsTooltip content={<CustomTooltip />} />
 
-          {/* FTP Reference Line */}
           {ftp && (
             <ReferenceLine
               y={ftp}
-              stroke={tokens.colors.zone4}
+              stroke={CHART.fitness}
               strokeDasharray="5 5"
-              label={{
-                value: `FTP: ${ftp}W`,
-                position: 'right',
-                fill: tokens.colors.zone4,
-                fontSize: 11
-              }}
+              label={{ value: `FTP ${ftp}W`, position: 'right', fill: CHART.fitness, fontSize: 11 }}
             />
           )}
 
-          {/* Previous period (dimmed) */}
           <Line
             type="monotone"
             dataKey="previous"
-            stroke={'var(--color-text-muted)'}
+            stroke={CHART.future}
             strokeWidth={1}
             strokeDasharray="3 3"
             dot={false}
             name="Previous"
           />
-
-          {/* Current period */}
           <Line
             type="monotone"
             dataKey="current"
-            stroke="#D4600A"
+            stroke={CHART.fatigue}
             strokeWidth={2}
-            dot={{ fill: '#D4600A', r: 3 }}
-            activeDot={{ r: 5, fill: '#D4600A' }}
+            dot={{ fill: CHART.fatigue, r: 2.5 }}
+            activeDot={{ r: 4, fill: CHART.fatigue }}
             name="Current"
           />
         </LineChart>
       </ResponsiveContainer>
 
-      {/* Rider type description */}
       {riderType && (
-        <Paper p="xs" mt="md" style={{ backgroundColor: 'var(--color-bg-secondary)' }}>
-          <Group gap="xs">
-            <Trophy size={16} color={'var(--color-teal)'} />
-            <Text size="xs" style={{ color: 'var(--color-text-secondary)' }}>
-              <Text span fw={600} c={riderType.color}>{riderType.type}</Text>
-              {' - '}{riderType.description}
-            </Text>
-          </Group>
-        </Paper>
+        <Text size="sm" mt="sm" c="var(--color-text-secondary)">
+          <Text span fw={700} c="var(--color-text-primary)">{riderType.type}</Text>
+          {' — '}{riderType.description}
+        </Text>
       )}
 
-      <Text size="xs" style={{ color: 'var(--color-text-muted)' }} mt="md">
-        Power curve shows best efforts at each duration. Dashed line shows previous period for comparison.
+      <Text size="xs" style={{ color: 'var(--color-text-muted)' }} mt="xs">
+        Best efforts at each duration. The dashed line is the previous period, for comparison.
       </Text>
-    </Card>
+    </Box>
   );
 };
 
-// Power metric card component
-function PowerMetricCard({ label, value, weight, ftp, color, isFtp }) {
+// One cell of the key-power row: label, Courier watts, W/kg.
+function PowerMetricCard({ label, value, weight, ftp, isFtp }) {
+  const cell = { padding: '8px 8px 8px 0', minWidth: 0 };
   if (!value) {
     return (
-      <Paper p="xs" ta="center" style={{ backgroundColor: 'var(--color-bg-secondary)' }}>
-        <Text size="xs" c="dimmed">{label}</Text>
-        <Text size="sm" fw={600} c="dimmed">--</Text>
-      </Paper>
+      <Box style={cell}>
+        <Text style={kicker}>{label}</Text>
+        <Text style={{ ...mono, fontSize: 16, color: 'var(--color-text-muted)' }}>--</Text>
+      </Box>
     );
   }
 
@@ -408,11 +355,11 @@ function PowerMetricCard({ label, value, weight, ftp, color, isFtp }) {
         </Stack>
       }
     >
-      <Paper p="xs" ta="center" style={{ backgroundColor: 'var(--color-bg-secondary)' }}>
-        <Text size="xs" c="dimmed">{label}</Text>
-        <Text size="sm" fw={700} c={color}>{value}W</Text>
-        {wkg && <Text size="xs" c="dimmed">{wkg}</Text>}
-      </Paper>
+      <Box style={cell}>
+        <Text style={kicker}>{label}</Text>
+        <Text style={{ ...mono, fontSize: 16, fontWeight: 700 }}>{value}W</Text>
+        {wkg && <Text style={{ ...mono, fontSize: 11, color: 'var(--color-text-muted)' }}>{wkg} W/kg</Text>}
+      </Box>
     </Tooltip>
   );
 }

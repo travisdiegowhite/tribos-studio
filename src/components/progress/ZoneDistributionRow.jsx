@@ -1,14 +1,7 @@
 import { Box, Group, Text, Stack, Tooltip } from '@mantine/core';
 import { TRAINING_ZONES } from '../../utils/trainingPlans';
+import { getRouteZoneColor } from '../ui/zoneColors';
 
-const ZONE_COLORS = {
-  1: '#8CBFA8',  // Recovery - sage green
-  2: '#2A8C82',  // Endurance - teal
-  3: '#D4A843',  // Tempo - gold
-  4: '#C4784A',  // Threshold - terracotta
-  5: '#9E5A3C',  // VO2max - coral
-  6: '#7A3A2A',  // Anaerobic - deep coral
-};
 
 const ZONE_NAMES = {
   1: 'RECOVERY',
@@ -42,7 +35,7 @@ function ZoneDistributionRow({ zones, totalTime }) {
   return (
     <Stack gap={8}>
       {zones.filter(z => z.zone >= 1 && z.zone <= 6).map((zone) => {
-        const color = ZONE_COLORS[zone.zone] || '#666';
+        const color = getRouteZoneColor(zone.zone);
         const name = ZONE_NAMES[zone.zone] || `Z${zone.zone}`;
         const barWidth = maxPercent > 0 ? (zone.percentage / maxPercent) * 100 : 0;
 
@@ -59,7 +52,7 @@ function ZoneDistributionRow({ zones, totalTime }) {
             {/* Zone label */}
             <Text
               style={{
-                fontFamily: "'Courier Prime', monospace",
+                fontFamily: 'var(--font-mono)',
                 fontSize: 12,
                 fontWeight: 700,
                 color,
@@ -96,7 +89,7 @@ function ZoneDistributionRow({ zones, totalTime }) {
             {/* Zone name */}
             <Text
               style={{
-                fontFamily: "'Archivo', sans-serif",
+                fontFamily: 'var(--font-body)',
                 fontSize: 10,
                 fontWeight: 700,
                 letterSpacing: '1.5px',
@@ -111,7 +104,7 @@ function ZoneDistributionRow({ zones, totalTime }) {
             {/* Percentage and time */}
             <Text
               style={{
-                fontFamily: "'Courier Prime', monospace",
+                fontFamily: 'var(--font-mono)',
                 fontSize: 12,
                 color: 'var(--color-text-secondary)',
                 width: 40,
@@ -123,7 +116,7 @@ function ZoneDistributionRow({ zones, totalTime }) {
             </Text>
             <Text
               style={{
-                fontFamily: "'Courier Prime', monospace",
+                fontFamily: 'var(--font-mono)',
                 fontSize: 11,
                 color: 'var(--color-text-muted)',
                 width: 50,
