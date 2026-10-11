@@ -647,7 +647,7 @@ function MyRoutes() {
                   </Text>
                   <Button
                     component={Link}
-                    to="/train?tab=browse"
+                    to="/train?tab=calendar&browse=1"
                     variant="light"
                     color="teal"
                     size="sm"

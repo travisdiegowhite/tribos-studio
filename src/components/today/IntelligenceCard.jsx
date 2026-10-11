@@ -58,7 +58,7 @@ function IntelligenceCard({ workout, plan, routeMatch, loading, formatDist }) {
         </Text>
         <Button
           component={Link}
-          to="/train?tab=browse"
+          to="/train?tab=calendar&browse=1"
           variant="filled"
           color="teal"
           leftSection={<CalendarBlank size={16} />}

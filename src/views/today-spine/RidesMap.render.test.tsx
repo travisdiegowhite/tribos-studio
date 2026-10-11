@@ -99,8 +99,8 @@ describe('RidesMap — zone 03 views', () => {
   it('links FULL ANALYSIS to /train with the ride selected', () => {
     renderZone();
     const link = screen.getByRole('link', { name: /Full analysis/ });
-    expect(link.getAttribute('href')).toBe('/train?tab=history&ride=r1');
-    expect(fullAnalysisHref('a b')).toBe('/train?tab=history&ride=a%20b');
+    expect(link.getAttribute('href')).toBe('/train?tab=rides&ride=r1');
+    expect(fullAnalysisHref('a b')).toBe('/train?tab=rides&ride=a%20b');
   });
 
   it('lets the LAST RIDE map grow to the card on desktop, fixed behind the phone door', () => {

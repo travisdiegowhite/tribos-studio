@@ -43,7 +43,7 @@ describe('PlanWeekCard', () => {
 
   it('sends Change plan to the browse tab rather than back to the calendar', () => {
     renderCard();
-    expect(screen.getByRole('link', { name: /Change plan/ }).getAttribute('href')).toBe('/train?tab=browse');
+    expect(screen.getByRole('link', { name: /Change plan/ }).getAttribute('href')).toBe('/train?tab=calendar&browse=1');
   });
 
   it('still offers Browse plans and the week sentence without a plan', () => {

@@ -50,7 +50,7 @@ interface RidesMapProps {
 
 /** Where the full analysis lives — /train selects the ride and opens the modal. */
 export function fullAnalysisHref(rideId: string): string {
-  return `/train?tab=history&ride=${encodeURIComponent(rideId)}`;
+  return `/train?tab=rides&ride=${encodeURIComponent(rideId)}`;
 }
 
 function ViewTab({ active, onClick, children }: { active: boolean; onClick: () => void; children: string }) {

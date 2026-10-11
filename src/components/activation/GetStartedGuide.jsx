@@ -33,7 +33,7 @@ const ACTIVATION_STEPS = [
     description: 'Your recent rides will import automatically',
     cta: 'Check sync',
     // /train directly: the legacy /training redirect drops the query string.
-    href: '/train?tab=history',
+    href: '/train?tab=rides',
     icon: ArrowsClockwise,
   },
   {
@@ -57,7 +57,7 @@ const ACTIVATION_STEPS = [
     label: 'Start a training plan',
     description: 'Structured training based on your goals',
     cta: 'Browse plans',
-    href: '/train?tab=browse',
+    href: '/train?tab=calendar&browse=1',
     icon: CalendarBlank,
   },
 ];

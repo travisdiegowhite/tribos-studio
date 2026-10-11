@@ -43,7 +43,7 @@ function PlanProgressBar({ activePlan, plannedWorkouts, loading, frameless = fal
           </Group>
           <Button
             component={Link}
-            to="/train?tab=browse"
+            to="/train?tab=calendar&browse=1"
             variant="light"
             color="teal"
             size="compact-sm"
@@ -140,7 +140,7 @@ function PlanProgressBar({ activePlan, plannedWorkouts, loading, frameless = fal
               "EDIT → ?tab=calendar" link was a no-op on the tab it sat on. */}
           <Button
             component={Link}
-            to="/train?tab=browse"
+            to="/train?tab=calendar&browse=1"
             variant="subtle"
             color="gray"
             size="compact-xs"

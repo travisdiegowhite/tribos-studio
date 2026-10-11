@@ -39,7 +39,6 @@ const ShopApp = lazy(() => import('./features/shop/ShopApp.tsx'));
 const Admin = lazy(() => import('./pages/Admin.jsx'));
 const InternalMetricsAudit = lazy(() => import('./pages/InternalMetricsAudit.tsx'));
 const MyRoutes = lazy(() => import('./pages/MyRoutes.jsx'));
-const Progress = lazy(() => import('./pages/Progress.jsx'));
 const MetricsCalculatorPage = lazy(() => import('./pages/MetricsCalculatorPage.tsx'));
 const RouteBuilder2 = lazy(() => import('./pages/RouteBuilder2.tsx'));
 const SharedRoute = lazy(() => import('./pages/SharedRoute.tsx'));
@@ -111,6 +110,12 @@ function OpenRoute({ children }) {
 function RedirectToRideNew() {
   const location = useLocation();
   return <Navigate to={`/ride/new${location.search}`} replace />;
+}
+
+// /training?tab=… → /train?tab=… (old links, e.g. the ride history "see all").
+function RedirectTrainingToTrain() {
+  const location = useLocation();
+  return <Navigate to={`/train${location.search}`} replace />;
 }
 
 // /gear/:gearId → /garage/:gearId. The gear tracker moved out of the avatar
@@ -359,15 +364,8 @@ function AppRoutes() {
         }
       />
 
-      {/* PROGRESS — Dedicated progress/trends page */}
-      <Route
-        path="/progress"
-        element={
-          <ProtectedRoute>
-            <Progress />
-          </ProtectedRoute>
-        }
-      />
+      {/* PROGRESS — now the Progress tab on /train (training cleanup, 2026-10) */}
+      <Route path="/progress" element={<Navigate to="/train?tab=progress" replace />} />
 
       {/* GARAGE — bikes, parts, wear and the rides that did it */}
       <Route
@@ -434,7 +432,7 @@ function AppRoutes() {
       />
       <Route path="/routes/manual" element={<RedirectToRideNew />} />
       <Route path="/routes/manual/:routeId" element={<Navigate to="/ride/new" replace />} />
-      <Route path="/training" element={<Navigate to="/train" replace />} />
+      <Route path="/training" element={<RedirectTrainingToTrain />} />
       <Route path="/planner" element={<Navigate to="/train/planner" replace />} />
       <Route path="/gear" element={<RedirectGearToGarage />} />
       <Route path="/gear/:gearId" element={<RedirectGearToGarage />} />

@@ -219,8 +219,8 @@ The codebase is **gradually migrating from JavaScript to TypeScript**. New code 
 | `/dashboard` | Main dashboard | Protected |
 | `/routes/new` | Route builder | Protected |
 | `/routes/:routeId` | Edit existing route | Protected |
-| `/planner` | Training planner | Protected |
-| `/training` | Training dashboard | Protected |
+| `/train` | Training: Calendar · Season · Coach · Progress · Rides (`?tab=`; old tab names redirect via `src/components/train/trainTabs.ts`) | Protected |
+| `/planner`, `/training`, `/progress` | Redirects into `/train` (`/progress` → `?tab=progress`) | Protected |
 | `/community` | Community (pods, cafe) | Protected |
 | `/gear` | Gear tracking | Protected |
 | `/settings` | User settings | Protected |

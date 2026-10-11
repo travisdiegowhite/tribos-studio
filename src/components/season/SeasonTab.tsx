@@ -1,5 +1,6 @@
 /**
- * Season tab (/train?tab=season, behind the season_planner flag).
+ * Season tab (/train?tab=season). Also hosts the former Race tab as its
+ * "Race details" view (training cleanup, 2026-10).
  *
  * Season view: the year drawn as a ride (SeasonProfile — ridden
  * weeks inked in, the plan as a dashed ridge over phase-coloured terrain, races
@@ -13,6 +14,7 @@
 
 import { useMemo, useState, type CSSProperties } from 'react';
 import { Box, Button, Group, Loader, SegmentedControl, Stack, Text, UnstyledButton } from '@mantine/core';
+import RaceTab from '../training/RaceTab';
 import { useMediaQuery } from '@mantine/hooks';
 import { useSeasonPlan, type HoursSource, type SaveStatus, type SeasonActions, type SeasonPlanState } from '../../hooks/useSeasonPlan';
 import { dayNumber, formatSeasonDate, type Priority, type SeasonPlan, type SeasonRaceResult, type Verdict } from '../../lib/season/engine';
@@ -232,11 +234,13 @@ function RacePanel({
   plan,
   todayLocal,
   editing,
+  onOpenDetails,
 }: {
   race: SeasonRaceResult | null;
   plan: SeasonPlan;
   todayLocal: string;
   editing: PanelEditing | null;
+  onOpenDetails?: () => void;
 }) {
   if (!race) return null;
   const related = race.relatedRaceId ? plan.races.find((r) => r.id === race.relatedRaceId) : null;
@@ -280,6 +284,11 @@ function RacePanel({
       </Stack>
 
       {editing && !past && <RaceEditor key={race.id} race={race} editing={editing} />}
+      {onOpenDetails && !past && (
+        <Button mt="md" radius={0} size="xs" variant="subtle" onClick={onOpenDetails} style={{ paddingInline: 0 }}>
+          Race details: route, profile, race coach →
+        </Button>
+      )}
       {past && (
         <Text size="xs" c="var(--color-text-muted)" mt="md">
           This race is in the past.
@@ -291,8 +300,37 @@ function RacePanel({
 
 // ─── Tab ────────────────────────────────────────────────────────────────────
 
-export default function SeasonTab({ isImperial = false }: { isImperial?: boolean }) {
-  return <SeasonView {...useSeasonPlan()} isImperial={isImperial} />;
+/** Season | Race details: the race view shows one race's route, profile and race coach (the former Race tab). */
+export interface RaceDetailsProps {
+  view: 'season' | 'race';
+  onViewChange: (view: 'season' | 'race') => void;
+  trainingContext?: string | null;
+  formatDist?: (km: number) => string;
+  formatElev?: (m: number) => string;
+}
+
+export default function SeasonTab({
+  isImperial = false,
+  ...raceDetails
+}: { isImperial?: boolean } & Partial<RaceDetailsProps>) {
+  const details = raceDetails.view && raceDetails.onViewChange ? (raceDetails as RaceDetailsProps) : null;
+  return <SeasonView {...useSeasonPlan()} isImperial={isImperial} raceDetails={details} />;
+}
+
+function ViewToggle({ details }: { details: RaceDetailsProps }) {
+  return (
+    <SegmentedControl
+      radius={0}
+      size="xs"
+      value={details.view}
+      onChange={(v) => details.onViewChange(v === 'race' ? 'race' : 'season')}
+      data={[
+        { value: 'season', label: 'Season' },
+        { value: 'race', label: 'Race details' },
+      ]}
+      style={{ alignSelf: 'flex-start' }}
+    />
+  );
 }
 
 /** The tab's presentation, separate from data loading so it can be rendered from fixtures. */
@@ -310,7 +348,8 @@ export function SeasonView({
   discussed = null,
   coach,
   isImperial = false,
-}: SeasonPlanState & { isImperial?: boolean }) {
+  raceDetails = null,
+}: SeasonPlanState & { isImperial?: boolean; raceDetails?: RaceDetailsProps | null }) {
   const isNarrow = useMediaQuery('(max-width: 900px)');
   const [selectedId, setSelectedId] = useState<string | null>(null);
   // Add race starts with a search; the race form opens for a blank race ('new'),
@@ -327,6 +366,21 @@ export function SeasonView({
     const upcoming = plan.races.filter((r) => r.date >= todayLocal);
     return upcoming.find((r) => r.priority === 'A') ?? upcoming[0] ?? plan.races[0] ?? null;
   }, [plan, selectedId, todayLocal]);
+
+  if (raceDetails?.view === 'race') {
+    return (
+      <Stack gap="md" py="md">
+        <ViewToggle details={raceDetails} />
+        <RaceTab
+          initialRaceId={selected?.id ?? null}
+          trainingContext={raceDetails.trainingContext ?? null}
+          isImperial={isImperial}
+          formatDist={raceDetails.formatDist}
+          formatElev={raceDetails.formatElev}
+        />
+      </Stack>
+    );
+  }
 
   if (loading) {
     return (
@@ -362,7 +416,13 @@ export function SeasonView({
       : null;
   const panel = (
     <Stack gap={16}>
-      <RacePanel race={selected} plan={plan} todayLocal={todayLocal} editing={editing} />
+      <RacePanel
+        race={selected}
+        plan={plan}
+        todayLocal={todayLocal}
+        editing={editing}
+        onOpenDetails={raceDetails ? () => raceDetails.onViewChange('race') : undefined}
+      />
       {actions && coach && (
         <SeasonCoachPanel plan={plan} discussed={discussed} coach={coach} actions={actions} />
       )}
@@ -371,6 +431,7 @@ export function SeasonView({
 
   return (
     <Stack gap="lg" py="md">
+      {raceDetails && <ViewToggle details={raceDetails} />}
       <Group justify="space-between" align="flex-end" wrap="wrap" gap="sm">
         <Box>
           <Text style={{ ...display, fontSize: 32 }}>{savedPlan?.name ?? 'Season'}</Text>

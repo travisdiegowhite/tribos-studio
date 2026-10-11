@@ -37,7 +37,7 @@ const MILESTONE_NUDGES = {
     cta: 'Browse Training Plans',
     // Same target as the Get Started guide's "Browse plans" step; the planner
     // page has no browse tab.
-    url: 'https://www.tribos.studio/train?tab=browse',
+    url: 'https://www.tribos.studio/train?tab=calendar&browse=1',
   },
 };
 

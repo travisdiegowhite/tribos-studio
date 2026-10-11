@@ -772,7 +772,7 @@ function OnboardingModal({ opened, onClose }) {
                 p="md"
                 withBorder
                 style={{ backgroundColor: 'var(--color-bg-secondary)', cursor: 'pointer' }}
-                onClick={async () => { await handleComplete(); navigate('/train?tab=browse'); }}
+                onClick={async () => { await handleComplete(); navigate('/train?tab=calendar&browse=1'); }}
               >
                 <Stack gap="xs" align="center">
                   <ThemeIcon size="lg" color="gray" variant="light">

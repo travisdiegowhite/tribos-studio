@@ -89,6 +89,8 @@ interface RaceTabProps {
   isImperial?: boolean;
   formatDist?: (km: number) => string;
   formatElev?: (m: number) => string;
+  /** Open on this race (the Season tab's selected race). */
+  initialRaceId?: string | null;
 }
 
 // ─── Race Type Labels ────────────────────────────────────────────────────
@@ -123,13 +125,14 @@ export default function RaceTab({
   isImperial = false,
   formatDist,
   formatElev,
+  initialRaceId = null,
 }: RaceTabProps) {
   const { user } = useAuth() as { user: { id: string } | null };
 
   // Race goals state
   const [raceGoals, setRaceGoals] = useState<RaceGoal[]>([]);
   const [loading, setLoading] = useState(true);
-  const [selectedRaceId, setSelectedRaceId] = useState<string | null>(null);
+  const [selectedRaceId, setSelectedRaceId] = useState<string | null>(initialRaceId);
   const [completedRaces, setCompletedRaces] = useState<RaceGoal[]>([]);
   const [modalOpen, setModalOpen] = useState(false);
   const [editingRace, setEditingRace] = useState<RaceGoal | null>(null);
@@ -174,8 +177,8 @@ export default function RaceTab({
       }
       setRaceGoals(data || []);
 
-      // Auto-select first race if none selected
-      if (data && data.length > 0 && !selectedRaceId) {
+      // Auto-select the first race if none is selected, or the selected one isn't upcoming
+      if (data && data.length > 0 && (!selectedRaceId || !data.some((r) => r.id === selectedRaceId))) {
         setSelectedRaceId(data[0].id);
       }
 

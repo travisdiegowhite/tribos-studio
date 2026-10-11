@@ -108,7 +108,7 @@ const METRIC_TOOLTIPS: Partial<Record<MetricComparison['key'], string>> = {
 
 /** Where every ride along this segment can be overlaid: /train's REPEATS tab. */
 export function compareRepeatsHref(segmentId: string): string {
-  return `/train?tab=repeats&segment=${encodeURIComponent(segmentId)}`;
+  return `/train?tab=rides&view=repeats&segment=${encodeURIComponent(segmentId)}`;
 }
 
 function CompareRepeatsLink({ segmentId, name, onCompareRepeats }: { segmentId: string; name: string; onCompareRepeats?: (segmentId: string) => void }) {

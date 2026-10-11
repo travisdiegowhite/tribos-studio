@@ -1,26 +1,22 @@
 import { useState, useEffect, useMemo } from 'react';
-import { Container, Stack, Box, Text, SimpleGrid, Skeleton, Group, Button } from '@mantine/core';
+import { Stack, Box, Text, SimpleGrid, Skeleton, Group, Button } from '@mantine/core';
 import { useMediaQuery } from '@mantine/hooks';
-import AppShell from '../components/AppShell.jsx';
-import PageHeader from '../components/PageHeader.jsx';
-import { useAuth } from '../contexts/AuthContext.jsx';
-import { supabase } from '../lib/supabase';
-import { formatDistance, formatElevation } from '../utils/units';
-import { interpretTSB } from '../utils/trainingPlans';
-import { computeWeeklySnapshots } from '../utils/computeFitnessSnapshots';
-import { buildAthleteMetrics } from '../views/today/athleteMetrics';
-import { formatLocalDate } from '../utils/dateUtils';
-import { translateCTL, translateTSB } from '../lib/fitness/translate';
-import { ctlTooltip, tsbTooltip } from '../lib/fitness/tooltips';
-import { useSegmentLibrary } from '../hooks/useSegmentLibrary';
-import EmptyState from '../components/EmptyState.jsx';
-import ZoneDistributionRow from '../components/progress/ZoneDistributionRow.jsx';
-import TrendInsightRow from '../components/progress/TrendInsightRow.jsx';
-import YearToDateStats from '../components/progress/YearToDateStats.jsx';
-import SegmentIntelligence from '../components/progress/SegmentIntelligence.jsx';
-import FitnessProgressChart from '../components/progress/FitnessProgressChart.jsx';
+import { useAuth } from '../../contexts/AuthContext.jsx';
+import { supabase } from '../../lib/supabase';
+import { formatDistance, formatElevation } from '../../utils/units';
+import { interpretTSB } from '../../utils/trainingPlans';
+import { computeWeeklySnapshots } from '../../utils/computeFitnessSnapshots';
+import { buildAthleteMetrics } from '../../views/today/athleteMetrics';
+import { formatLocalDate } from '../../utils/dateUtils';
+import { translateCTL, translateTSB } from '../../lib/fitness/translate';
+import { ctlTooltip, tsbTooltip } from '../../lib/fitness/tooltips';
+import { useSegmentLibrary } from '../../hooks/useSegmentLibrary';
+import ZoneDistributionRow from '../progress/ZoneDistributionRow.jsx';
+import TrendInsightRow from '../progress/TrendInsightRow.jsx';
+import YearToDateStats from '../progress/YearToDateStats.jsx';
+import SegmentIntelligence from '../progress/SegmentIntelligence.jsx';
 
-// Zone allocation based on average power zone (matches ZoneDistributionChart logic)
+// Zone allocation based on average power zone
 function getPowerZone(avgWatts, ftp) {
   if (!ftp || !avgWatts) return 2;
   const ratio = avgWatts / ftp;
@@ -55,7 +51,14 @@ function formatHoursMinutes(seconds) {
   return `${h}:${String(m).padStart(2, '0')}`;
 }
 
-function Progress() {
+/**
+ * The former /progress page's sections, shown in the Progress tab on /train
+ * (training cleanup, 2026-10): zone distribution, key trends, year to date and
+ * segment intelligence. The fitness chart it used to open with duplicated the
+ * tab's own load chart, so it is not repeated here. Still loads its own data;
+ * sharing the dashboard's is a later step.
+ */
+function ProgressSections() {
   const { user } = useAuth();
   const isMobile = useMediaQuery('(max-width: 768px)');
   const [loading, setLoading] = useState(true);
@@ -340,25 +343,16 @@ function Progress() {
 
   if (loading) {
     return (
-      <AppShell>
-        <Container size="xl" py="lg">
-          <Stack gap={14}>
-            <Skeleton height={32} width={200} />
-            <Skeleton height={200} />
-            <Skeleton height={150} />
-          </Stack>
-        </Container>
-      </AppShell>
+      <Stack gap={14}>
+        <Skeleton height={150} />
+        <Skeleton height={150} />
+      </Stack>
     );
   }
 
   if (loadError) {
     return (
-      <AppShell>
-        <Container size="xl" py="lg">
-          <Stack gap={14}>
-            <PageHeader title="Progress" />
-            <Box
+      <Box
               style={{
                 border: '1px solid var(--color-border)',
                 backgroundColor: 'var(--color-card)',
@@ -379,35 +373,17 @@ function Progress() {
                 RETRY
               </Button>
             </Box>
-          </Stack>
-        </Container>
-      </AppShell>
     );
   }
 
   // First-run: no activities yet → an honest empty state instead of a page of zeros
   if (activities.length === 0) {
-    return (
-      <AppShell>
-        <Container size="xl" py="lg">
-          <Stack gap={14}>
-            <PageHeader title="Progress" />
-            <EmptyState type="noTrainingData" />
-          </Stack>
-        </Container>
-      </AppShell>
-    );
+    // The tab's fitness section already shows the empty state.
+    return null;
   }
 
   return (
-    <AppShell>
-      <Container size="xl" py="lg">
         <Stack gap={14}>
-          <PageHeader title="Progress" />
-
-          {/* Fitness Progression — CTL + TFI peer lines */}
-          <FitnessProgressChart />
-
           {/* Zone Distribution */}
           <Box
             style={{
@@ -501,9 +477,7 @@ function Progress() {
             />
           </SimpleGrid>
         </Stack>
-      </Container>
-    </AppShell>
   );
 }
 
-export default Progress;
+export default ProgressSections;
