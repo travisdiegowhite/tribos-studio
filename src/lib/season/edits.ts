@@ -8,7 +8,7 @@
  * event and one message.
  */
 
-import { addDaysToDate, formatSeasonDate, type Priority, type SeasonPlan } from './engine.ts';
+import { addDaysToDate, diffPlans, formatSeasonDate, type Priority, type SeasonPlan, type Verdict } from './engine.ts';
 import { PRIORITY_ROLE, type RaceGoalRow } from './view.ts';
 
 export type SeasonEventKind = 'add' | 'move' | 'remove' | 'priority' | 'focus';
@@ -103,4 +103,18 @@ function dateOf(r: RaceGoalRow): string {
 
 function snapshot(r: RaceGoalRow): Record<string, unknown> {
   return { id: r.id, name: r.name, race_date: dateOf(r), priority: r.priority ?? null, race_type: r.race_type ?? null, is_focus: Boolean(r.is_focus) };
+}
+
+const VERDICT_ORDER: Record<Verdict, number> = { on_track: 0, tight: 1, conflict: 2 };
+const VERDICT_WORD: Record<Verdict, string> = { on_track: 'On track', tight: 'Tight', conflict: 'Conflict' };
+
+/**
+ * Races an edit made worse (On track → Tight, anything → Conflict), as
+ * sentences for the save toast. Moves are never blocked; this is the flag
+ * that says you won't be prepared.
+ */
+export function worsenedVerdicts(before: SeasonPlan, after: SeasonPlan): { conflict: boolean; text: string }[] {
+  return diffPlans(before, after)
+    .verdictChanges.filter((v) => VERDICT_ORDER[v.to] > VERDICT_ORDER[v.from])
+    .map((v) => ({ conflict: v.to === 'conflict', text: `${v.name}: ${VERDICT_WORD[v.to]}. ${v.reason}` }));
 }

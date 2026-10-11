@@ -37,7 +37,7 @@ import {
   toSeasonRaces,
   type RaceGoalRow,
 } from '../lib/season/view';
-import { describeChange, eventsFor, moveRace, removeRace, sameRace, setFocus, setPriority } from '../lib/season/edits';
+import { describeChange, eventsFor, moveRace, removeRace, sameRace, setFocus, setPriority, worsenedVerdicts } from '../lib/season/edits';
 import {
   RACE_GOAL_COLUMNS,
   deleteRace,
@@ -139,6 +139,8 @@ export function useSeasonPlan(): SeasonPlanState {
   const dirtyRef = useRef<Set<string>>(new Set());
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const planIdRef = useRef<string | null>(null);
+  // The plan before the first edit of the pending batch: the save toast flags races it made worse.
+  const planBeforeEditsRef = useRef<SeasonPlan | null>(null);
 
   // ─── Load ────────────────────────────────────────────────────────────────
   useEffect(() => {
@@ -274,12 +276,17 @@ export function useSeasonPlan(): SeasonPlanState {
       }
       if (planIdRef.current) await logSeasonEvents(userId, planIdRef.current, drafts);
 
-      const message = saved.length === 1 ? describeChange(saved[0].before, saved[0].after) : `Saved ${saved.length} changes.`;
+      const title = saved.length === 1 ? describeChange(saved[0].before, saved[0].after) : `Saved ${saved.length} changes.`;
+      // Moves are never blocked; the toast says plainly when one leaves a race unprepared.
+      const before = planBeforeEditsRef.current;
+      planBeforeEditsRef.current = null;
+      const worse = before && planRef.current ? worsenedVerdicts(before, planRef.current) : [];
+      const undo = opts.undoable === false ? '' : 'Tap to undo.';
       notifications.show({
-        title: message,
-        message: opts.undoable === false ? undefined : 'Tap to undo',
-        color: 'teal',
-        autoClose: 6000,
+        title,
+        message: [...worse.map((w) => w.text), undo].filter(Boolean).join(' ') || undefined,
+        color: worse.some((w) => w.conflict) ? 'signal' : 'teal',
+        autoClose: worse.length > 0 ? 10000 : 6000,
         onClick:
           opts.undoable === false
             ? undefined
@@ -298,6 +305,7 @@ export function useSeasonPlan(): SeasonPlanState {
 
   const edit = useCallback(
     (next: RaceGoalRow[]) => {
+      if (dirtyRef.current.size === 0) planBeforeEditsRef.current = planRef.current;
       const before = new Map(racesRef.current.map((r) => [r.id, r]));
       for (const r of next) if (before.get(r.id) !== r) dirtyRef.current.add(r.id);
       setRaces(next);

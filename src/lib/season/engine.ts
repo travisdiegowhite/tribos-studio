@@ -52,8 +52,15 @@ export const SEASON_START_RECOVER_WEEKS = 4;
 export const DEFAULT_RACE_PROFILE: RaceProfile = { band: 'long', taperWeeks: 2, peakWeeks: 2, recoverWeeks: 2 };
 /** A full build sits directly before the peak, e.g. w-9 … w-4 with the default profile. */
 export const FULL_BUILD_WEEKS = 6;
-/** First block of the season: at least this many build weeks (but less than full) is Tight; fewer is a Conflict. */
-export const MIN_TIGHT_BUILD_WEEKS = 3;
+/**
+ * The shortest build that still gets you to a goal race prepared: at least
+ * this many (but less than full) is Tight, a compressed build; fewer is a
+ * Conflict. A follow-on block may build for less only when fitness carries
+ * from the previous goal race (see carriesFitness).
+ */
+export const MIN_BUILD_WEEKS = 4;
+/** Effort order of the profile bands. Fitness carries only from an equal or longer race. */
+export const BAND_RANK: Record<ProfileBand, number> = { short: 0, medium: 1, long: 2, ultra: 3 };
 /**
  * A races this many weeks apart (or fewer) share one block and one build.
  * A race whose recovery is longer than this (an ultra) makes the next race in
@@ -283,6 +290,8 @@ interface Block {
   recoverWeeks: number;
   buildWeeks: number;
   previous: Block | null;
+  /** judgeFocus's result, memoised (a follow-on reads its previous block's verdict). */
+  judged: Candidate | null;
 }
 
 interface Candidate {
@@ -404,6 +413,7 @@ function groupBlocks(aRaces: PlacedRace[]): Block[] {
       recoverWeeks: Math.max(...races.map((r) => r.profile.recoverWeeks)),
       buildWeeks: 0,
       previous,
+      judged: null,
     };
     previous = block;
     return block;
@@ -425,72 +435,106 @@ function weeksText(n: number): string {
 
 /** Readiness of a block, judged on its focus race. */
 function judgeFocus(block: Block): Candidate {
+  block.judged ??= worstOf(focusCandidates(block));
+  return block.judged;
+}
+
+/** The first candidate with the worst verdict (so ties keep the most specific reason). */
+function worstOf(candidates: Candidate[]): Candidate {
+  return candidates.reduce((worst, c) => (VERDICT_RANK[c.verdict] > VERDICT_RANK[worst.verdict] ? c : worst));
+}
+
+/** The block's hardest race: fitness carries forward only to a race no harder than it. */
+function blockEffort(block: Block): number {
+  return Math.max(...block.races.map((r) => BAND_RANK[r.profile.band]));
+}
+
+/**
+ * Fitness from the previous goal block carries into this one when you were on
+ * track for it and it was at least as long an effort as this block's focus.
+ * Only then may the rebuild between them be shorter than MIN_BUILD_WEEKS.
+ */
+function carriesFitness(block: Block): { carries: boolean; why: string } {
+  const prev = block.previous;
+  if (!prev) return { carries: false, why: '' };
+  if (judgeFocus(prev).verdict !== 'on_track') {
+    return { carries: false, why: `You weren't on track for ${prev.focus.name}, so there's no fitness to carry over` };
+  }
+  if (blockEffort(prev) < BAND_RANK[block.focus.profile.band]) {
+    return { carries: false, why: `${prev.focus.name} is a shorter race, so its fitness doesn't carry over` };
+  }
+  return { carries: true, why: '' };
+}
+
+function focusCandidates(block: Block): Candidate[] {
   const f = block.focus;
+  const candidates: Candidate[] = [];
 
   // Inside the block: a race that follows an ultra comes before you've recovered.
   for (let i = 1; i < block.races.length; i++) {
     const earlier = block.races[i - 1];
     const later = block.races[i];
     if (earlier.profile.recoverWeeks > A_BLOCK_MAX_GAP_WEEKS) {
-      return {
+      candidates.push({
         verdict: 'tight',
         reason: `${later.name} is only ${weeksText(later.week - earlier.week)} after ${earlier.name}, before you've recovered from it.`,
         gapWeeks: earlier.week - later.week,
         relatedRaceId: earlier.id,
-      };
+      });
+      break;
     }
   }
 
   const prev = block.previous;
+  const related = prev ? { gapWeeks: -(block.firstWeek - prev.lastWeek), relatedRaceId: prev.focus.id } : { gapWeeks: null, relatedRaceId: null };
   if (prev) {
     const gap = block.firstWeek - prev.lastWeek;
-    const prevName = prev.focus.name;
-    const base = { gapWeeks: -gap, relatedRaceId: prev.focus.id };
     // Clear when the previous block's recovery and this race's taper both fit in the gap.
     if (gap < prev.recoverWeeks + f.profile.taperWeeks) {
-      return {
-        ...base,
+      candidates.push({
+        ...related,
         verdict: 'tight',
-        reason: `${f.name} is ${weeksText(gap)} after ${prevName}: you go straight from recovering into the taper.`,
-      };
+        reason: `${f.name} is ${weeksText(gap)} after ${prev.focus.name}: you go straight from recovering into the taper.`,
+      });
     }
-    if (block.buildWeeks >= FULL_BUILD_WEEKS) {
-      return { ...base, verdict: 'on_track', reason: `A full ${FULL_BUILD_WEEKS}-week build leads into ${f.name}.` };
-    }
-    const rebuild = block.buildWeeks > 0 ? `, with a ${block.buildWeeks}-week rebuild` : '';
-    return {
-      ...base,
-      verdict: 'on_track',
-      reason: `${f.name} is ${weeksText(gap)} after ${prevName}: recover, then carry that form into it${rebuild}.`,
-    };
   }
 
+  // The build itself.
   if (block.buildWeeks >= FULL_BUILD_WEEKS) {
-    return {
+    candidates.push({ ...related, verdict: 'on_track', reason: `A full ${FULL_BUILD_WEEKS}-week build leads into ${f.name}.` });
+    return candidates;
+  }
+  const carry = carriesFitness(block);
+  if (prev && carry.carries) {
+    const gap = block.firstWeek - prev.lastWeek;
+    const rebuild = block.buildWeeks > 0 ? `, with a ${block.buildWeeks}-week rebuild` : '';
+    candidates.push({
+      ...related,
       verdict: 'on_track',
-      reason: `A full ${FULL_BUILD_WEEKS}-week build leads into ${f.name}.`,
-      gapWeeks: null,
-      relatedRaceId: null,
-    };
+      reason: `${f.name} is ${weeksText(gap)} after ${prev.focus.name}: recover, then carry that form into it${rebuild}.`,
+    });
+    return candidates;
   }
+
+  // Too short a build, with nothing to carry: compressed (Tight) or not enough (Conflict).
   const buildText = block.buildWeeks === 1 ? '1 build week' : `${block.buildWeeks} build weeks`;
-  if (block.buildWeeks >= MIN_TIGHT_BUILD_WEEKS) {
-    return {
+  const cause = prev ? `after recovering from ${prev.focus.name}` : 'because the season starts too close to it';
+
+  if (block.buildWeeks >= MIN_BUILD_WEEKS) {
+    candidates.push({
+      ...related,
       verdict: 'tight',
-      reason: `Only ${buildText} before ${f.name} because the season starts too close to it.`,
-      gapWeeks: null,
-      relatedRaceId: null,
-    };
+      reason: `Only ${buildText} before ${f.name} ${cause}: a compressed build.${prev ? ` ${carry.why}.` : ''}`,
+    });
+  } else {
+    const lead = block.buildWeeks === 0 ? `No room to build for ${f.name} ${cause}` : `Only ${buildText} before ${f.name} ${cause}`;
+    candidates.push({
+      ...related,
+      verdict: 'conflict',
+      reason: prev ? `${lead}. ${carry.why}; you won't be prepared.` : `${lead}; you won't be prepared.`,
+    });
   }
-  return {
-    verdict: 'conflict',
-    reason:
-      block.buildWeeks === 0
-        ? `No room to build for ${f.name} because the season starts too close to it.`
-        : `Only ${buildText} before ${f.name} because the season starts too close to it; that's not enough to arrive ready.`,
-    gapWeeks: null,
-    relatedRaceId: null,
-  };
+  return candidates;
 }
 
 function judgeBlockRace(r: PlacedRace, block: Block): Candidate {

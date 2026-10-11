@@ -82,15 +82,23 @@ A race passed without a profile gets `DEFAULT_RACE_PROFILE`: taper 2, peak 2, re
 
 **Verdict rules.**
 
-**First block of the season**, judged on its build:
+**Every goal block is judged on its build** (amended 2026-10-11: a build can't be shorter than 4 weeks unless fitness carries from earlier in the year):
 
 | Build weeks | Verdict |
 |---|---|
 | 6 (`FULL_BUILD_WEEKS`) | On track |
-| 3–5 | Tight |
-| fewer than 3 | Conflict |
+| 4–5 (`MIN_BUILD_WEEKS` = 4) | Tight: "a compressed build" |
+| fewer than 4 | Conflict: "you won't be prepared" |
 
-**Follow-on block** (any later block): there is no fixed week count. It is **On track when `gap ≥ recover(previous block) + taper(this race)`**, i.e. the recovery and the taper both fit in the gap. The sentence notes any rebuild weeks. Otherwise it is **Tight**: "you go straight from recovering into the taper." Typical minimums:
+**Carried fitness.** A follow-on block may build for less than that only when fitness carries from the previous goal block. That happens when:
+- you were **On track** for the previous block, and
+- its hardest race was an **equal or longer effort** (profile band) than this block's focus.
+
+Then the short rebuild stays On track ("recover, then carry that form into it"). BWR → Summer Vibes carries. Summer Vibes → The Rad doesn't: pulling The Rad to a 1-week build is a Conflict.
+
+**Moves are flagged, never blocked.** When an edit makes a race's verdict worse, the save toast names it with the engine's sentence, in magenta for a Conflict, with Undo.
+
+**Follow-on gap rule** (any later block, checked as well; the worst verdict wins): it is **On track when `gap ≥ recover(previous block) + taper(this race)`**, i.e. the recovery and the taper both fit in the gap. Otherwise it is **Tight**: "you go straight from recovering into the taper." Typical minimums:
 
 | Sequence | Minimum gap |
 |---|---|

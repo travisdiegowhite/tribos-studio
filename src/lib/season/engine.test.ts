@@ -227,15 +227,34 @@ describe('acceptance fixtures', () => {
 });
 
 describe('rule gaps decided 2026-10-09', () => {
-  it('season-start Recover clips the first A build', () => {
-    // A race at week 10: full build would be weeks 1–6; the floor is week 4, so 3 weeks → Tight.
+  // Amended 2026-10-11: a build shorter than MIN_BUILD_WEEKS (4) is a Conflict.
+  it('season-start Recover clips the first A build: 3 weeks → Conflict', () => {
+    // A race at week 10: full build would be weeks 1–6; the floor is week 4, so 3 weeks.
     const p = computeSeason({
       startDate: START,
       typicalWeeklyHours: 8,
       races: [{ id: 'early', name: 'Early A', date: addDaysToDate(START, 10 * 7 + 5), priority: 'A' }],
     });
-    expect(race(p, 'early')).toMatchObject({ verdict: 'tight', buildWeeks: 3, relatedRaceId: null, focusConfirmed: true });
-    expect(race(p, 'early').reason).toContain('the season starts too close');
+    expect(race(p, 'early')).toMatchObject({ verdict: 'conflict', buildWeeks: 3, relatedRaceId: null, focusConfirmed: true });
+    expect(race(p, 'early').reason).toBe(
+      "Only 3 build weeks before Early A because the season starts too close to it; you won't be prepared.",
+    );
+  });
+
+  it('a first build of 4–5 weeks is Tight (compressed), 6 is On track', () => {
+    const at = (week: number) =>
+      race(
+        computeSeason({
+          startDate: START,
+          typicalWeeklyHours: 8,
+          races: [{ id: 'a', name: 'Early A', date: addDaysToDate(START, week * 7 + 5), priority: 'A' }],
+        }),
+        'a',
+      );
+    expect(at(11)).toMatchObject({ verdict: 'tight', buildWeeks: 4 });
+    expect(at(11).reason).toBe('Only 4 build weeks before Early A because the season starts too close to it: a compressed build.');
+    expect(at(12)).toMatchObject({ verdict: 'tight', buildWeeks: 5 });
+    expect(at(13)).toMatchObject({ verdict: 'on_track', buildWeeks: 6 });
   });
 
   it('an A race in the first weeks has no build → Conflict', () => {
@@ -480,5 +499,48 @@ describe('typicalWeeklyHours', () => {
   it('falls back to the rider-entered number without history', () => {
     expect(typicalWeeklyHours([], 6)).toBe(6);
     expect(typicalWeeklyHours([0, null], 6)).toBe(6);
+  });
+});
+
+describe('minimum build and carried fitness', () => {
+  const MED = { band: 'medium', taperWeeks: 2, peakWeeks: 2, recoverWeeks: 1 } as const;
+  const LONG = { band: 'long', taperWeeks: 2, peakWeeks: 2, recoverWeeks: 2 } as const;
+  const season = (races: Parameters<typeof computeSeason>[0]['races']) =>
+    computeSeason({ startDate: '2026-08-10', weeks: 60, typicalWeeklyHours: 8, races });
+  const vibes = { id: 'vibes', name: 'Summer Vibes', date: '2027-06-19', priority: 'A', profile: MED };
+
+  it('a short race does not carry fitness into a longer one: a 1-week rebuild is a Conflict', () => {
+    const p = season([vibes, { id: 'rad', name: 'The Rad', date: '2027-08-01', priority: 'A', profile: LONG }]);
+    expect(race(p, 'rad')).toMatchObject({ verdict: 'conflict', buildWeeks: 1, relatedRaceId: 'vibes' });
+    expect(race(p, 'rad').reason).toBe(
+      "Only 1 build week before The Rad after recovering from Summer Vibes. Summer Vibes is a shorter race, so its fitness doesn't carry over; you won't be prepared.",
+    );
+  });
+
+  it('a rebuild of 4–5 weeks without carried fitness is Tight', () => {
+    const p = season([vibes, { id: 'rad', name: 'The Rad', date: '2027-08-22', priority: 'A', profile: LONG }]);
+    expect(race(p, 'rad')).toMatchObject({ verdict: 'tight', buildWeeks: 4 });
+    expect(race(p, 'rad').reason).toMatch(/: a compressed build\. Summer Vibes is a shorter race/);
+  });
+
+  it('an equal or longer race does carry: a short rebuild stays On track', () => {
+    const p = season([
+      { ...vibes, profile: LONG },
+      { id: 'rad', name: 'The Rad', date: '2027-08-01', priority: 'A', profile: LONG },
+    ]);
+    // A long race recovers for 2 weeks, so there is no rebuild at all; the form carries.
+    expect(race(p, 'rad')).toMatchObject({ verdict: 'on_track', buildWeeks: 0 });
+    expect(race(p, 'rad').reason).toBe('The Rad is 6 weeks after Summer Vibes: recover, then carry that form into it.');
+  });
+
+  it('no fitness carries from a goal race you were not on track for', () => {
+    const p = season([
+      // Week 2 of the season: no room to build, so it is a Conflict itself.
+      { id: 'early', name: 'Early A', date: '2026-08-23', priority: 'A', profile: LONG },
+      { id: 'next', name: 'Next A', date: '2026-10-11', priority: 'A', profile: LONG },
+    ]);
+    expect(race(p, 'early').verdict).toBe('conflict');
+    expect(race(p, 'next')).toMatchObject({ verdict: 'conflict' });
+    expect(race(p, 'next').reason).toMatch(/You weren't on track for Early A, so there's no fitness to carry over/);
   });
 });
