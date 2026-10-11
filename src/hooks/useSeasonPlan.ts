@@ -14,6 +14,11 @@
  * per change), and every save reports: a toast with Undo, or a red toast that
  * says what failed and puts the race back.
  *
+ * The coach is asked only on request (askCoach). The browser builds the payload
+ * from the engine, /api/season-coach adds the persona, and after a reply this
+ * version is saved as season_plans.discussed_snapshot: the next conversation's
+ * baseline and what Reset puts races back to.
+ *
  * The window is rolling (8 weeks back, 52 ahead) until fixed seasons are
  * decided; see src/lib/season/view.ts.
  */
@@ -32,8 +37,16 @@ import {
   toSeasonRaces,
   type RaceGoalRow,
 } from '../lib/season/view';
-import { describeChange, eventsFor, moveRace, removeRace, sameRace, setFocus, setPriority } from '../lib/season/edits';
-import { RACE_GOAL_COLUMNS, deleteRace, ensureSeasonPlan, logSeasonEvents, saveRace } from '../lib/season/seasonWrites';
+import { describeChange, eventsFor, moveRace, removeRace, sameRace, setFocus, setPriority, worsenedVerdicts } from '../lib/season/edits';
+import {
+  RACE_GOAL_COLUMNS,
+  deleteRace,
+  ensureSeasonPlan,
+  logSeasonEvents,
+  saveDiscussedSnapshot,
+  saveRace,
+} from '../lib/season/seasonWrites';
+import { buildCoachPayload, resetRows, toSnapshot, type DiscussedSnapshot } from '../lib/season/coachPayload';
 
 /** Quiet period after the last click before changes are saved. */
 export const SAVE_DEBOUNCE_MS = 1000;
@@ -47,6 +60,16 @@ interface SeasonPlanRow {
   start_date: string;
   weeks: number;
   fallback_weekly_hours: number | null;
+  discussed_snapshot?: DiscussedSnapshot | null;
+  discussed_at?: string | null;
+}
+
+/** The coach's latest reply, or why there isn't one. */
+export interface CoachState {
+  status: 'idle' | 'asking' | 'answered' | 'error';
+  message: string | null;
+  personaName: string | null;
+  error: string | null;
 }
 
 export interface SeasonActions {
@@ -57,6 +80,10 @@ export interface SeasonActions {
   /** Save anything still waiting now (before the race form opens, so it can't overwrite the form). */
   flush: () => Promise<void>;
   reload: () => void;
+  /** Ask the coach about the season as it stands (and what changed since last time). */
+  askCoach: (question?: string) => Promise<void>;
+  /** Put races back to the version last discussed with the coach. */
+  resetToDiscussed: () => void;
 }
 
 export interface SeasonPlanState {
@@ -73,6 +100,9 @@ export interface SeasonPlanState {
   rows?: RaceGoalRow[];
   actions?: SeasonActions;
   saveStatus?: SaveStatus;
+  /** The version last discussed with the coach (the Reset target), if any. */
+  discussed?: DiscussedSnapshot | null;
+  coach?: CoachState;
 }
 
 interface LoadedState {
@@ -101,6 +131,7 @@ export function useSeasonPlan(): SeasonPlanState {
   });
   const [reloadKey, setReloadKey] = useState(0);
   const [saveStatus, setSaveStatus] = useState<SaveStatus>('idle');
+  const [coach, setCoach] = useState<CoachState>({ status: 'idle', message: null, personaName: null, error: null });
 
   // The latest rows (for saves that run after a render) and the last saved version of each race.
   const racesRef = useRef<RaceGoalRow[]>([]);
@@ -108,6 +139,8 @@ export function useSeasonPlan(): SeasonPlanState {
   const dirtyRef = useRef<Set<string>>(new Set());
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const planIdRef = useRef<string | null>(null);
+  // The plan before the first edit of the pending batch: the save toast flags races it made worse.
+  const planBeforeEditsRef = useRef<SeasonPlan | null>(null);
 
   // ─── Load ────────────────────────────────────────────────────────────────
   useEffect(() => {
@@ -120,7 +153,7 @@ export function useSeasonPlan(): SeasonPlanState {
         // not applied) just means no record.
         const { data: plans, error: planError } = await supabase
           .from('season_plans')
-          .select('id, name, start_date, weeks, fallback_weekly_hours')
+          .select('id, name, start_date, weeks, fallback_weekly_hours, discussed_snapshot, discussed_at')
           .eq('user_id', userId)
           .order('start_date', { ascending: false })
           .limit(1);
@@ -243,12 +276,17 @@ export function useSeasonPlan(): SeasonPlanState {
       }
       if (planIdRef.current) await logSeasonEvents(userId, planIdRef.current, drafts);
 
-      const message = saved.length === 1 ? describeChange(saved[0].before, saved[0].after) : `Saved ${saved.length} changes.`;
+      const title = saved.length === 1 ? describeChange(saved[0].before, saved[0].after) : `Saved ${saved.length} changes.`;
+      // Moves are never blocked; the toast says plainly when one leaves a race unprepared.
+      const before = planBeforeEditsRef.current;
+      planBeforeEditsRef.current = null;
+      const worse = before && planRef.current ? worsenedVerdicts(before, planRef.current) : [];
+      const undo = opts.undoable === false ? '' : 'Tap to undo.';
       notifications.show({
-        title: message,
-        message: opts.undoable === false ? undefined : 'Tap to undo',
-        color: 'teal',
-        autoClose: 6000,
+        title,
+        message: [...worse.map((w) => w.text), undo].filter(Boolean).join(' ') || undefined,
+        color: worse.some((w) => w.conflict) ? 'signal' : 'teal',
+        autoClose: worse.length > 0 ? 10000 : 6000,
         onClick:
           opts.undoable === false
             ? undefined
@@ -267,6 +305,7 @@ export function useSeasonPlan(): SeasonPlanState {
 
   const edit = useCallback(
     (next: RaceGoalRow[]) => {
+      if (dirtyRef.current.size === 0) planBeforeEditsRef.current = planRef.current;
       const before = new Map(racesRef.current.map((r) => [r.id, r]));
       for (const r of next) if (before.get(r.id) !== r) dirtyRef.current.add(r.id);
       setRaces(next);
@@ -296,6 +335,9 @@ export function useSeasonPlan(): SeasonPlanState {
   );
   const planRef = useRef(plan);
   planRef.current = plan;
+  const discussed = savedPlan?.discussed_snapshot ?? null;
+  const discussedRef = useRef(discussed);
+  discussedRef.current = discussed;
 
   const actions = useMemo<SeasonActions>(
     () => ({
@@ -342,11 +384,77 @@ export function useSeasonPlan(): SeasonPlanState {
         return true;
       },
       flush: () => flushRef.current(),
+      askCoach: async (question) => {
+        if (!userId) return;
+        setCoach((c) => ({ ...c, status: 'asking', error: null }));
+        await flushRef.current({ undoable: false }); // the coach sees what's saved
+        // What the coach is shown is what becomes the baseline, even if the athlete edits while it answers.
+        const current = planRef.current;
+        const rowsAsked = racesRef.current;
+        if (!current) {
+          setCoach((c) => ({ ...c, status: 'error', error: 'Your season is still loading.' }));
+          return;
+        }
+        if (!planIdRef.current) {
+          const p = await ensureSeasonPlan(userId, startDate, weeks);
+          if (p.success && p.data) planIdRef.current = p.data;
+        }
+        const payload = buildCoachPayload(current, discussedRef.current, todayLocal, question);
+        try {
+          const {
+            data: { session },
+          } = await supabase.auth.getSession();
+          const res = await fetch('/api/season-coach', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              ...(session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {}),
+            },
+            body: JSON.stringify({ payload, seasonPlanId: planIdRef.current }),
+          });
+          const body = (await res.json().catch(() => null)) as { success?: boolean; message?: string; personaName?: string | null; error?: string } | null;
+          if (!res.ok || !body?.success || !body.message) {
+            setCoach((c) => ({ ...c, status: 'error', error: body?.error ?? `The coach request failed (${res.status}).` }));
+            return;
+          }
+          setCoach({ status: 'answered', message: body.message, personaName: body.personaName ?? null, error: null });
+
+          // This version is now the baseline for the next conversation and for Reset.
+          const snapshot = toSnapshot(current, rowsAsked);
+          if (planIdRef.current) {
+            const saved = await saveDiscussedSnapshot(userId, planIdRef.current, snapshot);
+            if (!saved.success) {
+              notifications.show({ title: "Couldn't remember this conversation", message: saved.error, color: 'red', autoClose: 8000 });
+              return;
+            }
+            const planId = planIdRef.current;
+            setState((s) => ({
+              ...s,
+              savedPlan: s.savedPlan
+                ? { ...s.savedPlan, discussed_snapshot: snapshot, discussed_at: saved.data }
+                : { id: planId, name: 'Season', start_date: startDate, weeks, fallback_weekly_hours: null, discussed_snapshot: snapshot, discussed_at: saved.data },
+            }));
+          }
+        } catch (err) {
+          setCoach((c) => ({ ...c, status: 'error', error: err instanceof Error ? err.message : 'The coach request failed.' }));
+        }
+      },
+      resetToDiscussed: () => {
+        const snapshot = discussedRef.current;
+        if (!snapshot) return;
+        const { rows: next, addedSince, removedSince } = resetRows(racesRef.current, snapshot);
+        edit(next);
+        const notes = [
+          addedSince.length > 0 ? `Kept ${addedSince.join(', ')} (added since).` : '',
+          removedSince.length > 0 ? `${removedSince.join(', ')} stays removed; add it again if you want it back.` : '',
+        ].filter(Boolean);
+        if (notes.length > 0) notifications.show({ title: 'Back to what you discussed', message: notes.join(' '), color: 'teal', autoClose: 8000 });
+      },
       reload: () => {
         void flushRef.current({ undoable: false }).then(() => setReloadKey((k) => k + 1));
       },
     }),
-    [edit, userId, setRaces, restoreLocal, startDate, weeks],
+    [edit, userId, setRaces, restoreLocal, startDate, weeks, todayLocal],
   );
 
   return {
@@ -360,5 +468,7 @@ export function useSeasonPlan(): SeasonPlanState {
     rows: state.races,
     actions,
     saveStatus,
+    discussed,
+    coach,
   };
 }

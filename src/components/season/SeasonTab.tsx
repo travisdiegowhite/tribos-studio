@@ -7,8 +7,8 @@
  * Every date, phase and verdict comes from src/lib/season/engine.ts; this file
  * only draws them and offers the edits (move a week, priority, the race that
  * matters most in a block, remove, add / full edit through RaceGoalModal).
- * Saving lives in useSeasonPlan. The coach's commentary arrives in a later
- * phase — see docs/season-planner-build-plan.md.
+ * Saving lives in useSeasonPlan. The coach (SeasonCoachPanel) is asked only
+ * on request — see docs/season-planner-build-plan.md.
  */
 
 import { useMemo, useState, type CSSProperties } from 'react';
@@ -18,6 +18,7 @@ import { useSeasonPlan, type HoursSource, type SaveStatus, type SeasonActions, t
 import { dayNumber, formatSeasonDate, type Priority, type SeasonPlan, type SeasonRaceResult, type Verdict } from '../../lib/season/engine';
 import { PHASE_LABEL, PRIORITY_ROLE, seasonEndDate, todayWeekIndex, type RaceGoalRow } from '../../lib/season/view';
 import RaceGoalModal from '../RaceGoalModal';
+import SeasonCoachPanel from './SeasonCoachPanel';
 import SeasonProfile, { SeasonProfileLegend } from './SeasonProfile';
 
 // ─── Visual language (docs/season-planner-build-plan.md, "Year view UI") ────
@@ -161,7 +162,7 @@ function RaceEditor({ race, editing }: { race: SeasonRaceResult; editing: PanelE
   // A goal race in a back-to-back block that isn't (confirmed as) the one that matters most.
   const canFocus =
     race.priority === 'A' && race.blockFocusId !== null && (race.blockFocusId !== race.id || race.focusConfirmed === false);
-  const small = { radius: 0, size: 'xs', color: 'dark', variant: 'outline' } as const;
+  const small = { radius: 0, size: 'xs', variant: 'outline' } as const;
 
   return (
     <Stack gap="sm" mt="md" pt="md" style={{ borderTop: '1px solid var(--color-border)' }}>
@@ -282,12 +283,6 @@ function RacePanel({
           This race is in the past.
         </Text>
       )}
-
-      <Box mt="md" pt="md" style={{ borderTop: '1px solid var(--color-border)' }}>
-        <Text size="xs" c="var(--color-text-muted)">
-          Coach commentary on changes arrives in a later update.
-        </Text>
-      </Box>
     </Box>
   );
 }
@@ -310,6 +305,8 @@ export function SeasonView({
   rows,
   actions,
   saveStatus = 'idle',
+  discussed = null,
+  coach,
   isImperial = false,
 }: SeasonPlanState & { isImperial?: boolean }) {
   const isNarrow = useMediaQuery('(max-width: 900px)');
@@ -329,7 +326,7 @@ export function SeasonView({
   if (loading) {
     return (
       <Group justify="center" py="xl">
-        <Loader size="sm" color="dark" />
+        <Loader size="sm" />
       </Group>
     );
   }
@@ -358,7 +355,14 @@ export function SeasonView({
           },
         }
       : null;
-  const panel = <RacePanel race={selected} plan={plan} todayLocal={todayLocal} editing={editing} />;
+  const panel = (
+    <Stack gap={16}>
+      <RacePanel race={selected} plan={plan} todayLocal={todayLocal} editing={editing} />
+      {actions && coach && (
+        <SeasonCoachPanel plan={plan} discussed={discussed} coach={coach} actions={actions} />
+      )}
+    </Stack>
+  );
 
   return (
     <Stack gap="lg" py="md">
@@ -379,7 +383,7 @@ export function SeasonView({
             </span>
           )}
           {actions && (
-            <Button color="dark" radius={0} size="sm" onClick={() => void actions.flush().then(() => setForm('new'))}>
+            <Button radius={0} size="sm" onClick={() => void actions.flush().then(() => setForm('new'))}>
               Add race
             </Button>
           )}
@@ -407,7 +411,7 @@ export function SeasonView({
             Add your races as goal (A), target (B) or tune-up (C) and the season fills in around them.
           </Text>
           {actions && (
-            <Button mt="md" color="dark" radius={0} onClick={() => void actions.flush().then(() => setForm('new'))}>
+            <Button mt="md" radius={0} onClick={() => void actions.flush().then(() => setForm('new'))}>
               Add race
             </Button>
           )}

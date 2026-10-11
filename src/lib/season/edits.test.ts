@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { computeSeason } from './engine';
-import { describeChange, eventsFor, moveRace, removeRace, sameRace, setFocus, setPriority } from './edits';
+import { describeChange, eventsFor, moveRace, removeRace, sameRace, setFocus, setPriority, worsenedVerdicts } from './edits';
 import { DEFAULT_SEASON_WEEKS, defaultSeasonStart, toSeasonRaces, type RaceGoalRow } from './view';
 
 const ROWS: RaceGoalRow[] = [
@@ -131,5 +131,27 @@ describe('recompute speed', () => {
       computeSeason({ startDate: '2026-08-17', weeks: 60, races: toSeasonRaces(moveRace(rows, 'r3', i % 2 ? 1 : -1)), typicalWeeklyHours: 8 });
     }
     expect((performance.now() - start) / 10).toBeLessThan(100);
+  });
+});
+
+describe('worsenedVerdicts', () => {
+  const season = (rows: RaceGoalRow[]) =>
+    computeSeason({ startDate: '2026-08-10', weeks: 60, races: toSeasonRaces(rows), typicalWeeklyHours: 8 });
+  const ROWS2: RaceGoalRow[] = [
+    { id: 'vibes', name: 'Summer Vibes', race_date: '2027-06-19', priority: 'A', race_type: 'gravel', distance_km: 56, goal_time_minutes: 100 },
+    { id: 'rad', name: 'The Rad', race_date: '2027-09-26', priority: 'A', race_type: 'gravel', distance_km: 111, goal_time_minutes: 390 },
+  ];
+
+  it('flags a move that leaves a goal race unprepared', () => {
+    const worse = worsenedVerdicts(season(ROWS2), season(moveRace(ROWS2, 'rad', -8)));
+    expect(worse).toHaveLength(1);
+    expect(worse[0].conflict).toBe(true);
+    expect(worse[0].text).toMatch(/^The Rad: Conflict\. Only 1 build week before The Rad .*you won't be prepared\.$/);
+  });
+
+  it('says nothing for a move that keeps or improves every verdict', () => {
+    const squeezed = moveRace(ROWS2, 'rad', -8);
+    expect(worsenedVerdicts(season(squeezed), season(ROWS2))).toEqual([]);
+    expect(worsenedVerdicts(season(ROWS2), season(moveRace(ROWS2, 'rad', 1)))).toEqual([]);
   });
 });
