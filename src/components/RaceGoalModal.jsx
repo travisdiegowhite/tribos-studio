@@ -55,7 +55,8 @@ const PRIORITY_OPTIONS = [
  * @param {object} props
  * @param {boolean} props.opened
  * @param {() => void} props.onClose
- * @param {object | null} [props.raceGoal] - Existing race goal to edit
+ * @param {object | null} [props.raceGoal] - Existing race goal to edit, or a
+ *   prefilled new one without an `id` (e.g. a race found by search)
  * @param {() => void} props.onSaved
  * @param {boolean} [props.isImperial]
  */
@@ -101,7 +102,10 @@ const RaceGoalModal = ({
     }
   }, [opened]);
 
-  // Populate form when editing
+  // A prefilled race without an id (from race search) is still a new race.
+  const isEdit = Boolean(raceGoal?.id);
+
+  // Populate form when editing (or prefilling)
   useEffect(() => {
     if (raceGoal) {
       setForm({
@@ -372,7 +376,7 @@ const RaceGoalModal = ({
             <Trophy size={18} />
           </ThemeIcon>
           <Text fw={600}>
-            {raceGoal ? 'Edit Race Goal' : 'Add Race Goal'}
+            {isEdit ? 'Edit Race Goal' : 'Add Race Goal'}
           </Text>
         </Group>
       }
@@ -569,7 +573,7 @@ const RaceGoalModal = ({
         />
 
         {/* Race Fuel Plan - Show for existing races with duration */}
-        {raceGoal && form.goal_time_minutes && form.goal_time_minutes >= 60 && (
+        {isEdit && form.goal_time_minutes && form.goal_time_minutes >= 60 && (
           <>
             <Divider
               label={
@@ -624,7 +628,7 @@ const RaceGoalModal = ({
               onClick={handleSave}
               loading={saving}
             >
-              {raceGoal ? 'Update' : 'Add Race Goal'}
+              {isEdit ? 'Update' : 'Add Race Goal'}
             </Button>
           </Group>
         </Group>
