@@ -77,6 +77,17 @@ describe('validateCandidates', () => {
     expect(validateCandidates([{ ...race, url: 'https://made-up-race.example/' }], sources, TODAY)).toEqual([]);
   });
 
+  it('counts why candidates were dropped', () => {
+    const dropped = {};
+    validateCandidates([{ ...race, url: 'https://nope.example/' }, { ...race, race_type: 'bmx' }], sources, TODAY, dropped);
+    expect(dropped).toEqual({ host: 1, type: 1 });
+  });
+
+  it('keeps an edition more than 15 months out, but flags it', () => {
+    const [c] = validateCandidates([{ ...race, race_date: '2028-05-27' }], sources, TODAY);
+    expect(c.note).toMatch(/more than a year away/);
+  });
+
   it('drops past dates, bad dates and unknown race types', () => {
     expect(validateCandidates([{ ...race, race_date: '2026-05-30' }], sources, TODAY)).toEqual([]);
     expect(validateCandidates([{ ...race, race_date: 'May 29' }], sources, TODAY)).toEqual([]);
@@ -104,6 +115,16 @@ describe('collectSourceUrls', () => {
     ]);
     expect([...urls].sort()).toEqual(['https://a.com/1', 'https://b.com/2']);
   });
+
+  it('finds URLs inside code-execution output text (dynamic filtering)', () => {
+    const urls = collectSourceUrls([
+      {
+        type: 'bash_code_execution_tool_result',
+        content: { type: 'bash_code_execution_result', stdout: 'Unbound 200 (https://www.unboundgravel.com/races/200), see also https://bikereg.com/unbound.', return_code: 0 },
+      },
+    ]);
+    expect([...urls].sort()).toEqual(['https://bikereg.com/unbound', 'https://www.unboundgravel.com/races/200']);
+  });
 });
 
 describe('webSearchRaces', () => {
@@ -129,7 +150,8 @@ describe('webSearchRaces', () => {
     const params = create.mock.calls[0][0];
     expect(params.model).toBe('claude-sonnet-5-5');
     expect(params.tools[0]).toMatchObject({ type: 'web_search_20260209', name: 'web_search', max_uses: 5 });
-    expect(params.tools[1]).toBe(REPORT_RACES_TOOL);
+    expect(params.tools[1]).toMatchObject({ type: 'web_fetch_20260209', name: 'web_fetch' });
+    expect(params.tools[2]).toBe(REPORT_RACES_TOOL);
     expect(params.tool_choice).toBeUndefined();
     expect(params.messages[0].content).toContain('"Boulder Roubaix" near Boulder');
   });
@@ -167,6 +189,23 @@ describe('webSearchRaces', () => {
 });
 
 describe('searchDirectory', () => {
+  it('narrows on distinctive words, so extra words in the query still match', async () => {
+    const sb = fakeSupabase([
+      {
+        data: [
+          { id: 'a', name: 'Unbound Gravel XL', name_key: 'unbound gravel xl' },
+          { id: 'b', name: 'Unbound Gravel 200', name_key: 'unbound gravel 200' },
+        ],
+        error: null,
+      },
+    ]);
+    const rows = await searchDirectory(sb, { query: 'Unbound Gravel 200', today: TODAY });
+    const ilikes = sb.calls[0].ops.filter((o) => o[0] === 'ilike');
+    // 'gravel' is filler and '200' only ranks, so a stored "Unbound Gravel" would match too.
+    expect(ilikes).toEqual([['ilike', 'name_key', '%unbound%']]);
+    expect(rows.map((r) => r.id)).toEqual(['b', 'a']);
+  });
+
   it('matches on the name key, upcoming only, most-confirmed first', async () => {
     const sb = fakeSupabase([{ data: [{ id: 'd1' }], error: null }]);
     expect(await searchDirectory(sb, { query: 'Unbound 2027', today: TODAY })).toEqual([{ id: 'd1' }]);

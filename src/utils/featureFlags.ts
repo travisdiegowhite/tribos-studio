@@ -1,13 +1,13 @@
 /**
  * Feature flag utilities.
  *
- * Reads flags from user_profiles.feature_flags (JSONB). Phase 1 ships one flag:
- *   - event_anchored_planner: gates the new block-based planner UI
+ * Reads flags from user_profiles.feature_flags (JSONB):
+ *   - season_planner: gates the Season tab on /train
  *
  * Falls back to false when flags are missing or malformed. Always safe to call.
  */
 
-export type FeatureFlagName = 'event_anchored_planner' | 'season_planner';
+export type FeatureFlagName = 'season_planner';
 
 interface ProfileLike {
   feature_flags?: Record<string, unknown> | null;
@@ -16,17 +16,9 @@ interface ProfileLike {
 // Per-flag defaults applied when the JSONB key is absent on the profile.
 // An explicit value in user_profiles.feature_flags still wins (kill switch / opt-in).
 //
-// event_anchored_planner defaults to FALSE as of the calendar redesign (Phase 0): the
-// event-anchored sequencer projected onto a phantom plan the (now single-plan) calendar
-// could never display, so plans built there were invisible. With the flag off, the coach
-// uses the static generator (the visible path) and the sequencer UI/cron stay dormant.
-// A user who has explicitly opted in (feature_flags.event_anchored_planner === true) still
-// gets it.
-//
 // season_planner gates the Season tab on /train (docs/season-planner-build-plan.md).
 // Off by default; opt in with feature_flags.season_planner = true.
 const FLAG_DEFAULTS: Record<FeatureFlagName, boolean> = {
-  event_anchored_planner: false,
   season_planner: false,
 };
 

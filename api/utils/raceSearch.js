@@ -17,6 +17,10 @@ import { haversineDistance } from './polylineDecode.js';
 export const SEARCH_MODEL = 'claude-sonnet-5-5';
 const MAX_TOKENS = 4000;
 const MAX_WEB_SEARCHES = 5;
+/** Pages the model may open to read a date or distance off the official site. */
+const MAX_WEB_FETCHES = 3;
+/** A next edition further out than this is probably the wrong one: kept, but flagged. */
+const FAR_EDITION_DAYS = 456;
 /** Server-side tool loops can pause; resume at most this many times. */
 const MAX_RESUMES = 3;
 export const MAX_CANDIDATES = 6;
@@ -68,23 +72,40 @@ function daysBetween(a, b) {
 // ─── Directory ──────────────────────────────────────────────────────────────
 
 const DIRECTORY_COLUMNS =
-  'id, name, race_date, race_type, distance_km, elevation_gain_m, location, url, source, confirmed_count';
+  'id, name, name_key, race_date, race_type, distance_km, elevation_gain_m, location, url, source, confirmed_count';
 
-/** Upcoming directory races whose name contains the query. */
+/** Words too common in race names to narrow a search. */
+const FILLER_WORDS = new Set(['the', 'race', 'ride', 'run', 'gravel', 'classic', 'road', 'de', 'la', 'le', 'of', 'and']);
+
+/**
+ * Upcoming directory races matching the query's words. The database narrows on
+ * the first two distinctive words (so "Unbound Gravel 200" still finds
+ * "Unbound Gravel"); the rest only rank the matches.
+ */
 export async function searchDirectory(supabase, { query, today }) {
   const key = nameKey(query);
   if (key.length < 3) return [];
-  const { data, error } = await supabase
-    .from('race_directory')
-    .select(DIRECTORY_COLUMNS)
-    .ilike('name_key', `%${key}%`)
+  const words = key.split(' ');
+  // Numbers (distances, editions) only rank: "Unbound 200" must still find "Unbound Gravel".
+  const distinctive = words.filter((w) => !FILLER_WORDS.has(w) && w.length > 1 && !/^\d+$/.test(w));
+  const narrow = (distinctive.length > 0 ? distinctive : words).slice(0, 2);
+
+  let q = supabase.from('race_directory').select(DIRECTORY_COLUMNS);
+  for (const w of narrow) q = q.ilike('name_key', `%${w}%`);
+  const { data, error } = await q
     .gte('race_date', today)
     .lte('race_date', addDays(today, DIRECTORY_WINDOW_DAYS))
     .order('confirmed_count', { ascending: false })
     .order('race_date', { ascending: true })
-    .limit(10);
+    .limit(25);
   if (error) throw new Error(`Directory search failed: ${error.message}`);
-  return data ?? [];
+
+  const score = (row) => words.filter((w) => ` ${row.name_key ?? nameKey(row.name)} `.includes(` ${w} `)).length;
+  return (data ?? [])
+    .map((row, i) => ({ row, i, s: score(row) }))
+    .sort((a, b) => b.s - a.s || a.i - b.i)
+    .slice(0, 10)
+    .map(({ row }) => row);
 }
 
 /**
@@ -190,7 +211,8 @@ export function buildSearchPrompt({ query, near, today }) {
   const where = near ? ` near ${near}` : '';
   return [
     `Today is ${today}. Find the endurance race an athlete is looking for: "${query}"${where}.`,
-    'Search race calendars and official event sites. Find the next edition on or after today.',
+    'Search race calendars and official event sites. Find the next edition on or after today, not a past one.',
+    "Open the official event page with web_fetch to read the date, distances and climbing; prefer it over registration aggregators.",
     "If the next edition's date isn't announced yet, give last year's date moved to the same weekend this year and mark it 'estimated_from_last_year'.",
     'Give distances in kilometres and climbing in metres; null when a page does not say.',
     'Only report what the pages you read actually say, with the URL of the page that says it. Do not guess a race into existence.',
@@ -198,10 +220,20 @@ export function buildSearchPrompt({ query, near, today }) {
   ].join('\n');
 }
 
-/** Every URL the search turned up, from any block except the report itself. */
+const URL_IN_TEXT = /https?:\/\/[^\s"'<>()\]\[]+/g;
+
+/**
+ * Every URL the search turned up, from any block except the report itself:
+ * `url` fields, and URLs inside text. With dynamic filtering the results often
+ * arrive as code-execution output (stdout text), not as url fields.
+ */
 export function collectSourceUrls(content) {
   const urls = new Set();
   const walk = (node) => {
+    if (typeof node === 'string') {
+      for (const m of node.match(URL_IN_TEXT) ?? []) urls.add(m.replace(/[.,;:]+$/, ''));
+      return;
+    }
     if (!node || typeof node !== 'object') return;
     if (Array.isArray(node)) return node.forEach(walk);
     for (const [k, v] of Object.entries(node)) {
@@ -231,18 +263,34 @@ const clip = (v, max) => (typeof v === 'string' ? v.replace(/\s+/g, ' ').trim().
  * Keep only candidates a page backs up: a known race type, a real upcoming
  * date, and a link on a site the search actually returned.
  */
-export function validateCandidates(races, sourceUrls, today) {
+export function validateCandidates(races, sourceUrls, today, dropped = {}) {
   const hosts = new Set([...sourceUrls].map(hostOf).filter(Boolean));
   const seen = new Set();
   const out = [];
+  const drop = (reason) => {
+    dropped[reason] = (dropped[reason] ?? 0) + 1;
+  };
   for (const r of Array.isArray(races) ? races : []) {
     const host = hostOf(r?.url);
     const date = String(r?.race_date ?? '');
-    if (!host || !hosts.has(host)) continue;
-    if (!DATE_RE.test(date) || Number.isNaN(Date.parse(date)) || date < today) continue;
-    if (!RACE_TYPE_VALUES.includes(r?.race_type)) continue;
+    if (!host || !hosts.has(host)) {
+      drop('host');
+      continue;
+    }
+    if (!DATE_RE.test(date) || Number.isNaN(Date.parse(date)) || date < today) {
+      drop('date');
+      continue;
+    }
+    if (!RACE_TYPE_VALUES.includes(r?.race_type)) {
+      drop('type');
+      continue;
+    }
     const name = clip(r.name, 200);
-    if (!name) continue;
+    if (!name) {
+      drop('name');
+      continue;
+    }
+    const far = daysBetween(today, date) > FAR_EDITION_DAYS;
     const dupe = `${nameKey(name)}|${date}|${num(r.distance_km)}`;
     if (seen.has(dupe)) continue;
     seen.add(dupe);
@@ -256,7 +304,9 @@ export function validateCandidates(races, sourceUrls, today) {
       elevation_gain_m: num(r.elevation_gain_m),
       url: r.url,
       site: host,
-      note: clip(r.note, 300),
+      note: [far ? 'This date is more than a year away: check it is the next edition.' : '', clip(r.note, 300)]
+        .filter(Boolean)
+        .join(' '),
     });
     if (out.length >= MAX_CANDIDATES) break;
   }
@@ -277,7 +327,11 @@ export async function webSearchRaces(client, { query, near = null, today }) {
       model: SEARCH_MODEL,
       max_tokens: MAX_TOKENS,
       output_config: { effort: 'medium' },
-      tools: [{ type: 'web_search_20260209', name: 'web_search', max_uses: MAX_WEB_SEARCHES }, REPORT_RACES_TOOL],
+      tools: [
+        { type: 'web_search_20260209', name: 'web_search', max_uses: MAX_WEB_SEARCHES },
+        { type: 'web_fetch_20260209', name: 'web_fetch', max_uses: MAX_WEB_FETCHES },
+        REPORT_RACES_TOOL,
+      ],
       messages,
     });
     allContent.push(...(response.content ?? []));
@@ -287,7 +341,11 @@ export async function webSearchRaces(client, { query, near = null, today }) {
     }
     const report = (response.content ?? []).find((b) => b.type === 'tool_use' && b.name === REPORT_RACES_TOOL.name);
     if (report) {
-      const candidates = validateCandidates(report.input?.races, collectSourceUrls(allContent), today);
+      const reported = Array.isArray(report.input?.races) ? report.input.races.length : 0;
+      const dropped = {};
+      const candidates = validateCandidates(report.input?.races, collectSourceUrls(allContent), today, dropped);
+      // One line per search, so "wrong or missing race" reports can be traced. No athlete data.
+      console.log('[race-search] web', JSON.stringify({ query, reported, kept: candidates.length, dropped }));
       return {
         candidates,
         message: candidates.length === 0 ? "Couldn't find that race on the web. Check the name, or enter it yourself." : null,

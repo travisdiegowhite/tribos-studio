@@ -9,4 +9,3 @@
 
 export { WorkoutLibrarySidebar } from './WorkoutLibrarySidebar';
 export { WorkoutCard } from './WorkoutCard';
-export { GoalInput } from './GoalInput';

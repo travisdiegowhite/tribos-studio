@@ -376,8 +376,8 @@ route builder:
 - **`/today` renders the Training-Arc `TodaySpine`** (`src/views/today-spine/`,
   flipped 2026-07). The routing-first glance (`TodayEntry` → `TodayGlance`) is
   kept as a fallback at `/today/glance`; `/today/spine` remains a working alias
-  for the Spine. The old `src/views/today/TodayView.tsx` is orphaned (kept on
-  disk, not mounted).
+  for the Spine. The old `src/views/today/TodayView.tsx` was deleted in the
+  2026-08 purge; only `src/views/today/athleteMetrics.ts` and `shared/` remain.
 - The admin per-user toggle is gone (UI + service + `api/admin.js` action).
 
 The `route_builder_v2_enabled` column is kept in the DB (and in
