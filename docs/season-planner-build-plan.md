@@ -211,33 +211,44 @@ The first read-only version (a 52-cell phase band with weekly bars) looked too m
 
 Fonts are Tribos Display, Archivo and Courier Prime.
 
-## Coach integration
+## Coach integration (Phase 5, built 2026-10-11)
 
-The coach is called only on request. The engine's own sentence is shown first, so the page works with no AI calls.
+The coach is called only on request, never on a move. The engine's own sentence is shown first, so the page works with no AI calls.
 
-**(P0)** It gets its own endpoint, `api/season-coach.js`:
-- no tools;
-- persona from `api/utils/personaData.js`;
-- `rateLimitByUser` + `enforceAiQuota`;
-- the same model as `api/coach.js`.
+**Where the code is:**
 
-It does **not** go through `coach.js`, which carries the calendar write tool.
+| Piece | File |
+|---|---|
+| Payload (browser, pure, tested) | `src/lib/season/coachPayload.ts` |
+| Endpoint | `api/season-coach.js` |
+| Validation + prompt text | `api/utils/seasonCoachPrompt.js` |
+| Ask / Reset / baseline | `useSeasonPlan` (`askCoach`, `resetToDiscussed`), `saveDiscussedSnapshot` in `seasonWrites.ts` |
+| Panel | `src/components/season/SeasonCoachPanel.tsx`, under the selected race |
+| Gate samples | `scripts/season-coach-samples.mjs` (`--dry-run` prints the prompts without an API key) |
 
-**Payload:**
-- the persona;
-- today as a formatted string;
-- every race with its formatted date, verdict, reason and build weeks;
-- the `PlanDiff` since `discussed_snapshot`;
-- the optional question.
+**The browser builds the payload** from the engine that is already running there, so the serverless function never imports `src/` TypeScript and never computes a date. The payload carries:
+- today and the season window, as formatted strings;
+- every upcoming race with its formatted date, role (Goal / Target / Tune-up), sport, effort band, verdict, reason, build weeks and a note for back-to-back blocks;
+- what changed since `season_plans.discussed_snapshot`, as sentences: the engine's `PlanDiff` plus focus picks, which `PlanDiff` doesn't carry; with no baseline it's a first look;
+- the optional question (≤ 500 characters).
+
+**The server** (`api/season-coach.js`):
+- POST only, `requireAuth`, `rateLimitByUser('SEASON_COACH', 10/5 min)`, `enforceAiQuota`;
+- 413 above 30 KB, then `sanitizePayload` caps races at 60 and changes at 40, clips the text and drops unknown fields;
+- adds the persona (`getCoachPersona` + `PERSONA_DATA` + the preferred name) and `buildCoachVoiceRules`;
+- no tools, no calendar writes;
+- logs both sides of the exchange to `coach_conversations` (`coach_type 'strategist'`, `context_snapshot.surface = 'season_planner'`), best effort.
+
+**Model:** `claude-opus-5-5` at low effort, with server-side fallback (`fallbacks: 'default'`, beta `server-side-fallback-2026-07-01`). That replaces P0's "same model as `coach.js`", which is still `claude-sonnet-4-6`. A refusal returns 502 with a "try rephrasing" message.
 
 **Prompt rules:**
-- Use only the dates and week counts in the payload.
-- Give two to four sentences: the cost of the change plus one tradeoff or fix.
-- Never contradict the verdict.
-- No Peaksware terms.
-- Stay in the persona.
+- Use only the dates, weekdays and week counts in the message; never compute or convert one.
+- Give two to four sentences: what the change costs or buys, plus one concrete tradeoff or fix.
+- Never contradict a verdict; if the coach would plan it differently, it says what it would change.
+- No training-load metrics and no TrainingPeaks terms.
+- The coach can't change the plan itself.
 
-After a reply, the current plan becomes the new `discussed_snapshot`, and the exchange is logged with the event ids.
+**After a reply**, the version the coach was shown becomes `discussed_snapshot` (`{ plan, rows: [{ id, race_date, priority, is_focus }] }`) and `discussed_at`. **Reset to what we discussed** puts date, priority and focus back through the normal edit path, so it saves, toasts and offers Undo like any other edit. Races added or removed since are left alone, and the toast names them.
 
 ## Race search v1 (phase 6)
 
@@ -257,7 +268,7 @@ Guards:
 2. **Engine + tests, no UI:** `src/lib/season/engine.ts`, `engine.test.ts`, `scripts/season-print.mjs`. **Gate:** phases and verdicts look right on Travis's real races.
 3. **Schema + read-only year view** behind `season_planner`. **Gate:** visual review.
 4. **Editing:** built — add, move, re-prioritize, block focus, remove, debounced save, event log. Rebuild block deferred. **Gate:** no date shifts in America/Denver vs UTC (edits tests pass under Denver, UTC and UTC+14); re-plan well under 100 ms.
-5. **Coach panel.** **Gate:** 10 sample replies across On track / Tight / Conflict.
+5. **Coach panel:** built: ask on request, a "since we last talked" list, Reset, logging. **Gate:** 10 sample replies across On track / Tight / Conflict (`node scripts/season-coach-samples.mjs`).
 6. **Race search.** **Gate:** 5 real searches.
 
 ## Acceptance tests

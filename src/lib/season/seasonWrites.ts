@@ -14,6 +14,7 @@
 import { supabase } from '../supabase';
 import { deleteRaceEntry, syncRaceEntry, type RaceGoalFields } from '../calendar/raceEntrySync';
 import type { MutationResult } from '../calendar/calendarMutations';
+import type { DiscussedSnapshot } from './coachPayload';
 import type { SeasonEventDraft } from './edits';
 import type { RaceGoalRow } from './view';
 
@@ -116,4 +117,23 @@ export async function logSeasonEvents(userId: string, planId: string, drafts: Se
     })),
   );
   if (error) console.error('[season] could not log plan events:', error.message);
+}
+
+/**
+ * After a coach reply: this version of the season becomes the baseline the
+ * next conversation is compared with, and the one Reset puts races back to.
+ */
+export async function saveDiscussedSnapshot(
+  userId: string,
+  planId: string,
+  snapshot: DiscussedSnapshot,
+): Promise<MutationResult<string>> {
+  const discussedAt = new Date().toISOString();
+  const { error } = await supabase
+    .from('season_plans')
+    .update({ discussed_snapshot: snapshot, discussed_at: discussedAt })
+    .eq('id', planId)
+    .eq('user_id', userId);
+  if (error) return { success: false, error: `Couldn't save what you discussed: ${error.message}` };
+  return { success: true, data: discussedAt };
 }
