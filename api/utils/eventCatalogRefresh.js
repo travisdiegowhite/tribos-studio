@@ -1,5 +1,5 @@
 /**
- * Weekly refresh of event_catalog (Train → Events) — used by api/event-catalog-refresh.js.
+ * Weekly refresh of event_catalog (Train → Find an event) — used by api/event-catalog-refresh.js.
  *
  * Most seeded dates are projections ('est': last year's date moved to the same
  * weekday). Organizers publish their next date between roughly December and

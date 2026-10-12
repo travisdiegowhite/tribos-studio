@@ -71,7 +71,7 @@ function TrainingDashboard() {
   const isMobile = useMediaQuery('(max-width: 768px)');
   const [loading, setLoading] = useState(true);
 
-  // Six tabs (Calendar · Season · Events · Coach · Progress · Rides); old ?tab= values
+  // Six tabs (Calendar · Season · Coach · Progress · Rides · Find an event); old ?tab= values
   // redirect through resolveTrainTab (src/components/train/trainTabs.ts).
   const urlTabState = resolveTrainTab(searchParams);
   const urlTabKey = `${urlTabState.tab}|${urlTabState.view}|${urlTabState.browse}`;
@@ -1108,13 +1108,6 @@ function TrainingDashboard() {
               </Suspense>
             )}
 
-            {/* EVENTS TAB — the event catalog; add an event to the season */}
-            {activeTab === 'events' && (
-              <Suspense fallback={null}>
-                <EventsTab isImperial={isImperial} />
-              </Suspense>
-            )}
-
             {/* COACH TAB */}
             {activeTab === 'coach' && (
               <CheckInPage
@@ -1185,6 +1178,13 @@ function TrainingDashboard() {
                   />
                 )}
               </Stack>
+            )}
+
+            {/* FIND AN EVENT TAB — the event catalog; add an event to the season */}
+            {activeTab === 'events' && (
+              <Suspense fallback={null}>
+                <EventsTab isImperial={isImperial} />
+              </Suspense>
             )}
           </Box>
         </Stack>

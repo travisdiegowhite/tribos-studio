@@ -1,5 +1,5 @@
 /**
- * Train → Events: the curated event catalog (event_catalog, migrations 130/131).
+ * Train → Find an event: the curated event catalog (event_catalog, migrations 130/131).
  *
  * The catalog is small (hundreds of rows), so the tab loads every upcoming
  * event once and filters in the browser. Dates are plain calendar days: they

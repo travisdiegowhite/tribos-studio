@@ -1,6 +1,6 @@
-# Event catalog (Train → Events)
+# Event catalog (Train → Find an event)
 
-Oct 12, 2026. A browsable list of public events on `/train?tab=events`. A rider filters it, opens the event site, and adds an event to their season through the normal race form.
+Oct 12, 2026. A browsable list of public events on `/train?tab=events`, the last tab, labelled **Find an event**. A rider filters it, opens the event site, and adds an event to their season through the normal race form.
 
 ## Pieces
 

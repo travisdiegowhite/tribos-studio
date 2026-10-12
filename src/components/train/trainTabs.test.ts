@@ -5,7 +5,7 @@ const r = (q: string) => resolveTrainTab(new URLSearchParams(q));
 
 describe('resolveTrainTab', () => {
   it('reads the six tabs', () => {
-    for (const tab of ['calendar', 'season', 'events', 'coach', 'progress', 'rides']) {
+    for (const tab of ['calendar', 'season', 'coach', 'progress', 'rides', 'events']) {
       expect(r(`tab=${tab}`)).toEqual({ tab, view: null, browse: false });
     }
   });

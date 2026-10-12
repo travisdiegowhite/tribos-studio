@@ -220,7 +220,7 @@ The codebase is **gradually migrating from JavaScript to TypeScript**. New code 
 | `/dashboard` | Main dashboard | Protected |
 | `/routes/new` | Route builder | Protected |
 | `/routes/:routeId` | Edit existing route | Protected |
-| `/train` | Training: Calendar · Season · Events · Coach · Progress · Rides (`?tab=`; old tab names redirect via `src/components/train/trainTabs.ts`) | Protected |
+| `/train` | Training: Calendar · Season · Coach · Progress · Rides · Find an event (`?tab=`; old tab names redirect via `src/components/train/trainTabs.ts`) | Protected |
 | `/planner`, `/training`, `/progress` | Redirects into `/train` (`/progress` → `?tab=progress`) | Protected |
 | `/community` | Community (pods, cafe) | Protected |
 | `/gear` | Gear tracking | Protected |
