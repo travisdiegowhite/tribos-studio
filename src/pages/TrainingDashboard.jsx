@@ -1049,8 +1049,8 @@ function TrainingDashboard() {
           />
           )}
 
-          {/* The ride map: newest GPS ride by default, or the RIDES pick. Calendar and Rides only. */}
-          {mapSel.ride && (activeTab === 'calendar' || activeTab === 'rides') && (
+          {/* The ride map: newest GPS ride by default, or the RIDES pick. Rides tab only. */}
+          {mapSel.ride && activeTab === 'rides' && (
             <div ref={mapCardRef}>
               <RideMapCard
                 ride={mapSel.ride}
@@ -1059,7 +1059,7 @@ function TrainingDashboard() {
                 formatElevation={formatElev}
                 formatTime={formatTime}
                 title={
-                  activeTab === 'rides' ? (rideView === 'repeats' ? 'Anchor ride' : 'Selected ride') : 'Latest ride'
+                  rideView === 'repeats' ? 'Anchor ride' : 'Selected ride'
                 }
                 hasNewer={mapSel.hasNewer}
                 hasOlder={mapSel.hasOlder}
