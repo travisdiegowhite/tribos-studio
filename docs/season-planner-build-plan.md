@@ -300,7 +300,7 @@ After the six phases, `/train` was cut from ten tabs to five:
 
 | Tab | What's in it | Old `?tab=` values that redirect here |
 |---|---|---|
-| Calendar | the calendar, plus the plan-week card and the ride map; training plans open in a drawer (header menu, or `browse=1`) | `calendar`, `browse` |
+| Calendar | the calendar and the plan-week card (the ride map lives on Rides); training plans open in a drawer (header menu, or `browse=1`) | `calendar`, `browse` |
 | Season | the season planner, for everyone (the `season_planner` flag and the feature-flag module are gone); the **Race details** view is the former Race tab | `season`, `race` |
 | Coach | the check-in | `coach` |
 | Progress | fitness (load chart, ramp rate, health, durability, records), the former `/progress` page's zones, key trends, year to date and segments, then power and insights | `trends`, `power`, `insights`; `/progress` |
