@@ -55,6 +55,7 @@ import SecondaryNavBar from '../components/train/SecondaryNavBar.jsx';
 
 // Season planner (behind the season_planner flag): loaded only when opened.
 const SeasonTab = lazy(() => import('../components/season/SeasonTab'));
+const EventsTab = lazy(() => import('../components/train/EventsTab'));
 import RideMapCard from '../components/train/RideMapCard.jsx';
 import RepeatsTab from '../components/train/RepeatsTab.jsx';
 import { rideHasGps, selectGpsRide } from '../utils/rideGeo';
@@ -70,7 +71,7 @@ function TrainingDashboard() {
   const isMobile = useMediaQuery('(max-width: 768px)');
   const [loading, setLoading] = useState(true);
 
-  // Five tabs (Calendar · Season · Coach · Progress · Rides); old ?tab= values
+  // Six tabs (Calendar · Season · Events · Coach · Progress · Rides); old ?tab= values
   // redirect through resolveTrainTab (src/components/train/trainTabs.ts).
   const urlTabState = resolveTrainTab(searchParams);
   const urlTabKey = `${urlTabState.tab}|${urlTabState.view}|${urlTabState.browse}`;
@@ -1104,6 +1105,13 @@ function TrainingDashboard() {
                   formatDist={formatDist}
                   formatElev={formatElev}
                 />
+              </Suspense>
+            )}
+
+            {/* EVENTS TAB — the event catalog; add an event to the season */}
+            {activeTab === 'events' && (
+              <Suspense fallback={null}>
+                <EventsTab isImperial={isImperial} />
               </Suspense>
             )}
 

@@ -71,6 +71,10 @@
     {
       "path": "/api/evidence-weekly?action=compute-weekly",
       "schedule": "0 4 * * 1"
+    },
+    {
+      "path": "/api/event-catalog-refresh",
+      "schedule": "0 5 * * 1"
     }
   ],
   "functions": {
@@ -121,6 +125,9 @@
     },
     "api/evidence-weekly.js": {
       "maxDuration": 60
+    },
+    "api/event-catalog-refresh.js": {
+      "maxDuration": 300
     }
   },
   "rewrites": [

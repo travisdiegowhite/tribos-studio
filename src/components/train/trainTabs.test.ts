@@ -4,8 +4,8 @@ import { resolveTrainTab, trainHref } from './trainTabs';
 const r = (q: string) => resolveTrainTab(new URLSearchParams(q));
 
 describe('resolveTrainTab', () => {
-  it('reads the five tabs', () => {
-    for (const tab of ['calendar', 'season', 'coach', 'progress', 'rides']) {
+  it('reads the six tabs', () => {
+    for (const tab of ['calendar', 'season', 'events', 'coach', 'progress', 'rides']) {
       expect(r(`tab=${tab}`)).toEqual({ tab, view: null, browse: false });
     }
   });
@@ -29,6 +29,7 @@ describe('resolveTrainTab', () => {
     expect(r('tab=rides&view=repeats').view).toBe('repeats');
     expect(r('tab=season&view=race').view).toBe('race');
     expect(r('tab=coach&view=race').view).toBeNull();
+    expect(r('tab=events&view=race').view).toBeNull();
     expect(r('tab=calendar&browse=1').browse).toBe(true);
     expect(r('tab=coach&browse=1').browse).toBe(false);
   });
