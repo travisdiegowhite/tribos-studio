@@ -12,6 +12,8 @@
  * lower bounds are inclusive and a value below every lower bound is Z1.
  */
 
+import { getRouteZoneColor } from '../components/ui/zoneColors';
+
 export interface ZoneDef {
   zone: number;
   name: string;
@@ -63,19 +65,13 @@ export function hrZoneFor(bpm: number | null | undefined, maxHr: number | null |
 }
 
 /**
- * Zone colors as shown on the training dashboard's Power tab. One list for
- * every surface that paints a zone, so Z4 is the same orange on the map,
- * the strip chart and the tab.
+ * Zone colors for every surface that paints a ride zone (the ride map's
+ * power/HR modes and their legend). They come from the brand zone palette in
+ * src/components/ui/zoneColors.js (cyan, ultramarine, lime, magenta, ink,
+ * deep magenta, graphite) so Z4 is the same magenta on the map as in the
+ * Progress tab's Power section. No orange or red.
  */
-export const ZONE_COLORS: readonly string[] = [
-  '#51cf66', // Z1 Recovery — green
-  '#4dabf7', // Z2 Endurance — blue
-  '#ffd43b', // Z3 Tempo — yellow
-  '#ff922b', // Z4 Threshold — orange
-  '#ff6b6b', // Z5 VO2max — red
-  '#cc5de8', // Z6 Anaerobic — grape
-  '#862e9c', // Z7 Neuromuscular — dark grape
-];
+export const ZONE_COLORS: readonly string[] = [1, 2, 3, 4, 5, 6, 7].map((z) => getRouteZoneColor(z));
 
 export function zoneColor(zone: number): string {
   return ZONE_COLORS[Math.min(ZONE_COLORS.length, Math.max(1, zone)) - 1];

@@ -53,8 +53,9 @@ describe('zoneLowerBound', () => {
 describe('zoneColor', () => {
   it('has one color per power zone and clamps out-of-range zones', () => {
     expect(ZONE_COLORS).toHaveLength(POWER_ZONE_DEFS.length);
-    expect(zoneColor(1)).toBe('#51cf66');
-    expect(zoneColor(7)).toBe('#862e9c');
+    expect(zoneColor(1)).toBe('#00C2FF');
+    expect(zoneColor(7)).toBe('#5E5E6E');
+    expect(new Set(ZONE_COLORS).size).toBe(ZONE_COLORS.length);
     expect(zoneColor(0)).toBe(zoneColor(1));
     expect(zoneColor(9)).toBe(zoneColor(7));
   });

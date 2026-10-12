@@ -1,5 +1,4 @@
-import React from 'react';
-import { Paper, Stack, Text, Button, ThemeIcon, Group } from '@mantine/core';
+import { Box, Stack, Text, Button, Group } from '@mantine/core';
 import { useNavigate } from 'react-router-dom';
 import { Calendar, FileText, Heartbeat, MapTrifold, Path, TrendUp, UploadSimple, Users } from '@phosphor-icons/react';
 
@@ -11,7 +10,6 @@ import { Calendar, FileText, Heartbeat, MapTrifold, Path, TrendUp, UploadSimple,
 const EMPTY_STATE_CONFIGS = {
   noRides: {
     icon: UploadSimple,
-    iconColor: 'teal',
     title: 'No Rides Yet',
     description: 'Connect your devices to sync activities, or upload FIT files to get started.',
     primaryAction: {
@@ -22,7 +20,6 @@ const EMPTY_STATE_CONFIGS = {
   },
   noRoutes: {
     icon: Path,
-    iconColor: 'blue',
     title: 'No Routes Yet',
     description: 'Create your first route or import your ride history.',
     primaryAction: {
@@ -36,7 +33,6 @@ const EMPTY_STATE_CONFIGS = {
   },
   noTrainingData: {
     icon: TrendUp,
-    iconColor: 'green',
     title: 'Not Enough Data',
     description: 'Sync at least 2 weeks of rides to see your training metrics and trends.',
     primaryAction: {
@@ -47,7 +43,6 @@ const EMPTY_STATE_CONFIGS = {
   },
   noTrainingPlan: {
     icon: Calendar,
-    iconColor: 'violet',
     title: 'No Training Plan',
     description: 'Create a personalized training plan to reach your cycling goals.',
     primaryAction: {
@@ -58,7 +53,6 @@ const EMPTY_STATE_CONFIGS = {
   },
   noWorkouts: {
     icon: Heartbeat,
-    iconColor: 'orange',
     title: 'No Workouts Scheduled',
     description: 'Your upcoming workouts will appear here.',
     primaryAction: {
@@ -69,29 +63,42 @@ const EMPTY_STATE_CONFIGS = {
   },
   noMessages: {
     icon: Users,
-    iconColor: 'cyan',
     title: 'No Messages',
     description: 'Connect with a coach to receive personalized guidance and workouts.',
     secondaryText: 'Messages from your coach will appear here.',
   },
   noSearchResults: {
     icon: FileText,
-    iconColor: 'gray',
     title: 'No Results Found',
     description: 'Try adjusting your search or filters.',
   },
   generic: {
     icon: MapTrifold,
-    iconColor: 'gray',
     title: 'Nothing Here Yet',
     description: 'Check back later or take an action to add data.',
   },
 };
 
+const display = {
+  fontFamily: 'var(--font-display)',
+  fontWeight: 900,
+  textTransform: 'uppercase',
+  letterSpacing: '0.01em',
+  // The condensed face's space is narrow; keep multi-word titles readable.
+  wordSpacing: '0.18em',
+  lineHeight: 1.05,
+};
+
+/**
+ * Flat, ruled empty state (CLAUDE.md "Design System"): no blob, no gradient,
+ * no shadow, radius 0. `iconColor` is still accepted for older callers but
+ * ignored — the icon is muted ink, like the rest of the system.
+ */
 const EmptyState = ({
   type,
   icon: CustomIcon,
-  iconColor = 'gray',
+  // eslint-disable-next-line no-unused-vars
+  iconColor,
   title,
   description,
   primaryAction,
@@ -106,7 +113,6 @@ const EmptyState = ({
 
   const config = type ? EMPTY_STATE_CONFIGS[type] : null;
   const Icon = CustomIcon || config?.icon || MapTrifold;
-  const finalIconColor = iconColor || config?.iconColor || 'gray';
   const finalTitle = title || config?.title || 'No Data';
   const finalDescription = description || config?.description || '';
   const finalPrimaryAction = primaryAction || config?.primaryAction;
@@ -114,9 +120,9 @@ const EmptyState = ({
   const finalSecondaryText = secondaryText || config?.secondaryText;
 
   const sizes = {
-    sm: { iconSize: 32, themeIconSize: 48, titleSize: 'md', textSize: 'sm', padding: 'md', gap: 'sm' },
-    md: { iconSize: 40, themeIconSize: 64, titleSize: 'lg', textSize: 'md', padding: 'xl', gap: 'md' },
-    lg: { iconSize: 48, themeIconSize: 80, titleSize: 'xl', textSize: 'md', padding: '2rem', gap: 'lg' },
+    sm: { iconSize: 24, titleSize: 16, padding: 16, gap: 8 },
+    md: { iconSize: 28, titleSize: 20, padding: 24, gap: 12 },
+    lg: { iconSize: 32, titleSize: 24, padding: 32, gap: 14 },
   };
   const sizeConfig = sizes[size] || sizes.md;
 
@@ -137,33 +143,22 @@ const EmptyState = ({
   };
 
   return (
-    <Paper
-      p={sizeConfig.padding}
-      radius="md"
-      withBorder
+    <Box
       style={{
-        textAlign: 'center',
-        borderStyle: 'dashed',
-        borderColor: 'rgba(255, 255, 255, 0.1)',
-        backgroundColor: 'rgba(0, 0, 0, 0.1)',
+        border: '1px solid var(--color-border)',
+        backgroundColor: 'var(--color-card)',
+        padding: sizeConfig.padding,
       }}
     >
-      <Stack align="center" gap={sizeConfig.gap}>
-        <ThemeIcon
-          size={sizeConfig.themeIconSize}
-          radius="xl"
-          variant="light"
-          color={finalIconColor}
-        >
-          <Icon size={sizeConfig.iconSize} />
-        </ThemeIcon>
+      <Stack align="flex-start" gap={sizeConfig.gap}>
+        <Icon size={sizeConfig.iconSize} style={{ color: 'var(--color-text-muted)' }} aria-hidden />
 
         <div>
-          <Text fw={600} size={sizeConfig.titleSize} mb={4}>
+          <Text style={{ ...display, fontSize: sizeConfig.titleSize }} mb={6}>
             {finalTitle}
           </Text>
           {finalDescription && (
-            <Text c="dimmed" size={sizeConfig.textSize} maw={400} mx="auto">
+            <Text size="sm" c="var(--color-text-secondary)" maw={460}>
               {finalDescription}
             </Text>
           )}
@@ -172,19 +167,12 @@ const EmptyState = ({
         {(finalPrimaryAction || finalSecondaryAction) && (
           <Group gap="sm">
             {finalPrimaryAction && (
-              <Button
-                variant="gradient"
-                gradient={{ from: 'teal', to: 'cyan' }}
-                onClick={handlePrimaryClick}
-              >
+              <Button radius={0} size="sm" onClick={handlePrimaryClick}>
                 {finalPrimaryAction.label}
               </Button>
             )}
             {finalSecondaryAction && (
-              <Button
-                variant="light"
-                onClick={handleSecondaryClick}
-              >
+              <Button radius={0} size="sm" variant="outline" onClick={handleSecondaryClick}>
                 {finalSecondaryAction.label}
               </Button>
             )}
@@ -192,12 +180,12 @@ const EmptyState = ({
         )}
 
         {finalSecondaryText && (
-          <Text size="xs" c="dimmed" maw={350}>
+          <Text size="xs" c="var(--color-text-muted)" maw={420}>
             {finalSecondaryText}
           </Text>
         )}
       </Stack>
-    </Paper>
+    </Box>
   );
 };
 
