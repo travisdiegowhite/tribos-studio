@@ -2,13 +2,13 @@
  * /train tabs and the redirects from the old ones.
  *
  * Five tabs since the 2026-10 training cleanup (docs/season-planner-build-plan.md,
- * "Training section cleanup"), plus Events (the event catalog, docs/event-catalog.md).
+ * "Training section cleanup"), plus Find an event (?tab=events, the event catalog, docs/event-catalog.md).
  * Old ?tab= values keep working through
  * LEGACY_TABS, so bookmarks and links from Today, onboarding and the ride modal
  * still land on the right place.
  */
 
-export const TRAIN_TABS = ['calendar', 'season', 'events', 'coach', 'progress', 'rides'] as const;
+export const TRAIN_TABS = ['calendar', 'season', 'coach', 'progress', 'rides', 'events'] as const;
 export type TrainTab = (typeof TRAIN_TABS)[number];
 
 /** Sub-views inside a tab: Season's race details, Rides' repeats. */
@@ -17,10 +17,10 @@ export type TrainView = 'race' | 'repeats' | null;
 export const TRAIN_TAB_LABELS: Record<TrainTab, string> = {
   calendar: 'Calendar',
   season: 'Season',
-  events: 'Events',
   coach: 'Coach',
   progress: 'Progress',
   rides: 'Rides',
+  events: 'Find an event',
 };
 
 const LEGACY_TABS: Record<string, { tab: TrainTab; view?: TrainView; browse?: boolean }> = {

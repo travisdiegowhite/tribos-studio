@@ -1,5 +1,5 @@
 /**
- * Train → Events: browse the curated event catalog and add an event to the season.
+ * Train → Find an event: browse the curated event catalog and add an event to the season.
  *
  * Reads event_catalog (migrations 130/131), which a weekly cron re-checks
  * against organizer sites (api/event-catalog-refresh.js). Every date carries
@@ -229,7 +229,7 @@ export default function EventsTab({ isImperial = false }: { isImperial?: boolean
       <Group justify="space-between" align="flex-end" wrap="wrap" gap="sm">
         <Box>
           <Text component="h2" m={0} style={{ ...display, fontSize: 32 }}>
-            Events
+            Find an event
           </Text>
           <Text size="sm" c="var(--color-text-secondary)" mt={6}>
             US gravel events for the coming season. Most dates are estimates from last year until the organizer

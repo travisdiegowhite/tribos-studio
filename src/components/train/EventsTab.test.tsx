@@ -76,7 +76,7 @@ describe('EventsTab', () => {
   it('lists events by month with each date’s status', async () => {
     renderTab();
     expect(await screen.findByText('Rock Cobbler')).toBeInTheDocument();
-    expect(screen.getAllByRole('heading').map((h) => h.textContent)).toEqual(['Events', 'February 2027', 'April 2027']);
+    expect(screen.getAllByRole('heading').map((h) => h.textContent)).toEqual(['Find an event', 'February 2027', 'April 2027']);
     expect(screen.getByText('Est. from 2026')).toBeInTheDocument();
     expect(screen.getAllByText('Confirmed')).toHaveLength(2);
     expect(screen.getByText('3 of 3 events')).toBeInTheDocument();

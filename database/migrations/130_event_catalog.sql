@@ -1,4 +1,4 @@
--- Migration 130: Event catalog — a browsable list of public events (Train → Events).
+-- Migration 130: Event catalog — a browsable list of public events (Train → Find an event).
 --
 -- Seeded from a researched dataset (US gravel events 2027, migration 131) and
 -- kept fresh by a weekly cron (api/event-catalog-refresh.js) that re-checks
@@ -53,7 +53,7 @@ CREATE INDEX IF NOT EXISTS idx_event_catalog_state ON public.event_catalog(state
 CREATE INDEX IF NOT EXISTS idx_event_catalog_refresh ON public.event_catalog(date_status, last_checked_at NULLS FIRST);
 
 COMMENT ON TABLE public.event_catalog IS
-  'Train → Events: curated public events. Seeded by migration 131, refreshed weekly by api/event-catalog-refresh.js. Athletes read only.';
+  'Train → Find an event: curated public events. Seeded by migration 131, refreshed weekly by api/event-catalog-refresh.js. Athletes read only.';
 COMMENT ON COLUMN public.event_catalog.date_status IS
   'confirmed: published by the organizer or registration site; partial: month known or third-party date only; est: projected from previous_date (same weekday, one year on); risk: recently cancelled or no sign of plans. Never present est as official.';
 

@@ -1,4 +1,4 @@
-// Vercel API Route: weekly refresh of event_catalog (Train → Events).
+// Vercel API Route: weekly refresh of event_catalog (Train → Find an event).
 //
 // GET (cron, Mondays 05:00 UTC)  → re-check a batch of unconfirmed upcoming
 //     events on the web and apply verified dates. See api/utils/eventCatalogRefresh.js.
