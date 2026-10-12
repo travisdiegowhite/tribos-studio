@@ -227,7 +227,7 @@ const URL_IN_TEXT = /https?:\/\/[^\s"'<>()\]\[]+/g;
  * `url` fields, and URLs inside text. With dynamic filtering the results often
  * arrive as code-execution output (stdout text), not as url fields.
  */
-export function collectSourceUrls(content) {
+export function collectSourceUrls(content, reportTool = REPORT_RACES_TOOL.name) {
   const urls = new Set();
   const walk = (node) => {
     if (typeof node === 'string') {
@@ -242,13 +242,13 @@ export function collectSourceUrls(content) {
     }
   };
   for (const block of content ?? []) {
-    if (block?.type === 'tool_use' && block.name === REPORT_RACES_TOOL.name) continue;
+    if (block?.type === 'tool_use' && block.name === reportTool) continue;
     walk(block);
   }
   return urls;
 }
 
-function hostOf(url) {
+export function hostOf(url) {
   try {
     return new URL(url).hostname.replace(/^www\./, '').toLowerCase();
   } catch {
