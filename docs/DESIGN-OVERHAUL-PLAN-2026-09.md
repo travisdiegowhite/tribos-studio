@@ -71,6 +71,7 @@ Each phase is one PR, shipped to everyone. There is no feature gate: this is a p
   - The "plan that bends" week ledger as a taped Courier sheet, with a moved-session marker note.
   - The coach quote on a lime block.
   - A footer with the line (from Travis): "Travis makes tribos, built on ideas while riding Boulder County roads."
+- **2026-10: back at `/`.** Signed-out visitors at `/` now get this page instead of being dropped into the route builder (signed-in users still go to `/today`); `/welcome` renders the same page. The hero leads with the all-in-one pitch ("Your cycling, all in one place") and keeps "Build a route · No account needed" as the primary CTA, with sign-up secondary. New sections: `FeatureGrid` (routes, calendar, coach, sync, progress, garage), `HowItWorks` (three steps) and a closing `FinalCta`, around the existing ledger and coach quote.
 
 ### Phase 3 — Today (`src/views/today-spine/`), as `PodiumZine-Today` (built)
 

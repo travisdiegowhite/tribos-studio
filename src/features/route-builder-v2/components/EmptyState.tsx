@@ -2,10 +2,10 @@
  * EmptyState — Route Builder 2.0 empty state.
  *
  * Shown when no route is loaded. Suggests the form panel or chat as
- * the entry point. For guests (root now lands signed-out visitors
- * directly here, no landing page first), it also carries the one-line
- * identity + "no account needed" reassurance, with a link to the
- * marketing page at /welcome for anyone who wants the full pitch.
+ * the entry point. For guests (who arrive from the landing page's
+ * "Build a route" button or a direct link), it also carries the one-line
+ * identity + "no account needed" reassurance, with a link back to the
+ * landing page at /welcome for anyone who wants the full pitch.
  */
 
 import { Box, Text } from '@mantine/core';

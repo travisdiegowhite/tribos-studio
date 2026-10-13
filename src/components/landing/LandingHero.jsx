@@ -67,10 +67,11 @@ export default function LandingHero() {
     <section className="lp-wrap">
       <div className="lp-hero">
         <div style={{ display: 'flex', flexDirection: 'column', gap: 28, paddingTop: 16 }}>
-          <h1 className="lp-hero-title">Routes that fit the training you&rsquo;re actually doing.</h1>
+          <h1 className="lp-hero-title">Your cycling, all in one place.</h1>
           <p className="lp-lede">
-            Tell tribos how the week has gone. It picks today&rsquo;s session, then draws a road to
-            ride it on: climbs where the intervals go, quiet lanes on recovery days.
+            Routes, a training calendar, every ride synced and a coach that reads all of it.
+            tribos picks today&rsquo;s session, then draws a road to ride it on: climbs where the
+            intervals go, quiet lanes on recovery days.
           </p>
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 24, alignItems: 'center' }}>
             <Button component={Link} to="/ride/new" size="lg" className="lp-cta">
@@ -78,6 +79,10 @@ export default function LandingHero() {
             </Button>
             <span className="tribos-stamp">No account needed</span>
           </div>
+          <p className="lp-hero-alt">
+            Or <Link to="/auth?mode=signup">create a free account</Link> to sync your rides and
+            get a plan.
+          </p>
         </div>
 
         <figure className="lp-sheet" style={{ margin: 0 }}>

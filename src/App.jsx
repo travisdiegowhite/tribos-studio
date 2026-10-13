@@ -126,9 +126,9 @@ function RedirectGearToGarage() {
   return <Navigate to={`/garage${rest}${location.search}`} replace />;
 }
 
-// Root route — the product is the front door: signed-out visitors go
-// straight into the route builder (open to guests); signed-in users go to
-// /today. The marketing landing page lives at /welcome.
+// Root route — signed-out visitors get the landing page, which explains the
+// whole product and leads with the guest route builder; signed-in users go
+// to /today. /welcome renders the same page for anyone, signed in or out.
 function RootRoute() {
   const { isAuthenticated, loading } = useAuth();
 
@@ -151,7 +151,7 @@ function RootRoute() {
     return <Navigate to={returnTo || '/today'} replace />;
   }
 
-  return <RedirectToRideNew />;
+  return <Landing />;
 }
 
 // Public Route wrapper (redirects to today if already logged in)
@@ -194,9 +194,8 @@ function AppRoutes() {
   return (
     <Suspense fallback={<PageLoader />}>
     <Routes>
-      {/* Public routes. Root sends guests straight into the route builder;
-          the marketing landing page moved to /welcome (unguarded — viewable
-          signed in or out). */}
+      {/* Public routes. Root shows guests the landing page; /welcome is the
+          same page, unguarded (viewable signed in or out). */}
       <Route path="/" element={<RootRoute />} />
       <Route path="/welcome" element={<Landing />} />
       <Route path="/privacy" element={<PrivacyPolicy />} />

@@ -1,4 +1,4 @@
-/* ===== Landing Page (/welcome) — Podium palette on the zine layout =====
+/* ===== Landing Page (/ for guests, /welcome) — Podium palette on the zine layout =====
    Layout only; colours and type come from the global tokens. */
 
 .lp-shell {
@@ -154,6 +154,126 @@
 :root[data-mantine-color-scheme='dark'] .lp-overprint { mix-blend-mode: normal; }
 
 
+.lp-hero-alt {
+  margin: 0;
+  font-size: 15px;
+  color: var(--color-text-secondary);
+}
+
+.lp-hero-alt a {
+  color: var(--color-text-primary);
+  text-underline-offset: 3px;
+}
+
+.lp-h3 {
+  margin: 0;
+  font-family: var(--font-display);
+  font-weight: 900;
+  font-size: 26px;
+  line-height: 1;
+  text-transform: uppercase;
+  color: var(--color-ink);
+}
+
+/* ---- What's in tribos — a flat grid on rules ---- */
+.lp-features {
+  border-top: 1px solid var(--color-ink);
+  padding: 72px 0;
+  display: flex;
+  flex-direction: column;
+  gap: 40px;
+}
+
+.lp-feature-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  border-top: 1px solid var(--color-border);
+  border-left: 1px solid var(--color-border);
+}
+
+.lp-feature {
+  padding: 28px 28px 32px;
+  border-right: 1px solid var(--color-border);
+  border-bottom: 1px solid var(--color-border);
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.lp-feature p,
+.lp-step p {
+  margin: 0;
+  font-size: 16px;
+  line-height: 1.55;
+  color: var(--color-text-secondary);
+}
+
+.lp-feature-link {
+  margin-top: auto;
+  font-size: 15px;
+  color: var(--color-text-primary);
+  text-underline-offset: 3px;
+}
+
+.lp-feature-link:hover {
+  color: var(--color-signal-text);
+}
+
+/* ---- How it fits together — three numbered steps ---- */
+.lp-steps {
+  border-top: 1px solid var(--color-ink);
+  padding: 72px 0;
+  display: grid;
+  grid-template-columns: 380px minmax(0, 1fr);
+  gap: 64px;
+}
+
+.lp-step-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.lp-step {
+  display: grid;
+  grid-template-columns: 64px minmax(0, 1fr);
+  column-gap: 20px;
+  row-gap: 8px;
+  padding: 24px 0;
+  border-bottom: 1px dashed var(--color-ink-border-strong);
+}
+
+.lp-step:first-child { padding-top: 0; }
+
+.lp-step-num {
+  grid-row: span 2;
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  font-size: 32px;
+  line-height: 1;
+  color: var(--color-ink);
+}
+
+/* ---- Closing CTA ---- */
+.lp-cta-band {
+  border-top: 1px solid var(--color-ink);
+  padding: 72px 0 80px;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 32px;
+}
+
+.lp-cta-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 24px;
+}
+
 /* ---- Week ledger ---- */
 .lp-week {
   border-top: 1px solid var(--color-ink);
@@ -306,12 +426,17 @@
 @media (max-width: 900px) {
   .lp-hero,
   .lp-week,
+  .lp-steps,
   .lp-coach-inner {
     grid-template-columns: minmax(0, 1fr);
     gap: 40px;
   }
   .lp-hero { padding: 48px 0 64px; }
-  .lp-week { padding: 56px 0; }
+  .lp-week,
+  .lp-features,
+  .lp-steps { padding: 56px 0; }
+  .lp-cta-band { padding: 56px 0 64px; }
+  .lp-feature-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .lp-sheet { transform: none; }
   .lp-nav-links .lp-hide-narrow { display: none; }
   .lp-h2 { font-size: 34px; }
@@ -321,6 +446,9 @@
   .lp-nav-inner { gap: 16px; }
   .lp-nav-links { gap: 16px; }
   .lp-ledger .note-col { display: none; }
+  .lp-feature-grid { grid-template-columns: minmax(0, 1fr); }
+  .lp-feature { padding: 24px 20px 28px; }
+  .lp-wrap { padding-left: 16px; padding-right: 16px; }
 }
 
 /* ---- Reduced motion ---- */
