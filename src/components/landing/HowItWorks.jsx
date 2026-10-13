@@ -3,7 +3,7 @@
 const STEPS = [
   {
     title: 'Connect your rides',
-    body: 'Link Strava, Garmin, Wahoo or COROS. Your history comes in, and tribos learns what your fitness actually is.',
+    body: 'Link Strava, Garmin or Wahoo. Your history comes in, and tribos learns what your fitness actually is.',
   },
   {
     title: 'Set a goal',

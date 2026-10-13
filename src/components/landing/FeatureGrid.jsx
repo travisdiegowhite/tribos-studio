@@ -19,7 +19,7 @@ const FEATURES = [
   },
   {
     title: 'Sync',
-    body: 'Connect Strava, Garmin, Wahoo or COROS once. Every ride lands on its own, with power, heart rate and the route.',
+    body: 'Connect Strava, Garmin or Wahoo once. Every ride lands on its own, with power, heart rate and the route.',
   },
   {
     title: 'Progress',
