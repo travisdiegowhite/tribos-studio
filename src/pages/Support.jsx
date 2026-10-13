@@ -27,7 +27,7 @@ function Support() {
               <Path size={24} color={'var(--color-teal)'} />
               <Text
                 component={Link}
-                to="/welcome"
+                to="/"
                 fw={700}
                 size="lg"
                 style={{
@@ -41,7 +41,7 @@ function Support() {
             </Group>
             <Button
               component={Link}
-              to="/welcome"
+              to="/"
               variant="subtle"
               color="gray"
               leftSection={<ArrowLeft size={16} />}
