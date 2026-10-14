@@ -9,6 +9,8 @@
  * so Garmin FIT-computed training stress scores are used correctly.
  */
 
+import { isRunningActivityRow } from './sportTypes.js';
+
 // ─── EWA helpers ─────────────────────────────────────────────────────────────
 
 /**
@@ -48,7 +50,7 @@ export function estimateRSSCanonical(activity, ftp) {
   if (stored && stored > 0) return stored;
 
   // Running activities — separate estimation
-  if (['Run', 'VirtualRun', 'TrailRun'].includes(activity.type || '')) {
+  if (isRunningActivityRow(activity)) {
     return _estimateRunningRSS(activity);
   }
 
@@ -208,7 +210,7 @@ export async function computeTFIBreakdown(supabase, userId, throughDate) {
     supabase
       .from('activities')
       .select(
-        'id, name, type, start_date, moving_time, distance, ' +
+        'id, name, type, sport_type, start_date, moving_time, distance, ' +
         'total_elevation_gain, average_watts, average_heartrate, ' +
         'kilojoules, rss, tss, effective_power, normalized_power, ' +
         'is_hidden, duplicate_of'
@@ -268,7 +270,7 @@ export async function computeTFIBreakdown(supabase, userId, throughDate) {
 
       let tier = 5;
       if (rssStored ?? tssStored) tier = 1;
-      else if (['Run', 'VirtualRun', 'TrailRun'].includes(a.type)) tier = 2;
+      else if (isRunningActivityRow(a)) tier = 2;
       else if (ep ?? np) tier = 3;
       else if (kj) tier = 4;
 

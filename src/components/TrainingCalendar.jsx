@@ -23,7 +23,7 @@ import { useMediaQuery } from '@mantine/hooks';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
 import { WORKOUT_TYPES, WORKOUT_CATEGORY_PALETTE, TRAINING_PHASES, calculateTSS, estimateTSS } from '../utils/trainingPlans';
-import { isPowerSport } from '../utils/sportType';
+import { isPowerSport, getActivitySport } from '../utils/sportType';
 import { getWorkoutById } from '../data/workoutLibrary';
 import { resolvePlannedWorkoutShape } from '../lib/training/plannedWorkoutShape';
 import { tokens } from '../theme';
@@ -1536,17 +1536,9 @@ const TrainingCalendar = ({ activePlan, rides = [], formatDistance: formatDistan
 
                       {/* Completed activities */}
                       {dayRides.length > 0 && (() => {
-                        const RUNNING = ['Run', 'VirtualRun', 'TrailRun'];
-                        const CYCLING = ['Ride', 'VirtualRide', 'EBikeRide', 'GravelRide', 'MountainBikeRide'];
-                        const getSport = (r) => {
-                          if (r.sport_type === 'cycling' || r.sport_type === 'running') return r.sport_type;
-                          if (RUNNING.includes(r.type)) return 'running';
-                          if (CYCLING.includes(r.type)) return 'cycling';
-                          return 'other';
-                        };
-                        const rides = dayRides.filter(r => getSport(r) === 'cycling');
-                        const runs = dayRides.filter(r => getSport(r) === 'running');
-                        const others = dayRides.filter(r => getSport(r) === 'other');
+                        const rides = dayRides.filter(r => getActivitySport(r) === 'cycling');
+                        const runs = dayRides.filter(r => getActivitySport(r) === 'running');
+                        const others = dayRides.filter(r => getActivitySport(r) === 'other');
                         return (
                           <Tooltip label={dayRides.map(r => r.name || 'Activity').join(', ')}>
                             <Group gap={4}>

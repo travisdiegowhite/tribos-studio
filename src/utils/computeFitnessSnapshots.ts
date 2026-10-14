@@ -9,6 +9,7 @@
  */
 
 import { calculateTSS } from './trainingPlans';
+import { isRunningActivityRow } from '../../api/utils/sportTypes.js';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -43,10 +44,6 @@ export interface WeeklySnapshot {
   weekly_distance_km: number;
   weekly_elevation_m: number;
 }
-
-// ─── Constants ───────────────────────────────────────────────────────────────
-
-const RUNNING_TYPES = ['Run', 'VirtualRun', 'TrailRun'];
 
 // ─── TSS Estimation ──────────────────────────────────────────────────────────
 
@@ -126,7 +123,7 @@ export function estimateActivityTSS(
   if (storedRSS && storedRSS > 0) return storedRSS;
 
   // Tier 2: running-specific
-  if (RUNNING_TYPES.includes(activity.type || '')) {
+  if (isRunningActivityRow(activity)) {
     return estimateRunningTSS(activity);
   }
 
@@ -278,7 +275,7 @@ export function computeWeeklySnapshots(
       weekDistKm += (a.distance || 0) / 1000;
       weekElevM += a.total_elevation_gain || 0;
 
-      if (RUNNING_TYPES.includes(a.type || '')) {
+      if (isRunningActivityRow(a)) {
         weekRuns++;
       } else {
         weekRides++;

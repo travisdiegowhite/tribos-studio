@@ -51,7 +51,7 @@ const CYCLING_KEYS = new Set([
 /** Every spelling of "this was a run". */
 const RUNNING_KEYS = new Set([
   // Strava
-  'RUN', 'VIRTUALRUN', 'TRAILRUN',
+  'RUN', 'VIRTUALRUN', 'TRAILRUN', 'TREADMILLRUN', 'INDOORRUN',
   // Garmin
   'RUNNING', 'TRAILRUNNING', 'TREADMILLRUNNING', 'INDOORRUNNING', 'TRACKRUNNING',
   'OBSTACLERUN', 'STREETRUNNING', 'ULTRARUN',
@@ -106,6 +106,23 @@ export function sportTypeOfActivity(activity) {
   const fromSportType = getSportType(activity?.sport_type);
   if (fromSportType !== 'other') return fromSportType;
   return getSportType(activity?.type);
+}
+
+/**
+ * Row-level shorthands for the two questions callers actually ask. Use these
+ * (not a list of Strava names against `type`) anywhere a stored activity is
+ * bucketed by sport — the Strava-only lists missed every Garmin/COROS run.
+ *
+ * @param {{type?: string|null, sport_type?: string|null}} activity
+ * @returns {boolean}
+ */
+export function isRunningActivityRow(activity) {
+  return sportTypeOfActivity(activity) === 'running';
+}
+
+/** @see isRunningActivityRow */
+export function isCyclingActivityRow(activity) {
+  return sportTypeOfActivity(activity) === 'cycling';
 }
 
 /**

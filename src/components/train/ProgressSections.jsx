@@ -11,6 +11,7 @@ import { formatLocalDate } from '../../utils/dateUtils';
 import { translateCTL, translateTSB } from '../../lib/fitness/translate';
 import { ctlTooltip, tsbTooltip } from '../../lib/fitness/tooltips';
 import { useSegmentLibrary } from '../../hooks/useSegmentLibrary';
+import { isPowerSport } from '../../utils/sportType';
 import ZoneDistributionRow from '../progress/ZoneDistributionRow.jsx';
 import TrendInsightRow from '../progress/TrendInsightRow.jsx';
 import YearToDateStats from '../progress/YearToDateStats.jsx';
@@ -168,11 +169,11 @@ export function useProgressSectionsData() {
     const cutoff = new Date();
     cutoff.setDate(cutoff.getDate() - days);
 
-    const NON_CYCLING_TYPES = ['run', 'virtualrun', 'trailrun', 'swim', 'walk', 'hike'];
+    // Power zones only mean something for power sports — rides, or an
+    // unclassified activity whose device measured watts.
     const filtered = activities.filter(a => {
       if (new Date(a.start_date) < cutoff) return false;
-      const type = (a.sport_type || a.type || '').toLowerCase();
-      return !NON_CYCLING_TYPES.includes(type);
+      return isPowerSport(a);
     });
     if (filtered.length === 0) return { zones: [], totalTime: 0 };
 

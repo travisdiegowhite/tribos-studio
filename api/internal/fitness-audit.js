@@ -12,6 +12,7 @@
 
 import { supabase } from '../utils/supabaseAdmin.js';
 import { computeFitnessMetrics } from '../utils/computeFitnessMetrics.js';
+import { isRunningActivityRow } from '../utils/sportTypes.js';
 import { setupCors } from '../utils/cors.js';
 
 const AUDIT_EMAIL = 'travisdiegowhite@gmail.com';
@@ -81,7 +82,7 @@ export default async function handler(req, res) {
     const annotatedActivities = (activities || []).map(a => {
       let tier = 5;
       if (a.rss ?? a.tss) tier = 1;
-      else if (['Run', 'VirtualRun', 'TrailRun'].includes(a.type)) tier = 2;
+      else if (isRunningActivityRow(a)) tier = 2;
       else if (a.effective_power ?? a.normalized_power) tier = 3;
       else if (a.kilojoules) tier = 4;
       return { ...a, estimated_tier: tier };

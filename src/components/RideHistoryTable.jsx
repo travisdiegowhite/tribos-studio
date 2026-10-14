@@ -21,6 +21,7 @@ import { ViewOnStravaLink, StravaLogo, PoweredByStrava, STRAVA_ORANGE } from './
 import { PoweredByGarmin } from './GarminBranding';
 import { Bicycle, CaretLeft, CaretRight, ChartBar, Eye, EyeSlash, Funnel, MagnifyingGlass, Path, PersonSimpleRun, UploadSimple, Watch } from '@phosphor-icons/react';
 import { estimateActivityTSS } from '../utils/computeFitnessSnapshots';
+import { getActivitySport } from '../utils/sportType';
 import BikePickerMenu from './gear/BikePickerMenu.jsx';
 
 /** Soft teal wash for the row whose ride is on the map above the table. */
@@ -68,7 +69,9 @@ const RideHistoryTable = ({
   const isFromStrava = (r) => r.provider === 'strava';
   const getStravaActivityId = (r) => r.provider === 'strava' ? r.provider_activity_id : null;
   const getProvider = (r) => r.provider || 'manual';
-  const getSportType = (r) => r.sport_type || (r.type === 'Run' ? 'running' : 'cycling');
+  // 'other' (swims, walks, strength) is shown with the ride badge, as before,
+  // but no longer matches either sport filter.
+  const getSportType = (r) => getActivitySport(r);
 
   // Check if we have mixed sport types
   const hasMixedSports = rides.some(r => getSportType(r) === 'running') && rides.some(r => getSportType(r) === 'cycling');

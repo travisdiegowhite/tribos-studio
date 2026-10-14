@@ -2,6 +2,8 @@ import { describe, it, expect } from 'vitest';
 import {
   getSportType,
   sportTypeOfActivity,
+  isRunningActivityRow,
+  isCyclingActivityRow,
   isCyclingType,
   isRunningType,
   isSupportedActivityType,
@@ -108,6 +110,27 @@ describe('getSportType', () => {
     expect(getSportType(null)).toBe('other');
     expect(getSportType(undefined)).toBe('other');
     expect(getSportType('')).toBe('other');
+  });
+});
+
+describe('Strava indoor/treadmill run spellings', () => {
+  it('classifies them as running', () => {
+    for (const t of ['TreadmillRun', 'VirtualRun', 'IndoorRun']) {
+      expect(getSportType(t), t).toBe('running');
+    }
+  });
+});
+
+describe('isRunningActivityRow / isCyclingActivityRow', () => {
+  it('read whichever column says something', () => {
+    // The Strava-only RUNNING_TYPES check on `type` missed these rows.
+    expect(isRunningActivityRow({ sport_type: 'TREADMILL_RUNNING', type: 'Workout' })).toBe(true);
+    expect(isRunningActivityRow({ sport_type: 'running', type: null })).toBe(true);
+    expect(isRunningActivityRow({ type: 'TreadmillRun' })).toBe(true);
+    expect(isRunningActivityRow({ sport_type: 'ROAD_BIKING', type: 'Ride' })).toBe(false);
+    expect(isCyclingActivityRow({ sport_type: 'E_BIKE_FITNESS', type: 'Workout' })).toBe(true);
+    expect(isCyclingActivityRow({ sport_type: 'LAP_SWIMMING', type: 'Swim' })).toBe(false);
+    expect(isRunningActivityRow(null)).toBe(false);
   });
 });
 
