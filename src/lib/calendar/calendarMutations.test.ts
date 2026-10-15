@@ -486,3 +486,42 @@ describe('clearing the upcoming calendar', () => {
     expect(state.ops.some((o) => o.op === 'delete')).toBe(false);
   });
 });
+
+describe('two-a-days (multisport phase 3)', () => {
+  it('insertSessions puts a running plan session beside a ride, in slot 1', async () => {
+    state.rows = [{ id: 'ride', date: '2026-10-01', slot: 0, type: 'workout', title: 'Endurance', sport: 'cycling' }];
+    const r = await insertSessions('u1', [{ date: '2026-10-01', title: 'Easy Run', sport: 'running' }], {});
+    expect(r.data).toEqual({ inserted: 1, skipped: 0 });
+    const rows = lastOp('insert').payload as Array<Record<string, unknown>>;
+    expect(rows[0]).toMatchObject({ slot: 1, sport: 'running' });
+  });
+
+  it('insertSessions still skips a day that already has that sport', async () => {
+    state.rows = [{ id: 'run', date: '2026-10-01', slot: 0, type: 'workout', title: 'Run', workout_id: 'run_easy' }];
+    const r = await insertSessions('u1', [{ date: '2026-10-01', title: 'Tempo Run', sport: 'running' }], {});
+    expect(r.data).toEqual({ inserted: 0, skipped: 1 });
+  });
+
+  it('insertSessions infers a run from a running library id', async () => {
+    const r = await insertSessions('u1', [{ date: '2026-10-02', title: 'Easy', workout_id: 'run_easy_aerobic' }], {});
+    expect(r.success).toBe(true);
+    expect((lastOp('insert').payload as Array<Record<string, unknown>>)[0].sport).toBe('running');
+  });
+
+  it('upsertSessionOnDate replaces the day run, never its ride', async () => {
+    state.rows = [
+      { id: 'ride', date: '2026-10-01', slot: 0, type: 'workout', title: 'Endurance', sport: 'cycling' },
+      { id: 'run', date: '2026-10-01', slot: 1, type: 'workout', title: 'Easy Run', sport: 'running' },
+    ];
+    const r = await upsertSessionOnDate('u1', '2026-10-01', { title: 'Tempo Run', sport: 'running' }, {});
+    expect(r.replacedName).toBe('Easy Run');
+    expect(lastOp('update').filters).toContainEqual(['eq', 'id', 'run']);
+  });
+
+  it('upsertSessionOnDate adds a run beside a ride rather than replacing it', async () => {
+    state.rows = [{ id: 'ride', date: '2026-10-01', slot: 0, type: 'workout', title: 'Endurance', sport: 'cycling' }];
+    const r = await upsertSessionOnDate('u1', '2026-10-01', { title: 'Easy Run', sport: 'running' }, {});
+    expect(r.replacedName).toBeNull();
+    expect(lastOp('insert').payload).toMatchObject({ title: 'Easy Run', sport: 'running' });
+  });
+});

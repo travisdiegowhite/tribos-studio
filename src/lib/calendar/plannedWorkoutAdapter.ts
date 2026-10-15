@@ -39,7 +39,8 @@
  * reads races from here.
  */
 
-import type { CalendarEntry, CalendarEntryRow } from './getCalendarRange';
+import type { CalendarEntry, CalendarEntryRow, EntrySport } from './getCalendarRange';
+import { entrySport } from '../../../api/utils/entrySport.js';
 
 /** The row shape TrainingCalendar.jsx renders. */
 export interface PlannedWorkoutShape {
@@ -77,6 +78,11 @@ export interface PlannedWorkoutShape {
   /** Passed through so a generator knows not to overwrite an athlete's edit. */
   pinned: boolean;
   slot: number;
+  /**
+   * Stored sport (migration 134), else inferred from the row (entrySport.js).
+   * Null only for rest days and notes.
+   */
+  sport: EntrySport | null;
   /**
    * The row's detail JSON, passed through untouched. `details.prescription`
    * is the session's stored interval structure (see `StoredPrescription`).
@@ -147,6 +153,7 @@ export function toPlannedWorkoutShape(
     entry_type: entry.type,
     pinned: entry.pinned,
     slot: entry.slot,
+    sport: entrySport(entry) as EntrySport | null,
     details: entry.details ?? null,
   };
 }

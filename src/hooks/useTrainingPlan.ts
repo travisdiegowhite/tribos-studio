@@ -14,6 +14,7 @@ import { useState, useEffect, useCallback, useMemo } from 'react';
 import { supabase } from '../lib/supabase';
 import { getPlanTemplate } from '../data/trainingPlanTemplates';
 import { WORKOUT_LIBRARY, getWorkoutById } from '../data/workoutLibrary';
+import { getAnyWorkoutById } from '../data/workoutLookup';
 import {
   findOptimalSupplementDays,
   getSupplementWorkouts,
@@ -409,12 +410,16 @@ export function useTrainingPlan({
             const scheduledDate = new Date(startDate);
             scheduledDate.setDate(scheduledDate.getDate() + (weekNum - 1) * 7 + dayIndex);
 
-            // Get workout details if specified
-            const workout = dayPlan.workout ? getWorkoutById(dayPlan.workout) : null;
+            // Get workout details if specified — from either library, so a
+            // running plan's sessions get their names and loads too.
+            const workout = dayPlan.workout ? getAnyWorkoutById(dayPlan.workout) : null;
 
             workoutsToInsert.push({
               date: formatLocalDate(scheduledDate),
               type: dayPlan.workout ? 'workout' : 'rest',
+              // The plan's sport decides which day a session may share
+              // (insertSessions → calendarOccupancy). Rest days have none.
+              sport: dayPlan.workout ? (template.sportType === 'running' ? 'running' : 'cycling') : null,
               title: workout?.name || dayPlan.workout || 'Workout',
               workout_id: dayPlan.workout || null,
               workout_type: workout?.category || (dayPlan.workout ? null : 'rest'),
@@ -525,7 +530,7 @@ export function useTrainingPlan({
             const scheduledDate = new Date(startDate);
             scheduledDate.setDate(scheduledDate.getDate() + (weekNum - 1) * 7 + dayIndex);
 
-            const workout = dayPlan.workout ? getWorkoutById(dayPlan.workout) : null;
+            const workout = dayPlan.workout ? getAnyWorkoutById(dayPlan.workout) : null;
 
             initialWorkouts.push({
               originalDate: formatLocalDate(scheduledDate),
@@ -597,7 +602,8 @@ export function useTrainingPlan({
           workoutsToInsert.push({
             date: newDate,
             type: w.workoutType === 'rest' ? 'rest' : 'workout',
-            title: w.workoutId || 'Workout',
+            sport: w.workoutType === 'rest' ? null : (template.sportType === 'running' ? 'running' : 'cycling'),
+            title: getAnyWorkoutById(w.workoutId)?.name || w.workoutId || 'Workout',
             workout_id: w.workoutId,
             workout_type: w.workoutType,
             target_load: w.targetTSS,

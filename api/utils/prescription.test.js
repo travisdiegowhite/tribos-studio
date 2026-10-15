@@ -87,3 +87,34 @@ describe('withPrescription / readPrescription', () => {
     expect(readPrescription({ prescription: { intervals: [] } })).toBeNull();
   });
 });
+
+describe('normalizeIntervals — pace bands for runs (multisport phase 3)', () => {
+  const PACE = { repeats: 4, duration_min: 5, target_pct_threshold_pace_min: 95, target_pct_threshold_pace_max: 100, recovery_min: 2 };
+
+  it('stores a run set as a %threshold-pace band and drops watts', () => {
+    const { intervals, errors } = normalizeIntervals([{ ...PACE, target_watts_min: 200, target_watts_max: 220 }], 'intervals', 'running');
+    expect(errors).toEqual([]);
+    expect(intervals).toEqual([
+      { repeats: 4, duration_min: 5, target_pct_threshold_pace_min: 95, target_pct_threshold_pace_max: 100, recovery_min: 2 },
+    ]);
+  });
+
+  it('reads a pace-only set as a run when no sport is given', () => {
+    expect(normalizeIntervals([PACE]).intervals[0]).toHaveProperty('target_pct_threshold_pace_min', 95);
+  });
+
+  it('rejects a pace band outside 70-150, or reversed', () => {
+    expect(normalizeIntervals([{ ...PACE, target_pct_threshold_pace_max: 160 }], 'i', 'running').errors).toHaveLength(1);
+    expect(normalizeIntervals([{ ...PACE, target_pct_threshold_pace_min: 110 }], 'i', 'running').errors).toHaveLength(1);
+  });
+
+  it('still requires %FTP on a ride', () => {
+    expect(normalizeIntervals([PACE], 'i', 'cycling').errors.join(' ')).toMatch(/target_pct_ftp/);
+  });
+
+  it('records the basis on the stored prescription', () => {
+    expect(buildPrescription(normalizeIntervals([PACE], 'i', 'running').intervals, 'coach').basis).toBe('pace');
+    const ride = normalizeIntervals([{ repeats: 3, duration_min: 10, target_pct_ftp_min: 90, target_pct_ftp_max: 95, recovery_min: 5 }]);
+    expect(buildPrescription(ride.intervals, 'coach').basis).toBe('power');
+  });
+});

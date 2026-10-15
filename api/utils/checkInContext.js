@@ -18,6 +18,7 @@ import {
   fetchProprietaryMetrics,
 } from './contextHelpers.js';
 import { fetchPlannedSessions, fetchEntryById, fetchEntryByActivityId } from './calendarRead.js';
+import { sportTypeOfActivity } from './sportTypes.js';
 
 /**
  * Build a map of workout_id → annotation string from recent accepted decisions.
@@ -164,10 +165,15 @@ export async function resolvePlannedWorkoutForActivity(supabase, userId, activit
       types: ['workout'],
     });
     if (sameDay.length > 0) {
+      // On a two-session day, prefer the session of this activity's sport so
+      // a run's check-in is about the run, not the day's ride.
+      const sport = activity.type || activity.sport_type ? sportTypeOfActivity(activity) : null;
+      const ofSport = sport ? sameDay.filter((w) => w.sport === sport || w.sport === 'multi') : [];
+      const pool = ofSport.length > 0 ? ofSport : sameDay;
       return (
         sameDay.find((w) => w.activity_id === activity.id) ||
-        sameDay.find((w) => w.completed || w.activity_id) ||
-        sameDay[0]
+        pool.find((w) => w.completed || w.activity_id) ||
+        pool[0]
       );
     }
   }

@@ -149,3 +149,15 @@ describe('details passthrough', () => {
     expect(toPlannedWorkoutShape(entry()).details).toBeNull();
   });
 });
+
+describe('sport (migration 134)', () => {
+  it('passes a stored sport through', () => {
+    expect(toPlannedWorkoutShape(entry({ sport: 'running' })).sport).toBe('running');
+  });
+
+  it('infers it for a row written before the column existed', () => {
+    expect(toPlannedWorkoutShape(entry({ workout_id: 'run_tempo' })).sport).toBe('running');
+    expect(toPlannedWorkoutShape(entry()).sport).toBe('cycling');
+    expect(toPlannedWorkoutShape(entry({ type: 'rest' })).sport).toBeNull();
+  });
+});

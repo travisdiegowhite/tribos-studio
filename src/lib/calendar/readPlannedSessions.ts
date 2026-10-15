@@ -26,6 +26,7 @@
  */
 
 import { supabase } from '../supabase';
+import { selectWithSportFallback } from '../../../api/utils/calendarSportColumn.js';
 import { toDateKey } from '../../utils/dateUtils';
 import { toPlannedWorkoutShapes } from './plannedWorkoutAdapter';
 import type { PlannedWorkoutShape } from './plannedWorkoutAdapter';
@@ -64,7 +65,7 @@ const SELECT_COLUMNS =
   'target_load, target_duration_min, target_distance_km, ' +
   'actual_load, actual_duration_min, actual_distance_km, ' +
   'status, completed_at, skipped_reason, activity_id, notes, coach_rationale, ' +
-  'details, provenance, source, plan_id, generation_id, pinned';
+  'details, provenance, source, plan_id, generation_id, pinned, sport';
 
 /**
  * @returns Rows in the legacy `planned_workouts` field shape, or `[]` on error.
@@ -90,25 +91,24 @@ export async function fetchPlannedSessions(
     planStart = null,
   } = query;
 
-  let q = supabase
-    .from('calendar_entries')
-    .select(SELECT_COLUMNS)
-    .eq('user_id', userId);
-
   const fromKey = from ? toDateKey(from) : null;
   const toKey = to ? toDateKey(to) : null;
-  if (fromKey) q = q.gte('date', fromKey);
-  if (toKey) q = q.lte('date', toKey);
-  if (planId) q = q.eq('plan_id', planId);
-  if (types && types.length > 0) q = q.in('type', types);
-  else if (!includeRaces) q = q.neq('type', 'race');
-  if (!includeCompleted) q = q.neq('status', 'done');
 
-  // Slot is the tiebreaker within a day, the way the calendar renders them.
-  q = q.order('date', { ascending }).order('slot', { ascending: true });
-  if (typeof limit === 'number') q = q.limit(limit);
+  // Fail-soft on calendar_entries.sport (migration 134): see calendarSportColumn.js.
+  const { data, error } = await selectWithSportFallback(SELECT_COLUMNS, (columns: string) => {
+    let q = supabase.from('calendar_entries').select(columns).eq('user_id', userId);
+    if (fromKey) q = q.gte('date', fromKey);
+    if (toKey) q = q.lte('date', toKey);
+    if (planId) q = q.eq('plan_id', planId);
+    if (types && types.length > 0) q = q.in('type', types);
+    else if (!includeRaces) q = q.neq('type', 'race');
+    if (!includeCompleted) q = q.neq('status', 'done');
 
-  const { data, error } = await q;
+    // Slot is the tiebreaker within a day, the way the calendar renders them.
+    q = q.order('date', { ascending }).order('slot', { ascending: true });
+    if (typeof limit === 'number') q = q.limit(limit);
+    return q;
+  });
   if (error) {
     console.error('fetchPlannedSessions failed:', error.message);
     return [];
@@ -146,12 +146,14 @@ export async function fetchEntryById(
 ): Promise<PlannedWorkoutShape | null> {
   if (!userId || !entryId) return null;
 
-  const { data, error } = await supabase
-    .from('calendar_entries')
-    .select(SELECT_COLUMNS)
-    .eq('user_id', userId)
-    .eq('id', entryId)
-    .maybeSingle();
+  const { data, error } = await selectWithSportFallback(SELECT_COLUMNS, (columns: string) =>
+    supabase
+      .from('calendar_entries')
+      .select(columns)
+      .eq('user_id', userId)
+      .eq('id', entryId)
+      .maybeSingle(),
+  );
 
   if (error) {
     console.error('fetchEntryById failed:', error.message);

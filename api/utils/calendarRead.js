@@ -28,13 +28,15 @@
  */
 
 import { getSupabaseAdmin } from './supabaseAdmin.js';
+import { entrySport } from './entrySport.js';
+import { selectWithSportFallback } from './calendarSportColumn.js';
 
 const SELECT_COLUMNS =
   'id, user_id, date, slot, type, title, workout_id, workout_type, ' +
   'target_load, target_duration_min, target_distance_km, ' +
   'actual_load, actual_duration_min, actual_distance_km, ' +
   'status, completed_at, skipped_reason, activity_id, notes, coach_rationale, ' +
-  'details, provenance, source, plan_id, generation_id, pinned';
+  'details, provenance, source, plan_id, generation_id, pinned, sport';
 
 /** Day of week for a YYYY-MM-DD key, 0=Sun, stepped in UTC so DST cannot shift it. */
 function dayOfWeek(dateKey) {
@@ -99,6 +101,9 @@ export function toLegacyShape(entry, planStart = null) {
     status: entry.status,
     pinned: entry.pinned,
     slot: entry.slot,
+    // Stored sport (migration 134), else inferred from the row — never null
+    // for a workout or race, so callers can match on it.
+    sport: entrySport(entry),
     details: entry.details ?? null,
   };
 }
@@ -136,19 +141,19 @@ export async function fetchPlannedSessions(userId, query = {}) {
   } = query;
 
   const supabase = getSupabaseAdmin();
-  let q = supabase.from('calendar_entries').select(SELECT_COLUMNS).eq('user_id', userId);
+  const { data, error } = await selectWithSportFallback(SELECT_COLUMNS, (columns) => {
+    let q = supabase.from('calendar_entries').select(columns).eq('user_id', userId);
+    if (from) q = q.gte('date', from);
+    if (to) q = q.lte('date', to);
+    if (planId) q = q.eq('plan_id', planId);
+    if (Array.isArray(types) && types.length > 0) q = q.in('type', types);
+    else if (!includeRaces) q = q.neq('type', 'race');
+    if (!includeCompleted) q = q.neq('status', 'done');
 
-  if (from) q = q.gte('date', from);
-  if (to) q = q.lte('date', to);
-  if (planId) q = q.eq('plan_id', planId);
-  if (Array.isArray(types) && types.length > 0) q = q.in('type', types);
-  else if (!includeRaces) q = q.neq('type', 'race');
-  if (!includeCompleted) q = q.neq('status', 'done');
-
-  q = q.order('date', { ascending }).order('slot', { ascending: true });
-  if (typeof limit === 'number') q = q.limit(limit);
-
-  const { data, error } = await q;
+    q = q.order('date', { ascending }).order('slot', { ascending: true });
+    if (typeof limit === 'number') q = q.limit(limit);
+    return q;
+  });
   if (error) {
     console.error('fetchPlannedSessions failed:', error.message);
     return [];
@@ -173,12 +178,14 @@ export async function fetchEntryById(userId, entryId, planStart = null) {
   if (!userId || !entryId) return null;
 
   const supabase = getSupabaseAdmin();
-  const { data, error } = await supabase
-    .from('calendar_entries')
-    .select(SELECT_COLUMNS)
-    .eq('user_id', userId)
-    .eq('id', entryId)
-    .maybeSingle();
+  const { data, error } = await selectWithSportFallback(SELECT_COLUMNS, (columns) =>
+    supabase
+      .from('calendar_entries')
+      .select(columns)
+      .eq('user_id', userId)
+      .eq('id', entryId)
+      .maybeSingle(),
+  );
 
   if (error) {
     console.error('fetchEntryById failed:', error.message);
@@ -192,12 +199,14 @@ export async function fetchEntryByActivityId(userId, activityId) {
   if (!userId || !activityId) return null;
 
   const supabase = getSupabaseAdmin();
-  const { data, error } = await supabase
-    .from('calendar_entries')
-    .select(SELECT_COLUMNS)
-    .eq('user_id', userId)
-    .eq('activity_id', activityId)
-    .limit(1);
+  const { data, error } = await selectWithSportFallback(SELECT_COLUMNS, (columns) =>
+    supabase
+      .from('calendar_entries')
+      .select(columns)
+      .eq('user_id', userId)
+      .eq('activity_id', activityId)
+      .limit(1),
+  );
 
   if (error) {
     console.error('fetchEntryByActivityId failed:', error.message);

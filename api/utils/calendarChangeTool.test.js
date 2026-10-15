@@ -288,9 +288,14 @@ describe('intervals on an operation', () => {
     const itemProps = CALENDAR_CHANGE_TOOL.input_schema.properties.operations.items.properties;
     expect(itemProps.intervals.type).toBe('array');
     expect(itemProps.weekly_pattern.items.properties.intervals.type).toBe('array');
-    expect(itemProps.intervals.items.required).toEqual(
-      expect.arrayContaining(['repeats', 'duration_min', 'target_pct_ftp_min', 'target_pct_ftp_max', 'recovery_min']),
-    );
+    // The target band depends on the sport (%FTP for a ride, %threshold pace
+    // for a run), so the schema requires neither; validateOps enforces the
+    // right one per session.
+    expect(itemProps.intervals.items.required).toEqual(['repeats', 'duration_min', 'recovery_min']);
+    expect(itemProps.intervals.items.properties).toHaveProperty('target_pct_ftp_min');
+    expect(itemProps.intervals.items.properties).toHaveProperty('target_pct_threshold_pace_min');
+    expect(itemProps.sport.enum).toEqual(['cycling', 'running']);
+    expect(itemProps.weekly_pattern.items.properties.sport.enum).toEqual(['cycling', 'running']);
   });
 
   it('accepts a well-formed set on create, update and a pattern day', () => {
@@ -317,5 +322,48 @@ describe('intervals on an operation', () => {
     ], byHandle, ambiguous);
     expect(r.valid).toBe(false);
     expect(r.errors.join(' ')).toMatch(/operation 2, pattern day 1, intervals\[1\]: duration_min/);
+  });
+});
+
+describe('sport on an operation (multisport phase 3)', () => {
+  const { byHandle, ambiguous } = buildHandleMap([entry(), entry({ id: UUID_B, workout_id: 'run_tempo' })]);
+  const PACE = { repeats: 4, duration_min: 5, target_pct_threshold_pace_min: 95, target_pct_threshold_pace_max: 100, recovery_min: 2 };
+  const FTP = { repeats: 5, duration_min: 4, target_pct_ftp_min: 110, target_pct_ftp_max: 120, recovery_min: 4 };
+
+  it('accepts pace bands on a run and %FTP on a ride', () => {
+    const r = validateOps([
+      { op: 'create', date: '2026-09-08', title: 'Cruise intervals', sport: 'running', intervals: [PACE], reason: 'Threshold.' },
+      { op: 'create', date: '2026-09-08', title: 'VO2 5x4', sport: 'cycling', intervals: [FTP], reason: 'Top end.' },
+    ], byHandle, ambiguous);
+    expect(r.errors).toEqual([]);
+  });
+
+  it('rejects %FTP on a run, naming the pace band it wants', () => {
+    const r = validateOps([
+      { op: 'create', date: '2026-09-08', title: 'Run', sport: 'running', intervals: [FTP], reason: 'x' },
+    ], byHandle, ambiguous);
+    expect(r.valid).toBe(false);
+    expect(r.errors.join(' ')).toMatch(/target_pct_threshold_pace/);
+  });
+
+  it('validates against the athlete primary sport when the op names none', () => {
+    const op = { op: 'create', date: '2026-09-08', title: 'Run', intervals: [PACE], reason: 'x' };
+    expect(validateOps([op], byHandle, ambiguous, 'running').valid).toBe(true);
+    expect(validateOps([op], byHandle, ambiguous, 'cycling').valid).toBe(false);
+  });
+
+  it('validates an update against the entry own sport', () => {
+    const r = validateOps([
+      { op: 'update', handle: entryHandle(UUID_B), intervals: [PACE], reason: 'x' },
+    ], byHandle, ambiguous);
+    expect(r.errors).toEqual([]);
+  });
+
+  it('rejects an unknown sport on an op and on a pattern day', () => {
+    const r = validateOps([
+      { op: 'create', date: '2026-09-08', title: 'Swim', sport: 'swimming', reason: 'x' },
+      { op: 'generate_block', from: '2026-09-07', to: '2026-09-13', weekly_pattern: [{ day: 'mon', title: 'Swim', sport: 'swimming' }], reason: 'x' },
+    ], byHandle, ambiguous);
+    expect(r.errors.filter((e) => /unknown sport/.test(e))).toHaveLength(2);
   });
 });

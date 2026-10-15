@@ -9,6 +9,7 @@
 import {
   fetchPlannedSessions, fetchEntryById, fetchEntryByActivityId,
 } from './calendarRead.js';
+import { sportTypeOfActivity } from './sportTypes.js';
 
 // Inline computation to avoid TS import issues in serverless
 // These mirror the formulas in src/lib/metrics/*.ts exactly
@@ -379,13 +380,22 @@ export async function tryAutoMatchWorkout(supabase, userId, activity) {
     })
   ).filter((w) => !w.activity_id && w.workout_type !== 'rest');
 
-  if (candidates.length === 0) return null;
+  // Same sport only (multisport phase 3): a run must never complete the
+  // day's ride. Rows carry `sport` from calendarRead (stored or inferred).
+  // An activity whose sport the row cannot tell us is matched as before.
+  const knowsSport = Boolean(activity.type || activity.sport_type);
+  const activitySport = knowsSport ? sportTypeOfActivity(activity) : null;
+  const sameSport = activitySport
+    ? candidates.filter((w) => w.sport === activitySport || w.sport === 'multi')
+    : candidates;
+
+  if (sameSport.length === 0) return null;
 
   // Score each candidate
   let bestMatch = null;
   let bestScore = 0;
 
-  for (const workout of candidates) {
+  for (const workout of sameSport) {
     let score = 0;
 
     // Date match: exact = 40pts, ±1 day = 20pts
