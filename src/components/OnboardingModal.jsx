@@ -36,6 +36,7 @@ import {
   Radio,
   Progress,
   Chip,
+  SegmentedControl,
   TextInput,
 } from '@mantine/core';
 import { DateInput } from '@mantine/dates';
@@ -59,6 +60,7 @@ import {
   Sparkle,
 } from '@phosphor-icons/react';
 import { minBirthYear, maxBirthYear } from '../utils/athleteAge';
+import { profileFromMix } from '../utils/sportProfile';
 import {
   markOnboardingSeen,
   readOnboardingDraft,
@@ -158,6 +160,9 @@ function OnboardingModal({ opened, onClose }) {
   const [ftp, setFtp] = useState(draft?.ftp ?? null);
   const [birthYear, setBirthYear] = useState(draft?.birthYear ?? null);
   const [unitsPreference, setUnitsPreference] = useState(draft?.unitsPreference ?? 'imperial');
+  // Sports trained: 'cycling' | 'running' | 'both'. Primary defaults to
+  // cycling for 'both'; the athlete can change it in Settings.
+  const [sportMix, setSportMix] = useState(draft?.sportMix ?? 'cycling');
 
   // Device connections (existing). The provider the athlete just came back
   // from is shown as connected immediately; checkConnections confirms.
@@ -211,10 +216,11 @@ function OnboardingModal({ opened, onClose }) {
         ftp,
         birthYear,
         unitsPreference,
+        sportMix,
         pendingProvider,
       });
     },
-    [user, answers, targetEventName, targetEventDate, selectedTerrain, ftp, birthYear, unitsPreference],
+    [user, answers, targetEventName, targetEventDate, selectedTerrain, ftp, birthYear, unitsPreference, sportMix],
   );
   const handleConnectStrava = () => {
     stashDraft('strava');
@@ -281,6 +287,8 @@ function OnboardingModal({ opened, onClose }) {
           units_preference: unitsPreference,
           coaching_style_answer: answers.coaching_style || null,
           coach_role_answer: answers.coach_role || null,
+          sports: profileFromMix(sportMix).sports,
+          primary_sport: profileFromMix(sportMix).primarySport,
         }),
       });
 
@@ -301,7 +309,7 @@ function OnboardingModal({ opened, onClose }) {
     } finally {
       setClassifying(false);
     }
-  }, [answers, targetEventName, targetEventDate, selectedTerrain, ftp, birthYear, unitsPreference, classificationResult, classifying]);
+  }, [answers, targetEventName, targetEventDate, selectedTerrain, ftp, birthYear, unitsPreference, sportMix, classificationResult, classifying]);
 
   useEffect(() => {
     if (active === 9 && !classificationResult && !classifying) {
@@ -480,6 +488,22 @@ function OnboardingModal({ opened, onClose }) {
               Six quick questions. We&apos;ll use your answers to set up your coach and
               personalize your training from day one.
             </Text>
+
+            <Stack gap={6}>
+              <Text size="sm" fw={600} style={{ color: 'var(--color-text-primary)' }}>
+                I train for
+              </Text>
+              <SegmentedControl
+                aria-label="Sports you train"
+                value={sportMix}
+                onChange={setSportMix}
+                data={[
+                  { value: 'cycling', label: 'Cycling' },
+                  { value: 'running', label: 'Running' },
+                  { value: 'both', label: 'Both' },
+                ]}
+              />
+            </Stack>
 
             <Paper p="md" style={{ backgroundColor: 'var(--color-bg-secondary)' }}>
               <Text size="sm" style={{ color: 'var(--color-text-secondary)' }} mb="sm">

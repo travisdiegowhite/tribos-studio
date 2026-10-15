@@ -66,6 +66,25 @@ Return ONLY valid JSON. No preamble.
   "secondary": "<second-best persona_id if confidence < 0.75, else null>"
 }`;
 
+const TRAINED_SPORTS = ['cycling', 'running'];
+
+/**
+ * The { sports, primary_sport } columns from the onboarding body, or null when
+ * the body carries no usable sport (older clients send neither field). Unknown
+ * values are dropped, the primary is always one of the sports, and the order
+ * is stable so the row reads the same whichever button was tapped first.
+ */
+export function sportProfileFromBody(sports, primarySport) {
+  const picked = new Set(Array.isArray(sports) ? sports.filter((s) => TRAINED_SPORTS.includes(s)) : []);
+  if (TRAINED_SPORTS.includes(primarySport)) picked.add(primarySport);
+  const list = TRAINED_SPORTS.filter((s) => picked.has(s));
+  if (list.length === 0) return null;
+  return {
+    sports: list,
+    primary_sport: list.includes(primarySport) ? primarySport : list[0],
+  };
+}
+
 export default async function handler(req, res) {
   if (setupCors(req, res)) return;
 
@@ -101,6 +120,8 @@ export default async function handler(req, res) {
     units_preference,
     coaching_style_answer,
     coach_role_answer,
+    sports,
+    primary_sport,
   } = req.body;
 
   try {
@@ -224,6 +245,20 @@ Maximum 3 sentences.`,
 
     if (profileError) {
       console.error('Profile upsert error:', profileError);
+    }
+
+    // ── 3b. Sports trained (migration 132) ──
+    // Its own statement, never part of the upsert above: migrations are applied
+    // by hand, and an unapplied 132 must not take the whole profile with it.
+    const sportProfile = sportProfileFromBody(sports, primary_sport);
+    if (sportProfile && !profileError) {
+      const { error: sportError } = await supabase
+        .from('user_profiles')
+        .update(sportProfile)
+        .eq('id', user.id);
+      if (sportError) {
+        console.error('Sport profile update error (is migration 132 applied?):', sportError.message);
+      }
     }
 
     // ── 4. Save persona to user_coach_settings ──

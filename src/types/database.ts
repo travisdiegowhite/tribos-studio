@@ -305,6 +305,17 @@ export interface UserProfileDB {
   data_export_requested_at: string | null;
   // Per-user beta gates
   route_builder_v2_enabled: boolean;
+  // Sport profile. primary_sport and the running anchors are migration 042;
+  // sports is migration 132. Read and written via src/utils/sportProfile.ts
+  // and RunningProfileSettings.
+  primary_sport: 'cycling' | 'running';
+  sports: Array<'cycling' | 'running'>;
+  /** Running lactate-threshold pace, seconds per km. */
+  threshold_pace_sec: number | null;
+  vdot: number | null;
+  max_hr: number | null;
+  resting_hr: number | null;
+  lthr: number | null;
 }
 
 export interface UserProfileInsert {

@@ -47,6 +47,7 @@ import { formatSpeed } from '../utils/units';
 import PageHeader from '../components/PageHeader.jsx';
 import RoadPreferencesCard from '../components/settings/RoadPreferencesCard.jsx';
 import RunningProfileSettings from '../components/settings/RunningProfileSettings.jsx';
+import SportMixSettings from '../components/settings/SportMixSettings';
 import RecoveryModeCard from '../components/settings/RecoveryModeCard';
 import CoachPersonaSettings from '../components/settings/CoachPersonaSettings.tsx';
 import IntegrationAlert from '../components/IntegrationAlert.jsx';
@@ -84,6 +85,8 @@ function Settings() {
   const [activeTab, setActiveTab] = useState(initialTab);
 
   const [loading, setLoading] = useState(false);
+  // { profile, ok } reported by SportMixSettings once it has loaded.
+  const [sportMix, setSportMix] = useState(null);
   const [profileLoading, setProfileLoading] = useState(true);
   const [stravaStatus, setStravaStatus] = useState({ connected: false, loading: true });
   const [stravaSyncing, setStravaSyncing] = useState(false);
@@ -1884,8 +1887,13 @@ function Settings() {
             </Stack>
           </Card>
 
-          {/* Running Profile */}
-          <RunningProfileSettings />
+          {/* Sports trained, then the Running profile for athletes who run.
+              The Running card stays visible if the sports could not be read
+              (e.g. migration 132 not applied) rather than vanishing. */}
+          <SportMixSettings onProfileChange={setSportMix} />
+          {sportMix && (!sportMix.ok || sportMix.profile.sports.includes('running')) && (
+            <RunningProfileSettings />
+          )}
 
           {/* Recovery Preference (event-anchored planner / masters mode) */}
           <RecoveryModeCard />
