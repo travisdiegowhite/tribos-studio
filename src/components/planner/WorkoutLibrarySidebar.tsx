@@ -18,7 +18,7 @@ import {
   UnstyledButton,
 } from '@mantine/core';
 import { WorkoutCard } from './WorkoutCard';
-import { WORKOUT_LIBRARY, getWorkoutsByCategory } from '../../data/workoutLibrary';
+import { getCyclingWorkouts, getRunningWorkouts } from '../../data/workoutLookup';
 import type { WorkoutCategory, FitnessLevel, WorkoutDefinition } from '../../types/training';
 import type { SidebarFilter, DragSource } from '../../types/planner';
 import { CaretDown, CaretRight, MagnifyingGlass } from '@phosphor-icons/react';
@@ -77,10 +77,12 @@ export function WorkoutLibrarySidebar({
   const [expandedCategories, setExpandedCategories] = useState<Set<WorkoutCategory>>(
     new Set(['endurance', 'threshold', 'vo2max'])
   );
+  // Which library to browse. Hybrid athletes plan both sports from one sidebar.
+  const [sport, setSport] = useState<'cycling' | 'running'>('cycling');
 
   // Filter workouts based on current filter
   const filteredWorkouts = useMemo(() => {
-    const allWorkouts = Object.values(WORKOUT_LIBRARY);
+    const allWorkouts = sport === 'running' ? getRunningWorkouts() : getCyclingWorkouts();
 
     return allWorkouts.filter((workout) => {
       // Category filter
@@ -106,7 +108,7 @@ export function WorkoutLibrarySidebar({
 
       return true;
     });
-  }, [filter]);
+  }, [filter, sport]);
 
   // Group workouts by category
   const workoutsByCategory = useMemo(() => {
@@ -151,6 +153,20 @@ export function WorkoutLibrarySidebar({
         <Text size="sm" fw={600} mb="xs">
           Workout Library
         </Text>
+
+        {/* Sport */}
+        <SegmentedControl
+          size="xs"
+          fullWidth
+          mb="xs"
+          aria-label="Workout library sport"
+          value={sport}
+          onChange={(value) => setSport(value as 'cycling' | 'running')}
+          data={[
+            { label: 'Cycling', value: 'cycling' },
+            { label: 'Running', value: 'running' },
+          ]}
+        />
 
         {/* Search */}
         <TextInput

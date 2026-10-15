@@ -433,10 +433,25 @@ total. Pass `includeRaces` only if you are NOT reading `race_goals` too.
   unpin is a decision too. `adjudicateOps` proposes rather than applies
   whenever a coach change touches a pinned entry, so a coach that pinned its
   own work would need approval to revise it.
-- **A plan FILLS the calendar, it does not own it.** `insertSessions` skips a
-  day the athlete has already filled rather than overwriting it, so activating
-  a plan can never bury a race. Cancelling a plan DETACHES its entries
-  (`plan_id = null`); it must not delete them.
+- **A plan FILLS the calendar, it does not own it — per sport.** Generators
+  (`insertSessions`, the coach's `generate_block`) place through
+  `api/utils/calendarOccupancy.js`: a session is skipped on a race day, a rest
+  day, or a day that already holds a session of the SAME sport, and otherwise
+  takes the day's next free slot — so a run may join a day with a ride
+  (two-a-days, multisport phase 3), but activating a plan can never bury a race
+  or stack two rides. `upsertSessionOnDate` replaces only a same-sport session.
+  Cancelling a plan DETACHES its entries (`plan_id = null`); it must not delete
+  them.
+- **Every entry has a sport.** `calendar_entries.sport` (migration 134:
+  `cycling | running | multi | other`, NULL for rest/note) is stored by every
+  writer; readers emit `sport` from `entrySport()` (`api/utils/entrySport.js`),
+  which infers it for older rows. All reads and writes of the column go through
+  `api/utils/calendarSportColumn.js`, which retries without it if 134 has not
+  been applied — keep it that way rather than adding `sport` to a raw select.
+  Activities are linked only to an entry of their own sport (a triathlon
+  accepts either); the coach's `calendar_change` takes `sport` per op and per
+  pattern day (default: the athlete's `primary_sport`), and a run's intervals
+  use `target_pct_threshold_pace_*`, never %FTP.
 - **`calendar_change` is the coach's only calendar tool.** `recommend_workout`,
   `create_training_plan` and `adjust_schedule` are gone, along with their
   handlers. Multi-week blocks are its `generate_block` operation — one

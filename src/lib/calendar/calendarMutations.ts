@@ -25,7 +25,10 @@
 
 import { supabase } from '../supabase';
 import { toDateKey } from '../../utils/dateUtils';
-import type { CalendarEntryRow, CalendarEntryType, CalendarEntryStatus } from './getCalendarRange';
+import type { CalendarEntryRow, CalendarEntryType, CalendarEntryStatus, EntrySport } from './getCalendarRange';
+import { buildDayIndex, placeSession, OCCUPANCY_COLUMNS } from '../../../api/utils/calendarOccupancy.js';
+import { entrySport } from '../../../api/utils/entrySport.js';
+import { selectWithSportFallback, writeWithSportFallback } from '../../../api/utils/calendarSportColumn.js';
 
 export interface MutationResult<T = CalendarEntryRow> {
   success: boolean;
@@ -45,6 +48,8 @@ export interface EntryDraft {
   notes?: string | null;
   coach_rationale?: string | null;
   details?: Record<string, unknown> | null;
+  /** cycling | running | multi | other (migration 134). Inferred when absent. */
+  sport?: EntrySport | null;
   source?: string;
   plan_id?: string | null;
   generation_id?: string | null;
@@ -89,9 +94,7 @@ export async function createEntry(
 
   try {
     const slot = await nextFreeSlot(userId, dateKey);
-    const { data, error } = await supabase
-      .from('calendar_entries')
-      .insert({
+    const row = {
         id: crypto.randomUUID(),
         user_id: userId,
         date: dateKey,
@@ -106,15 +109,17 @@ export async function createEntry(
         notes: draft.notes ?? null,
         coach_rationale: draft.coach_rationale ?? null,
         details: draft.details ?? null,
+        sport: draft.sport ?? entrySport({ ...draft, type: draft.type ?? 'workout' }),
         status: 'planned',
         source: draft.source ?? 'manual',
         plan_id: draft.plan_id ?? null,
         generation_id: draft.generation_id ?? null,
         // Athlete-created: a generator must never overwrite it.
         pinned: draft.source === 'manual' || !draft.source,
-      })
-      .select()
-      .single();
+    };
+    const { data, error } = await writeWithSportFallback(row, (payload: typeof row) =>
+      supabase.from('calendar_entries').insert(payload).select().single(),
+    );
 
     if (error) throw error;
     return { success: true, data: data as CalendarEntryRow };
@@ -133,11 +138,13 @@ export async function createEntry(
  * completed — and insert it. Six copies of the same mapping, each with its own
  * drift. This is the one place a template becomes calendar entries.
  *
- * NON-DESTRUCTIVE, like the coach's generate_block: a day that already holds an
- * entry is SKIPPED, not stacked on and not overwritten. Activating a plan over
- * a calendar the athlete has already shaped therefore fills the gaps rather
- * than burying their work, and re-running an activation is safe. Skips are
- * counted so the caller can say what it did.
+ * NON-DESTRUCTIVE, like the coach's generate_block: a session is SKIPPED on a
+ * race day, a rest day, or a day that already holds a session of the SAME
+ * sport — never stacked on and never overwritten. A run may join a day that
+ * holds a ride (multisport phase 3, calendarOccupancy.js), taking the next free
+ * slot. Activating a plan over a calendar the athlete has already shaped
+ * therefore fills the gaps rather than burying their work, and re-running an
+ * activation is safe. Skips are counted so the caller can say what it did.
  *
  * UNPINNED, because a generator wrote them. Pinning is the athlete's act; see
  * updateEntry and the note at the top of this file.
@@ -160,31 +167,38 @@ export async function insertSessions(
   const to = dateKeys.reduce((a, b) => (b > a ? b : a));
 
   try {
-    const { data: existing, error: readError } = await supabase
-      .from('calendar_entries')
-      .select('date')
-      .eq('user_id', userId)
-      .gte('date', from)
-      .lte('date', to);
+    const { data: existing, error: readError } = await selectWithSportFallback(
+      OCCUPANCY_COLUMNS,
+      (columns: string) =>
+        supabase
+          .from('calendar_entries')
+          .select(columns)
+          .eq('user_id', userId)
+          .gte('date', from)
+          .lte('date', to),
+    );
     if (readError) throw readError;
 
-    const occupied = new Set((existing ?? []).map((r) => r.date as string));
+    const index = buildDayIndex((existing ?? []) as unknown as Parameters<typeof buildDayIndex>[0]);
     const rows: Array<Record<string, unknown>> = [];
     let skipped = 0;
 
     for (const draft of usable) {
       const dateKey = toDateKey(draft.date) as string;
-      if (occupied.has(dateKey)) {
+      const type = draft.type ?? 'workout';
+      const sport = draft.sport ?? entrySport({ ...draft, type });
+      // Claims the slot, so two drafts on the same date cannot collide.
+      const placed = placeSession(index, dateKey, { ...draft, type, sport });
+      if ('skip' in placed) {
         skipped += 1;
         continue;
       }
-      // Claim the day so two drafts on the same date cannot collide on slot 0.
-      occupied.add(dateKey);
       rows.push({
         id: crypto.randomUUID(),
         user_id: userId,
         date: dateKey,
-        slot: 0,
+        slot: placed.slot,
+        sport,
         type: draft.type ?? 'workout',
         title: draft.title.trim(),
         workout_id: draft.workout_id ?? null,
@@ -204,7 +218,9 @@ export async function insertSessions(
     }
 
     if (rows.length > 0) {
-      const { error } = await supabase.from('calendar_entries').insert(rows);
+      const { error } = await writeWithSportFallback(rows, (payload: typeof rows) =>
+        supabase.from('calendar_entries').insert(payload),
+      );
       if (error) throw error;
     }
     return { success: true, data: { inserted: rows.length, skipped } };
@@ -225,13 +241,15 @@ export async function updateEntry(
   if (!entryId) return fail('Missing entry');
 
   try {
-    const { data, error } = await supabase
-      .from('calendar_entries')
-      .update({ ...patch, pinned: true })
-      .eq('id', entryId)
-      .eq('user_id', userId)
-      .select()
-      .single();
+    const { data, error } = await writeWithSportFallback({ ...patch, pinned: true }, (payload: Record<string, unknown>) =>
+      supabase
+        .from('calendar_entries')
+        .update(payload)
+        .eq('id', entryId)
+        .eq('user_id', userId)
+        .select()
+        .single(),
+    );
 
     if (error) throw error;
     return { success: true, data: data as CalendarEntryRow };
@@ -408,7 +426,8 @@ export async function deleteEntry(userId: string, entryId: string): Promise<Muta
  *
  * A RACE on the day is never touched or replaced. Races and training coexist,
  * which is exactly what generate_block relies on when it fills a season in
- * around a race calendar.
+ * around a race calendar. Nor is a session of ANOTHER sport: putting a run on
+ * a day replaces that day's run, never its ride (multisport phase 3).
  *
  * @returns the entry, plus the name of the session it displaced if any, so the
  *   caller can say "replaced X" rather than guessing.
@@ -425,16 +444,24 @@ export async function upsertSessionOnDate(
   if (!draft?.title?.trim()) return fail('A title is required');
 
   try {
-    const { data: onDay, error: readError } = await supabase
-      .from('calendar_entries')
-      .select('id, title, type, pinned')
-      .eq('user_id', userId)
-      .eq('date', dateKey)
-      .neq('type', 'race')
-      .order('slot', { ascending: true });
+    const { data: onDay, error: readError } = await selectWithSportFallback(
+      'id, title, type, pinned, workout_id, workout_type, sport',
+      (columns: string) =>
+        supabase
+          .from('calendar_entries')
+          .select(columns)
+          .eq('user_id', userId)
+          .eq('date', dateKey)
+          .neq('type', 'race')
+          .order('slot', { ascending: true }),
+    );
     if (readError) throw readError;
 
-    const existing = (onDay ?? [])[0] ?? null;
+    const draftSport = draft.sport ?? entrySport({ ...draft, type: draft.type ?? 'workout' });
+    const existing =
+      ((onDay ?? []) as unknown as Array<Record<string, unknown>>).find(
+        (row) => row.type === 'rest' || row.type === 'note' || entrySport(row) === draftSport,
+      ) ?? null;
     if (existing) {
       const result = await updateEntry(userId, existing.id as string, {
         ...draft,

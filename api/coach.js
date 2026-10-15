@@ -272,7 +272,7 @@ const VALID_WORKOUT_TYPES = [
  *   map is built from THIS athlete's rows, so a handle for someone else's entry
  *   simply does not resolve.
  */
-export async function handleCalendarChange(userId, input, calendarContext, conversationId = null, designCtx = null) {
+export async function handleCalendarChange(userId, input, calendarContext, conversationId = null, designCtx = null, defaultSport = null) {
   // Belt and braces. There is no gate any more, but the context can still be
   // missing or degraded (a failed calendar read), and a tool call can arrive
   // from replayed conversation history, so refuse here rather than trusting
@@ -292,10 +292,13 @@ export async function handleCalendarChange(userId, input, calendarContext, conve
 
   const { operations, summary } = input || {};
 
+  // A workout op that names no sport gets the athlete's primary sport, in
+  // validation (which interval band applies) and in the write alike.
   const { valid, errors, resolved } = validateOps(
     operations,
     calendarContext.byHandle,
-    calendarContext.ambiguous
+    calendarContext.ambiguous,
+    defaultSport,
   );
   if (!valid) {
     // Specific enough for the model to correct itself on the retry round.
@@ -336,7 +339,7 @@ export async function handleCalendarChange(userId, input, calendarContext, conve
   const design = designCtx?.athlete
     ? makeCalendarDesigner({ athlete: designCtx.athlete, todayStr: designCtx.todayStr, entries: calendarContext.entries || [] })
     : null;
-  const applyResult = await applyCalendarOps(userId, resolved, { source: 'coach', design });
+  const applyResult = await applyCalendarOps(userId, resolved, { source: 'coach', design, defaultSport });
   const deduped = applyResult.results.filter((r) => r.deduped).length;
   const designed = applyResult.results.reduce((n, r) => n + (r.design ? 1 : 0) + (r.designed || 0), 0);
   return {
@@ -382,6 +385,14 @@ FOR RUNNERS:
 - Mileage management: increase weekly volume by no more than ~10%/week
 
 IMPORTANT: Match your workout recommendations to the athlete's sport. Never recommend cycling workouts to a runner or running workouts to a cyclist unless they ask about cross-training.
+
+FOR HYBRID ATHLETES (SPORTS lists cycling + running):
+- Both sports are real training, not cross-training. Plan both, and set "sport" on every calendar session.
+- Protect the PRIMARY sport's key sessions; fit the other sport around them.
+- Fatigue is shared: FITNESS BY SPORT splits fitness, but AFI and Form Score are one number. Count both sports' load in every week.
+- No hard run the day after a hard ride, and no hard ride the day after a hard run. Pair a hard session with an easy one in the other sport, or put the two hard days apart.
+- Grow weekly run volume by no more than ~10% a week, and keep the long run under ~30% of the week's running. Running's impact cost is higher than cycling's at the same RSS, so build run volume more slowly.
+- A ride and a run may share a day (the calendar puts the second beside the first); keep a two-session day to one hard session at most.
 
 Your Personality:
 (Your persona voice is set dynamically per athlete — see the COACHING PERSONA section in the system prompt below.)
@@ -1634,7 +1645,10 @@ ${conversationSummary}
               + 'Do not repeat operations that already succeeded earlier in this turn.',
           };
         } else {
-          result = await handleCalendarChange(verifiedUserId, tool.input, trainingCalendarContext, null, designCtx);
+          result = await handleCalendarChange(
+            verifiedUserId, tool.input, trainingCalendarContext, null, designCtx,
+            sportProfileResult?.data?.primary_sport ?? null,
+          );
         }
         console.log(`🗓️  calendar_change result:`, JSON.stringify(result));
         calendarChangeResults.push(result);

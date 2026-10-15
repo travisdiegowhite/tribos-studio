@@ -20,6 +20,7 @@ import { supabase } from '../supabase';
 import { activityDateKey, toDateKey } from '../../utils/dateUtils';
 
 export type CalendarEntryType = 'workout' | 'race' | 'rest' | 'note';
+export type EntrySport = 'cycling' | 'running' | 'multi' | 'other';
 export type CalendarEntryStatus = 'planned' | 'done' | 'skipped' | 'missed';
 
 export interface CalendarEntryRow {
@@ -49,6 +50,8 @@ export interface CalendarEntryRow {
   plan_id: string | null;
   generation_id: string | null;
   pinned: boolean;
+  /** Migration 134. Absent on rows read before it was applied; use entrySport(). */
+  sport?: EntrySport | null;
 }
 
 export interface CalendarActivityRow {

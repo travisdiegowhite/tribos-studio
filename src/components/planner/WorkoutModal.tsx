@@ -62,7 +62,10 @@ import { exportWorkout, downloadWorkout } from '../../utils/workoutExport';
 import { workoutStructureToCycling } from '../../utils/trainingPlanExport';
 import { fitStructureToDuration } from '../../lib/training/plannedWorkoutShape';
 import posthog from 'posthog-js';
-import { WORKOUT_LIBRARY, getWorkoutById } from '../../data/workoutLibrary';
+import { WORKOUT_LIBRARY } from '../../data/workoutLibrary';
+import { RUNNING_WORKOUT_LIBRARY } from '../../data/runningWorkoutLibrary';
+import { getAnyWorkoutById } from '../../data/workoutLookup';
+import { formatCadence, runningPaceTargets } from './runningTargets';
 import { WORKOUT_CATEGORY_PALETTE as CATEGORY_COLORS } from '../../utils/trainingPlans';
 
 // ============================================================
@@ -564,13 +567,19 @@ export function WorkoutModal({
   const [pickerOpen, setPickerOpen] = useState(false);
 
   // Effective definition to render: the provided one, or the picked one (add mode).
-  const workout = workoutProp ?? (chosenWorkoutId ? getWorkoutById(chosenWorkoutId) : null);
+  // Either library: a running session's workout id must resolve too.
+  const workout = workoutProp ?? (chosenWorkoutId ? getAnyWorkoutById(chosenWorkoutId) : null);
+  const paceTargets = useMemo(() => runningPaceTargets(workout?.runningStructure), [workout]);
 
   // Grouped options for the picker (by category).
   const workoutOptions = useMemo(() => {
     const byCategory: Record<string, { value: string; label: string }[]> = {};
     for (const w of Object.values(WORKOUT_LIBRARY)) {
       (byCategory[w.category] ||= []).push({ value: w.id, label: w.name });
+    }
+    // Runs are grouped separately so a hybrid athlete can pick either sport.
+    for (const w of Object.values(RUNNING_WORKOUT_LIBRARY)) {
+      (byCategory[`run · ${w.category}`] ||= []).push({ value: w.id, label: w.name });
     }
     return Object.entries(byCategory)
       .sort(([a], [b]) => a.localeCompare(b))
@@ -901,7 +910,7 @@ export function WorkoutModal({
                             <Text size="xs" c="dimmed">{segment.powerPctFTP}% FTP</Text>
                           )}
                           {segment.cadence && (
-                            <Text size="xs" c="dimmed">{segment.cadence} rpm</Text>
+                            <Text size="xs" c="dimmed">{formatCadence(segment.cadence, workout?.sportType)}</Text>
                           )}
                         </Group>
                       </Timeline.Item>
@@ -910,6 +919,21 @@ export function WorkoutModal({
                 </Collapse>
               </Box>
             </>
+          )}
+
+          {/* Pace targets — running workouts are paced, not powered */}
+          {paceTargets.length > 0 && (
+            <Box>
+              <Text size="sm" fw={600} mb={4}>Pace targets</Text>
+              <Stack gap={2}>
+                {paceTargets.map((t, i) => (
+                  <Group key={i} gap="xs" justify="space-between" wrap="nowrap">
+                    <Text size="xs">{t.label}</Text>
+                    <Text size="xs" c="dimmed" ff="monospace">{t.pace}</Text>
+                  </Group>
+                ))}
+              </Stack>
+            </Box>
           )}
 
           {/* Exercise list - Strength/Core/Flexibility */}

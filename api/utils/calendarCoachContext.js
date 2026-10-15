@@ -17,6 +17,15 @@
 
 import { getSupabaseAdmin } from './supabaseAdmin.js';
 import { buildHandleMap, entryHandle } from './calendarChangeTool.js';
+import { entrySport } from './entrySport.js';
+import { selectWithSportFallback } from './calendarSportColumn.js';
+
+const WINDOW_COLUMNS =
+  'id, date, slot, type, title, workout_id, workout_type, target_load, target_duration_min, ' +
+  'target_distance_km, status, pinned, notes, coach_rationale, details, sport';
+
+/** Short sport tag for a line; blank for rest days and notes. */
+const SPORT_TAG = { cycling: 'ride', running: 'run', multi: 'multi', other: 'other' };
 
 /** Days of history and future the coach sees. Past matters for "what did I just do". */
 const DAYS_BACK = 14;
@@ -47,20 +56,25 @@ export async function fetchCalendarWindow(userId, timezone, now = new Date()) {
   const to = shiftDays(today, DAYS_FORWARD);
 
   const supabase = getSupabaseAdmin();
-  const { data, error } = await supabase
-    .from('calendar_entries')
-    .select('id, date, slot, type, title, workout_type, target_load, target_duration_min, target_distance_km, status, pinned, notes, coach_rationale, details')
-    .eq('user_id', userId)
-    .gte('date', from)
-    .lte('date', to)
-    .order('date', { ascending: true })
-    .order('slot', { ascending: true });
+  const { data, error } = await selectWithSportFallback(WINDOW_COLUMNS, (columns) =>
+    supabase
+      .from('calendar_entries')
+      .select(columns)
+      .eq('user_id', userId)
+      .gte('date', from)
+      .lte('date', to)
+      .order('date', { ascending: true })
+      .order('slot', { ascending: true }),
+  );
 
   if (error) {
     console.error('fetchCalendarWindow failed:', error.message);
     return { ok: false, entries: [], from, to, error: error.message };
   }
-  return { ok: true, entries: data || [], from, to, today };
+  // Every entry carries its sport — stored (migration 134) or inferred — so the
+  // block, the designer and op.entry all agree on it.
+  const entries = (data || []).map((e) => ({ ...e, sport: entrySport(e) }));
+  return { ok: true, entries, from, to, today };
 }
 
 /**
@@ -69,8 +83,9 @@ export async function fetchCalendarWindow(userId, timezone, now = new Date()) {
  * Format is deliberately terse and columnar rather than JSON — the model reads
  * it far more reliably, and it keeps a 130-day window inside a sane token cost.
  *
- *   2026-09-26  sess_1af3bc12  race     The Rad                  [planned]
- *   2026-08-29  sess_9c0e12aa  workout  Sweet Spot 3x12  78rss    [planned] PINNED
+ *   2026-09-26  sess_1af3bc12  race     ride   The Rad                  [planned]
+ *   2026-08-29  sess_9c0e12aa  workout  ride   Sweet Spot 3x12  78rss    [planned] PINNED
+ *   2026-08-29  sess_4b7d0e31  workout  run    Easy Run 40min   35rss    [planned]
  */
 export function formatCalendarBlock(window) {
   if (!window.ok) {
@@ -95,6 +110,7 @@ whatever you and the athlete agree on.`;
       e.date,
       entryHandle(e.id),
       (e.type || 'workout').padEnd(7),
+      (SPORT_TAG[e.sport] ?? '').padEnd(5),
       (e.title || '(untitled)').slice(0, 40).padEnd(40),
     ];
     const load = e.target_load ? `${Math.round(e.target_load)}rss` : '';
@@ -110,7 +126,8 @@ whatever you and the athlete agree on.`;
 ${lines.join('\n')}
 
 Address these entries by their sess_ handle in calendar_change — never by date
-or day name. PINNED means the athlete has already made a decision about that
+or day name. The column after the type is the sport (ride / run / multi); a day
+can hold one session of each sport. PINNED means the athlete has already made a decision about that
 entry: you may still propose changing it, but the server will require their
 approval rather than applying it.`;
 }

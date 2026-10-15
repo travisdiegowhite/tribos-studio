@@ -272,10 +272,11 @@ describe('expandBlock', () => {
   });
 
   it('is safe to re-run — a second pass over the same range adds nothing', () => {
-    const occupied = new Set();
+    const occupied = new Map();
     const first = expandBlock({ ...SEASON }, occupied);
     expect(first.entries.length).toBeGreaterThan(0);
-    // occupied has been mutated to include everything the first pass wrote.
+    // The day index has been mutated to include everything the first pass
+    // wrote, so every session now lands on a day that has its sport.
     const second = expandBlock({ ...SEASON }, occupied);
     expect(second.entries).toHaveLength(0);
   });
@@ -509,5 +510,82 @@ describe('the injected session designer', () => {
     const insert = calls.find((c) => c.op === 'insert');
     expect(insert.payload.workout_type).toBe('endurance');
     expect(insert.payload.target_load).toBe(55);
+  });
+});
+
+describe('expandBlock — two-a-days (multisport phase 3)', () => {
+  // 2026-09-07 is a Monday.
+  const WEEK = { op: 'generate_block', from: '2026-09-07', to: '2026-09-13' };
+
+  it('puts a run pattern beside existing rides in slot 1', async () => {
+    const { buildDayIndex } = await import('./calendarOccupancy.js');
+    const index = buildDayIndex([{ date: '2026-09-08', slot: 0, type: 'workout', sport: 'cycling' }]);
+    const { entries, skipped } = expandBlock(
+      { ...WEEK, weekly_pattern: [{ day: 'tue', title: 'Easy Run', sport: 'running' }] },
+      index,
+    );
+    expect(skipped).toEqual([]);
+    expect(entries).toEqual([expect.objectContaining({ date: '2026-09-08', slot: 1, sport: 'running' })]);
+  });
+
+  it('skips race days, rest days and same-sport days, and says why', async () => {
+    const { buildDayIndex } = await import('./calendarOccupancy.js');
+    const index = buildDayIndex([
+      { date: '2026-09-07', slot: 0, type: 'race', workout_type: 'gravel' },
+      { date: '2026-09-08', slot: 0, type: 'rest' },
+      { date: '2026-09-09', slot: 0, type: 'workout', workout_id: 'run_easy' },
+    ]);
+    const { entries, skipped } = expandBlock(
+      {
+        ...WEEK,
+        weekly_pattern: [
+          { day: 'mon', title: 'Run', sport: 'running' },
+          { day: 'tue', title: 'Run', sport: 'running' },
+          { day: 'wed', title: 'Run', sport: 'running' },
+          { day: 'thu', title: 'Run', sport: 'running' },
+        ],
+      },
+      index,
+    );
+    expect(entries.map((e) => e.date)).toEqual(['2026-09-10']);
+    expect(skipped.map((s) => s.reason)).toEqual(['race day', 'rest day', 'day already has a running session']);
+  });
+
+  it('gives a session with no sport the athlete primary sport', () => {
+    const { entries } = expandBlock(
+      { ...WEEK, weekly_pattern: [{ day: 'mon', title: 'Session' }] },
+      new Map(),
+      null,
+      'running',
+    );
+    expect(entries[0].sport).toBe('running');
+  });
+
+  it('never hands a run to the %FTP session designer', () => {
+    const design = vi.fn(() => ({ patch: { title: 'designed' } }));
+    const { entries } = expandBlock(
+      { ...WEEK, weekly_pattern: [{ day: 'mon', title: 'Run', sport: 'running' }, { day: 'mon', title: 'Ride', sport: 'cycling' }] },
+      new Map(),
+      design,
+    );
+    expect(design).toHaveBeenCalledTimes(1);
+    expect(entries.find((e) => e.sport === 'running').title).toBe('Run');
+  });
+
+  it('stores a run interval set as a pace prescription', () => {
+    const { entries } = expandBlock(
+      {
+        ...WEEK,
+        weekly_pattern: [{
+          day: 'mon', title: 'Cruise', sport: 'running',
+          intervals: [{ repeats: 4, duration_min: 5, target_pct_threshold_pace_min: 95, target_pct_threshold_pace_max: 100, recovery_min: 2 }],
+        }],
+      },
+      new Map(),
+    );
+    expect(entries[0].details.prescription).toMatchObject({
+      basis: 'pace',
+      intervals: [{ target_pct_threshold_pace_min: 95, target_pct_threshold_pace_max: 100 }],
+    });
   });
 });

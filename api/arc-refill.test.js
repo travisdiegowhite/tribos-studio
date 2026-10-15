@@ -147,6 +147,9 @@ describe('api/arc-refill', () => {
     // copying them across would quietly undo an athlete's rename.
     expect(ceUpdates[0].payload).not.toHaveProperty('title');
     expect(ceUpdates[0].payload).not.toHaveProperty('notes');
+    // Nor the sport (migration 134): arcs are cycling bookkeeping, and an
+    // entry's sport is the athlete's or its plan's, never the arc's.
+    expect(ceUpdates[0].payload).not.toHaveProperty('sport');
     // Scoped to the athlete, by id, and never over an entry they pinned.
     for (const u of ceUpdates) {
       expect(u.filters.user_id).toBe('u1');

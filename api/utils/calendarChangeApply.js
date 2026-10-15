@@ -20,11 +20,15 @@ import { randomUUID } from 'node:crypto';
 import { getSupabaseAdmin } from './supabaseAdmin.js';
 import { WEEKDAYS } from './calendarChangeTool.js';
 import { normalizeIntervals, buildPrescription, withPrescription } from './prescription.js';
+import { entrySport } from './entrySport.js';
+import { buildDayIndex, placeSession, OCCUPANCY_COLUMNS } from './calendarOccupancy.js';
+import { selectWithSportFallback, writeWithSportFallback } from './calendarSportColumn.js';
 
 /** Fields an op may write onto an entry. Anything else the model sends is dropped. */
 const WRITABLE = [
   'type', 'title', 'workout_id', 'workout_type',
   'target_load', 'target_duration_min', 'target_distance_km', 'notes',
+  'sport',
 ];
 
 /**
@@ -32,10 +36,23 @@ const WRITABLE = [
  * carries none (leave the row's details alone) — an explicit empty array
  * means "remove the structure" and yields null.
  */
-function prescriptionFrom(op, source = 'coach') {
+function prescriptionFrom(op, sport = null, source = 'coach') {
   if (op.intervals === undefined) return undefined;
-  const { intervals } = normalizeIntervals(op.intervals);
+  const { intervals } = normalizeIntervals(op.intervals, 'intervals', sport);
   return intervals ? buildPrescription(intervals, source) : null;
+}
+
+/**
+ * The sport a new entry gets: what the coach said, else the athlete's primary
+ * sport for a workout, else what the row itself implies (entrySport.js).
+ * Rest days and notes have none.
+ */
+function sportFor(draft, defaultSport = null) {
+  const type = draft.type || 'workout';
+  if (type === 'rest' || type === 'note') return null;
+  if (draft.sport) return draft.sport;
+  if (type === 'workout' && defaultSport) return defaultSport;
+  return entrySport({ ...draft, type });
 }
 
 /**
@@ -43,12 +60,12 @@ function prescriptionFrom(op, source = 'coach') {
  * `details.prescription`, merged over the entry's existing details so a race's
  * own detail JSON survives a coach edit.
  */
-function draftFrom(op, existingDetails = null) {
+function draftFrom(op, existingDetails = null, sport = null) {
   const draft = {};
   for (const key of WRITABLE) {
     if (op[key] !== undefined) draft[key] = op[key];
   }
-  const prescription = prescriptionFrom(op);
+  const prescription = prescriptionFrom(op, op.sport ?? sport);
   if (prescription !== undefined) draft.details = withPrescription(existingDetails, prescription);
   return draft;
 }
@@ -85,7 +102,7 @@ export function snapshot(entry) {
   const keep = [
     'id', 'date', 'slot', 'type', 'title', 'workout_id', 'workout_type',
     'target_load', 'target_duration_min', 'target_distance_km',
-    'status', 'notes', 'coach_rationale', 'pinned', 'details',
+    'status', 'notes', 'coach_rationale', 'pinned', 'details', 'sport',
   ];
   return Object.fromEntries(keep.map((k) => [k, entry[k] ?? null]));
 }
@@ -105,15 +122,22 @@ export function snapshot(entry) {
  * the whole point: the SERVER does the expansion, so the size of a training
  * block is bounded by the calendar rather than by the model's output budget.
  *
- * NON-DESTRUCTIVE BY CONSTRUCTION. A day that already holds a workout or a
- * race is skipped, not stacked on and not overwritten. Training therefore
- * fills in around a race season rather than burying it, and re-running a
- * generator is safe. Skips are reported so the coach can say what it did.
+ * NON-DESTRUCTIVE BY CONSTRUCTION. A session is skipped on a race day, a rest
+ * day, or a day that already holds a session of the SAME sport — never stacked
+ * on and never overwritten. A run may join a day that holds a ride
+ * (multisport phase 3, calendarOccupancy.js) and takes the next free slot.
+ * Training therefore fills in around a race season rather than burying it, and
+ * re-running a generator is safe. Skips are reported so the coach can say what
+ * it did.
  *
- * @param {Array} existingByDate  Map-like of dateKey → true for occupied days.
- * @returns {{entries: Array, skipped: Array}}
+ * @param {Map|Set} occupied  buildDayIndex() of the range's existing rows. A
+ *   plain Set of dates is accepted for older callers and blocks those days
+ *   outright.
+ * @param {string|null} defaultSport  Sport for a session that names none.
+ * @returns {{entries: Array, skipped: Array}}  Entries carry `slot` and `sport`.
  */
-export function expandBlock(op, occupiedDates = new Set(), design = null) {
+export function expandBlock(op, occupied = new Map(), design = null, defaultSport = null) {
+  const index = occupied instanceof Map ? occupied : blockedDates(occupied);
   const entries = [];
   const skipped = [];
 
@@ -138,19 +162,27 @@ export function expandBlock(op, occupiedDates = new Set(), design = null) {
     const sessions = byDay.get(dow);
     if (!sessions) continue;
 
-    if (occupiedDates.has(dateKey)) {
-      skipped.push({ date: dateKey, reason: 'day already has an entry' });
-      continue;
-    }
-
     const weekIndex = Math.floor(dayIndex / 7);
     for (const session of sessions) {
+      const sport = sportFor({ ...session, sport: session.sport ?? op.sport, type: 'workout' }, defaultSport);
+      const placed = placeSession(index, dateKey, {
+        type: 'workout',
+        sport,
+        workout_id: session.workout_id ?? null,
+        workout_type: session.workout_type ?? null,
+      });
+      if ('skip' in placed) {
+        skipped.push({ date: dateKey, reason: placed.skip });
+        continue;
+      }
       const base = Number(session.target_load);
       const load = Number.isFinite(base)
         ? Math.round(base * (1 + progression * weekIndex))
         : null;
       const entry = {
         date: dateKey,
+        slot: placed.slot,
+        sport,
         title: String(session.title).trim(),
         type: 'workout',
         workout_id: session.workout_id ?? null,
@@ -159,15 +191,22 @@ export function expandBlock(op, occupiedDates = new Set(), design = null) {
         target_duration_min: session.target_duration_min ?? null,
         target_distance_km: session.target_distance_km ?? null,
         notes: session.notes ?? null,
-        details: withPrescription(null, prescriptionFrom(session) ?? null),
+        details: withPrescription(null, prescriptionFrom(session, sport) ?? null),
       };
       entries.push(applyDesign(entry, design, { weekIndex }));
     }
-    // One session per day from a pattern; a genuine double day is a `create`.
-    occupiedDates.add(dateKey);
   }
 
   return { entries, skipped };
+}
+
+/** A day index in which every given date is blocked outright. */
+function blockedDates(dates) {
+  const index = new Map();
+  for (const date of dates ?? []) {
+    index.set(date, { slots: new Set([0]), blocked: 'day already has an entry', sports: new Set(), count: 1 });
+  }
+  return index;
 }
 
 /**
@@ -177,6 +216,9 @@ export function expandBlock(op, occupiedDates = new Set(), design = null) {
  */
 function applyDesign(entry, design, meta = {}) {
   if (typeof design !== 'function' || entry.details?.prescription) return entry;
+  // The designer prescribes %FTP structure: rides only. A run keeps the
+  // coach's own description (or its pace intervals) untouched.
+  if (entry.sport && entry.sport !== 'cycling') return entry;
   let result;
   try {
     result = design(entry, meta);
@@ -191,16 +233,18 @@ function applyDesign(entry, design, meta = {}) {
   return out;
 }
 
-/** Every date in [from, to] this athlete already has an entry on. */
-async function occupiedDatesIn(supabase, userId, fromKey, toKey) {
-  const { data, error } = await supabase
-    .from('calendar_entries')
-    .select('date')
-    .eq('user_id', userId)
-    .gte('date', fromKey)
-    .lte('date', toKey);
+/** What this athlete already has on each day of [from, to], for placement. */
+async function dayIndexIn(supabase, userId, fromKey, toKey) {
+  const { data, error } = await selectWithSportFallback(OCCUPANCY_COLUMNS, (columns) =>
+    supabase
+      .from('calendar_entries')
+      .select(columns)
+      .eq('user_id', userId)
+      .gte('date', fromKey)
+      .lte('date', toKey),
+  );
   if (error) throw new Error(`Could not read the block's range: ${error.message}`);
-  return new Set((data || []).map((r) => r.date));
+  return buildDayIndex(data || []);
 }
 
 /**
@@ -223,6 +267,8 @@ async function occupiedDatesIn(supabase, userId, fromKey, toKey) {
  * @param {Function} [opts.design]  Session designer for creates that carry no
  *   structure (designForCalendar.js makeCalendarDesigner). Optional; without
  *   it entries are written as the coach described them.
+ * @param {string|null} [opts.defaultSport]  The athlete's primary sport, for a
+ *   workout op that names none (multisport phase 3).
  * @returns {Promise<{success: boolean, applied: number, failed: number,
  *                    results: Array, undo: Array, error?: string}>}
  */
@@ -233,37 +279,40 @@ export async function applyCalendarOps(userId, resolved, opts = {}) {
   const source = opts.source || 'coach';
   const pin = opts.pin === true;
   const design = typeof opts.design === 'function' ? opts.design : null;
+  const defaultSport = opts.defaultSport ?? null;
   const results = [];
   const undo = [];
 
   for (const op of resolved) {
     try {
       if (op.op === 'generate_block') {
-        const occupied = await occupiedDatesIn(supabase, userId, op.from, op.to);
-        const { entries, skipped } = expandBlock(op, occupied, design);
+        const occupied = await dayIndexIn(supabase, userId, op.from, op.to);
+        const { entries, skipped } = expandBlock(op, occupied, design, defaultSport);
 
         if (entries.length === 0) {
           results.push({
             op: 'generate_block', handle: null, ok: true, created: 0, skipped: skipped.length,
-            note: 'Every day in that range already had an entry; nothing was added.',
+            note: 'Every day in that range was a race or rest day, or already had a session of that sport; nothing was added.',
           });
           continue;
         }
 
-        // Batch insert: one round trip for a season, not seventy. Slot is
-        // always 0 because the expander only writes to unoccupied days.
+        // Batch insert: one round trip for a season, not seventy. Each entry
+        // carries the slot the expander placed it in — 0 on an empty day, the
+        // next free one beside another sport's session.
         const designs = entries.filter((e) => e.__design);
         const rows = entries.map(({ __design, ...e }) => ({
           id: randomUUID(),
           user_id: userId,
-          slot: 0,
           status: 'planned',
           source,
           coach_rationale: op.reason ?? null,
           pinned: false,
           ...e,
         }));
-        const { error } = await supabase.from('calendar_entries').insert(rows);
+        const { error } = await writeWithSportFallback(rows, (payload) =>
+          supabase.from('calendar_entries').insert(payload),
+        );
         if (error) throw error;
 
         results.push({
@@ -286,18 +335,27 @@ export async function applyCalendarOps(userId, resolved, opts = {}) {
         // cyclocross season three times, the coach truncated and retried each
         // time, and they ended up with three copies of all nine races at slots
         // 0, 1 and 2. The calendar should be idempotent for the same thing on
-        // the same day: same date, same type, same title is the SAME entry.
-        const { data: dupes, error: dupeError } = await supabase
-          .from('calendar_entries')
-          .select('id, title')
-          .eq('user_id', userId)
-          .eq('date', op.date)
-          .eq('type', op.type || 'workout');
+        // the same day: same date, same type, same title — and same sport —
+        // is the SAME entry. (A "Long session" ride and a "Long session" run
+        // on one day are two.)
+        const createSport = sportFor(op, defaultSport);
+        const { data: dupes, error: dupeError } = await selectWithSportFallback(
+          'id, title, type, workout_id, workout_type, sport',
+          (columns) =>
+            supabase
+              .from('calendar_entries')
+              .select(columns)
+              .eq('user_id', userId)
+              .eq('date', op.date)
+              .eq('type', op.type || 'workout'),
+        );
         if (dupeError) throw dupeError;
 
         const wanted = String(op.title).trim().toLowerCase();
         const existing = (dupes || []).find(
-          (d) => String(d.title || '').trim().toLowerCase() === wanted
+          (d) =>
+            String(d.title || '').trim().toLowerCase() === wanted &&
+            entrySport(d) === (createSport ?? entrySport(d)),
         );
         if (existing) {
           results.push({
@@ -320,23 +378,27 @@ export async function applyCalendarOps(userId, resolved, opts = {}) {
           target_duration_min: op.target_duration_min ?? null,
           target_distance_km: op.target_distance_km ?? null,
           notes: op.notes ?? null,
-          details: withPrescription(null, prescriptionFrom(op) ?? null),
+          sport: createSport,
+          details: withPrescription(null, prescriptionFrom(op, createSport) ?? null),
         }, design);
         const { __design, ...fields } = draft;
-        const { error } = await supabase.from('calendar_entries').insert({
-          id,
-          user_id: userId,
-          slot,
-          ...fields,
-          coach_rationale: op.reason ?? null,
-          status: 'planned',
-          source,
-          // A coach entry the athlete has not touched is NOT pinned: a
-          // generator may still reshape it. Pinning happens when a human
-          // decision is expressed — the athlete editing it, or approving a
-          // proposal that changes it.
-          pinned: false,
-        });
+        const { error } = await writeWithSportFallback(
+          {
+            id,
+            user_id: userId,
+            slot,
+            ...fields,
+            coach_rationale: op.reason ?? null,
+            status: 'planned',
+            source,
+            // A coach entry the athlete has not touched is NOT pinned: a
+            // generator may still reshape it. Pinning happens when a human
+            // decision is expressed — the athlete editing it, or approving a
+            // proposal that changes it.
+            pinned: false,
+          },
+          (payload) => supabase.from('calendar_entries').insert(payload),
+        );
         if (error) throw error;
         results.push({ op: 'create', handle: null, id, date: op.date, ok: true, ...(__design ? { design: __design } : {}) });
         undo.push({ op: 'delete', id });
@@ -368,7 +430,7 @@ export async function applyCalendarOps(userId, resolved, opts = {}) {
           completed_at: op.status === 'done' ? new Date().toISOString() : null,
         };
       } else {
-        patch = draftFrom(op, entry.details ?? null);
+        patch = draftFrom(op, entry.details ?? null, entrySport(entry));
       }
 
       // PINNING IS A HUMAN ACT. This used to set pinned:true on every write,
@@ -383,15 +445,19 @@ export async function applyCalendarOps(userId, resolved, opts = {}) {
       // server applied on the coach's own authority is neither, so it leaves
       // the flag exactly as it found it — including leaving an athlete's
       // existing pin intact, since an unpin is a decision too.
-      const { error } = await supabase
-        .from('calendar_entries')
-        .update({
+      const { error } = await writeWithSportFallback(
+        {
           ...patch,
           coach_rationale: op.reason ?? entry.coach_rationale ?? null,
           ...(pin ? { pinned: true } : {}),
-        })
-        .eq('user_id', userId)
-        .eq('id', entry.id);
+        },
+        (payload) =>
+          supabase
+            .from('calendar_entries')
+            .update(payload)
+            .eq('user_id', userId)
+            .eq('id', entry.id),
+      );
       if (error) throw error;
 
       results.push({ op: op.op, handle: op.handle, id: entry.id, ok: true });
@@ -432,7 +498,7 @@ export async function persistProposal(userId, resolved, verdict, summary, conver
         ? { status: op.status }
         : op.op === 'delete'
           ? null
-          : draftFrom(op, op.entry?.details ?? null),
+          : draftFrom(op, op.entry?.details ?? null, op.entry ? entrySport(op.entry) : null),
     reason: op.reason ?? null,
   }));
 

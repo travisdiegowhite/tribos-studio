@@ -24,7 +24,8 @@ import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
 import { WORKOUT_TYPES, WORKOUT_CATEGORY_PALETTE, TRAINING_PHASES, calculateTSS, estimateTSS } from '../utils/trainingPlans';
 import { isPowerSport, getActivitySport } from '../utils/sportType';
-import { getWorkoutById } from '../data/workoutLibrary';
+// Either library: a run picked from the planner must resolve like a ride.
+import { getAnyWorkoutById as getWorkoutById } from '../data/workoutLookup';
 import { resolvePlannedWorkoutShape } from '../lib/training/plannedWorkoutShape';
 import { tokens } from '../theme';
 import { formatLocalDate, addDays, parseLocalDate } from '../utils/dateUtils';

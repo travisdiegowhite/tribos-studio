@@ -67,8 +67,17 @@ export function buildHandleMap(entries = []) {
 // ─── Tool definition ──────────────────────────────────────────────────────────
 
 import { normalizeIntervals } from './prescription.js';
+import { entrySport } from './entrySport.js';
 
 const OPS = ['create', 'generate_block', 'update', 'move', 'delete', 'set_status'];
+/** Sports an op may name. 'multi' is for races only and comes from the race type. */
+export const OP_SPORTS = ['cycling', 'running'];
+
+const SPORT_SCHEMA = {
+  type: 'string',
+  enum: OP_SPORTS,
+  description: 'cycling or running. Set it on EVERY session for an athlete who trains both; it decides the day a session may share, the interval targets that apply, and which completed activity it is matched to. Omitted, it defaults to the athlete\'s primary sport.',
+};
 
 /**
  * The interval structure of a session, as the model writes it. Same shape as
@@ -76,18 +85,20 @@ const OPS = ['create', 'generate_block', 'update', 'move', 'delete', 'set_status
  */
 const INTERVALS_SCHEMA = {
   type: 'array',
-  description: 'The set structure when this is an interval session — the numbers the athlete rides to. One item per distinct set (a 2x20 then a 4x1 is two items). ALWAYS fill this in for tempo, sweet spot, threshold, VO2 and anaerobic sessions; a set described only in notes is not a prescription and will not reach the athlete\'s bike computer. Omit for steady endurance, recovery and rest.',
+  description: 'The set structure when this is an interval session — the numbers the athlete rides or runs to. One item per distinct set (a 2x20 then a 4x1 is two items). ALWAYS fill this in for tempo, sweet spot, threshold, VO2 and anaerobic sessions; a set described only in notes is not a prescription and will not reach the athlete\'s device. Omit for steady endurance, recovery and rest. A RIDE uses target_pct_ftp_min/max; a RUN uses target_pct_threshold_pace_min/max instead.',
   items: {
     type: 'object',
     properties: {
       repeats: { type: 'integer', description: 'How many efforts in this set, e.g. 5 for 5x4min.' },
       duration_min: { type: 'number', description: 'Length of each effort in minutes, e.g. 4, or 0.5 for 30 seconds.' },
-      target_pct_ftp_min: { type: 'integer', description: 'Bottom of the power band as %FTP, e.g. 105.' },
-      target_pct_ftp_max: { type: 'integer', description: 'Top of the power band as %FTP, e.g. 115.' },
-      recovery_min: { type: 'number', description: 'Easy riding between efforts in minutes, e.g. 4. 0 when there is none.' },
-      notes: { type: 'string', description: 'One short cue for this set, e.g. "seated, 90 rpm".' },
+      target_pct_ftp_min: { type: 'integer', description: 'Rides: bottom of the power band as %FTP, e.g. 105.' },
+      target_pct_ftp_max: { type: 'integer', description: 'Rides: top of the power band as %FTP, e.g. 115.' },
+      target_pct_threshold_pace_min: { type: 'integer', description: 'Runs: the FASTER end of the pace band as % of threshold pace — 100 is threshold pace and higher is slower. e.g. 95 for 5% quicker than threshold.' },
+      target_pct_threshold_pace_max: { type: 'integer', description: 'Runs: the SLOWER end of the pace band as % of threshold pace, e.g. 100.' },
+      recovery_min: { type: 'number', description: 'Easy riding or jogging between efforts in minutes, e.g. 4. 0 when there is none.' },
+      notes: { type: 'string', description: 'One short cue for this set, e.g. "seated, 90 rpm" or "relaxed form, 180 spm".' },
     },
-    required: ['repeats', 'duration_min', 'target_pct_ftp_min', 'target_pct_ftp_max', 'recovery_min'],
+    required: ['repeats', 'duration_min', 'recovery_min'],
   },
 };
 
@@ -108,7 +119,9 @@ WHAT HAPPENS AFTER YOU CALL THIS is decided by the server, not by you:
 - Changing, moving or removing a single untouched entry takes effect immediately.
 - Changing more than one existing entry, or touching anything the athlete has already edited or completed, becomes a proposal they accept or reject.
 
-So do NOT promise a specific outcome in your reply. After calling this, describe what you did — the tool result tells you whether it applied or is awaiting their approval, and you should say which.`,
+So do NOT promise a specific outcome in your reply. After calling this, describe what you did — the tool result tells you whether it applied or is awaiting their approval, and you should say which.
+
+FOR AN ATHLETE WHO RIDES AND RUNS, set "sport" on every session and every weekly_pattern day. A ride and a run may share a day: the server puts the second beside the first. It never stacks two sessions of the same sport on one day, and never adds training to a race day or a rest day. Give runs pace targets (target_pct_threshold_pace_*), never %FTP.`,
   input_schema: {
     type: 'object',
     properties: {
@@ -160,6 +173,7 @@ So do NOT promise a specific outcome in your reply. After calling this, describe
               type: 'number',
               description: 'Planned or race distance in kilometres, when distance is the meaningful target.',
             },
+            sport: SPORT_SCHEMA,
             intervals: INTERVALS_SCHEMA,
             status: {
               type: 'string',
@@ -176,7 +190,7 @@ So do NOT promise a specific outcome in your reply. After calling this, describe
             },
             weekly_pattern: {
               type: 'array',
-              description: 'For generate_block: what a typical week looks like. The server repeats it across every week in [from, to], skipping any day that already has a session or a race so existing entries are never overwritten. Omit days that should stay empty rather than adding rest entries for them.',
+              description: 'For generate_block: what a typical week looks like. The server repeats it across every week in [from, to], skipping race days, rest days and any day that already has a session of the same sport, so existing entries are never overwritten. A day may appear twice with different sports (a ride and a run). Omit days that should stay empty rather than adding rest entries for them.',
               items: {
                 type: 'object',
                 properties: {
@@ -190,6 +204,7 @@ So do NOT promise a specific outcome in your reply. After calling this, describe
                   workout_id: { type: 'string', description: 'Optional id from the workout library.' },
                   target_load: { type: 'number', description: 'Planned RSS for this session.' },
                   target_duration_min: { type: 'integer', description: 'Planned duration in minutes.' },
+                  sport: SPORT_SCHEMA,
                   intervals: INTERVALS_SCHEMA,
                   notes: { type: 'string', description: 'Execution detail for the athlete.' },
                 },
@@ -249,9 +264,12 @@ const SETTABLE_STATUSES = new Set(['planned', 'done', 'skipped']);
  * @param {Array} operations Raw tool input
  * @param {Map<string, object>} byHandle From buildHandleMap
  * @param {Set<string>} [ambiguous] Handles that collided
+ * @param {string|null} [defaultSport] The athlete's primary sport — the sport
+ *   applyCalendarOps gives a workout that names none, so intervals validate
+ *   against the same band they will be stored with.
  * @returns {{ valid: boolean, errors: string[], resolved: Array }}
  */
-export function validateOps(operations, byHandle, ambiguous = new Set()) {
+export function validateOps(operations, byHandle, ambiguous = new Set(), defaultSport = null) {
   const errors = [];
   const resolved = [];
 
@@ -268,6 +286,9 @@ export function validateOps(operations, byHandle, ambiguous = new Set()) {
     }
     if (!op.reason || !String(op.reason).trim()) {
       errors.push(`${at}: every operation needs a one-sentence reason.`);
+    }
+    if (op.sport != null && !OP_SPORTS.includes(op.sport)) {
+      errors.push(`${at}: unknown sport "${op.sport}". Expected one of ${OP_SPORTS.join(', ')}.`);
     }
 
     if (op.op === 'generate_block') {
@@ -290,7 +311,11 @@ export function validateOps(operations, byHandle, ambiguous = new Set()) {
           if (!d?.title || !String(d.title).trim()) {
             errors.push(`${at}, pattern day ${j + 1}: needs a title.`);
           }
-          errors.push(...normalizeIntervals(d?.intervals, `${at}, pattern day ${j + 1}, intervals`).errors);
+          if (d?.sport != null && !OP_SPORTS.includes(d.sport)) {
+            errors.push(`${at}, pattern day ${j + 1}: unknown sport "${d.sport}". Expected one of ${OP_SPORTS.join(', ')}.`);
+          }
+          const daySport = d?.sport ?? op.sport ?? defaultSport;
+          errors.push(...normalizeIntervals(d?.intervals, `${at}, pattern day ${j + 1}, intervals`, daySport).errors);
         });
         // A block bigger than this is almost certainly a misread of intent, and
         // it is cheaper to say so than to write hundreds of rows and undo them.
@@ -317,7 +342,8 @@ export function validateOps(operations, byHandle, ambiguous = new Set()) {
       if (op.type && !ENTRY_TYPES.has(op.type)) {
         errors.push(`${at}: unknown type "${op.type}".`);
       }
-      errors.push(...normalizeIntervals(op.intervals, `${at}, intervals`).errors);
+      const createSport = op.sport ?? ((op.type ?? 'workout') === 'workout' ? defaultSport : null);
+      errors.push(...normalizeIntervals(op.intervals, `${at}, intervals`, createSport).errors);
       resolved.push({ ...op, entry: null });
       return;
     }
@@ -347,7 +373,7 @@ export function validateOps(operations, byHandle, ambiguous = new Set()) {
       errors.push(`${at}: unknown type "${op.type}".`);
     }
     if (op.op === 'update') {
-      errors.push(...normalizeIntervals(op.intervals, `${at}, intervals`).errors);
+      errors.push(...normalizeIntervals(op.intervals, `${at}, intervals`, op.sport ?? entrySport(entry)).errors);
     }
 
     resolved.push({ ...op, entry });

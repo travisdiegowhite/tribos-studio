@@ -91,3 +91,25 @@ describe('tryAutoMatchWorkout — local-date basis', () => {
     ).toBeNull();
   });
 });
+
+describe('tryAutoMatchWorkout — same sport only (multisport phase 3)', () => {
+  const day = '2026-07-23';
+  const ride = { id: 'ride', scheduled_date: day, target_rss: 60, target_duration: 60, workout_type: 'endurance', activity_id: null, sport: 'cycling' };
+  const run = { id: 'run', scheduled_date: day, target_rss: 60, target_duration: 60, workout_type: 'endurance', activity_id: null, sport: 'running' };
+  const activity = (over) => ({ start_date_local: `${day}T07:00:00Z`, rss: 60, moving_time: 3600, ...over });
+
+  it('matches a run to the run, not the ride on the same day', async () => {
+    sessionsMock.mockResolvedValue([ride, run]);
+    expect(await tryAutoMatchWorkout(null, 'u1', activity({ type: 'Run', sport_type: 'RUNNING' }))).toBe('run');
+  });
+
+  it('never completes a ride with a run', async () => {
+    sessionsMock.mockResolvedValue([ride]);
+    expect(await tryAutoMatchWorkout(null, 'u1', activity({ type: 'Run' }))).toBeNull();
+  });
+
+  it('matches as before when the activity row names no sport', async () => {
+    sessionsMock.mockResolvedValue([ride]);
+    expect(await tryAutoMatchWorkout(null, 'u1', activity({}))).toBe('ride');
+  });
+});

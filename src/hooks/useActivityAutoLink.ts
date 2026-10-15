@@ -16,7 +16,8 @@ import { useEffect, useRef } from 'react';
 import { supabase } from '../lib/supabase';
 import { linkEntryToActivity } from '../lib/calendar/calendarMutations';
 import { calculateTSS, estimateTSS } from '../utils/trainingPlans';
-import { isPowerSport, isCyclingActivity } from '../utils/sportType';
+import { isPowerSport, getActivitySport } from '../utils/sportType';
+import { entrySport } from '../../api/utils/entrySport.js';
 import { triggerAdaptationDetection } from '../utils/adaptationTrigger';
 import { formatLocalDate } from '../utils/dateUtils';
 
@@ -36,11 +37,28 @@ interface PlannedWorkoutRow {
   id: string;
   scheduled_date?: string;
   activity_id?: string | null;
+  entry_type?: string | null;
+  sport?: string | null;
+  workout_id?: string | null;
+  workout_type?: string | null;
+}
+
+/**
+ * Whether an activity of `sport` can satisfy this calendar entry: never a
+ * rest day or a note, and only an entry of the same sport — a run must not
+ * complete the day's ride (multisport phase 3). A multi-sport race accepts
+ * either.
+ */
+export function entryAcceptsActivity(entry: PlannedWorkoutRow, sport: string): boolean {
+  const type = entry.entry_type ?? 'workout';
+  if (type === 'rest' || type === 'note') return false;
+  const want = entry.sport ?? entrySport({ type, workout_id: entry.workout_id, workout_type: entry.workout_type });
+  return want === sport || want === 'multi';
 }
 
 interface UseActivityAutoLinkArgs {
   userId?: string | null;
-  /** Activities to consider for linking (cycling rides). */
+  /** Activities to consider for linking (rides and runs). */
   activities?: AutoLinkActivity[];
   /** Raw planned_workouts rows currently loaded by the calendar. */
   plannedWorkouts?: PlannedWorkoutRow[];
@@ -102,17 +120,27 @@ export function useActivityAutoLink({
     const run = async () => {
       const toLink: { workoutId: string; activityId: string; activity: AutoLinkActivity }[] = [];
 
+      // Entries claimed this pass, so a ride and a run on one day can't both
+      // land on the same session.
+      const claimed = new Set<string>();
       for (const activity of activities) {
         if (processedRef.current.has(activity.id)) continue;
-        if (!isCyclingActivity(activity)) continue;
+        const sport = getActivitySport(activity);
+        if (sport !== 'cycling' && sport !== 'running') continue;
 
         const date = getActivityLocalDate(activity);
         if (!date) continue;
 
         const match = plannedWorkouts.find(
-          (w) => w.id && w.scheduled_date === date && !w.activity_id
+          (w) =>
+            w.id &&
+            w.scheduled_date === date &&
+            !w.activity_id &&
+            !claimed.has(w.id) &&
+            entryAcceptsActivity(w, sport),
         );
         if (match) {
+          claimed.add(match.id);
           toLink.push({ workoutId: match.id, activityId: activity.id, activity });
         }
       }

@@ -364,7 +364,7 @@ const TrainingPlanBrowser = ({ activePlan, onPlanActivated, compact = false }) =
             dayNames.forEach((dayName, dayIndex) => {
               const dayPlan = weekTemplate[dayName];
               if (dayPlan) {
-                const workoutInfo = dayPlan.workout ? getWorkoutFromLibrary(dayPlan.workout, activePlan?.sportType || template?.sportType) : null;
+                const workoutInfo = dayPlan.workout ? getWorkoutFromLibrary(dayPlan.workout, activePlan?.sport_type || activePlan?.sportType || template?.sportType) : null;
                 workouts.push({
                   date: calculateScheduledDate(week, dayIndex),
                   type: dayPlan.workout ? 'workout' : 'rest',
@@ -384,7 +384,7 @@ const TrainingPlanBrowser = ({ activePlan, onPlanActivated, compact = false }) =
         for (let week = 1; week <= totalWeeks; week++) {
           for (let dayOfWeek = 0; dayOfWeek < 7; dayOfWeek++) {
             const dayWorkout = getWorkoutForDay(methodology, dayOfWeek, week, totalWeeks);
-            const workoutInfo = dayWorkout.workout ? getWorkoutFromLibrary(dayWorkout.workout, activePlan?.sportType || template?.sportType) : null;
+            const workoutInfo = dayWorkout.workout ? getWorkoutFromLibrary(dayWorkout.workout, activePlan?.sport_type || activePlan?.sportType || template?.sportType) : null;
             workouts.push({
               date: calculateScheduledDate(week, dayOfWeek),
               type: (dayWorkout.type || 'rest') === 'rest' ? 'rest' : 'workout',
@@ -400,10 +400,14 @@ const TrainingPlanBrowser = ({ activePlan, onPlanActivated, compact = false }) =
 
       let inserted = 0;
       if (workouts.length > 0) {
-        const written = await insertSessions(user.id, workouts, {
-          source: 'plan',
-          planId: activePlan.id,
-        });
+        // The plan's sport decides which day a session may share with another
+        // sport's (insertSessions → calendarOccupancy). Rest days have none.
+        const planSport = (activePlan?.sport_type || activePlan?.sportType || template?.sportType) === 'running' ? 'running' : 'cycling';
+        const written = await insertSessions(
+          user.id,
+          workouts.map((w) => ({ ...w, sport: w.type === 'workout' ? planSport : null })),
+          { source: 'plan', planId: activePlan.id },
+        );
         if (!written.success) throw new Error(written.error);
         inserted = written.data.inserted;
       }
@@ -880,7 +884,10 @@ const TrainingPlanBrowser = ({ activePlan, onPlanActivated, compact = false }) =
       let activatedCount = 0;
       if (workouts.length > 0) {
         // Strip the scratch fields the redistributor needed; they are not columns.
-        const drafts = workouts.map(({ _weekNumber, _dayOfWeek, ...draft }) => draft);
+        const drafts = workouts.map(({ _weekNumber, _dayOfWeek, ...draft }) => ({
+          ...draft,
+          sport: draft.type === 'workout' ? (planSportType === 'running' ? 'running' : 'cycling') : null,
+        }));
 
         // Days the athlete has already filled are skipped, not overwritten, so
         // activating a plan cannot bury a race or a session they scheduled.

@@ -18,6 +18,7 @@
 
 import { randomUUID } from 'node:crypto';
 import { getSupabaseAdmin } from './supabaseAdmin.js';
+import { writeWithSportFallback } from './calendarSportColumn.js';
 
 /** Fields a server writer may set on an entry. Anything else is dropped. */
 const WRITABLE = [
@@ -27,6 +28,9 @@ const WRITABLE = [
   // `details.prescription` — the session's interval structure. Writers build
   // it through `prescription.js`; this list only lets it through.
   'details',
+  // cycling | running | multi | other (migration 134). Written through
+  // writeWithSportFallback so an unapplied migration cannot fail the write.
+  'sport',
 ];
 
 function draftFrom(patch) {
@@ -64,13 +68,15 @@ export async function updateEntry(userId, entryId, patch) {
   if (Object.keys(draft).length === 0) return { success: true, data: null };
 
   const supabase = getSupabaseAdmin();
-  const { data, error } = await supabase
-    .from('calendar_entries')
-    .update(draft)
-    .eq('user_id', userId)
-    .eq('id', entryId)
-    .select()
-    .single();
+  const { data, error } = await writeWithSportFallback(draft, (payload) =>
+    supabase
+      .from('calendar_entries')
+      .update(payload)
+      .eq('user_id', userId)
+      .eq('id', entryId)
+      .select()
+      .single(),
+  );
 
   if (error) {
     console.error('updateEntry failed:', error.message);
@@ -174,23 +180,22 @@ export async function createEntry(userId, date, draft, options = {}) {
   try {
     const slot = await nextFreeSlot(supabase, userId, date);
     const id = randomUUID();
-    const { data, error } = await supabase
-      .from('calendar_entries')
-      .insert({
-        id,
-        user_id: userId,
-        date,
-        slot,
-        type: draft.type ?? 'workout',
-        title: String(draft.title).trim(),
-        ...draftFrom(draft),
-        status: 'planned',
-        source: options.source ?? 'coach',
-        plan_id: options.planId ?? null,
-        pinned: false,
-      })
-      .select()
-      .single();
+    const row = {
+      id,
+      user_id: userId,
+      date,
+      slot,
+      type: draft.type ?? 'workout',
+      title: String(draft.title).trim(),
+      ...draftFrom(draft),
+      status: 'planned',
+      source: options.source ?? 'coach',
+      plan_id: options.planId ?? null,
+      pinned: false,
+    };
+    const { data, error } = await writeWithSportFallback(row, (payload) =>
+      supabase.from('calendar_entries').insert(payload).select().single(),
+    );
     if (error) throw error;
     return { success: true, data };
   } catch (err) {

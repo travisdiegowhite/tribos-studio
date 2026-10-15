@@ -8,6 +8,11 @@
  *
  * The interval shape is the sequencer's own `IntervalPrescription` (see
  * `src/types/training.ts`): repeats × duration at a %FTP band with a recovery.
+ * A RUN's intervals carry a threshold-pace band instead
+ * (`target_pct_threshold_pace_min/max`, the running library's
+ * `pacePctThreshold` convention: 100 = threshold pace, higher = slower), and
+ * the prescription records `basis: 'pace'` (multisport phase 3). Readers that
+ * only understand %FTP skip a pace set rather than draw it wrong.
  * Everything that produces a session — the coach's `calendar_change` tool, the
  * arc refill, the session designer — normalises through `buildPrescription`,
  * so a reader can trust the shape without re-validating it.
@@ -25,6 +30,8 @@ const MAX_INTERVAL_MIN = 180;
 const MIN_PCT_FTP = 30;
 const MAX_PCT_FTP = 300;
 const MAX_RECOVERY_MIN = 60;
+const MIN_PCT_PACE = 70;
+const MAX_PCT_PACE = 150;
 const MAX_INTERVALS = 12;
 const MAX_SETS = 6;
 const MAX_BOOKEND_MIN = 60;
@@ -47,11 +54,16 @@ function round1(n) {
  * than none, because the row would then paint a structure the coach did not
  * write. Errors are specific enough for the coach's retry loop to correct.
  *
+ * The target band follows the sport: a %FTP band for a ride, a %threshold-pace
+ * band for a run. With no sport given, a set that names only a pace band is
+ * read as a run's and anything else as a ride's.
+ *
  * @param {unknown} input
  * @param {string} [at='intervals'] label for error messages
+ * @param {'cycling'|'running'|string|null} [sport]
  * @returns {{ intervals: Array<object>|null, errors: string[] }}
  */
-export function normalizeIntervals(input, at = 'intervals') {
+export function normalizeIntervals(input, at = 'intervals', sport = null) {
   if (input === undefined || input === null) return { intervals: null, errors: [] };
   if (!Array.isArray(input)) {
     return { intervals: null, errors: [`${at}: must be an array of interval sets.`] };
@@ -76,6 +88,12 @@ export function normalizeIntervals(input, at = 'intervals') {
     let pctMax = num(raw.target_pct_ftp_max ?? raw.targetPctFtpMax ?? raw.target_pct_ftp);
     if (pctMin === null && pctMax !== null) pctMin = pctMax;
     if (pctMax === null && pctMin !== null) pctMax = pctMin;
+    let paceMin = num(raw.target_pct_threshold_pace_min ?? raw.target_pct_threshold_pace);
+    let paceMax = num(raw.target_pct_threshold_pace_max ?? raw.target_pct_threshold_pace);
+    if (paceMin === null && paceMax !== null) paceMin = paceMax;
+    if (paceMax === null && paceMin !== null) paceMax = paceMin;
+    const pace =
+      sport === 'running' || (sport !== 'cycling' && paceMin !== null && pctMin === null);
 
     if (repeats === null || repeats < 1 || repeats > MAX_REPEATS || !Number.isInteger(repeats)) {
       errors.push(`${label}: repeats must be a whole number from 1 to ${MAX_REPEATS} (got ${JSON.stringify(raw.repeats)}).`);
@@ -83,7 +101,11 @@ export function normalizeIntervals(input, at = 'intervals') {
     if (durationMin === null || durationMin <= 0 || durationMin > MAX_INTERVAL_MIN) {
       errors.push(`${label}: duration_min must be between 0 and ${MAX_INTERVAL_MIN} minutes (got ${JSON.stringify(raw.duration_min)}).`);
     }
-    if (pctMin === null || pctMax === null || pctMin < MIN_PCT_FTP || pctMax > MAX_PCT_FTP || pctMin > pctMax) {
+    if (pace) {
+      if (paceMin === null || paceMax === null || paceMin < MIN_PCT_PACE || paceMax > MAX_PCT_PACE || paceMin > paceMax) {
+        errors.push(`${label}: a run's target_pct_threshold_pace_min/max must be a band between ${MIN_PCT_PACE} and ${MAX_PCT_PACE} (100 = threshold pace, higher = slower), min ≤ max.`);
+      }
+    } else if (pctMin === null || pctMax === null || pctMin < MIN_PCT_FTP || pctMax > MAX_PCT_FTP || pctMin > pctMax) {
       errors.push(`${label}: target_pct_ftp_min/max must be a %FTP band between ${MIN_PCT_FTP} and ${MAX_PCT_FTP}, min ≤ max.`);
     }
     if (recoveryMin < 0 || recoveryMin > MAX_RECOVERY_MIN) {
@@ -91,13 +113,21 @@ export function normalizeIntervals(input, at = 'intervals') {
     }
     if (errors.length > 0) return;
 
-    const out = {
-      repeats,
-      duration_min: round1(durationMin),
-      target_pct_ftp_min: Math.round(pctMin),
-      target_pct_ftp_max: Math.round(pctMax),
-      recovery_min: round1(recoveryMin),
-    };
+    const out = pace
+      ? {
+          repeats,
+          duration_min: round1(durationMin),
+          target_pct_threshold_pace_min: Math.round(paceMin),
+          target_pct_threshold_pace_max: Math.round(paceMax),
+          recovery_min: round1(recoveryMin),
+        }
+      : {
+          repeats,
+          duration_min: round1(durationMin),
+          target_pct_ftp_min: Math.round(pctMin),
+          target_pct_ftp_max: Math.round(pctMax),
+          recovery_min: round1(recoveryMin),
+        };
     // Sets of sets (30/15s ridden as 3 × 13) with a longer recovery between.
     // `sets` is only the outer count when `repeats` is spelled out; alone it
     // is the older spelling of repeats (handled above).
@@ -110,7 +140,7 @@ export function normalizeIntervals(input, at = 'intervals') {
     // Watts the designer aimed at, kept beside the %FTP the device reads.
     const wLo = num(raw.target_watts_min);
     const wHi = num(raw.target_watts_max);
-    if (wLo != null && wHi != null && wLo > 0 && wHi >= wLo) {
+    if (!pace && wLo != null && wHi != null && wLo > 0 && wHi >= wLo) {
       out.target_watts_min = Math.round(wLo);
       out.target_watts_max = Math.round(wHi);
     }
@@ -144,6 +174,8 @@ export function buildPrescription(intervals, source, extra = {}) {
   const out = {
     version: PRESCRIPTION_VERSION,
     source,
+    // What the bands are relative to: FTP for a ride, threshold pace for a run.
+    basis: intervals.some((i) => i && i.target_pct_threshold_pace_min != null) ? 'pace' : 'power',
     intervals,
   };
   if (warmup !== null && warmup >= 0 && warmup <= MAX_BOOKEND_MIN) out.warmup_min = round1(warmup);
