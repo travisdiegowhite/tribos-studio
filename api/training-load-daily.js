@@ -173,7 +173,7 @@ async function handleRecompute(req, res, authUser) {
 
 async function handlePreview(req, res, authUser) {
   try {
-    const { rows, profile } = await computeTrainingLoadRows(supabase, authUser.id);
+    const { rows, profile, runProfile } = await computeTrainingLoadRows(supabase, authUser.id);
     const server = rows.length > 0 ? rows[rows.length - 1] : null;
 
     // Client-style comparison: the exact estimator + walk the UI falls back
@@ -220,8 +220,16 @@ async function handlePreview(req, res, authUser) {
     const clientTfi = Math.round(ctl * 100) / 100;
     return res.json({
       server: server
-        ? { date: server.date, tfi: server.tfi, afi: server.afi, form_score: server.form_score }
+        ? {
+            date: server.date,
+            tfi: server.tfi,
+            afi: server.afi,
+            form_score: server.form_score,
+            tfi_by_sport: { cycling: server.tfi_cycling, running: server.tfi_running, other: server.tfi_other },
+          }
         : null,
+      // The thresholds runs were scored against, and where each came from.
+      runProfile,
       clientStyle: { tfi: clientTfi, atl: Math.round(atl * 100) / 100 },
       deltaTfi: server ? Math.round((server.tfi - clientTfi) * 100) / 100 : null,
       deltaTfiPct:

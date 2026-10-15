@@ -8,11 +8,12 @@
 
 The canonical Tribos metrics specification lives at `docs/TRIBOS_METRICS_SPECIFICATION.md`. Historical rollout context is in `docs/METRICS_ROLLOUT_STATUS.md` and `docs/METRICS_ROLLOUT_REMAINING.md`. **The current policy lives in `docs/METRICS_ROLLOUT_FREEZE.md` and overrides anything those docs imply about future cut-over PRs.**
 
-Three amendments from Part A implementation apply on top of the spec:
+Four amendments apply on top of the spec (D1, D2 and D4 from Part A implementation, D5 from multisport phase 1):
 
 - **(D1) `rss_source` has 6 tiers, not 4**: `device`, `power`, `kilojoules`, `hr`, `rpe`, `inferred`.
 - **(D2) Confidence values are calibrated**: `device` 0.95 / `power` 0.95 / `kJ-with-FTP` 0.75 / `kJ-no-FTP` 0.50 / `hr` 0.65 / `inferred` 0.40.
 - **(D4) Terrain multiplier applies only to `kJ` and `inferred` tiers**, not all tiers.
+- **(D5) Run load uses the athlete's thresholds** (`api/utils/runLoad.js`, 2026-10): `power` also means threshold-pace rTSS for runs (0.75 entered pace / 0.65 estimated), `hr` means hrTSS vs LTHR (0.65 / 0.55 estimated), and the old fixed-band run heuristic is `inferred` at 0.40. Still six tiers. `training_load_daily` carries a per-sport split (`{rss,tfi,afi}_{cycling,running,other}`, migration 133) that sums to the combined columns. Details in `docs/METRICS_ROLLOUT_FREEZE.md`.
 
 ### The B0–B10 rename is frozen — do not resume it
 

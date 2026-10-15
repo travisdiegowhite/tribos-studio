@@ -171,3 +171,28 @@ The default answer to "should we revive the rollout?" is **no**.
   legacy columns on every webhook ingest and backfill path. Strava
   (`api/strava-activities.js`) and FIT upload (`api/fit-upload.js`)
   were already dual-writing.
+- **2026-10-15** — **amendment D5: run load against the athlete's own
+  thresholds** (multisport phase 1, `api/utils/runLoad.js`). No new tier: the
+  `rss_source` CHECK stays the six D1 values, and two of them widen in meaning.
+  - `power` also means **threshold-pace rTSS** for a run: hours × IF² × 100,
+    IF = threshold pace / graded pace (summary graded pace: distance + 8 m per
+    metre climbed). Confidence **0.75** when the athlete entered the pace (or
+    VDOT), **0.65** when it was estimated from their run history.
+  - `hr` now means **hrTSS**: exponential TRIMP on average HR, scaled so an
+    hour at LTHR = 100. Confidence **0.65** with an entered LTHR, **0.55**
+    with one estimated from max HR. Also used for other sports (swim,
+    strength, walk) when HR and anchors exist.
+  - The old fixed-band run estimate is relabelled **`inferred` at 0.40**. It
+    was `hr` at 0.65 although it ignored the athlete entirely, and every run in
+    production (826 in the 180 days to 2026-10-15) was scored by it.
+  - Order for a run: device → rTSS from an entered pace (not on trail runs with
+    usable HR) → hrTSS → rTSS from an estimated pace → `inferred`. The
+    estimated pace ranks below HR because on the 2026-10 sample it ran slow for
+    athletes whose hard runs are tempo, inflating easy-run load by up to ~70%;
+    HR-first kept the population's load per hour unchanged (58 → 58).
+  - Only `trainingLoadRecompute` and `process-deviation` pass a run profile.
+    Browser estimates (`estimateActivityTSS`) still use the heuristic for a
+    single run's RSS until the multisport UI phase.
+  - Migration 133 adds `training_load_daily.{rss,tfi,afi}_{cycling,running,other}`.
+    Single-written (no legacy twin); per sport they sum to the combined
+    columns. There is no per-sport form score: fatigue is shared.

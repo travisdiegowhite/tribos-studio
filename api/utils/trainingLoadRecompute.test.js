@@ -1,9 +1,13 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import {
   computeTrainingLoadRows,
   recomputeTrainingLoadForUser,
   fetchSeedState,
   localDateKey,
+  apportionSeed,
+  isMissingSplitColumnError,
+  resetSplitColumnsFallback,
+  SPLIT_COLUMNS,
 } from './trainingLoadRecompute.js';
 
 // Fixed "now": 2026-07-10 15:00 UTC = 2026-07-10 09:00 in America/Denver.
@@ -281,5 +285,118 @@ describe('localDateKey', () => {
   it('converts UTC instants to the local calendar date', () => {
     expect(localDateKey('2026-07-02T03:00:00Z', 'America/Denver')).toBe('2026-07-01');
     expect(localDateKey('2026-07-02T03:00:00Z', 'UTC')).toBe('2026-07-02');
+  });
+});
+
+describe('per-sport split (migration 133)', () => {
+  const runAct = (dateIso, extra = {}) => ({
+    start_date: dateIso,
+    type: 'Run',
+    sport_type: 'RUNNING',
+    moving_time: 3600,
+    distance: 12000,
+    total_elevation_gain: 0,
+    average_heartrate: 150,
+    ...extra,
+  });
+  const swim = (dateIso) => ({
+    start_date: dateIso,
+    type: 'Swim',
+    sport_type: 'LAP_SWIMMING',
+    moving_time: 2400,
+    distance: 2000,
+    total_elevation_gain: 0,
+    average_heartrate: 130,
+  });
+
+  it('splits each day by sport and the sports add up to the combined row', async () => {
+    const activities = [];
+    for (let d = 1; d <= 9; d++) {
+      const day = `2026-07-0${d}T16:00:00Z`;
+      if (d % 3 === 0) activities.push(runAct(day));
+      else if (d % 3 === 1) activities.push(ride(day, 70));
+      else activities.push(swim(day), ride(day, 40));
+    }
+    const supabase = mockSupabase({
+      profile: { threshold_pace_sec: 300, lthr: 168, max_hr: 189, resting_hr: 60 },
+      activities,
+      priorRow: { date: '2026-06-29', tfi: 30, afi: 25 },
+    });
+    const { rows, runProfile } = await computeTrainingLoadRows(supabase, 'u1', { days: 10, now: NOW });
+    expect(runProfile).toMatchObject({ thresholdPaceSec: 300, paceFrom: 'profile' });
+
+    for (const r of rows) {
+      for (const k of ['rss', 'tfi', 'afi']) {
+        const sum = r[`${k}_cycling`] + r[`${k}_running`] + r[`${k}_other`];
+        expect(Math.abs(sum - r[k]), `${r.date} ${k}`).toBeLessThanOrEqual(0.05);
+      }
+    }
+    const runDay = rows.find((r) => r.date === '2026-07-03');
+    // An hour at threshold pace, scored with the athlete's entered pace.
+    expect(runDay).toMatchObject({ rss_running: 100, rss_cycling: 0, rss_source: 'power' });
+    const swimDay = rows.find((r) => r.date === '2026-07-02');
+    expect(swimDay.rss_other).toBeGreaterThan(0);
+    expect(swimDay.rss_cycling).toBe(40);
+  });
+
+  it('apportions a seed written before the split by the window share', () => {
+    expect(apportionSeed({ tfi: 40, afi: 20 }, { cycling: 300, running: 100, other: 0 })).toEqual({
+      cycling: { tfi: 30, afi: 15 },
+      running: { tfi: 10, afi: 5 },
+      other: { tfi: 0, afi: 0 },
+    });
+    expect(apportionSeed({ tfi: 40, afi: 20 }, { cycling: 0, running: 0, other: 0 }).cycling).toEqual({ tfi: 40, afi: 20 });
+  });
+
+  it('reads the stored split as the seed when the prior row has it', async () => {
+    const priorRow = {
+      date: '2026-06-29', tfi: 30, afi: 20,
+      tfi_cycling: 20, afi_cycling: 12, tfi_running: 10, afi_running: 8, tfi_other: 0, afi_other: 0,
+    };
+    const seed = await fetchSeedState(mockSupabase({ priorRow }), 'u1', '2026-06-30', 42, 7);
+    expect(seed.sports).toEqual({
+      cycling: { tfi: 20, afi: 12 },
+      running: { tfi: 10, afi: 8 },
+      other: { tfi: 0, afi: 0 },
+    });
+  });
+
+  it('labels a run with no thresholds and no HR as inferred, never hr', async () => {
+    const supabase = mockSupabase({
+      activities: [runAct('2026-07-08T16:00:00Z', { average_heartrate: null })],
+    });
+    const { rows } = await computeTrainingLoadRows(supabase, 'u1', { days: 5, now: NOW });
+    expect(rows.find((r) => r.date === '2026-07-08').rss_source).toBe('inferred');
+  });
+
+  it('writes the combined load without the split when migration 133 is missing', async () => {
+    resetSplitColumnsFallback();
+    const supabase = mockSupabase({ activities: [ride('2026-07-08T16:00:00Z', 84)] });
+    const missing = { message: "Could not find the 'rss_cycling' column of 'training_load_daily' in the schema cache" };
+    expect(isMissingSplitColumnError(missing)).toBe(true);
+    let calls = 0;
+    const realFrom = supabase.from.bind(supabase);
+    supabase.from = (table) => {
+      const b = realFrom(table);
+      const realUpsert = b.upsert;
+      b.upsert = (rows, opts) => {
+        calls++;
+        if (rows.some((r) => 'rss_cycling' in r)) return Promise.resolve({ error: missing });
+        return realUpsert(rows, opts);
+      };
+      return b;
+    };
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+    const result = await recomputeTrainingLoadForUser(supabase, 'u1', { days: 5, now: NOW });
+    expect(result.rowsWritten).toBe(5);
+    expect(calls).toBe(2);
+    const written = supabase.upserts[0].rows;
+    expect(written[0]).toHaveProperty('tfi');
+    for (const c of SPLIT_COLUMNS) expect(written[0]).not.toHaveProperty(c);
+    resetSplitColumnsFallback();
+  });
+
+  it('still fails loudly on an unrelated upsert error', () => {
+    expect(isMissingSplitColumnError({ message: 'permission denied for table training_load_daily' })).toBe(false);
   });
 });

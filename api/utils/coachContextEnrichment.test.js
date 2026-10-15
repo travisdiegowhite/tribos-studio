@@ -11,7 +11,7 @@ vi.mock('./calendarRead.js', () => ({
   fetchPlannedSessions: (...a) => sessionsMock(...a),
 }));
 
-const { fetchCoachEnrichmentData, buildCoachEnrichmentBlock, formatSportProfileLines } = await import(
+const { fetchCoachEnrichmentData, buildCoachEnrichmentBlock, formatSportProfileLines, formatFitnessBySport } = await import(
   './coachContextEnrichment.js'
 );
 
@@ -414,5 +414,28 @@ describe('formatSportProfileLines (migrations 042 + 132)', () => {
     });
     expect(block).toContain('SPORTS: running only.');
     expect(block).toContain('RUN THRESHOLDS: threshold pace 5:00/km');
+  });
+});
+
+describe('formatFitnessBySport (migration 133)', () => {
+  it('names each sport share for an athlete who runs', () => {
+    expect(formatFitnessBySport({ tfi_cycling: 48.2, tfi_running: 21.6, tfi_other: 0.1 })).toBe(
+      'FITNESS BY SPORT: ride TFI 48, run TFI 22 (parts of the combined TFI; fatigue and form are shared)',
+    );
+    expect(formatFitnessBySport({ tfi_cycling: 10, tfi_running: 30, tfi_other: 4 })).toContain('other TFI 4');
+  });
+
+  it('is silent for a rides-only athlete or a missing row', () => {
+    expect(formatFitnessBySport(null)).toBeNull();
+    expect(formatFitnessBySport({ tfi_cycling: 50, tfi_running: 0, tfi_other: 0 })).toBeNull();
+    expect(formatFitnessBySport({ tfi_cycling: 50, tfi_running: null })).toBeNull();
+  });
+
+  it('appears under the FITNESS line in the block', () => {
+    const block = buildCoachEnrichmentBlock(
+      { latestLoad: { date: '2026-07-09', tfi: 70, afi: 60, form_score: 5 }, loadSplit: { tfi_cycling: 48, tfi_running: 22, tfi_other: 0 }, recentActivities: [], weekPlanned: [] },
+      { profile: PROFILE, timezone: TZ, now: NOW },
+    );
+    expect(block).toMatch(/FITNESS \(server-computed[^\n]*\nFITNESS BY SPORT: ride TFI 48, run TFI 22/);
   });
 });

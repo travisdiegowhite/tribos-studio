@@ -13,7 +13,8 @@ import {
   calculateTrainingMonotonyStrain,
 } from './advancedRideAnalytics.js';
 import { sanitizeStressScore } from './stressScoreSanitizer.js';
-import { isRunningActivityRow } from './sportTypes.js';
+import { isRunningActivityRow, sportTypeOfActivity } from './sportTypes.js';
+import { estimateRunLoad, hrTss, CONFIDENCE as RUN_CONFIDENCE } from './runLoad.js';
 
 /**
  * Calculate Chronic Training Load (CTL) - iterative EWA
@@ -282,15 +283,22 @@ export function filterZeroPowerPoints(powerStream, speedStreamKmh) {
 }
 
 /**
- * Estimate TSS from activity data using a 5-tier fallback, returning the
+ * Estimate TSS from activity data using a tiered fallback, returning the
  * tier, confidence score, and terrain classification alongside the
  * estimate. Tiers & confidences mirror src/lib/training/fatigue-estimation.ts:
  *
  *   'device'     — stored TSS from the activity file (0.95)
- *   'power'      — NP + FTP (0.95)
+ *   'power'      — NP + FTP (0.95); for runs, threshold-pace rTSS (D5:
+ *                  0.75 entered pace, 0.65 estimated)
  *   'kilojoules' — kJ + duration (+ FTP) (0.75 w/ FTP, 0.50 without)
- *   'hr'         — running HR-based estimate (0.65)
- *   'inferred'   — duration + elevation + avg watts heuristic (0.40)
+ *   'hr'         — hrTSS from average HR vs LTHR (D5: 0.65 entered LTHR,
+ *                  0.55 estimated)
+ *   'inferred'   — heuristics: rides by duration + elevation + avg watts,
+ *                  runs by fixed pace/HR bands (0.40)
+ *
+ * Run and HR tiers need `runProfile` (api/utils/runLoad.js
+ * resolveRunProfile). Callers that pass none get the run heuristic, labelled
+ * 'inferred' — until multisport phase 1 it was mislabelled 'hr' at 0.65.
  *
  * ('rpe' is reserved for fatigue-estimation.ts paths that accept an RPE
  * input; raw activity rows don't carry RPE so we don't emit it here.)
@@ -304,7 +312,7 @@ export function filterZeroPowerPoints(powerStream, speedStreamKmh) {
  * @returns {{ tss: number, source: string, confidence: number,
  *             terrain_class: 'flat'|'rolling'|'hilly'|'mountainous' }}
  */
-export function estimateTSSWithSource(activity, ftp) {
+export function estimateTSSWithSource(activity, ftp, runProfile = null) {
   const terrain_class = classifyTerrain(
     activity.distance,
     activity.total_elevation_gain,
@@ -326,13 +334,30 @@ export function estimateTSSWithSource(activity, ftp) {
     return { tss: rss, source: 'device', confidence: 0.95, terrain_class };
   }
 
-  // Tier 2: running-specific estimation (HR-based under the hood).
-  // estimateRunningTSS already applies its own elevation + trail factors;
-  // don't stack the terrain multiplier on top. MTB check is pointless
-  // on a Run activity but harmless — MTB_SPORT_TYPES never matches.
+  // Tier 2: runs. Against the athlete's thresholds when the caller resolved
+  // them (rTSS / hrTSS — runLoad.js picks the order), else the fixed-band
+  // heuristic. Graded pace and the heuristic already account for climbing;
+  // no terrain multiplier (D4). MTB multiplier never matches a run.
   if (isRunningActivity(activity)) {
+    const personal = estimateRunLoad(activity, runProfile);
+    if (personal) return { ...personal, terrain_class };
     const rss = applyActivityTypeMultiplier(estimateRunningTSS(activity), activity);
-    return { tss: rss, source: 'hr', confidence: 0.65, terrain_class };
+    return { tss: rss, source: 'inferred', confidence: 0.40, terrain_class };
+  }
+
+  // Other sports (swim, strength, walk, ...) with HR and resolved anchors:
+  // hrTSS, rather than the cycling heuristics below, which read watts and
+  // climbing that these sports don't have.
+  if (runProfile && sportTypeOfActivity(activity) === 'other') {
+    const hr = hrTss(activity, runProfile);
+    if (hr != null) {
+      return {
+        tss: Math.round(hr),
+        source: 'hr',
+        confidence: runProfile.hrFrom === 'profile' ? RUN_CONFIDENCE.hrProfileLthr : RUN_CONFIDENCE.hrEstimatedLthr,
+        terrain_class,
+      };
+    }
   }
 
   // Tier 3: effective power + FTP → standard RSS formula.

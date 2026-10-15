@@ -41,6 +41,13 @@
  *  - tfi_composition is left NULL here (spec §3.4 composition tracking is
  *    a separate enhancement — see METRICS_ROLLOUT_FREEZE.md §2a).
  *
+ *  - Per-sport split (migration 133): the same RSS and EWMA state broken down
+ *    into cycling / running / other, with the athlete's taus, so the sports
+ *    add up to the combined row (the EWMA is linear). Runs are scored against
+ *    the athlete's own thresholds (api/utils/runLoad.js — entered values
+ *    first, else estimated from their run history). If migration 133 is not
+ *    applied, the split columns are dropped and the combined row still writes.
+ *
  * This module is the ONLY writer of training_load_daily —
  * process-deviation.js also routes its writes through
  * recomputeTrainingLoadForUser (includeToday: true) rather than
@@ -52,11 +59,50 @@ import {
   estimateTSSWithSource,
   calculateFormScoreConfidence,
 } from './fitnessSnapshots.js';
+import { resolveRunProfile } from './runLoad.js';
+import { isRunningActivityRow, sportTypeOfActivity } from './sportTypes.js';
 
 const DEFAULT_WINDOW_DAYS = 180;
 const PER_ACTIVITY_RSS_CAP = 500;
 const UPSERT_CHUNK = 500;
 const DEFAULT_TZ = 'America/New_York';
+
+/** The per-sport buckets of migration 133. */
+export const SPLIT_SPORTS = ['cycling', 'running', 'other'];
+export const SPLIT_COLUMNS = SPLIT_SPORTS.flatMap((s) => [`rss_${s}`, `tfi_${s}`, `afi_${s}`]);
+
+const RUN_ANCHOR_COLUMNS = 'threshold_pace_sec, vdot, lthr, max_hr, resting_hr';
+/** History that run thresholds are estimated from, whatever window is being written. */
+const RUN_HISTORY_DAYS = DEFAULT_WINDOW_DAYS;
+const RUN_FIELDS =
+  'start_date, type, sport_type, moving_time, distance, total_elevation_gain, ' +
+  'average_heartrate, max_heartrate';
+
+/**
+ * Set once a write has failed because migration 133's columns are missing, so
+ * a cron sweeping many users doesn't fail-and-retry every one of them.
+ */
+let splitColumnsMissing = false;
+
+/** Test hook: forget a previous missing-column fallback. */
+export function resetSplitColumnsFallback() {
+  splitColumnsMissing = false;
+}
+
+/** True for PostgREST's "that column doesn't exist" family of errors. */
+export function isMissingSplitColumnError(error) {
+  const msg = String(error?.message || '');
+  return (
+    /(rss|tfi|afi)_(cycling|running|other)/.test(msg) &&
+    /(does not exist|schema cache|Could not find)/i.test(msg)
+  );
+}
+
+const withoutSplit = (row) => {
+  const copy = { ...row };
+  for (const c of SPLIT_COLUMNS) delete copy[c];
+  return copy;
+};
 
 /** YYYY-MM-DD for `date` in the given IANA timezone. */
 export function localDateKey(date, timeZone) {
@@ -83,6 +129,11 @@ function daysBetweenKeys(a, b) {
  * Seed tfi/afi from the last stored row before the window start, decaying
  * across any gap as zero-RSS days. Returns null when no prior row exists
  * (true cold start).
+ *
+ * `sports` carries the per-sport split of that row (migration 133), decayed
+ * the same way, or null when the row predates it or the columns are missing —
+ * the caller then apportions the combined seed. Read in a second, fail-soft
+ * query so an unapplied migration cannot break seeding.
  */
 export async function fetchSeedState(supabase, userId, startKey, tfiTau, afiTau) {
   const { data: prior, error } = await supabase
@@ -95,6 +146,21 @@ export async function fetchSeedState(supabase, userId, startKey, tfiTau, afiTau)
     .maybeSingle();
   if (error) throw new Error(`seed row fetch failed: ${error.message}`);
   if (!prior || !Number.isFinite(Number(prior.tfi))) return null;
+
+  let sports = null;
+  if (!splitColumnsMissing) {
+    const { data: split, error: splitError } = await supabase
+      .from('training_load_daily')
+      .select(SPLIT_SPORTS.flatMap((sp) => [`tfi_${sp}`, `afi_${sp}`]).join(', '))
+      .eq('user_id', userId)
+      .eq('date', prior.date)
+      .maybeSingle();
+    if (!splitError && split && SPLIT_SPORTS.every((sp) => Number.isFinite(Number(split[`tfi_${sp}`])) && split[`tfi_${sp}`] != null)) {
+      sports = Object.fromEntries(
+        SPLIT_SPORTS.map((sp) => [sp, { tfi: Number(split[`tfi_${sp}`]), afi: Number(split[`afi_${sp}`]) || 0 }]),
+      );
+    }
+  }
 
   let tfi = Number(prior.tfi);
   let afi = Number(prior.afi) || 0;
@@ -110,8 +176,69 @@ export async function fetchSeedState(supabase, userId, startKey, tfiTau, afiTau)
   for (let i = 0; i < gapDays; i++) {
     tfi = tfi + (0 - tfi) / tfiTau;
     afi = afi + (0 - afi) / afiTau;
+    if (sports) {
+      for (const sp of SPLIT_SPORTS) {
+        sports[sp].tfi += (0 - sports[sp].tfi) / tfiTau;
+        sports[sp].afi += (0 - sports[sp].afi) / afiTau;
+      }
+    }
   }
-  return { tfi, afi };
+  return { tfi, afi, sports };
+}
+
+/**
+ * Split a combined seed across sports when the stored row has no split
+ * (written before migration 133): by each sport's share of the window's RSS,
+ * or all to cycling for an empty window. Keeps sum-over-sports = combined from
+ * the first day; the shares wash out within a few TFI time constants.
+ */
+export function apportionSeed(seed, rssBySport) {
+  const total = SPLIT_SPORTS.reduce((sum, sp) => sum + (rssBySport[sp] || 0), 0);
+  return Object.fromEntries(
+    SPLIT_SPORTS.map((sp) => {
+      const share = total > 0 ? (rssBySport[sp] || 0) / total : sp === 'cycling' ? 1 : 0;
+      return [sp, { tfi: seed.tfi * share, afi: seed.afi * share }];
+    }),
+  );
+}
+
+/**
+ * The athlete's run-load anchors: entered thresholds from user_profiles, the
+ * rest estimated from `runs`. Fail-soft — a failed read yields estimates only.
+ */
+async function fetchRunAnchors(supabase, userId) {
+  const { data, error } = await supabase
+    .from('user_profiles')
+    .select(RUN_ANCHOR_COLUMNS)
+    .eq('id', userId)
+    .maybeSingle();
+  if (error) {
+    console.warn('[trainingLoadRecompute] run anchors unavailable:', error.message);
+    return null;
+  }
+  return data ?? null;
+}
+
+/**
+ * Resolve a user's run profile on its own — for callers outside the recompute
+ * (process-deviation) and for short recompute windows, which must score a run
+ * exactly as the nightly recompute does: same RUN_HISTORY_DAYS before `now`.
+ */
+export async function loadRunProfile(supabase, userId, { now = new Date() } = {}) {
+  const since = new Date(now.getTime() - RUN_HISTORY_DAYS * 86400000).toISOString();
+  const [anchors, { data: recent, error }] = await Promise.all([
+    fetchRunAnchors(supabase, userId),
+    supabase
+      .from('activities')
+      .select(RUN_FIELDS)
+      .eq('user_id', userId)
+      .or('is_hidden.eq.false,is_hidden.is.null')
+      .is('duplicate_of', null)
+      .gte('start_date', since)
+      .limit(1000),
+  ]);
+  if (error) console.warn('[trainingLoadRecompute] run history unavailable:', error.message);
+  return resolveRunProfile(anchors, (recent ?? []).filter(isRunningActivityRow));
 }
 
 /**
@@ -154,7 +281,7 @@ export async function computeTrainingLoadRows(supabase, userId, opts = {}) {
       .from('activities')
       .select(
         'start_date, type, sport_type, moving_time, distance, ' +
-          'total_elevation_gain, average_watts, average_heartrate, ' +
+          'total_elevation_gain, average_watts, average_heartrate, max_heartrate, ' +
           'kilojoules, rss, tss, effective_power, normalized_power',
       )
       .eq('user_id', userId)
@@ -170,23 +297,42 @@ export async function computeTrainingLoadRows(supabase, userId, opts = {}) {
     if (!batch || batch.length < PAGE_SIZE) break;
   }
 
+  // Run thresholds: entered values first, the rest estimated from the runs of
+  // the RUN_HISTORY_DAYS before `now` — never from "this window", or the
+  // 30-day ingest refresh and the 180-day nightly run would estimate
+  // different thresholds and keep overwriting each other's rows.
+  const historyStartMs = now.getTime() - RUN_HISTORY_DAYS * 86400000;
+  const runProfile =
+    days >= RUN_HISTORY_DAYS
+      ? resolveRunProfile(
+          await fetchRunAnchors(supabase, userId),
+          activities.filter((a) => isRunningActivityRow(a) && Date.parse(a.start_date) >= historyStartMs),
+        )
+      : await loadRunProfile(supabase, userId, { now });
+
   // Bucket per local day. Track the dominant (largest-RSS) activity's
-  // source/terrain for the day's rss_source/terrain_class.
+  // source/terrain for the day's rss_source/terrain_class, and the RSS per
+  // sport for the split.
   const byDay = new Map();
+  const windowRssBySport = { cycling: 0, running: 0, other: 0 };
   for (const a of activities ?? []) {
     if (!a.start_date) continue;
     const day = localDateKey(a.start_date, timezone);
     if (day < startKey || day > endKey) continue;
-    const est = estimateTSSWithSource(a, ftp);
+    const est = estimateTSSWithSource(a, ftp, runProfile);
     const rss = Math.min(est.tss || 0, PER_ACTIVITY_RSS_CAP);
+    const sport = sportTypeOfActivity(a);
     const bucket = byDay.get(day) ?? {
       rss: 0,
+      bySport: { cycling: 0, running: 0, other: 0 },
       weightedConfidence: 0,
       topRss: -1,
       source: null,
       terrain: null,
     };
     bucket.rss += rss;
+    bucket.bySport[sport] += rss;
+    windowRssBySport[sport] += rss;
     bucket.weightedConfidence += rss * (est.confidence ?? 0);
     if (rss > bucket.topRss) {
       bucket.topRss = rss;
@@ -204,6 +350,9 @@ export async function computeTrainingLoadRows(supabase, userId, opts = {}) {
   const confidenceTrail = [];
   let tfi = seed?.tfi ?? 0;
   let afi = seed?.afi ?? 0;
+  const split = seed
+    ? seed.sports ?? apportionSeed(seed, windowRssBySport)
+    : Object.fromEntries(SPLIT_SPORTS.map((sp) => [sp, { tfi: 0, afi: 0 }]));
 
   for (let key = startKey; key <= endKey; key = addDaysKey(key, 1)) {
     const bucket = byDay.get(key);
@@ -219,6 +368,15 @@ export async function computeTrainingLoadRows(supabase, userId, opts = {}) {
     const prevAfi = afi;
     tfi = tfi + (rss - tfi) / tfiTau;
     afi = afi + (rss - afi) / afiTau;
+    const splitColumns = {};
+    for (const sp of SPLIT_SPORTS) {
+      const sportRss = bucket?.bySport[sp] ?? 0;
+      split[sp].tfi += (sportRss - split[sp].tfi) / tfiTau;
+      split[sp].afi += (sportRss - split[sp].afi) / afiTau;
+      splitColumns[`rss_${sp}`] = round1(sportRss);
+      splitColumns[`tfi_${sp}`] = round2(split[sp].tfi);
+      splitColumns[`afi_${sp}`] = round2(split[sp].afi);
+    }
 
     confidenceTrail.push(confidence);
     if (confidenceTrail.length > 7) confidenceTrail.shift();
@@ -246,10 +404,11 @@ export async function computeTrainingLoadRows(supabase, userId, opts = {}) {
       tfi_composition: null,
       tfi_tau: tfiTau,
       afi_tau: afiTau,
+      ...splitColumns,
     });
   }
 
-  return { rows, profile: { ftp, tfiTau, afiTau, timezone } };
+  return { rows, profile: { ftp, tfiTau, afiTau, timezone }, runProfile };
 }
 
 /**
@@ -270,9 +429,20 @@ export async function recomputeTrainingLoadForUser(supabase, userId, opts = {}) 
 
   for (let i = 0; i < rows.length; i += UPSERT_CHUNK) {
     const chunk = rows.slice(i, i + UPSERT_CHUNK);
-    const { error } = await supabase
+    let { error } = await supabase
       .from('training_load_daily')
-      .upsert(chunk, { onConflict: 'user_id,date' });
+      .upsert(splitColumnsMissing ? chunk.map(withoutSplit) : chunk, { onConflict: 'user_id,date' });
+    // Migration 133 not applied: write the combined load without the split
+    // rather than stop updating everyone's fitness.
+    if (error && !splitColumnsMissing && isMissingSplitColumnError(error)) {
+      splitColumnsMissing = true;
+      console.error(
+        '[trainingLoadRecompute] per-sport columns missing — apply migration 133. Writing combined load only.',
+      );
+      ({ error } = await supabase
+        .from('training_load_daily')
+        .upsert(chunk.map(withoutSplit), { onConflict: 'user_id,date' }));
+    }
     if (error) throw new Error(`training_load_daily upsert failed: ${error.message}`);
   }
 
