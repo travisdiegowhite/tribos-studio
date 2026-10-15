@@ -14,9 +14,11 @@ import { fetchPlannedSessions } from './utils/calendarRead.js';
 import { isQualityWorkout } from './utils/qualitySession.js';
 import { setupCors } from './utils/cors.js';
 import { estimateTSSWithSource } from './utils/fitnessSnapshots.js';
+import { sportTypeOfActivity } from './utils/sportTypes.js';
 import {
   fetchSeedState,
   recomputeTrainingLoadForUser,
+  loadRunProfile,
 } from './utils/trainingLoadRecompute.js';
 
 // Matches PER_ACTIVITY_RSS_CAP in trainingLoadRecompute.js and every
@@ -146,7 +148,12 @@ export default async function handler(req, res) {
     // terrain/MTB multipliers, 6-tier source) so deviation numbers match the
     // stored training-load numbers exactly. Shaped as a TSSEstimate; the
     // ±10% bounds only feed display.
-    const serverEstimate = estimateTSSWithSource(activity, profile?.ftp ?? null);
+    // Runs (and HR-scored other sports) are scored against the athlete's
+    // thresholds, resolved the same way the daily recompute resolves them, so
+    // the two agree. Rides don't need them — skip the two extra reads.
+    const runProfile =
+      sportTypeOfActivity(activity) === 'cycling' ? null : await loadRunProfile(supabase, userId);
+    const serverEstimate = estimateTSSWithSource(activity, profile?.ftp ?? null, runProfile);
     const actualTss = Math.min(serverEstimate.tss || 0, RSS_CAP);
     const precomputedEstimate = {
       tss: actualTss,

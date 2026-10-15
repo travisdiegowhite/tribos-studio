@@ -64,6 +64,8 @@ export function useProgressSectionsData() {
   const [reloadKey, setReloadKey] = useState(0);
   const [activities, setActivities] = useState([]);
   const [serverLoadHistory, setServerLoadHistory] = useState([]);
+  // Latest per-sport TFI row (migration 133), or null.
+  const [loadSplit, setLoadSplit] = useState(null);
   const [ftp, setFtp] = useState(null);
   // Adaptive EWA tau (user_profiles.tfi_tau/afi_tau) so client-filled tail
   // days decay at the athlete's actual rate — same guard as the server engine.
@@ -143,6 +145,17 @@ export function useProgressSectionsData() {
           .gte('date', formatLocalDate(ninetyDaysAgo))
           .order('date', { ascending: true });
         setServerLoadHistory(loadRows || []);
+
+        // Per-sport TFI (migration 133), latest row only. Separate query so a
+        // missing column hides just the "Fitness by sport" insight.
+        const { data: splitRow, error: splitError } = await supabase
+          .from('training_load_daily')
+          .select('tfi_cycling, tfi_running')
+          .eq('user_id', user.id)
+          .order('date', { ascending: false })
+          .limit(1)
+          .maybeSingle();
+        setLoadSplit(splitError ? null : splitRow ?? null);
       } catch (err) {
         console.error('Error loading progress data:', err);
         setLoadError(err.message || 'Failed to load your training data');
@@ -246,6 +259,18 @@ export function useProgressSectionsData() {
       });
     }
 
+    // Fitness by sport — only for athletes with fitness in both sports. The
+    // two numbers are shares of the combined fitness above.
+    const rideTfi = Math.round(Number(loadSplit?.tfi_cycling) || 0);
+    const runTfi = Math.round(Number(loadSplit?.tfi_running) || 0);
+    if (rideTfi > 0 && runTfi > 0) {
+      insights.push({
+        title: `Fitness by sport: Ride ${rideTfi} · Run ${runTfi}`,
+        detail: 'Your fitness split by where the training came from. Together they make up your total fitness; fatigue and form are shared.',
+        sentiment: 'neutral',
+      });
+    }
+
     // Form / TSB — canonical thresholds from translate.ts
     const tsb = trainingMetrics.tsb;
     const tsbTranslation = translateTSB(tsb);
@@ -324,7 +349,7 @@ export function useProgressSectionsData() {
     }
 
     return insights;
-  }, [trainingMetrics, activities, zoneData]);
+  }, [trainingMetrics, activities, zoneData, loadSplit]);
 
   // Calculate YTD stats
   const ytdStats = useMemo(() => {

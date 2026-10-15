@@ -98,7 +98,7 @@ export async function fetchCoachEnrichmentData(supabase, userId) {
     const plannedStart = new Date(todayNoon.getTime() - 8 * dayMs).toISOString().split('T')[0];
     const plannedEnd = new Date(todayNoon.getTime() + 7 * dayMs).toISOString().split('T')[0];
 
-    const [activitiesResult, loadResult, plannedResult] = await Promise.all([
+    const [activitiesResult, loadResult, plannedResult, splitResult] = await Promise.all([
       supabase
         .from('activities')
         .select('id, name, type, sport_type, start_date, distance, moving_time, average_watts, rss, tss')
@@ -124,12 +124,22 @@ export async function fetchCoachEnrichmentData(supabase, userId) {
       // and once reading a table the calendar no longer is. The reader below
       // is the same one the anchor uses, so they cannot diverge again.
       fetchPlannedSessions(userId, { from: plannedStart, to: plannedEnd }),
+      // Per-sport TFI (migration 133). Its own query so a missing column costs
+      // only the FITNESS BY SPORT line, never the FITNESS line above it.
+      supabase
+        .from('training_load_daily')
+        .select('date, tfi_cycling, tfi_running, tfi_other')
+        .eq('user_id', userId)
+        .order('date', { ascending: false })
+        .limit(1)
+        .maybeSingle(),
     ]);
 
     return {
       recentActivities: activitiesResult?.data || [],
       latestLoad: loadResult?.data || null,
       weekPlanned: plannedResult || [],
+      loadSplit: splitResult?.error ? null : splitResult?.data || null,
     };
   } catch (err) {
     console.error('Coach enrichment fetch failed (non-blocking):', err.message);
@@ -204,6 +214,23 @@ export function formatSportProfileLines(sportProfile) {
   return lines;
 }
 
+/**
+ * FITNESS BY SPORT line from training_load_daily's per-sport TFI (migration
+ * 133). Only for athletes who run — for a rides-only athlete it repeats the
+ * FITNESS line. The parts add up to the combined TFI.
+ *
+ * @param {{tfi_cycling?: number, tfi_running?: number, tfi_other?: number}|null} split
+ * @returns {string|null}
+ */
+export function formatFitnessBySport(split) {
+  const run = Number(split?.tfi_running);
+  if (!split || !(run >= 0.5)) return null;
+  const parts = [`ride TFI ${Math.round(Number(split.tfi_cycling) || 0)}`, `run TFI ${Math.round(run)}`];
+  const other = Number(split.tfi_other) || 0;
+  if (other >= 0.5) parts.push(`other TFI ${Math.round(other)}`);
+  return `FITNESS BY SPORT: ${parts.join(', ')} (parts of the combined TFI; fatigue and form are shared)`;
+}
+
 export function buildCoachEnrichmentBlock(data, { profile = null, sportProfile = null, raceGoals = [], timezone = 'UTC', now = new Date(), selectedRaceGoalId = null } = {}) {
   const ftp = profile?.ftp || null;
   const sportLines = formatSportProfileLines(sportProfile);
@@ -251,6 +278,8 @@ export function buildCoachEnrichmentBlock(data, { profile = null, sportProfile =
       `FITNESS (server-computed, as of ${load.date}): ${parts.join(', ')}${conf ? ` (confidence: ${conf})` : ''}`
     );
   }
+  const splitLine = formatFitnessBySport(data?.loadSplit);
+  if (splitLine) lines.push(splitLine);
 
   const activities = data?.recentActivities || [];
   const localDateOf = (a) => (a.start_date ? toLocalDateStr(new Date(a.start_date), safeTz) : null);
