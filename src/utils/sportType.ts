@@ -1,20 +1,17 @@
 /**
  * Sport-type helpers for activity views.
  *
- * Activities arrive from many providers with inconsistent sport labelling:
- * Strava uses `sport_type` ("Ride", "Run", "VirtualRun", "TrailRun", ...) and
- * an older `type` field; Garmin/Wahoo set `sport_type` directly via the
- * normalized values from `SportType` ('cycling' | 'running' | 'other').
- * GPX/FIT imports default to 'cycling'.
- *
- * These helpers normalize the field and answer two questions the UI keeps
- * asking:
+ * Activities arrive from many providers with inconsistent sport labelling
+ * (Strava 'Run', Garmin 'TRAIL_RUNNING', lowercase 'running'). Classification
+ * itself lives in `api/utils/sportTypes.js`; these helpers answer the two
+ * questions the UI keeps asking:
  *   - is this a running activity? (don't show power-derived UI)
  *   - is power-based analysis valid for this activity? (cycling, or
  *     anything with device-measured watts)
  */
 
 import type { SportType } from '../types/training';
+import { sportTypeOfActivity } from '../../api/utils/sportTypes.js';
 
 type ActivityLike = {
   sport_type?: string | null;
@@ -23,45 +20,18 @@ type ActivityLike = {
   device_watts?: boolean | null;
 } | null | undefined;
 
-const RUNNING_TOKENS = new Set([
-  'run',
-  'running',
-  'virtualrun',
-  'trailrun',
-  'treadmillrun',
-]);
-
-const CYCLING_TOKENS = new Set([
-  'ride',
-  'cycling',
-  'virtualride',
-  'gravelride',
-  'mountainbikeride',
-  'ebikeride',
-  'handcycle',
-  'velomobile',
-]);
-
-function normalizeToken(value: string | null | undefined): string {
-  return (value ?? '').toLowerCase().replace(/[\s_-]/g, '');
-}
-
 /**
  * Best-effort sport classification. Returns 'cycling' / 'running' / 'other'.
- * Preference order: explicit `sport_type`, then Strava-style `type`.
+ *
+ * Delegates to the server classifier in `api/utils/sportTypes.js` so the
+ * browser and the load pipeline can never disagree about what a row is. That
+ * module speaks all three importer vocabularies (Strava 'Ride', Garmin
+ * 'ROAD_BIKING', lowercase 'cycling'); the token list this file used to carry
+ * filed Garmin 'ROAD_BIKING' under 'other'.
  */
 export function getActivitySport(activity: ActivityLike): SportType {
   if (!activity) return 'other';
-  const candidates = [activity.sport_type, activity.type];
-  for (const raw of candidates) {
-    const token = normalizeToken(raw);
-    if (!token) continue;
-    if (RUNNING_TOKENS.has(token)) return 'running';
-    if (CYCLING_TOKENS.has(token)) return 'cycling';
-    if (token.includes('run')) return 'running';
-    if (token.includes('ride') || token.includes('cycl')) return 'cycling';
-  }
-  return 'other';
+  return sportTypeOfActivity(activity) as SportType;
 }
 
 export function isRunningActivity(activity: ActivityLike): boolean {

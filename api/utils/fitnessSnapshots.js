@@ -13,6 +13,7 @@ import {
   calculateTrainingMonotonyStrain,
 } from './advancedRideAnalytics.js';
 import { sanitizeStressScore } from './stressScoreSanitizer.js';
+import { isRunningActivityRow } from './sportTypes.js';
 
 /**
  * Calculate Chronic Training Load (CTL) - iterative EWA
@@ -55,14 +56,13 @@ export function calculateTSB(ctl, atl) {
   return Math.round(ctl - atl);
 }
 
-// Running activity types
-const RUNNING_TYPES = ['Run', 'VirtualRun', 'TrailRun'];
-
 /**
- * Check if an activity is a running activity
+ * Check if an activity is a running activity. Reads both sport columns via the
+ * shared classifier — the Strava-only list this replaced scored every Garmin
+ * and COROS run (and Strava treadmill runs) with the cycling heuristics.
  */
 function isRunningActivity(activity) {
-  return RUNNING_TYPES.includes(activity.type);
+  return isRunningActivityRow(activity);
 }
 
 /**
@@ -762,8 +762,8 @@ export async function computeWeeklySnapshot(supabase, userId, weekStart) {
   const fitnessTrend = computeFitnessTrend(ctl, weeklyTSS / 7);
 
   // Split counts by sport type
-  const cyclingActivities = weekActivities.filter(a => !RUNNING_TYPES.includes(a.type));
-  const runningActivitiesThisWeek = weekActivities.filter(a => RUNNING_TYPES.includes(a.type));
+  const cyclingActivities = weekActivities.filter(a => !isRunningActivity(a));
+  const runningActivitiesThisWeek = weekActivities.filter(a => isRunningActivity(a));
   const weeklyRunDistance = runningActivitiesThisWeek.reduce(
     (sum, a) => sum + ((a.distance || 0) / 1000), 0
   );

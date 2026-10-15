@@ -112,6 +112,7 @@ import {
 } from '../features/route-builder-v2/arrival/arrivalSession';
 import { rankPastRidesByFit } from '../features/route-builder-v2/arrival/rankPastRides';
 import { calculatePersonalizedETA } from '../utils/personalizedETA';
+import { isCyclingActivity } from '../utils/sportType';
 import { buildTargetAccuracy, describeTargetMiss } from '../utils/routeTargets.js';
 import RoadPreferencesCard from '../components/settings/RoadPreferencesCard.jsx';
 import BikeInfrastructureLegend from '../components/BikeInfrastructureLegend.jsx';
@@ -159,9 +160,6 @@ const DEFAULT_VISIBILITY: LayerVisibilityState = {
   intervals: false,
 };
 
-// Obvious non-ride activity types to keep out of the "repeat a past ride"
-// list (a cycling workout is never ridden as a run).
-const NON_RIDE_TYPES = ['Run', 'TrailRun', 'VirtualRun', 'Walk', 'Hike', 'Swim'];
 
 const STATIC_OPENING: ChatMessage = {
   id: 'opening',
@@ -1158,14 +1156,15 @@ export default function RouteBuilder2() {
     setPastRidesLoading(true);
     const { data, error } = await supabase
       .from('activities')
-      .select('id, name, start_date, distance, moving_time, type')
+      .select('id, name, start_date, distance, moving_time, type, sport_type')
       .eq('user_id', user.id)
       .not('map_summary_polyline', 'is', null)
       .order('start_date', { ascending: false })
       .limit(50);
     if (error) console.error('[rb2] past rides load failed', error);
     const rides = (data ?? [])
-      .filter((a) => !NON_RIDE_TYPES.includes((a.type as string | null) ?? ''))
+      // Rides only: a cycling route is never repeated as a run or a walk.
+      .filter((a) => isCyclingActivity(a as { type?: string | null; sport_type?: string | null }))
       .map((a) => ({
         id: a.id as string,
         name: (a.name as string | null) ?? null,

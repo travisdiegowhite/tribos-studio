@@ -3,6 +3,8 @@
  * Comprehensive types for training plans, workouts, and related utilities
  */
 
+import { getSportType as classifySportType } from '../../api/utils/sportTypes.js';
+
 // ============================================================
 // CORE ENUMS & LITERAL TYPES
 // ============================================================
@@ -877,42 +879,38 @@ export function isPlanCompleted(plan: TrainingPlanDB): boolean {
 // SPORT TYPE HELPERS
 // ============================================================
 
-const CYCLING_ACTIVITY_TYPES = ['Ride', 'VirtualRide', 'EBikeRide', 'GravelRide', 'MountainBikeRide'];
-const RUNNING_ACTIVITY_TYPES = ['Run', 'VirtualRun', 'TrailRun'];
-const OTHER_ACTIVITY_TYPES = [
-  'Walk', 'Hike', 'Swim', 'WeightTraining', 'Yoga', 'Workout',
-  'Elliptical', 'StairStepper', 'Rowing', 'AlpineSki', 'Snowboard',
-  'NordicSki', 'BackcountrySki', 'StandUpPaddling', 'Kayaking', 'Surfing',
-];
+// Classification lives in api/utils/sportTypes.js — one classifier for the
+// browser and the load pipeline. These string-level wrappers keep their old
+// signatures; they used to match Strava names only, so a Garmin
+// 'TRAIL_RUNNING' was neither a run nor a ride.
 
 /**
- * Determine the sport type from a Strava/Garmin activity type string
+ * Determine the sport type from any importer's activity-type string
+ * ('Ride', 'ROAD_BIKING', 'running', ...).
  */
 export function getSportTypeFromActivityType(activityType: string): SportType {
-  if (CYCLING_ACTIVITY_TYPES.includes(activityType)) return 'cycling';
-  if (RUNNING_ACTIVITY_TYPES.includes(activityType)) return 'running';
-  return 'other';
+  return classifySportType(activityType) as SportType;
 }
 
 /**
  * Check if an activity type is a non-cycling/non-running activity
  */
 export function isOtherActivity(activityType: string): boolean {
-  return !CYCLING_ACTIVITY_TYPES.includes(activityType) && !RUNNING_ACTIVITY_TYPES.includes(activityType);
+  return getSportTypeFromActivityType(activityType) === 'other';
 }
 
 /**
  * Check if an activity type is a cycling activity
  */
 export function isCyclingActivity(activityType: string): boolean {
-  return CYCLING_ACTIVITY_TYPES.includes(activityType);
+  return getSportTypeFromActivityType(activityType) === 'cycling';
 }
 
 /**
  * Check if an activity type is a running activity
  */
 export function isRunningActivity(activityType: string): boolean {
-  return RUNNING_ACTIVITY_TYPES.includes(activityType);
+  return getSportTypeFromActivityType(activityType) === 'running';
 }
 
 /**

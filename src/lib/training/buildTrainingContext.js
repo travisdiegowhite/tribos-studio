@@ -7,16 +7,12 @@
 
 import { estimateActivityTSS } from '../../utils/computeFitnessSnapshots';
 import { formatLocalDate, parsePlanStartDate } from '../../utils/dateUtils';
+import { getActivitySport } from '../../utils/sportType';
 
-// Helper to determine sport type from activity data
-const CYCLING_TYPES = ['Ride', 'VirtualRide', 'EBikeRide', 'GravelRide', 'MountainBikeRide'];
-const RUNNING_TYPES = ['Run', 'VirtualRun', 'TrailRun'];
-export const getSportTypeForActivity = (a) => {
-  if (a.sport_type === 'cycling' || a.sport_type === 'running') return a.sport_type;
-  if (RUNNING_TYPES.includes(a.type)) return 'running';
-  if (CYCLING_TYPES.includes(a.type)) return 'cycling';
-  return 'other';
-};
+// Sport of an activity row — the shared classifier, so a Garmin
+// 'TRAIL_RUNNING' lands under running here exactly as it does in the load
+// pipeline.
+export const getSportTypeForActivity = getActivitySport;
 
 // Build training context for AI Coach
 export function buildTrainingContext(trainingMetrics, weeklyStats, actualWeeklyStats, ftp, activities, formatDist, formatTime, isImperial, activePlan = null, raceGoals = [], crossTrainingActivities = [], workoutRecommendation = null, plannedWorkouts = [], completedRaces = []) {

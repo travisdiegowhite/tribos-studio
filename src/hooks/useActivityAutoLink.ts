@@ -16,7 +16,7 @@ import { useEffect, useRef } from 'react';
 import { supabase } from '../lib/supabase';
 import { linkEntryToActivity } from '../lib/calendar/calendarMutations';
 import { calculateTSS, estimateTSS } from '../utils/trainingPlans';
-import { isPowerSport } from '../utils/sportType';
+import { isPowerSport, isCyclingActivity } from '../utils/sportType';
 import { triggerAdaptationDetection } from '../utils/adaptationTrigger';
 import { formatLocalDate } from '../utils/dateUtils';
 
@@ -82,11 +82,6 @@ function getActivityTSS(activity: AutoLinkActivity, ftp?: number | null): number
     );
   }
   return null;
-}
-
-function isCyclingActivity(activity: AutoLinkActivity): boolean {
-  const type = (activity.type || '').toLowerCase();
-  return type.includes('ride') || type.includes('cycling') || activity.sport_type === 'cycling';
 }
 
 export function useActivityAutoLink({
