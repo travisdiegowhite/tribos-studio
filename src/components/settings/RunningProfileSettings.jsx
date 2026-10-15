@@ -1,7 +1,12 @@
 /**
  * RunningProfileSettings Component
- * Allows users to configure their running profile: threshold pace, VDOT, race PRs, and pace zones.
- * Settings are stored in localStorage (same pattern as route preferences).
+ * Threshold pace, VDOT, heart-rate anchors and pace zones for runners.
+ *
+ * Stored on user_profiles (threshold_pace_sec, vdot, max_hr, resting_hr, lthr —
+ * migration 042), where the coach and the run-load code can read them. Until
+ * multisport phase 0B this card saved to localStorage only, so nothing on the
+ * server ever saw a runner's thresholds; a value still sitting there is copied
+ * to the database once, and the key is removed only after that save succeeds.
  */
 
 import { useState, useEffect, useMemo } from 'react';
@@ -17,69 +22,55 @@ import {
   Badge,
   Box,
   SimpleGrid,
-  Paper,
   Divider,
   Alert,
 } from '@mantine/core';
 import { notifications } from '@mantine/notifications';
 import { tokens } from '../../theme';
 import { Info, PersonSimpleRun, Target, Trophy } from '@phosphor-icons/react';
+import { supabase } from '../../lib/supabase';
+import { useAuth } from '../../contexts/AuthContext';
+import {
+  calculatePaceZones,
+  estimateThresholdPaceFromVdot,
+  estimateVdot,
+  formatPacePerKm as formatPace,
+} from '../../utils/paceZones';
 
-const STORAGE_KEY = 'runningProfile';
+export const LEGACY_STORAGE_KEY = 'runningProfile';
 
-// Calculate pace zones from threshold pace (seconds per km)
-function calculatePaceZones(thresholdPaceSec) {
-  if (!thresholdPaceSec || thresholdPaceSec <= 0) return null;
-  const tp = thresholdPaceSec;
-  return {
-    z1: { name: 'Recovery', min: Math.round(tp * 1.35), max: Math.round(tp * 1.50), color: tokens.colors.zone1 },
-    z2: { name: 'Easy / Aerobic', min: Math.round(tp * 1.15), max: Math.round(tp * 1.35), color: tokens.colors.zone2 },
-    z3: { name: 'Tempo / Marathon', min: Math.round(tp * 1.03), max: Math.round(tp * 1.15), color: tokens.colors.zone3 },
-    z4: { name: 'Threshold', min: Math.round(tp * 0.97), max: Math.round(tp * 1.03), color: tokens.colors.zone4 },
-    z5: { name: 'VO2max', min: Math.round(tp * 0.86), max: Math.round(tp * 0.97), color: tokens.colors.zone5 },
-    z6: { name: 'Anaerobic / Speed', min: Math.round(tp * 0.70), max: Math.round(tp * 0.86), color: tokens.colors.zone6 },
-  };
-}
+const ZONE_COLORS = {
+  z1: tokens.colors.zone1,
+  z2: tokens.colors.zone2,
+  z3: tokens.colors.zone3,
+  z4: tokens.colors.zone4,
+  z5: tokens.colors.zone5,
+  z6: tokens.colors.zone6,
+};
 
-// Format seconds-per-km pace to mm:ss/km string
-function formatPace(secPerKm) {
-  if (!secPerKm) return '-';
-  const mins = Math.floor(secPerKm / 60);
-  const secs = Math.round(secPerKm % 60);
-  return `${mins}:${secs.toString().padStart(2, '0')}/km`;
-}
+const PROFILE_COLUMNS = 'threshold_pace_sec, vdot, max_hr, resting_hr, lthr';
 
-// Estimate VDOT from a race time (simple approximation using Jack Daniels tables)
-function estimateVdot(distanceKey, timeSec) {
-  if (!timeSec || timeSec <= 0) return null;
-  // Approximate VDOT from common race distances using curve-fit equations
-  const distanceMeters = {
-    '5k': 5000,
-    '10k': 10000,
-    'half_marathon': 21097.5,
-    'marathon': 42195,
-  };
-  const d = distanceMeters[distanceKey];
-  if (!d) return null;
-  // Velocity in m/min
-  const v = d / (timeSec / 60);
-  // Simplified Daniels VO2 estimation
-  const pctVO2 = 0.8 + 0.1894393 * Math.exp(-0.012778 * (timeSec / 60)) + 0.2989558 * Math.exp(-0.1932605 * (timeSec / 60));
-  const vo2 = -4.6 + 0.182258 * v + 0.000104 * v * v;
-  const vdot = vo2 / pctVO2;
-  return Math.round(vdot * 10) / 10;
-}
-
-// Estimate threshold pace from VDOT
-function estimateThresholdPaceFromVdot(vdot) {
-  if (!vdot || vdot <= 0) return null;
-  // Approximate threshold pace (sec/km) from VDOT using regression
-  // Based on Daniels tables: VDOT 30→6:40/km, 40→5:15/km, 50→4:15/km, 60→3:35/km
-  const paceMin = 10.77 - 0.119 * vdot;
-  return Math.round(paceMin * 60);
+/** The localStorage profile the old card wrote, or null if absent/empty. */
+export function readLegacyRunningProfile() {
+  try {
+    const raw = localStorage.getItem(LEGACY_STORAGE_KEY);
+    if (!raw) return null;
+    const p = JSON.parse(raw);
+    const row = {
+      threshold_pace_sec: p.thresholdPaceSec || null,
+      vdot: p.vdot || null,
+      max_hr: p.maxHR || null,
+      resting_hr: p.restingHR || null,
+      lthr: p.lthr || null,
+    };
+    return Object.values(row).some((v) => v != null) ? row : null;
+  } catch {
+    return null;
+  }
 }
 
 export default function RunningProfileSettings() {
+  const { user } = useAuth();
   const [saving, setSaving] = useState(false);
 
   // Running profile state
@@ -102,30 +93,61 @@ export default function RunningProfileSettings() {
   }, [thresholdPaceMin, thresholdPaceSec]);
 
   // Pace zones
-  const paceZones = useMemo(
-    () => calculatePaceZones(thresholdPaceTotalSec),
-    [thresholdPaceTotalSec]
-  );
+  const paceZones = useMemo(() => {
+    const zones = calculatePaceZones(thresholdPaceTotalSec);
+    if (!zones) return null;
+    return Object.fromEntries(
+      Object.entries(zones).map(([key, zone]) => [key, { ...zone, color: ZONE_COLORS[key] }]),
+    );
+  }, [thresholdPaceTotalSec]);
 
-  // Load from localStorage
-  useEffect(() => {
-    try {
-      const saved = localStorage.getItem(STORAGE_KEY);
-      if (saved) {
-        const profile = JSON.parse(saved);
-        if (profile.thresholdPaceSec) {
-          setThresholdPaceMin(Math.floor(profile.thresholdPaceSec / 60));
-          setThresholdPaceSec(profile.thresholdPaceSec % 60);
-        }
-        setVdot(profile.vdot || null);
-        setMaxHR(profile.maxHR || null);
-        setRestingHR(profile.restingHR || null);
-        setLthr(profile.lthr || null);
-      }
-    } catch (err) {
-      console.error('Error loading running profile:', err);
+  const applyRow = (row) => {
+    if (row.threshold_pace_sec) {
+      setThresholdPaceMin(Math.floor(row.threshold_pace_sec / 60));
+      setThresholdPaceSec(row.threshold_pace_sec % 60);
     }
-  }, []);
+    setVdot(row.vdot != null ? Number(row.vdot) : null);
+    setMaxHR(row.max_hr || null);
+    setRestingHR(row.resting_hr || null);
+    setLthr(row.lthr || null);
+  };
+
+  // Load from the profile row, migrating a leftover localStorage profile once.
+  useEffect(() => {
+    if (!user?.id) return;
+    let active = true;
+    (async () => {
+      const { data, error } = await supabase
+        .from('user_profiles')
+        .select(PROFILE_COLUMNS)
+        .eq('id', user.id)
+        .maybeSingle();
+      if (!active) return;
+      if (error) {
+        console.error('Error loading running profile:', error);
+        return;
+      }
+      const dbEmpty = !data || Object.values(data).every((v) => v == null);
+      const legacy = dbEmpty ? readLegacyRunningProfile() : null;
+      if (legacy) {
+        applyRow(legacy);
+        const { error: migrateError } = await supabase
+          .from('user_profiles')
+          .update(legacy)
+          .eq('id', user.id);
+        if (!migrateError) {
+          try { localStorage.removeItem(LEGACY_STORAGE_KEY); } catch { /* storage unavailable */ }
+        } else {
+          console.error('Error migrating running profile from localStorage:', migrateError);
+        }
+        return;
+      }
+      if (data) applyRow(data);
+    })();
+    return () => {
+      active = false;
+    };
+  }, [user?.id]);
 
   const handleEstimateFromRace = () => {
     if (!raceTimeMin && !raceTimeSec) return;
@@ -146,17 +168,22 @@ export default function RunningProfileSettings() {
     }
   };
 
-  const handleSave = () => {
+  const handleSave = async () => {
+    if (!user?.id) return;
     setSaving(true);
     try {
-      const profile = {
-        thresholdPaceSec: thresholdPaceTotalSec,
-        vdot: vdot || null,
-        maxHR: maxHR || null,
-        restingHR: restingHR || null,
-        lthr: lthr || null,
-      };
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(profile));
+      const { error } = await supabase
+        .from('user_profiles')
+        .update({
+          threshold_pace_sec: thresholdPaceTotalSec || null,
+          vdot: vdot || null,
+          max_hr: maxHR || null,
+          resting_hr: restingHR || null,
+          lthr: lthr || null,
+        })
+        .eq('id', user.id);
+      if (error) throw error;
+      try { localStorage.removeItem(LEGACY_STORAGE_KEY); } catch { /* storage unavailable */ }
       notifications.show({
         title: 'Running Profile Saved',
         message: 'Your running settings and pace zones have been saved',

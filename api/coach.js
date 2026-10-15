@@ -818,9 +818,21 @@ export default async function handler(req, res) {
         .gte('start_date', new Date(Date.now() - 28 * 86400000).toISOString())
         .order('start_date', { ascending: false })
         .limit(200),
+      // Sports trained + running thresholds (migrations 042 and 132). A query
+      // of its own, NOT added to the profile select above: `sports` arrives
+      // with a hand-applied migration, and a missing column must cost only
+      // this line of context, never the athlete's timezone and FTP.
+      supabase
+        .from('user_profiles')
+        .select('primary_sport, sports, threshold_pace_sec, lthr, max_hr, resting_hr')
+        .eq('id', verifiedUserId)
+        .maybeSingle(),
     ];
 
-    const [coachSettingsResult, coachMemoryResult, recentCheckInsResult, calendarContextResult, checkInResult, deviationsResult, userProfileResult, allActivePlansResult, healthMetricsResult, dayAvailabilityResult, trainingPrefsResult, enrichmentData, evidenceResult, recentRidesResult] = await Promise.all(parallelFetches);
+    const [coachSettingsResult, coachMemoryResult, recentCheckInsResult, calendarContextResult, checkInResult, deviationsResult, userProfileResult, allActivePlansResult, healthMetricsResult, dayAvailabilityResult, trainingPrefsResult, enrichmentData, evidenceResult, recentRidesResult, sportProfileResult] = await Promise.all(parallelFetches);
+    if (sportProfileResult?.error) {
+      console.warn('[coach] sport profile unavailable (is migration 132 applied?):', sportProfileResult.error.message);
+    }
 
     const coachSettings = coachSettingsResult.data;
     const activeCheckIn = checkInResult?.data || null;
@@ -1072,6 +1084,7 @@ ${trainingContext}`;
     // authoritative for current fitness.
     const enrichmentBlock = buildCoachEnrichmentBlock(enrichmentData, {
       profile: userProfileResult?.data || null,
+      sportProfile: sportProfileResult?.data || null,
       raceGoals: anchorData.raceGoals,
       timezone: resolvedTimezone,
       selectedRaceGoalId,

@@ -15,7 +15,7 @@
  * as temporalAnchor.js.
  */
 
-import { sportTypeOfActivity } from './sportTypes.js';
+import { sportTypeOfActivity, formatPace } from './sportTypes.js';
 import { fetchPlannedSessions } from './calendarRead.js';
 
 // ─── Timezone-safe date helpers (module-private, mirrors temporalAnchor.js) ──
@@ -169,9 +169,45 @@ function activityPower(a) {
  * @param {Date}        [opts.now]      Override "now" (for testing)
  * @returns {string|null}  Formatted block, or null when there is nothing to say
  */
-export function buildCoachEnrichmentBlock(data, { profile = null, raceGoals = [], timezone = 'UTC', now = new Date(), selectedRaceGoalId = null } = {}) {
+/**
+ * SPORTS / RUN THRESHOLDS lines from user_profiles' sport columns (migrations
+ * 042 + 132) — the primary_sport the system prompt tells the coach to read.
+ * Silent for a cycling-only athlete (the snapshot already reads as cycling),
+ * and for a row that could not be fetched.
+ *
+ * @param {{primary_sport?: string, sports?: string[], threshold_pace_sec?: number,
+ *          lthr?: number, max_hr?: number, resting_hr?: number}|null} sportProfile
+ * @returns {string[]}
+ */
+export function formatSportProfileLines(sportProfile) {
+  if (!sportProfile) return [];
+  const sports = Array.isArray(sportProfile.sports) && sportProfile.sports.length > 0
+    ? sportProfile.sports
+    : [sportProfile.primary_sport || 'cycling'];
+  const primary = sportProfile.primary_sport || sports[0];
+  const runs = sports.includes('running') || primary === 'running';
+  if (!runs) return [];
+
+  const lines = [
+    sports.length > 1
+      ? `SPORTS: ${sports.join(' + ')} (primary: ${primary}) — a hybrid athlete; plan and load both.`
+      : `SPORTS: ${primary} only.`,
+  ];
+  const parts = [];
+  if (sportProfile.threshold_pace_sec) parts.push(`threshold pace ${formatPace(sportProfile.threshold_pace_sec)}/km`);
+  if (sportProfile.lthr) parts.push(`LTHR ${sportProfile.lthr}`);
+  if (sportProfile.max_hr) parts.push(`max HR ${sportProfile.max_hr}`);
+  if (sportProfile.resting_hr) parts.push(`resting HR ${sportProfile.resting_hr}`);
+  lines.push(parts.length > 0
+    ? `RUN THRESHOLDS: ${parts.join(' | ')}`
+    : 'RUN THRESHOLDS: not set — ask before prescribing run paces, or suggest setting them in Settings.');
+  return lines;
+}
+
+export function buildCoachEnrichmentBlock(data, { profile = null, sportProfile = null, raceGoals = [], timezone = 'UTC', now = new Date(), selectedRaceGoalId = null } = {}) {
   const ftp = profile?.ftp || null;
-  if (!data && !ftp) return null;
+  const sportLines = formatSportProfileLines(sportProfile);
+  if (!data && !ftp && sportLines.length === 0) return null;
 
   const safeTz = timezone || 'UTC';
   const todayStr = toLocalDateStr(now, safeTz);
@@ -199,6 +235,8 @@ export function buildCoachEnrichmentBlock(data, { profile = null, raceGoals = []
     }
     lines.push('', line);
   }
+
+  if (sportLines.length > 0) lines.push('', ...sportLines);
 
   // Server-computed fitness (fallback only, per the precedence note above)
   const load = data?.latestLoad;

@@ -11,7 +11,7 @@ vi.mock('./calendarRead.js', () => ({
   fetchPlannedSessions: (...a) => sessionsMock(...a),
 }));
 
-const { fetchCoachEnrichmentData, buildCoachEnrichmentBlock } = await import(
+const { fetchCoachEnrichmentData, buildCoachEnrichmentBlock, formatSportProfileLines } = await import(
   './coachContextEnrichment.js'
 );
 
@@ -372,5 +372,47 @@ describe('fetchCoachEnrichmentData', () => {
     expect(result).toBeNull();
     expect(spy).toHaveBeenCalled();
     spy.mockRestore();
+  });
+});
+
+describe('formatSportProfileLines (migrations 042 + 132)', () => {
+  it('is silent for a cycling-only athlete and for a missing row', () => {
+    expect(formatSportProfileLines(null)).toEqual([]);
+    expect(formatSportProfileLines({ primary_sport: 'cycling', sports: ['cycling'] })).toEqual([]);
+    // Pre-132 row: no sports column, primary_sport cycling.
+    expect(formatSportProfileLines({ primary_sport: 'cycling' })).toEqual([]);
+  });
+
+  it('names a hybrid athlete and their run thresholds', () => {
+    expect(
+      formatSportProfileLines({
+        primary_sport: 'cycling',
+        sports: ['cycling', 'running'],
+        threshold_pace_sec: 270,
+        lthr: 168,
+        max_hr: 188,
+      }),
+    ).toEqual([
+      'SPORTS: cycling + running (primary: cycling) — a hybrid athlete; plan and load both.',
+      'RUN THRESHOLDS: threshold pace 4:30/km | LTHR 168 | max HR 188',
+    ]);
+  });
+
+  it('says when a runner has no thresholds yet', () => {
+    expect(formatSportProfileLines({ primary_sport: 'running', sports: ['running'] })).toEqual([
+      'SPORTS: running only.',
+      'RUN THRESHOLDS: not set — ask before prescribing run paces, or suggest setting them in Settings.',
+    ]);
+  });
+
+  it('renders the block for a runner even with no FTP and no snapshot data', () => {
+    const block = buildCoachEnrichmentBlock(null, {
+      profile: { ftp: null },
+      sportProfile: { primary_sport: 'running', sports: ['running'], threshold_pace_sec: 300 },
+      timezone: TZ,
+      now: NOW,
+    });
+    expect(block).toContain('SPORTS: running only.');
+    expect(block).toContain('RUN THRESHOLDS: threshold pace 5:00/km');
   });
 });
