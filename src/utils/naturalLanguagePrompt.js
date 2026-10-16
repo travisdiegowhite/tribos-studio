@@ -15,8 +15,9 @@
  * @param {object} userLocation - User's location {latitude, longitude}
  * @param {string} userAddress - User's address for regional context
  * @param {object} calendarData - Calendar context with upcoming workouts
+ * @param {'cycling'|'running'} [sport] - 'running' adds RUN_ROUTE_BRIEF
  */
-export function buildNaturalLanguagePrompt(userRequest, weatherData, userLocation, userAddress, calendarData = null) {
+export function buildNaturalLanguagePrompt(userRequest, weatherData, userLocation, userAddress, calendarData = null, sport = 'cycling') {
   // Build region context from user's address (no hardcoded state assumptions)
   let regionContext = '';
   let gravelExamples = '';
@@ -63,7 +64,7 @@ The cyclist has a training plan. When they reference "today's workout", "my sche
   }
 
   return `You are an expert cycling route planner. A cyclist has requested: "${userRequest}"
-
+${sport === 'running' ? `\n${RUN_ROUTE_BRIEF}\n` : ''}
 ${regionContext}
 ${calendarContext}
 
@@ -269,6 +270,10 @@ export function parseNaturalLanguageResponse(responseText) {
   }
 }
 
+/** One line telling Claude the route is a run (multisport phase 2). */
+export const RUN_ROUTE_BRIEF =
+  'SPORT: RUNNING. This is a running route, not a ride: prefer parks, paths, greenways and sidewalks; avoid roads without a footway; typical loops are 5-25 km. Read any cycling wording below as running, and "gravel" as trail.';
+
 /**
  * Build a prompt that asks Claude to PLAN routes — i.e. propose real,
  * geocodable waypoints (towns, named gravel roads, landmarks) to route
@@ -280,9 +285,10 @@ export function parseNaturalLanguageResponse(responseText) {
  * @param {object|null} [opts.weatherData] - Current weather for context
  * @param {string|null} [opts.regionLabel] - Reverse-geocoded start region (e.g. "Longmont, Colorado")
  * @param {object|null} [opts.calendarData] - Training calendar context
+ * @param {'cycling'|'running'} [opts.sport] - 'running' adds RUN_ROUTE_BRIEF
  * @returns {string} - The planning prompt
  */
-export function buildRoutePlanningPrompt(userRequest, { weatherData = null, regionLabel = null, calendarData = null } = {}) {
+export function buildRoutePlanningPrompt(userRequest, { weatherData = null, regionLabel = null, calendarData = null, sport = 'cycling' } = {}) {
   let regionContext;
   let gravelStrategy;
   if (regionLabel) {
@@ -307,7 +313,7 @@ GRAVEL STRATEGY (when gravel is requested):
   }
 
   return `You are an expert cycling route planner. A cyclist asked: "${userRequest}"
-
+${sport === 'running' ? `\n${RUN_ROUTE_BRIEF}\n` : ''}
 ${regionContext}
 ${calendarContext}
 

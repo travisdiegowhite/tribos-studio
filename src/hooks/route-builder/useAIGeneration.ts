@@ -15,6 +15,8 @@ import { trackRb2 } from '../../features/route-builder-v2/telemetry/trackRb2';
 import { enrichRouteElevation } from './elevationEnrichment';
 import { snapshotFromGeneratedRoute } from './routeSnapshot';
 import { loadSpeedProfile } from './useSpeedProfile';
+import { loadRunThresholdPace } from './useRunPace';
+import { isRunProfile } from '../../utils/runProfiles.js';
 import { flatSpeedKmh } from '../../utils/routeTargets.js';
 import type {
   GenerationFormInput,
@@ -67,7 +69,7 @@ function resolveShape(
   return 'loop';
 }
 
-function deriveTimeMinutes(input: GenerationFormInput): number {
+function deriveTimeMinutes(input: GenerationFormInput, thresholdPaceSec: number | null = null): number {
   if (typeof input.duration_minutes === 'number' && input.duration_minutes > 0) {
     return input.duration_minutes;
   }
@@ -75,9 +77,11 @@ function deriveTimeMinutes(input: GenerationFormInput): number {
     // Via the shared speed model rather than a local constant — this used to
     // assume a flat 28 km/h, a fourth number in a codebase that already had
     // too many.
+    // A run profile uses run pace (from threshold pace when known).
     const kmh = flatSpeedKmh({
       goal: input.goal,
       routeProfile: input.route_profile ?? 'road',
+      thresholdPaceSec,
     });
     return Math.round((input.distance_km / kmh) * 60);
   }
@@ -155,11 +159,14 @@ export function useAIGeneration(): UseAIGenerationReturn {
       const startedAt = Date.now();
       trackRb2('generation_started', { count });
 
-      const durationMinutes = deriveTimeMinutes(input);
-      const [userId, speedProfile] = await Promise.all([
+      const isRun = isRunProfile(input.route_profile);
+      const [userId, speedProfile, runThresholdPaceSec] = await Promise.all([
         getCurrentUserId(),
-        loadSpeedProfile(),
+        // Built from rides: a run never reads it.
+        isRun ? Promise.resolve(null) : loadSpeedProfile(),
+        isRun ? loadRunThresholdPace() : Promise.resolve(null),
       ]);
+      const durationMinutes = deriveTimeMinutes(input, runThresholdPaceSec);
       const params = {
         startLocation: input.start_coord,
         timeAvailable: durationMinutes,
@@ -171,6 +178,8 @@ export function useAIGeneration(): UseAIGenerationReturn {
         // hardcoded to null, which left the learned-speed branch of
         // calculateTargetDistance dead for every RB2 rider.
         speedProfile,
+        // Run routes only: the athlete's threshold pace (s/km) for run speed.
+        runThresholdPaceSec,
         speedModifier: 1.0,
         // Explicit rider targets — previously collected by the form but
         // dropped here, which made "40 km / 600 m" advisory at best.
@@ -258,6 +267,7 @@ export function useAIGeneration(): UseAIGenerationReturn {
         const accuracy = rb1Routes?.[0]?.targetAccuracy ?? null;
         trackRb2('generation_completed', {
           count,
+          sport: isRun ? 'running' : 'cycling',
           duration_ms: Date.now() - startedAt,
           provider_used: 'rb1-generator',
           successes: enriched.length,

@@ -3,8 +3,11 @@
  *
  * Routes to the canonical builder at `/ride/new` (RB2), passing the query
  * contract RB2 reads (`workoutId`, `duration`, `distance`). Pure + testable;
- * the caller supplies the already-formatted scheduled date.
+ * the caller supplies the already-formatted scheduled date. A run session adds
+ * `sport=running`, so the builder opens on Run (multisport phase 2).
  */
+
+import { entrySport } from '../../api/utils/entrySport.js';
 
 export interface WorkoutRouteSource {
   /** The calendar entry's id, so the builder can paint its stored prescription. */
@@ -14,6 +17,8 @@ export interface WorkoutRouteSource {
   name?: string | null;
   target_duration?: number | null;
   target_distance_km?: number | null;
+  /** calendar_entries.sport; inferred from `workout_id` when absent. */
+  sport?: string | null;
 }
 
 export function buildWorkoutRouteHref(
@@ -33,5 +38,6 @@ export function buildWorkoutRouteHref(
   if (workout.workout_id) params.set('workoutId', workout.workout_id);
   if (workout.target_distance_km) params.set('distance', String(workout.target_distance_km));
   if (workout.name) params.set('workoutName', workout.name);
+  if (entrySport({ type: 'workout', ...workout }) === 'running') params.set('sport', 'running');
   return `/ride/new?${params.toString()}`;
 }

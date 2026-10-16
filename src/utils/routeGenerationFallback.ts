@@ -14,6 +14,7 @@ import type { Coordinate } from '../types/geo';
 import { haversineKm } from './distanceUnits';
 import { supabase } from '../lib/supabase';
 import { getSmartCyclingRoute } from './smartCyclingRouter';
+import { isRunProfile } from './runProfiles';
 
 export type FallbackTier = 1 | 2 | 3;
 
@@ -63,8 +64,9 @@ export async function generateFallbackRoute(
 ): Promise<FallbackSuggestion> {
   const reason: FallbackReason = input.reason ?? 'claude_error';
 
-  // Tier 1 — familiar loop from user history
-  if (input.userId) {
+  // Tier 1 — familiar loop from user history. Skipped for a run: saved
+  // routes are almost all rides, and a ride loop is no run route.
+  if (input.userId && !isRunProfile(input.routeProfile)) {
     try {
       const tier1 = await tryFamiliarLoop(input);
       if (tier1) {

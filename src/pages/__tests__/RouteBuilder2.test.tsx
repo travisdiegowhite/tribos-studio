@@ -1,7 +1,7 @@
 import { fireEvent, render, screen } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { MantineProvider } from '@mantine/core';
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
 vi.mock('../../contexts/AuthContext.jsx', () => ({
   useAuth: () => ({ user: null, isAuthenticated: false, loading: false, signOut: vi.fn() }),
@@ -48,6 +48,7 @@ vi.mock('../../data/workoutLibrary', () => {
 });
 
 import RouteBuilder2 from '../RouteBuilder2';
+import { useRouteBuilderStore } from '../../stores/routeBuilderStore';
 import { UserPreferencesProvider } from '../../contexts/UserPreferencesContext.jsx';
 
 function renderPage(initialPath = '/route-builder-2') {
@@ -239,4 +240,28 @@ describe('RouteBuilder2 (P1.3)', () => {
       expect(screen.queryByTestId('rb2-workout-arrival-pill')).toBeNull();
     });
   });
+
+  describe('running (?sport=running, multisport phase 2)', () => {
+    afterEach(() => {
+      useRouteBuilderStore.getState().resetAll();
+    });
+
+    it('opens on Run and hides the bike-only rail panels', () => {
+      renderPage('/route-builder-2?sport=running');
+      expect(useRouteBuilderStore.getState().sport).toBe('running');
+      expect(useRouteBuilderStore.getState().routeProfile).toBe('run');
+      expect(screen.queryByTestId('rb2-rail-tire')).toBeNull();
+      expect(screen.queryByTestId('rb2-rail-roadprefs')).toBeNull();
+      expect(screen.queryByTestId('rb2-rail-fuel')).toBeNull();
+      expect(screen.getByTestId('rb2-rail-layers')).toBeInTheDocument();
+    });
+
+    it('a ride keeps them', () => {
+      renderPage('/route-builder-2');
+      expect(useRouteBuilderStore.getState().sport).toBe('cycling');
+      expect(screen.getByTestId('rb2-rail-tire')).toBeInTheDocument();
+      expect(screen.getByTestId('rb2-rail-roadprefs')).toBeInTheDocument();
+    });
+  });
 });
+

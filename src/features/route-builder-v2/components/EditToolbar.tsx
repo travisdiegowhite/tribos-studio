@@ -22,6 +22,7 @@ import {
   Check,
 } from '@phosphor-icons/react';
 import { RB2, RB2_FONT } from './brand';
+import { isRunProfile } from '../../../utils/runProfiles';
 
 export const ROUTE_PROFILE_OPTIONS = [
   { value: 'road', label: 'Road' },
@@ -29,6 +30,12 @@ export const ROUTE_PROFILE_OPTIONS = [
   { value: 'mountain', label: 'Mountain' },
   { value: 'commuting', label: 'Commute' },
   { value: 'walking', label: 'Walking' },
+] as const;
+
+/** Shown instead while the route is a run (multisport phase 2). */
+export const RUN_ROUTE_PROFILE_OPTIONS = [
+  { value: 'run', label: 'Road & Path' },
+  { value: 'trail_run', label: 'Trail' },
 ] as const;
 
 export interface EditToolbarProps {
@@ -89,8 +96,12 @@ export function EditToolbar({
   onToggleStress,
   stressActive = false,
 }: EditToolbarProps) {
+  // The profile list follows the sport: a run never switches to a bike profile here.
+  const profileOptions: ReadonlyArray<{ value: string; label: string }> = isRunProfile(routeProfile)
+    ? RUN_ROUTE_PROFILE_OPTIONS
+    : ROUTE_PROFILE_OPTIONS;
   const profileLabel =
-    ROUTE_PROFILE_OPTIONS.find((p) => p.value === routeProfile)?.label ?? 'Road';
+    profileOptions.find((p) => p.value === routeProfile)?.label ?? profileOptions[0].label;
   return (
     <Box
       data-testid="rb2-edit-toolbar"
@@ -185,7 +196,7 @@ export function EditToolbar({
             </Menu.Target>
             <Menu.Dropdown>
               <Menu.Label>Routing profile</Menu.Label>
-              {ROUTE_PROFILE_OPTIONS.map((p) => (
+              {profileOptions.map((p) => (
                 <Menu.Item
                   key={p.value}
                   data-testid={`rb2-profile-${p.value}`}

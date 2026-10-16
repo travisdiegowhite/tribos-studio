@@ -16,6 +16,8 @@ import {
 import { trackRouteBuilder, truncateErrorMessage } from './routeBuilderTelemetry';
 import { fnv1a32, stableJson } from './stableHash';
 import { gatherCandidates, pickCalmest } from './routeAlternates';
+import { computeRunRoute } from './smartRunningRouter';
+import { isRunProfile } from './runProfiles';
 
 // Response cache + in-flight dedup. Identical requests are common (a re-snap
 // after a no-op toggle, AI candidates sharing segments, quick undo/redo) and
@@ -129,6 +131,12 @@ async function computeSmartCyclingRoute(waypoints, options = {}) {
     // multiply BRouter calls.
     alternates = false
   } = options;
+
+  // Runs never touch the bike chain below: every branch of it would quietly
+  // turn an unknown profile into a road-bike route (multisport phase 2).
+  if (isRunProfile(profile)) {
+    return computeRunRoute(waypoints, { profile, trainingGoal, userSpeed, useHills, mapboxToken });
+  }
 
   console.log('🧠 Smart cycling router: Finding optimal route...');
   console.log('📍 Waypoints:', waypoints.length);

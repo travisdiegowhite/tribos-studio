@@ -54,7 +54,8 @@ export interface RouteSnapshot {
 /**
  * Routing profile values accepted by the v1 routing engines.
  */
-export type RoutingProfile = 'road' | 'gravel' | 'mtb' | 'commute';
+/** `run` / `trail_run` are run profiles (multisport phase 2, runProfiles.js). */
+export type RoutingProfile = 'road' | 'gravel' | 'mtb' | 'commute' | 'run' | 'trail_run';
 
 /**
  * Route shape, in the generator's and database's vocabulary.

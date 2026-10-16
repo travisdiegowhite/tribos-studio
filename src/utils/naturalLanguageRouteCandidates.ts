@@ -47,6 +47,7 @@ import { haversineKm } from './distanceUnits';
 import { enrichRouteElevation } from '../hooks/route-builder/elevationEnrichment';
 import { snapshotFromGeneratedRoute } from '../hooks/route-builder/routeSnapshot';
 import type { Coordinate, RouteSnapshot } from '../hooks/route-builder/types';
+import { isRunProfile } from './runProfiles';
 
 export type LoopOrientation = 'cw' | 'ccw';
 
@@ -573,6 +574,8 @@ export async function generatePlannedRouteCandidates(
 ): Promise<RouteCandidate[]> {
   const startLocation = resolveStartFromContext(context);
   if (!startLocation) throw new Error('NO_START');
+  // A run keeps its run profile and never takes the gravel-network (bike) path.
+  const isRun = isRunProfile(context.profile as string | undefined);
 
   const accessToken = (context.accessToken as string | null) ?? null;
   const onProgress = context.onProgress as ((stage: string) => void) | undefined;
@@ -592,6 +595,7 @@ export async function generatePlannedRouteCandidates(
       weatherData: (context.weather as object | null) ?? null,
       regionLabel,
       calendarData: (context.calendar as object | null) ?? null,
+      sport: isRun ? 'running' : 'cycling',
     });
     const apiUrl = import.meta.env.PROD ? '/api/claude-routes' : 'http://localhost:3000/api/claude-routes';
     const response = await fetch(apiUrl, {
@@ -615,16 +619,18 @@ export async function generatePlannedRouteCandidates(
     plan.direction !== null ? (resolveBearing(plan.direction) as number | null) : null;
   const type = plan.routeType || 'loop';
   const goal = 'endurance';
-  const targetDistanceKm = plan.distance_km ?? 48;
+  const targetDistanceKm = plan.distance_km ?? (isRun ? 8 : 48);
   // Gravel intent is the requested *percentage*, not the surface label: "50%
   // gravel" is literally a mix, so Claude returns surfaceType 'mixed'. Key off
   // the target so the gravel-network path actually runs, and force the gravel
   // routing profile so the connectors are gravel too (not just the forced ways).
   // A plain "gravel loop" keeps a null target: the builder aims for
   // GRAVEL_IMPLIED_BUDGET_PCT, but nothing is reported as "what you asked for".
-  const gravelTargetPct = plan.gravelTargetPct ?? null;
-  const wantsGravel = (gravelTargetPct ?? 0) > 0 || plan.surfaceType === 'gravel';
-  const routeProfile = wantsGravel ? 'gravel' : (context.profile as string) || 'road';
+  const gravelTargetPct = isRun ? null : plan.gravelTargetPct ?? null;
+  const wantsGravel = !isRun && ((gravelTargetPct ?? 0) > 0 || plan.surfaceType === 'gravel');
+  const routeProfile = isRun
+    ? (plan.surfaceType === 'gravel' ? 'trail_run' : (context.profile as string))
+    : wantsGravel ? 'gravel' : (context.profile as string) || 'road';
   const trafficTolerance = (context.trafficTolerance as TrafficTolerance | undefined) ?? null;
 
   const request: ParsedRequest = {

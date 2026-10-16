@@ -2,6 +2,7 @@ import { useCallback, useRef, useState } from 'react';
 import { notifications } from '@mantine/notifications';
 import { getElevationData, calculateElevationStats } from '../utils/elevation';
 import { getSmartCyclingRoute } from '../utils/smartCyclingRouter';
+import { isRunProfile } from '../utils/runProfiles';
 import { useRouteBuilderStore } from '../stores/routeBuilderStore';
 import { M_TO_KM, assertKm, haversineMeters } from '../utils/distanceUnits';
 
@@ -282,7 +283,11 @@ export const useRouteManipulation = ({
 
       // Use smart cycling routing when enabled
       const cyclingProfiles = ['road', 'gravel', 'mountain', 'commuting'];
-      if (useSmartRouting && cyclingProfiles.includes(routingProfile)) {
+      // Runs take the smart path too (it hands them to the pedestrian router).
+      // Anything not listed here falls to plain Mapbox below, which used to
+      // mean DRIVING for an unknown profile.
+      const isRun = isRunProfile(routingProfile);
+      if (useSmartRouting && (cyclingProfiles.includes(routingProfile) || isRun)) {
         console.log(`🧠 Using smart ${routingProfile} routing`);
 
         // Pass the profile through by its engine name. 'road' and
@@ -296,8 +301,9 @@ export const useRouteManipulation = ({
             : null,
           mapboxToken: mapboxToken,
           // Gather alternate lines and keep the calmest the rider's Road
-          // comfort allows (routeAlternates.ts).
-          alternates: true,
+          // comfort allows (routeAlternates.ts). Never for a run: the
+          // alternates are bike lines.
+          alternates: !isRun,
         });
 
         if (smartRoute?.coordinates?.length > 0) {
@@ -320,7 +326,7 @@ export const useRouteManipulation = ({
         // Use standard Mapbox Directions API
         const coordinates = waypointsToSnap.map(wp => `${wp.position[0]},${wp.position[1]}`).join(';');
         const profile = cyclingProfiles.includes(routingProfile) ? 'cycling' :
-                        routingProfile === 'walking' ? 'walking' : 'driving';
+                        routingProfile === 'walking' || isRun ? 'walking' : 'driving';
 
         // Ferries are forbidden, 100% — exclude them at request time.
         const url = `https://api.mapbox.com/directions/v5/mapbox/${profile}/${coordinates}?` +

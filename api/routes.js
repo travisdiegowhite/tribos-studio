@@ -6,9 +6,27 @@ import { setupCors } from './utils/cors.js';
 import { completeActivationStep } from './utils/activation.js';
 import { rateLimitMiddleware } from './utils/rateLimit.js';
 import { encodeThumbPolyline } from './utils/polylineEncode.js';
+import { optionalColumn } from './utils/optionalColumn.js';
 
 // Initialize Supabase (server-side with service role)
 const supabase = getSupabaseAdmin();
+
+// routes.sport (migration 135) is applied by hand: every read and write of it
+// retries without the column if it is missing.
+const routesSport = optionalColumn('routes', 'sport');
+
+const RUN_SURFACES = new Set(['run', 'trail_run']);
+
+/** 'running' for a run, else 'cycling'. A run profile in surface_type also means a run. */
+function sportOfRoute(routeData) {
+  if (routeData?.sport === 'running' || routeData?.sport === 'cycling') return routeData.sport;
+  return RUN_SURFACES.has(routeData?.surface_type) ? 'running' : 'cycling';
+}
+
+/** Rows read without the column still carry a sport. */
+function withSport(row) {
+  return row ? { ...row, sport: sportOfRoute(row) } : row;
+}
 
 /**
  * Extract and validate user from Authorization header
@@ -162,6 +180,7 @@ async function saveRoute(req, res, userId, routeData) {
       difficulty_rating: routeData.difficulty_rating || null,
       training_goal: routeData.training_goal || null,
       surface_type: routeData.surface_type || null,
+      sport: sportOfRoute(routeData),
       generated_by: routeData.generated_by || 'manual',
       ai_prompt: routeData.ai_prompt || null,
       ai_suggestions: routeData.ai_suggestions || null,
@@ -176,24 +195,28 @@ async function saveRoute(req, res, userId, routeData) {
 
     if (routeData.id) {
       // Update existing route
-      const { data, error } = await supabase
-        .from('routes')
-        .update(routeRecord)
-        .eq('id', routeData.id)
-        .eq('user_id', userId) // Ensure user owns this route
-        .select()
-        .single();
+      const { data, error } = await routesSport.write(routeRecord, (record) =>
+        supabase
+          .from('routes')
+          .update(record)
+          .eq('id', routeData.id)
+          .eq('user_id', userId) // Ensure user owns this route
+          .select()
+          .single(),
+      );
 
       if (error) throw error;
       result = data;
       console.log(`✅ Updated route: ${result.id}`);
     } else {
       // Insert new route
-      const { data, error } = await supabase
-        .from('routes')
-        .insert(routeRecord)
-        .select()
-        .single();
+      const { data, error } = await routesSport.write(routeRecord, (record) =>
+        supabase
+          .from('routes')
+          .insert(record)
+          .select()
+          .single(),
+      );
 
       if (error) throw error;
       result = data;
@@ -205,7 +228,7 @@ async function saveRoute(req, res, userId, routeData) {
 
     return res.status(200).json({
       success: true,
-      route: result
+      route: withSport(result)
     });
 
   } catch (error) {
@@ -219,35 +242,24 @@ async function saveRoute(req, res, userId, routeData) {
  */
 async function listRoutes(req, res, userId) {
   try {
-    const { data: routes, error } = await supabase
-      .from('routes')
-      .select(`
-        id,
-        name,
-        description,
-        distance_km,
-        elevation_gain_m,
-        estimated_duration_minutes,
-        route_type,
-        training_goal,
-        surface_type,
-        generated_by,
-        is_private,
-        thumb_polyline,
-        created_at,
-        updated_at,
-        start_latitude,
-        start_longitude
-      `)
-      .eq('user_id', userId)
-      .eq('is_draft', false)
-      .order('updated_at', { ascending: false });
+    const { data: routes, error } = await routesSport.select(
+      `id, name, description, distance_km, elevation_gain_m, estimated_duration_minutes,
+        route_type, training_goal, surface_type, sport, generated_by, is_private,
+        thumb_polyline, created_at, updated_at, start_latitude, start_longitude`,
+      (columns) =>
+        supabase
+          .from('routes')
+          .select(columns)
+          .eq('user_id', userId)
+          .eq('is_draft', false)
+          .order('updated_at', { ascending: false }),
+    );
 
     if (error) throw error;
 
     return res.status(200).json({
       success: true,
-      routes: routes || [],
+      routes: (routes || []).map(withSport),
       count: routes?.length || 0
     });
 
@@ -269,19 +281,16 @@ async function getRoute(req, res, userId, routeId) {
   }
 
   try {
-    const { data: route, error } = await supabase
-      .from('routes')
-      .select(`
-        id, user_id, name, description,
+    const { data: route, error } = await routesSport.select(
+      `id, user_id, name, description,
         distance_km, elevation_gain_m, elevation_loss_m, estimated_duration_minutes,
         geometry, waypoints,
         start_latitude, start_longitude, end_latitude, end_longitude,
-        route_type, difficulty_rating, training_goal, surface_type,
+        route_type, difficulty_rating, training_goal, surface_type, sport,
         generated_by, is_private, visibility,
-        created_at, updated_at
-      `)
-      .eq('id', routeId)
-      .single();
+        created_at, updated_at`,
+      (columns) => supabase.from('routes').select(columns).eq('id', routeId).single(),
+    );
 
     if (error) {
       if (error.code === 'PGRST116') {
@@ -300,7 +309,7 @@ async function getRoute(req, res, userId, routeId) {
 
     return res.status(200).json({
       success: true,
-      route: { ...routePayload, is_owner: isOwner }
+      route: { ...withSport(routePayload), is_owner: isOwner }
     });
 
   } catch (error) {
@@ -320,18 +329,15 @@ async function getPublicRoute(req, res, routeId) {
   }
 
   try {
-    const { data: route, error } = await supabase
-      .from('routes')
-      .select(`
-        id, name, description,
+    const { data: route, error } = await routesSport.select(
+      `id, name, description,
         distance_km, elevation_gain_m, elevation_loss_m, estimated_duration_minutes,
         geometry,
         start_latitude, start_longitude, end_latitude, end_longitude,
-        route_type, difficulty_rating, training_goal, surface_type,
-        is_private, visibility, created_at, updated_at
-      `)
-      .eq('id', routeId)
-      .single();
+        route_type, difficulty_rating, training_goal, surface_type, sport,
+        is_private, visibility, created_at, updated_at`,
+      (columns) => supabase.from('routes').select(columns).eq('id', routeId).single(),
+    );
 
     if (error) {
       if (error.code === 'PGRST116') {
@@ -345,7 +351,7 @@ async function getPublicRoute(req, res, routeId) {
       return res.status(404).json({ error: 'Route not found' });
     }
 
-    return res.status(200).json({ success: true, route });
+    return res.status(200).json({ success: true, route: withSport(route) });
 
   } catch (error) {
     console.error('Get public route error:', error);
@@ -427,6 +433,7 @@ async function saveDraft(req, res, userId, routeData) {
       route_type: routeData.route_type || 'loop',
       training_goal: routeData.training_goal || null,
       surface_type: routeData.surface_type || null,
+      sport: sportOfRoute(routeData),
       generated_by: routeData.generated_by || 'rb2',
       is_draft: true,
       is_private: true,
@@ -434,12 +441,14 @@ async function saveDraft(req, res, userId, routeData) {
       updated_at: new Date().toISOString()
     };
 
-    const { data: updated, error: updateError } = await supabase
-      .from('routes')
-      .update(draftRecord)
-      .eq('user_id', userId)
-      .eq('is_draft', true)
-      .select('id, updated_at');
+    const { data: updated, error: updateError } = await routesSport.write(draftRecord, (record) =>
+      supabase
+        .from('routes')
+        .update(record)
+        .eq('user_id', userId)
+        .eq('is_draft', true)
+        .select('id, updated_at'),
+    );
 
     if (updateError) throw updateError;
 
@@ -447,11 +456,13 @@ async function saveDraft(req, res, userId, routeData) {
       return res.status(200).json({ success: true, draft: updated[0] });
     }
 
-    const { data: inserted, error: insertError } = await supabase
-      .from('routes')
-      .insert(draftRecord)
-      .select('id, updated_at')
-      .single();
+    const { data: inserted, error: insertError } = await routesSport.write(draftRecord, (record) =>
+      supabase
+        .from('routes')
+        .insert(record)
+        .select('id, updated_at')
+        .single(),
+    );
 
     if (insertError) throw insertError;
 
@@ -469,21 +480,23 @@ async function saveDraft(req, res, userId, routeData) {
  */
 async function getDraft(req, res, userId) {
   try {
-    const { data: draft, error } = await supabase
-      .from('routes')
-      .select(`
-        id, name, description,
+    const { data: draft, error } = await routesSport.select(
+      `id, name, description,
         distance_km, elevation_gain_m, estimated_duration_minutes,
-        geometry, waypoints, route_type, training_goal, surface_type,
-        updated_at
-      `)
-      .eq('user_id', userId)
-      .eq('is_draft', true)
-      .maybeSingle();
+        geometry, waypoints, route_type, training_goal, surface_type, sport,
+        updated_at`,
+      (columns) =>
+        supabase
+          .from('routes')
+          .select(columns)
+          .eq('user_id', userId)
+          .eq('is_draft', true)
+          .maybeSingle(),
+    );
 
     if (error) throw error;
 
-    return res.status(200).json({ success: true, draft: draft ?? null });
+    return res.status(200).json({ success: true, draft: draft ? withSport(draft) : null });
 
   } catch (error) {
     console.error('Get draft error:', error);

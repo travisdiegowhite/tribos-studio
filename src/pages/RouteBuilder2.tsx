@@ -24,6 +24,7 @@ import {
   useDraftAutosave,
   useUserLocation,
   useSpeedProfile,
+  useRunPace,
 } from '../hooks/route-builder';
 import { useRouteBuilderStore } from '../stores/routeBuilderStore';
 import { useAuth } from '../contexts/AuthContext.jsx';
@@ -112,7 +113,8 @@ import {
 } from '../features/route-builder-v2/arrival/arrivalSession';
 import { rankPastRidesByFit } from '../features/route-builder-v2/arrival/rankPastRides';
 import { calculatePersonalizedETA } from '../utils/personalizedETA';
-import { isCyclingActivity } from '../utils/sportType';
+import { isCyclingActivity, isRunningActivity } from '../utils/sportType';
+import { isRunProfile, runFlatSpeedKmh } from '../utils/runProfiles';
 import { buildTargetAccuracy, describeTargetMiss } from '../utils/routeTargets.js';
 import RoadPreferencesCard from '../components/settings/RoadPreferencesCard.jsx';
 import BikeInfrastructureLegend from '../components/BikeInfrastructureLegend.jsx';
@@ -160,6 +162,16 @@ const DEFAULT_VISIBILITY: LayerVisibilityState = {
   intervals: false,
 };
 
+
+/** Rail panels that only make sense on a bike; hidden for a run. */
+const RIDE_ONLY_RAIL_IDS = new Set(['fuel', 'tire', 'roadprefs']);
+
+const STATIC_RUN_OPENING: ChatMessage = {
+  id: 'opening',
+  role: 'assistant',
+  text: "Tell me what kind of run you're looking for, or ask me to change the route.",
+  timestamp: 0,
+};
 
 const STATIC_OPENING: ChatMessage = {
   id: 'opening',
@@ -330,6 +342,34 @@ export default function RouteBuilder2() {
   const routeName = useRouteBuilderStore((s) => s.routeName);
   const routeDescription = useRouteBuilderStore((s) => s.routeDescription);
   const routeProfile = useRouteBuilderStore((s) => s.routeProfile);
+  const sport = useRouteBuilderStore((s) => s.sport) as 'cycling' | 'running';
+  const isRun = sport === 'running';
+  // Threshold pace (s/km) for run routes: the run ETA and Discover's target
+  // use it, never the ride-built speed profile.
+  const runThresholdPaceSec = useRunPace();
+
+  // `?sport=running` (Today, the calendar) opens the builder for a run. Only
+  // on a new route: a saved route restores its own sport when it loads.
+  const urlSport = searchParams.get('sport');
+  useEffect(() => {
+    if (routeIdFromUrl) return;
+    if (urlSport === 'running' || urlSport === 'cycling') {
+      useRouteBuilderStore.getState().setSport(urlSport);
+    }
+    // Mount-only by design: the toggle owns the sport after that.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Attaching a run workout makes this a run. A ride workout leaves the sport
+  // alone. Keyed on the workout, so switching back to Ride by hand sticks.
+  const attachedIsRun = attachedWorkout?.sportType === 'running';
+  const attachedKey = attachedWorkout ? `${attachedWorkout.id}:${attachedIsRun}` : null;
+  useEffect(() => {
+    if (attachedIsRun && useRouteBuilderStore.getState().sport !== 'running') {
+      useRouteBuilderStore.getState().setSport('running');
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [attachedKey]);
   const trafficTolerance = useRouteBuilderStore((s) => s.trafficTolerance);
   const trainingGoal = useRouteBuilderStore((s) => s.trainingGoal);
   const routeTypeFromStore = useRouteBuilderStore((s) => s.routeType);
@@ -403,6 +443,11 @@ export default function RouteBuilder2() {
     ...DEFAULT_VISIBILITY,
     intervals: hasWorkout,
   }));
+  // Traffic stress and bike infrastructure are bike measures; a run turns
+  // them off (their toggles are hidden too).
+  useEffect(() => {
+    if (isRun) setVisibility((prev) => (prev.stress || prev.bikeInfra ? { ...prev, stress: false, bikeInfra: false } : prev));
+  }, [isRun]);
   const [errorDismissed, setErrorDismissed] = useState<string | null>(null);
   // Failures from fire-and-forget overlay work (clip reroute, layer fetches)
   // that would otherwise be console-only; feeds the same ErrorState toast.
@@ -443,7 +488,13 @@ export default function RouteBuilder2() {
   const [mobileTab, setMobileTab] = useState<string | null>(null);
   // Route discovery (lazy-loaded saved routes ranked by today's target).
   const [discoverRoutes, setDiscoverRoutes] = useState<
-    Array<{ id: string; name?: string; distance_km?: number | null; elevation_gain_m?: number | null }>
+    Array<{
+      id: string;
+      name?: string;
+      distance_km?: number | null;
+      elevation_gain_m?: number | null;
+      sport?: 'cycling' | 'running';
+    }>
   >([]);
   const [discoverLoading, setDiscoverLoading] = useState(false);
   const discoverLoadedRef = useRef(false);
@@ -527,7 +578,7 @@ export default function RouteBuilder2() {
   const chat = useChatSession({
     routeId: routeIdFromUrl ?? null,
     userId: user?.id ?? null,
-    openingMessage: opener,
+    openingMessage: isRun && opener === STATIC_OPENING ? STATIC_RUN_OPENING : opener,
   });
   const formPanelRef = useRef<FormPanelHandle | null>(null);
 
@@ -835,6 +886,7 @@ export default function RouteBuilder2() {
           placedStart: waypoints?.[0]?.position ?? null,
           weather: weather.weather ?? undefined,
           profile: routeProfile,
+          runThresholdPaceSec,
           trafficTolerance,
           useIterativeBuilder: true,
           accessToken,
@@ -888,6 +940,7 @@ export default function RouteBuilder2() {
       waypoints,
       weather.weather,
       routeProfile,
+      runThresholdPaceSec,
       setAiSuggestions,
     ],
   );
@@ -1078,11 +1131,15 @@ export default function RouteBuilder2() {
   const nextPlanned = upcomingPlanned.workouts[0] ?? null;
   // The workout the rider arrived with wins over the generic "next planned"
   // lookup (which drops planned rows that don't resolve in the library).
+  // Duration → distance at easy pace for the sport (26 km/h for a ride).
+  const discoverPaceKmh = isRun
+    ? runFlatSpeedKmh({ profile: routeProfile, thresholdPaceSec: runThresholdPaceSec })
+    : undefined;
   const arrivalTargetKm = arrivalCtx
     ? arrivalCtx.distanceKm ??
-      targetDistanceKm({ targetDurationMinutes: arrivalCtx.durationMinutes })
+      targetDistanceKm({ targetDurationMinutes: arrivalCtx.durationMinutes }, discoverPaceKmh)
     : null;
-  const discoverTargetKm = arrivalTargetKm ?? targetDistanceKm(nextPlanned);
+  const discoverTargetKm = arrivalTargetKm ?? targetDistanceKm(nextPlanned, discoverPaceKmh);
   const discoverTargetLabel = arrivalCtx
     ? `${arrivalCtx.workoutName ?? 'Planned ride'}${arrivalTargetKm ? ` · ~${arrivalTargetKm} km` : ''}`
     : nextPlanned
@@ -1118,7 +1175,7 @@ export default function RouteBuilder2() {
 
   const discoverPanel = (
     <DiscoverPanel
-      routes={discoverRoutes}
+      routes={discoverRoutes.filter((r) => (r.sport ?? 'cycling') === sport)}
       loading={discoverLoading}
       targetKm={discoverTargetKm}
       targetLabel={discoverTargetLabel}
@@ -1162,9 +1219,10 @@ export default function RouteBuilder2() {
       .order('start_date', { ascending: false })
       .limit(50);
     if (error) console.error('[rb2] past rides load failed', error);
+    const sameSport = isRun ? isRunningActivity : isCyclingActivity;
     const rides = (data ?? [])
-      // Rides only: a cycling route is never repeated as a run or a walk.
-      .filter((a) => isCyclingActivity(a as { type?: string | null; sport_type?: string | null }))
+      // Same sport only: a ride is never repeated as a run, or a run as a ride.
+      .filter((a) => sameSport(a as { type?: string | null; sport_type?: string | null }))
       .map((a) => ({
         id: a.id as string,
         name: (a.name as string | null) ?? null,
@@ -1182,7 +1240,12 @@ export default function RouteBuilder2() {
       }),
     );
     setPastRidesLoading(false);
-  }, [user?.id, seedOverride, attachedWorkout]);
+  }, [user?.id, seedOverride, attachedWorkout, isRun]);
+  // A sport switch makes the loaded list the wrong sport: load again on next open.
+  useEffect(() => {
+    pastRidesLoadedRef.current = false;
+    setPastRides([]);
+  }, [isRun]);
 
   const handleArrivalNew = useCallback(
     (startLocation: string) => {
@@ -1324,7 +1387,10 @@ export default function RouteBuilder2() {
       cueBackfillAttemptedRef.current = routeGeometry;
       console.log('🧭 Cue backfill: map-matching route for turn cues…');
       void import('../utils/stadiaMapsRouter').then(({ getStadiaCuesForGeometry }) =>
-        (getStadiaCuesForGeometry(coords) as Promise<unknown[] | null>).then((cues) => {
+        (getStadiaCuesForGeometry(coords, {
+          // A run's turns come from footpaths, not bike lanes.
+          costing: isRunProfile(useRouteBuilderStore.getState().routeProfile) ? 'pedestrian' : 'bicycle',
+        }) as Promise<unknown[] | null>).then((cues) => {
           if (!cues) {
             trackRb2('cues_backfill_failed', { point_count: coords.length });
             return;
@@ -1422,7 +1488,8 @@ export default function RouteBuilder2() {
   // Traffic stress is measured for every route (debounced, cached) so the
   // QUIET ROADS stat, the TRAFFIC chip, the legend and the overlay all read
   // one result — no layer panel needed to see the number.
-  const stress = useRouteStress(geometryForLayers);
+  // Not measured for a run: cycling traffic stress says nothing about a footway.
+  const stress = useRouteStress(isRun ? null : geometryForLayers);
   const stressResult = stress.result;
   // Surface rides the same corridor fetch (shared cache), so the Surface
   // overlay, its summary bar, the stats card and the ETA read one result.
@@ -1575,11 +1642,12 @@ export default function RouteBuilder2() {
         speedProfile: (speedProfile ?? undefined) as object | undefined,
         routeProfile,
         trainingGoal,
+        thresholdPaceSec: runThresholdPaceSec,
       }) as { totalSeconds?: number };
     } catch {
       return null;
     }
-  }, [routeStats?.distance_km, analysis.elevationProfile, surface.result, speedProfile, routeProfile, trainingGoal]);
+  }, [routeStats?.distance_km, analysis.elevationProfile, surface.result, speedProfile, routeProfile, trainingGoal, runThresholdPaceSec]);
 
   // How far the current route sits from what the rider asked for. Recomputed
   // from live stats rather than captured at generation, so the chip keeps
@@ -1675,6 +1743,7 @@ export default function RouteBuilder2() {
         }
         targetStatus={targetStatus}
         onFixTarget={targetStatus ? handleFixTarget : undefined}
+        sport={sport}
       />
     ) : null;
 
@@ -1745,6 +1814,7 @@ export default function RouteBuilder2() {
               defaultExpanded
               hasStravaConnection={false}
               hasWorkout={hasWorkout}
+              sport={sport}
             />
             {visibility.gradient && hasRoute && (
               <Box style={{ marginTop: 10 }}>
@@ -1906,7 +1976,7 @@ export default function RouteBuilder2() {
           <RB2DesktopLayout
             left={
               <ControlRail
-                items={railItems}
+                items={isRun ? railItems.filter((i) => !RIDE_ONLY_RAIL_IDS.has(i.id)) : railItems}
                 openId={railOpenId}
                 onOpenChange={setRailOpenId}
               />
@@ -2114,7 +2184,7 @@ export default function RouteBuilder2() {
               isMobile
             />
           </Box>
-          <Box style={cardStyle}>{roadPrefsNode}</Box>
+          {!isRun && <Box style={cardStyle}>{roadPrefsNode}</Box>}
         </>
       ),
     },
@@ -2133,6 +2203,7 @@ export default function RouteBuilder2() {
             isMobile
             hasStravaConnection={false}
             hasWorkout={hasWorkout}
+            sport={sport}
           />
           {hasWorkout && (
             <WorkoutOverlayLegend
@@ -2167,17 +2238,21 @@ export default function RouteBuilder2() {
           <Box style={cardStyle}>
             <WeatherPanel weather={weather} isImperial={isImperial} />
           </Box>
-          <Box style={cardStyle}>
-            <FuelPanel
-              durationMinutes={(routeStats?.duration_s ?? 0) / 60}
-              elevationGainMeters={routeStats?.elevation_gain_m ?? 0}
-              weather={weather.weather}
-              isImperial={isImperial}
-            />
-          </Box>
-          <Box style={cardStyle}>
-            <TirePressurePanel routeProfile={routeProfile} isImperial={isImperial} />
-          </Box>
+          {!isRun && (
+            <>
+              <Box style={cardStyle}>
+                <FuelPanel
+                  durationMinutes={(routeStats?.duration_s ?? 0) / 60}
+                  elevationGainMeters={routeStats?.elevation_gain_m ?? 0}
+                  weather={weather.weather}
+                  isImperial={isImperial}
+                />
+              </Box>
+              <Box style={cardStyle}>
+                <TirePressurePanel routeProfile={routeProfile} isImperial={isImperial} />
+              </Box>
+            </>
+          )}
           <Box style={cardStyle}>
             <RaceDetailsCard />
           </Box>
@@ -2193,7 +2268,9 @@ export default function RouteBuilder2() {
             padding: '24px 8px',
           }}
         >
-          Build a route to see weather, fueling, and tire pressure.
+          {isRun
+            ? 'Build a route to see the weather.'
+            : 'Build a route to see weather, fueling, and tire pressure.'}
         </Text>
       ),
     },

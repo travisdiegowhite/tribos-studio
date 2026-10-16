@@ -15,12 +15,12 @@ import type { Coordinate } from '../../../types/geo';
 import { trackRb2 } from '../telemetry/trackRb2';
 import {
   useGenerateForm,
-  GOAL_OPTIONS,
-  SURFACE_OPTIONS,
   SHAPE_OPTIONS,
+  SPORT_OPTIONS,
   ROAD_COMFORT_OPTIONS,
   TARGET_MODE_OPTIONS,
   type Goal,
+  type Sport,
   type Surface,
   type Shape,
   type RoadComfort,
@@ -116,6 +116,11 @@ export const FormPanel = forwardRef<FormPanelHandle, FormPanelProps>(function Fo
     summary,
     onSubmit,
     onReset,
+    sport,
+    setSport,
+    isRun,
+    goalOptions,
+    surfaceOptions,
   } = useGenerateForm({
     generation,
     defaultStart,
@@ -218,9 +223,21 @@ export const FormPanel = forwardRef<FormPanelHandle, FormPanelProps>(function Fo
       {expanded && (
         <Box style={{ padding: '0 14px 14px', borderTop: `1px solid ${RB2.border}` }}>
           <Box style={{ marginTop: 12 }}>
+            <SegmentedControl
+              data-testid="rb2-sport-toggle"
+              data={SPORT_OPTIONS}
+              value={sport}
+              onChange={(v) => setSport(v as Sport)}
+              disabled={generation.isGenerating}
+              fullWidth
+              size="xs"
+              styles={{ root: { borderRadius: 0 }, indicator: { borderRadius: 0 } }}
+            />
+          </Box>
+          <Box style={{ marginTop: 10 }}>
             <Text style={labelStyle}>Goal</Text>
             <Select
-              data={GOAL_OPTIONS}
+              data={goalOptions}
               value={goal}
               onChange={(v) => {
                 if (!v) return;
@@ -275,7 +292,7 @@ export const FormPanel = forwardRef<FormPanelHandle, FormPanelProps>(function Fo
           <Box style={{ marginTop: 10 }}>
             <Text style={labelStyle}>Surface</Text>
             <Select
-              data={SURFACE_OPTIONS}
+              data={surfaceOptions}
               value={surface}
               onChange={(v) => {
                 if (!v) return;
@@ -287,22 +304,24 @@ export const FormPanel = forwardRef<FormPanelHandle, FormPanelProps>(function Fo
               allowDeselect={false}
             />
           </Box>
-          <Box style={{ marginTop: 10 }}>
-            <Text style={labelStyle}>Road comfort</Text>
-            <SegmentedControl
-              data-testid="rb2-road-comfort"
-              data={ROAD_COMFORT_OPTIONS}
-              value={roadComfort}
-              onChange={(v) => {
-                setRoadComfort(v as RoadComfort);
-                trackRb2('form_field_changed', { field: 'road_comfort' });
-              }}
-              disabled={generation.isGenerating}
-              fullWidth
-              size="xs"
-              radius={0}
-            />
-          </Box>
+          {!isRun && (
+            <Box style={{ marginTop: 10 }}>
+              <Text style={labelStyle}>Road comfort</Text>
+              <SegmentedControl
+                data-testid="rb2-road-comfort"
+                data={ROAD_COMFORT_OPTIONS}
+                value={roadComfort}
+                onChange={(v) => {
+                  setRoadComfort(v as RoadComfort);
+                  trackRb2('form_field_changed', { field: 'road_comfort' });
+                }}
+                disabled={generation.isGenerating}
+                fullWidth
+                size="xs"
+                radius={0}
+              />
+            </Box>
+          )}
           <Box style={{ marginTop: 10 }}>
             <Text style={labelStyle}>Shape</Text>
             <Select

@@ -18,6 +18,7 @@ import { parseGpxFile } from '../../utils/gpxParser.js';
 import { garminService } from '../../utils/garminService';
 import { trackRb2 } from '../../features/route-builder-v2/telemetry/trackRb2';
 import type { Coordinate } from '../../types/geo';
+import { profileFromSavedRoute, sportOfSavedRoute } from '../../utils/runProfiles';
 
 interface GpxTrackPoint {
   latitude: number;
@@ -52,6 +53,9 @@ interface SavedRouteRow {
   estimated_duration_minutes?: number | null;
   waypoints?: unknown[] | null;
   is_owner?: boolean;
+  surface_type?: string | null;
+  /** routes.sport (migration 135); the API infers it when the column is missing. */
+  sport?: string | null;
 }
 
 const saveRoute = routesService.saveRoute as (data: unknown) => Promise<SavedRouteRow>;
@@ -136,6 +140,7 @@ export interface SavedRouteSummary {
   name?: string;
   distance_km?: number | null;
   elevation_gain_m?: number | null;
+  sport?: 'cycling' | 'running';
 }
 
 export interface UseRoutePersistenceReturn {
@@ -196,6 +201,7 @@ export function useRoutePersistence(): UseRoutePersistenceReturn {
   const trainingGoal = useRouteBuilderStore((s) => s.trainingGoal);
   const routeType = useRouteBuilderStore((s) => s.routeType);
   const routeProfile = useRouteBuilderStore((s) => s.routeProfile);
+  const sport = useRouteBuilderStore((s) => s.sport);
   const setRouteFromStore = useRouteBuilderStore((s) => s.setRoute);
   const setRouteName = useRouteBuilderStore((s) => s.setRouteName);
   const setRouteDescription = useRouteBuilderStore((s) => s.setRouteDescription);
@@ -231,6 +237,7 @@ export function useRoutePersistence(): UseRoutePersistenceReturn {
           route_type: routeType,
           training_goal: trainingGoal,
           surface_type: routeProfile,
+          sport,
           generated_by: 'rb2',
           waypoints: waypoints?.length ? waypoints : null,
         };
@@ -239,6 +246,7 @@ export function useRoutePersistence(): UseRoutePersistenceReturn {
         setSavedRouteId(saved.id);
         trackRb2('route_saved', {
           is_new: isNew,
+          sport,
           distance_km,
           elevation_gain_m,
           duration_ms: Date.now() - startedAt,
@@ -261,6 +269,7 @@ export function useRoutePersistence(): UseRoutePersistenceReturn {
       routeType,
       trainingGoal,
       routeProfile,
+      sport,
       waypoints,
       savedRouteId,
       setRouteName,
@@ -292,6 +301,10 @@ export function useRoutePersistence(): UseRoutePersistenceReturn {
           waypoints: route.waypoints ?? [],
           source: 'loaded',
         });
+        // Reopen on the route's own profile and sport, so a saved run is
+        // edited as a run (the store kept whatever was last used before).
+        const profile = profileFromSavedRoute(route);
+        if (profile) useRouteBuilderStore.getState().setRouteProfile(profile);
         // A shared route someone else owns loads as an unsaved copy: keeping
         // its id would make Save attempt an update the API rejects.
         const isOwner = route.is_owner !== false;
@@ -359,6 +372,7 @@ export function useRoutePersistence(): UseRoutePersistenceReturn {
         name: r.name,
         distance_km: r.distance_km ?? null,
         elevation_gain_m: r.elevation_gain_m ?? null,
+        sport: sportOfSavedRoute(r),
       }));
     } catch (e) {
       const message = e instanceof Error ? e.message : String(e);

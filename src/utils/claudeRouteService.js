@@ -5,6 +5,7 @@ import { EnhancedContextCollector } from './enhancedContext';
 import { getVoiceProfile } from './coachVoices';
 import { renderFamiliarRoads } from './promptBuilders';
 import { getAuthHeaders } from './authHeaders';
+import { RUN_ROUTE_BRIEF } from './naturalLanguagePrompt';
 
 // Hard cap on the time we'll wait for Claude before declaring failure.
 // Anything longer than this and the user is staring at a spinner — fall
@@ -66,7 +67,8 @@ export async function generateClaudeRoutes(params) {
 
     // Try to get enhanced context if userId is available
     let prompt;
-    if (userId) {
+    // Enhanced context is built from past rides; a run uses the basic prompt.
+    if (userId && params.sport !== 'running') {
       try {
         // Pass trainingContext to the enhanced context collector
         const paramsWithContext = { ...params, trainingContext };
@@ -129,7 +131,8 @@ export async function generateClaudeRoutesOrThrow(params) {
   } = params;
 
   let prompt;
-  if (userId) {
+  // Enhanced context is built from past rides; a run uses the basic prompt.
+  if (userId && params.sport !== 'running') {
     try {
       const paramsWithContext = { ...params, trainingContext };
       const enhancedContext = await EnhancedContextCollector.gatherDetailedPreferences(userId, paramsWithContext);
@@ -324,7 +327,13 @@ function buildRoutePrompt(params) {
 
   const [longitude, latitude] = startLocation;
 
-  let prompt = `You are an expert cycling coach and route planner. Generate 3-4 intelligent cycling route suggestions based on the following parameters:
+  const isRun = params.sport === 'running';
+  let prompt = isRun
+    ? `You are an expert running coach and route planner. Generate 3-4 intelligent running route suggestions based on the following parameters:
+
+${RUN_ROUTE_BRIEF}
+`
+    : `You are an expert cycling coach and route planner. Generate 3-4 intelligent cycling route suggestions based on the following parameters:
 
 LOCATION & DISTANCE:
 - Start coordinates: ${latitude}, ${longitude}

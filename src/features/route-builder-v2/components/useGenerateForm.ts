@@ -16,8 +16,9 @@ import type { UseAIGenerationReturn, UserLocationStatus } from '../../../hooks/r
 import type { Coordinate } from '../../../types/geo';
 import { trackRb2 } from '../telemetry/trackRb2';
 import { geocodeWaypoint } from '../../../utils/geocoding.js';
-import { useSpeedProfile } from '../../../hooks/route-builder';
+import { useSpeedProfile, useRunPace } from '../../../hooks/route-builder';
 import { flatSpeedKmh } from '../../../utils/routeTargets.js';
+import { useRouteBuilderStore } from '../../../stores/routeBuilderStore';
 import { useRoadComfort, ROAD_COMFORT_OPTIONS } from '../../../hooks/route-builder/useRoadComfort';
 import type { TrafficTolerance } from '../../../utils/trafficStress';
 
@@ -31,7 +32,13 @@ export type Goal =
   | 'recovery'
   | 'long_ride'
   | 'commute';
-export type Surface = 'road' | 'gravel' | 'mountain' | 'mixed';
+export type Surface = 'road' | 'gravel' | 'mountain' | 'mixed' | 'run' | 'trail';
+export type Sport = 'cycling' | 'running';
+
+export const SPORT_OPTIONS: Array<{ value: Sport; label: string }> = [
+  { value: 'cycling', label: 'Ride' },
+  { value: 'running', label: 'Run' },
+];
 /**
  * Route shape.
  *
@@ -77,6 +84,39 @@ export const SURFACE_OPTIONS: Array<{ value: Surface; label: string }> = [
   { value: 'mountain', label: 'Mountain' },
   { value: 'mixed', label: 'Mixed' },
 ];
+
+/**
+ * Run goals, labelled for runners but keyed onto the ride goal vocabulary so
+ * generation, the run pace factors (runProfiles.js) and the saved
+ * training_goal all stay valid.
+ */
+export const RUN_GOAL_OPTIONS: Array<{ value: Goal; label: string }> = [
+  { value: 'endurance', label: 'Easy' },
+  { value: 'long_ride', label: 'Long Run' },
+  { value: 'tempo', label: 'Tempo' },
+  { value: 'threshold', label: 'Threshold' },
+  { value: 'recovery', label: 'Recovery' },
+];
+
+/** Run surfaces → the run route profiles. */
+export const RUN_SURFACE_OPTIONS: Array<{ value: Surface; label: string }> = [
+  { value: 'run', label: 'Road & Path' },
+  { value: 'trail', label: 'Trail' },
+];
+
+/** The routing profile a form surface asks for. */
+export function surfaceToProfile(surface: Surface): string {
+  switch (surface) {
+    case 'mountain':
+      return 'mtb';
+    case 'mixed':
+      return 'gravel';
+    case 'trail':
+      return 'trail_run';
+    default:
+      return surface;
+  }
+}
 
 export const SHAPE_OPTIONS: Array<{ value: Shape; label: string }> = [
   // Most riders start and finish at the same place and don't care which
@@ -125,6 +165,10 @@ export function prettyLabel<T extends string>(
 /** Map a routing profile (store) to a Surface summary label. */
 function profileToSurfaceLabel(profile: string): string {
   switch (profile) {
+    case 'run':
+      return 'Road & Path';
+    case 'trail_run':
+      return 'Trail';
     case 'gravel':
       return 'Gravel';
     case 'mtb':
@@ -153,9 +197,12 @@ export function useGenerateForm({
   const [targetMode, setTargetMode] = useState<TargetMode>(
     typeof initialDistanceKm === 'number' && initialDistanceKm > 0 ? 'distance' : 'time',
   );
+  // Ride or run lives in the store: the map, panels and saving follow it.
+  const sport = useRouteBuilderStore((st) => st.sport) as Sport;
+  const isRun = sport === 'running';
   const [goal, setGoal] = useState<Goal>(initialGoal ?? 'endurance');
   const [duration, setDuration] = useState<number>(initialDurationMinutes ?? 60);
-  const [surface, setSurface] = useState<Surface>('road');
+  const [surface, setSurface] = useState<Surface>(isRun ? 'run' : 'road');
   const [shape, setShape] = useState<Shape>('round_trip');
   const [startLocation, setStartLocation] = useState<string>(initialStartLocation ?? '');
   const [distanceKm, setDistanceKm] = useState<number | ''>(initialDistanceKm ?? '');
@@ -170,8 +217,31 @@ export function useGenerateForm({
   // The rider's own pace, so the derived field below is their estimate and
   // not a generic one. Cached at module scope, shared with the ETA.
   const speedProfile = useSpeedProfile();
+  const runThresholdPaceSec = useRunPace();
 
-  const surfaceProfile = surface === 'mountain' ? 'mtb' : surface === 'mixed' ? 'gravel' : surface;
+  const goalOptions = isRun ? RUN_GOAL_OPTIONS : GOAL_OPTIONS;
+  const surfaceOptions = isRun ? RUN_SURFACE_OPTIONS : SURFACE_OPTIONS;
+  // A surface left over from the other sport reads as that sport's default.
+  const effectiveSurface: Surface = surfaceOptions.some((o) => o.value === surface)
+    ? surface
+    : surfaceOptions[0].value;
+  const effectiveGoal: Goal = goalOptions.some((o) => o.value === goal) ? goal : 'endurance';
+  const surfaceProfile = surfaceToProfile(effectiveSurface);
+
+  /** Switch ride ↔ run: clears the route and resets the sport's own choices. */
+  const setSport = useCallback(
+    (next: Sport) => {
+      if (next === sport) return;
+      trackRb2('sport_changed', { from: sport, to: next });
+      useRouteBuilderStore.getState().setSport(next);
+      setSurface(next === 'running' ? 'run' : 'road');
+      const nextGoals = next === 'running' ? RUN_GOAL_OPTIONS : GOAL_OPTIONS;
+      setGoal((g) => (nextGoals.some((o) => o.value === g) ? g : 'endurance'));
+      setLocalError(null);
+      generation.clearSuggestions();
+    },
+    [sport, generation],
+  );
 
   /**
    * Flat-ground pace for the current goal/surface, from the same model that
@@ -181,11 +251,12 @@ export function useGenerateForm({
   const paceKmh = useMemo(
     () =>
       flatSpeedKmh({
-        goal,
+        goal: effectiveGoal,
         routeProfile: surfaceProfile,
         speedProfile: speedProfile ?? undefined,
+        thresholdPaceSec: runThresholdPaceSec,
       }) as number,
-    [goal, surfaceProfile, speedProfile],
+    [effectiveGoal, surfaceProfile, speedProfile, runThresholdPaceSec],
   );
 
   /** Distance implied by the requested time — shown when time binds. */
@@ -237,12 +308,13 @@ export function useGenerateForm({
   const onSubmit = useCallback(async () => {
     setLocalError(null);
     trackRb2('form_submitted', {
-      goal,
+      sport,
+      goal: effectiveGoal,
       target_mode: targetMode,
       duration_minutes: duration,
-      surface,
+      surface: effectiveSurface,
       shape,
-      road_comfort: roadComfort,
+      road_comfort: isRun ? null : roadComfort,
       has_distance: distanceKm !== '',
       has_elevation: elevationGainM !== '',
     });
@@ -268,10 +340,10 @@ export function useGenerateForm({
     // as a target (see target_mode).
     const bindsOnTime = targetMode === 'time';
     await generation.generate({
-      goal,
+      goal: effectiveGoal,
       target_mode: targetMode,
       duration_minutes: bindsOnTime ? duration : derivedDurationMinutes || undefined,
-      route_profile: surfaceProfile as 'road' | 'gravel' | 'mtb',
+      route_profile: surfaceProfile as 'road' | 'gravel' | 'mtb' | 'run' | 'trail_run',
       route_shape: shape,
       start_coord: start,
       distance_km: bindsOnTime
@@ -280,15 +352,18 @@ export function useGenerateForm({
           ? undefined
           : distanceKm,
       elevation_gain_m: elevationGainM === '' ? undefined : elevationGainM,
-      traffic_tolerance: roadComfort,
+      // Road comfort is a cycling preference (traffic stress on a bike).
+      traffic_tolerance: isRun ? undefined : roadComfort,
     });
   }, [
     generation,
-    goal,
+    sport,
+    isRun,
+    effectiveGoal,
     targetMode,
     duration,
     derivedDurationMinutes,
-    surface,
+    effectiveSurface,
     surfaceProfile,
     shape,
     roadComfort,
@@ -302,32 +377,37 @@ export function useGenerateForm({
     setTargetMode('time');
     setGoal('endurance');
     setDuration(60);
-    setSurface('road');
+    setSurface(isRun ? 'run' : 'road');
     setShape('round_trip');
     setStartLocation('');
     setDistanceKm('');
     setElevationGainM('');
     setLocalError(null);
     generation.clearSuggestions();
-  }, [generation]);
+  }, [generation, isRun]);
 
   // The chip reflects the active route's profile when one exists, so a
   // chat-generated gravel route reads "… · Gravel" rather than the form's
   // stale local default. Falls back to the form's own surface selection.
   const summarySurface = activeRouteProfile
     ? profileToSurfaceLabel(activeRouteProfile)
-    : prettyLabel(SURFACE_OPTIONS, surface);
-  const summary = `${prettyLabel(GOAL_OPTIONS, goal)} · ${duration}min · ${summarySurface}`;
+    : prettyLabel(surfaceOptions, effectiveSurface);
+  const summary = `${isRun ? 'Run · ' : ''}${prettyLabel(goalOptions, effectiveGoal)} · ${duration}min · ${summarySurface}`;
 
   return {
     // field state
+    sport,
+    setSport,
+    isRun,
+    goalOptions,
+    surfaceOptions,
     targetMode,
     setTargetMode,
-    goal,
+    goal: effectiveGoal,
     setGoal,
     duration,
     setDuration,
-    surface,
+    surface: effectiveSurface,
     setSurface,
     shape,
     setShape,

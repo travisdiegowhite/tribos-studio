@@ -29,12 +29,12 @@ import type { UseAIGenerationReturn, UserLocationStatus } from '../../../hooks/r
 import type { Coordinate } from '../../../types/geo';
 import {
   useGenerateForm,
-  GOAL_OPTIONS,
-  SURFACE_OPTIONS,
   SHAPE_OPTIONS,
+  SPORT_OPTIONS,
   ROAD_COMFORT_OPTIONS,
   TARGET_MODE_OPTIONS,
   type Goal,
+  type Sport,
   type Surface,
   type Shape,
   type RoadComfort,
@@ -170,6 +170,18 @@ export function GenerateBar({
       {expanded && (
         <Box style={{ padding: '0 12px 12px' }}>
           <Box style={{ marginBottom: 8 }}>
+            <SegmentedControl
+              data-testid="rb2-sport-toggle"
+              data={SPORT_OPTIONS}
+              value={f.sport}
+              onChange={(v) => f.setSport(v as Sport)}
+              disabled={generation.isGenerating}
+              fullWidth
+              size="xs"
+              styles={{ root: { borderRadius: 0 }, indicator: { borderRadius: 0 } }}
+            />
+          </Box>
+          <Box style={{ marginBottom: 8 }}>
             <Text style={labelStyle}>Target</Text>
             <SegmentedControl
               data={TARGET_MODE_OPTIONS}
@@ -186,7 +198,7 @@ export function GenerateBar({
             <Box style={{ flex: 1 }}>
               <Text style={labelStyle}>Goal</Text>
               <Select
-                data={GOAL_OPTIONS}
+                data={f.goalOptions}
                 value={f.goal}
                 onChange={(v) => v && f.setGoal(v as Goal)}
                 disabled={generation.isGenerating}
@@ -218,7 +230,7 @@ export function GenerateBar({
             <Box style={{ flex: 1 }}>
               <Text style={labelStyle}>Surface</Text>
               <Select
-                data={SURFACE_OPTIONS}
+                data={f.surfaceOptions}
                 value={f.surface}
                 onChange={(v) => v && f.setSurface(v as Surface)}
                 disabled={generation.isGenerating}
@@ -227,18 +239,20 @@ export function GenerateBar({
                 comboboxProps={{ withinPortal: true }}
               />
             </Box>
-            <Box style={{ flex: 1 }}>
-              <Text style={labelStyle}>Road comfort</Text>
-              <Select
-                data={ROAD_COMFORT_OPTIONS}
-                value={f.roadComfort}
-                onChange={(v) => v && f.setRoadComfort(v as RoadComfort)}
-                disabled={generation.isGenerating}
-                styles={inputStyles}
-                allowDeselect={false}
-                comboboxProps={{ withinPortal: true }}
-              />
-            </Box>
+            {!f.isRun && (
+              <Box style={{ flex: 1 }}>
+                <Text style={labelStyle}>Road comfort</Text>
+                <Select
+                  data={ROAD_COMFORT_OPTIONS}
+                  value={f.roadComfort}
+                  onChange={(v) => v && f.setRoadComfort(v as RoadComfort)}
+                  disabled={generation.isGenerating}
+                  styles={inputStyles}
+                  allowDeselect={false}
+                  comboboxProps={{ withinPortal: true }}
+                />
+              </Box>
+            )}
             <Box style={{ flex: 1 }}>
               <Text style={labelStyle}>Shape</Text>
               <Select
