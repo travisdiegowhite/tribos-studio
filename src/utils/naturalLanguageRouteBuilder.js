@@ -33,6 +33,7 @@ import { getSmartCyclingRoute } from './smartCyclingRouter';
 import { getFamiliarLoopWaypoints, scoreRoutePreference } from './routeScoring';
 import { M_TO_KM, haversineMeters } from './distanceUnits';
 import { clipLoopGeometry } from './clipLoopGeometry';
+import { isRunProfile, runFlatSpeedKmh } from './runProfiles';
 
 const DEFAULT_AVG_SPEED_KMH = 28;
 
@@ -117,7 +118,10 @@ export async function parseRouteRequest(userRequest, context = {}) {
     calendar = null,
     profile = 'road',
     speedProfile = null,
+    // Run profiles only: threshold pace (s/km) for duration → distance.
+    runThresholdPaceSec = null,
   } = context;
+  const isRun = isRunProfile(profile);
 
   // Step 1: ask Claude to extract waypoint names / distance / goal / surface.
   const prompt = buildNaturalLanguagePrompt(
@@ -126,6 +130,7 @@ export async function parseRouteRequest(userRequest, context = {}) {
     biasCoord,
     null, // userAddress
     calendar,
+    isRun ? 'running' : 'cycling',
   );
 
   const apiUrl = import.meta.env.PROD ? '/api/claude-routes' : 'http://localhost:3000/api/claude-routes';
@@ -152,12 +157,20 @@ export async function parseRouteRequest(userRequest, context = {}) {
   }
 
   // Surface preference wins over the current builder profile (RB1 behaviour).
-  const routeProfile = parsed.preferences?.surfaceType === 'gravel' ? 'gravel' : profile || 'road';
+  // A run stays a run: an unpaved request means a trail run, never the
+  // gravel bike profile.
+  const unpaved = parsed.preferences?.surfaceType === 'gravel';
+  const routeProfile = isRun
+    ? (unpaved ? 'trail_run' : profile)
+    : unpaved ? 'gravel' : profile || 'road';
   const goal = parsed.trainingGoal || 'endurance';
   const type = parsed.routeType || 'loop';
-  const preferFamiliar = Boolean(parsed.preferences?.preferFamiliar);
+  // Familiar roads come from the rider's ride history.
+  const preferFamiliar = !isRun && Boolean(parsed.preferences?.preferFamiliar);
   const durationMinutes = parsed.timeAvailable || 60;
-  const avgSpeedKmh = speedProfile?.average_speed || DEFAULT_AVG_SPEED_KMH;
+  const avgSpeedKmh = isRun
+    ? runFlatSpeedKmh({ profile: routeProfile, goal, thresholdPaceSec: runThresholdPaceSec })
+    : speedProfile?.average_speed || DEFAULT_AVG_SPEED_KMH;
   const targetDistanceKm = parsed.targetDistanceKm || (durationMinutes / 60) * avgSpeedKmh;
   const direction = parsed.direction || null;
 

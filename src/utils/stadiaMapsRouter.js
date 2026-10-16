@@ -11,6 +11,7 @@ import { canonicalToValhalla } from './coordConverters';
 import { valhallaTypeToDirection } from './routeCues';
 import { assertCoordinate } from '../types/geo';
 import { valhallaTripUsesFerry, FERRY_REJECTED_REASON } from './ferryGuard';
+import { isRunProfile } from './runProfiles';
 
 const STADIA_MAPS_API_URL = 'https://api.stadiamaps.com/route/v1';
 
@@ -189,37 +190,14 @@ const VALHALLA_OVERRIDE_KEYS = [
   'use_tracks',
 ];
 
-export async function getStadiaMapsRoute(waypoints, options = {}) {
-  const {
-    profile = 'road',
-    preferences = null,
-    trainingGoal = 'endurance',
-    userSpeed = null,
-    // Explicit Valhalla use_hills override (0–1). Set when the rider gave an
-    // elevation-gain target; wins over profile/goal-derived values.
-    useHills = null,
-    // How many alternate lines to ask for. Valhalla only returns them for
-    // two-location requests, so the field is sent only then.
-    alternates = 0
-  } = options;
-
-  const apiKey = import.meta.env.VITE_STADIA_API_KEY;
-
-  if (!apiKey) {
-    throw new Error('Stadia Maps API key not configured. Add VITE_STADIA_API_KEY to .env');
-  }
-
-  if (!waypoints || waypoints.length < 2) {
-    throw new Error('At least 2 waypoints required for routing');
-  }
-
-  // Boundary assertion: callers must pass canonical [lng, lat] tuples
-  waypoints.forEach((c, i) => assertCoordinate(c, `stadiaMaps.waypoints[${i}]`));
-
-  console.log(`🗺️ Stadia Maps: Generating ${profile} route with ${waypoints.length} waypoints`);
-
+/**
+ * Valhalla `bicycle` costing for a ride: the profile's base table, then the
+ * training goal, the rider's traffic tolerance, legacy preferences, explicit
+ * overrides and the elevation-target override, in that order.
+ */
+function buildBicycleCosting(profile, { preferences, trainingGoal, userSpeed, useHills }) {
   // Get base costing options for profile
-  let costing_options = {
+  const costing_options = {
     bicycle: { ...ROUTE_PROFILE_COSTING[profile] || ROUTE_PROFILE_COSTING.road }
   };
 
@@ -326,6 +304,73 @@ export async function getStadiaMapsRoute(waypoints, options = {}) {
     console.log(`⛰️ use_hills override from elevation target: ${useHills}`);
   }
 
+  return costing_options.bicycle;
+}
+
+/**
+ * Valhalla `pedestrian` costing for a run (multisport phase 2). Sidewalks and
+ * walkways are preferred over roads; a trail run leans onto tracks and allows
+ * moderate hiking terrain. The goal steers hills the same way it does for a
+ * ride. No ferries, ever.
+ */
+export function buildPedestrianCosting(profile, { trainingGoal = 'endurance', walkingSpeedKmh = null, useHills = null } = {}) {
+  const trail = profile === 'trail_run';
+  const costing = {
+    walkway_factor: 0.8,
+    sidewalk_factor: 0.9,
+    alley_factor: 2,
+    driveway_factor: 5,
+    step_penalty: 30,
+    use_tracks: trail ? 1 : 0.3,
+    use_living_streets: 0.6,
+    use_ferry: 0,
+    use_hills: trainingGoal === 'hills' ? 0.9 : trainingGoal === 'recovery' ? 0.2 : 0.5,
+  };
+  if (trail) costing.max_hiking_difficulty = 3;
+  // Valhalla clamps walking_speed to 0.5–25 km/h.
+  if (Number(walkingSpeedKmh) > 0) costing.walking_speed = Math.min(25, Math.max(0.5, Number(walkingSpeedKmh)));
+  if (typeof useHills === 'number' && useHills >= 0 && useHills <= 1) costing.use_hills = useHills;
+  return costing;
+}
+
+export async function getStadiaMapsRoute(waypoints, options = {}) {
+  const {
+    profile = 'road',
+    preferences = null,
+    trainingGoal = 'endurance',
+    userSpeed = null,
+    // Explicit Valhalla use_hills override (0–1). Set when the rider gave an
+    // elevation-gain target; wins over profile/goal-derived values.
+    useHills = null,
+    // How many alternate lines to ask for. Valhalla only returns them for
+    // two-location requests, so the field is sent only then.
+    alternates = 0
+  } = options;
+
+  const apiKey = import.meta.env.VITE_STADIA_API_KEY;
+
+  if (!apiKey) {
+    throw new Error('Stadia Maps API key not configured. Add VITE_STADIA_API_KEY to .env');
+  }
+
+  if (!waypoints || waypoints.length < 2) {
+    throw new Error('At least 2 waypoints required for routing');
+  }
+
+  // Boundary assertion: callers must pass canonical [lng, lat] tuples
+  waypoints.forEach((c, i) => assertCoordinate(c, `stadiaMaps.waypoints[${i}]`));
+
+  console.log(`🗺️ Stadia Maps: Generating ${profile} route with ${waypoints.length} waypoints`);
+
+  // Runs use Valhalla's pedestrian costing; nothing below the bicycle branch
+  // (cycling_speed, use_roads, bicycle_type) applies to them. An unknown
+  // profile used to fall straight through to road bike, so the run branch is
+  // explicit rather than another entry in the bicycle table.
+  const costing = isRunProfile(profile) ? 'pedestrian' : 'bicycle';
+  const costing_options = costing === 'pedestrian'
+    ? { pedestrian: buildPedestrianCosting(profile, { trainingGoal, walkingSpeedKmh: userSpeed, useHills }) }
+    : { bicycle: buildBicycleCosting(profile, { preferences, trainingGoal, userSpeed, useHills }) };
+
   // Convert waypoints to Stadia Maps format via the canonical boundary
   // converter. Use "break" type to force routing through each waypoint.
   const locations = waypoints.map((c) => ({
@@ -336,7 +381,7 @@ export async function getStadiaMapsRoute(waypoints, options = {}) {
   // Build request — include directions_type to get maneuver data for analysis
   const requestBody = {
     locations,
-    costing: 'bicycle',
+    costing,
     costing_options,
     directions_type: 'maneuvers',
     units: 'kilometers',
@@ -347,7 +392,7 @@ export async function getStadiaMapsRoute(waypoints, options = {}) {
     requestBody.alternates = alternates;
   }
 
-  console.log('📊 Stadia Maps costing options:', JSON.stringify(costing_options.bicycle, null, 2));
+  console.log('📊 Stadia Maps costing options:', JSON.stringify(costing_options[costing], null, 2));
 
   try {
     // Pass API key as query parameter for CORS compatibility
@@ -897,7 +942,7 @@ function decodePolyline(encoded) {
  * @param {Array<[lng, lat]>} coordinates - the route geometry (elevation
  *   third elements tolerated)
  */
-export async function getStadiaCuesForGeometry(coordinates) {
+export async function getStadiaCuesForGeometry(coordinates, { costing = 'bicycle' } = {}) {
   const apiKey = import.meta.env.VITE_STADIA_API_KEY;
   if (!apiKey || !Array.isArray(coordinates) || coordinates.length < 10) return null;
 
@@ -924,7 +969,8 @@ export async function getStadiaCuesForGeometry(coordinates) {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         locations,
-        costing: 'bicycle',
+        // A run's cues must be rebuilt on footpaths, not bike lanes.
+        costing: costing === 'pedestrian' ? 'pedestrian' : 'bicycle',
         directions_type: 'maneuvers',
         units: 'kilometers',
         id: 'tribos-cue-backfill'

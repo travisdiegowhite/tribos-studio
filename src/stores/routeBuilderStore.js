@@ -8,8 +8,28 @@
 import { useState, useEffect } from 'react';
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
+import { isRunProfile, sportOfProfile, defaultProfileFor } from '../utils/runProfiles';
 
 const STORAGE_KEY = 'tribos-route-builder';
+
+// What clearRoute (and a sport switch) resets; settings are kept.
+const CLEARED_ROUTE = {
+  routeGeometry: null,
+  routeName: 'Untitled Route',
+  routeDescription: '',
+  routeStats: { distance_km: 0, elevation_gain_m: 0, duration_s: 0 },
+  waypoints: [],
+  routeCues: null,
+  aiSuggestions: [],
+  routingSource: null,
+  explicitDistanceKm: null,
+  routeTarget: null,
+  selectedWorkoutId: null,
+  raceType: null,
+  raceDate: null,
+  targetFinishMinutes: null,
+  builderMode: 'ready',
+};
 
 // Initial state values
 const initialState = {
@@ -42,6 +62,9 @@ const initialState = {
   trainingGoal: 'endurance',
   timeAvailable: 60,
   routeType: 'loop',
+  // 'cycling' | 'running' (multisport phase 2). Always agrees with
+  // routeProfile: a run profile (runProfiles.js) means running.
+  sport: 'cycling',
   routeProfile: 'road',
   // "Road comfort": low (quiet roads) | medium (balanced) | high (direct).
   // Mirrors user_road_preferences.traffic_tolerance (useRoadComfort syncs it);
@@ -152,8 +175,24 @@ export const useRouteBuilderStore = create(
 
       setRouteProfile: (profile) => set({
         routeProfile: profile,
+        sport: sportOfProfile(profile),
         lastSaved: Date.now()
       }),
+
+      // Switch between riding and running. A route built for one sport is
+      // no route for the other, so a real switch clears it and moves the
+      // profile to the sport's default; re-selecting the current sport is a
+      // no-op.
+      setSport: (sport) => {
+        const next = sport === 'running' ? 'running' : 'cycling';
+        if (get().sport === next && sportOfProfile(get().routeProfile) === next) return;
+        set({
+          ...CLEARED_ROUTE,
+          sport: next,
+          routeProfile: defaultProfileFor(next),
+          lastSaved: Date.now(),
+        });
+      },
 
       setTrafficTolerance: (tolerance) => set({
         trafficTolerance: tolerance,
@@ -222,21 +261,7 @@ export const useRouteBuilderStore = create(
 
       // Clear the current route (but keep settings)
       clearRoute: () => set({
-        routeGeometry: null,
-        routeName: 'Untitled Route',
-        routeDescription: '',
-        routeStats: { distance_km: 0, elevation_gain_m: 0, duration_s: 0 },
-        waypoints: [],
-        routeCues: null,
-        aiSuggestions: [],
-        routingSource: null,
-        explicitDistanceKm: null,
-        routeTarget: null,
-        selectedWorkoutId: null,
-        raceType: null,
-        raceDate: null,
-        targetFinishMinutes: null,
-        builderMode: 'ready',
+        ...CLEARED_ROUTE,
         lastSaved: Date.now()
       }),
 
@@ -309,6 +334,7 @@ export const useRouteBuilderStore = create(
         timeAvailable: state.timeAvailable,
         routeType: state.routeType,
         routeProfile: state.routeProfile,
+        sport: state.sport,
         trafficTolerance: state.trafficTolerance,
         explicitDistanceKm: state.explicitDistanceKm,
         routeTarget: state.routeTarget,
@@ -371,6 +397,11 @@ export const useRouteBuilderStore = create(
               })
               .filter(Boolean);
           }
+
+          // Multisport phase 2: state persisted before `sport` existed, or
+          // a sport that disagrees with the profile, follows the profile.
+          if (isRunProfile(state.routeProfile)) state.sport = 'running';
+          else if (state.sport !== 'cycling') state.sport = 'cycling';
 
           // Optional: Check if state is too old (e.g., > 24 hours)
           const ONE_DAY = 24 * 60 * 60 * 1000;

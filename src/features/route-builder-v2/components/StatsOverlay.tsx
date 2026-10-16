@@ -67,9 +67,24 @@ export interface StatsOverlayProps {
   targetStatus?: TargetStatus | null;
   /** Ask the route coach to close the gap. Renders the chip as a button. */
   onFixTarget?: () => void;
+  /**
+   * 'running' swaps the bike-only QUIET ROADS and BIKE LANES cells for an
+   * average PACE cell (multisport phase 2).
+   */
+  sport?: 'cycling' | 'running';
 }
 
 const SURFACE_ORDER = ['paved', 'gravel', 'unpaved', 'mixed'] as const;
+
+/** Average pace, "5:42/km" or "9:11/mi"; a dash when it can't be computed. */
+export function formatPace(distanceKm: number, seconds: number, isImperial: boolean): string {
+  if (!(distanceKm > 0) || !(seconds > 0)) return '—';
+  const units = isImperial ? distanceKm * 0.621371 : distanceKm;
+  const secPerUnit = Math.round(seconds / units);
+  const m = Math.floor(secPerUnit / 60);
+  const sec = secPerUnit % 60;
+  return `${m}:${String(sec).padStart(2, '0')}/${isImperial ? 'mi' : 'km'}`;
+}
 
 function formatDuration(seconds: number): string {
   if (!seconds || seconds <= 0) return '—';
@@ -130,6 +145,7 @@ export function StatsOverlay({
   saveState = 'unsaved',
   targetStatus = null,
   onFixTarget,
+  sport = 'cycling',
 }: StatsOverlayProps) {
   if (!stats || stats.distance_km <= 0) return null;
 
@@ -234,14 +250,20 @@ export function StatsOverlay({
         <StatCell label="Distance" value={formatDistanceCompact(stats.distance_km, isImperial)} />
         <StatCell label="Elevation" value={formatElevationCompact(stats.elevation_gain_m, isImperial)} />
         <StatCell label="Duration" value={formatDuration(stats.duration_s)} />
-        <QuietRoadsCell
-          summary={stressSummary}
-          status={stressStatus}
-          isImperial={isImperial}
-          onToggle={onToggleStress}
-          active={stressActive}
-        />
-        <BikeLanesCell summary={facilitySummary} status={stressStatus} isImperial={isImperial} />
+        {sport === 'running' ? (
+          <StatCell label="Pace" value={formatPace(stats.distance_km, stats.duration_s, isImperial)} />
+        ) : (
+          <>
+            <QuietRoadsCell
+              summary={stressSummary}
+              status={stressStatus}
+              isImperial={isImperial}
+              onToggle={onToggleStress}
+              active={stressActive}
+            />
+            <BikeLanesCell summary={facilitySummary} status={stressStatus} isImperial={isImperial} />
+          </>
+        )}
       </Box>
       {targetStatus && (
         <Box style={{ marginTop: 8 }}>

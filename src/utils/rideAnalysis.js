@@ -1,6 +1,7 @@
 // Past ride analysis for intelligent route generation
 import { supabase } from '../lib/supabase';
 import { calculateBearing } from './routeUtils';
+import { isRunProfile } from './runProfiles';
 
 // Fetch user's past rides from database with track points
 export async function fetchPastRides(userId, limit = 50) {
@@ -68,11 +69,16 @@ export async function fetchPastRides(userId, limit = 50) {
       return [];
     }
 
-    console.log(`📊 Found ${routes.length} past rides, loading track points for analysis...`);
+    // These patterns describe riding; a saved run route (run profile in
+    // surface_type, multisport phase 2) would teach the ride model a 10 km
+    // footpath loop. Keyed on surface_type so it works before migration 135.
+    const rideRoutes = routes.filter((r) => !isRunProfile(r.surface_type));
+
+    console.log(`📊 Found ${rideRoutes.length} past rides, loading track points for analysis...`);
 
     // For each route, fetch a sample of track points for analysis
     const ridesWithTrackPoints = await Promise.all(
-      routes.map(async (route) => {
+      rideRoutes.map(async (route) => {
         try {
           // Get track points (sample every 10th point for performance)
           const { data: trackPoints, error: trackError } = await supabase

@@ -20,6 +20,7 @@ import { getBRouterDirections, BROUTER_PROFILES } from './brouter.js';
 import { getStadiaMapsRoute } from './stadiaMapsRouter.js';
 import { getElevationData, calculateElevationStats } from './elevation.js';
 import { hillsBiasForTarget } from './routeTargets.js';
+import { isRunProfile } from './runProfiles.js';
 
 // ── Intent classification ──────────────────────────────────────────────────────
 
@@ -179,6 +180,9 @@ export const QUICK_ACTIONS = [
  *                                       to pure geometric loop detection.
  * @returns {Promise<Object>} { success, editedRoute, comparison, message }
  */
+/** Edits that only have bike-engine strategies (see applyRouteEdit). */
+const RIDE_ONLY_EDITS = new Set(['surface_gravel', 'surface_paved', 'scenic', 'faster']);
+
 export async function applyRouteEdit(params) {
   const { routeGeometry, routeProfile, routeStats, editIntent, mapboxToken, routeType } = params;
 
@@ -191,6 +195,16 @@ export async function applyRouteEdit(params) {
   const totalDistKm =
     (routeStats?.distance_km ?? routeStats?.distance) || estimateDistanceKm(coords);
   const isLoop = resolveIsLoop(coords, totalDistKm, routeType);
+
+  // Runs (multisport phase 2): the surface/scenic/faster strategies below
+  // reroute on BIKE engines (BRouter trekking/safety/fastbike, Stadia
+  // commuting), which would put a runner on a bike line. Say so instead.
+  if (isRunProfile(routeProfile) && RIDE_ONLY_EDITS.has(intent)) {
+    return {
+      success: false,
+      message: 'That edit is for rides. For a run, try flatter or hillier, shorter or longer, or avoiding a place.',
+    };
+  }
 
   try {
     switch (intent) {
@@ -288,12 +302,20 @@ async function applyElevationEdit(coords, profile, stats, { direction, elevation
 
   const results = [];
 
-  // Strategy 1: Stadia Maps with the hills bias
+  const run = isRunProfile(profile);
+
+  // Strategy 1: Stadia Maps with the hills bias (pedestrian costing for a run,
+  // which takes the bias as `useHills`).
   try {
-    const stadiaRoute = await getStadiaMapsRoute(waypoints, {
-      profile: profile === 'mountain' ? 'gravel' : profile,
-      preferences: { use_hills: useHills, avoid_bad_surfaces: profile === 'road' ? 0.8 : 0.2 },
-    });
+    const stadiaRoute = await getStadiaMapsRoute(
+      waypoints,
+      run
+        ? { profile, useHills }
+        : {
+            profile: profile === 'mountain' ? 'gravel' : profile,
+            preferences: { use_hills: useHills, avoid_bad_surfaces: profile === 'road' ? 0.8 : 0.2 },
+          },
+    );
     if (stadiaRoute?.coordinates?.length > 1) {
       results.push({
         ...stadiaRoute,
@@ -303,8 +325,9 @@ async function applyElevationEdit(coords, profile, stats, { direction, elevation
     }
   } catch (e) { console.warn(`[AI Edit] Stadia ${wantMore ? 'hills' : 'flat'} failed:`, e.message); }
 
-  // Strategy 2: BRouter — trekking trends toward terrain, safety avoids steep roads
-  try {
+  // Strategy 2: BRouter — trekking trends toward terrain, safety avoids steep
+  // roads. Bike profiles only, so never for a run.
+  if (!run) try {
     const brouterRoute = await getBRouterDirections(waypoints, {
       profile: wantMore ? 'trekking' : 'safety',
     });

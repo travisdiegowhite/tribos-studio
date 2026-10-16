@@ -8,6 +8,8 @@
  * both for its existing callers.
  */
 
+import { isRunProfile, runFlatSpeedKmh } from './runProfiles.js';
+
 /**
  * Score how close an actual value lands to an explicit rider target.
  * Returns 0 when no target was set. Exported for tests.
@@ -79,6 +81,9 @@ export const DEFAULT_FLAT_SPEED_KMH = {
   commute: 20,
   commuting: 20,
   walking: 5,
+  // Easy running speeds; the run goal shifts them (runProfiles.js).
+  run: 10,
+  trail_run: 8.5,
 };
 
 /** Resolve a goal string to its intensity multiplier. Unknown → endurance. */
@@ -100,6 +105,7 @@ export function rideGoalIntensity(goal) {
  *   routeProfile?: string,
  *   speedProfile?: Record<string, any> | null,
  *   performanceMetrics?: Record<string, any> | null,
+ *   thresholdPaceSec?: number | null,
  * }} [params]
  * @returns {number} km/h
  */
@@ -107,7 +113,13 @@ export function flatProfileSpeedKmh({
   routeProfile = 'road',
   speedProfile = null,
   performanceMetrics = null,
+  thresholdPaceSec = null,
 } = {}) {
+  // A run never reads the speed profile or performance metrics: both are
+  // built from rides, and a 28 km/h road speed would plan a marathon.
+  if (isRunProfile(routeProfile)) {
+    return runFlatSpeedKmh({ profile: routeProfile, goal: DEFAULT_RIDE_GOAL, thresholdPaceSec });
+  }
   const fallback = DEFAULT_FLAT_SPEED_KMH[routeProfile] ?? DEFAULT_FLAT_SPEED_KMH.road;
 
   if (speedProfile) {
@@ -167,6 +179,7 @@ export function flatProfileSpeedKmh({
  *   speedProfile?: Record<string, any> | null,
  *   performanceMetrics?: Record<string, any> | null,
  *   speedModifier?: number,
+ *   thresholdPaceSec?: number | null,
  * }} [params]
  * @returns {number} km/h
  */
@@ -176,9 +189,14 @@ export function flatSpeedKmh({
   speedProfile = null,
   performanceMetrics = null,
   speedModifier = 1.0,
+  thresholdPaceSec = null,
 } = {}) {
-  const base = flatProfileSpeedKmh({ routeProfile, speedProfile, performanceMetrics });
   const modifier = Number.isFinite(speedModifier) && speedModifier > 0 ? speedModifier : 1.0;
+  // Runs carry their goal in the pace factor, not the ride intensity table.
+  if (isRunProfile(routeProfile)) {
+    return runFlatSpeedKmh({ profile: routeProfile, goal, thresholdPaceSec }) * modifier;
+  }
+  const base = flatProfileSpeedKmh({ routeProfile, speedProfile, performanceMetrics });
   return base * rideGoalIntensity(goal) * modifier;
 }
 
@@ -194,6 +212,7 @@ export function flatSpeedKmh({
  *   speedProfile?: Record<string, any> | null,
  *   performanceMetrics?: Record<string, any> | null,
  *   speedModifier?: number,
+ *   thresholdPaceSec?: number | null,
  * }} [opts]
  * @returns {number} km
  */

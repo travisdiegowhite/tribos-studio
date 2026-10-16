@@ -17,6 +17,7 @@
 // routeTargets.js, so a requested ride time and the time shown here cannot
 // disagree on flat ground. See routeTargets.js for the goal vocabulary.
 import { flatProfileSpeedKmh, rideGoalIntensity } from './routeTargets.js';
+import { isRunProfile, runFlatSpeedKmh, runDurationSeconds } from './runProfiles.js';
 
 // ── Surface speed multipliers (relative to paved) ────────────────────
 const SURFACE_MULTIPLIERS = {
@@ -64,8 +65,9 @@ function fatigueFactor(cumulativeKm) {
  * @param {Array}   params.elevationProfile    [{distance, elevation}, …] from elevation.js
  * @param {Object}  [params.surfaceDistribution] {paved:60, gravel:30, …} percentages
  * @param {Object}  [params.speedProfile]      Strava speed data (average_speed, road_speed, …)
- * @param {string}  [params.routeProfile='road'] road | gravel | mountain | commuting | walking
+ * @param {string}  [params.routeProfile='road'] road | gravel | mountain | commuting | walking | run | trail_run
  * @param {string}  [params.trainingGoal='endurance']
+ * @param {number|null}  [params.thresholdPaceSec]  run profiles only: threshold pace, s/km
  * @returns {Object} { totalSeconds, formattedTime, segments[], breakdown }
  */
 export function calculatePersonalizedETA({
@@ -75,7 +77,12 @@ export function calculatePersonalizedETA({
   speedProfile,
   routeProfile = 'road',
   trainingGoal = 'endurance',
+  thresholdPaceSec = null,
 }) {
+  if (isRunProfile(routeProfile)) {
+    return runETA({ distanceKm, elevationProfile, routeProfile, trainingGoal, thresholdPaceSec });
+  }
+
   // 1. Determine base flat speed (km/h)
   const baseSpeed = getBaseSpeed(speedProfile, routeProfile);
 
@@ -167,6 +174,41 @@ export function calculatePersonalizedETA({
       avgGradePercent: Math.round(avgGrade * 10) / 10,
     },
     segments,
+  };
+}
+
+/**
+ * Run ETA: flat pace over distance plus climb as equivalent flat metres
+ * (K_CLIMB, the same constant run load uses). No cycling grade curve, no
+ * descent bonus and no 40 km fatigue onset — none of them describe running.
+ */
+function runETA({ distanceKm, elevationProfile, routeProfile, trainingGoal, thresholdPaceSec }) {
+  const speedKmh = runFlatSpeedKmh({ profile: routeProfile, goal: trainingGoal, thresholdPaceSec });
+  let gain_m = 0;
+  if (Array.isArray(elevationProfile)) {
+    for (let i = 1; i < elevationProfile.length; i++) {
+      const rise = elevationProfile[i].elevation - elevationProfile[i - 1].elevation;
+      if (rise > 0) gain_m += rise;
+    }
+  }
+  const totalSeconds = runDurationSeconds({
+    distance_m: (distanceKm || 0) * 1000,
+    elevation_gain_m: gain_m,
+    speedKmh,
+  });
+  return {
+    totalSeconds: Math.round(totalSeconds),
+    formattedTime: formatSeconds(totalSeconds),
+    isPersonalized: Number(thresholdPaceSec) > 0,
+    effectiveSpeed: totalSeconds > 0 ? Math.round((distanceKm / (totalSeconds / 3600)) * 10) / 10 : 0,
+    breakdown: {
+      baseSpeed: Math.round(speedKmh * 10) / 10,
+      goalModifier: 1.0,
+      surfaceModifier: 1.0,
+      avgGradeModifier: 1.0,
+      avgFatigueModifier: 1.0,
+    },
+    segments: [],
   };
 }
 

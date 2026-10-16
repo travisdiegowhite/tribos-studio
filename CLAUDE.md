@@ -382,6 +382,18 @@ route builder:
   2026-08 purge; only `src/views/today/athleteMetrics.ts` and `shared/` remain.
 - The admin per-user toggle is gone (UI + service + `api/admin.js` action).
 
+**RB2 builds runs too (multisport phase 2).** The store carries `sport`
+(`cycling | running`); `run` / `trail_run` are the run route profiles, and
+`src/utils/runProfiles.js` is the only place that says which profiles are runs.
+An unknown profile used to become a road-bike route (or Mapbox *driving*) at
+every routing layer, so each layer has an explicit run branch: Stadia
+`pedestrian` costing → Mapbox `walking` (`smartRunningRouter.js`, reached through
+`getSmartCyclingRoute`). No BRouter, bike alternates, traffic stress or
+ride-history patterns for a run, and run speed comes from threshold pace
+(`useRunPace`), never the ride-built speed profile. Saved routes store
+`routes.sport` (migration 135, written through `api/utils/optionalColumn.js`)
+and the run profile in `surface_type`.
+
 The `route_builder_v2_enabled` column is kept in the DB (and in
 `src/types/database.ts`, since it still exists) under the "wait and watch" policy
 — **do not add new readers/writers and do not drop it without explicit approval.**

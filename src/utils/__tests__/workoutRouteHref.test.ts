@@ -38,4 +38,20 @@ describe('entryId', () => {
     const p = new URLSearchParams(href.split('?')[1]);
     expect(p.get('entryId')).toBe('entry-42');
   });
+
+  it('opens the builder on Run for a run session (multisport phase 2)', () => {
+    const byId = new URLSearchParams(
+      buildWorkoutRouteHref({ workout_type: 'endurance', workout_id: 'run_easy_45' }, '2026-06-10').split('?')[1],
+    );
+    expect(byId.get('sport')).toBe('running');
+    const bySport = new URLSearchParams(
+      buildWorkoutRouteHref({ workout_type: 'tempo', sport: 'running' }, '2026-06-10').split('?')[1],
+    );
+    expect(bySport.get('sport')).toBe('running');
+  });
+
+  it('adds no sport for a ride', () => {
+    const p = new URLSearchParams(buildWorkoutRouteHref(workout, '2026-06-10').split('?')[1]);
+    expect(p.has('sport')).toBe(false);
+  });
 });

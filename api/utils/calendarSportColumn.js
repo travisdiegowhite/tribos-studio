@@ -9,57 +9,27 @@
  * asking for the rest of the process (or page) lifetime. Readers then still
  * emit a sport, inferred by entrySport.js.
  *
- * Pure (no Supabase import): shared by api/ and src/ callers, each passing its
- * own query.
+ * Built on the generic optionalColumn.js; these names are kept because the
+ * calendar modules on both sides import them.
  */
 
-let sportColumnMissing = false;
+import { optionalColumn } from './optionalColumn.js';
+
+const sportColumn = optionalColumn('calendar_entries', 'sport');
 
 /** True for PostgREST's "calendar_entries has no sport column" errors. */
-export function isMissingSportColumnError(error) {
-  const msg = String(error?.message || '');
-  return (
-    /calendar_entries\.sport\b|'sport' column/.test(msg) &&
-    /(does not exist|schema cache|Could not find)/i.test(msg)
-  );
-}
+export const isMissingSportColumnError = sportColumn.isMissingError;
 
-export function sportColumnAvailable() {
-  return !sportColumnMissing;
-}
+export const sportColumnAvailable = sportColumn.available;
 
 /** Test hook. */
-export function resetSportColumnFallback() {
-  sportColumnMissing = false;
-}
+export const resetSportColumnFallback = sportColumn.reset;
 
 /** A comma-separated column list without `sport`. */
-export function stripSportColumn(columns) {
-  return columns
-    .split(',')
-    .map((c) => c.trim())
-    .filter((c) => c && c !== 'sport')
-    .join(', ');
-}
+export const stripSportColumn = sportColumn.stripColumn;
 
 /** A row or array of rows without `sport`. */
-export function stripSportField(payload) {
-  const strip = (row) => {
-    if (!row || typeof row !== 'object' || !('sport' in row)) return row;
-    const { sport: _sport, ...rest } = row;
-    return rest;
-  };
-  return Array.isArray(payload) ? payload.map(strip) : strip(payload);
-}
-
-function noteMissing(error, where) {
-  if (sportColumnMissing) return;
-  sportColumnMissing = true;
-  console.warn(
-    `[calendar] calendar_entries.sport missing (${where}) — apply migration 134. Falling back without it.`,
-    error?.message,
-  );
-}
+export const stripSportField = sportColumn.stripField;
 
 /**
  * Run a read with `columns`; if the sport column is missing, rerun it without.
@@ -68,15 +38,8 @@ function noteMissing(error, where) {
  * @param {(columns: string) => PromiseLike<R>} run
  * @returns {Promise<R>}
  */
-export async function selectWithSportFallback(columns, run) {
-  if (sportColumnMissing) return run(stripSportColumn(columns));
-  const result = await run(columns);
-  const error = /** @type {any} */ (result)?.error;
-  if (error && isMissingSportColumnError(error)) {
-    noteMissing(error, 'read');
-    return run(stripSportColumn(columns));
-  }
-  return result;
+export function selectWithSportFallback(columns, run) {
+  return sportColumn.select(columns, run);
 }
 
 /**
@@ -86,13 +49,6 @@ export async function selectWithSportFallback(columns, run) {
  * @param {(payload: P) => PromiseLike<R>} run
  * @returns {Promise<R>}
  */
-export async function writeWithSportFallback(payload, run) {
-  if (sportColumnMissing) return run(/** @type {P} */ (stripSportField(payload)));
-  const result = await run(payload);
-  const error = /** @type {any} */ (result)?.error;
-  if (error && isMissingSportColumnError(error)) {
-    noteMissing(error, 'write');
-    return run(/** @type {P} */ (stripSportField(payload)));
-  }
-  return result;
+export function writeWithSportFallback(payload, run) {
+  return sportColumn.write(payload, run);
 }

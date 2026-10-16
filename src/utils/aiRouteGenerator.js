@@ -28,6 +28,7 @@ import { measureRouteStress } from './roadAttributes';
 import { generateSmartRouteName, generateAlternativeNames } from './routeNaming';
 import { geocodeWaypoint } from './geocoding';
 import { haversineKm } from './distanceUnits';
+import { isRunProfile, runFlatSpeedKmh } from './runProfiles';
 
 // Normalize startLocation to [lng, lat] array format
 // Handles both array [lng, lat] and object {lat, lng} formats
@@ -124,6 +125,9 @@ export async function generateAIRoutes(params, onProgress = null) {
     // Explicit surface selection from the form ('road' | 'gravel' | 'mtb' |
     // 'commute'); wins over the preference-inferred profile.
     routeProfile = null,
+    // Run routes only (multisport phase 2): the athlete's threshold pace in
+    // s/km. Run speed comes from it, never from the ride-built speedProfile.
+    runThresholdPaceSec = null,
     // Caller-supplied routing preferences (RB2's "Road comfort" control).
     // Merged over the stored defaults below; the only source when there is
     // no signed-in user.
@@ -154,12 +158,19 @@ export async function generateAIRoutes(params, onProgress = null) {
     weatherData = await getWeatherData(startLocation[1], startLocation[0]);
   }
 
-  // Analyze past rides for personalized recommendations
+  const isRun = isRunProfile(routeProfile);
+  // Flat running speed for this goal; null for rides (they use speedProfile).
+  const runSpeedKmh = isRun
+    ? runFlatSpeedKmh({ profile: routeProfile, goal: trainingGoal, thresholdPaceSec: runThresholdPaceSec })
+    : null;
+
+  // Analyze past rides for personalized recommendations. Not for a run: the
+  // templates, segments and patterns are all built from rides.
   let ridingPatterns = null;
   let patternBasedSuggestions = null;
   let claudeAnalysis = null;
   
-  if (userId) {
+  if (userId && !isRun) {
     console.log('Analyzing past rides for user:', userId);
     try {
       const pastRides = await fetchPastRides(userId);
@@ -197,6 +208,7 @@ export async function generateAIRoutes(params, onProgress = null) {
           speedProfile,
           speedModifier,
           routeProfile || 'road',
+          runThresholdPaceSec,
         );
 
   console.log(`📏 Distance calculation: ${timeAvailable}min × ${(targetDistanceKm / (timeAvailable / 60)).toFixed(1)}km/h = ${targetDistanceKm.toFixed(1)}km (${(targetDistanceKm * 0.621371).toFixed(1)} miles)`);
@@ -281,6 +293,7 @@ export async function generateAIRoutes(params, onProgress = null) {
       trainingContext,
       suppressPrescription,
       elevationGainTargetM,
+      sport: isRun ? 'running' : 'cycling',
     });
 
     trackRouteBuilder('generation_claude_responded', {
@@ -318,7 +331,9 @@ export async function generateAIRoutes(params, onProgress = null) {
 
     if (validClaudeRoutes.length > 0) {
       console.log(`Converting ${validClaudeRoutes.length} Claude suggestions to full routes (parallel)...`);
-      const userSpeed = speedProfile?.road_speed || speedProfile?.average_speed || null;
+      const userSpeed = isRun
+        ? runSpeedKmh
+        : speedProfile?.road_speed || speedProfile?.average_speed || null;
       const conversionResults = await Promise.allSettled(
         validClaudeRoutes.map(claudeRoute => {
           console.log('Converting Claude route:', claudeRoute.name);
@@ -338,6 +353,7 @@ export async function generateAIRoutes(params, onProgress = null) {
             targetDurationMinutes,
             speedProfile,
             trainingGoal,
+            runThresholdPaceSec,
           });
         })
       );
@@ -492,7 +508,9 @@ export async function generateAIRoutes(params, onProgress = null) {
       weatherData,
       ridingPatterns,
       patternBasedSuggestions,
-      speedProfile
+      speedProfile,
+      routeProfile,
+      runSpeedKmh,
     });
     
     routes.push(...mapboxRoutes);
@@ -587,6 +605,7 @@ function calculateTargetDistance(
   speedProfile = null,
   speedModifier = 1.0,
   routeProfile = 'road',
+  thresholdPaceSec = null,
 ) {
   return targetDistanceKmForTime(timeMinutes, {
     goal: trainingGoal,
@@ -594,16 +613,21 @@ function calculateTargetDistance(
     speedProfile,
     performanceMetrics,
     speedModifier,
+    thresholdPaceSec,
   });
 }
 
 // Generate routes using Mapbox Directions API (NO geometric patterns)
 async function generateMapboxBasedRoutes(params) {
-  const { startLocation, targetDistanceKm, trainingGoal, routeType, weatherData, patternBasedSuggestions, userPreferences, speedProfile } = params;
+  const { startLocation, targetDistanceKm, trainingGoal, routeType, weatherData, patternBasedSuggestions, userPreferences, speedProfile, routeProfile = null, runSpeedKmh = null } = params;
   const routes = [];
+  // A run profile overrides the road/gravel profile inferred from preferences.
+  const profileOverride = isRunProfile(routeProfile) ? routeProfile : null;
 
-  // Calculate user's actual cycling speed from speed profile
-  const userSpeed = speedProfile?.road_speed || speedProfile?.average_speed || null;
+  // The athlete's flat speed: running speed for a run, else from the speed profile
+  const userSpeed = profileOverride
+    ? runSpeedKmh
+    : speedProfile?.road_speed || speedProfile?.average_speed || null;
   
   console.log('Generating routes using Mapbox cycling intelligence');
   
@@ -619,16 +643,16 @@ async function generateMapboxBasedRoutes(params) {
     // the one case where we deliberately build both and let scoring pick —
     // the rider said they don't mind which, so offer the best of either.
     if (routeType === 'loop') {
-      const loopRoutes = await generateMapboxLoops(startLocation, targetDistanceKm, trainingGoal, weatherData, patternBasedSuggestions, userPreferences, userSpeed);
+      const loopRoutes = await generateMapboxLoops(startLocation, targetDistanceKm, trainingGoal, weatherData, patternBasedSuggestions, userPreferences, userSpeed, profileOverride);
       routes.push(...loopRoutes);
     } else if (routeType === 'out_back') {
-      const outBackRoutes = await generateMapboxOutAndBack(startLocation, targetDistanceKm, trainingGoal, weatherData, patternBasedSuggestions, userPreferences, userSpeed);
+      const outBackRoutes = await generateMapboxOutAndBack(startLocation, targetDistanceKm, trainingGoal, weatherData, patternBasedSuggestions, userPreferences, userSpeed, profileOverride);
       routes.push(...outBackRoutes);
     } else {
       // Generate both types in parallel
       const [loopRoutes, outBackRoutes] = await Promise.all([
-        generateMapboxLoops(startLocation, targetDistanceKm, trainingGoal, weatherData, patternBasedSuggestions, userPreferences, userSpeed),
-        generateMapboxOutAndBack(startLocation, targetDistanceKm, trainingGoal, weatherData, patternBasedSuggestions, userPreferences, userSpeed)
+        generateMapboxLoops(startLocation, targetDistanceKm, trainingGoal, weatherData, patternBasedSuggestions, userPreferences, userSpeed, profileOverride),
+        generateMapboxOutAndBack(startLocation, targetDistanceKm, trainingGoal, weatherData, patternBasedSuggestions, userPreferences, userSpeed, profileOverride)
       ]);
       routes.push(...loopRoutes.slice(0, 2), ...outBackRoutes.slice(0, 1));
     }
@@ -814,7 +838,7 @@ async function generateSmartDestinations(startLocation, targetDistanceKm, isochr
 }
 
 // Generate Mapbox-based loop routes
-async function generateMapboxLoops(startLocation, targetDistanceKm, trainingGoal, weatherData, patternBasedSuggestions, userPreferences = null, userSpeed = null) {
+async function generateMapboxLoops(startLocation, targetDistanceKm, trainingGoal, weatherData, patternBasedSuggestions, userPreferences = null, userSpeed = null, profileOverride = null) {
   const routes = [];
   const mapboxToken = import.meta.env.VITE_MAPBOX_TOKEN;
 
@@ -843,7 +867,7 @@ async function generateMapboxLoops(startLocation, targetDistanceKm, trainingGoal
   // Generate all candidates in parallel — they're independent patterns
   const results = await Promise.allSettled(
     loopPatterns.slice(0, 3).map(pattern =>
-      generateMapboxLoop(startLocation, targetDistanceKm, pattern, trainingGoal, mapboxToken, userPreferences, userSpeed)
+      generateMapboxLoop(startLocation, targetDistanceKm, pattern, trainingGoal, mapboxToken, userPreferences, userSpeed, profileOverride)
     )
   );
 
@@ -866,7 +890,7 @@ async function generateMapboxLoops(startLocation, targetDistanceKm, trainingGoal
 }
 
 // Generate Mapbox-based out-and-back routes
-async function generateMapboxOutAndBack(startLocation, targetDistanceKm, trainingGoal, weatherData, patternBasedSuggestions, userPreferences = null, userSpeed = null) {
+async function generateMapboxOutAndBack(startLocation, targetDistanceKm, trainingGoal, weatherData, patternBasedSuggestions, userPreferences = null, userSpeed = null, profileOverride = null) {
   const routes = [];
   const mapboxToken = import.meta.env.VITE_MAPBOX_TOKEN;
 
@@ -891,7 +915,7 @@ async function generateMapboxOutAndBack(startLocation, targetDistanceKm, trainin
   // Generate all candidates in parallel — they're independent directions
   const results = await Promise.allSettled(
     directions.slice(0, 3).map(direction =>
-      generateMapboxOutBack(startLocation, targetDistanceKm, direction, trainingGoal, mapboxToken, patternBasedSuggestions, userPreferences, userSpeed)
+      generateMapboxOutBack(startLocation, targetDistanceKm, direction, trainingGoal, mapboxToken, patternBasedSuggestions, userPreferences, userSpeed, profileOverride)
     )
   );
 
@@ -910,7 +934,7 @@ async function generateMapboxOutAndBack(startLocation, targetDistanceKm, trainin
 }
 
 // Generate single Mapbox loop with strategic waypoints
-async function generateMapboxLoop(startLocation, targetDistanceKm, pattern, trainingGoal, mapboxToken, userPreferences = null, userSpeed = null) {
+async function generateMapboxLoop(startLocation, targetDistanceKm, pattern, trainingGoal, mapboxToken, userPreferences = null, userSpeed = null, profileOverride = null) {
   const [startLon, startLat] = startLocation;
 
   // Calculate strategic waypoints for a realistic loop
@@ -965,6 +989,7 @@ async function generateMapboxLoop(startLocation, targetDistanceKm, pattern, trai
       routingProfile = 'gravel';
       console.log(`🌾 High gravel tolerance (${(userPreferences.surfacePreferences.gravelTolerance * 100).toFixed(0)}%), using gravel routing profile`);
     }
+    if (profileOverride) routingProfile = profileOverride;
 
     // Use smart cycling router for optimal route with cycling infrastructure awareness
     console.log(`🧠 Using smart cycling router for ${pattern.name} with profile: ${routingProfile}`);
@@ -1058,7 +1083,7 @@ async function generateMapboxLoop(startLocation, targetDistanceKm, pattern, trai
 }
 
 // Generate single Mapbox out-and-back route
-async function generateMapboxOutBack(startLocation, targetDistanceKm, direction, trainingGoal, mapboxToken, patternBasedSuggestions, userPreferences = null, userSpeed = null) {
+async function generateMapboxOutBack(startLocation, targetDistanceKm, direction, trainingGoal, mapboxToken, patternBasedSuggestions, userPreferences = null, userSpeed = null, profileOverride = null) {
   const [startLon, startLat] = startLocation;
   const halfDistanceKm = targetDistanceKm / 2;
   
@@ -1100,7 +1125,7 @@ async function generateMapboxOutBack(startLocation, targetDistanceKm, direction,
   try {
     // Use Mapbox cycling directions to get realistic route
     const outboundRoute = await getCyclingDirections([startLocation, targetPoint], mapboxToken, {
-      profile: getMapboxProfile(trainingGoal),
+      profile: isRunProfile(profileOverride) ? 'walking' : getMapboxProfile(trainingGoal),
       preferences: userPreferences
     });
     
@@ -1180,6 +1205,7 @@ async function convertClaudeToFullRoute(claudeRoute, startLocation, targetDistan
     targetDurationMinutes = null,
     speedProfile = null,
     trainingGoal: riderGoal = null,
+    runThresholdPaceSec = null,
   } = targets;
   const mapboxToken = import.meta.env.VITE_MAPBOX_TOKEN;
   if (!mapboxToken) {
@@ -1327,6 +1353,7 @@ async function convertClaudeToFullRoute(claudeRoute, startLocation, targetDistan
         speedProfile,
         routeProfile: explicitProfile,
         trainingGoal: riderGoal || claudeRoute.trainingGoal,
+        thresholdPaceSec: runThresholdPaceSec,
       };
       let achievedKm = (route.distance_m ?? route.distance ?? 0) / 1000;
       let achievedMinutes = estimateRideMinutes(achievedKm, elevationProfile, etaContext);
@@ -1487,9 +1514,11 @@ function clampCorrection(ratio) {
  *
  * @param {number} distanceKm
  * @param {Array<{distance: number, elevation: number}>} elevationProfileM
+ * @param {{ speedProfile?: any, routeProfile?: string|null, trainingGoal?: string|null,
+ *           thresholdPaceSec?: number|null }} [context]  thresholdPaceSec: run profiles only (s/km)
  * @returns {number|null} minutes, or null when it can't be estimated
  */
-export function estimateRideMinutes(distanceKm, elevationProfileM, { speedProfile, routeProfile, trainingGoal } = {}) {
+export function estimateRideMinutes(distanceKm, elevationProfileM, { speedProfile, routeProfile, trainingGoal, thresholdPaceSec = null } = {}) {
   if (!(distanceKm > 0)) return null;
   const profileKm = Array.isArray(elevationProfileM)
     ? elevationProfileM
@@ -1506,6 +1535,7 @@ export function estimateRideMinutes(distanceKm, elevationProfileM, { speedProfil
       speedProfile: speedProfile ?? undefined,
       routeProfile: routeProfile === 'mtb' ? 'mountain' : routeProfile || 'road',
       trainingGoal: trainingGoal || 'endurance',
+      thresholdPaceSec,
     });
     return eta?.totalSeconds > 0 ? eta.totalSeconds / 60 : null;
   } catch (err) {

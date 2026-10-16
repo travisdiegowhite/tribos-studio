@@ -42,6 +42,8 @@ export interface LayerTogglesProps {
   hasStravaConnection?: boolean;
   /** When true, an "Intervals" toggle is shown (a workout is attached). */
   hasWorkout?: boolean;
+  /** 'running' hides the bike-only toggles (traffic stress, bike infra, bike shops). */
+  sport?: 'cycling' | 'running';
 }
 
 const POI_LAYERS: Array<{ id: POILayer; label: string }> = [
@@ -62,7 +64,10 @@ export function LayerToggles({
   defaultExpanded,
   hasStravaConnection = false,
   hasWorkout = false,
+  sport = 'cycling',
 }: LayerTogglesProps) {
+  const isRun = sport === 'running';
+  const poiLayers = isRun ? POI_LAYERS.filter((p) => p.id !== 'bike_shop') : POI_LAYERS;
   const [expanded, setExpanded] = useState(defaultExpanded ?? !isMobile);
 
   const toggle = useCallback(
@@ -121,18 +126,20 @@ export function LayerToggles({
             checked={visibility.surface}
             onChange={(v) => toggle('surface', v)}
           />
-          <Tooltip
-            label="How stressful each road is for cycling, from OSM speed, lane and bike-lane data"
-            withinPortal
-          >
-            <Box>
-              <ToggleRow
-                label="Traffic Stress"
-                checked={visibility.stress}
-                onChange={(v) => toggle('stress', v)}
-              />
-            </Box>
-          </Tooltip>
+          {!isRun && (
+            <Tooltip
+              label="How stressful each road is for cycling, from OSM speed, lane and bike-lane data"
+              withinPortal
+            >
+              <Box>
+                <ToggleRow
+                  label="Traffic Stress"
+                  checked={visibility.stress}
+                  onChange={(v) => toggle('stress', v)}
+                />
+              </Box>
+            </Tooltip>
+          )}
           <ToggleRow
             label="Gradient"
             checked={visibility.gradient}
@@ -158,11 +165,13 @@ export function LayerToggles({
               />
             </Box>
           </Tooltip>
-          <ToggleRow
-            label="Bike Infrastructure"
-            checked={visibility.bikeInfra}
-            onChange={(v) => toggle('bikeInfra', v)}
-          />
+          {!isRun && (
+            <ToggleRow
+              label="Bike Infrastructure"
+              checked={visibility.bikeInfra}
+              onChange={(v) => toggle('bikeInfra', v)}
+            />
+          )}
           <Tooltip
             label={hasStravaConnection ? 'Roads you have ridden before' : 'Connect Strava to enable'}
             disabled={false}
@@ -186,7 +195,7 @@ export function LayerToggles({
             />
             {visibility.poi && (
               <Box style={{ paddingLeft: 12, marginTop: 6, display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-                {POI_LAYERS.map((p) => {
+                {poiLayers.map((p) => {
                   const active = activePoiLayers.includes(p.id);
                   return (
                     <UnstyledButton
