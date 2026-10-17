@@ -9,6 +9,7 @@ import { Box, Text, Tooltip, UnstyledButton } from '@mantine/core';
 import { Check, FloppyDisk, Warning, X } from '@phosphor-icons/react';
 import { RB2, RB2_FONT } from './brand';
 import { convertDistance } from '../../../utils/units.jsx';
+import { formatPace as formatRunPace, paceSecPerKm } from '../../../utils/paceFormat';
 import {
   SURFACE_COLORS,
   SURFACE_LABELS,
@@ -78,12 +79,7 @@ const SURFACE_ORDER = ['paved', 'gravel', 'unpaved', 'mixed'] as const;
 
 /** Average pace, "5:42/km" or "9:11/mi"; a dash when it can't be computed. */
 export function formatPace(distanceKm: number, seconds: number, isImperial: boolean): string {
-  if (!(distanceKm > 0) || !(seconds > 0)) return '—';
-  const units = isImperial ? distanceKm * 0.621371 : distanceKm;
-  const secPerUnit = Math.round(seconds / units);
-  const m = Math.floor(secPerUnit / 60);
-  const sec = secPerUnit % 60;
-  return `${m}:${String(sec).padStart(2, '0')}/${isImperial ? 'mi' : 'km'}`;
+  return formatRunPace(paceSecPerKm(distanceKm * 1000, seconds), isImperial);
 }
 
 function formatDuration(seconds: number): string {

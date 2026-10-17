@@ -79,3 +79,24 @@ export function getActivityNoun(
   if (sport === 'cycling') return form === 'plural' ? 'rides' : 'ride';
   return form === 'plural' ? 'activities' : 'activity';
 }
+
+/** Noun for a sport, when the caller has the sport rather than an activity row. */
+export function nounForSport(
+  sport: string | null | undefined,
+  form: 'singular' | 'plural' = 'singular',
+): string {
+  if (sport === 'running') return form === 'plural' ? 'runs' : 'run';
+  if (sport === 'cycling') return form === 'plural' ? 'rides' : 'ride';
+  return form === 'plural' ? 'activities' : 'activity';
+}
+
+/**
+ * Run cadence in steps per minute. FIT files and Strava report one leg
+ * (strides per minute, ~80–95); a few devices already report both legs
+ * (~160–190). Below 120 is one leg, so it is doubled.
+ */
+export function runCadenceSpm(raw: number | null | undefined): number | null {
+  const c = Number(raw);
+  if (!(c > 0)) return null;
+  return c < 120 ? c * 2 : c;
+}
