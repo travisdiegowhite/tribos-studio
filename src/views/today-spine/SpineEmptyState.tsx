@@ -20,7 +20,9 @@ const actionStyle: CSSProperties = {
   textDecoration: 'none',
 };
 
-export function SpineEmptyState() {
+/** `sport`: the athlete's primary sport, so a runner is invited to plan a run. */
+export function SpineEmptyState({ sport = 'cycling' }: { sport?: 'cycling' | 'running' } = {}) {
+  const run = sport === 'running';
   return (
     <Box
       style={{
@@ -46,15 +48,19 @@ export function SpineEmptyState() {
         No training history yet
       </Text>
       <Text style={{ fontFamily: FONT.body, fontSize: 14, lineHeight: 1.55, color: C.text2, maxWidth: 460, margin: '0 auto 20px' }}>
-        Connect Strava, Garmin, or Wahoo — or log your first ride — and your training arc builds
+        Connect Strava, Garmin, or Wahoo — or log your first {run ? 'run' : 'ride'} — and your training arc builds
         itself: six weeks of fitness behind you, your plan and goal event ahead.
       </Text>
       <Group justify="center" gap={10}>
         <Box component={Link} to="/settings" style={{ ...actionStyle, background: C.navy, color: 'var(--color-bg)' }}>
           Connect a service
         </Box>
-        <Box component={Link} to="/ride/new" style={{ ...actionStyle, background: 'transparent', color: C.navy }}>
-          Plan a ride
+        <Box
+          component={Link}
+          to={run ? '/ride/new?sport=running' : '/ride/new'}
+          style={{ ...actionStyle, background: 'transparent', color: C.navy }}
+        >
+          {run ? 'Plan a run' : 'Plan a ride'}
         </Box>
       </Group>
     </Box>

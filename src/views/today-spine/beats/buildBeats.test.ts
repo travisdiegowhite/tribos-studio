@@ -395,3 +395,55 @@ describe('Beat 4 — need a route for that?', () => {
     expect(beat4.href).toContain('duration=60');
   });
 });
+
+// ── runs and two-a-days (multisport phase 4) ────────────────────────────────
+
+describe('runs on Today', () => {
+  it('recaps a run as a run, with its pace', () => {
+    const data = assembleSpine(
+      input({
+        activities: [ride(1, 50, 50, 'River run')],
+        rideStats: [rideStat(1, { sport: 'running', durationSec: 3000, distanceKm: 10, elevationM: 40 })],
+      }),
+    );
+    expect(data.lastRide?.sport).toBe('running');
+    expect(data.lastRide?.paceSecPerKm).toBe(300);
+    const vm = buildBeats(data, null, 'metric');
+    expect(vm.beat1.line).toContain('last run');
+    expect(vm.beat1.noun).toBe('run');
+  });
+
+  it('a downgraded run still opens the route builder on Run', () => {
+    const plan = planToday('threshold', 40, null);
+    const vm = beats(
+      { ...plan, todaysWorkout: { ...plan.todaysWorkout, sport: 'running' as const }, primarySport: 'running' },
+      'flat',
+    );
+    expect(vm.beat3.downgraded).toBe(true);
+    expect(new URLSearchParams(vm.beat4.href.split('?')[1]).get('sport')).toBe('running');
+    // A runner is never told about riding.
+    expect(vm.beat3.line).not.toMatch(/riding|spin|bike/i);
+  });
+
+  it('a runner with nothing planned gets their usual run length on Run', () => {
+    const vm = beats({
+      primarySport: 'running',
+      rideStats: [rideStat(2, { sport: 'running', durationSec: 35 * 60 }), rideStat(4, { durationSec: 120 * 60 })],
+    });
+    expect(vm.beat4.href).toBe('/ride/new?duration=35&sport=running');
+  });
+
+  it('names the other session of a two-a-day in one line', () => {
+    const plan = planToday('endurance', 90);
+    const vm = beats({
+      ...plan,
+      todaysWorkout: {
+        ...plan.todaysWorkout,
+        sport: 'cycling' as const,
+        otherSession: { sport: 'running', name: 'Easy run', type: 'recovery', durationMin: 30 },
+      },
+    });
+    expect(vm.beat3.also).toBe('Also on the calendar: a 30-min easy run.');
+  });
+});
+

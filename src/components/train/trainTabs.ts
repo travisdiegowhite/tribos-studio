@@ -19,7 +19,9 @@ export const TRAIN_TAB_LABELS: Record<TrainTab, string> = {
   season: 'Season',
   coach: 'Coach',
   progress: 'Progress',
-  rides: 'Rides',
+  // Runs live here too (multisport phase 4); the key stays `rides` so old
+  // links keep working, and ?tab=activities is an alias below.
+  rides: 'Activities',
   events: 'Find an event',
 };
 
@@ -29,6 +31,7 @@ const LEGACY_TABS: Record<string, { tab: TrainTab; view?: TrainView; browse?: bo
   power: { tab: 'progress' },
   insights: { tab: 'progress' },
   history: { tab: 'rides' },
+  activities: { tab: 'rides' },
   repeats: { tab: 'rides', view: 'repeats' },
   browse: { tab: 'calendar', browse: true },
 };

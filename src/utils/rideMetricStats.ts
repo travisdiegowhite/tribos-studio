@@ -3,8 +3,18 @@
  * map's selected metric (the stats card and hover readout).
  *
  * Stream units are the activity_streams convention: power W, heartRate bpm,
- * speed m/s, elevation m, cadence rpm. Display converts speed to km/h.
+ * speed m/s, elevation m, cadence rpm. Display converts speed to km/h, or
+ * for a run (`{ run: true }`) to pace per km or mile — the speed stream keeps
+ * driving the colors, since faster is hotter either way.
  */
+
+import { formatPaceClock, paceForUnits, speedToPaceSecPerKm } from './paceFormat';
+
+export interface MetricDisplayOptions {
+  /** Show speed as running pace. */
+  run?: boolean;
+  isImperial?: boolean;
+}
 
 export type RideMapMetric = 'speed' | 'power' | 'elevation' | 'heartRate';
 
@@ -49,9 +59,10 @@ export function summarizeMetric(
 }
 
 /** Display unit for a metric. */
-export function metricUnit(metric: RideMapMetric): string {
+export function metricUnit(metric: RideMapMetric, opts: MetricDisplayOptions = {}): string {
   switch (metric) {
     case 'speed':
+      if (opts.run) return opts.isImperial ? '/mi' : '/km';
       return 'km/h';
     case 'power':
       return 'W';
@@ -63,8 +74,16 @@ export function metricUnit(metric: RideMapMetric): string {
 }
 
 /** Value in display units, as a whole-number string (speed converts m/s → km/h). */
-export function formatMetricValue(metric: RideMapMetric, value: number | null | undefined): string {
+export function formatMetricValue(
+  metric: RideMapMetric,
+  value: number | null | undefined,
+  opts: MetricDisplayOptions = {},
+): string {
   if (value == null || !Number.isFinite(value)) return '–';
+  if (metric === 'speed' && opts.run) {
+    const pace = speedToPaceSecPerKm(value);
+    return pace == null ? '–' : formatPaceClock(paceForUnits(pace, Boolean(opts.isImperial)));
+  }
   const shown = metric === 'speed' ? value * 3.6 : value;
   return String(Math.round(shown));
 }

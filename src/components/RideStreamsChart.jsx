@@ -19,6 +19,10 @@ import {
   niceTicks,
   formatElapsed,
 } from '../utils/streamChartData';
+import { isRunningActivity } from '../utils/sportType';
+import { formatPaceClock, paceForUnits } from '../utils/paceFormat';
+
+const KM_PER_MILE = 1.609344;
 
 const TARGET_POINTS = 400;
 
@@ -66,6 +70,48 @@ const METRIC_CONFIG = {
   },
 };
 
+/**
+ * Run metrics (multisport phase 4): pace replaces speed — a runner reads
+ * min/km, not km/h — and cadence is steps per minute. The pace axis is
+ * reversed so faster plots higher, like speed did.
+ */
+function runMetricConfig(isImperial) {
+  const unit = isImperial ? '/mi' : '/km';
+  return {
+    pace: {
+      label: 'Pace',
+      unit,
+      dataKey: 'pace_s_per_km',
+      color: 'var(--color-orange)',
+      chipColor: 'orange',
+      yAxisId: 'pace',
+      decimals: 0,
+      reversed: true,
+      format: (v) => `${formatPaceClock(paceForUnits(v, isImperial))}${unit}`,
+      tick: (v) => formatPaceClock(paceForUnits(v, isImperial)),
+    },
+    heartRate: METRIC_CONFIG.heartRate,
+    cadence: { ...METRIC_CONFIG.cadence, unit: 'spm' },
+    power: METRIC_CONFIG.power,
+  };
+}
+
+/** 2nd–98th percentile of a series, so a stop or a GPS spike can't flatten the pace line. */
+function percentileDomain(values) {
+  const sorted = values.filter((v) => v != null && Number.isFinite(v)).sort((a, b) => a - b);
+  if (sorted.length === 0) return ['auto', 'auto'];
+  const at = (q) => sorted[Math.min(sorted.length - 1, Math.max(0, Math.round(q * (sorted.length - 1))))];
+  const lo = at(0.02);
+  const hi = at(0.98);
+  const pad = Math.max(5, (hi - lo) * 0.05);
+  return [Math.max(0, lo - pad), hi + pad];
+}
+
+function formatMetricValue(config, value) {
+  if (value == null) return '—';
+  return config.format ? config.format(value) : `${value.toFixed(config.decimals)} ${config.unit}`;
+}
+
 const ELEVATION_CONFIG = {
   label: 'Elevation',
   unit: 'm',
@@ -76,40 +122,44 @@ const ELEVATION_CONFIG = {
 };
 
 // Metrics eligible for the visible left axis, in priority order
-const LEFT_AXIS_PRIORITY = ['power', 'speed', 'cadence'];
+const LEFT_AXIS_PRIORITY = ['power', 'pace', 'speed', 'cadence'];
 
-const X_AXIS_LABEL = {
-  distance_km: 'Distance (km)',
-  time_s: 'Time',
-  index: 'Sample',
-};
+function xAxisLabel(xMode, isImperial) {
+  if (xMode === 'distance_km') return isImperial ? 'Distance (mi)' : 'Distance (km)';
+  return xMode === 'time_s' ? 'Time' : 'Sample';
+}
 
-function formatXValue(value, xMode) {
+/** Row x is always km; imperial only changes what the label says. */
+function formatXValue(value, xMode, isImperial = false) {
   if (xMode === 'time_s') return formatElapsed(value);
   if (xMode === 'distance_km') {
-    return Number.isInteger(value) ? `${value}` : value.toFixed(1);
+    const shown = isImperial ? value / KM_PER_MILE : value;
+    const rounded = Math.round(shown * 10) / 10;
+    return Number.isInteger(rounded) ? `${rounded}` : rounded.toFixed(1);
   }
   return `${Math.round(value)}`;
 }
 
-function formatTooltipHeader(value, xMode) {
+function formatTooltipHeader(value, xMode, isImperial = false) {
   if (xMode === 'time_s') return formatElapsed(value);
-  if (xMode === 'distance_km') return `${value.toFixed(1)} km`;
+  if (xMode === 'distance_km') {
+    return isImperial ? `${(value / KM_PER_MILE).toFixed(1)} mi` : `${value.toFixed(1)} km`;
+  }
   return `Sample ${Math.round(value)}`;
 }
 
-const StreamsTooltip = ({ active, payload, label, activeMetrics, xMode, hasElevation }) => {
+const StreamsTooltip = ({ active, payload, label, activeMetrics, metricConfig, xMode, isImperial, hasElevation }) => {
   if (!active || !payload || payload.length === 0) return null;
   const row = payload[0]?.payload;
   if (!row) return null;
 
-  const entries = activeMetrics.map((metric) => ({ key: metric, config: METRIC_CONFIG[metric] }));
+  const entries = activeMetrics.map((metric) => ({ key: metric, config: metricConfig[metric] }));
   if (hasElevation) entries.push({ key: 'elevation', config: ELEVATION_CONFIG });
 
   return (
     <Paper withBorder p="xs" style={{ backgroundColor: 'var(--color-bg-secondary)', minWidth: 150 }}>
       <Text size="xs" fw={600} mb={4}>
-        {typeof label === 'number' ? formatTooltipHeader(label, xMode) : label}
+        {typeof label === 'number' ? formatTooltipHeader(label, xMode, isImperial) : label}
       </Text>
       {entries.map(({ key, config }) => {
         const value = row[config.dataKey];
@@ -122,7 +172,7 @@ const StreamsTooltip = ({ active, payload, label, activeMetrics, xMode, hasEleva
               </Text>
             </Group>
             <Text size="xs" fw={500} ff="monospace">
-              {value == null ? '—' : `${value.toFixed(config.decimals)} ${config.unit}`}
+              {formatMetricValue(config, value)}
             </Text>
           </Group>
         );
@@ -138,8 +188,13 @@ const StreamsTooltip = ({ active, payload, label, activeMetrics, xMode, hasEleva
  * downsampled with peak-preserving LTTB. Elevation always renders as a
  * muted background area. Drag horizontally to zoom; double-click to reset.
  */
-const RideStreamsChart = ({ activity }) => {
+const RideStreamsChart = ({ activity, isImperial = false }) => {
   const streams = activity?.activity_streams;
+  const isRun = isRunningActivity(activity);
+  const metricConfig = useMemo(
+    () => (isRun ? runMetricConfig(isImperial) : METRIC_CONFIG),
+    [isRun, isImperial],
+  );
   const durationSeconds =
     activity?.moving_time || activity?.duration_seconds || activity?.elapsed_time || 0;
 
@@ -149,16 +204,16 @@ const RideStreamsChart = ({ activity }) => {
 
   // Full-resolution rows + x-axis mode
   const { rows: baseRows, xMode } = useMemo(
-    () => buildStreamRows(streams, { durationSeconds }),
-    [streams, durationSeconds]
+    () => buildStreamRows(streams, { durationSeconds, sport: isRun ? 'running' : null }),
+    [streams, durationSeconds, isRun]
   );
 
   const availableMetrics = useMemo(
     () =>
-      Object.keys(METRIC_CONFIG).filter((metric) =>
-        baseRows.some((row) => row[METRIC_CONFIG[metric].dataKey] != null)
+      Object.keys(metricConfig).filter((metric) =>
+        baseRows.some((row) => row[metricConfig[metric].dataKey] != null)
       ),
-    [baseRows]
+    [baseRows, metricConfig]
   );
   const hasElevation = useMemo(
     () => baseRows.some((row) => row.elevation_m != null),
@@ -166,7 +221,8 @@ const RideStreamsChart = ({ activity }) => {
   );
 
   const resolvedActive =
-    activeMetrics ?? availableMetrics.filter((m) => ['power', 'heartRate'].includes(m));
+    activeMetrics ??
+    availableMetrics.filter((m) => (isRun ? ['pace', 'heartRate'] : ['power', 'heartRate']).includes(m));
 
   // Zoom re-slices the FULL-resolution rows, so smoothing and LTTB re-run
   // on the visible span — zooming in reveals detail automatically.
@@ -178,14 +234,26 @@ const RideStreamsChart = ({ activity }) => {
   const chartRows = useMemo(() => {
     if (visibleRows.length === 0) return [];
     const window = smoothingWindowForCount(visibleRows.length, TARGET_POINTS);
-    const smoothed = smoothRows(visibleRows, ['power', 'heartRate'], window);
+    const keys = isRun ? ['power', 'heartRate', 'pace_s_per_km'] : ['power', 'heartRate'];
+    const smoothed = smoothRows(visibleRows, keys, window);
     return downsampleRows(smoothed, TARGET_POINTS);
-  }, [visibleRows]);
+  }, [visibleRows, isRun]);
 
+  // Ticks are picked in the display unit so a mile axis reads 1, 2, 3.
   const xTicks = useMemo(() => {
     if (chartRows.length === 0) return [];
-    return niceTicks(chartRows[0].x, chartRows[chartRows.length - 1].x, 8);
-  }, [chartRows]);
+    const first = chartRows[0].x;
+    const last = chartRows[chartRows.length - 1].x;
+    if (xMode === 'distance_km' && isImperial) {
+      return niceTicks(first / KM_PER_MILE, last / KM_PER_MILE, 8).map((mi) => mi * KM_PER_MILE);
+    }
+    return niceTicks(first, last, 8);
+  }, [chartRows, xMode, isImperial]);
+
+  const paceDomain = useMemo(
+    () => (isRun ? percentileDomain(chartRows.map((r) => r.pace_s_per_km)) : null),
+    [isRun, chartRows],
+  );
 
   const fullSpan = baseRows.length > 0 ? baseRows[baseRows.length - 1].x - baseRows[0].x : 0;
 
@@ -222,13 +290,14 @@ const RideStreamsChart = ({ activity }) => {
   const leftMetric = LEFT_AXIS_PRIORITY.find((m) => resolvedActive.includes(m)) ?? null;
   const rightMetric = resolvedActive.includes('heartRate') ? 'heartRate' : null;
   const dragRefAxisId = leftMetric
-    ? METRIC_CONFIG[leftMetric].yAxisId
+    ? metricConfig[leftMetric].yAxisId
     : rightMetric
-      ? METRIC_CONFIG[rightMetric].yAxisId
+      ? metricConfig[rightMetric].yAxisId
       : ELEVATION_CONFIG.yAxisId;
 
+  const distanceUnit = isImperial ? ' mi' : ' km';
   const zoomSpanText = zoom
-    ? `${formatXValue(zoom.x1, xMode)} – ${formatXValue(zoom.x2, xMode)}${xMode === 'distance_km' ? ' km' : ''}`
+    ? `${formatXValue(zoom.x1, xMode, isImperial)} – ${formatXValue(zoom.x2, xMode, isImperial)}${xMode === 'distance_km' ? distanceUnit : ''}`
     : null;
 
   return (
@@ -242,10 +311,10 @@ const RideStreamsChart = ({ activity }) => {
               onChange={() => handleToggle(metric)}
               size="xs"
               variant="outline"
-              color={METRIC_CONFIG[metric].chipColor}
+              color={metricConfig[metric].chipColor}
               styles={{ label: { cursor: 'pointer' } }}
             >
-              {METRIC_CONFIG[metric].label}
+              {metricConfig[metric].label}
             </Chip>
           ))}
         </Group>
@@ -279,9 +348,9 @@ const RideStreamsChart = ({ activity }) => {
               domain={['dataMin', 'dataMax']}
               ticks={xTicks}
               tick={{ fontSize: 11, fill: 'var(--color-text-muted)' }}
-              tickFormatter={(v) => formatXValue(v, xMode)}
+              tickFormatter={(v) => formatXValue(v, xMode, isImperial)}
               label={{
-                value: X_AXIS_LABEL[xMode],
+                value: xAxisLabel(xMode, isImperial),
                 position: 'insideBottomRight',
                 offset: -5,
                 style: { fontSize: 10, fill: 'var(--color-text-muted)' },
@@ -291,16 +360,25 @@ const RideStreamsChart = ({ activity }) => {
             {/* One axis per metric so scales never collide; only the
                 left-priority metric and heart rate render visibly. */}
             {resolvedActive.map((metric) => {
-              const config = METRIC_CONFIG[metric];
+              const config = metricConfig[metric];
               const isLeft = metric === leftMetric;
               const isRight = metric === rightMetric;
+              const domain =
+                metric === 'pace'
+                  ? paceDomain
+                  : metric === 'heartRate'
+                    ? ['auto', 'auto']
+                    : [0, 'auto'];
               return (
                 <YAxis
                   key={config.yAxisId}
                   yAxisId={config.yAxisId}
                   orientation={isRight ? 'right' : 'left'}
                   hide={!isLeft && !isRight}
-                  domain={metric === 'heartRate' ? ['auto', 'auto'] : [0, 'auto']}
+                  domain={domain}
+                  reversed={Boolean(config.reversed)}
+                  allowDataOverflow={metric === 'pace'}
+                  tickFormatter={config.tick}
                   tick={{ fontSize: 11, fill: config.color }}
                   width={48}
                   label={{
@@ -328,7 +406,9 @@ const RideStreamsChart = ({ activity }) => {
               content={
                 <StreamsTooltip
                   activeMetrics={resolvedActive}
+                  metricConfig={metricConfig}
                   xMode={xMode}
+                  isImperial={isImperial}
                   hasElevation={hasElevation}
                 />
               }
@@ -353,7 +433,7 @@ const RideStreamsChart = ({ activity }) => {
             )}
 
             {resolvedActive.map((metric) => {
-              const config = METRIC_CONFIG[metric];
+              const config = metricConfig[metric];
               return (
                 <Line
                   key={metric}

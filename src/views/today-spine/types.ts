@@ -35,6 +35,8 @@ export interface LatestRideMap {
   hasStreamTrack: boolean;
   /** The ride's own max HR (sanitised), for HR zone colouring. */
   maxHr: number | null;
+  /** 'cycling' | 'running' | 'other'. */
+  sport?: 'cycling' | 'running' | 'other';
 }
 
 /** Per-day zone/activity chip shown in the node's teal header. */
@@ -87,7 +89,23 @@ export interface WeekRollup {
   distanceMi: number;
   elevationM: number;
   elevationFt: number;
+  /** Rides only (the map chip). */
   rideCount: number;
+  /** Runs only. */
+  runCount?: number;
+  /** Every activity in the week. */
+  activityCount?: number;
+}
+
+/** A sport, as the Spine uses it. Null when nothing says which. */
+export type SpineSport = 'cycling' | 'running' | null;
+
+/** The second session on a two-a-day, mentioned in one line beside the lead. */
+export interface OtherSession {
+  sport: SpineSport;
+  name: string;
+  type: string;
+  durationMin: number;
 }
 
 /**
@@ -107,6 +125,13 @@ export interface TodaysWorkout {
    * builder infers a shape from `goal`/`duration` in that case.
    */
   workoutId: string | null;
+  /** The session's sport (calendar_entries.sport, inferred for older rows). */
+  sport?: SpineSport;
+  /** The calendar entry's own id, so the route builder can paint its prescription. */
+  entryId?: string | null;
+  targetDistanceKm?: number | null;
+  /** On a two-a-day, the session that is not the lead. */
+  otherSession?: OtherSession | null;
 }
 
 /**
@@ -128,6 +153,10 @@ export interface LastRide {
   polyline: string | null;
   /** Rides recorded on `date`. >1 means the recap is the largest of several. */
   rideCountOnDate: number;
+  /** Sport of the recapped (largest) activity; null when unknown. */
+  sport?: SpineSport;
+  /** Runs only: average pace, seconds per km. */
+  paceSecPerKm?: number | null;
 }
 
 /**
@@ -185,6 +214,12 @@ export interface SpineData {
   lastRide: LastRide | null;
   /** Median ride duration over the last 28 days — the no-plan route pre-fill. */
   typicalRideMin: number | null;
+  /** Median run duration over the last 28 days. */
+  typicalRunMin?: number | null;
+  /** The athlete's primary sport (user_profiles.primary_sport). */
+  primarySport?: 'cycling' | 'running';
+  /** Latest per-sport fitness (migration 133); null when either is missing. */
+  fitnessBySport?: { ride: number; run: number } | null;
   /** Newest known activity, for Beat 2's next-ride deferral. */
   latestActivity: LatestActivity | null;
 }

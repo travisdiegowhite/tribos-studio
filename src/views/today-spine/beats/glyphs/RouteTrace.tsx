@@ -21,6 +21,8 @@ interface RouteTraceProps {
   polyline: string | null;
   tier: EffortTier | null;
   height?: number;
+  /** "ride" / "run" / "session", for the accessible name. */
+  noun?: string;
 }
 
 /** Cap the point count — a 3-hour ride's polyline is far more than a 72px glyph needs. */
@@ -69,7 +71,7 @@ export function buildTraceGeometry(coords: Array<[number, number]>): Geometry | 
   };
 }
 
-export function RouteTrace({ polyline, tier, height = 76 }: RouteTraceProps) {
+export function RouteTrace({ polyline, tier, height = 76, noun = 'ride' }: RouteTraceProps) {
   const geometry = useMemo(() => buildTraceGeometry(decodePolyline(polyline)), [polyline]);
   if (!geometry) return null;
 
@@ -82,7 +84,7 @@ export function RouteTrace({ polyline, tier, height = 76 }: RouteTraceProps) {
         viewBox={geometry.viewBox}
         preserveAspectRatio="xMidYMid meet"
         role="img"
-        aria-label="Shape of your last ride"
+        aria-label={`Shape of your last ${noun}`}
       >
         <path
           d={geometry.d}

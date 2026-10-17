@@ -1056,6 +1056,7 @@ function TrainingDashboard() {
               <RideMapCard
                 ride={mapSel.ride}
                 ftp={ftp}
+                isImperial={isImperial}
                 formatDistance={formatDist}
                 formatElevation={formatElev}
                 formatTime={formatTime}
@@ -1167,6 +1168,7 @@ function TrainingDashboard() {
                     rides={activities}
                     formatDistance={formatDist}
                     formatElevation={formatElev}
+                    isImperial={isImperial}
                     ftp={ftp}
                     maxRows={Infinity}
                     onViewRide={handleSelectMapRide}
@@ -1287,6 +1289,7 @@ function TrainingDashboard() {
         formatDistance={formatDist}
         formatElevation={formatElev}
         formatSpeed={formatSpd}
+        isImperial={isImperial}
         hasCreatedRoute={!!activation?.steps?.first_route?.completed}
         bikes={bikes}
         onAssignBike={handleAssignBike}

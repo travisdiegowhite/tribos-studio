@@ -8,6 +8,8 @@
  */
 
 import { haversineKm } from './distanceUnits';
+import { speedToPaceSecPerKm } from './paceFormat';
+import { runCadenceSpm } from './sportType';
 
 // FIT protocol sentinel limits — values at/above these are dropouts, not data
 export const MAX_VALID_POWER = 2500;
@@ -22,6 +24,9 @@ export interface StreamRow {
   power: number | null;
   heartRate: number | null;
   speed_kmh: number | null;
+  /** Runs only: seconds per km, null when slower than a credible running speed. */
+  pace_s_per_km?: number | null;
+  /** Rides: rpm. Runs: steps per minute (one-leg readings doubled). */
   cadence: number | null;
   elevation_m: number | null;
 }
@@ -59,8 +64,9 @@ export function cumulativeDistancesKm(coords: Array<[number, number]>): number[]
  */
 export function buildStreamRows(
   streams: RawStreams | null | undefined,
-  opts: { durationSeconds?: number } = {}
+  opts: { durationSeconds?: number; sport?: string | null } = {}
 ): { rows: StreamRow[]; xMode: XMode } {
+  const isRun = opts.sport === 'running';
   if (!streams) return { rows: [], xMode: 'index' };
 
   const len =
@@ -95,14 +101,18 @@ export function buildStreamRows(
     const c = streams.cadence?.[i];
     const e = streams.elevation?.[i];
 
-    rows.push({
+    const validSpeed = s != null && s >= 0 && s < MAX_VALID_SPEED_MPS ? s : null;
+    const validCadence = c != null && c >= 0 && c < MAX_VALID_CADENCE ? c : null;
+    const row: StreamRow = {
       x,
       power: p != null && p > 0 && p < MAX_VALID_POWER ? p : null,
       heartRate: hr != null && hr > 0 && hr < MAX_VALID_HR ? hr : null,
-      speed_kmh: s != null && s >= 0 && s < MAX_VALID_SPEED_MPS ? s * 3.6 : null,
-      cadence: c != null && c >= 0 && c < MAX_VALID_CADENCE ? c : null,
+      speed_kmh: validSpeed != null ? validSpeed * 3.6 : null,
+      cadence: isRun ? runCadenceSpm(validCadence) : validCadence,
       elevation_m: e != null ? e : null,
-    });
+    };
+    if (isRun) row.pace_s_per_km = speedToPaceSecPerKm(validSpeed);
+    rows.push(row);
   }
 
   return { rows, xMode };
@@ -161,17 +171,18 @@ export function smoothingWindowForCount(pointCount: number, targetPoints = 400):
  */
 export function smoothRows(
   rows: StreamRow[],
-  keys: Array<'power' | 'heartRate' | 'speed_kmh' | 'cadence'>,
+  keys: Array<'power' | 'heartRate' | 'speed_kmh' | 'pace_s_per_km' | 'cadence'>,
   windowSize: number
 ): StreamRow[] {
   if (windowSize <= 1 || rows.length === 0) return rows;
   const smoothedByKey = new Map<string, Array<number | null>>();
   for (const key of keys) {
-    smoothedByKey.set(key, rollingAverage(rows.map((r) => r[key]), windowSize));
+    smoothedByKey.set(key, rollingAverage(rows.map((r) => r[key] ?? null), windowSize));
   }
   return rows.map((row, i) => {
     const next = { ...row };
     for (const key of keys) {
+      if (key === 'pace_s_per_km' && !('pace_s_per_km' in row)) continue;
       next[key] = smoothedByKey.get(key)![i];
     }
     return next;
@@ -261,7 +272,7 @@ export function lttbIndices(
 export function downsampleRows(rows: StreamRow[], targetPoints: number): StreamRow[] {
   if (rows.length <= targetPoints) return rows;
 
-  const primaryKeys: Array<keyof StreamRow> = ['power', 'heartRate', 'speed_kmh', 'elevation_m'];
+  const primaryKeys: Array<keyof StreamRow> = ['power', 'heartRate', 'pace_s_per_km', 'speed_kmh', 'elevation_m'];
   const primary =
     primaryKeys.find((key) => rows.some((r) => r[key] != null)) ?? 'power';
 
@@ -278,7 +289,9 @@ export function downsampleRows(rows: StreamRow[], targetPoints: number): StreamR
  */
 export function bucketAverageRows(rows: StreamRow[], targetPoints: number): StreamRow[] {
   if (rows.length <= targetPoints || targetPoints < 1) return rows;
+  const hasPace = rows.some((r) => 'pace_s_per_km' in r);
   const keys: Array<keyof StreamRow> = ['power', 'heartRate', 'speed_kmh', 'cadence', 'elevation_m'];
+  if (hasPace) keys.push('pace_s_per_km');
   const out: StreamRow[] = [];
   const size = rows.length / targetPoints;
   for (let b = 0; b < targetPoints; b++) {
@@ -286,6 +299,7 @@ export function bucketAverageRows(rows: StreamRow[], targetPoints: number): Stre
     const end = Math.min(rows.length, Math.floor((b + 1) * size));
     if (end <= start) continue;
     const row: StreamRow = { x: 0, power: null, heartRate: null, speed_kmh: null, cadence: null, elevation_m: null };
+    if (hasPace) row.pace_s_per_km = null;
     let xSum = 0;
     const sums: Record<string, number> = {};
     const counts: Record<string, number> = {};

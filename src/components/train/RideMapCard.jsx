@@ -18,6 +18,8 @@ import { CaretLeft, CaretRight, ChartBar } from '@phosphor-icons/react';
 import ColoredRouteMap from '../ColoredRouteMap';
 import { MetricCitation } from '../ui/MetricCitation';
 import { rideRouteCoords, rideStreamsOf, sanitizedMaxHr } from '../../utils/rideGeo';
+import { isRunningActivity } from '../../utils/sportType';
+import { formatPace, paceSecPerKm } from '../../utils/paceFormat';
 
 const MAPBOX_TOKEN = import.meta.env.VITE_MAPBOX_TOKEN;
 const OPEN_STORAGE_KEY = 'tribos-train-ride-map-open';
@@ -104,7 +106,12 @@ function RideMapCard({
   title = 'Latest ride',
   loading = false,
   openSignal = 0,
+  isImperial = false,
 }) {
+  // A run reads as a run: pace instead of watts, "run" in the labels.
+  const isRun = isRunningActivity(ride);
+  const noun = isRun ? 'run' : 'ride';
+  const shownTitle = isRun ? title.replace(/\bride\b/i, (w) => (w[0] === 'R' ? 'Run' : 'run')) : title;
   const isMobile = useMediaQuery('(max-width: 768px)');
   // The map starts collapsed everywhere: the card sits above every tab's
   // content, and the open map is ~440px of the page before the calendar or
@@ -133,10 +140,14 @@ function RideMapCard({
       { label: 'ELEVATION', value: formatElevation(elevationMOf(ride)) },
       { label: 'TIME', value: formatTime(durationSecOf(ride)) },
     ];
-    if (ride.average_watts > 0) chips.push({ label: 'AVG', value: `${Math.round(ride.average_watts)}W` });
+    const pace = isRun ? paceSecPerKm(distanceKmOf(ride) * 1000, durationSecOf(ride)) : null;
+    if (pace != null) chips.push({ label: 'PACE', value: formatPace(pace, isImperial) });
+    if (!isRun && ride.average_watts > 0) {
+      chips.push({ label: 'AVG', value: `${Math.round(ride.average_watts)}W` });
+    }
     if (ride.average_heartrate > 0) chips.push({ label: 'HR', value: `${Math.round(ride.average_heartrate)} bpm` });
     return chips;
-  }, [ride, formatDistance, formatElevation, formatTime]);
+  }, [ride, formatDistance, formatElevation, formatTime, isRun, isImperial]);
 
   if (loading) {
     return <Skeleton height={isMobile ? 120 : DESKTOP_MAP_HEIGHT + 96} radius={0} />;
@@ -160,7 +171,7 @@ function RideMapCard({
         <Group justify="space-between" align="flex-start" wrap="nowrap" gap="sm">
           <Box style={{ minWidth: 0, flex: 1 }}>
             <Text style={eyebrowStyle} mb={6}>
-              {title}
+              {shownTitle}
             </Text>
             <MetricCitation
               sentence={ride.name || 'Untitled ride'}
@@ -178,24 +189,24 @@ function RideMapCard({
           </Box>
 
           <Group gap={6} wrap="nowrap" style={{ flexShrink: 0 }}>
-            <Tooltip label="Older ride">
+            <Tooltip label={`Older ${noun}`}>
               <ActionIcon
                 variant="default"
                 radius={0}
                 size="md"
-                aria-label="Older ride"
+                aria-label={`Older ${noun}`}
                 disabled={!hasOlder}
                 onClick={onOlder}
               >
                 <CaretLeft size={14} />
               </ActionIcon>
             </Tooltip>
-            <Tooltip label="Newer ride">
+            <Tooltip label={`Newer ${noun}`}>
               <ActionIcon
                 variant="default"
                 radius={0}
                 size="md"
-                aria-label="Newer ride"
+                aria-label={`Newer ${noun}`}
                 disabled={!hasNewer}
                 onClick={onNewer}
               >
@@ -230,8 +241,10 @@ function RideMapCard({
             key={ride.id}
             activityStreams={rideStreamsOf(ride)}
             routeCoords={rideRouteCoords(ride)}
-            ftp={ftp}
+            ftp={isRun ? null : ftp}
             maxHr={sanitizedMaxHr(ride)}
+            sport={isRun ? 'running' : 'cycling'}
+            isImperial={isImperial}
             frameless
             height={mapHeight}
             showStrip={!isMobile}

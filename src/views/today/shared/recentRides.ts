@@ -8,6 +8,7 @@
  */
 
 import { ridePolylineOf } from '../../../utils/rideGeo';
+import { getActivitySport } from '../../../utils/sportType';
 
 export interface RecentRide {
   id: string;
@@ -18,6 +19,8 @@ export interface RecentRide {
   durationSec: number;
   polyline: string | null;
   provider: string | null;
+  /** 'cycling' | 'running' | 'other' (multisport phase 4). */
+  sport?: 'cycling' | 'running' | 'other';
 }
 
 /** Distinct line colors for up to 5 overlaid ride traces. */
@@ -39,9 +42,10 @@ type ActivityRow = Record<string, unknown> & {
  * `map.summary_polyline`). Distances are meters in the DB → km here.
  */
 export function mapRowToRecentRide(a: ActivityRow): RecentRide {
+  const sport = getActivitySport(a as { sport_type?: string | null; type?: string | null });
   return {
     id: a.id,
-    name: a.name ?? 'Untitled Ride',
+    name: a.name ?? (sport === 'running' ? 'Untitled Run' : 'Untitled Ride'),
     startDate: a.start_date,
     distanceKm: (Number(a.distance_meters) || Number(a.distance) || 0) / 1000,
     elevationM:
@@ -53,6 +57,7 @@ export function mapRowToRecentRide(a: ActivityRow): RecentRide {
       0,
     polyline: ridePolylineOf(a),
     provider: a.provider ?? null,
+    sport,
   };
 }
 

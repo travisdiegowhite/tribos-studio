@@ -21,7 +21,8 @@ import { ViewOnStravaLink, StravaLogo, PoweredByStrava, STRAVA_ORANGE } from './
 import { PoweredByGarmin } from './GarminBranding';
 import { Bicycle, CaretLeft, CaretRight, ChartBar, Eye, EyeSlash, Funnel, MagnifyingGlass, Path, PersonSimpleRun, UploadSimple, Watch } from '@phosphor-icons/react';
 import { estimateActivityTSS } from '../utils/computeFitnessSnapshots';
-import { getActivitySport } from '../utils/sportType';
+import { getActivitySport, runCadenceSpm } from '../utils/sportType';
+import { formatPace as formatRunPace, paceSecPerKm } from '../utils/paceFormat';
 import BikePickerMenu from './gear/BikePickerMenu.jsx';
 
 /** Soft teal wash for the row whose ride is on the map above the table. */
@@ -40,6 +41,8 @@ const RideHistoryTable = ({
   selectedRideId = null,
   formatDistance,
   formatElevation,
+  /** Run pace per mile instead of per km. */
+  isImperial = false,
   ftp = null,
   maxRows = 10,
   pageSize = 25,
@@ -65,7 +68,7 @@ const RideHistoryTable = ({
   const getDuration = (r) => r.duration_seconds || r.moving_time || r.elapsed_time || 0;
   const getPower = (r) => r.average_watts || 0;
   const getDate = (r) => r.recorded_at || r.start_date || r.created_at;
-  const getName = (r) => r.name || 'Untitled Ride';
+  const getName = (r) => r.name || (getActivitySport(r) === 'running' ? 'Untitled Run' : 'Untitled Ride');
   const isFromStrava = (r) => r.provider === 'strava';
   const getStravaActivityId = (r) => r.provider === 'strava' ? r.provider_activity_id : null;
   const getProvider = (r) => r.provider || 'manual';
@@ -192,20 +195,9 @@ const RideHistoryTable = ({
     return `${minutes}m`;
   };
 
-  // Running-specific helpers
-  const getPace = (r) => {
-    const distKm = getDistance(r);
-    const durSec = getDuration(r);
-    if (!distKm || !durSec || distKm === 0) return null;
-    return durSec / 60 / distKm; // min/km
-  };
-
-  const formatPace = (minPerKm) => {
-    if (!minPerKm) return '-';
-    const mins = Math.floor(minPerKm);
-    const secs = Math.round((minPerKm - mins) * 60);
-    return `${mins}:${secs.toString().padStart(2, '0')}/km`;
-  };
+  // Running-specific helpers: seconds per km, shown per km or per mile.
+  const getPace = (r) => paceSecPerKm(getDistance(r) * 1000, getDuration(r));
+  const formatPace = (secPerKm) => formatRunPace(secPerKm, isImperial);
 
   const getCadence = (r) => r.average_cadence || 0;
 
@@ -372,7 +364,7 @@ const RideHistoryTable = ({
                   ) : null}
                   {getCadence(ride) > 0 && getSportType(ride) === 'running' && (
                     <Badge color="grape" variant="light" size="sm">
-                      {Math.round(getCadence(ride) * 2)} spm
+                      {Math.round(runCadenceSpm(getCadence(ride)) ?? 0)} spm
                     </Badge>
                   )}
                   {getStravaActivityId(ride) && (

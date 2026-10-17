@@ -19,6 +19,11 @@ export function Beat3Call({ vm, personaName }: Beat3CallProps) {
   return (
     <BeatCard label="Today's call" accent={C.orange}>
       <BeatSentence>{vm.line}</BeatSentence>
+      {vm.also && (
+        <Text data-testid="beat3-also" style={{ fontFamily: FONT.body, fontSize: 14, color: C.text2 }}>
+          {vm.also}
+        </Text>
+      )}
       <WorkoutSilhouette session={vm.session} />
       <Text
         style={{

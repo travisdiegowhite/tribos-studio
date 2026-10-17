@@ -52,6 +52,8 @@ interface ShareCardModalProps {
   formatDistance?: (km: number) => string;
   formatElevation?: (m: number) => string;
   formatSpeed?: (kmh: number) => string;
+  /** Runs show pace per mile instead of per km. */
+  isImperial?: boolean;
 }
 
 const ShareCardModal = ({
@@ -62,6 +64,7 @@ const ShareCardModal = ({
   formatDistance,
   formatElevation,
   formatSpeed,
+  isImperial = false,
 }: ShareCardModalProps) => {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const hasGps = useMemo(() => hasRoutePolyline(ride), [ride]);
@@ -107,6 +110,7 @@ const ShareCardModal = ({
           formatDistance,
           formatElevation,
           formatSpeed,
+          isImperial,
           theme,
           format,
           showMap: showMap && hasGps,
@@ -136,7 +140,7 @@ const ShareCardModal = ({
       cancelled = true;
       clearTimeout(timer);
     };
-  }, [opened, ride, metrics, formatDistance, formatElevation, formatSpeed, theme, format, showMap, hasGps, trim_m]);
+  }, [opened, ride, metrics, formatDistance, formatElevation, formatSpeed, isImperial, theme, format, showMap, hasGps, trim_m]);
 
   const handleShare = async () => {
     if (!blob) return;

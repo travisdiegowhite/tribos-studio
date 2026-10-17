@@ -15,7 +15,17 @@ import { formPhrase, workoutTypeCopy } from '../../../utils/todayVocabulary';
 import { buildWorkoutRouteHref } from '../../../utils/workoutRouteHref';
 import { formBandForScore } from '../../../utils/formBands';
 import { formatDistanceKm, formatDurationMin, formatElevationM, type UnitsPreference } from '../units';
-import { pickOpener, renderBeat1, renderBeat3, renderBeat4Prompt, restOfDayClause, BEAT4_CTA } from './copy';
+import {
+  pickOpener,
+  renderAlsoToday,
+  renderBeat1,
+  renderBeat3,
+  renderBeat4Prompt,
+  restOfDayClause,
+  BEAT4_CTA,
+  sportWords,
+  type CopySport,
+} from './copy';
 import type { LastRide, SpineData } from '../types';
 import type {
   Beat1State,
@@ -118,20 +128,35 @@ function buildRhythm(data: SpineData): RhythmDay[] {
   }));
 }
 
+/** One adjective for the "also" line: "a 30-min easy run", "a 45-min tempo ride". */
+function shortSessionWord(type: string): string {
+  if (type === 'recovery' || type === 'endurance' || type === '') return 'easy';
+  return workoutTypeCopy(type).label.toLowerCase();
+}
+
+/** The athlete's default sport for words, when an activity or session doesn't say. */
+function primaryOf(data: SpineData): CopySport {
+  return data.primarySport ?? 'cycling';
+}
+
 function buildBeat1(data: SpineData, units: UnitsPreference): Beat1VM {
   const last = data.lastRide;
   const state = beat1State(last);
   const tier = last ? effortTier(last.rss) : null;
   const duration = last && last.durationMin > 0 ? formatDurationMin(last.durationMin) : null;
+  // An activity of another kind (a swim, a hike) recaps as a "session".
+  const sport: CopySport = last ? (last.sport === undefined ? primaryOf(data) : last.sport) : primaryOf(data);
 
   return {
     state,
+    noun: sportWords(sport).noun,
     line: renderBeat1({
       state,
-      opener: last && tier ? pickOpener(tier, last.date) : '',
+      opener: last && tier ? pickOpener(tier, last.date, sport) : '',
       duration,
       stat: last ? statPhrase(last, units) : null,
       daysAgo: last?.daysAgo ?? 0,
+      sport,
     }),
     polyline: last?.polyline ?? null,
     tier,
@@ -193,17 +218,32 @@ function buildBeat3(data: SpineData, feel: Feel | null): Beat3VM {
   }
 
   const band = formBandForScore(data.days[data.todayIndex].fs) as { key?: string } | null;
+  const sport: CopySport = tw?.sport ?? primaryOf(data);
+
+  // A two-a-day's other session, mentioned once, only while the lead is
+  // still ahead (on a ridden or rest day it would be a second prescription).
+  const other = tw?.otherSession;
+  const also =
+    prescribable && other
+      ? renderAlsoToday({
+          sport: other.sport,
+          durationLabel: other.durationMin > 0 ? `${Math.round(other.durationMin)}-min` : null,
+          plain: shortSessionWord(normalizeType(other.type)),
+        })
+      : null;
 
   return {
     dayType,
+    also,
     line: renderBeat3({
       dayType,
       feel,
-      plainName: workoutTypeCopy(session ? session.type : 'endurance').phrase,
-      plannedPlain: workoutTypeCopy(plannedType).phrase,
-      easierPlain: workoutTypeCopy(DOWNGRADE[plannedType] ?? plannedType).phrase,
+      plainName: workoutTypeCopy(session ? session.type : 'endurance', sport).phrase,
+      plannedPlain: workoutTypeCopy(plannedType, sport).phrase,
+      easierPlain: workoutTypeCopy(DOWNGRADE[plannedType] ?? plannedType, sport).phrase,
       why: whyClause(data),
-      restOfDay: restOfDayClause(band?.key === 'overreached'),
+      restOfDay: restOfDayClause(band?.key === 'overreached', sport),
+      sport,
     }),
     session,
     downgraded,
@@ -213,6 +253,7 @@ function buildBeat3(data: SpineData, feel: Feel | null): Beat3VM {
 // ── Beat 4 ──────────────────────────────────────────────────────────────────
 
 const DEFAULT_RIDE_MIN = 60;
+const DEFAULT_RUN_MIN = 40;
 
 function buildBeat4(data: SpineData, beat3: Beat3VM): Beat4VM {
   const today = data.days[data.todayIndex];
@@ -222,7 +263,7 @@ function buildBeat4(data: SpineData, beat3: Beat3VM): Beat4VM {
   if (state === 'browse') {
     return {
       state,
-      prompt: renderBeat4Prompt('browse', false),
+      prompt: renderBeat4Prompt('browse', false, primaryOf(data)),
       ctaLabel: BEAT4_CTA.browse,
       href: '/ride/library',
     };
@@ -243,10 +284,15 @@ function buildBeat4(data: SpineData, beat3: Beat3VM): Beat4VM {
       ctaLabel: BEAT4_CTA.route,
       href: buildWorkoutRouteHref(
         {
+          // The entry's own sport travels even when a downgrade drops its
+          // workout id — a run must open the builder on Run either way.
+          id: beat3.downgraded ? null : data.todaysWorkout?.entryId ?? null,
+          sport: data.todaysWorkout?.sport ?? null,
           workout_type: beat3.session.type,
           workout_id: beat3.downgraded ? null : data.todaysWorkout?.workoutId ?? null,
           name: beat3.downgraded ? null : data.todaysWorkout?.name ?? null,
           target_duration: Math.round(beat3.session.durationMin),
+          target_distance_km: beat3.downgraded ? null : data.todaysWorkout?.targetDistanceKm ?? null,
         },
         today.date,
       ),
@@ -255,12 +301,16 @@ function buildBeat4(data: SpineData, beat3: Beat3VM): Beat4VM {
 
   // Nothing scheduled: offer the builder at the rider's usual length, but do
   // not manufacture a workout for it to target.
-  const minutes = Math.round(data.typicalRideMin || DEFAULT_RIDE_MIN);
+  // A runner's usual is a run: their typical run length, and the builder on Run.
+  const runner = data.primarySport === 'running';
+  const minutes = Math.round(
+    (runner ? data.typicalRunMin : data.typicalRideMin) || (runner ? DEFAULT_RUN_MIN : DEFAULT_RIDE_MIN),
+  );
   return {
     state,
     prompt: renderBeat4Prompt('route', false),
     ctaLabel: BEAT4_CTA.route,
-    href: `/ride/new?duration=${minutes}`,
+    href: `/ride/new?duration=${minutes}${runner ? '&sport=running' : ''}`,
   };
 }
 
