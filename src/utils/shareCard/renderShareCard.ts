@@ -9,7 +9,8 @@
  * browsers and avoids webfont/CORS flakiness on iOS Safari.
  */
 import { STRAVA_LOGO_PATH, STRAVA_ORANGE } from '../../components/StravaBranding';
-import { getActivityNoun, getLoadLabel } from '../sportType';
+import { getActivityNoun, getLoadLabel, isRunningActivity } from '../sportType';
+import { formatPaceClock, paceForUnits, paceSecPerKm } from '../paceFormat';
 
 // Structural shape sportType.ts helpers accept (its ActivityLike is unexported).
 type ActivityLike = {
@@ -45,6 +46,8 @@ export interface RenderShareCardOptions {
   formatDistance?: (km: number) => string;
   formatElevation?: (m: number) => string;
   formatSpeed?: (kmh: number) => string;
+  /** Runs show pace per mile instead of per km. */
+  isImperial?: boolean;
   theme: CardTheme;
   format: CardFormat;
   showMap: boolean;
@@ -245,9 +248,10 @@ function getPrimaryStats(options: RenderShareCardOptions): StatEntry[] {
   ];
 }
 
-function getSecondaryStats(options: RenderShareCardOptions): StatEntry[] {
-  const { ride, metrics, formatSpeed } = options;
+export function getSecondaryStats(options: RenderShareCardOptions): StatEntry[] {
+  const { ride, metrics, formatSpeed, isImperial = false } = options;
   if (!metrics) return [];
+  const isRun = isRunningActivity(ride as ActivityLike);
   const stats: StatEntry[] = [];
 
   if (metrics.powerSport && metrics.avgPower > 0) {
@@ -261,7 +265,14 @@ function getSecondaryStats(options: RenderShareCardOptions): StatEntry[] {
       unit: '',
     });
   }
-  if (metrics.avgSpeed > 0) {
+  const pace = isRun ? paceSecPerKm(metrics.distance * 1000, metrics.duration) : null;
+  if (pace != null) {
+    stats.push({
+      label: 'AVG PACE',
+      value: formatPaceClock(paceForUnits(pace, isImperial)),
+      unit: isImperial ? '/mi' : '/km',
+    });
+  } else if (!isRun && metrics.avgSpeed > 0) {
     const spd = splitValueUnit(formatSpeed ? formatSpeed(metrics.avgSpeed) : `${metrics.avgSpeed.toFixed(1)} km/h`);
     stats.push({ label: 'AVG SPEED', value: spd.value, unit: spd.unit });
   } else if (metrics.avgHR > 0) {

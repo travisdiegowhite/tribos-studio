@@ -238,11 +238,11 @@ function buildColorizer(mode, { ftp, maxHr, range }) {
  * color key (zone swatches or ramp with its range), and — while scrubbing —
  * the reading under the cursor with the other metrics at that point.
  */
-function MetricStatsCard({ mode, range, summary, colorizer, hovered }) {
-  const config = COLOR_MODES[mode];
+function MetricStatsCard({ mode, range, summary, colorizer, hovered, display = {} }) {
+  const config = display.run && mode === 'speed' ? { ...COLOR_MODES.speed, label: 'Pace' } : COLOR_MODES[mode];
   if (!config || !colorizer) return null;
 
-  const unit = metricUnit(mode);
+  const unit = metricUnit(mode, display);
   const labelStyle = { textTransform: 'uppercase', letterSpacing: '0.06em', opacity: 0.7 };
   const hoveredZone = hovered ? colorizer.zoneFor(hovered.value) : null;
 
@@ -278,7 +278,7 @@ function MetricStatsCard({ mode, range, summary, colorizer, hovered }) {
         <Stack gap={2}>
           <Group gap={6} wrap="nowrap" align="baseline">
             <Text size="lg" fw={700} lh={1.1} ff="monospace">
-              {formatMetricValue(mode, hovered.value)}
+              {formatMetricValue(mode, hovered.value, display)}
             </Text>
             <Text size="xs" style={{ opacity: 0.8 }}>{unit}</Text>
             {hoveredZone && (
@@ -300,11 +300,11 @@ function MetricStatsCard({ mode, range, summary, colorizer, hovered }) {
         <Group gap="md" wrap="nowrap">
           <Group gap={4} align="baseline" wrap="nowrap">
             <Text size="xs" style={labelStyle}>avg</Text>
-            <Text size="sm" fw={700} ff="monospace" lh={1.1}>{formatMetricValue(mode, summary.avg)}</Text>
+            <Text size="sm" fw={700} ff="monospace" lh={1.1}>{formatMetricValue(mode, summary.avg, display)}</Text>
           </Group>
           <Group gap={4} align="baseline" wrap="nowrap">
             <Text size="xs" style={labelStyle}>max</Text>
-            <Text size="sm" fw={700} ff="monospace" lh={1.1}>{formatMetricValue(mode, summary.max)}</Text>
+            <Text size="sm" fw={700} ff="monospace" lh={1.1}>{formatMetricValue(mode, summary.max, display)}</Text>
           </Group>
         </Group>
       ) : null}
@@ -333,7 +333,7 @@ function MetricStatsCard({ mode, range, summary, colorizer, hovered }) {
         </Group>
       ) : range ? (
         <Group gap={6} wrap="nowrap" mt={2}>
-          <Text size="xs" ff="monospace" style={{ opacity: 0.85 }}>{formatMetricValue(mode, range.min)}</Text>
+          <Text size="xs" ff="monospace" style={{ opacity: 0.85 }}>{formatMetricValue(mode, range.min, display)}</Text>
           <Box
             style={{
               flex: 1,
@@ -341,7 +341,7 @@ function MetricStatsCard({ mode, range, summary, colorizer, hovered }) {
               background: `linear-gradient(to right, ${colorizer.scale.map(([pos, color]) => `${color} ${pos * 100}%`).join(', ')})`,
             }}
           />
-          <Text size="xs" ff="monospace" style={{ opacity: 0.85 }}>{formatMetricValue(mode, range.max)}</Text>
+          <Text size="xs" ff="monospace" style={{ opacity: 0.85 }}>{formatMetricValue(mode, range.max, display)}</Text>
         </Group>
       ) : null}
     </Stack>
@@ -416,9 +416,11 @@ const STRIP_SMOOTH_TARGET = 120;
 const STRIP_MAX_WINDOW = 61;
 
 /** First metric worth showing when the map opens. */
-function defaultColorMode(streams) {
+function defaultColorMode(streams, isRun = false) {
   if (!streams?.coords) return 'plain';
-  for (const mode of ['power', 'heartRate', 'speed', 'elevation']) {
+  // Power is a ride measure: a run opens on heart rate, then pace.
+  const order = isRun ? ['heartRate', 'speed', 'elevation'] : ['power', 'heartRate', 'speed', 'elevation'];
+  for (const mode of order) {
     if (streams[mode]) return mode;
   }
   return 'plain';
@@ -476,10 +478,15 @@ const ColoredRouteMap = ({
   frameless = false,
   showStrip = true,
   fill = false,
+  // 'running' shows speed as pace and hides power (multisport phase 4).
+  sport = null,
+  isImperial = false,
 }) => {
+  const isRun = sport === 'running';
+  const display = useMemo(() => ({ run: isRun, isImperial }), [isRun, isImperial]);
   const mapRef = useRef(null);
   const [mapLoaded, setMapLoaded] = useState(false);
-  const [colorMode, setColorMode] = useState(() => defaultColorMode(activityStreams));
+  const [colorMode, setColorMode] = useState(() => defaultColorMode(activityStreams, isRun));
   const [is3d, setIs3d] = useState(() => readStored3dPreference());
   // Shared scrub position: distance along the ride, in km. Drives the map
   // marker, the strip cursor and the readout together.
@@ -503,13 +510,13 @@ const ColoredRouteMap = ({
   const availableModes = useMemo(() => {
     const modes = ['plain'];
     if (activityStreams && hasStreamTrack) {
-      if (activityStreams.power) modes.push('power');
+      if (activityStreams.power && !isRun) modes.push('power');
       if (activityStreams.heartRate) modes.push('heartRate');
       if (activityStreams.speed) modes.push('speed');
       if (activityStreams.elevation) modes.push('elevation');
     }
     return modes;
-  }, [activityStreams, hasStreamTrack]);
+  }, [activityStreams, hasStreamTrack, isRun]);
 
   const range = useMemo(
     () => (colorMode === 'plain' ? null : metricRange(activityStreams?.[colorMode])),
@@ -586,9 +593,13 @@ const ColoredRouteMap = ({
     const streamValue = colorMode === 'plain' ? null : activityStreams?.[colorMode]?.[ci];
     const others = row
       ? [
-          colorMode !== 'power' && row.power != null ? `${Math.round(row.power)} W` : null,
+          !isRun && colorMode !== 'power' && row.power != null ? `${Math.round(row.power)} W` : null,
           colorMode !== 'heartRate' && row.heartRate != null ? `${Math.round(row.heartRate)} bpm` : null,
-          colorMode !== 'speed' && row.speed_kmh != null ? `${Math.round(row.speed_kmh)} km/h` : null,
+          colorMode !== 'speed' && row.speed_kmh != null
+            ? isRun
+              ? `${formatMetricValue('speed', row.speed_kmh / 3.6, display)}${metricUnit('speed', display)}`
+              : `${Math.round(row.speed_kmh)} km/h`
+            : null,
           colorMode !== 'elevation' && row.elevation_m != null ? `${Math.round(row.elevation_m)} m` : null,
         ].filter(Boolean).join(' · ')
       : null;
@@ -597,7 +608,7 @@ const ColoredRouteMap = ({
       color: colorizer && streamValue != null ? colorizer.colorFor(streamValue) : ROUTE_COLOR,
       readout: streamValue != null ? { value: streamValue, distance_km: distances_km[ci], others } : null,
     };
-  }, [hoverX, hasStreamTrack, distances_km, stripXs, stripRows, geometry.coords, colorMode, activityStreams, colorizer]);
+  }, [hoverX, hasStreamTrack, distances_km, stripXs, stripRows, geometry.coords, colorMode, activityStreams, colorizer, isRun, display]);
 
   // Map hover: the segment under the cursor on whichever metric layer shows.
   const handleMouseMove = useCallback((event) => {
@@ -810,6 +821,7 @@ const ColoredRouteMap = ({
             summary={summary}
             colorizer={colorizer}
             hovered={scrub?.readout ?? null}
+            display={display}
           />
         )}
 
@@ -839,7 +851,10 @@ const ColoredRouteMap = ({
               radius={0}
               value={colorMode}
               onChange={handleModeChange}
-              data={availableModes.map(mode => ({ value: mode, label: COLOR_MODES[mode].label }))}
+              data={availableModes.map(mode => ({
+                value: mode,
+                label: isRun && mode === 'speed' ? 'Pace' : COLOR_MODES[mode].label,
+              }))}
               styles={overlayControlStyles}
             />
           )}

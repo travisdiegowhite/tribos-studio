@@ -41,6 +41,19 @@ export const HR_ZONE_DEFS: readonly ZoneDef[] = [
   { zone: 5, name: 'VO2max+', min: 90, max: 200 },
 ];
 
+/**
+ * Run heart-rate zones as % of lactate threshold HR (multisport phase 4),
+ * used when the athlete has entered an LTHR. % of max HR is a poor anchor
+ * for running, where threshold sits much closer to max than on the bike.
+ */
+export const LTHR_ZONE_DEFS: readonly ZoneDef[] = [
+  { zone: 1, name: 'Recovery', min: 0, max: 85 },
+  { zone: 2, name: 'Aerobic', min: 85, max: 90 },
+  { zone: 3, name: 'Tempo', min: 90, max: 95 },
+  { zone: 4, name: 'Threshold', min: 95, max: 100 },
+  { zone: 5, name: 'VO2max+', min: 100, max: 200 },
+];
+
 /** Zone def for a value given its reference (FTP / max HR), or null if unusable. */
 export function zoneFor(
   defs: readonly ZoneDef[],

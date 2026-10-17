@@ -13,7 +13,10 @@ import {
 } from 'recharts';
 import { useThemeTokens } from '../hooks/useThemeTokens';
 import { isPowerSport, isRunningActivity } from '../utils/sportType';
-import { HR_ZONE_DEFS, POWER_ZONE_DEFS } from '../utils/rideZones';
+import { HR_ZONE_DEFS, LTHR_ZONE_DEFS, POWER_ZONE_DEFS } from '../utils/rideZones';
+import { calculatePaceZones } from '../utils/paceZones';
+import { formatPace, speedToPaceSecPerKm } from '../utils/paceFormat';
+import { useRunThresholds } from '../hooks/useRunThresholds';
 
 // Zone boundaries are shared with the ride map (src/utils/rideZones.ts).
 // Colors resolve per color scheme in the component via useThemeTokens —
@@ -35,10 +38,10 @@ function formatZoneTime(seconds, approximate) {
 /**
  * Compute HR zone distribution from raw heartRate stream
  */
-function computeHRZones(heartRateStream, maxHR) {
+function computeHRZones(heartRateStream, maxHR, defs = HR_ZONES) {
   if (!heartRateStream || !maxHR || maxHR <= 0) return null;
 
-  const zones = HR_ZONES.map((z) => ({
+  const zones = defs.map((z) => ({
     ...z,
     label: `Z${z.zone} ${z.name}`,
     count: 0,
@@ -107,6 +110,50 @@ function computePowerZones(powerStream, ftp) {
 }
 
 /**
+ * Compute run pace-zone distribution from the speed stream (m/s) against the
+ * athlete's threshold pace. Zones come from paceZones.ts (z1 slowest … z6
+ * fastest); a sample slower than a credible running speed is a stop and is
+ * not counted.
+ */
+export function computePaceZones(speedStream, thresholdPaceSec, isImperial = false) {
+  const defs = calculatePaceZones(thresholdPaceSec);
+  if (!speedStream || !defs) return null;
+  const order = ['z1', 'z2', 'z3', 'z4', 'z5', 'z6'];
+  const zones = order.map((key, i) => ({
+    zone: i + 1,
+    name: defs[key].name,
+    label: `Z${i + 1} ${defs[key].name.split(' /')[0]}`,
+    // Slower bound for every zone but the fastest, which is open-ended.
+    range: i === 5 ? `< ${formatPace(defs[key].max, isImperial)}` : `${formatPace(defs[key].min, isImperial)}–${formatPace(defs[key].max, isImperial)}`,
+    max: defs[key].max,
+    count: 0,
+    percent: 0,
+  }));
+
+  let validPoints = 0;
+  for (const speed of speedStream) {
+    const pace = speedToPaceSecPerKm(speed);
+    if (pace == null || speed >= 40) continue;
+    validPoints++;
+    // Fastest zone whose slower bound the pace beats; anything slower is Z1.
+    let zone = zones[0];
+    for (let i = zones.length - 1; i >= 1; i--) {
+      if (pace < zones[i].max) {
+        zone = zones[i];
+        break;
+      }
+    }
+    zone.count++;
+  }
+
+  if (validPoints === 0) return null;
+  zones.forEach((z) => {
+    z.percent = Math.round((z.count / validPoints) * 100);
+  });
+  return zones;
+}
+
+/**
  * Custom tooltip
  */
 const ZoneTooltip = ({ active, payload }) => {
@@ -117,6 +164,11 @@ const ZoneTooltip = ({ active, payload }) => {
   return (
     <Paper p="xs" withBorder style={{ backgroundColor: 'var(--color-bg-secondary)' }}>
       <Text size="xs" fw={600}>{data.label}</Text>
+      {data.range && (
+        <Text size="xs" ff="monospace" style={{ color: 'var(--color-text-muted)' }}>
+          {data.range}
+        </Text>
+      )}
       <Text size="xs" ff="monospace" style={{ color: 'var(--color-text-muted)' }}>
         {data.percent}% of activity{data.timeLabel ? ` · ${data.timeLabel}` : ''}
       </Text>
@@ -127,14 +179,17 @@ const ZoneTooltip = ({ active, payload }) => {
 /**
  * RideZonesChart — HR & Power zone distribution for a single ride
  */
-const RideZonesChart = ({ activity, ftp, maxHr }) => {
+const RideZonesChart = ({ activity, ftp, maxHr, isImperial = false }) => {
   const [mode, setMode] = useState('hr');
   const { tokens } = useThemeTokens();
 
-  // Cycling power zones (% FTP) don't apply to runs. Phase 2 will introduce
-  // pace-zone rendering; until then runs get HR-only.
+  // Cycling power zones (% FTP) don't apply to runs; a run gets HR zones
+  // (against LTHR when the athlete has one) and pace zones (against
+  // threshold pace) instead.
   const allowPower = isPowerSport(activity);
   const isRun = isRunningActivity(activity);
+  const thresholds = useRunThresholds();
+  const runLthr = isRun ? thresholds.lthr : null;
 
   const streams = activity?.activity_streams;
   const rideAnalytics = activity?.ride_analytics;
@@ -143,6 +198,17 @@ const RideZonesChart = ({ activity, ftp, maxHr }) => {
   // Colors and time-in-zone labels are attached here so they follow the
   // active color scheme and the best available time source.
   const hrZones = useMemo(() => {
+    // A run with an athlete LTHR and an HR stream: threshold-anchored zones.
+    if (runLthr && streams?.heartRate) {
+      const computed = computeHRZones(streams.heartRate, runLthr, LTHR_ZONE_DEFS);
+      if (computed) {
+        return computed.map((z) => ({
+          ...z,
+          color: tokens.colors[`zone${z.zone}`] || tokens.colors.zone1,
+          timeLabel: formatZoneTime(z.count, true),
+        }));
+      }
+    }
     // Try pre-computed first
     if (rideAnalytics?.hr_zones?.zones) {
       return rideAnalytics.hr_zones.zones.map((z, i) => ({
@@ -161,7 +227,18 @@ const RideZonesChart = ({ activity, ftp, maxHr }) => {
       color: tokens.colors[`zone${z.zone}`] || tokens.colors.zone1,
       timeLabel: formatZoneTime(z.count, true),
     }));
-  }, [rideAnalytics, streams, maxHr, activity?.max_heartrate, tokens]);
+  }, [rideAnalytics, streams, maxHr, activity?.max_heartrate, tokens, runLthr]);
+
+  // Run pace zones from the speed stream (runs only, needs a threshold pace)
+  const paceZones = useMemo(() => {
+    if (!isRun || !streams?.speed) return null;
+    const computed = computePaceZones(streams.speed, thresholds.thresholdPaceSec, isImperial);
+    return computed?.map((z) => ({
+      ...z,
+      color: tokens.colors[`zone${z.zone}`] || tokens.colors.zone1,
+      timeLabel: formatZoneTime(z.count, true),
+    }));
+  }, [isRun, streams, thresholds.thresholdPaceSec, isImperial, tokens]);
 
   // Compute power zones from stream (cycling only)
   const powerZones = useMemo(() => {
@@ -176,13 +253,18 @@ const RideZonesChart = ({ activity, ftp, maxHr }) => {
 
   const hasHR = hrZones && hrZones.some((z) => z.percent > 0);
   const hasPower = powerZones && powerZones.some((z) => z.percent > 0);
+  const hasPace = paceZones && paceZones.some((z) => z.percent > 0);
 
-  if (!hasHR && !hasPower) return null;
+  if (!hasHR && !hasPower && !hasPace) return null;
 
-  // Force HR mode for non-power sports even if a state value lingers.
-  const effectiveMode = !allowPower ? 'hr' : mode;
-  const chartData = effectiveMode === 'power' && hasPower ? powerZones : hrZones;
-  const showToggle = hasHR && hasPower && allowPower;
+  // The second mode is power for a ride and pace for a run; HR is the default
+  // whenever it exists.
+  const altMode = isRun ? 'pace' : 'power';
+  const hasAlt = isRun ? hasPace : hasPower && allowPower;
+  const effectiveMode = mode === altMode && hasAlt ? altMode : hasHR ? 'hr' : hasAlt ? altMode : 'hr';
+  const chartData =
+    effectiveMode === 'pace' ? paceZones : effectiveMode === 'power' ? powerZones : hrZones;
+  const showToggle = hasHR && hasAlt;
 
   // Find dominant zone
   const dominant = chartData?.reduce((max, z) => (z.percent > max.percent ? z : max), { percent: 0 });
@@ -201,11 +283,13 @@ const RideZonesChart = ({ activity, ftp, maxHr }) => {
         {showToggle && (
           <SegmentedControl
             size="xs"
-            value={mode}
+            value={effectiveMode}
             onChange={setMode}
             data={[
               { label: 'HR Zones', value: 'hr' },
-              { label: 'Power Zones', value: 'power' },
+              isRun
+                ? { label: 'Pace Zones', value: 'pace' }
+                : { label: 'Power Zones', value: 'power' },
             ]}
           />
         )}

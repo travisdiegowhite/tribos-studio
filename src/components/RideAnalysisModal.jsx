@@ -34,10 +34,11 @@ import ActivityPowerCurve from './ActivityPowerCurve';
 import SegmentEffortCompare, { compareRepeatsHref } from './SegmentEffortCompare';
 import ColoredRouteMap from './ColoredRouteMap';
 import RideStreamsChart from './RideStreamsChart';
+import { formatPace as formatRunPace, paceSecPerKm } from '../utils/paceFormat';
 import RideZonesChart from './RideZonesChart';
 import RidePacingChart from './RidePacingChart';
 import { trackFeature, EventType } from '../utils/activityTracking';
-import { isPowerSport, isRunningActivity, getActivityNoun, getLoadLabel } from '../utils/sportType';
+import { isPowerSport, isRunningActivity, getActivityNoun, getLoadLabel, runCadenceSpm } from '../utils/sportType';
 import { buildRideSummary } from '../utils/rideSummary';
 import { rideRouteCoords } from '../utils/rideGeo';
 import { ArrowRight, ArrowsClockwise, Clock, Fire, Gauge, Heart, Heartbeat, Lightning, MapTrifold, Mountains, Path, ShareNetwork, Watch } from '@phosphor-icons/react';
@@ -107,6 +108,7 @@ const RideAnalysisModal = ({
   formatDistance,
   formatElevation,
   formatSpeed,
+  isImperial = false,
   onBackfillGps,
   isBackfilling = false,
   hasCreatedRoute = false,
@@ -305,17 +307,6 @@ const RideAnalysisModal = ({
     };
   }, [ride, ftp]);
 
-  // Format running pace from km/h speed → "min:sec / km" (or / mi).
-  // Returns "—" for stationary segments.
-  const formatPace = (speedKph, useImperial) => {
-    if (!speedKph || speedKph <= 0) return '—';
-    const speedPerUnit = useImperial ? speedKph * 0.621371 : speedKph; // km/h → mph or stay km/h
-    const secondsPerUnit = 3600 / speedPerUnit;
-    const min = Math.floor(secondsPerUnit / 60);
-    const sec = Math.round(secondsPerUnit % 60);
-    return `${min}:${String(sec).padStart(2, '0')} / ${useImperial ? 'mi' : 'km'}`;
-  };
-
   // Format duration
   const formatDuration = (seconds) => {
     if (!seconds) return '-';
@@ -377,6 +368,7 @@ const RideAnalysisModal = ({
   const hasDeepStats = Boolean(
     hasPowerData ||
       hasHRData ||
+      (isRun && (metrics?.avgSpeed > 0 || metrics?.avgCadence > 0)) ||
       ride.activity_streams ||
       ride.ride_analytics?.hr_zones ||
       (ride.ride_analytics?.pacing && hasPowerData),
@@ -414,8 +406,10 @@ const RideAnalysisModal = ({
             activityStreams={ride.activity_streams}
             routeCoords={routeCoords}
             bounds={bounds}
-            ftp={ftp}
+            ftp={metrics?.powerSport ? ftp : null}
             maxHr={metrics?.maxHR}
+            sport={isRun ? 'running' : 'cycling'}
+            isImperial={isImperial}
           />
         ) : (
           <Paper withBorder radius="md" style={{ overflow: 'hidden' }}>
@@ -492,7 +486,7 @@ const RideAnalysisModal = ({
               {metrics?.powerTSS || metrics?.estimatedTSS || '-'}
             </Text>
             <Text size="xs" c="dimmed">
-              Ride stress ({loadLabel}){!hasPowerData && ' · est.'}
+              {isRun ? 'Run' : 'Ride'} stress ({loadLabel}){!hasPowerData && ' · est.'}
             </Text>
           </Paper>
         </SimpleGrid>
@@ -658,15 +652,18 @@ const RideAnalysisModal = ({
         {ride.activity_streams && (
           <>
             <Divider label={isRun ? 'Run Profile' : 'Ride Profile'} labelPosition="center" />
-            <RideStreamsChart activity={ride} />
+            <RideStreamsChart activity={ride} isImperial={isImperial} />
           </>
         )}
 
         {/* Zone Distribution — HR and/or Power zones */}
-        {(ride.ride_analytics?.hr_zones || ride.activity_streams?.heartRate || ride.activity_streams?.power) && (
+        {(ride.ride_analytics?.hr_zones ||
+          ride.activity_streams?.heartRate ||
+          ride.activity_streams?.power ||
+          (isRun && ride.activity_streams?.speed)) && (
           <>
             <Divider label="Zone Distribution" labelPosition="center" />
-            <RideZonesChart activity={ride} ftp={ftp} maxHr={metrics.maxHR} />
+            <RideZonesChart activity={ride} ftp={ftp} maxHr={metrics.maxHR} isImperial={isImperial} />
           </>
         )}
 
@@ -675,6 +672,35 @@ const RideAnalysisModal = ({
           <>
             <Divider label="Pacing Analysis" labelPosition="center" />
             <RidePacingChart activity={ride} ftp={ftp} />
+          </>
+        )}
+
+        {/* Running — pace and cadence stand on their own: a run recorded
+            without a heart-rate strap still has both. */}
+        {isRun && (metrics.avgSpeed > 0 || metrics.avgCadence > 0) && (
+          <>
+            <Divider label="Running" labelPosition="center" />
+            <SimpleGrid cols={{ base: 2, sm: 4 }} spacing="sm">
+              {metrics.avgSpeed > 0 && (
+                <Paper p="sm" withBorder>
+                  <Box>
+                    <Text size="xs" c="dimmed">Avg Pace</Text>
+                    <Text fw={600}>
+                      {formatRunPace(paceSecPerKm(metrics.distance * 1000, metrics.duration), isImperial)}
+                    </Text>
+                  </Box>
+                </Paper>
+              )}
+              {metrics.avgCadence > 0 && (
+                <Paper p="sm" withBorder>
+                  <Box>
+                    <Text size="xs" c="dimmed">Avg Cadence</Text>
+                    {/* Strava and FIT report one leg; runCadenceSpm doubles it. */}
+                    <Text fw={600}>{Math.round(runCadenceSpm(metrics.avgCadence) ?? 0)} spm</Text>
+                  </Box>
+                </Paper>
+              )}
+            </SimpleGrid>
           </>
         )}
 
@@ -702,30 +728,22 @@ const RideAnalysisModal = ({
                 </Paper>
               )}
 
-              {metrics.avgCadence > 0 && (
+              {/* A run's pace and cadence sit in the Running block above. */}
+              {!isRun && metrics.avgCadence > 0 && (
                 <Paper p="sm" withBorder>
                   <Box>
-                    <Text size="xs" c="dimmed">{isRun ? 'Avg Cadence' : 'Avg Cadence'}</Text>
-                    {/* Cadence units differ: cycling tracks crank rpm, running tracks
-                        single-leg steps/min. Both Strava and Garmin report runs as
-                        single-leg, so double it for the conventional 160-180 spm range. */}
-                    <Text fw={600}>
-                      {isRun
-                        ? `${Math.round(metrics.avgCadence * 2)} steps/min`
-                        : `${Math.round(metrics.avgCadence)} rpm`}
-                    </Text>
+                    <Text size="xs" c="dimmed">Avg Cadence</Text>
+                    <Text fw={600}>{Math.round(metrics.avgCadence)} rpm</Text>
                   </Box>
                 </Paper>
               )}
 
-              {metrics.avgSpeed > 0 && (
+              {!isRun && metrics.avgSpeed > 0 && (
                 <Paper p="sm" withBorder>
                   <Box>
-                    <Text size="xs" c="dimmed">{isRun ? 'Avg Pace' : 'Avg Speed'}</Text>
+                    <Text size="xs" c="dimmed">Avg Speed</Text>
                     <Text fw={600}>
-                      {isRun
-                        ? formatPace(metrics.avgSpeed, !!formatDistance)
-                        : (formatSpeed ? formatSpeed(metrics.avgSpeed) : `${metrics.avgSpeed.toFixed(1)} km/h`)}
+                      {formatSpeed ? formatSpeed(metrics.avgSpeed) : `${metrics.avgSpeed.toFixed(1)} km/h`}
                     </Text>
                   </Box>
                 </Paper>
@@ -899,6 +917,7 @@ const RideAnalysisModal = ({
           formatDistance={formatDistance}
           formatElevation={formatElevation}
           formatSpeed={formatSpeed}
+          isImperial={isImperial}
         />
       </Stack>
     </Modal>

@@ -1287,6 +1287,7 @@ function TrainingDashboard() {
         formatDistance={formatDist}
         formatElevation={formatElev}
         formatSpeed={formatSpd}
+        isImperial={isImperial}
         hasCreatedRoute={!!activation?.steps?.first_route?.completed}
         bikes={bikes}
         onAssignBike={handleAssignBike}
