@@ -8,7 +8,10 @@ import { Lightning, Mountains, Path } from '@phosphor-icons/react';
  * Personal Records Card
  * Shows recent personal records and lifetime bests
  */
-const PersonalRecordsCard = ({ rides = [], formatDistance, formatElevation }) => {
+const PersonalRecordsCard = ({ rides = [], formatDistance, formatElevation, noun = 'ride' }) => {
+  // 'run' relabels the card and drops the power record (multisport phase 4).
+  const isRun = noun === 'run';
+  const Noun = isRun ? 'Run' : 'Ride';
   const records = useMemo(() => {
     if (!rides || rides.length === 0) return null;
 
@@ -22,7 +25,7 @@ const PersonalRecordsCard = ({ rides = [], formatDistance, formatElevation }) =>
 
     const longestRide = [...rides].sort((a, b) => getDistance(b) - getDistance(a))[0];
     const mostElevation = [...rides].filter(r => getElevation(r) > 0).sort((a, b) => getElevation(b) - getElevation(a))[0];
-    const highestPower = [...rides].filter(r => getPower(r) > 0).sort((a, b) => getPower(b) - getPower(a))[0];
+    const highestPower = isRun ? null : [...rides].filter(r => getPower(r) > 0).sort((a, b) => getPower(b) - getPower(a))[0];
     const longestDuration = [...rides].filter(r => getDuration(r) > 0).sort((a, b) => getDuration(b) - getDuration(a))[0];
 
     // Check for recent PRs (last 30 days)
@@ -35,7 +38,7 @@ const PersonalRecordsCard = ({ rides = [], formatDistance, formatElevation }) =>
       const rideDate = new Date(getDate(longestRide));
       if (rideDate >= thirtyDaysAgo) {
         recentPRs.push({
-          type: 'Longest Ride',
+          type: `Longest ${Noun}`,
           value: formatDistance(getDistance(longestRide)),
           icon: Path,
         });
@@ -71,19 +74,19 @@ const PersonalRecordsCard = ({ rides = [], formatDistance, formatElevation }) =>
       longestDuration: longestDuration ? formatDuration(getDuration(longestDuration)) : null,
       recentPRs
     };
-  }, [rides, formatDistance, formatElevation]);
+  }, [rides, formatDistance, formatElevation, isRun, Noun]);
 
   if (!records) {
     return (
       <Box>
         <SubHeading>Personal records</SubHeading>
-        <Text size="sm" c="var(--color-text-secondary)">Complete some rides to see your PRs.</Text>
+        <Text size="sm" c="var(--color-text-secondary)">Complete some {isRun ? 'runs' : 'rides'} to see your PRs.</Text>
       </Box>
     );
   }
 
   const lifetime = [
-    records.longestRide && { label: 'Longest ride', value: records.longestRide },
+    records.longestRide && { label: `Longest ${noun}`, value: records.longestRide },
     records.mostElevation && { label: 'Most climbing', value: records.mostElevation },
     records.highestPower && { label: 'Avg power PR', value: records.highestPower },
     records.longestDuration && { label: 'Longest duration', value: records.longestDuration },

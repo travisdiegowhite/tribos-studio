@@ -26,11 +26,13 @@ function YearToDateStats({ ytdStats, formatDist, formatElev, formatTime, loading
     );
   }
 
-  const { totalRides = 0, totalDistance = 0, totalElevation = 0, totalTime = 0 } = ytdStats || {};
+  const { totalRides = 0, totalDistance = 0, totalElevation = 0, totalTime = 0, sport } = ytdStats || {};
+  // The count covers whatever the Progress sport filter shows.
+  const countLabel = sport === 'running' ? 'RUNS' : sport === 'cycling' || !sport ? 'RIDES' : 'ACTIVITIES';
 
   const cells = [
     {
-      label: 'RIDES',
+      label: countLabel,
       value: String(totalRides),
     },
     {

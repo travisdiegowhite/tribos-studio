@@ -12,7 +12,11 @@ const ZONE_NAMES = {
   6: 'ANAEROBIC',
 };
 
-function ZoneDistributionRow({ zones, totalTime }) {
+function ZoneDistributionRow({
+  zones,
+  totalTime,
+  emptyText = 'No zone data available. Ride with a power meter to see your distribution.',
+}) {
   if (!zones || zones.length === 0) {
     return (
       <Box
@@ -24,7 +28,7 @@ function ZoneDistributionRow({ zones, totalTime }) {
         }}
       >
         <Text size="sm" style={{ color: 'var(--color-text-muted)' }}>
-          No zone data available. Ride with a power meter to see your distribution.
+          {emptyText}
         </Text>
       </Box>
     );

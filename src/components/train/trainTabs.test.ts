@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { resolveTrainTab, trainHref } from './trainTabs';
+import { resolveTrainTab, trainHref, TRAIN_TAB_LABELS } from './trainTabs';
 
 const r = (q: string) => resolveTrainTab(new URLSearchParams(q));
 
@@ -23,6 +23,11 @@ describe('resolveTrainTab', () => {
     expect(r('tab=history')).toEqual({ tab: 'rides', view: null, browse: false });
     expect(r('tab=repeats')).toEqual({ tab: 'rides', view: 'repeats', browse: false });
     expect(r('tab=browse')).toEqual({ tab: 'calendar', view: null, browse: true });
+  });
+
+  it('labels the rides tab Activities and accepts ?tab=activities', () => {
+    expect(TRAIN_TAB_LABELS.rides).toBe('Activities');
+    expect(r('tab=activities')).toEqual({ tab: 'rides', view: null, browse: false });
   });
 
   it('accepts views only on the tab that has them', () => {

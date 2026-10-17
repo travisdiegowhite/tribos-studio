@@ -11,7 +11,10 @@ import { formatLocalDate } from '../../utils/dateUtils';
 import { translateCTL, translateTSB } from '../../lib/fitness/translate';
 import { ctlTooltip, tsbTooltip } from '../../lib/fitness/tooltips';
 import { useSegmentLibrary } from '../../hooks/useSegmentLibrary';
-import { isPowerSport } from '../../utils/sportType';
+import { getActivitySport, isPowerSport, isRunningActivity } from '../../utils/sportType';
+import { LTHR_ZONE_DEFS, zoneFor } from '../../utils/rideZones';
+import { resolveRunProfile } from '../../../api/utils/runLoad.js';
+import { useRunThresholds } from '../../hooks/useRunThresholds';
 import ZoneDistributionRow from '../progress/ZoneDistributionRow.jsx';
 import TrendInsightRow from '../progress/TrendInsightRow.jsx';
 import YearToDateStats from '../progress/YearToDateStats.jsx';
@@ -38,6 +41,33 @@ const ZONE_DISTRIBUTIONS = {
   6: { 2: 0.20, 3: 0.10, 4: 0.15, 5: 0.30, 6: 0.25 },
 };
 
+/** Estimated time in zone: each activity's time spread around its own zone. */
+function spreadZoneTimes(items) {
+  const zoneTimes = { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0, 6: 0 };
+  let totalTime = 0;
+  for (const { duration, zone } of items) {
+    totalTime += duration;
+    const dist = ZONE_DISTRIBUTIONS[zone] || ZONE_DISTRIBUTIONS[2];
+    Object.entries(dist).forEach(([z, pct]) => {
+      zoneTimes[parseInt(z)] += duration * pct;
+    });
+  }
+  if (totalTime === 0) return { zones: [], totalTime: 0 };
+  const zones = Object.entries(zoneTimes).map(([z, time]) => ({
+    zone: parseInt(z),
+    time,
+    percentage: totalTime > 0 ? (time / totalTime) * 100 : 0,
+    hours: formatHoursMinutes(time),
+  }));
+  return { zones, totalTime };
+}
+
+/** Does an activity belong under the Progress sport filter? */
+export function matchesSportFilter(activity, sport) {
+  if (!sport || sport === 'all') return true;
+  return getActivitySport(activity) === sport;
+}
+
 function formatTimeFromSeconds(seconds) {
   if (!seconds) return '0h';
   const hours = Math.floor(seconds / 3600);
@@ -57,12 +87,19 @@ function formatHoursMinutes(seconds) {
  * tab on /train: zone distribution, key trends, year to date and segments.
  * Still loads its own activities; sharing the dashboard's is a later step.
  */
-export function useProgressSectionsData() {
+export function useProgressSectionsData(sport = 'all') {
   const { user } = useAuth();
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState(null);
   const [reloadKey, setReloadKey] = useState(0);
-  const [activities, setActivities] = useState([]);
+  // Every sport. Fitness and form stay combined; the sport filter narrows
+  // only the per-activity blocks (zones, volume, year to date).
+  const [allActivities, setActivities] = useState([]);
+  const activities = useMemo(
+    () => allActivities.filter((a) => matchesSportFilter(a, sport)),
+    [allActivities, sport],
+  );
+  const runThresholds = useRunThresholds();
   const [serverLoadHistory, setServerLoadHistory] = useState([]);
   // Latest per-sport TFI row (migration 133), or null.
   const [loadSplit, setLoadSplit] = useState(null);
@@ -176,42 +213,44 @@ export function useProgressSectionsData() {
     if (user?.id) fetchSegments();
   }, [user?.id]);
 
-  // Calculate zone distribution
+  // Run anchors: the athlete's own LTHR / max HR, else estimated from their
+  // runs — the same resolution the server's run load uses.
+  const runProfile = useMemo(() => {
+    const runs = allActivities.filter((a) => isRunningActivity(a));
+    if (runs.length === 0) return null;
+    return resolveRunProfile(
+      { lthr: runThresholds.lthr, max_hr: runThresholds.maxHr, threshold_pace_sec: runThresholds.thresholdPaceSec },
+      runs,
+    );
+  }, [allActivities, runThresholds]);
+
+  // Zone distribution, estimated from each activity's average: rides by
+  // average power against FTP, runs by average HR against LTHR (power zones
+  // mean nothing for a run).
   const zoneData = useMemo(() => {
     const days = parseInt(zoneTimeFilter) || 30;
     const cutoff = new Date();
     cutoff.setDate(cutoff.getDate() - days);
+    const recent = activities.filter((a) => new Date(a.start_date) >= cutoff);
 
-    // Power zones only mean something for power sports — rides, or an
-    // unclassified activity whose device measured watts.
-    const filtered = activities.filter(a => {
-      if (new Date(a.start_date) < cutoff) return false;
-      return isPowerSport(a);
-    });
-    if (filtered.length === 0) return { zones: [], totalTime: 0 };
+    const rides = sport === 'running' ? [] : recent.filter((a) => isPowerSport(a));
+    const ridesData = spreadZoneTimes(
+      rides.map((a) => ({ duration: a.moving_time || 0, zone: getPowerZone(a.average_watts, ftp) })),
+    );
 
-    const zoneTimes = { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0, 6: 0 };
-    let totalTime = 0;
+    const lthr = runProfile?.lthr;
+    const runs = sport === 'cycling' || !lthr ? [] : recent.filter((a) => isRunningActivity(a) && a.average_heartrate > 0);
+    const runsData = spreadZoneTimes(
+      runs.map((a) => ({
+        duration: a.moving_time || 0,
+        zone: zoneFor(LTHR_ZONE_DEFS, a.average_heartrate, lthr)?.zone ?? 2,
+      })),
+    );
 
-    filtered.forEach(a => {
-      const duration = a.moving_time || 0;
-      totalTime += duration;
-      const zone = getPowerZone(a.average_watts, ftp);
-      const dist = ZONE_DISTRIBUTIONS[zone] || ZONE_DISTRIBUTIONS[2];
-      Object.entries(dist).forEach(([z, pct]) => {
-        zoneTimes[parseInt(z)] += duration * pct;
-      });
-    });
-
-    const zones = Object.entries(zoneTimes).map(([z, time]) => ({
-      zone: parseInt(z),
-      time,
-      percentage: totalTime > 0 ? (time / totalTime) * 100 : 0,
-      hours: formatHoursMinutes(time),
-    }));
-
-    return { zones, totalTime };
-  }, [activities, ftp, zoneTimeFilter]);
+    // The single-sport view, and the ride row of "All", keep the old shape.
+    const primary = sport === 'running' ? runsData : ridesData;
+    return { ...primary, rides: ridesData, runs: runsData };
+  }, [activities, ftp, zoneTimeFilter, sport, runProfile]);
 
   // Current CTL/ATL/TSB. Prefer the shared server-preferred walk (same math
   // as Today/Glance/Dashboard — see docs/tfi-duality-decision.md) so this
@@ -220,7 +259,7 @@ export function useProgressSectionsData() {
   // there, the full walk beats a 90-day-window EWA cold start.
   const trainingMetrics = useMemo(() => {
     if (serverLoadHistory.length > 0) {
-      const m = buildAthleteMetrics(activities, ftp || 200, serverLoadHistory, taus);
+      const m = buildAthleteMetrics(allActivities, ftp || 200, serverLoadHistory, taus);
       if (m.tfiCurrent != null) {
         const tsb = Math.round(m.formScore ?? 0);
         return {
@@ -231,7 +270,7 @@ export function useProgressSectionsData() {
         };
       }
     }
-    const weeklySnapshots = computeWeeklySnapshots(activities, ftp);
+    const weeklySnapshots = computeWeeklySnapshots(allActivities, ftp);
     if (weeklySnapshots.length === 0) {
       return { ctl: 0, atl: 0, tsb: 0, interpretation: interpretTSB(0) };
     }
@@ -243,7 +282,7 @@ export function useProgressSectionsData() {
       tsb: current.tsb,
       interpretation: interpretTSB(current.tsb),
     };
-  }, [activities, serverLoadHistory, ftp, taus]);
+  }, [allActivities, serverLoadHistory, ftp, taus]);
 
   // Generate trend insights
   const trendInsights = useMemo(() => {
@@ -330,13 +369,13 @@ export function useProgressSectionsData() {
       if (z2Pct > 60 && highPct > 10) {
         insights.push({
           title: 'Distribution: Polarized',
-          detail: 'Good balance of easy riding and hard efforts — the most effective training approach.',
+          detail: `Good balance of easy ${sport === 'running' ? 'running' : 'riding'} and hard efforts — the most effective training approach.`,
           sentiment: 'positive',
         });
       } else if (z2Pct > 60) {
         insights.push({
           title: 'Distribution: Aerobic-heavy',
-          detail: 'Lots of easy riding. Consider adding some intensity to drive adaptation.',
+          detail: `Lots of easy ${sport === 'running' ? 'running' : 'riding'}. Consider adding some intensity to drive adaptation.`,
           sentiment: 'neutral',
         });
       } else if (highPct > 30) {
@@ -349,7 +388,7 @@ export function useProgressSectionsData() {
     }
 
     return insights;
-  }, [trainingMetrics, activities, zoneData, loadSplit]);
+  }, [trainingMetrics, activities, zoneData, loadSplit, sport]);
 
   // Calculate YTD stats
   const ytdStats = useMemo(() => {
@@ -357,18 +396,27 @@ export function useProgressSectionsData() {
     const ytd = activities.filter(a => new Date(a.start_date) >= yearStart);
 
     return {
+      // `totalRides` counts every activity under the filter; the label follows the sport.
       totalRides: ytd.length,
+      sport,
       totalDistance: ytd.reduce((s, a) => s + (a.distance_meters || a.distance || 0), 0),
       totalElevation: ytd.reduce((s, a) => s + (a.elevation_gain_meters || a.total_elevation_gain || 0), 0),
       totalTime: ytd.reduce((s, a) => s + (a.moving_time || 0), 0),
     };
-  }, [activities]);
+  }, [activities, sport]);
 
   return {
+    sport,
+    // Every activity of the filtered sport, with streams (select '*'), for
+    // the Pace section's best efforts.
+    activities,
+    runProfile,
+    // Latest per-sport fitness (migration 133), or null.
+    loadSplit,
     loading,
     loadError,
     retryLoad,
-    empty: !loading && !loadError && activities.length === 0,
+    empty: !loading && !loadError && allActivities.length === 0,
     zoneData,
     zoneTimeFilter,
     setZoneTimeFilter,
@@ -418,7 +466,32 @@ export function ZonesBlock({ data }) {
       >
         Zone distribution
       </SubHeading>
-      <ZoneDistributionRow zones={data.zoneData.zones} totalTime={data.zoneData.totalTime} />
+      {data.sport === 'all' && data.zoneData.runs?.zones.length > 0 ? (
+        <>
+          <Text style={{ ...mono, fontSize: 11, letterSpacing: '0.1em', textTransform: 'uppercase', margin: '4px 0 6px' }}>
+            Rides · by power
+          </Text>
+          <ZoneDistributionRow
+            zones={data.zoneData.rides.zones}
+            totalTime={data.zoneData.rides.totalTime}
+            emptyText="No rides with power in this window."
+          />
+          <Text style={{ ...mono, fontSize: 11, letterSpacing: '0.1em', textTransform: 'uppercase', margin: '14px 0 6px' }}>
+            Runs · by heart rate
+          </Text>
+          <ZoneDistributionRow zones={data.zoneData.runs.zones} totalTime={data.zoneData.runs.totalTime} />
+        </>
+      ) : (
+        <ZoneDistributionRow
+          zones={data.zoneData.zones}
+          totalTime={data.zoneData.totalTime}
+          emptyText={
+            data.sport === 'running'
+              ? 'No zone data yet. Runs recorded with heart rate fill this in.'
+              : undefined
+          }
+        />
+      )}
     </Box>
   );
 }

@@ -161,4 +161,18 @@ describe('RideMapCard', () => {
     );
     expect(screen.getByTestId('map')).toBeTruthy();
   });
+
+  it('a run shows pace instead of watts, and says run', () => {
+    renderCard({
+      ride: { ...RIDE, id: 'run-1', sport_type: 'Run', distance: 10_000, moving_time: 3000, average_watts: 240 },
+      title: 'Selected ride',
+      isImperial: true,
+    });
+    expect(screen.getByText('PACE')).toBeTruthy();
+    expect(screen.getByText('8:03/mi')).toBeTruthy();
+    expect(screen.queryByText('240W')).toBeNull();
+    expect(screen.getByText('Selected run')).toBeTruthy();
+    expect(screen.getByLabelText('Older run')).toBeTruthy();
+  });
 });
+
