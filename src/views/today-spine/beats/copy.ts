@@ -17,6 +17,38 @@
 
 import type { Beat1State, Beat3DayType, Beat4State, EffortTier, Feel } from './types';
 
+// ── Sport words (multisport phase 4) ────────────────────────────────────────
+
+/** 'cycling' | 'running', or null when nothing says which — then the words are neutral. */
+export type CopySport = 'cycling' | 'running' | null | undefined;
+
+interface SportWords {
+  /** "ride" / "run" / "session". */
+  noun: string;
+  /** Plural noun. */
+  nouns: string;
+  /** "riding" / "running" / "training". */
+  gerund: string;
+  /** An easy session: "spin" / "jog" / "easy session". */
+  easy: string;
+}
+
+const WORDS: Record<'cycling' | 'running' | 'neutral', SportWords> = {
+  cycling: { noun: 'ride', nouns: 'rides', gerund: 'riding', easy: 'spin' },
+  running: { noun: 'run', nouns: 'runs', gerund: 'running', easy: 'jog' },
+  neutral: { noun: 'session', nouns: 'sessions', gerund: 'training', easy: 'easy session' },
+};
+
+export function sportWords(sport: CopySport): SportWords {
+  return sport === 'running' ? WORDS.running : sport === 'cycling' ? WORDS.cycling : WORDS.neutral;
+}
+
+/** "Easy spin" → "Easy jog" for a run; "Easy session" when the sport is unknown. */
+function easyPhrase(sport: CopySport): string {
+  const w = sportWords(sport);
+  return w.easy === 'easy session' ? 'easy session' : `easy ${w.easy}`;
+}
+
 // ── Beat 1 ──────────────────────────────────────────────────────────────────
 
 /**
@@ -31,9 +63,17 @@ export const OPENERS: Record<EffortTier, readonly string[]> = {
   hard: ['Big day', 'Proper effort', 'That was a hard one'],
 };
 
+/** Run openers: same pool size per tier, so a date picks the same slot either way. */
+export const RUN_OPENERS: Record<EffortTier, readonly string[]> = {
+  easy: ['Nice easy run', 'Easy does it', 'Good to keep the legs moving'],
+  steady: ['Solid work', 'Nice one', 'Good run'],
+  brisk: ['Strong work', 'That was a good one', 'Nice bit of work'],
+  hard: ['Big day', 'Proper effort', 'That was a hard one'],
+};
+
 /** Deterministic pick — same date in, same opener out. */
-export function pickOpener(tier: EffortTier, dateKey: string): string {
-  const pool = OPENERS[tier];
+export function pickOpener(tier: EffortTier, dateKey: string, sport: CopySport = 'cycling'): string {
+  const pool = (sport === 'running' ? RUN_OPENERS : OPENERS)[tier];
   let h = 0;
   for (let i = 0; i < dateKey.length; i++) h = (h * 31 + dateKey.charCodeAt(i)) | 0;
   return pool[Math.abs(h) % pool.length];
@@ -55,9 +95,12 @@ export interface Beat1Slots {
   /** Pre-formatted single citation, or null when the ride carried no geometry. */
   stat: string | null;
   daysAgo: number;
+  /** Sport of the recapped activity (or the athlete's primary sport). Default: ride. */
+  sport?: CopySport;
 }
 
 export function renderBeat1(s: Beat1Slots): string {
+  const w = sportWords(s.sport === undefined ? 'cycling' : s.sport);
   // A ride with neither timing nor geometry gets no citation rather than an
   // invented one — the sentence simply drops its clause.
   const measured = [s.duration, s.stat].filter(Boolean).join(' with ');
@@ -66,17 +109,17 @@ export function renderBeat1(s: Beat1Slots): string {
       return measured ? `${s.opener} today — ${measured}.` : `${s.opener} today.`;
     case 'recent':
       return measured
-        ? `${s.opener} on your last ride — ${measured}.${gapClause(s.daysAgo)}`
-        : `${s.opener} on your last ride.${gapClause(s.daysAgo)}`;
+        ? `${s.opener} on your last ${w.noun} — ${measured}.${gapClause(s.daysAgo)}`
+        : `${s.opener} on your last ${w.noun}.${gapClause(s.daysAgo)}`;
     case 'gap':
       return measured
-        ? `Your last ride was ${measured}. Quiet stretch since — no catching up to do.`
+        ? `Your last ${w.noun} was ${measured}. Quiet stretch since — no catching up to do.`
         : "It's been a quiet stretch — no catching up to do.";
     case 'long-gap':
       return 'Welcome back. No catching up to do — we start from where you are.';
     case 'no-history':
     default:
-      return "Once you've got a couple of rides in, this is where I'll tell you what I'm seeing.";
+      return `Once you've got a couple of ${w.nouns} in, this is where I'll tell you what I'm seeing.`;
   }
 }
 
@@ -95,15 +138,20 @@ export interface Beat3Slots {
   why: string;
   /** Closing clause for a day that's already been ridden. */
   restOfDay: string;
+  /** Sport of the session being endorsed (or the athlete's primary). Default: ride. */
+  sport?: CopySport;
 }
 
 export function renderBeat3(s: Beat3Slots): string {
   const flat = s.feel === 'flat';
   const strong = s.feel === 'strong';
+  const sport = s.sport === undefined ? 'cycling' : s.sport;
+  const w = sportWords(sport);
+  const easy = easyPhrase(sport);
 
   switch (s.dayType) {
     case 'no-history':
-      return "I don't have enough riding to read you well yet — keep it easy and fun, and I'll have more to say soon.";
+      return `I don't have enough ${w.gerund} to read you well yet — keep it easy and fun, and I'll have more to say soon.`;
 
     case 'ridden-today':
       if (flat) return "That's today's work done — and the legs know it. Eat, sleep, don't add to it.";
@@ -114,9 +162,9 @@ export function renderBeat3(s: Beat3Slots): string {
       return 'Nothing to do today but recover. That’s the workout.';
 
     case 'planned-easy':
-      if (flat) return 'Perfect timing — today was already meant to be easy. Just spin.';
+      if (flat) return `Perfect timing — today was already meant to be easy. Just ${w.easy === 'easy session' ? 'keep it easy' : w.easy}.`;
       if (strong) return 'Still an easy day. Save it.';
-      return `An easy spin today — ${s.why}.`;
+      return `An ${easy} today — ${s.why}.`;
 
     case 'planned-hard':
       if (flat)
@@ -131,23 +179,33 @@ export function renderBeat3(s: Beat3Slots): string {
 
     case 'no-plan':
     default:
-      if (flat) return "Legs are flat and nothing's scheduled. Easy spin or a day off, both fine.";
+      if (flat) return `Legs are flat and nothing's scheduled. ${capitalize(easy)} or a day off, both fine.`;
       if (strong) return `Nothing scheduled, and the legs are good — ${s.plainName} would land well.`;
       return `No session on the calendar. ${capitalize(s.why)}.`;
   }
 }
 
 /** Closing clause for an already-ridden day, by how deep the rider is. */
-export function restOfDayClause(overreached: boolean): string {
+export function restOfDayClause(overreached: boolean, sport: CopySport = 'cycling'): string {
   return overreached
     ? 'Let it settle — nothing else needed.'
-    : 'Nothing else needed, but an easy spin later wouldn’t hurt.';
+    : `Nothing else needed, but an ${easyPhrase(sport)} later wouldn’t hurt.`;
+}
+
+/**
+ * The second session of a two-a-day, as its own short line under Beat 3
+ * (kept out of the Beat 3 sentence, which is capped at two).
+ */
+export function renderAlsoToday(other: { sport: CopySport; durationLabel: string | null; plain: string }): string {
+  const w = sportWords(other.sport);
+  const length = other.durationLabel ? `${other.durationLabel} ` : '';
+  return `Also on the calendar: a ${length}${w.noun === 'session' ? other.plain : `${other.plain} ${w.noun}`}.`;
 }
 
 // ── Beat 4 ──────────────────────────────────────────────────────────────────
 
-export function renderBeat4Prompt(state: Beat4State, hasSession: boolean): string {
-  if (state === 'browse') return 'Thinking ahead? Browse routes for your next ride.';
+export function renderBeat4Prompt(state: Beat4State, hasSession: boolean, sport: CopySport = 'cycling'): string {
+  if (state === 'browse') return `Thinking ahead? Browse routes for your next ${sportWords(sport).noun}.`;
   return hasSession ? 'Want a route for that?' : 'Want a route?';
 }
 

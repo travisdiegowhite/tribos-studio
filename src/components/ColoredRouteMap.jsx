@@ -479,7 +479,7 @@ const ColoredRouteMap = ({
   showStrip = true,
   fill = false,
   // 'running' shows speed as pace and hides power (multisport phase 4).
-  sport = null,
+  sport = /** @type {string | null} */ (null),
   isImperial = false,
 }) => {
   const isRun = sport === 'running';

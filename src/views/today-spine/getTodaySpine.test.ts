@@ -5,6 +5,7 @@ import {
   raceTimeout,
   withLoadWatchdog,
   looksLikeAnonEmpty,
+  pickLeadSession,
   type AssembleInput,
   type PlannedRow,
   type RideStat,
@@ -616,3 +617,21 @@ describe('assembleSpine — zone-03 LAST RIDE inputs', () => {
     expect(data.athleteFtp).toBe(265);
   });
 });
+
+describe('pickLeadSession (multisport phase 4)', () => {
+  const ride = { scheduled_date: '2026-10-17', name: 'Tempo ride', sport: 'cycling' };
+  const run = { scheduled_date: '2026-10-17', name: 'Easy run', sport: 'running' };
+  const rest = { scheduled_date: '2026-10-17', name: 'Rest', sport: null, entry_type: 'rest' };
+
+  it('leads with the primary sport and returns the other', () => {
+    expect(pickLeadSession([ride, run], 'running')).toEqual({ lead: run, other: ride });
+    expect(pickLeadSession([run, ride], 'cycling')).toEqual({ lead: ride, other: run });
+  });
+
+  it('falls back to calendar order and never leads with a rest row', () => {
+    expect(pickLeadSession([rest, run], 'cycling')).toEqual({ lead: run, other: null });
+    expect(pickLeadSession([rest], 'cycling')).toEqual({ lead: rest, other: null });
+    expect(pickLeadSession([], 'cycling')).toEqual({ lead: null, other: null });
+  });
+});
+

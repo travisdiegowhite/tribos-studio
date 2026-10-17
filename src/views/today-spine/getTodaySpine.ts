@@ -33,6 +33,8 @@ import { fmtDate } from '../today/athleteMetrics';
 import type { AthleteActivityRow, ServerLoadRow } from '../today/athleteMetrics';
 import { mapRowToRecentRide, type RecentRide } from '../today/shared/recentRides';
 import { rideHasGps, rideHasStreamTrack, rideStreamsOf, sanitizedMaxHr } from '../../utils/rideGeo';
+import { getActivitySport } from '../../utils/sportType';
+import { paceSecPerKm } from '../../utils/paceFormat';
 import type {
   DayActivity,
   DayNode,
@@ -168,6 +170,54 @@ export function plannedRowRSS(p: PlannedRow): number {
 const formWord = formPhrase;
 
 const ENDURANCE_NAMES = ['Foothills loop', 'Valley endurance', 'Reservoir loop', 'Canyon spin'];
+const RUN_ENDURANCE_NAMES = ['River run', 'Park loop', 'Steady miles', 'Trail easy'];
+
+/**
+ * Fallback day names and rest wording by sport (multisport phase 4). A real
+ * activity or plan name always wins; these only fill a day with no name.
+ */
+const SPORT_DAY_WORDS = {
+  cycling: { restMeta: 'off the bike', easy: 'Recovery spin', endurance: ENDURANCE_NAMES, tempo: 'Tempo blocks', hard: 'Threshold 4×8' },
+  running: { restMeta: 'off your feet', easy: 'Recovery jog', endurance: RUN_ENDURANCE_NAMES, tempo: 'Tempo run', hard: 'Threshold reps' },
+} as const;
+
+function dayWords(sport: string | null | undefined) {
+  return sport === 'running' ? SPORT_DAY_WORDS.running : SPORT_DAY_WORDS.cycling;
+}
+
+/** A calendar row as the Spine reads it, for picking today's lead session. */
+export interface TodayEntryRow {
+  scheduled_date: string;
+  id?: string | null;
+  name?: string | null;
+  workout_type?: string | null;
+  workout_id?: string | null;
+  target_duration?: number | null;
+  target_distance_km?: number | null;
+  sport?: string | null;
+  entry_type?: string | null;
+}
+
+const asSpineSport = (v: unknown): 'cycling' | 'running' | null =>
+  v === 'running' || v === 'cycling' ? v : null;
+
+/**
+ * Today's lead session on a two-a-day: the athlete's primary sport first,
+ * else calendar order. The other sport's session (if any) is returned so the
+ * page can mention it in one line. Rest/note rows never lead when a session
+ * exists.
+ */
+export function pickLeadSession<T extends TodayEntryRow>(
+  todayRows: T[],
+  primarySport: 'cycling' | 'running' = 'cycling',
+): { lead: T | null; other: T | null } {
+  if (todayRows.length === 0) return { lead: null, other: null };
+  const sessions = todayRows.filter((r) => asSpineSport(r.sport) != null);
+  if (sessions.length === 0) return { lead: todayRows[0], other: null };
+  const lead = sessions.find((r) => r.sport === primarySport) ?? sessions[0];
+  const other = sessions.find((r) => r !== lead && r.sport !== lead.sport) ?? null;
+  return { lead, other };
+}
 
 function formatDur(minutes: number): string {
   if (!Number.isFinite(minutes) || minutes <= 0) return '';
@@ -189,8 +239,11 @@ function labelActivity(opts: {
   todaysWorkout: { name: string; type: string; durationMin: number; targetRss: number } | null;
   plannedName: string | null;
   realName: string | null;
+  /** The day's sport, for fallback names and rest wording. */
+  sport?: string | null;
 }): DayActivity {
   const { rss, durationSec, index, isToday, todaysWorkout, plannedName, realName } = opts;
+  const words = dayWords(opts.sport);
 
   // The PLAN card only speaks for the plan — its meta is the plan's own
   // target, never the day's actual RSS. Once something has actually been
@@ -210,25 +263,25 @@ function labelActivity(opts: {
     };
   }
   if (rss <= 0) {
-    return { tag: 'REST', name: plannedName ?? 'Recovery day', meta: 'off the bike', tagColor: 'color-mix(in srgb, var(--color-bg) 80%, var(--color-text-muted))' };
+    return { tag: 'REST', name: plannedName ?? 'Recovery day', meta: words.restMeta, tagColor: 'color-mix(in srgb, var(--color-bg) 80%, var(--color-text-muted))' };
   }
   const min = durationSec > 0 ? Math.round(durationSec / 60) : Math.round(rss * 1.4);
   const meta = [formatDur(min), `${Math.round(rss)} stress`].filter(Boolean).join(' · ');
   if (rss < 45) {
-    return { tag: 'EASY', name: realName ?? plannedName ?? 'Recovery spin', meta, tagColor: 'color-mix(in srgb, var(--color-bg) 70%, var(--color-easy))' };
+    return { tag: 'EASY', name: realName ?? plannedName ?? words.easy, meta, tagColor: 'color-mix(in srgb, var(--color-bg) 70%, var(--color-easy))' };
   }
   if (rss < 70) {
     return {
       tag: 'STEADY',
-      name: realName ?? plannedName ?? ENDURANCE_NAMES[index % ENDURANCE_NAMES.length],
+      name: realName ?? plannedName ?? words.endurance[index % words.endurance.length],
       meta,
       tagColor: 'color-mix(in srgb, var(--color-bg) 70%, var(--color-easy))',
     };
   }
   if (rss < 88) {
-    return { tag: 'BRISK', name: realName ?? plannedName ?? 'Tempo blocks', meta, tagColor: 'color-mix(in srgb, var(--color-bg) 65%, var(--color-signal))' };
+    return { tag: 'BRISK', name: realName ?? plannedName ?? words.tempo, meta, tagColor: 'color-mix(in srgb, var(--color-bg) 65%, var(--color-signal))' };
   }
-  return { tag: 'HARD', name: realName ?? plannedName ?? 'Threshold 4×8', meta, tagColor: 'color-mix(in srgb, var(--color-bg) 50%, var(--color-signal))' };
+  return { tag: 'HARD', name: realName ?? plannedName ?? words.hard, meta, tagColor: 'color-mix(in srgb, var(--color-bg) 50%, var(--color-signal))' };
 }
 
 // ── pure assembler ───────────────────────────────────────────────────────────
@@ -241,6 +294,7 @@ export interface PlannedRow {
   target_duration?: number | null;
   target_rss?: number | null;
   target_tss?: number | null;
+  sport?: string | null;
 }
 
 export interface AssembleInput {
@@ -272,6 +326,10 @@ export interface AssembleInput {
   latestRideMap?: LatestRideMap | null;
   /** The athlete's real FTP (null when unset) — never the 200 W load default. */
   athleteFtp?: number | null;
+  /** user_profiles.primary_sport; words default to it when a day has no sport. */
+  primarySport?: 'cycling' | 'running';
+  /** Latest per-sport fitness (migration 133), or null. */
+  fitnessBySport?: { ride: number; run: number } | null;
 }
 
 /** One ride, reduced to what the Beat 1 recap and the route pre-fill need. */
@@ -282,6 +340,8 @@ export interface RideStat {
   distanceKm: number;
   elevationM: number;
   polyline: string | null;
+  /** 'cycling' | 'running' | 'other'. */
+  sport?: 'cycling' | 'running' | 'other';
 }
 
 /**
@@ -306,6 +366,7 @@ export function buildLastRide(
       null,
     );
     const durationSec = largest?.durationSec || dailySec[day.date] || 0;
+    const sport = asSpineSport(largest?.sport);
     return {
       date: day.date,
       daysAgo: todayIndex - i,
@@ -316,15 +377,26 @@ export function buildLastRide(
       elevationM: largest ? largest.elevationM : null,
       polyline: largest?.polyline ?? null,
       rideCountOnDate: onDate.length,
+      sport,
+      paceSecPerKm:
+        sport === 'running' && largest ? paceSecPerKm(largest.distanceKm * 1000, largest.durationSec) : null,
     };
   }
   return null;
 }
 
 /** Median ride duration over the trailing `days` days, in whole minutes. */
-export function medianRideMinutes(rideStats: RideStat[], todayKey: string, windowDays = 28): number | null {
+export function medianRideMinutes(
+  rideStats: RideStat[],
+  todayKey: string,
+  windowDays = 28,
+  // 'running' = runs only; 'ride' = everything that isn't a run (the old,
+  // pre-multisport meaning); omitted = every activity.
+  only?: 'running' | 'ride',
+): number | null {
   const cutoff = fmtDate(addDays(new Date(`${todayKey}T00:00:00`), -windowDays));
   const mins = rideStats
+    .filter((r) => !only || (only === 'running' ? r.sport === 'running' : r.sport !== 'running'))
     .filter((r) => r.date >= cutoff && r.durationSec > 0)
     .map((r) => r.durationSec / 60)
     .sort((a, b) => a - b);
@@ -345,6 +417,8 @@ const EMPTY_ROLLUP: WeekRollup = {
   elevationM: 0,
   elevationFt: 0,
   rideCount: 0,
+  runCount: 0,
+  activityCount: 0,
 };
 
 export function assembleSpine(input: AssembleInput): SpineData {
@@ -361,6 +435,9 @@ export function assembleSpine(input: AssembleInput): SpineData {
   const dailyRSS: Record<string, number> = {};
   const dailySec: Record<string, number> = {};
   const dailyName: Record<string, string> = {};
+  // Sport of the day's longest activity, for its fallback name and wording.
+  const dailySport: Record<string, string> = {};
+  const dailySportSec: Record<string, number> = {};
   for (let d = new Date(start90); d <= today; d = addDays(d, 1)) {
     dailyRSS[fmtDate(d)] = 0;
     dailySec[fmtDate(d)] = 0;
@@ -373,8 +450,14 @@ export function assembleSpine(input: AssembleInput): SpineData {
       dailyRSS[key] += Math.min(estimateActivityTSS(a, ftp), RSS_CAP);
       dailySec[key] += Number(a.moving_time) || 0;
       if (a.name && !dailyName[key]) dailyName[key] = a.name;
+      const sec = Number(a.moving_time) || 0;
+      if (!(key in dailySport) || sec > (dailySportSec[key] ?? 0)) {
+        dailySport[key] = getActivitySport(a as { sport_type?: string | null; type?: string | null });
+        dailySportSec[key] = sec;
+      }
     }
   }
+  const primarySport = input.primarySport ?? 'cycling';
 
   // EWA walk (server-preferred), capturing TFI/AFI at every day. Client-filled
   // days step with the athlete's adaptive tau so the tail decays at the same
@@ -468,6 +551,7 @@ export function assembleSpine(input: AssembleInput): SpineData {
         todaysWorkout,
         plannedName: null,
         realName: dailyName[date] ?? null,
+        sport: dailySport[date] ?? (isToday ? todaysWorkout?.sport : null) ?? primarySport,
       }),
     });
   }
@@ -529,6 +613,7 @@ export function assembleSpine(input: AssembleInput): SpineData {
         todaysWorkout: null,
         plannedName: p?.name ?? p?.workout_type ?? null,
         realName: null,
+        sport: p?.sport ?? primarySport,
       }),
     });
   }
@@ -577,17 +662,18 @@ export function assembleSpine(input: AssembleInput): SpineData {
 
   // ── Coach seed (recommendation block) ───────────────────────────────────
   const isRestToday = todaysWorkout != null && /rest|recover/i.test(todaysWorkout.type);
+  const isRunner = primarySport === 'running';
   let recBody: string;
   if (!todaysWorkout && !hasHistory) {
-    recBody = "No session prescribed. Log a few rides and I'll start calling the day here.";
+    recBody = `No session prescribed. Log a few ${isRunner ? 'runs' : 'rides'} and I'll start calling the day here.`;
   } else if (!todaysWorkout) {
-    recBody = `No session prescribed today. You're ${fw} — an easy spin or full rest both work.`;
+    recBody = `No session prescribed today. You're ${fw} — ${isRunner ? 'an easy jog' : 'an easy spin'} or full rest both work.`;
   } else if (isRestToday) {
-    recBody = `Rest day. You're ${fw} — stay off the bike and let the work settle in.`;
+    recBody = `Rest day. You're ${fw} — stay ${dayWords(todaysWorkout.sport ?? primarySport).restMeta} and let the work settle in.`;
   } else {
     const dur = formatDur(todaysWorkout.durationMin);
     // Plain phrase leads; the workout-type name rides along as the citation.
-    const tc = workoutTypeCopy(todaysWorkout.type);
+    const tc = workoutTypeCopy(todaysWorkout.type, todaysWorkout.sport ?? primarySport);
     recBody = `${dur ? `${dur} of ` : ''}${tc.phrase} (${tc.label.toLowerCase()}). You're ${fw} — ${
       todayNode.fs >= 5 ? 'keep it controlled and bank the work.' : 'respect the fatigue and keep it honest.'
     }`;
@@ -614,7 +700,10 @@ export function assembleSpine(input: AssembleInput): SpineData {
       ? { ...todaysWorkout, workoutId: todaysWorkout.workoutId ?? null }
       : null,
     lastRide: buildLastRide(days, PAST_SPAN, dailySec, dailyName, rideStats),
-    typicalRideMin: medianRideMinutes(rideStats, todayKey),
+    typicalRideMin: medianRideMinutes(rideStats, todayKey, 28, 'ride'),
+    typicalRunMin: medianRideMinutes(rideStats, todayKey, 28, 'running'),
+    primarySport,
+    fitnessBySport: input.fitnessBySport ?? null,
     latestActivity: input.latestActivity ?? null,
     latestRideMap: input.latestRideMap ?? null,
     athleteFtp: input.athleteFtp ?? null,
@@ -650,7 +739,7 @@ export async function getTodaySpine(userId: string): Promise<SpineData> {
   const runQueries = () =>
     Promise.all([
       supabase.from('user_coach_settings').select('coaching_persona').eq('user_id', userId).maybeSingle(),
-      supabase.from('user_profiles').select('ftp, tfi_tau, afi_tau').eq('id', userId).maybeSingle(),
+      supabase.from('user_profiles').select('ftp, tfi_tau, afi_tau, primary_sport').eq('id', userId).maybeSingle(),
       supabase
         .from('activities')
         .select(
@@ -704,6 +793,25 @@ export async function getTodaySpine(userId: string): Promise<SpineData> {
   // Active plan (for the recovery-phase signal). Non-load-bearing: fetched in
   // parallel with the batch, degrades to null on any failure.
   const planPromise = resolveActivePlan(supabase, userId).catch(() => null);
+
+  // Per-sport fitness (migration 133), latest row. Its own fail-soft query so
+  // a missing column hides only the by-sport bars, never the page.
+  const splitPromise = Promise.resolve(
+    supabase
+      .from('training_load_daily')
+      .select('tfi_cycling, tfi_running')
+      .eq('user_id', userId)
+      .order('date', { ascending: false })
+      .limit(1)
+      .maybeSingle(),
+  )
+    .then(({ data, error }) => {
+      if (error || !data) return null;
+      const ride = Math.round(Number((data as Record<string, unknown>).tfi_cycling) || 0);
+      const run = Math.round(Number((data as Record<string, unknown>).tfi_running) || 0);
+      return ride > 0 && run > 0 ? { ride, run } : null;
+    })
+    .catch(() => null);
 
   let batch = await withLoadWatchdog(runQueries(), LOAD_WATCHDOG_MS);
   let retried = false;
@@ -781,8 +889,16 @@ export async function getTodaySpine(userId: string): Promise<SpineData> {
     AthleteActivityRow & { name?: string | null }
   >;
 
+  const primarySport: 'cycling' | 'running' =
+    profileRes.data?.primary_sport === 'running' ? 'running' : 'cycling';
+
   // Today's prescribed workout (for the node header + coach recommendation).
-  const todayPlan = (plannedRes.data ?? []).find((p) => p.scheduled_date === todayKey) ?? null;
+  // On a two-a-day the athlete's primary sport leads and the other session is
+  // mentioned in one line (multisport phase 4).
+  const todayRows = ((plannedRes.data ?? []) as unknown as TodayEntryRow[]).filter(
+    (p) => p.scheduled_date === todayKey,
+  );
+  const { lead: todayPlan, other: otherPlan } = pickLeadSession(todayRows, primarySport);
   const todaysWorkout = todayPlan
     ? {
         name: todayPlan.name || todayPlan.workout_type || 'Workout',
@@ -796,7 +912,18 @@ export async function getTodaySpine(userId: string): Promise<SpineData> {
         // Deep-links the Beat 4 route button at the prescribed workout. This
         // is `workout_id` — the library key the route builder resolves — not
         // the plan row's own uuid, which resolves to nothing.
-        workoutId: (todayPlan as { workout_id?: string | null }).workout_id ?? null,
+        workoutId: todayPlan.workout_id ?? null,
+        sport: asSpineSport(todayPlan.sport),
+        entryId: todayPlan.id ?? null,
+        targetDistanceKm: Number(todayPlan.target_distance_km) > 0 ? Number(todayPlan.target_distance_km) : null,
+        otherSession: otherPlan
+          ? {
+              sport: asSpineSport(otherPlan.sport),
+              name: otherPlan.name || otherPlan.workout_type || 'Workout',
+              type: (otherPlan.workout_type || 'endurance') as string,
+              durationMin: Number(otherPlan.target_duration ?? 0),
+            }
+          : null,
       }
     : null;
 
@@ -832,6 +959,7 @@ export async function getTodaySpine(userId: string): Promise<SpineData> {
       distanceKm: r.distanceKm,
       elevationM: r.elevationM,
       polyline: r.polyline,
+      sport: r.sport,
     }));
   const newest = mapSource[0];
   const latestActivity: LatestActivity | null = newest
@@ -868,7 +996,9 @@ export async function getTodaySpine(userId: string): Promise<SpineData> {
     distanceMi: distanceM / 1000 / KM_PER_MILE,
     elevationM,
     elevationFt: elevationM / M_PER_FOOT,
-    rideCount: week.length,
+    rideCount: week.filter((a) => getActivitySport(a as { sport_type?: string | null }) === 'cycling').length,
+    runCount: week.filter((a) => getActivitySport(a as { sport_type?: string | null }) === 'running').length,
+    activityCount: week.length,
   };
 
   // Recovery-phase signal from the active plan's template (same lookup the
@@ -900,5 +1030,7 @@ export async function getTodaySpine(userId: string): Promise<SpineData> {
     latestActivity,
     latestRideMap,
     athleteFtp: (profileRes.data?.ftp as number | null) || null,
+    primarySport,
+    fitnessBySport: await splitPromise,
   });
 }

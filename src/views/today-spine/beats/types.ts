@@ -30,6 +30,8 @@ export interface RhythmDay {
 export interface Beat1VM {
   state: Beat1State;
   line: string;
+  /** "ride" / "run" / "session" — the recapped activity's noun. */
+  noun?: string;
   /** Google-encoded geometry for the trace glyph. Null on indoor/no-geo rides. */
   polyline: string | null;
   /** Effort of the recapped ride — colors the trace. Null when there isn't one. */
@@ -64,6 +66,8 @@ export interface Beat3VM {
   session: SessionShape | null;
   /** True when Feel = Flat traded the planned session for an easier one. */
   downgraded: boolean;
+  /** Two-a-day: one line naming the other session, or null. */
+  also?: string | null;
 }
 
 // ── Beat 4 — need a route for that? ─────────────────────────────────────────

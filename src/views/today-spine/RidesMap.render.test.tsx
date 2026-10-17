@@ -120,4 +120,23 @@ describe('RidesMap — zone 03 views', () => {
     expect(screen.getByRole('button', { name: 'Last ride' }).getAttribute('aria-pressed')).toBe('true');
     expect(screen.queryByTestId('ride-metric-strip')).toBeNull();
   });
+
+  it('says run for a runner and "train" for a hybrid athlete', () => {
+    const runRide: RecentRide = { ...RIDES[0], id: 'u1', name: 'River run', sport: 'running' };
+    const { unmount } = renderZone({
+      rides: [runRide],
+      weekRollup: { ...WEEK, rideCount: 0, runCount: 4, activityCount: 4 },
+      latestRide: latest({ id: 'u1', sport: 'running' }),
+    });
+    expect(screen.getByText('Where you run')).toBeTruthy();
+    expect(screen.getByText('Last run')).toBeTruthy();
+    unmount();
+
+    renderZone({
+      rides: [RIDES[0], runRide],
+      weekRollup: { ...WEEK, rideCount: 2, runCount: 3, activityCount: 5 },
+    });
+    expect(screen.getByText('Where you train')).toBeTruthy();
+  });
 });
+

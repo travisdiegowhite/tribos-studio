@@ -342,6 +342,7 @@ export function SpinePanel({
               onHeaderPointerDown={onScrubDown}
               onSnapToday={onSnapToday}
               onToggleFlip={onToggleFlip}
+              fitnessBySport={data.fitnessBySport ?? null}
             />
           )}
         </div>

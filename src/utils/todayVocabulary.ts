@@ -197,12 +197,28 @@ function prettifyType(type: string): string {
   return type.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
 }
 
-export function workoutTypeCopy(type: string | null | undefined): WorkoutTypeCopy {
+/**
+ * Run phrasing for the three types whose ride phrase names the bike
+ * (multisport phase 4); every other phrase is effort-only and fits both.
+ */
+const RUN_PHRASE: Record<string, string> = {
+  rest: 'a day off your feet',
+  recovery: 'easy running',
+  endurance: 'steady running',
+};
+
+export function workoutTypeCopy(
+  type: string | null | undefined,
+  sport: string | null = 'cycling',
+): WorkoutTypeCopy {
   const key = (type ?? '').toLowerCase().trim();
   const hit = WORKOUT_TYPE_COPY[key];
-  if (hit) return hit;
+  if (hit) {
+    if (sport === 'running' && RUN_PHRASE[key]) return { ...hit, phrase: RUN_PHRASE[key] };
+    return hit;
+  }
   const label = key ? prettifyType(key) : 'Workout';
-  return { label, phrase: `a ${label.toLowerCase()} session`, chip: 'RIDE' };
+  return { label, phrase: `a ${label.toLowerCase()} session`, chip: sport === 'running' ? 'RUN' : 'RIDE' };
 }
 
 // ────────────────────────────────────────────────────────────────────────────

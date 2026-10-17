@@ -186,7 +186,7 @@ export default function TodaySpine() {
         <Stack gap={20}>
           <PageHeader data={data} />
           <GetStartedGuide />
-          <SpineEmptyState />
+          <SpineEmptyState sport={data.primarySport} />
           <CoachPanel data={data} onScheduleChanged={retry} />
         </Stack>
       );
@@ -223,7 +223,9 @@ export default function TodaySpine() {
       </Box>
     );
 
-    const nodeCard = <FitnessNode vm={vm} flipped={false} compact onSnapToday={snapToday} />;
+    const nodeCard = (
+      <FitnessNode vm={vm} flipped={false} compact onSnapToday={snapToday} fitnessBySport={data.fitnessBySport ?? null} />
+    );
 
     if (isMobile) {
       // The four-beat page (docs/today-mobile-beats-spec.md). The instrument

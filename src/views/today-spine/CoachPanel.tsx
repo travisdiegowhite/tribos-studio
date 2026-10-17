@@ -31,10 +31,14 @@ interface CoachPanelProps {
   onScheduleChanged?: () => void;
 }
 
-const QUICK_CHIPS: Array<{ label: string; query: string }> = [
-  { label: '60 min today?', query: 'I only have 60 min today. What should I ride?' },
-  { label: 'Push harder?', query: 'Should I push harder this week?' },
-];
+/** Quick prompts; the 60-minute one asks in the athlete's primary sport. */
+function quickChips(primarySport: SpineData['primarySport']): Array<{ label: string; query: string }> {
+  const verb = primarySport === 'running' ? 'run' : 'ride';
+  return [
+    { label: '60 min today?', query: `I only have 60 min today. What should I ${verb}?` },
+    { label: 'Push harder?', query: 'Should I push harder this week?' },
+  ];
+}
 
 function buildContext(data: SpineData): string {
   const t = data.days[data.todayIndex];
@@ -374,7 +378,7 @@ export function CoachPanel({ data, onScheduleChanged }: CoachPanelProps) {
         ) : (
           <>
             <Group gap={7} mb={9} style={{ flexWrap: 'wrap' }}>
-              {QUICK_CHIPS.map((chip) => (
+              {quickChips(data.primarySport).map((chip) => (
                 <Box
                   key={chip.label}
                   component="button"

@@ -18,9 +18,9 @@ interface Beat1RecapProps {
 
 export function Beat1Recap({ vm, onSeeMap }: Beat1RecapProps) {
   return (
-    <BeatCard label="Last ride" accent={C.teal}>
+    <BeatCard label={`Last ${vm.noun ?? 'ride'}`} accent={C.teal}>
       <BeatSentence>{vm.line}</BeatSentence>
-      <RouteTrace polyline={vm.polyline} tier={vm.tier} />
+      <RouteTrace polyline={vm.polyline} tier={vm.tier} noun={vm.noun} />
       {vm.polyline && onSeeMap && (
         <Box>
           <Box

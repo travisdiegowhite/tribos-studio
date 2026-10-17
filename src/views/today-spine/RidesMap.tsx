@@ -133,6 +133,12 @@ export function RidesMap({
   focusOnMount = false,
 }: RidesMapProps) {
   const [mapLoaded, setMapLoaded] = useState(false);
+  // Words follow what's on the map (multisport phase 4): rides, runs, or both.
+  const hasRuns = rides.some((r) => r.sport === 'running') || (weekRollup.runCount ?? 0) > 0;
+  const hasRides = rides.some((r) => r.sport !== 'running') || weekRollup.rideCount > 0;
+  const mix: 'ride' | 'run' | 'both' = hasRuns && hasRides ? 'both' : hasRuns ? 'run' : 'ride';
+  const nouns = mix === 'run' ? 'runs' : mix === 'both' ? 'activities' : 'rides';
+  const latestIsRun = latestRide?.sport === 'running';
   // Paper tiles on the light page, dark tiles on the ink page.
   const colorScheme = useComputedColorScheme('light');
   const mapStyle = colorScheme === 'dark' ? 'mapbox://styles/mapbox/dark-v11' : 'mapbox://styles/mapbox/light-v11';
@@ -225,11 +231,13 @@ export function RidesMap({
       }}
     >
       <Group justify="space-between" align="center" style={{ padding: '13px 16px 11px' }}>
-        <Text style={{ fontFamily: FONT.body, fontSize: 13, fontWeight: 600, color: C.text2 }}>Where you ride</Text>
+        <Text style={{ fontFamily: FONT.body, fontSize: 13, fontWeight: 600, color: C.text2 }}>
+          {mix === 'both' ? 'Where you train' : mix === 'run' ? 'Where you run' : 'Where you ride'}
+        </Text>
         {latestRide ? (
           <Group gap={14} align="center">
             <ViewTab active={view === 'last'} onClick={() => setView('last')}>
-              Last ride
+              {latestIsRun ? 'Last run' : 'Last ride'}
             </ViewTab>
             <ViewTab active={view === 'week'} onClick={() => setView('week')}>
               This week
@@ -237,7 +245,7 @@ export function RidesMap({
           </Group>
         ) : (
           <Text style={{ fontFamily: FONT.body, fontSize: 13, color: C.text3 }}>
-            {ridesForMap.length > 0 ? `Last ${ridesForMap.length} rides` : 'No rides'}
+            {ridesForMap.length > 0 ? `Last ${ridesForMap.length} ${nouns}` : `No ${nouns}`}
           </Text>
         )}
       </Group>
@@ -253,8 +261,10 @@ export function RidesMap({
             key={latestRide.id}
             activityStreams={latestRide.streams}
             routeCoords={lastRideCoords}
-            ftp={ftp}
+            ftp={latestIsRun ? null : ftp}
             maxHr={latestRide.maxHr}
+            sport={latestIsRun ? 'running' : 'cycling'}
+            isImperial={units !== 'metric'}
             frameless
             fill={!compact}
             height={height}
@@ -288,7 +298,7 @@ export function RidesMap({
           </Group>
         </Box>
       ) : decoded.length === 0 ? (
-        <EmptyCanvas height={height} message="No rides with route data yet." />
+        <EmptyCanvas height={height} message={`No ${nouns} with route data yet.`} />
       ) : (
         <Box style={{ position: 'relative', flex: 1, minHeight: height, background: C.secondary, overflow: 'hidden' }}>
           <Map
@@ -342,7 +352,16 @@ export function RidesMap({
           <Box style={{ position: 'absolute', left: 14, bottom: 14, display: 'flex', gap: 10 }}>
             <OverlayChip label="This week" value={distanceLabel.value} unit={distanceLabel.unit} />
             <OverlayChip label="Elevation" value={elevLabel.value} unit={elevLabel.unit} />
-            <OverlayChip label="Rides" value={String(weekRollup.rideCount)} />
+            <OverlayChip
+              label={mix === 'both' ? 'Activities' : mix === 'run' ? 'Runs' : 'Rides'}
+              value={String(
+                mix === 'both'
+                  ? weekRollup.activityCount ?? weekRollup.rideCount
+                  : mix === 'run'
+                    ? weekRollup.runCount ?? 0
+                    : weekRollup.rideCount,
+              )}
+            />
           </Box>
 
           {highlightLabel && (

@@ -22,6 +22,27 @@ interface FitnessNodeProps {
   onHeaderPointerDown?: (e: React.PointerEvent) => void;
   onSnapToday?: (e: React.MouseEvent) => void;
   onToggleFlip?: () => void;
+  /**
+   * Latest fitness split by sport (multisport phase 4). Shown on today's back
+   * face only — it is today's split, not the scrubbed day's.
+   */
+  fitnessBySport?: { ride: number; run: number } | null;
+}
+
+/** One thin bar: a sport's share of today's fitness. */
+function SportShareRow({ label, value, total, color }: { label: string; value: number; total: number; color: string }) {
+  const pct = total > 0 ? Math.round((value / total) * 100) : 0;
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 4 }}>
+      <span style={{ fontFamily: FONT.body, fontSize: 11, color: CHART.axisMuted, width: 30 }}>{label}</span>
+      <div style={{ flex: 1, height: 6, background: CHART.ringTrack }}>
+        <div style={{ width: `${pct}%`, height: '100%', background: color }} />
+      </div>
+      <span style={{ fontFamily: FONT.mono, fontWeight: 500, fontSize: 12, color: C.text, width: 22, textAlign: 'right' }}>
+        {value}
+      </span>
+    </div>
+  );
 }
 
 const HALO_STRONG =
@@ -37,6 +58,7 @@ export function FitnessNode({
   onHeaderPointerDown,
   onSnapToday,
   onToggleFlip,
+  fitnessBySport = null,
 }: FitnessNodeProps) {
   const fsLabel = `${vm.fs >= 0 ? '+' : ''}${Math.round(vm.fs)}`;
 
@@ -250,6 +272,23 @@ export function FitnessNode({
                 {vm.volLabel}
               </span>
             </div>
+            {vm.isToday && fitnessBySport && (
+              <div data-testid="fitness-by-sport" style={{ borderTop: `1px dashed ${C.border}`, paddingTop: 6, marginTop: 6 }}>
+                <span style={{ fontFamily: FONT.body, fontSize: 11, color: CHART.axisMuted }}>Fitness by sport</span>
+                <SportShareRow
+                  label="Ride"
+                  value={fitnessBySport.ride}
+                  total={fitnessBySport.ride + fitnessBySport.run}
+                  color="var(--color-accent)"
+                />
+                <SportShareRow
+                  label="Run"
+                  value={fitnessBySport.run}
+                  total={fitnessBySport.ride + fitnessBySport.run}
+                  color="var(--color-easy)"
+                />
+              </div>
+            )}
             <div
               style={{
                 fontFamily: FONT.mono,
