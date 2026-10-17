@@ -381,6 +381,7 @@ async function processWahooWorkout(integration, workout, webhookData, webhookSum
       activityId: activity.id,
       userId: integration.user_id,
       activityType: activity.type,
+      sportType: activity.sport_type ?? null,
       distance: activity.distance,
       stravaGearId: null,
       trainer: Boolean(activity.trainer),

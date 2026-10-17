@@ -48,6 +48,8 @@ const RideHistoryTable = ({
   pageSize = 25,
   /** The rider's bikes + handlers turn on the per-ride bike picker (Garage). */
   bikes = [],
+  /** The athlete's shoes: the same picker on runs (multisport phase 5). */
+  shoes = [],
   onAssignBike,
   onSetSurface,
 }) => {
@@ -374,7 +376,9 @@ const RideHistoryTable = ({
                   )}
                 </Group>
                 <Group gap="xs">
-                  {getSportType(ride) !== 'running' && (
+                  {getSportType(ride) === 'running' ? (
+                    <BikePickerMenu kind="shoes" ride={ride} bikes={shoes} onAssignBike={onAssignBike} size="xs" />
+                  ) : (
                     <BikePickerMenu ride={ride} bikes={bikes} onAssignBike={onAssignBike} onSetSurface={onSetSurface} size="xs" />
                   )}
                   {onHideRide && (
@@ -494,7 +498,9 @@ const RideHistoryTable = ({
                   </Table.Td>
                   <Table.Td>
                     <Group gap="xs" wrap="nowrap">
-                      {getSportType(ride) !== 'running' && (
+                      {getSportType(ride) === 'running' ? (
+                        <BikePickerMenu kind="shoes" ride={ride} bikes={shoes} onAssignBike={onAssignBike} />
+                      ) : (
                         <BikePickerMenu ride={ride} bikes={bikes} onAssignBike={onAssignBike} onSetSurface={onSetSurface} />
                       )}
                       <Tooltip label="View ride">

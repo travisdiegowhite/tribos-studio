@@ -495,6 +495,7 @@ async function handleActivityCreate(eventId, webhookData, integration) {
         activityId: savedActivity.id,
         userId: integration.user_id,
         activityType: savedActivity.type,
+        sportType: savedActivity.sport_type ?? null,
         distance: savedActivity.distance,
         stravaGearId: savedActivity.gear_id || null,
         trainer: Boolean(savedActivity.trainer),

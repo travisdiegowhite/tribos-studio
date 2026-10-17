@@ -4,7 +4,7 @@
  * Imported by all three webhook handlers (Strava, Garmin, Wahoo).
  */
 
-import { getSportType } from './sportTypes.js';
+import { sportTypeOfActivity } from './sportTypes.js';
 
 /**
  * Auto-assign gear to an activity and accumulate mileage.
@@ -15,13 +15,16 @@ import { getSportType } from './sportTypes.js';
  * @param {string} params.activityId - UUID of the inserted activity
  * @param {string} params.userId - UUID of the user
  * @param {string} params.activityType - e.g. 'Ride', 'Run', 'VirtualRide'
+ * @param {string|null} [params.sportType] - activities.sport_type, which names
+ *   Garmin/COROS/Wahoo runs that `type` alone can miss. A run takes shoes, a
+ *   ride a bike, and a Strava gear id only matches gear of the same sport.
  * @param {number|null} params.distance - Activity distance in meters
  * @param {string|null} params.stravaGearId - Strava's gear_id string (only from Strava)
  * @param {boolean} [params.trainer] - Provider's indoor flag; an indoor ride prefers the trainer bike
  */
-export async function assignGearToActivity(supabase, { activityId, userId, activityType, distance, stravaGearId, trainer = false }) {
-  const sportType = getSportType(activityType);
-  if (!sportType) return; // unsupported sport type
+export async function assignGearToActivity(supabase, { activityId, userId, activityType, sportType: rawSportType = null, distance, stravaGearId, trainer = false }) {
+  const sportType = sportTypeOfActivity({ type: activityType, sport_type: rawSportType });
+  if (sportType !== 'cycling' && sportType !== 'running') return; // no gear for other sports
 
   let gearItem = null;
   let assignedBy = 'auto';
@@ -33,6 +36,8 @@ export async function assignGearToActivity(supabase, { activityId, userId, activ
       .select('id')
       .eq('user_id', userId)
       .eq('strava_gear_id', stravaGearId)
+      // A shoe id never lands on a ride, nor a bike id on a run.
+      .eq('sport_type', sportType)
       .eq('status', 'active')
       .limit(1)
       .maybeSingle();
@@ -158,7 +163,7 @@ export async function reassignActivityGear(supabase, activityId, newGearItemId, 
   // Both ends must be the rider's own.
   const { data: activity, error: activityError } = await supabase
     .from('activities')
-    .select('distance')
+    .select('distance, type, sport_type')
     .eq('id', activityId)
     .eq('user_id', userId)
     .maybeSingle();
@@ -167,12 +172,22 @@ export async function reassignActivityGear(supabase, activityId, newGearItemId, 
 
   const { data: gear, error: gearError } = await supabase
     .from('gear_items')
-    .select('id')
+    .select('id, sport_type')
     .eq('id', newGearItemId)
     .eq('user_id', userId)
     .maybeSingle();
   if (gearError) throw gearError;
   if (!gear) throw new Error('Gear not found');
+  // Shoes go on runs and bikes on rides. Activities of other sports (and
+  // gear without a sport) are left to the athlete.
+  const activitySport = sportTypeOfActivity(activity);
+  if (
+    gear.sport_type &&
+    (activitySport === 'cycling' || activitySport === 'running') &&
+    gear.sport_type !== activitySport
+  ) {
+    throw new Error(activitySport === 'running' ? 'Runs take shoes, not a bike' : 'Rides take a bike, not shoes');
+  }
 
   const distance = activity.distance || 0;
 
