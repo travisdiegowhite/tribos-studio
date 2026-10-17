@@ -10,6 +10,12 @@
  *
  * The route builder's useRunPace reads its threshold pace from here, so the
  * builder, the zone charts and Progress share one query.
+ *
+ * Phase 5: when the athlete has entered no threshold pace (or LTHR), the
+ * estimate the nightly load recompute stores (migration 136,
+ * estimated_threshold_pace_sec / estimated_lthr) fills in, and `paceFrom` /
+ * `lthrFrom` say which. The estimate is read in its own query so an
+ * unapplied 136 cannot break the main read.
  */
 
 import { useEffect, useState } from 'react';
@@ -21,6 +27,13 @@ export interface RunThresholds {
   lthr: number | null;
   maxHr: number | null;
   restingHr: number | null;
+  /** Where thresholdPaceSec came from. */
+  paceFrom: 'profile' | 'estimated' | null;
+  /** Where lthr came from. */
+  lthrFrom: 'profile' | 'estimated' | null;
+  /** The stored history estimates themselves, whatever the athlete entered. */
+  estimatedPaceSec: number | null;
+  estimatedLthr: number | null;
 }
 
 export const NO_RUN_THRESHOLDS: RunThresholds = Object.freeze({
@@ -28,6 +41,10 @@ export const NO_RUN_THRESHOLDS: RunThresholds = Object.freeze({
   lthr: null,
   maxHr: null,
   restingHr: null,
+  paceFrom: null,
+  lthrFrom: null,
+  estimatedPaceSec: null,
+  estimatedLthr: null,
 });
 
 let cached: Promise<RunThresholds> | null = null;
@@ -41,18 +58,34 @@ export function loadRunThresholds(): Promise<RunThresholds> {
         const { data: auth } = await supabase.auth.getUser();
         const userId = auth?.user?.id;
         if (!userId) return NO_RUN_THRESHOLDS;
-        const { data, error } = await supabase
-          .from('user_profiles')
-          .select('threshold_pace_sec, lthr, max_hr, resting_hr')
-          .eq('id', userId)
-          .maybeSingle();
-        if (error || !data) return NO_RUN_THRESHOLDS;
-        const row = data as Record<string, unknown>;
+        const [main, est] = await Promise.all([
+          supabase
+            .from('user_profiles')
+            .select('threshold_pace_sec, lthr, max_hr, resting_hr')
+            .eq('id', userId)
+            .maybeSingle(),
+          supabase
+            .from('user_profiles')
+            .select('estimated_threshold_pace_sec, estimated_lthr')
+            .eq('id', userId)
+            .maybeSingle(),
+        ]);
+        const row = (main.error ? null : main.data) as Record<string, unknown> | null;
+        const estRow = (est.error ? null : est.data) as Record<string, unknown> | null;
+        if (!row && !estRow) return NO_RUN_THRESHOLDS;
+        const ownPace = positive(row?.threshold_pace_sec);
+        const ownLthr = positive(row?.lthr);
+        const estimatedPaceSec = positive(estRow?.estimated_threshold_pace_sec);
+        const estimatedLthr = positive(estRow?.estimated_lthr);
         return {
-          thresholdPaceSec: positive(row.threshold_pace_sec),
-          lthr: positive(row.lthr),
-          maxHr: positive(row.max_hr),
-          restingHr: positive(row.resting_hr),
+          thresholdPaceSec: ownPace ?? estimatedPaceSec,
+          lthr: ownLthr ?? estimatedLthr,
+          maxHr: positive(row?.max_hr),
+          restingHr: positive(row?.resting_hr),
+          paceFrom: ownPace ? 'profile' : estimatedPaceSec ? 'estimated' : null,
+          lthrFrom: ownLthr ? 'profile' : estimatedLthr ? 'estimated' : null,
+          estimatedPaceSec,
+          estimatedLthr,
         };
       } catch {
         return NO_RUN_THRESHOLDS;

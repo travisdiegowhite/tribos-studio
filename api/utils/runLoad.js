@@ -159,6 +159,12 @@ export function resolveRunProfile(profile, runs) {
     maxHr,
     restingHr: positive(profile?.resting_hr) ?? DEFAULT_RESTING_HR,
     hrFrom,
+    // The history estimate on its own, whatever the athlete entered — stored
+    // on the profile (storeRunEstimates) so Settings can offer it.
+    estimated: {
+      thresholdPaceSec: est.thresholdPaceSec,
+      lthr: est.maxHr ? Math.round(est.maxHr * LTHR_FROM_MAX) : null,
+    },
   };
 }
 

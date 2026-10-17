@@ -11,7 +11,7 @@ vi.mock('./calendarRead.js', () => ({
   fetchPlannedSessions: (...a) => sessionsMock(...a),
 }));
 
-const { fetchCoachEnrichmentData, buildCoachEnrichmentBlock, formatSportProfileLines, formatFitnessBySport } = await import(
+const { fetchCoachEnrichmentData, buildCoachEnrichmentBlock, formatSportProfileLines, formatFitnessBySport, formatRacePrs } = await import(
   './coachContextEnrichment.js'
 );
 
@@ -437,5 +437,29 @@ describe('formatFitnessBySport (migration 133)', () => {
       { profile: PROFILE, timezone: TZ, now: NOW },
     );
     expect(block).toMatch(/FITNESS \(server-computed[^\n]*\nFITNESS BY SPORT: ride TFI 48, run TFI 22/);
+  });
+});
+
+describe('formatRacePrs (multisport phase 5)', () => {
+  it('lists PRs in distance order with month', () => {
+    expect(
+      formatRacePrs([
+        { distance: 'half_marathon', time_seconds: 6070, race_date: '2025-10-12' },
+        { distance: '5k', time_seconds: 1300, race_date: '2026-05-02' },
+      ]),
+    ).toBe('RACE PRS: 5K 21:40 (2026-05), Half marathon 1:41:10 (2025-10)');
+  });
+
+  it('is silent without PRs', () => {
+    expect(formatRacePrs([])).toBeNull();
+    expect(formatRacePrs(undefined)).toBeNull();
+  });
+
+  it('appears in the block after the sport lines', () => {
+    const block = buildCoachEnrichmentBlock(
+      { latestLoad: null, recentActivities: [], weekPlanned: [], racePrs: [{ distance: '10k', time_seconds: 2700, race_date: null }] },
+      { profile: PROFILE, sportProfile: { sports: ['cycling', 'running'], primary_sport: 'cycling' }, timezone: TZ, now: NOW },
+    );
+    expect(block).toMatch(/RUN THRESHOLDS[^\n]*\nRACE PRS: 10K 45:00/);
   });
 });

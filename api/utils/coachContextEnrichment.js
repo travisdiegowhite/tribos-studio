@@ -17,6 +17,7 @@
 
 import { sportTypeOfActivity, formatPace } from './sportTypes.js';
 import { fetchPlannedSessions } from './calendarRead.js';
+import { RACE_DISTANCE_BANDS, formatRaceTime } from './runRacePrs.js';
 
 // ─── Timezone-safe date helpers (module-private, mirrors temporalAnchor.js) ──
 
@@ -98,7 +99,7 @@ export async function fetchCoachEnrichmentData(supabase, userId) {
     const plannedStart = new Date(todayNoon.getTime() - 8 * dayMs).toISOString().split('T')[0];
     const plannedEnd = new Date(todayNoon.getTime() + 7 * dayMs).toISOString().split('T')[0];
 
-    const [activitiesResult, loadResult, plannedResult, splitResult] = await Promise.all([
+    const [activitiesResult, loadResult, plannedResult, splitResult, prResult] = await Promise.all([
       supabase
         .from('activities')
         .select('id, name, type, sport_type, start_date, distance, moving_time, average_watts, rss, tss')
@@ -133,6 +134,12 @@ export async function fetchCoachEnrichmentData(supabase, userId) {
         .order('date', { ascending: false })
         .limit(1)
         .maybeSingle(),
+      // Race PRs (running_race_prs, multisport phase 5). Own query: an error
+      // costs only the RACE PRS line.
+      supabase
+        .from('running_race_prs')
+        .select('distance, time_seconds, race_date')
+        .eq('user_id', userId),
     ]);
 
     return {
@@ -140,6 +147,7 @@ export async function fetchCoachEnrichmentData(supabase, userId) {
       latestLoad: loadResult?.data || null,
       weekPlanned: plannedResult || [],
       loadSplit: splitResult?.error ? null : splitResult?.data || null,
+      racePrs: prResult?.error ? [] : prResult?.data || [],
     };
   } catch (err) {
     console.error('Coach enrichment fetch failed (non-blocking):', err.message);
@@ -231,6 +239,27 @@ export function formatFitnessBySport(split) {
   return `FITNESS BY SPORT: ${parts.join(', ')} (parts of the combined TFI; fatigue and form are shared)`;
 }
 
+/**
+ * RACE PRS line from running_race_prs, e.g.
+ * "RACE PRS: 5K 21:40 (2026-05), Half marathon 1:41:10 (2025-10)".
+ */
+export function formatRacePrs(prs) {
+  const rows = (prs || [])
+    .filter((p) => RACE_DISTANCE_BANDS.some((b) => b.key === p.distance) && Number(p.time_seconds) > 0)
+    .sort(
+      (a, b) =>
+        RACE_DISTANCE_BANDS.findIndex((x) => x.key === a.distance) -
+        RACE_DISTANCE_BANDS.findIndex((x) => x.key === b.distance),
+    );
+  if (rows.length === 0) return null;
+  const parts = rows.map((p) => {
+    const label = RACE_DISTANCE_BANDS.find((b) => b.key === p.distance).label;
+    const when = p.race_date ? ` (${String(p.race_date).slice(0, 7)})` : '';
+    return `${label} ${formatRaceTime(p.time_seconds)}${when}`;
+  });
+  return `RACE PRS: ${parts.join(', ')}`;
+}
+
 export function buildCoachEnrichmentBlock(data, { profile = null, sportProfile = null, raceGoals = [], timezone = 'UTC', now = new Date(), selectedRaceGoalId = null } = {}) {
   const ftp = profile?.ftp || null;
   const sportLines = formatSportProfileLines(sportProfile);
@@ -264,6 +293,11 @@ export function buildCoachEnrichmentBlock(data, { profile = null, sportProfile =
   }
 
   if (sportLines.length > 0) lines.push('', ...sportLines);
+  const prLine = formatRacePrs(data?.racePrs);
+  if (prLine) {
+    if (sportLines.length === 0) lines.push('');
+    lines.push(prLine);
+  }
 
   // Server-computed fitness (fallback only, per the precedence note above)
   const load = data?.latestLoad;

@@ -7,6 +7,11 @@
  * multisport phase 0B this card saved to localStorage only, so nothing on the
  * server ever saw a runner's thresholds; a value still sitting there is copied
  * to the database once, and the key is removed only after that save succeeds.
+ *
+ * Phase 5: the threshold pace and LTHR estimated from the athlete's runs
+ * (stored nightly, migration 136) are OFFERED here — "Use this" fills the
+ * inputs and saving stays explicit. The card also lists race PRs (found in
+ * races by the server, or saved from the race estimator).
  */
 
 import { useState, useEffect, useMemo } from 'react';
@@ -36,6 +41,8 @@ import {
   estimateVdot,
   formatPacePerKm as formatPace,
 } from '../../utils/paceZones';
+import { loadRacePrs, saveManualPr, RACE_PR_LABELS } from '../../lib/running/racePrs';
+import { formatRaceTime } from '../../../api/utils/runRacePrs.js';
 
 export const LEGACY_STORAGE_KEY = 'runningProfile';
 
@@ -49,6 +56,17 @@ const ZONE_COLORS = {
 };
 
 const PROFILE_COLUMNS = 'threshold_pace_sec, vdot, max_hr, resting_hr, lthr';
+const ESTIMATE_COLUMNS = 'estimated_threshold_pace_sec, estimated_lthr';
+
+/** Offer an estimate when there is no pace, or it differs by more than this. */
+export const ESTIMATE_OFFER_THRESHOLD = 0.03;
+
+/** True when the estimated pace is worth offering against the entered one. */
+export function shouldOfferEstimate(enteredSec, estimatedSec) {
+  if (!(estimatedSec > 0)) return false;
+  if (!(enteredSec > 0)) return true;
+  return Math.abs(enteredSec - estimatedSec) / estimatedSec > ESTIMATE_OFFER_THRESHOLD;
+}
 
 /** The localStorage profile the old card wrote, or null if absent/empty. */
 export function readLegacyRunningProfile() {
@@ -80,6 +98,10 @@ export default function RunningProfileSettings() {
   const [maxHR, setMaxHR] = useState(null);
   const [restingHR, setRestingHR] = useState(null);
   const [lthr, setLthr] = useState(null);
+
+  // History estimates (migration 136) and race PRs
+  const [estimate, setEstimate] = useState({ paceSec: null, lthr: null });
+  const [racePrs, setRacePrs] = useState([]);
 
   // Race PR state
   const [raceDistance, setRaceDistance] = useState('5k');
@@ -148,6 +170,71 @@ export default function RunningProfileSettings() {
       active = false;
     };
   }, [user?.id]);
+
+  // Estimates and PRs: their own fail-soft reads, so an unapplied 136 changes
+  // nothing above.
+  useEffect(() => {
+    if (!user?.id) return;
+    let active = true;
+    (async () => {
+      try {
+        const { data, error } = await supabase
+          .from('user_profiles')
+          .select(ESTIMATE_COLUMNS)
+          .eq('id', user.id)
+          .maybeSingle();
+        if (active && !error && data) {
+          setEstimate({
+            paceSec: Number(data.estimated_threshold_pace_sec) > 0 ? Number(data.estimated_threshold_pace_sec) : null,
+            lthr: Number(data.estimated_lthr) > 0 ? Number(data.estimated_lthr) : null,
+          });
+        }
+      } catch { /* estimate columns not there yet */ }
+      const prs = await loadRacePrs(user.id);
+      if (active) setRacePrs(prs);
+    })();
+    return () => {
+      active = false;
+    };
+  }, [user?.id]);
+
+  const offerEstimate = shouldOfferEstimate(thresholdPaceTotalSec, estimate.paceSec);
+
+  const handleUseEstimate = () => {
+    if (!estimate.paceSec) return;
+    setThresholdPaceMin(Math.floor(estimate.paceSec / 60));
+    setThresholdPaceSec(estimate.paceSec % 60);
+    if (!lthr && estimate.lthr) setLthr(estimate.lthr);
+  };
+
+  const raceTotalSec = ((raceTimeMin || 0) * 60) + (raceTimeSec || 0);
+
+  const handleSavePr = async () => {
+    if (!user?.id || !(raceTotalSec > 0)) return;
+    const result = await saveManualPr(
+      user.id,
+      { distance: raceDistance, time_seconds: raceTotalSec },
+      racePrs,
+    );
+    if (!result.ok) {
+      notifications.show({ title: 'PR not saved', message: result.error || 'Could not save the race PR', color: 'red' });
+      return;
+    }
+    if (!result.saved) {
+      notifications.show({
+        title: 'Not a PR',
+        message: `Your ${RACE_PR_LABELS[raceDistance]} PR is already faster.`,
+        color: 'gray',
+      });
+      return;
+    }
+    setRacePrs(await loadRacePrs(user.id));
+    notifications.show({
+      title: 'PR saved',
+      message: `${RACE_PR_LABELS[raceDistance]} ${formatRaceTime(raceTotalSec)}`,
+      color: 'teal',
+    });
+  };
 
   const handleEstimateFromRace = () => {
     if (!raceTimeMin && !raceTimeSec) return;
@@ -254,6 +341,26 @@ export default function RunningProfileSettings() {
           </Box>
         )}
 
+        {offerEstimate && (
+          <Group
+            data-testid="run-estimate-offer"
+            justify="space-between"
+            wrap="nowrap"
+            style={{ padding: tokens.spacing.sm, border: '1px solid var(--color-border)' }}
+          >
+            <Text size="sm" style={{ color: 'var(--color-text-secondary)' }}>
+              Estimated from your runs:{' '}
+              <Text component="span" fw={700} ff="monospace">
+                {formatPace(estimate.paceSec)}
+              </Text>
+              {!lthr && estimate.lthr ? ` · LTHR ${estimate.lthr} bpm` : ''}
+            </Text>
+            <Button size="xs" variant="light" onClick={handleUseEstimate}>
+              Use this
+            </Button>
+          </Group>
+        )}
+
         <Divider label="Estimate from Race Result" labelPosition="center" />
 
         {/* Race PR estimation */}
@@ -303,6 +410,34 @@ export default function RunningProfileSettings() {
         >
           Estimate from Race
         </Button>
+        <Button
+          variant="subtle"
+          size="sm"
+          onClick={handleSavePr}
+          disabled={!(raceTotalSec > 0)}
+        >
+          Save as PR
+        </Button>
+
+        {racePrs.length > 0 && (
+          <Box data-testid="race-prs">
+            <Text size="sm" fw={600} style={{ color: 'var(--color-text-primary)' }} mb="xs">
+              Race PRs
+            </Text>
+            <Stack gap={4}>
+              {racePrs.map((pr) => (
+                <Group key={pr.distance} gap="sm" wrap="nowrap">
+                  <Text size="sm" style={{ minWidth: 110 }}>{RACE_PR_LABELS[pr.distance]}</Text>
+                  <Text size="sm" fw={700} ff="monospace">{formatRaceTime(pr.time_seconds)}</Text>
+                  <Text size="xs" style={{ color: 'var(--color-text-muted)' }}>
+                    {[pr.race_date, pr.race_name].filter(Boolean).join(' · ')}
+                    {pr.source === 'auto' ? ' · auto' : ''}
+                  </Text>
+                </Group>
+              ))}
+            </Stack>
+          </Box>
+        )}
 
         {vdot && (
           <Box

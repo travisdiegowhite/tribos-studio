@@ -34,6 +34,8 @@ import {
   computeTrainingLoadRows,
   findActiveUserIds,
 } from './utils/trainingLoadRecompute.js';
+import { storeRunEstimates } from './utils/runEstimatesStore.js';
+import { scanRunRacePrs } from './utils/runRacePrs.js';
 
 const supabase = getSupabaseAdmin();
 
@@ -84,6 +86,19 @@ export default async function handler(req, res) {
 
 const REFRESH_WINDOW_DAYS = 30;
 
+/**
+ * Run side-effects of a recompute (multisport phase 5): store the history
+ * estimate of the athlete's run thresholds and pick up race PRs. Both are
+ * cheap for an athlete who doesn't run (no estimate, no run rows), and both
+ * are fail-soft: they never fail the recompute.
+ */
+async function afterRecompute(userId, result) {
+  const runProfile = result?.runProfile;
+  if (!runProfile) return;
+  await storeRunEstimates(supabase, userId, runProfile);
+  await scanRunRacePrs(supabase, userId, { timeZone: result.timezone });
+}
+
 async function handleRefresh(req, res) {
   const authHeader = req.headers.authorization;
   const cronSecret = process.env.CRON_SECRET;
@@ -102,6 +117,7 @@ async function handleRefresh(req, res) {
       days: REFRESH_WINDOW_DAYS,
       includeToday: true,
     });
+    await afterRecompute(userId, result);
     return res.json({
       success: true,
       rowsWritten: result.rowsWritten,
@@ -124,6 +140,7 @@ async function handleRollforward(req, res) {
     for (const userId of userIds) {
       try {
         const result = await recomputeTrainingLoadForUser(supabase, userId);
+        await afterRecompute(userId, result);
         usersProcessed++;
         rowsWritten += result.rowsWritten;
       } catch (err) {
