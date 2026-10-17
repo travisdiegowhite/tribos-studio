@@ -30,12 +30,20 @@ vi.mock('../RaceGoalModal', () => ({
   },
 }));
 vi.mock('../../utils/dateUtils', () => ({ getTodayString: () => '2026-10-12' }));
+const sportState = vi.hoisted(() => ({ primarySport: 'cycling' as 'cycling' | 'running' }));
+vi.mock('../../utils/sportProfile', () => ({
+  loadSportProfile: vi.fn(async () => ({
+    profile: { sports: ['cycling', 'running'], primarySport: sportState.primarySport },
+    ok: true,
+  })),
+}));
 
 import EventsTab from './EventsTab';
 
 const ev = (over: Partial<CatalogEvent>): CatalogEvent => ({
   id: 'x',
   name: 'X',
+  discipline: 'gravel',
   city: 'Town',
   state: 'CO',
   region: 'Mountain',
@@ -62,6 +70,7 @@ const renderTab = () =>
   );
 
 beforeEach(() => {
+  sportState.primarySport = 'cycling';
   modalProps.mockClear();
   state.error = null;
   state.season = [];
@@ -115,5 +124,50 @@ describe('EventsTab', () => {
     state.error = 'relation "event_catalog" does not exist';
     renderTab();
     expect(await screen.findByRole('alert')).toHaveTextContent('event_catalog');
+  });
+});
+
+describe('EventsTab with running events', () => {
+  const runEvents = () => [
+    ...state.events,
+    ev({
+      id: 'boston',
+      name: 'Boston Marathon',
+      discipline: 'road_run',
+      event_type: 'Marathon',
+      event_date: '2027-04-19',
+      distances_text: '26.2 mi',
+      distances_mi: [26.2],
+      max_distance_mi: 26.2,
+    }),
+  ];
+
+  it('hides the sport filter for a gravel-only catalog', async () => {
+    renderTab();
+    expect(await screen.findByText('Rock Cobbler')).toBeInTheDocument();
+    expect(screen.queryByTestId('events-sport')).toBeNull();
+  });
+
+  it("starts on the athlete's primary sport and adds a run with its race type", async () => {
+    sportState.primarySport = 'running';
+    state.events = runEvents();
+    renderTab();
+    expect(await screen.findByText('Boston Marathon')).toBeInTheDocument();
+    await waitFor(() => expect(screen.queryByText('Rock Cobbler')).toBeNull());
+    expect(screen.getByText(/US gravel and running events/)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Add to season' }));
+    expect(modalProps).toHaveBeenLastCalledWith(
+      expect.objectContaining({ raceGoal: expect.objectContaining({ race_type: 'marathon', distance_km: 42.2 }) }),
+    );
+  });
+
+  it('switches to rides', async () => {
+    state.events = runEvents();
+    renderTab();
+    expect(await screen.findByText('Rock Cobbler')).toBeInTheDocument();
+    await waitFor(() => expect(screen.queryByText('Boston Marathon')).toBeNull());
+    fireEvent.click(screen.getByText('Run'));
+    expect(await screen.findByText('Boston Marathon')).toBeInTheDocument();
+    expect(screen.queryByText('Rock Cobbler')).toBeNull();
   });
 });

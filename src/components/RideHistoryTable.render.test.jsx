@@ -44,3 +44,21 @@ describe('RideHistoryTable runs (multisport phase 4)', () => {
     expect(screen.getByText('Untitled Run')).toBeTruthy();
   });
 });
+
+describe('RideHistoryTable gear pickers (multisport phase 5)', () => {
+  it('offers shoes on a run and a bike on a ride', () => {
+    renderTable({
+      bikes: [{ id: 'bk', name: 'Tarmac', status: 'active' }],
+      shoes: [{ id: 'sh', name: 'Pegasus', status: 'active' }],
+      onAssignBike: vi.fn(),
+    });
+    expect(screen.getByLabelText('Pick shoes for this run')).toBeTruthy();
+    expect(screen.getByLabelText('Pick a bike for this ride')).toBeTruthy();
+    expect(screen.getByText('Shoes?')).toBeTruthy();
+  });
+
+  it('shows no picker on a run when the athlete has no shoes', () => {
+    renderTable({ bikes: [{ id: 'bk', name: 'Tarmac', status: 'active' }], onAssignBike: vi.fn() });
+    expect(screen.queryByLabelText('Pick shoes for this run')).toBeNull();
+  });
+});

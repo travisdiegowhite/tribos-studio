@@ -60,22 +60,30 @@ export const REPORT_EVENT_TOOL = {
       distances_text: { ...nullable('string'), description: 'Distances as the page lists them, e.g. "25 / 50 / 100 mi". Null if not stated.' },
       distances_mi: { type: 'array', items: { type: 'number' }, description: 'The same distances in miles (convert km). Empty if not stated.' },
       url: { ...nullable('string'), description: 'The page that states the date or the cancellation.' },
-      note: { type: 'string', description: 'One short sentence a rider should know (e.g. registration opens Nov 14). Empty if nothing.' },
+      note: { type: 'string', description: 'One short sentence an athlete should know (e.g. registration opens Nov 14). Empty if nothing.' },
     },
   },
 };
 
+/** How the prompt names an event of this discipline (gravel, road_run, trail_run). */
+export function disciplineNoun(discipline) {
+  if (discipline === 'road_run') return 'US running race';
+  if (discipline === 'trail_run') return 'US trail race';
+  return 'US gravel event';
+}
+
 export function buildCheckPrompt(event, today) {
   const where = [event.city, event.state].filter(Boolean).join(', ');
+  const noun = disciplineNoun(event.discipline);
   const facts = [
-    `Event: ${event.name} (${event.event_type ?? 'gravel event'}) in ${where}.`,
+    `Event: ${event.name} (${event.event_type ?? noun.replace(/^US /, '')}) in ${where}.`,
     event.series ? `Series: ${event.series}.` : '',
     event.previous_date ? `Last known edition: ${event.previous_date}.` : '',
     event.url ? `Known site: ${event.url}` : '',
     `Our current ${event.season} date is a projection: ${event.event_date}${event.date_label ? ` (${event.date_label})` : ''}.`,
   ].filter(Boolean);
   return [
-    `Today is ${today}. Check whether this US gravel event has published its ${event.season} date.`,
+    `Today is ${today}. Check whether this ${noun} has published its ${event.season} date.`,
     ...facts,
     "Search for the event and open the organizer's site or registration page with web_fetch to read the date.",
     `Only a date for the ${event.season} edition counts; ignore past editions.`,
@@ -210,7 +218,7 @@ export async function checkEvent(client, event, today) {
 }
 
 const PICK_COLUMNS =
-  'id, name, city, state, event_type, event_date, date_status, date_label, previous_date, series, url, notes, season';
+  'id, name, discipline, city, state, event_type, event_date, date_status, date_label, previous_date, series, url, notes, season';
 
 /** Unconfirmed upcoming events, never-checked first, then least recently checked; soonest first within each. */
 export async function pickEvents(supabase, { today, limit }) {

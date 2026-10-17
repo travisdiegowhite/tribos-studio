@@ -63,6 +63,42 @@ describe('assignGearToActivity', () => {
   });
 });
 
+describe('assignGearToActivity for runs (multisport phase 5)', () => {
+  it('puts a run on the default shoes', async () => {
+    const sb = fakeSupabase((q) => {
+      if (q.table === 'gear_items' && has(q, ['eq', 'sport_type', 'running']) && has(q, ['eq', 'is_default', true])) {
+        return { data: { id: 'shoe' }, error: null };
+      }
+      return { data: null, error: null };
+    });
+    await assignGearToActivity(sb, { activityId: 'r1', userId: 'u', activityType: 'Run', distance: 8000, stravaGearId: null });
+    expect(sb.log.find((q) => q.op === 'upsert').payload.gear_item_id).toBe('shoe');
+    expect(sb.rpcs).toEqual([['increment_gear_distance', { p_gear_id: 'shoe', p_distance: 8000 }]]);
+  });
+
+  it('classifies a Garmin run from sport_type when type says nothing', async () => {
+    const sb = fakeSupabase((q) => {
+      if (q.table === 'gear_items' && has(q, ['eq', 'sport_type', 'running'])) return { data: { id: 'shoe' }, error: null };
+      return { data: null, error: null };
+    });
+    await assignGearToActivity(sb, { activityId: 'r1', userId: 'u', activityType: null, sportType: 'TRAIL_RUNNING', distance: 1, stravaGearId: null });
+    expect(sb.log.find((q) => q.op === 'upsert').payload.gear_item_id).toBe('shoe');
+  });
+
+  it('only matches a Strava gear id of the same sport', async () => {
+    const sb = fakeSupabase(() => ({ data: null, error: null }));
+    await assignGearToActivity(sb, { activityId: 'r1', userId: 'u', activityType: 'Run', distance: 1, stravaGearId: 'b1' });
+    const match = sb.log.find((q) => has(q, ['eq', 'strava_gear_id', 'b1']));
+    expect(has(match, ['eq', 'sport_type', 'running'])).toBe(true);
+  });
+
+  it('assigns nothing to a swim', async () => {
+    const sb = fakeSupabase(() => ({ data: { id: 'x' }, error: null }));
+    await assignGearToActivity(sb, { activityId: 's1', userId: 'u', activityType: 'Swim', distance: 1, stravaGearId: null });
+    expect(sb.log).toEqual([]);
+  });
+});
+
 describe('reassignActivityGear', () => {
   const respond = (existing) => (q) => {
     if (q.table === 'activities') return { data: { distance: 5000 }, error: null };
@@ -95,6 +131,24 @@ describe('reassignActivityGear', () => {
     await expect(reassignActivityGear(noActivity, 'a1', 'new', 'u')).rejects.toThrow('Activity not found');
     const failing = fakeSupabase((q) => (q.op === 'upsert' ? { data: null, error: new Error('rls') } : respond(null)(q)));
     await expect(reassignActivityGear(failing, 'a1', 'new', 'u')).rejects.toThrow('rls');
+  });
+
+  it('refuses a bike on a run and shoes on a ride, and moves shoes between runs', async () => {
+    const make = (activity, gear) =>
+      fakeSupabase((q) => {
+        if (q.table === 'activities') return { data: { distance: 5000, ...activity }, error: null };
+        if (q.table === 'gear_items') return { data: { id: 'new', ...gear }, error: null };
+        return { data: null, error: null };
+      });
+    await expect(reassignActivityGear(make({ type: 'Run' }, { sport_type: 'cycling' }), 'a1', 'new', 'u')).rejects.toThrow(
+      'Runs take shoes',
+    );
+    await expect(reassignActivityGear(make({ type: 'Ride' }, { sport_type: 'running' }), 'a1', 'new', 'u')).rejects.toThrow(
+      'Rides take a bike',
+    );
+    const ok = make({ type: 'Run' }, { sport_type: 'running' });
+    await reassignActivityGear(ok, 'a1', 'new', 'u');
+    expect(ok.rpcs).toEqual([['increment_gear_distance', { p_gear_id: 'new', p_distance: 5000 }]]);
   });
 });
 

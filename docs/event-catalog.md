@@ -8,11 +8,12 @@ Oct 12, 2026. A browsable list of public events on `/train?tab=events`, the last
 |---|---|
 | Table | `database/migrations/130_event_catalog.sql` |
 | Seed (493 US gravel events, 2027) | `database/migrations/131_event_catalog_seed_gravel_2027.sql`, generated from `database/seeds/gravel_events_2027.json` by `scripts/build-event-catalog-seed.mjs` |
+| Seed (102 US running events, 2027) | `database/migrations/137_event_catalog_seed_run_2027.sql` (plus an index on `discipline`), generated from `database/seeds/run_events_2027.json` with `--migration 137 --discipline road_run --with-discipline-index` |
 | Weekly refresh (cron) | `api/event-catalog-refresh.js` → `api/utils/eventCatalogRefresh.js` |
 | Browser reads, filters, prefill | `src/lib/events/eventCatalog.ts` |
 | Tab | `src/components/train/EventsTab.tsx` |
 
-**Setup:** apply 130, then 131, by hand. Confirm with `npm run audit:schema`. Until 130 is applied the tab shows a load error, and the cron fails loudly (500), so it doesn't stay quietly green.
+**Setup:** apply 130, then 131, then 137, by hand. Confirm with `npm run audit:schema`. Until 130 is applied the tab shows a load error, and the cron fails loudly (500), so it doesn't stay quietly green.
 
 ## How it differs from `race_directory`
 
@@ -60,4 +61,16 @@ Seed fix: `omg-oxford-mississippi-gravel-ms` was dated 2027-12-30 against a "Jan
 - **Geocoding.** `lat`/`lng` are NULL. A "near me" filter needs a town-level geocode of `city, state`; for "A → B" events, use the start town.
 - **Coverage.** KY, MS, LA, TN, IL, IN, OH, MD, NJ and WA are thin. Riders add missing events through "Add an event that's not listed".
 - **Race search.** "Find a race" on the Season tab doesn't search the catalog yet.
-- **Only gravel.** The `discipline` column allows other catalogs later.
+- **Gravel and running only.** `discipline` is `gravel`, `road_run` or `trail_run` (multisport phase 5). The run seed is a curated list of well-known recurring US road and trail races (majors, big-city marathons and halves, notable 10Ks and 5Ks, trail and ultra classics), not a complete calendar. Every run date is `est`, projected from the race's usual weekday rule (e.g. the third Monday of April) with `previous_date` set, so the refresh confirms them like any other row.
+
+## Running events (multisport phase 5)
+
+- **Seed script.** `scripts/build-event-catalog-seed.mjs` takes `--discipline` (default `gravel`; an event's own `discipline` wins), `--migration` (default 131) and `--with-discipline-index`. With no flags it reproduces 131 byte for byte, and `api/utils/eventCatalogRefresh.test.js` checks that, along with 137.
+- **Refresh.** `pickEvents` selects `discipline`, and the prompt names a "US running race" or a "US trail race" instead of a "US gravel event".
+- **Tab.** A Ride / Run / All filter appears once the catalog holds both sports, and it starts on the athlete's primary sport (`loadSportProfile`). The type list and distance buckets follow the sport. Run buckets are ≤10K, half, marathon and ultra.
+- **Add to season.** `raceTypeFor` sets `race_type`:
+  - gravel stays `gravel`;
+  - a trail event becomes `trail_run`, or `ultra_run` beyond a marathon;
+  - a road run maps by distance to `run_5k`, `run_10k`, `half_marathon` or `marathon`.
+
+  `entrySport` then files the race's calendar entry as running.

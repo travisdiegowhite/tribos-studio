@@ -5,7 +5,9 @@ import {
   distancesText,
   eventToPrefill,
   filterEvents,
+  eventTypesFor,
   formatMonth,
+  raceTypeFor,
   groupByMonth,
   statusText,
   type CatalogEvent,
@@ -14,6 +16,7 @@ import {
 const ev = (over: Partial<CatalogEvent> = {}): CatalogEvent => ({
   id: 'rock-cobbler-ca',
   name: 'Rock Cobbler',
+  discipline: 'gravel',
   city: 'Bakersfield',
   state: 'CA',
   region: 'West',
@@ -127,5 +130,60 @@ describe('eventToPrefill', () => {
     expect(eventToPrefill(ev({ date_status: 'risk' }), null).notes).toMatch(/may not run/);
     expect(eventToPrefill(ev({ date_status: 'partial' }), null).notes).toMatch(/not confirmed/);
     expect(eventToPrefill(ev(), null).distance_km).toBeNull();
+  });
+});
+
+describe('running events (multisport phase 5)', () => {
+  const run = (over: Partial<CatalogEvent> = {}) =>
+    ev({
+      id: 'boston-marathon-ma',
+      name: 'Boston Marathon',
+      discipline: 'road_run',
+      event_type: 'Marathon',
+      distances_text: '26.2 mi',
+      distances_mi: [26.2],
+      max_distance_mi: 26.2,
+      ...over,
+    });
+  const mixed = [
+    ...events,
+    run(),
+    run({ id: 'peachtree', name: 'Peachtree', event_type: '10K', distances_mi: [6.2], max_distance_mi: 6.2 }),
+    run({ id: 'wser', name: 'Western States', discipline: 'trail_run', event_type: 'Ultra', distances_mi: [100.2], max_distance_mi: 100.2 }),
+  ];
+
+  it('filters by sport', () => {
+    expect(filterEvents(mixed, { ...EMPTY_FILTERS, sport: 'running' }).map((e) => e.id)).toEqual([
+      'boston-marathon-ma',
+      'peachtree',
+      'wser',
+    ]);
+    expect(filterEvents(mixed, { ...EMPTY_FILTERS, sport: 'cycling' })).toHaveLength(events.length);
+    expect(filterEvents(mixed, EMPTY_FILTERS)).toHaveLength(mixed.length);
+  });
+
+  it('buckets run distances by race length', () => {
+    const ids = (distance: 'short' | 'mid' | 'long' | 'ultra') =>
+      filterEvents(mixed, { ...EMPTY_FILTERS, sport: 'running', distance }).map((e) => e.id);
+    expect(ids('short')).toEqual(['peachtree']);
+    expect(ids('long')).toEqual(['boston-marathon-ma']);
+    expect(ids('ultra')).toEqual(['wser']);
+  });
+
+  it('offers run types for runs', () => {
+    expect(eventTypesFor('running')).toContain('Half marathon');
+    expect(eventTypesFor('running')).not.toContain('Bikepacking');
+    expect(eventTypesFor('all')).toEqual(expect.arrayContaining(['Race', 'Marathon']));
+  });
+
+  it('maps an event and distance to a race type', () => {
+    expect(raceTypeFor(ev(), 50)).toBe('gravel');
+    expect(raceTypeFor(run(), 26.2)).toBe('marathon');
+    expect(raceTypeFor(run(), 13.1)).toBe('half_marathon');
+    expect(raceTypeFor(run(), 3.1)).toBe('run_5k');
+    expect(raceTypeFor(run({ event_type: '10K', max_distance_mi: null }), null)).toBe('run_10k');
+    expect(raceTypeFor(run({ discipline: 'trail_run', event_type: 'Ultra' }), 31)).toBe('ultra_run');
+    expect(raceTypeFor(run({ discipline: 'trail_run', event_type: 'Trail race' }), 13.3)).toBe('trail_run');
+    expect(eventToPrefill(run(), 26.2)).toMatchObject({ race_type: 'marathon', distance_km: 42.2 });
   });
 });

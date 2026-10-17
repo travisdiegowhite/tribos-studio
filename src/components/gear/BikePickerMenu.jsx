@@ -1,5 +1,5 @@
 import { Box, Menu, Text, UnstyledButton } from '@mantine/core';
-import { Bicycle, Check } from '@phosphor-icons/react';
+import { Bicycle, Check, Sneaker } from '@phosphor-icons/react';
 
 const SURFACES = [
   { value: null, label: 'Let the ride type decide' },
@@ -19,9 +19,20 @@ const MONO = "'Courier Prime', monospace";
  *
  * Every write here is the rider's decision (assigned_by 'manual'), so bulk
  * backfills leave it alone afterwards.
+ *
+ * `kind="shoes"` (multisport phase 5) is the same chip for a run: it lists
+ * the athlete's shoes, uses run wording and has no surface menu. `bikes` is
+ * then the shoe list.
  */
-export default function BikePickerMenu({ ride, bikes = [], onAssignBike, onSetSurface, size = 'sm' }) {
+const COPY = {
+  bike: { noun: 'bike', label: 'Bike', empty: 'Bike?', pick: 'Pick a bike for this ride', which: 'Which bike?', Icon: Bicycle },
+  shoes: { noun: 'shoes', label: 'Shoes', empty: 'Shoes?', pick: 'Pick shoes for this run', which: 'Which shoes?', Icon: Sneaker },
+};
+
+export default function BikePickerMenu({ ride, bikes = [], onAssignBike, onSetSurface, size = 'sm', kind = 'bike' }) {
   if (!bikes.length || !onAssignBike) return null;
+  const copy = COPY[kind] || COPY.bike;
+  const isShoes = kind === 'shoes';
   const current = ride.gear?.gear_item_id ? bikes.find((b) => b.id === ride.gear.gear_item_id) : null;
   const surface = ride.gear?.surface_override ?? null;
   const active = bikes.filter((b) => b.status === 'active');
@@ -33,8 +44,8 @@ export default function BikePickerMenu({ ride, bikes = [], onAssignBike, onSetSu
       <Menu withinPortal position="bottom-end" shadow="md" width={240} radius={0}>
         <Menu.Target>
           <UnstyledButton
-            aria-label={current ? `On ${current.name}. Change bike` : 'Pick a bike for this ride'}
-            title={current ? `On ${current.name}` : 'Which bike?'}
+            aria-label={current ? `On ${current.name}. Change ${copy.noun}` : copy.pick}
+            title={current ? `On ${current.name}` : copy.which}
             style={{
               display: 'inline-flex', alignItems: 'center', gap: 5, padding: size === 'xs' ? '2px 6px' : '3px 8px',
               border: `1px solid ${current ? 'var(--color-border)' : 'var(--color-orange)'}`,
@@ -43,12 +54,12 @@ export default function BikePickerMenu({ ride, bikes = [], onAssignBike, onSetSu
               color: current ? 'var(--color-text-secondary)' : 'var(--color-orange)', whiteSpace: 'nowrap', borderRadius: 0, maxWidth: 160,
             }}
           >
-            <Bicycle size={12} weight="bold" />
-            <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>{current ? current.name : 'Bike?'}</span>
+            <copy.Icon size={12} weight="bold" />
+            <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>{current ? current.name : copy.empty}</span>
           </UnstyledButton>
         </Menu.Target>
         <Menu.Dropdown>
-          <Menu.Label>Bike</Menu.Label>
+          <Menu.Label>{copy.label}</Menu.Label>
           {active.map((b) => (
             <Menu.Item
               key={b.id}
@@ -64,7 +75,7 @@ export default function BikePickerMenu({ ride, bikes = [], onAssignBike, onSetSu
               {retiredCurrent.name}<Text span size="xs" c="dimmed"> · retired</Text>
             </Menu.Item>
           )}
-          {current && onSetSurface && (
+          {current && onSetSurface && !isShoes && (
             <>
               <Menu.Divider />
               <Menu.Label>Ridden on</Menu.Label>

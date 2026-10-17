@@ -701,8 +701,12 @@ async function assignRange(req, res, userId) {
 
   const bike = await ownedBike(userId, gearId);
   if (!bike) return res.status(404).json({ error: 'Gear not found' });
-  if (bike.gear_type !== 'bike') return res.status(400).json({ error: 'Only bikes take rides' });
-  if (bike.status !== 'active') return res.status(400).json({ error: 'That bike is retired' });
+  if (bike.gear_type !== 'bike' && bike.gear_type !== 'shoes') {
+    return res.status(400).json({ error: 'Only bikes and shoes link to Strava gear' });
+  }
+  const isShoes = bike.gear_type === 'shoes';
+  const sport = bike.sport_type || (isShoes ? 'running' : 'cycling');
+  if (bike.status !== 'active') return res.status(400).json({ error: isShoes ? 'Those shoes are retired' : 'That bike is retired' });
 
   const { plan } = await planRange(userId, bike, { from, until, includeAuto: Boolean(includeAuto) });
   const result = plan.toLink.length
@@ -875,7 +879,7 @@ async function listProviderGear(req, res, userId) {
 /**
  * "This is my Tarmac": put a Strava gear id on an existing bike and pull
  * every ride Strava tagged with it onto that bike. Match only — never
- * creates a bike.
+ * creates a bike. Shoes work the same way with runs (multisport phase 5).
  */
 async function linkProviderGear(req, res, userId) {
   const { gearId, providerGearId, includeAuto = true } = req.body;
@@ -897,7 +901,11 @@ async function linkProviderGear(req, res, userId) {
     .neq('id', bike.id)
     .maybeSingle();
   if (other) {
-    return res.status(409).json({ error: `That Strava bike is already ${other.name}`, conflictGearId: other.id, conflictName: other.name });
+    return res.status(409).json({
+      error: `That Strava ${isShoes ? 'gear' : 'bike'} is already ${other.name}`,
+      conflictGearId: other.id,
+      conflictName: other.name,
+    });
   }
 
   if (bike.strava_gear_id !== providerGearId) {
@@ -909,9 +917,13 @@ async function linkProviderGear(req, res, userId) {
     if (error) return res.status(500).json({ error: error.message });
   }
 
-  const rides = await fetchCandidateRides(supabase, userId, { stravaGearId: providerGearId });
+  const rides = await fetchCandidateRides(supabase, userId, { stravaGearId: providerGearId, sport });
   const existing = await fetchExistingLinks(supabase, rides.map((r) => r.id));
-  const plan = planBackfill(rides, existing, bike.id, { includeAuto: Boolean(includeAuto), includeStrava: true, bikeCategory: bike.category });
+  const plan = planBackfill(rides, existing, bike.id, {
+    includeAuto: Boolean(includeAuto),
+    includeStrava: true,
+    bikeCategory: isShoes ? null : bike.category,
+  });
   const result = plan.toLink.length
     ? await applyBackfill(supabase, { userId, gearId: bike.id, plan, assignedBy: 'strava' })
     : { linked: 0, linkedIds: [], distanceM: 0, previous: [], touchedGearIds: [] };

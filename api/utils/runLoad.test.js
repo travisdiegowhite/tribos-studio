@@ -108,13 +108,19 @@ describe('resolveRunProfile', () => {
 
   it('prefers entered values', () => {
     const p = resolveRunProfile({ threshold_pace_sec: 270, lthr: 170, max_hr: 190, resting_hr: 50 }, history);
-    expect(p).toEqual({ thresholdPaceSec: 270, paceFrom: 'profile', lthr: 170, maxHr: 190, restingHr: 50, hrFrom: 'profile' });
+    expect(p).toMatchObject({ thresholdPaceSec: 270, paceFrom: 'profile', lthr: 170, maxHr: 190, restingHr: 50, hrFrom: 'profile' });
   });
 
   it('falls back to VDOT, then history', () => {
     expect(resolveRunProfile({ vdot: 50 }, []).paceFrom).toBe('vdot');
     const p = resolveRunProfile(null, history);
     expect(p).toMatchObject({ thresholdPaceSec: null, maxHr: 180, lthr: 160, hrFrom: 'estimated', restingHr: 60 });
+  });
+
+  it('keeps the history estimate alongside entered values', () => {
+    const p = resolveRunProfile({ threshold_pace_sec: 270, lthr: 170, max_hr: 190 }, history);
+    expect(p.estimated).toEqual({ thresholdPaceSec: null, lthr: 160 });
+    expect(resolveRunProfile(null, []).estimated).toEqual({ thresholdPaceSec: null, lthr: null });
   });
 
   it('derives LTHR from an entered max HR', () => {

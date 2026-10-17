@@ -417,14 +417,14 @@ export async function computeTrainingLoadRows(supabase, userId, opts = {}) {
  * @param {import('@supabase/supabase-js').SupabaseClient} supabase
  * @param {string} userId
  * @param {{ days?: number, dryRun?: boolean, now?: Date, includeToday?: boolean }} [opts]
- * @returns {Promise<{rowsWritten: number, lastDay: object|null, dryRun: boolean}>}
+ * @returns {Promise<{rowsWritten: number, lastDay: object|null, dryRun: boolean, runProfile?: object|null, timezone?: string}>}
  */
 export async function recomputeTrainingLoadForUser(supabase, userId, opts = {}) {
-  const { rows } = await computeTrainingLoadRows(supabase, userId, opts);
+  const { rows, profile, runProfile } = await computeTrainingLoadRows(supabase, userId, opts);
   const lastDay = rows.length > 0 ? rows[rows.length - 1] : null;
 
   if (opts.dryRun) {
-    return { rowsWritten: 0, lastDay, dryRun: true };
+    return { rowsWritten: 0, lastDay, dryRun: true, runProfile, timezone: profile.timezone };
   }
 
   for (let i = 0; i < rows.length; i += UPSERT_CHUNK) {
@@ -446,7 +446,7 @@ export async function recomputeTrainingLoadForUser(supabase, userId, opts = {}) 
     if (error) throw new Error(`training_load_daily upsert failed: ${error.message}`);
   }
 
-  return { rowsWritten: rows.length, lastDay, dryRun: false };
+  return { rowsWritten: rows.length, lastDay, dryRun: false, runProfile, timezone: profile.timezone };
 }
 
 /**

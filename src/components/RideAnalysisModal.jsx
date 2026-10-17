@@ -113,6 +113,7 @@ const RideAnalysisModal = ({
   isBackfilling = false,
   hasCreatedRoute = false,
   bikes = [],
+  shoes = [],
   onAssignBike,
   onSetSurface,
 }) => {
@@ -391,7 +392,9 @@ const RideAnalysisModal = ({
               {formatDate(ride.start_date || ride.recorded_at)}
             </Text>
           </Box>
-          {!isRun && (
+          {isRun ? (
+            <BikePickerMenu kind="shoes" ride={ride} bikes={shoes} onAssignBike={onAssignBike} />
+          ) : (
             <BikePickerMenu ride={ride} bikes={bikes} onAssignBike={onAssignBike} onSetSurface={onSetSurface} />
           )}
         </Group>

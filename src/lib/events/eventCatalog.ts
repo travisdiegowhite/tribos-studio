@@ -7,6 +7,10 @@
  *
  * Most dates are projections. statusText must go next to every date shown,
  * and an 'est' date is never presented as official (docs/event-catalog.md).
+ *
+ * Disciplines: 'gravel' (131) and, since multisport phase 5, 'road_run' and
+ * 'trail_run' (137). Types, distance buckets and the race type an event
+ * becomes all follow its sport.
  */
 
 import { supabase } from '../supabase';
@@ -15,9 +19,19 @@ import type { RacePrefill } from '../season/raceSearch';
 
 export type DateStatus = 'confirmed' | 'partial' | 'est' | 'risk';
 
+/** event_catalog.discipline values. */
+export type Discipline = 'gravel' | 'road_run' | 'trail_run' | string;
+/** The sport filter on the tab. */
+export type EventSport = 'all' | 'cycling' | 'running';
+
+export function sportOfDiscipline(discipline: Discipline | null | undefined): 'cycling' | 'running' {
+  return discipline === 'road_run' || discipline === 'trail_run' ? 'running' : 'cycling';
+}
+
 export interface CatalogEvent {
   id: string;
   name: string;
+  discipline: Discipline;
   city: string | null;
   state: string;
   region: string;
@@ -36,7 +50,7 @@ export interface CatalogEvent {
 }
 
 const COLUMNS =
-  'id, name, city, state, region, event_date, date_status, date_label, previous_date, event_type, ' +
+  'id, name, discipline, city, state, region, event_date, date_status, date_label, previous_date, event_type, ' +
   'distances_text, distances_mi, max_distance_mi, series, url, notes, last_checked_at';
 
 export async function fetchUpcomingEvents(today: string): Promise<{ events: CatalogEvent[]; error: string | null }> {
@@ -51,6 +65,7 @@ export async function fetchUpcomingEvents(today: string): Promise<{ events: Cata
   // numeric[] arrives as numbers or strings depending on the driver; normalise.
   const events = ((data ?? []) as unknown as CatalogEvent[]).map((e) => ({
     ...e,
+    discipline: e.discipline ?? 'gravel',
     distances_mi: (e.distances_mi ?? []).map(Number).filter(Number.isFinite),
     max_distance_mi: e.max_distance_mi === null ? null : Number(e.max_distance_mi),
   }));
@@ -61,17 +76,38 @@ export async function fetchUpcomingEvents(today: string): Promise<{ events: Cata
 
 export const REGIONS = ['West', 'Mountain', 'Texas & Plains', 'Midwest', 'Southeast', 'Mid-Atlantic', 'New England'] as const;
 export const EVENT_TYPES = ['Race', 'Stage race', 'Fondo / rally', 'Ride', 'Bikepacking'] as const;
+export const RUN_EVENT_TYPES = ['5K', '10K', 'Half marathon', 'Marathon', 'Ultra', 'Trail race'] as const;
+
+/** Event types for the type filter: rides, runs, or both. */
+export function eventTypesFor(sport: EventSport): string[] {
+  if (sport === 'running') return [...RUN_EVENT_TYPES];
+  if (sport === 'cycling') return [...EVENT_TYPES];
+  return [...EVENT_TYPES, ...RUN_EVENT_TYPES];
+}
 
 /** Longest-distance buckets, in miles. */
 export type DistanceBucket = 'any' | 'short' | 'mid' | 'long' | 'ultra';
-export const DISTANCE_BUCKETS: Record<Exclude<DistanceBucket, 'any'>, { min: number; max: number }> = {
+type Buckets = Record<Exclude<DistanceBucket, 'any'>, { min: number; max: number }>;
+export const DISTANCE_BUCKETS: Buckets = {
   short: { min: 0, max: 50 },
   mid: { min: 50, max: 100 },
   long: { min: 100, max: 200 },
   ultra: { min: 200, max: Infinity },
 };
+/** Run buckets: up to 10K, half, marathon, ultra (miles). */
+export const RUN_DISTANCE_BUCKETS: Buckets = {
+  short: { min: 0, max: 7 },
+  mid: { min: 7, max: 14 },
+  long: { min: 14, max: 27 },
+  ultra: { min: 27, max: Infinity },
+};
+
+export function distanceBucketsFor(sport: 'cycling' | 'running'): Buckets {
+  return sport === 'running' ? RUN_DISTANCE_BUCKETS : DISTANCE_BUCKETS;
+}
 
 export interface EventFilters {
+  sport: EventSport;
   query: string;
   region: string | null;
   state: string | null;
@@ -82,6 +118,7 @@ export interface EventFilters {
 }
 
 export const EMPTY_FILTERS: EventFilters = {
+  sport: 'all',
   query: '',
   region: null,
   state: null,
@@ -100,13 +137,14 @@ const fold = (s: string) =>
 /** Does any offered distance fall in the bucket? (A 25/50/100 mi event suits short and long riders alike.) */
 function inBucket(e: CatalogEvent, bucket: DistanceBucket): boolean {
   if (bucket === 'any') return true;
-  const { min, max } = DISTANCE_BUCKETS[bucket];
+  const { min, max } = distanceBucketsFor(sportOfDiscipline(e.discipline))[bucket];
   return e.distances_mi.some((d) => d >= min && d < max);
 }
 
 export function filterEvents(events: CatalogEvent[], f: EventFilters): CatalogEvent[] {
   const words = fold(f.query).split(/\s+/).filter(Boolean);
   return events.filter((e) => {
+    if (f.sport && f.sport !== 'all' && sportOfDiscipline(e.discipline) !== f.sport) return false;
     if (f.region && e.region !== f.region) return false;
     if (f.state && e.state !== f.state) return false;
     if (f.month && e.event_date.slice(0, 7) !== f.month) return false;
@@ -187,6 +225,39 @@ export function statesOf(events: CatalogEvent[]): string[] {
 
 // ─── Add to season ──────────────────────────────────────────────────────────
 
+/** Marathon length in miles; a trail event beyond it is an ultra. */
+const MARATHON_MI = 26.2;
+
+/**
+ * race_goals.race_type for an event and the chosen distance: gravel stays
+ * gravel; a trail event is trail_run, or ultra_run past the marathon; a road
+ * run maps by distance to run_5k / run_10k / half_marathon / marathon.
+ */
+export function raceTypeFor(e: Pick<CatalogEvent, 'discipline' | 'event_type' | 'max_distance_mi'>, distanceMi: number | null): string {
+  const mi = distanceMi ?? e.max_distance_mi ?? null;
+  if (e.discipline === 'trail_run') {
+    if (mi === null) return e.event_type === 'Ultra' ? 'ultra_run' : 'trail_run';
+    return mi > MARATHON_MI + 0.5 ? 'ultra_run' : 'trail_run';
+  }
+  if (e.discipline === 'road_run') {
+    if (mi === null) {
+      const byType: Record<string, string> = {
+        '5K': 'run_5k',
+        '10K': 'run_10k',
+        'Half marathon': 'half_marathon',
+        Marathon: 'marathon',
+      };
+      return byType[e.event_type] ?? 'marathon';
+    }
+    if (mi <= 4) return 'run_5k';
+    if (mi <= 8) return 'run_10k';
+    if (mi <= 16) return 'half_marathon';
+    if (mi <= MARATHON_MI + 0.5) return 'marathon';
+    return 'ultra_run';
+  }
+  return 'gravel';
+}
+
 /**
  * Open RaceGoalModal for an event: a new race (no id), prefilled. The chosen
  * distance (miles) becomes distance_km; the date caveat goes into the notes so
@@ -211,7 +282,7 @@ export function eventToPrefill(e: CatalogEvent, distanceMi: number | null): Race
   return {
     name: e.name,
     race_date: e.event_date,
-    race_type: 'gravel',
+    race_type: raceTypeFor(e, distanceMi),
     distance_km: distanceMi === null ? null : Math.round(distanceMi * 1.609344 * 10) / 10,
     elevation_gain_m: null,
     location: [e.city, e.state].filter(Boolean).join(', '),

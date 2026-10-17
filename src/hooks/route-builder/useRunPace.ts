@@ -5,9 +5,8 @@
  * A thin view of useRunThresholds (src/hooks/useRunThresholds.ts), so the
  * route builder, the zone charts and Progress share one user_profiles query.
  * Fail-soft: null when unknown, and the run speed model then uses its
- * defaults. The history estimate the server uses for run load
- * (resolveRunProfile) needs 180 days of runs, too heavy for the browser, so it
- * is not used here.
+ * defaults. Without an entered pace it uses the history estimate the nightly
+ * load recompute stores on the profile (migration 136).
  */
 
 import {

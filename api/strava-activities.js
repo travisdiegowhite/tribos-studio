@@ -7,6 +7,7 @@ import { checkForDuplicate, mergeActivityData } from './utils/activityDedup.js';
 import { extractAndStoreActivitySegments } from './utils/roadSegmentExtractor.js';
 import { reportStravaApiFailure } from './utils/stravaAppStatus.js';
 import { isVirtualStravaActivity } from './utils/stravaVirtualGate.js';
+import { assignGearToActivity } from './utils/gearAssignment.js';
 
 // User-facing message when Strava has deactivated the API application itself.
 // Surfacing it beats the bare "Strava API error: 403" users saw during the
@@ -407,6 +408,8 @@ export async function storeActivities(userId, activities, importSource = null) {
   let stored = 0;
   let merged = 0;
   let skipped = 0;
+  /** Rows this call inserted, for gear assignment after the loop. */
+  const newlyInserted = [];
 
   for (const a of activities) {
     const activityData = {
@@ -501,6 +504,7 @@ export async function storeActivities(userId, activities, importSource = null) {
       console.error('Error storing activity:', a.id, error.message);
     } else {
       stored++;
+      if (inserted?.id) newlyInserted.push({ id: inserted.id, data: activityData });
 
       // Extract road segments for preference-based routing (async, don't block)
       if (activityData.map_summary_polyline && inserted?.id) {
@@ -508,6 +512,25 @@ export async function storeActivities(userId, activities, importSource = null) {
           console.warn(`⚠️ Segment extraction failed for activity ${a.id}:`, err.message);
         });
       }
+    }
+  }
+
+  // Gear for the new rows, as the webhook does for one activity: the Strava
+  // gear id first (same sport only), then the default bike or shoes. One at a
+  // time; a failure is logged and skipped, never fails the import.
+  for (const { id, data } of newlyInserted) {
+    try {
+      await assignGearToActivity(supabase, {
+        activityId: id,
+        userId,
+        activityType: data.type,
+        sportType: data.sport_type ?? null,
+        distance: data.distance,
+        stravaGearId: data.gear_id || null,
+        trainer: Boolean(data.trainer),
+      });
+    } catch (gearError) {
+      console.warn(`⚠️ Gear assignment failed for activity ${id}:`, gearError.message);
     }
   }
 

@@ -798,6 +798,11 @@ function TrainingDashboard() {
     () => gearItems.filter(g => g.gear_type === 'bike'),
     [gearItems],
   );
+  // Shoes for the same picker on runs (multisport phase 5).
+  const shoes = useMemo(
+    () => gearItems.filter(g => g.gear_type === 'shoes'),
+    [gearItems],
+  );
   const patchRideGear = useCallback((rideId, patch) => {
     const apply = (a) => (a.id === rideId ? { ...a, gear: { ...(a.gear || { activity_id: rideId, gear_item_id: null, assigned_by: 'manual', surface_override: null }), ...patch } } : a);
     setActivities(prev => prev.map(apply));
@@ -806,18 +811,23 @@ function TrainingDashboard() {
 
   const handleAssignBike = useCallback(async (ride, gearItemId) => {
     const before = ride.gear || null;
-    const bike = bikes.find(b => b.id === gearItemId);
+    const bike = gearItems.find(b => b.id === gearItemId);
+    const isShoes = bike?.gear_type === 'shoes';
     patchRideGear(ride.id, { gear_item_id: gearItemId, assigned_by: 'manual' });
     try {
       await reassignActivityGear(ride.id, gearItemId, 'manual');
       trackGear('gear_ride_assigned', { source: rideAnalysisModalOpen ? 'modal' : 'history', gearId: gearItemId, previousGearId: before?.gear_item_id ?? null });
-      notifications.show({ title: `On ${bike?.name || 'that bike'}`, message: `"${ride.name || 'Untitled ride'}" now counts toward its wear.`, color: 'green' });
+      notifications.show({
+        title: `On ${bike?.name || (isShoes ? 'those shoes' : 'that bike')}`,
+        message: `"${ride.name || (isShoes ? 'Untitled run' : 'Untitled ride')}" now counts toward ${isShoes ? 'their' : 'its'} wear.`,
+        color: 'green',
+      });
     } catch (error) {
       setActivities(prev => prev.map(a => (a.id === ride.id ? { ...a, gear: before } : a)));
       setSelectedRide(prev => (prev && prev.id === ride.id ? { ...prev, gear: before } : prev));
-      notifications.show({ title: 'Could not change the bike', message: error.message || 'Try again', color: 'red' });
+      notifications.show({ title: isShoes ? 'Could not change the shoes' : 'Could not change the bike', message: error.message || 'Try again', color: 'red' });
     }
-  }, [bikes, patchRideGear, reassignActivityGear, rideAnalysisModalOpen]);
+  }, [gearItems, patchRideGear, reassignActivityGear, rideAnalysisModalOpen]);
 
   const handleSetSurface = useCallback(async (ride, surface) => {
     const before = ride.gear || null;
@@ -1175,6 +1185,7 @@ function TrainingDashboard() {
                     selectedRideId={mapSel.ride?.id ?? null}
                     onHideRide={handleHideRide}
                     bikes={bikes}
+                    shoes={shoes}
                     onAssignBike={handleAssignBike}
                     onSetSurface={handleSetSurface}
                   />
@@ -1292,6 +1303,7 @@ function TrainingDashboard() {
         isImperial={isImperial}
         hasCreatedRoute={!!activation?.steps?.first_route?.completed}
         bikes={bikes}
+        shoes={shoes}
         onAssignBike={handleAssignBike}
         onSetSurface={handleSetSurface}
       />
