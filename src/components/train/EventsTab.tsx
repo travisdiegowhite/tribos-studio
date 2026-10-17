@@ -1,11 +1,14 @@
 /**
  * Train → Find an event: browse the curated event catalog and add an event to the season.
  *
- * Reads event_catalog (migrations 130/131), which a weekly cron re-checks
+ * Reads event_catalog (migrations 130/131, runs 137), which a weekly cron re-checks
  * against organizer sites (api/event-catalog-refresh.js). Every date carries
  * its status: most are projections and must never look official.
  * "Add to season" opens the race form prefilled; nothing is saved until the
- * rider saves it. See docs/event-catalog.md.
+ * athlete saves it. See docs/event-catalog.md.
+ *
+ * A Ride / Run filter appears when the catalog holds both; it starts on the
+ * athlete's primary sport. Types and distance buckets follow it.
  */
 
 import { useCallback, useEffect, useMemo, useState, type CSSProperties } from 'react';
@@ -27,11 +30,13 @@ import { useAuth } from '../../contexts/AuthContext';
 import { supabase } from '../../lib/supabase';
 import { getTodayString } from '../../utils/dateUtils';
 import RaceGoalModal from '../RaceGoalModal';
+import { loadSportProfile } from '../../utils/sportProfile';
 import type { RacePrefill } from '../../lib/season/raceSearch';
 import {
   EMPTY_FILTERS,
-  EVENT_TYPES,
   REGIONS,
+  eventTypesFor,
+  sportOfDiscipline,
   dateText,
   distancesText,
   eventToPrefill,
@@ -45,6 +50,7 @@ import {
   type CatalogEvent,
   type DistanceBucket,
   type EventFilters,
+  type EventSport,
 } from '../../lib/events/eventCatalog';
 
 const display: CSSProperties = {
@@ -186,6 +192,20 @@ export default function EventsTab({ isImperial = false }: { isImperial?: boolean
     };
   }, [today]);
 
+  // Start on the athlete's primary sport (fail-soft: cycling).
+  useEffect(() => {
+    if (!user?.id) return;
+    let cancelled = false;
+    void loadSportProfile(user.id).then(({ profile }) => {
+      if (cancelled) return;
+      const sport: EventSport = profile.primarySport === 'running' ? 'running' : 'cycling';
+      setFilters((f) => (f.sport === 'all' ? { ...f, sport } : f));
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [user?.id]);
+
   const loadSeason = useCallback(async () => {
     if (!user?.id) return;
     const { data } = await supabase.from('race_goals').select('name, race_date').eq('user_id', user.id).gte('race_date', today);
@@ -201,6 +221,11 @@ export default function EventsTab({ isImperial = false }: { isImperial?: boolean
   };
 
   const all = useMemo(() => events ?? [], [events]);
+  const sportsInCatalog = useMemo(() => new Set(all.map((e) => sportOfDiscipline(e.discipline))), [all]);
+  const hasBoth = sportsInCatalog.size > 1;
+  // The sport the type and distance filters speak for; null when "All" spans both.
+  const filterSport: 'cycling' | 'running' | null =
+    filters.sport !== 'all' ? filters.sport : hasBoth ? null : ([...sportsInCatalog][0] ?? 'cycling');
   const filtered = useMemo(() => filterEvents(all, filters), [all, filters]);
   const groups = useMemo(() => groupByMonth(filtered.slice(0, shown)), [filtered, shown]);
   const months = useMemo(() => monthsOf(all), [all]);
@@ -209,12 +234,23 @@ export default function EventsTab({ isImperial = false }: { isImperial?: boolean
     () => all.reduce<string | null>((max, e) => (e.last_checked_at && (!max || e.last_checked_at > max) ? e.last_checked_at : max), null),
     [all],
   );
-  const filtering = JSON.stringify(filters) !== JSON.stringify(EMPTY_FILTERS);
+  const filtering = JSON.stringify({ ...filters, sport: 'all' }) !== JSON.stringify(EMPTY_FILTERS);
+  const clearFilters = () => set({ ...EMPTY_FILTERS, sport: filters.sport });
 
   const unit = isImperial ? 'mi' : 'km';
-  const distanceLabels: Record<DistanceBucket, string> = isImperial
-    ? { any: 'Any', short: '<50', mid: '50–100', long: '100–200', ultra: '200+' }
-    : { any: 'Any', short: '<80', mid: '80–160', long: '160–320', ultra: '320+' };
+  const distanceLabels: Record<DistanceBucket, string> =
+    filterSport === 'running'
+      ? { any: 'Any', short: '≤10K', mid: 'Half', long: 'Marathon', ultra: 'Ultra' }
+      : isImperial
+        ? { any: 'Any', short: '<50', mid: '50–100', long: '100–200', ultra: '200+' }
+        : { any: 'Any', short: '<80', mid: '80–160', long: '160–320', ultra: '320+' };
+  const typeOptions = eventTypesFor(filterSport ?? 'all');
+  const intro =
+    sportsInCatalog.has('running') && sportsInCatalog.has('cycling')
+      ? 'US gravel and running events'
+      : sportsInCatalog.has('running')
+        ? 'US running events'
+        : 'US gravel events';
 
   if (events === null) {
     return (
@@ -232,7 +268,7 @@ export default function EventsTab({ isImperial = false }: { isImperial?: boolean
             Find an event
           </Text>
           <Text size="sm" c="var(--color-text-secondary)" mt={6}>
-            US gravel events for the coming season. Most dates are estimates from last year until the organizer
+            {intro} for the coming season. Most dates are estimates from last year until the organizer
             announces them.
           </Text>
         </Box>
@@ -242,6 +278,22 @@ export default function EventsTab({ isImperial = false }: { isImperial?: boolean
       </Group>
 
       <Stack gap="xs">
+        {hasBoth && (
+          <SegmentedControl
+            radius={0}
+            size="xs"
+            value={filters.sport}
+            onChange={(v) => set({ sport: v as EventSport, type: null, distance: 'any' })}
+            data={[
+              { value: 'cycling', label: 'Ride' },
+              { value: 'running', label: 'Run' },
+              { value: 'all', label: 'All' },
+            ]}
+            aria-label="Sport"
+            data-testid="events-sport"
+            style={{ alignSelf: 'flex-start' }}
+          />
+        )}
         <TextInput
           radius={0}
           placeholder="Search by name, town or series"
@@ -288,7 +340,7 @@ export default function EventsTab({ isImperial = false }: { isImperial?: boolean
             radius={0}
             size="xs"
             placeholder="Type"
-            data={[...EVENT_TYPES]}
+            data={typeOptions}
             value={filters.type}
             onChange={(v) => set({ type: v })}
             clearable
@@ -297,9 +349,10 @@ export default function EventsTab({ isImperial = false }: { isImperial?: boolean
           />
         </Group>
         <Group gap="md" wrap="wrap" align="center">
+          {filterSport !== null && (
           <Group gap={6} wrap="nowrap" align="center">
             <Text size="xs" c="var(--color-text-secondary)">
-              Distance ({unit})
+              Distance{filterSport === 'running' ? '' : ` (${unit})`}
             </Text>
             <SegmentedControl
               radius={0}
@@ -309,6 +362,7 @@ export default function EventsTab({ isImperial = false }: { isImperial?: boolean
               data={(Object.keys(distanceLabels) as DistanceBucket[]).map((value) => ({ value, label: distanceLabels[value] }))}
             />
           </Group>
+          )}
           <Checkbox
             size="xs"
             radius={0}
@@ -324,7 +378,7 @@ export default function EventsTab({ isImperial = false }: { isImperial?: boolean
           {filtered.length} of {all.length} events
         </Text>
         {filtering && (
-          <Button radius={0} size="xs" variant="subtle" onClick={() => set(EMPTY_FILTERS)}>
+          <Button radius={0} size="xs" variant="subtle" onClick={clearFilters}>
             Clear filters
           </Button>
         )}

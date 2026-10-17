@@ -130,6 +130,46 @@ describe('buildCheckPrompt', () => {
     expect(p).toMatch(/projection: 2027-02-06/);
     expect(p).toMatch(/Known site: https:\/\/rockcobbler\.com\//);
     expect(p).toMatch(/Last known edition: 2026-02-07/);
+    expect(p).toMatch(/this US gravel event has published/);
+  });
+
+  it('names running and trail races for their disciplines', () => {
+    expect(buildCheckPrompt({ ...event, discipline: 'road_run', event_type: 'Marathon' }, today)).toMatch(
+      /this US running race has published/,
+    );
+    const trail = buildCheckPrompt({ ...event, discipline: 'trail_run', event_type: null }, today);
+    expect(trail).toMatch(/this US trail race has published/);
+    expect(trail).toMatch(/\(trail race\)/);
+  });
+});
+
+describe('event catalog seed script', () => {
+  it('still reproduces migration 131 byte for byte', async () => {
+    const { execFileSync } = await import('node:child_process');
+    const { readFileSync } = await import('node:fs');
+    const out = execFileSync('node', ['scripts/build-event-catalog-seed.mjs', 'database/seeds/gravel_events_2027.json'], {
+      encoding: 'utf8',
+    });
+    expect(out).toBe(readFileSync('database/migrations/131_event_catalog_seed_gravel_2027.sql', 'utf8'));
+  });
+
+  it('reproduces migration 137 from the run seed', async () => {
+    const { execFileSync } = await import('node:child_process');
+    const { readFileSync } = await import('node:fs');
+    const out = execFileSync(
+      'node',
+      [
+        'scripts/build-event-catalog-seed.mjs',
+        'database/seeds/run_events_2027.json',
+        '--migration',
+        '137',
+        '--discipline',
+        'road_run',
+        '--with-discipline-index',
+      ],
+      { encoding: 'utf8' },
+    );
+    expect(out).toBe(readFileSync('database/migrations/137_event_catalog_seed_run_2027.sql', 'utf8'));
   });
 });
 

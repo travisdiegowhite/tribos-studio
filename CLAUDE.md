@@ -206,7 +206,7 @@ no cron may run more often than every 5 minutes. Nothing runs every minute.
 | `0 12 * * *` | `coach-correction-trigger` | coach correction sweep |
 | `0 3 * * 1` | `fitness-snapshots?action=compute-weekly` | weekly snapshots |
 | `0 4 * * 1` | `evidence-weekly?action=compute-weekly` | weekly evidence rollup |
-| `0 5 * * 1` | `event-catalog-refresh` | re-check projected event dates on the web (`docs/event-catalog.md`) |
+| `0 5 * * 1` | `event-catalog-refresh` | re-check projected gravel and running event dates on the web (`docs/event-catalog.md`) |
 
 ### TypeScript Migration
 The codebase is **gradually migrating from JavaScript to TypeScript**. New code should prefer TypeScript (`.ts`/`.tsx`) but JS files are accepted. `allowJs: true` and `checkJs: false` are set in tsconfig. Path aliases available: `@/*`, `@/types/*`, `@/components/*`, `@/utils/*`, `@/data/*`.
