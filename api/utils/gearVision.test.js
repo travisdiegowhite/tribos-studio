@@ -37,6 +37,23 @@ describe('gearVision: schema', () => {
     expect(s.properties.bike.properties.category.anyOf[1]).toEqual({ type: 'null' });
     expect(s.properties.bike.properties.category.anyOf[0].enum).toContain('road');
   });
+
+  it('uses no keyword structured outputs rejects (minimum/maximum failed every request with a 400)', () => {
+    const unsupported = ['minimum', 'maximum', 'exclusiveMinimum', 'exclusiveMaximum', 'multipleOf', 'minLength', 'maxLength'];
+    const walk = (node, path = '$') => {
+      if (!node || typeof node !== 'object') return;
+      for (const kw of unsupported) {
+        expect(Object.prototype.hasOwnProperty.call(node, kw), `${path} uses ${kw}`).toBe(false);
+      }
+      for (const [k, v] of Object.entries(node)) {
+        if (k === 'properties' && v && typeof v === 'object') {
+          for (const [name, child] of Object.entries(v)) walk(child, `${path}.${name}`);
+        } else if (Array.isArray(v)) v.forEach((item, i) => walk(item, `${path}.${k}[${i}]`));
+        else if (v && typeof v === 'object') walk(v, `${path}.${k}`);
+      }
+    };
+    walk(buildExtractionSchema());
+  });
 });
 
 describe('gearVision: prompt', () => {

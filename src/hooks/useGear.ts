@@ -483,7 +483,9 @@ export function useGear({ userId, alertsOnly = false }: UseGearOptions = {}) {
       );
     }
     const data = await response.json();
-    if (!response.ok) throw new Error(data.error || 'Could not read the photos');
+    if (!response.ok) {
+      throw new Error([data.error || 'Could not read the photos', data.detail].filter(Boolean).join(': '));
+    }
     return { extraction: data.extraction as VisionExtraction, model: data.model as string };
   }, []);
 

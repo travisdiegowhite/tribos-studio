@@ -36,7 +36,10 @@ export function buildExtractionSchema() {
   // ("Enum value 'road' does not match declared type ['string','null']"), so
   // a nullable enum is spelled as anyOf: the enum branch, or null.
   const nullableEnum = (values) => ({ anyOf: [{ type: 'string', enum: values }, { type: 'null' }] });
-  const confidence = { type: 'number', minimum: 0, maximum: 1 };
+  // Structured outputs also reject numeric constraints (minimum/maximum) with a
+  // 400 on every request; the 0–1 range lives in the description and
+  // normalizeExtraction clamps it.
+  const confidence = { type: 'number', description: 'Confidence from 0 to 1' };
 
   return {
     type: 'object',
