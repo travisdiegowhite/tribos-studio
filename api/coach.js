@@ -30,6 +30,8 @@ import { fetchCoachEnrichmentData, buildCoachEnrichmentBlock } from './utils/coa
 import { buildCoachingBibleBlock, buildRiderContext, ageFromProfile, pickGoalRace } from './utils/coachingBible.js';
 import { fetchRiderStateData, toRiderState } from './utils/toRiderState.js';
 import { evaluateRules, selectInjectedRules, droppedRuleIds } from './utils/rulesEngine.js';
+import { isPlanCurrent, planLifecycle } from './utils/planLifecycle.js';
+import { saveCoachMemory } from './utils/coachMemoryWrite.js';
 
 // Initialize Supabase for auth validation
 const supabase = getSupabaseAdmin();
@@ -728,9 +730,13 @@ export default async function handler(req, res) {
         .maybeSingle(),
       supabase
         .from('coach_memory')
-        .select('category, content')
+        .select('category, content, created_at')
         .eq('user_id', verifiedUserId)
         .eq('is_active', true)
+        // expires_at was written (short 7d, medium 30d, or a save_memory
+        // `until`) but never checked, so June's race goals were still being
+        // injected in October.
+        .or(`expires_at.is.null,expires_at.gt.${new Date().toISOString()}`)
         .order('created_at', { ascending: false })
         .limit(10),
       supabase
@@ -774,7 +780,9 @@ export default async function handler(req, res) {
       // Fetch all active training plans for multi-plan context
       supabase
         .from('training_plans')
-        .select('id, name, sport_type, priority, status, start_date, end_date, created_at')
+        // Dating columns feed planLifecycle — an 'active' row past its
+        // anchor date is history, filtered below once the timezone is known.
+        .select('id, name, sport_type, priority, status, start_date, end_date, started_at, duration_weeks, target_event_date, blocks, created_at')
         .eq('user_id', verifiedUserId)
         .eq('status', 'active')
         .order('priority', { ascending: true, nullsFirst: false })
@@ -853,7 +861,7 @@ export default async function handler(req, res) {
     const unresolvedDeviations = deviationsResult?.data || [];
     const userDbTimezone = userProfileResult?.data?.timezone || null;
     const userRecoveryMode = userProfileResult?.data?.recovery_mode || 'standard';
-    const allActivePlans = allActivePlansResult?.data || [];
+    const activePlanRows = allActivePlansResult?.data || [];
     const healthMetrics = healthMetricsResult?.data || null;
 
     // Resolve training availability: prefer a client-supplied payload, else build it
@@ -910,6 +918,15 @@ export default async function handler(req, res) {
     // Resolve the user's timezone: prefer browser-supplied, then DB, then UTC
     const resolvedTimezone = userLocalDate?.timezone || userDbTimezone || 'UTC';
 
+    // A plan whose target race / last block has passed is over, whatever its
+    // status says (arc-refill closes the row on app open). Ended plans become
+    // one line of history rather than "the active plan".
+    const planTodayStr = formatDateInTimezone(new Date(), resolvedTimezone);
+    const allActivePlans = activePlanRows.filter((p) => isPlanCurrent(p, planTodayStr));
+    const endedPlans = activePlanRows
+      .map((p) => ({ plan: p, life: planLifecycle(p, planTodayStr) }))
+      .filter(({ life }) => life.state === 'ended');
+
     // Fetch temporal anchor data (next 14 days of sessions + upcoming race goals)
     // Non-blocking on failure — coach degrades gracefully without the anchor block
     let anchorData = { plannedWorkouts: [], raceGoals: [] };
@@ -926,7 +943,7 @@ export default async function handler(req, res) {
       anchorData.plannedWorkouts,
       anchorData.raceGoals,
       new Date(),
-      { selectedRaceGoalId }
+      { selectedRaceGoalId, recentRaces: anchorData.recentRaces || [] }
     );
 
     // ── The calendar the coach reads and writes ─────────────────────────────
@@ -1054,9 +1071,13 @@ This athlete is ${experienceLevel === 'just_starting' ? 'new to structured train
 
     // Inject coach memory (persistent behavioral insights)
     if (coachMemories.length > 0) {
-      const memoryLines = coachMemories.map((m) => `- [${m.category}] ${m.content}`).join('\n');
+      const memoryLines = coachMemories.map((m) => {
+        const saved = m.created_at ? ` · saved ${String(m.created_at).slice(0, 10)}` : '';
+        return `- [${m.category}${saved}] ${m.content}`;
+      }).join('\n');
       systemPrompt += `\n\n=== COACH MEMORY (PERSISTENT INSIGHTS ABOUT THIS ATHLETE) ===
-These are facts you've learned about this athlete over time. Reference them naturally:
+These are facts you've learned about this athlete over time. Reference them naturally.
+A memory about a dated event (a race, a trip, a block) whose date has passed is history, not a current goal — never treat it as upcoming.
 ${memoryLines}`;
     }
 
@@ -1149,6 +1170,16 @@ IMPORTANT: When adjusting schedules, ensure you are modifying the correct plan. 
       const p = allActivePlans[0];
       systemPrompt += `\n\n=== ACTIVE TRAINING PLAN ===
 Active plan: "${p.name}" — ${p.sport_type || 'cycling'} (id: ${p.id})`;
+    }
+
+    if (endedPlans.length > 0) {
+      const lines = endedPlans.map(({ plan, life }) => {
+        const ago = life.daysSinceEnd === 1 ? 'yesterday' : `${life.daysSinceEnd} days ago`;
+        return `  - "${plan.name}" ended ${life.anchorDate} (${ago}).`;
+      }).join('\n');
+      systemPrompt += `\n\n=== PLAN HISTORY ===
+${lines}
+These plans are FINISHED. Do not describe their phases, taper or countdown as current, and do not plan around their target event.${allActivePlans.length === 0 ? '\nThere is no active plan now — training is organised around the races and sessions on the calendar.' : ''}`;
     }
 
     // Add schedule availability context if provided
@@ -1602,26 +1633,12 @@ ${conversationSummary}
         result = await handleTrainingDataQuery(verifiedUserId, tool.input);
       } else if (tool.name === 'save_coach_memory') {
         console.log(`🧠 Saving coach memory: [${tool.input.category}] ${tool.input.content}`);
-        // Calculate expiry for short/medium memories
-        let expiresAt = null;
-        if (tool.input.memory_type === 'short') {
-          expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
-        } else if (tool.input.memory_type === 'medium') {
-          expiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
-        }
-        const { error: memError } = await supabase
-          .from('coach_memory')
-          .insert({
-            user_id: verifiedUserId,
-            memory_type: tool.input.memory_type,
-            category: tool.input.category,
-            content: tool.input.content,
-            source_type: 'conversation',
-            expires_at: expiresAt,
-          });
-        if (memError) {
-          console.error('Failed to save coach memory:', memError);
+        const mem = await saveCoachMemory(supabase, verifiedUserId, tool.input);
+        if (mem.error) {
+          console.error('Failed to save coach memory:', mem.error);
           result = { success: false, error: 'Failed to save memory' };
+        } else if (mem.duplicate) {
+          result = { success: true, already_saved: tool.input.content };
         } else {
           result = { success: true, saved: tool.input.content };
         }

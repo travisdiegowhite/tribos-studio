@@ -19,6 +19,8 @@ import {
 } from './contextHelpers.js';
 import { fetchPlannedSessions, fetchEntryById, fetchEntryByActivityId } from './calendarRead.js';
 import { sportTypeOfActivity } from './sportTypes.js';
+import { isPlanCurrent } from './planLifecycle.js';
+import { fetchRaceAnchorRaces, pickNextGoalRace } from './raceAnchor.js';
 
 /**
  * Build a map of workout_id → annotation string from recent accepted decisions.
@@ -194,7 +196,6 @@ export async function assembleCheckInContext(supabase, userId, activityId) {
     activityResult,
     planResult,
     fitnessResult,
-    raceGoalResult,
     coachSettingsResult,
     decisionsResult,
     healthResult,
@@ -207,12 +208,13 @@ export async function assembleCheckInContext(supabase, userId, activityId) {
 
     supabase
       .from('training_plans')
-      .select('id, name, current_week, duration_weeks, methodology, goal, status, start_date, started_at, blocks')
+      // All active rows: an ended plan (target race passed) still says
+      // 'active' until arc-refill closes it, so the pick happens below once
+      // the athlete's today is known.
+      .select('id, name, current_week, duration_weeks, methodology, goal, status, start_date, started_at, end_date, target_event_date, blocks')
       .eq('user_id', userId)
       .eq('status', 'active')
-      .order('updated_at', { ascending: false })
-      .limit(1)
-      .maybeSingle(),
+      .order('updated_at', { ascending: false }),
 
     supabase
       .from('fitness_snapshots')
@@ -222,15 +224,6 @@ export async function assembleCheckInContext(supabase, userId, activityId) {
       .limit(1)
       .maybeSingle(),
 
-    supabase
-      .from('race_goals')
-      .select('name, race_date, race_type, priority')
-      .eq('user_id', userId)
-      .eq('status', 'upcoming')
-      .order('priority', { ascending: true })
-      .order('race_date', { ascending: true })
-      .limit(1)
-      .maybeSingle(),
 
     supabase
       .from('user_coach_settings')
@@ -258,6 +251,7 @@ export async function assembleCheckInContext(supabase, userId, activityId) {
       .select('category, content')
       .eq('user_id', userId)
       .eq('is_active', true)
+      .or(`expires_at.is.null,expires_at.gt.${new Date().toISOString()}`) // expired memories are history
       .order('created_at', { ascending: false })
       .limit(10),
 
@@ -291,9 +285,8 @@ export async function assembleCheckInContext(supabase, userId, activityId) {
   ]);
 
   const activity = activityResult.data;
-  const plan = planResult.data;
+  const activePlanRows = planResult.data || [];
   const fitness = fitnessResult.data;
-  const raceGoal = raceGoalResult.data;
   const coachSettings = coachSettingsResult.data;
   const decisions = decisionsResult.data || [];
   const health = healthResult.data;
@@ -301,6 +294,12 @@ export async function assembleCheckInContext(supabase, userId, activityId) {
   const recentConversations = recentConversationsResult.data || [];
   const userProfile = userProfileResult?.data || {};
   const userTimezone = userProfile.timezone || 'America/New_York';
+  const lifecycleToday = formatDateInTz(new Date(), userTimezone);
+  const plan = activePlanRows.find((p) => isPlanCurrent(p, lifecycleToday)) || null;
+  const { upcoming: upcomingRaces } = await fetchRaceAnchorRaces(userId, lifecycleToday);
+  // The goal race, from the calendar. This used to read race_goals with no
+  // date filter, priority first — so a finished A race beat every real one.
+  const raceGoal = pickNextGoalRace(upcomingRaces);
 
   // Get matched planned workout (if any) — reverse pointer, then the
   // calendar's forward link, then same-local-day fallback.

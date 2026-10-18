@@ -8,6 +8,7 @@
 import { estimateActivityTSS } from '../../utils/computeFitnessSnapshots';
 import { formatLocalDate, parsePlanStartDate } from '../../utils/dateUtils';
 import { getActivitySport } from '../../utils/sportType';
+import { isPlanCurrent } from '../../utils/planLifecycle';
 
 // Sport of an activity row — the shared classifier, so a Garmin
 // 'TRAIL_RUNNING' lands under running here exactly as it does in the load
@@ -211,15 +212,17 @@ export function buildTrainingContext(trainingMetrics, weeklyStats, actualWeeklyS
     }
   }
 
-  // Add active training plan context
-  if (activePlan) {
+  // Add active training plan context. A plan past its anchor date (target
+  // race / last block) is history, not context — the coach was still reading
+  // "Plan: The Rad · Taper" three weeks after The Rad.
+  if (activePlan && isPlanCurrent(activePlan)) {
     // Use parsePlanStartDate for timezone-safe parsing
     const planStart = parsePlanStartDate(activePlan.started_at || activePlan.start_date);
     const now = new Date();
     now.setHours(0, 0, 0, 0); // Compare at midnight
     const daysSinceStart = planStart ? Math.floor((now - planStart) / (24 * 60 * 60 * 1000)) : 0;
-    const currentWeek = Math.max(1, Math.floor(daysSinceStart / 7) + 1);
     const totalWeeks = activePlan.duration_weeks || 8;
+    const currentWeek = Math.min(totalWeeks, Math.max(1, Math.floor(daysSinceStart / 7) + 1));
     const progress = currentWeek / totalWeeks;
 
     // Determine phase

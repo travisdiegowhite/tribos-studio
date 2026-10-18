@@ -462,8 +462,10 @@ describe('useTrainingPlan', () => {
       expect(result.current.currentWeek).toBe(3);
     });
 
-    it('should cap currentWeek at plan duration', async () => {
-      // Create a plan that started 100 days ago but only 4 weeks long
+    it('does not load a plan whose duration has run out', async () => {
+      // A 4-week plan that started 100 days ago ended long ago: its row may
+      // still say 'active', but it is history (planLifecycle.ts), not the
+      // current plan — this used to load it and report "week 4" forever.
       const startDate = new Date();
       startDate.setDate(startDate.getDate() - 100);
 
@@ -511,11 +513,10 @@ describe('useTrainingPlan', () => {
       );
 
       await waitFor(() => {
-        expect(result.current.activePlan).not.toBeNull();
+        expect(result.current.loading).toBe(false);
       });
 
-      // Should be capped at 4 (duration_weeks)
-      expect(result.current.currentWeek).toBe(4);
+      expect(result.current.activePlan).toBeNull();
     });
   });
 

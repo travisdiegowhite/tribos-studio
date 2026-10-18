@@ -489,6 +489,16 @@ function TrainingDashboard() {
         });
         if (!response.ok) return;
         const result = await response.json();
+        // A plan whose target race / last block has passed is closed server-side.
+        const closed = result?.closed_plans || [];
+        if (closed.length > 0) {
+          window.dispatchEvent(new CustomEvent('training-plan-updated'));
+          notifications.show({
+            title: closed.length === 1 ? `${closed[0].name} is complete` : `${closed.length} plans are complete`,
+            message: 'Its race date has passed, so the plan is closed. Your calendar is unchanged.',
+            color: 'teal',
+          });
+        }
         if (result?.count > 0) {
           // Refresh the calendar/plan views via the existing reload event.
           window.dispatchEvent(new CustomEvent('training-plan-updated'));
