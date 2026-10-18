@@ -20,6 +20,7 @@ import { setupCors } from './utils/cors.js';
 import { computeArcRefill, computeDailyStatsFromActivities } from './utils/arcRefill.js';
 import { coefficientsForMode } from './utils/sequencerBlockOps.js';
 import { deriveCurrentWeek, derivePhaseFromBlocks } from './utils/contextHelpers.js';
+import { planLifecycle, isPlanCurrent } from './utils/planLifecycle.js';
 import { buildRaceDemand } from './utils/raceDemand.js';
 import { normalizeIntervals, buildPrescription, withPrescription } from './utils/prescription.js';
 
@@ -105,13 +106,43 @@ export default async function handler(req, res) {
     //    this is the single server-side writer that corrects it. Runs before
     //    the arc-only early-returns so non-arc plans sync too, and before the
     //    15-min guard so a stale week never survives a guarded run.
+    //
+    //    It is also where a plan ENDS. A plan whose anchor date (target race,
+    //    last block, end date — see planLifecycle.js) has passed is closed:
+    //    status 'completed', ended_at = the anchor. Nothing else ever did this,
+    //    so "Plan: The Rad" stayed active (and in the coach's prompt, stuck in
+    //    taper) for weeks after the race. Its calendar entries are untouched —
+    //    a plan is provenance, not ownership.
+    const closedPlans = [];
     try {
       const { data: allActive } = await supabase
         .from('training_plans')
-        .select('id, start_date, started_at, duration_weeks, current_week, current_phase, blocks')
+        .select('id, name, start_date, started_at, end_date, duration_weeks, target_event_date, current_week, current_phase, blocks')
         .eq('user_id', userId)
         .eq('status', 'active');
+      const closeWrites = [];
+      for (const p of allActive || []) {
+        const life = planLifecycle(p, windowStart);
+        if (life.state !== 'ended') continue;
+        closedPlans.push({ id: p.id, name: p.name, ended_on: life.anchorDate });
+        closeWrites.push(
+          supabase
+            .from('training_plans')
+            .update({ status: 'completed', ended_at: `${life.anchorDate}T23:59:59Z` })
+            .eq('id', p.id)
+            .eq('user_id', userId)
+            .eq('status', 'active'),
+        );
+      }
+      if (closeWrites.length > 0) {
+        const results = await Promise.all(closeWrites);
+        results.forEach((r, i) => {
+          if (r?.error) console.error(`arc-refill: closing ended plan ${closedPlans[i].id} failed:`, r.error.message);
+        });
+      }
+
       const syncWrites = (allActive || [])
+        .filter((p) => isPlanCurrent(p, windowStart))
         .map((p) => {
           const week = deriveCurrentWeek(p, windowStart);
           const phase = derivePhaseFromBlocks(p.blocks, windowStart);
@@ -131,7 +162,7 @@ export default async function handler(req, res) {
     // 1. Resolve the active living arc (primary, ai_arc, has blocks).
     const { data: plan } = await supabase
       .from('training_plans')
-      .select('id, start_date, target_event_date, tier, blocks, last_refill_at')
+      .select('id, start_date, started_at, end_date, duration_weeks, target_event_date, tier, blocks, last_refill_at')
       .eq('user_id', userId)
       .eq('status', 'active')
       .eq('priority', 'primary')
@@ -141,13 +172,14 @@ export default async function handler(req, res) {
       .limit(1)
       .maybeSingle();
 
-    if (!plan?.blocks) {
-      return res.status(200).json({ changes: [], count: 0, skipped: 'no_active_arc' });
+    // An ended arc is never refilled, even if closing its row failed above.
+    if (!plan?.blocks || !isPlanCurrent(plan, windowStart)) {
+      return res.status(200).json({ changes: [], count: 0, skipped: 'no_active_arc', closed_plans: closedPlans });
     }
 
     // Cheap perf backstop (not a correctness guard — core is only-write-on-diff).
     if (!force && plan.last_refill_at && Date.now() - new Date(plan.last_refill_at).getTime() < REFILL_GUARD_MS) {
-      return res.status(200).json({ changes: [], count: 0, skipped: 'recently_refilled' });
+      return res.status(200).json({ changes: [], count: 0, skipped: 'recently_refilled', closed_plans: closedPlans });
     }
 
     // Window: 7 days normally; the arc's whole remaining horizon in full mode.
@@ -342,7 +374,7 @@ export default async function handler(req, res) {
     if (changes.length > 0) {
       console.log(`🔄 arc-refill: eased/restored ${changes.length} session(s) for plan ${plan.id}.`);
     }
-    return res.status(200).json({ changes, count: changes.length });
+    return res.status(200).json({ changes, count: changes.length, closed_plans: closedPlans });
   } catch (err) {
     console.error('arc-refill failed:', err);
     return res.status(500).json({ error: 'arc_refill_failed' });

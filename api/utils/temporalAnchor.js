@@ -11,6 +11,7 @@
  */
 
 import { fetchPlannedSessions } from './calendarRead.js';
+import { fetchRaceAnchorRaces } from './raceAnchor.js';
 
 const SHORT_DAY = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'];
 const FULL_DAY = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
@@ -152,7 +153,7 @@ function describeSession(session) {
  * @param {Date}   [now]           Override "now" (for testing)
  * @returns {string}               Formatted anchor block
  */
-export function buildTemporalAnchor(timezone, plannedWorkouts = [], raceGoals = [], now = new Date(), { selectedRaceGoalId = null } = {}) {
+export function buildTemporalAnchor(timezone, plannedWorkouts = [], raceGoals = [], now = new Date(), { selectedRaceGoalId = null, recentRaces = [] } = {}) {
   const safeTz = timezone || 'UTC';
 
   const todayStr = toLocalDateStr(now, safeTz);
@@ -202,6 +203,7 @@ export function buildTemporalAnchor(timezone, plannedWorkouts = [], raceGoals = 
   // target_event_date when periodizing toward an event.
   const daysUntilLines = [];
   let anchorRace = null; // { goal, diffDays }
+  let soonestRace = null; // { goal, diffDays } — whatever priority
   let selectedRace = null; // { goal, diffDays } — the race open in the Race tab
   for (const goal of (raceGoals || [])) {
     if (!goal.race_date) continue;
@@ -209,6 +211,7 @@ export function buildTemporalAnchor(timezone, plannedWorkouts = [], raceGoals = 
     const diffDays = Math.round((goalNoon.getTime() - todayNoon.getTime()) / (24 * 60 * 60 * 1000));
     if (diffDays < 0) continue;
     const priority = (goal.priority || '').toUpperCase();
+    if (!soonestRace) soonestRace = { goal, diffDays };
     const isSelected = selectedRaceGoalId != null && goal.id === selectedRaceGoalId;
     if (isSelected) selectedRace = { goal, diffDays };
 
@@ -265,6 +268,25 @@ export function buildTemporalAnchor(timezone, plannedWorkouts = [], raceGoals = 
       '',
       `${label}: ${anchorRace.goal.name} ${anchorRace.goal.race_date} (${anchorRace.diffDays} days)`
     );
+    // A season of unprioritised races before a distant A race: the race the
+    // athlete is actually lining up for next must not disappear behind it.
+    if (soonestRace && soonestRace.goal !== anchorRace.goal) {
+      lines.push(`NEXT_RACE: ${soonestRace.goal.name} ${soonestRace.goal.race_date} (${soonestRace.diffDays} days)`);
+    }
+  }
+
+  // RECENT_RACES — what just happened, framed as PAST so a finished race is
+  // never read as the target (the coach kept prepping for a race three weeks
+  // after it).
+  const recentLines = (recentRaces || [])
+    .filter((r) => r?.race_date && r.race_date < todayStr)
+    .map((r) => {
+      const ago = Math.round((todayNoon.getTime() - noonUTCFor(r.race_date).getTime()) / (24 * 60 * 60 * 1000));
+      const when = ago === 1 ? 'yesterday' : `${ago} days ago`;
+      return `  ${r.name} ${r.race_date} (${when}${r.done ? ', done' : ''})`;
+    });
+  if (recentLines.length > 0) {
+    lines.push('', 'RECENT_RACES (finished — history, not targets):', ...recentLines);
   }
 
   if (selectedRace) {
@@ -342,7 +364,7 @@ export async function fetchTemporalAnchorData(userId, supabase, timezone) {
   const cutoffMs = todayNoon.getTime() + 14 * 24 * 60 * 60 * 1000;
   const cutoffStr = toLocalDateStr(new Date(cutoffMs), safeTz);
 
-  const [plannedWorkouts, goalsResult] = await Promise.all([
+  const [plannedWorkouts, races] = await Promise.all([
     // The CALENDAR, not planned_workouts. The nullable-`completed` dance this
     // replaced is gone with the column: calendar_entries.status is NOT NULL
     // with a default, so "not yet done" is one unambiguous predicate.
@@ -351,20 +373,16 @@ export async function fetchTemporalAnchorData(userId, supabase, timezone) {
       to: cutoffStr,
       includeCompleted: false,
     }),
-    supabase
-      .from('race_goals')
-      // Detail columns feed the coach's SERVER TRAINING SNAPSHOT block
-      // (coachContextEnrichment.js); buildTemporalAnchor ignores them.
-      .select('id, name, race_date, race_type, priority, distance_km, elevation_gain_m, goal_time_minutes, goal_power_watts')
-      .eq('user_id', userId)
-      .eq('status', 'upcoming')
-      .gte('race_date', todayStr)
-      .order('race_date', { ascending: true })
-      .limit(10),
+    // Races come from the calendar too (raceAnchor.js): coach-added races live
+    // only there, and race_goals.status never leaves 'upcoming'. Same field
+    // shape as the race_goals rows this used to return — the detail columns
+    // still feed the SERVER TRAINING SNAPSHOT (coachContextEnrichment.js).
+    fetchRaceAnchorRaces(userId, todayStr),
   ]);
 
   return {
     plannedWorkouts,
-    raceGoals: goalsResult.data || [],
+    raceGoals: races.upcoming,
+    recentRaces: races.recent,
   };
 }

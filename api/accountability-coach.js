@@ -8,6 +8,7 @@ import { setupCors } from './utils/cors.js';
 import { requireAuth } from './utils/auth.js';
 import { enforceAiQuota } from './utils/aiQuota.js';
 import { buildCoachVoiceRules } from './utils/coachVoiceRules.js';
+import { saveCoachMemory } from './utils/coachMemoryWrite.js';
 
 // Initialize Supabase (server-side)
 const supabase = getSupabaseAdmin();
@@ -35,12 +36,15 @@ Memory types:
 - medium: Relevant for the next month (expires in 30 days)
 - long: Permanent, important facts that don't expire
 
+If a memory is tied to a dated event (a race, a trip, a block that ends on a date), add "until": "YYYY-MM-DD" with that date — it stops being remembered after that day.
+
 Return a JSON array of memories to store (empty array if nothing worth remembering):
 [
   {
     "type": "short|medium|long",
     "category": "goal|context|obstacle|pattern|win|preference|injury|schedule",
-    "content": "brief, factual statement"
+    "content": "brief, factual statement",
+    "until": "YYYY-MM-DD (optional)"
   }
 ]
 
@@ -175,19 +179,11 @@ export default async function handler(req, res) {
           // Save memories to database
           if (userId) {
             for (const memory of memories) {
-              const expiresAt = memory.type === 'short'
-                ? new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString()
-                : memory.type === 'medium'
-                  ? new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString()
-                  : null;
-
-              await supabase.from('coach_memory').insert({
-                user_id: userId,
+              await saveCoachMemory(supabase, userId, {
                 memory_type: memory.type,
                 category: memory.category,
                 content: memory.content,
-                source_type: 'conversation',
-                expires_at: expiresAt
+                until: memory.until ?? null,
               });
             }
           }

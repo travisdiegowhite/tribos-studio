@@ -20,6 +20,8 @@ import {
   getDayOfWeekInTz,
 } from './contextHelpers.js';
 import { fetchPlannedSessions } from './calendarRead.js';
+import { isPlanCurrent } from './planLifecycle.js';
+import { fetchRaceAnchorRaces, pickNextGoalRace } from './raceAnchor.js';
 
 // Re-export for fitness-summary.js's cache-key date dimension (the helper now
 // lives in contextHelpers.js so checkInContext.js can share it).
@@ -67,13 +69,16 @@ export async function assembleFitnessContext(userId, supabase, clientMetrics, op
   // must join through training_plans to scope workouts to this user)
   const { data: activePlans } = await supabase
     .from('training_plans')
-    .select('id, name, current_week, duration_weeks, methodology, goal, start_date, started_at, blocks')
+    .select('id, name, current_week, duration_weeks, methodology, goal, start_date, started_at, end_date, target_event_date, blocks')
     .eq('user_id', userId)
     .eq('status', 'active')
     .order('updated_at', { ascending: false });
 
-  const planIds = (activePlans || []).map(p => p.id);
-  const primaryPlan = (activePlans && activePlans.length > 0) ? activePlans[0] : null;
+  // A plan past its anchor date (target race / last block) is history even
+  // while its row still says 'active' — see planLifecycle.js.
+  const currentPlans = (activePlans || []).filter((p) => isPlanCurrent(p, today));
+  const planIds = currentPlans.map(p => p.id);
+  const primaryPlan = currentPlans[0] || null;
 
   // Derive the REAL current week from the plan's start date — the stored
   // current_week column was historically never advanced past 1.
@@ -154,16 +159,10 @@ export async function assembleFitnessContext(userId, supabase, clientMetrics, op
       planStart: primaryPlan?.start_date ?? primaryPlan?.started_at ?? null,
     }).then((rows) => rows.filter((w) => w.scheduled_date < weekEndStr)),
 
-    // 8. Upcoming race goal (highest priority)
-    supabase
-      .from('race_goals')
-      .select('name, race_date, race_type, priority')
-      .eq('user_id', userId)
-      .eq('status', 'upcoming')
-      .order('priority', { ascending: true })
-      .order('race_date', { ascending: true })
-      .limit(1)
-      .maybeSingle(),
+    // 8. Goal race, from the calendar (raceAnchor.js): soonest A, else soonest.
+    //    This read race_goals with no date filter, priority first, so a
+    //    finished A race beat every real upcoming one.
+    fetchRaceAnchorRaces(userId, today).then(({ upcoming }) => ({ data: pickNextGoalRace(upcoming) })),
 
     // 9. Latest health metrics
     supabase

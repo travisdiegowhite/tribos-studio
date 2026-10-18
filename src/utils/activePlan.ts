@@ -13,6 +13,8 @@
  * the calendar header (name/week/compliance) and attaching newly-added workouts.
  */
 
+import { isPlanCurrent, localTodayStr } from './planLifecycle';
+
 interface SupabaseLike {
   from: (table: string) => any;
 }
@@ -36,12 +38,19 @@ export interface ActivePlanRow {
  * @param userId    Athlete id
  * @param sportType Optional sport filter ('cycling' | 'running'). NULL sport_type rows
  *                  are treated as 'cycling'. Omit to resolve across all sports.
+ * @param todayStr  Local YYYY-MM-DD; defaults to the browser's today.
  * @returns the active plan row, or null if the athlete has none.
+ *
+ * A plan whose anchor date (target race / last block / start + duration) has
+ * passed is NOT active, whatever its status says — see planLifecycle.ts. The
+ * row is closed for real by arc-refill; this filter keeps every surface right
+ * before that write lands.
  */
 export async function resolveActivePlan(
   supabase: SupabaseLike,
   userId: string,
   sportType?: string | null,
+  todayStr: string = localTodayStr(),
 ): Promise<ActivePlanRow | null> {
   if (!userId) return null;
 
@@ -57,7 +66,7 @@ export async function resolveActivePlan(
 
   if (error || !data || data.length === 0) return null;
 
-  const rows = data as ActivePlanRow[];
+  const rows = (data as ActivePlanRow[]).filter((p) => isPlanCurrent(p, todayStr));
   if (sportType) {
     const match = rows.find(
       (p) => (p.sport_type ?? 'cycling') === sportType,

@@ -407,6 +407,10 @@ export const SAVE_COACH_MEMORY_TOOL = {
         type: "string",
         enum: ["short", "medium", "long"],
         description: "How long to remember this: short (this week only), medium (this training block/month), long (permanent important fact). Default to 'long' for preferences, injuries, and schedule. Use 'short' for temporary situations like 'feeling under the weather this week'."
+      },
+      until: {
+        type: "string",
+        description: "YYYY-MM-DD. REQUIRED whenever the memory is tied to a dated event — a race goal, a trip, a block 'until the 10K' — set it to that event's date. The memory stops being shown to you after that day, so a finished race is never treated as upcoming. Omit for timeless facts (preferences, injuries history, recurring schedule)."
       }
     },
     required: ["category", "content", "memory_type"]

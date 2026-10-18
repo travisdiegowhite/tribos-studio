@@ -266,7 +266,7 @@ export default async function handler(req, res) {
     let anchorData = { plannedWorkouts: [], raceGoals: [] };
     try {
       anchorData = await fetchTemporalAnchorData(userId, supabase, resolvedTimezone);
-      anchorBlock = buildTemporalAnchor(resolvedTimezone, anchorData.plannedWorkouts, anchorData.raceGoals);
+      anchorBlock = buildTemporalAnchor(resolvedTimezone, anchorData.plannedWorkouts, anchorData.raceGoals, new Date(), { recentRaces: anchorData.recentRaces || [] });
     } catch (anchorErr) {
       console.error('Check-in anchor fetch failed (non-blocking):', anchorErr.message);
     }

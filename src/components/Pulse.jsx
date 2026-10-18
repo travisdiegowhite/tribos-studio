@@ -319,6 +319,7 @@ function Pulse({ onOpenMemories, onOpenSchedule, onThreadSelect, linkedThreads =
         .select('category, content, memory_type')
         .eq('user_id', user.id)
         .eq('is_active', true)
+        .or(`expires_at.is.null,expires_at.gt.${new Date().toISOString()}`) // expired memories are history
         .order('created_at', { ascending: false })
         .limit(10);
 

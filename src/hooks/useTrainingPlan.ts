@@ -53,6 +53,7 @@ import {
   setEntryStatus, linkEntryToActivity,
 } from '../lib/calendar/calendarMutations';
 import type { EntryDraft } from '../lib/calendar/calendarMutations';
+import { isPlanCurrent } from '../utils/planLifecycle';
 
 // Day mapping for workout generation
 const DAY_MAP: DayOfWeek[] = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
@@ -242,8 +243,11 @@ export function useTrainingPlan({
 
       if (fetchError) throw fetchError;
 
-      if (data && data.length > 0) {
-        const plans: ActivePlan[] = data.map(plan => {
+      // A plan past its anchor date (target race / last block) is history even
+      // while its row still says 'active' — arc-refill closes it on app open.
+      const current = (data || []).filter((plan) => isPlanCurrent(plan));
+      if (current.length > 0) {
+        const plans: ActivePlan[] = current.map(plan => {
           const template = plan.template_id ? getPlanTemplate(plan.template_id) : undefined;
           return { ...plan, template };
         });
