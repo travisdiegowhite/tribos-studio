@@ -156,7 +156,9 @@ export default async function handler(req, res) {
     }
     if (error instanceof Anthropic.APIError) {
       console.error('[gear-vision] Claude API error', error.status, error.message);
-      return res.status(500).json({ error: 'Vision service error', detail: error.status === 400 ? 'invalid request to vision model' : undefined });
+      // A 400 is our request's fault (schema, image), and its message says what
+      // to fix, so pass it through; other statuses stay generic.
+      return res.status(500).json({ error: 'Vision service error', detail: error.status === 400 ? error.message : undefined });
     }
     console.error('[gear-vision] failed', error);
     return res.status(500).json({
