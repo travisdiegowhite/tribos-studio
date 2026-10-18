@@ -390,7 +390,7 @@ IMPORTANT: For geographic queries, provide the place name (e.g., "Golden Gate Br
 // Coach Memory Tool - lets the AI persist important facts about the athlete
 export const SAVE_COACH_MEMORY_TOOL = {
   name: "save_coach_memory",
-  description: "Save an important fact or preference about the athlete for future reference. Use this when the athlete shares something you should remember across conversations — preferences, life context, goals, injuries, schedule constraints, or behavioral patterns. Do NOT save trivial or transient information.",
+  description: "Save an important fact or preference about the athlete for future reference. Use this when the athlete shares something you should remember across conversations — preferences, life context, goals, injuries, schedule constraints, or behavioral patterns. Do NOT save trivial or transient information. Do NOT save race schedules or race priorities as memories — races belong on the calendar (calendar_change, with `priority`), where they can change; save only the athlete's intent, with `until` set.",
   input_schema: {
     type: "object",
     properties: {

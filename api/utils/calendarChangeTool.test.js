@@ -367,3 +367,30 @@ describe('sport on an operation (multisport phase 3)', () => {
     expect(r.errors.filter((e) => /unknown sport/.test(e))).toHaveLength(2);
   });
 });
+
+describe('race priority on an operation', () => {
+  const raceEntry = entry({ type: 'race', title: 'The Hustle CX' });
+  const { byHandle, ambiguous } = buildHandleMap([raceEntry]);
+  const handle = entryHandle(raceEntry.id);
+
+  it('accepts A/B/C on a race', () => {
+    expect(validateOps([{ op: 'update', handle, priority: 'B', reason: 'Athlete said B.' }], byHandle, ambiguous).valid).toBe(true);
+  });
+
+  it('rejects anything else', () => {
+    const r = validateOps([{ op: 'update', handle, priority: 'top', reason: 'x' }], byHandle, ambiguous);
+    expect(r.valid).toBe(false);
+    expect(r.errors.join(' ')).toContain('priority must be A, B or C');
+  });
+
+  it('rejects priority on a workout', () => {
+    const w = buildHandleMap([entry()]);
+    const r = validateOps([{ op: 'update', handle: entryHandle(UUID_A), priority: 'A', reason: 'x' }], w.byHandle, w.ambiguous);
+    expect(r.errors.join(' ')).toContain('only for races');
+  });
+
+  it('the schema tells the model to ask, not assume', () => {
+    const desc = JSON.stringify(CALENDAR_CHANGE_TOOL);
+    expect(desc).toContain('never from an old memory');
+  });
+});

@@ -217,7 +217,9 @@ export function buildTemporalAnchor(timezone, plannedWorkouts = [], raceGoals = 
 
     if (diffDays <= 90) {
       const key = goal.name.toLowerCase().replace(/\s+/g, '_');
-      const prioritySuffix = priority ? ` (Priority ${priority})` : '';
+      // Say so when a race has no priority: a blank invited the model to fill
+      // it in from an old memory ("The Hustle is your A race" — it wasn't).
+      const prioritySuffix = priority ? ` (Priority ${priority})` : ' (no priority set)';
       const selectedSuffix = isSelected ? ' [CURRENTLY SELECTED]' : '';
       daysUntilLines.push(`  ${key}: ${diffDays}${prioritySuffix}${selectedSuffix}`);
     }
