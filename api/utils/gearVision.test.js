@@ -33,9 +33,22 @@ describe('gearVision: schema', () => {
       }
     };
     walk(s);
-    // and the nullable enums are expressed as anyOf
-    expect(s.properties.bike.properties.category.anyOf[1]).toEqual({ type: 'null' });
-    expect(s.properties.bike.properties.category.anyOf[0].enum).toContain('road');
+    // unknown is a choice of its own, not a null
+    expect(s.properties.bike.properties.category.enum).toEqual(expect.arrayContaining(['road', 'unknown']));
+  });
+
+  it('stays under the API cap of 16 union-typed parameters (29 failed every request with a 400)', () => {
+    let unions = 0;
+    const walk = (node) => {
+      if (!node || typeof node !== 'object') return;
+      if (Array.isArray(node.type) || Array.isArray(node.anyOf)) unions += 1;
+      for (const v of Object.values(node)) {
+        if (Array.isArray(v)) v.forEach(walk);
+        else if (v && typeof v === 'object') walk(v);
+      }
+    };
+    walk(buildExtractionSchema());
+    expect(unions).toBeLessThanOrEqual(16);
   });
 
   it('uses no keyword structured outputs rejects (minimum/maximum failed every request with a 400)', () => {
@@ -114,6 +127,22 @@ describe('gearVision: normalise', () => {
     expect(out.bike.model).toBe('Tarmac SL7');
     expect(out.groupset.electronic).toBe(true);
     expect(out.unreadable).toEqual([{ component_type: 'chain', reason: 'too small', better_shot: 'drivetrain' }]);
+  });
+
+  it('reads the unknown sentinels ("", 0, "unknown") back as null', () => {
+    const out = normalizeExtraction({
+      bike: { brand: '', model: 'Aspero', category: 'unknown', frame_material: 'carbon', color: '', brake_type: 'unknown', confidence: 0.8, evidence: '' },
+      groupset: { brand: 'SRAM', tier: '', speeds: 0, electronic: null, confidence: 0.7, evidence: '' },
+      components: [{
+        component_type: 'tires_road', brand: '', model: 'unknown', confidence: 0.9, evidence: 'sidewall', seen_in: ['front_wheel'],
+        metadata: { width_mm: 40, tubeless: false, hookless: null, depth_mm: 0, setup: '', material: 'unknown' },
+      }],
+      unreadable: [{ component_type: 'chain', reason: 'hidden', better_shot: 'unknown' }],
+    });
+    expect(out.bike).toMatchObject({ brand: null, model: 'Aspero', category: null, frame_material: 'carbon', color: null, brake_type: null });
+    expect(out.groupset).toMatchObject({ brand: 'SRAM', tier: null, speeds: null, electronic: null });
+    expect(out.components[0]).toMatchObject({ brand: null, model: null, metadata: { width_mm: 40, tubeless: false } });
+    expect(out.unreadable[0].better_shot).toBeNull();
   });
 
   it('survives an empty or malformed reply', () => {

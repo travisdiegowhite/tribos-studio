@@ -23,19 +23,24 @@ export const PREFILL_CONFIDENCE = 0.7;
 export const PROPOSE_CONFIDENCE = 0.3;
 
 const CATEGORY_IDS = BIKE_CATEGORIES.map((c) => c.value);
+const UNKNOWN = 'unknown';
 
 /**
  * JSON schema for `output_config.format`. Every field required (the API's
- * structured-output grammar needs it); "unknown" is expressed as null.
+ * structured-output grammar needs it).
+ *
+ * The API also caps a schema at 16 union-typed parameters (`type: [x, 'null']`
+ * or anyOf) — this one had 29 and every request failed with a 400. So
+ * "unknown" is a sentinel, not null: "" for text, 0 for measurements (none can
+ * truly be zero), "unknown" for choices. Only the three yes/no fields stay
+ * nullable, because there "unknown" and "no" differ. normalizeExtraction maps
+ * every sentinel back to null, so nothing downstream sees them.
  */
 export function buildExtractionSchema() {
-  const nullableString = { type: ['string', 'null'] };
-  const nullableNumber = { type: ['number', 'null'] };
+  const text = { type: 'string', description: 'Empty string when not visible' };
+  const measure = { type: 'number', description: '0 when not visible' };
   const nullableBool = { type: ['boolean', 'null'] };
-  // Structured outputs reject `enum` containing null alongside a union type
-  // ("Enum value 'road' does not match declared type ['string','null']"), so
-  // a nullable enum is spelled as anyOf: the enum branch, or null.
-  const nullableEnum = (values) => ({ anyOf: [{ type: 'string', enum: values }, { type: 'null' }] });
+  const choice = (values) => ({ type: 'string', enum: [...values, UNKNOWN] });
   // Structured outputs also reject numeric constraints (minimum/maximum) with a
   // 400 on every request; the 0–1 range lives in the description and
   // normalizeExtraction clamps it.
@@ -51,12 +56,12 @@ export function buildExtractionSchema() {
         additionalProperties: false,
         required: ['brand', 'model', 'category', 'frame_material', 'color', 'brake_type', 'confidence', 'evidence'],
         properties: {
-          brand: nullableString,
-          model: nullableString,
-          category: nullableEnum(CATEGORY_IDS),
-          frame_material: nullableEnum(['carbon', 'aluminium', 'steel', 'titanium']),
-          color: nullableString,
-          brake_type: nullableEnum(['disc', 'rim']),
+          brand: text,
+          model: text,
+          category: choice(CATEGORY_IDS),
+          frame_material: choice(['carbon', 'aluminium', 'steel', 'titanium']),
+          color: text,
+          brake_type: choice(['disc', 'rim']),
           confidence,
           evidence: { type: 'string' },
         },
@@ -66,9 +71,9 @@ export function buildExtractionSchema() {
         additionalProperties: false,
         required: ['brand', 'tier', 'speeds', 'electronic', 'confidence', 'evidence'],
         properties: {
-          brand: nullableString,
-          tier: nullableString,
-          speeds: nullableNumber,
+          brand: text,
+          tier: text,
+          speeds: measure,
           electronic: nullableBool,
           confidence,
           evidence: { type: 'string' },
@@ -82,30 +87,30 @@ export function buildExtractionSchema() {
           required: ['component_type', 'brand', 'model', 'metadata', 'confidence', 'evidence', 'seen_in'],
           properties: {
             component_type: { type: 'string', enum: COMPONENT_TYPE_IDS },
-            brand: nullableString,
-            model: nullableString,
+            brand: text,
+            model: text,
             metadata: {
               type: 'object',
               additionalProperties: false,
               required: ['width_mm', 'tubeless', 'max_pressure_psi', 'rim_width_mm', 'hookless', 'depth_mm',
                 'material', 'speeds', 'range', 'teeth', 'setup', 'diameter_mm', 'mount', 'system', 'travel_mm', 'position'],
               properties: {
-                width_mm: nullableNumber,
+                width_mm: measure,
                 tubeless: nullableBool,
-                max_pressure_psi: nullableNumber,
-                rim_width_mm: nullableNumber,
+                max_pressure_psi: measure,
+                rim_width_mm: measure,
                 hookless: nullableBool,
-                depth_mm: nullableNumber,
-                material: nullableString,
-                speeds: nullableNumber,
-                range: nullableString,
-                teeth: nullableString,
-                setup: nullableString,
-                diameter_mm: nullableNumber,
-                mount: nullableString,
-                system: nullableString,
-                travel_mm: nullableNumber,
-                position: nullableString,
+                depth_mm: measure,
+                material: text,
+                speeds: measure,
+                range: text,
+                teeth: text,
+                setup: text,
+                diameter_mm: measure,
+                mount: text,
+                system: text,
+                travel_mm: measure,
+                position: text,
               },
             },
             confidence,
@@ -123,7 +128,7 @@ export function buildExtractionSchema() {
           properties: {
             component_type: { type: 'string', enum: COMPONENT_TYPE_IDS },
             reason: { type: 'string' },
-            better_shot: nullableEnum(['whole_bike', 'drivetrain', 'front_wheel']),
+            better_shot: choice(['whole_bike', 'drivetrain', 'front_wheel']),
           },
         },
       },
@@ -154,12 +159,12 @@ export function buildExtractionPrompt(gear, shotIds) {
     gear?.category ? `The rider says its category is: ${gear.category}.` : '',
     `Photos provided: ${shotIds.join(', ')}.`,
     '',
-    'Report only what you can actually see. Give each finding a confidence from 0 to 1 and one line of evidence naming the visual cue (a hotpatch, a sidewall marking, sprocket count, caliper shape). When a detail is not visible, set it to null and, if a different shot would show it, list it under "unreadable" with the shot that would help.',
+    'Report only what you can actually see. Give each finding a confidence from 0 to 1 and one line of evidence naming the visual cue (a hotpatch, a sidewall marking, sprocket count, caliper shape). When a detail is not visible, leave it unknown — an empty string for text, 0 for a number, "unknown" for a choice, null for a yes/no — and, if a different shot would show it, list it under "unreadable" with the shot that would help.',
     'Never guess a brand or model from the bike\'s reputation; a Specialized frame does not imply Specialized tires. Sidewall text, hotpatches, and printed logos are evidence; silhouette alone is not.',
     'Tire width is printed on the sidewall as e.g. "28-622" (28 mm) or "700x32c" (32 mm) or "29x2.4" (2.4 in ≈ 61 mm); convert to millimetres. "TLR", "TR", "TLE", "Tubeless Ready" on the sidewall means tubeless-capable, which is not proof it is set up tubeless — report tubeless=true only with that caveat in the evidence, else null.',
     'Count sprockets on the cassette for speeds; the largest and smallest sprocket give the range as "smallest-largest".',
     'A rotor on the hub means brake_type=disc and implies brake_pads_disc and brake_rotors; caliper arms at the rim mean rim brakes and brake_pads_rim. A visible wire-free rear derailleur with a battery pack means electronic shifting.',
-    'Always propose the consumables that every bike of this kind has even when the brand is unreadable (chain, cassette, tires, brake pads, bar tape on drop bars) — with brand/model null and a modest confidence — so the rider can confirm they exist.',
+    'Always propose the consumables that every bike of this kind has even when the brand is unreadable (chain, cassette, tires, brake pads, bar tape on drop bars) — with brand/model empty and a modest confidence — so the rider can confirm they exist.',
     '',
     'The catalogue of parts you may report (component_type must be one of these ids):',
     ...partLines,
@@ -183,12 +188,13 @@ export function normalizeExtraction(raw) {
     if (confidence < PROPOSE_CONFIDENCE) continue;
     const metadata = {};
     for (const [k, v] of Object.entries(c.metadata || {})) {
-      if (v !== null && v !== undefined && v !== '') metadata[k] = v;
+      const known = typeof v === 'number' ? positiveOrNull(v) : textOrNull(v) ?? (typeof v === 'boolean' ? v : null);
+      if (known !== null) metadata[k] = known;
     }
     const row = {
       component_type: c.component_type,
-      brand: c.brand || null,
-      model: c.model || null,
+      brand: textOrNull(c.brand),
+      model: textOrNull(c.model),
       metadata,
       confidence,
       prefill: confidence >= PREFILL_CONFIDENCE,
@@ -208,19 +214,19 @@ export function normalizeExtraction(raw) {
 
   return {
     bike: {
-      brand: bike.brand || null,
-      model: bike.model || null,
-      category: bike.category || null,
-      frame_material: bike.frame_material || null,
-      color: bike.color || null,
-      brake_type: bike.brake_type || null,
+      brand: textOrNull(bike.brand),
+      model: textOrNull(bike.model),
+      category: textOrNull(bike.category),
+      frame_material: textOrNull(bike.frame_material),
+      color: textOrNull(bike.color),
+      brake_type: textOrNull(bike.brake_type),
       confidence: clamp01(bike.confidence),
       evidence: typeof bike.evidence === 'string' ? bike.evidence : '',
     },
     groupset: {
-      brand: groupset.brand || null,
-      tier: groupset.tier || null,
-      speeds: Number.isFinite(groupset.speeds) ? groupset.speeds : null,
+      brand: textOrNull(groupset.brand),
+      tier: textOrNull(groupset.tier),
+      speeds: positiveOrNull(groupset.speeds),
       electronic: typeof groupset.electronic === 'boolean' ? groupset.electronic : null,
       confidence: clamp01(groupset.confidence),
       evidence: typeof groupset.evidence === 'string' ? groupset.evidence : '',
@@ -231,9 +237,21 @@ export function normalizeExtraction(raw) {
       .map((u) => ({
         component_type: u.component_type,
         reason: typeof u.reason === 'string' ? u.reason : '',
-        better_shot: u.better_shot || null,
+        better_shot: textOrNull(u.better_shot),
       })),
   };
+}
+
+/** A text or choice field, with the "" / "unknown" sentinels read as null. */
+function textOrNull(v) {
+  if (typeof v !== 'string') return null;
+  const t = v.trim();
+  return t === '' || t.toLowerCase() === UNKNOWN ? null : t;
+}
+
+/** A measurement, with the 0 sentinel (and anything non-positive) read as null. */
+function positiveOrNull(v) {
+  return Number.isFinite(v) && v > 0 ? v : null;
 }
 
 function clamp01(n) {
