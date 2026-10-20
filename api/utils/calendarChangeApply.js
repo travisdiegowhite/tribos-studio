@@ -56,17 +56,33 @@ function sportFor(draft, defaultSport = null) {
 }
 
 /**
+ * A race's priority, merged into `details` beside whatever is already there
+ * (course, distance, the race_goals mirror). Undefined when the op sets none.
+ */
+function withPriority(details, priority) {
+  if (priority == null) return details;
+  const base = details && typeof details === 'object' && !Array.isArray(details) ? { ...details } : {};
+  base.priority = priority;
+  return base;
+}
+
+/**
  * Pull the writable subset out of a raw op. `intervals` becomes
- * `details.prescription`, merged over the entry's existing details so a race's
- * own detail JSON survives a coach edit.
+ * `details.prescription` and `priority` becomes `details.priority`, both
+ * merged over the entry's existing details so a race's own detail JSON
+ * survives a coach edit.
  */
 function draftFrom(op, existingDetails = null, sport = null) {
   const draft = {};
   for (const key of WRITABLE) {
     if (op[key] !== undefined) draft[key] = op[key];
   }
+  let details = existingDetails;
+  let touched = false;
   const prescription = prescriptionFrom(op, op.sport ?? sport);
-  if (prescription !== undefined) draft.details = withPrescription(existingDetails, prescription);
+  if (prescription !== undefined) { details = withPrescription(details, prescription); touched = true; }
+  if (op.priority != null) { details = withPriority(details, op.priority); touched = true; }
+  if (touched) draft.details = details;
   return draft;
 }
 
@@ -379,7 +395,7 @@ export async function applyCalendarOps(userId, resolved, opts = {}) {
           target_distance_km: op.target_distance_km ?? null,
           notes: op.notes ?? null,
           sport: createSport,
-          details: withPrescription(null, prescriptionFrom(op, createSport) ?? null),
+          details: withPriority(withPrescription(null, prescriptionFrom(op, createSport) ?? null), op.priority),
         }, design);
         const { __design, ...fields } = draft;
         const { error } = await writeWithSportFallback(
@@ -459,6 +475,18 @@ export async function applyCalendarOps(userId, resolved, opts = {}) {
             .eq('id', entry.id),
       );
       if (error) throw error;
+
+      // A race that came from race_goals shares its id (migration 115), and
+      // the Race tab reads priority there — keep the two in step. A coach-made
+      // race has no twin and this matches nothing. Non-fatal.
+      if (op.op === 'update' && op.priority != null) {
+        const { error: goalErr } = await supabase
+          .from('race_goals')
+          .update({ priority: op.priority })
+          .eq('user_id', userId)
+          .eq('id', entry.id);
+        if (goalErr) console.warn('calendar_change: race_goals priority mirror failed:', goalErr.message);
+      }
 
       results.push({ op: op.op, handle: op.handle, id: entry.id, ok: true });
       undo.push({ op: 'restore', row: before });

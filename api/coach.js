@@ -1078,6 +1078,8 @@ This athlete is ${experienceLevel === 'just_starting' ? 'new to structured train
       systemPrompt += `\n\n=== COACH MEMORY (PERSISTENT INSIGHTS ABOUT THIS ATHLETE) ===
 These are facts you've learned about this athlete over time. Reference them naturally.
 A memory about a dated event (a race, a trip, a block) whose date has passed is history, not a current goal — never treat it as upcoming.
+Races are NOT decided by memory. Which races exist, their dates and their priority (A/B/C) come only from the TEMPORAL ANCHOR and the calendar. A memory that names a race or gives it a priority is old context — schedules and priorities change — and loses to the calendar. Never state a race's priority from a memory.
+When the answer depends on a race's priority and the anchor shows "(no priority set)", or the only evidence is a memory saved more than about a month ago, ASK the athlete what that race means to them (A goal / B important / C training race) before planning around it. Ask about the race that matters next, once, briefly. When they answer, record it with calendar_change (update, \`priority\`) so it is on the race and never needs asking again.
 ${memoryLines}`;
     }
 

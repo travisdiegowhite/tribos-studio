@@ -589,3 +589,43 @@ describe('expandBlock — two-a-days (multisport phase 3)', () => {
     });
   });
 });
+
+describe('race priority', () => {
+  const race = (over = {}) => entry({
+    type: 'race', title: 'The Rad',
+    details: { race_type: 'gravel', distance_km: 182 }, ...over,
+  });
+
+  it('merges priority into the race details without dropping what is there', async () => {
+    await applyCalendarOps(USER, [
+      { op: 'update', handle: 'sess_1af3bc12', entry: race(), priority: 'B', reason: 'Athlete said it is a B race.' },
+    ]);
+    const update = calls.find((c) => c.table === 'calendar_entries' && c.op === 'update');
+    expect(update.payload.details).toEqual({ race_type: 'gravel', distance_km: 182, priority: 'B' });
+  });
+
+  it('mirrors the priority onto the race_goals twin, scoped to the athlete', async () => {
+    await applyCalendarOps(USER, [
+      { op: 'update', handle: 'sess_1af3bc12', entry: race(), priority: 'C', reason: 'Training race now.' },
+    ]);
+    const mirror = calls.find((c) => c.table === 'race_goals' && c.op === 'update');
+    expect(mirror.payload).toEqual({ priority: 'C' });
+    expect(mirror.filters).toMatchObject({ user_id: USER, id: race().id });
+  });
+
+  it('leaves details alone when no priority is given', async () => {
+    await applyCalendarOps(USER, [
+      { op: 'update', handle: 'sess_1af3bc12', entry: race(), title: 'The Rad 2026', reason: 'Name.' },
+    ]);
+    const update = calls.find((c) => c.table === 'calendar_entries' && c.op === 'update');
+    expect(update.payload).not.toHaveProperty('details');
+    expect(calls.some((c) => c.table === 'race_goals')).toBe(false);
+  });
+
+  it('stores priority on a created race', async () => {
+    await applyCalendarOps(USER, [
+      { op: 'create', date: '2026-11-07', title: 'Wild West CX', type: 'race', priority: 'B', reason: 'Athlete told me.' },
+    ]);
+    expect(calls.find((c) => c.op === 'insert').payload.details).toEqual({ priority: 'B' });
+  });
+});

@@ -67,6 +67,10 @@ describe('temporal anchor with calendar races', () => {
     expect(block).toContain('The Rad 2026-09-26 (22 days ago, done)');
   });
 
+  it('marks a race with no priority instead of leaving a blank to fill in', () => {
+    expect(block).toContain('the_hustle_cx: 6 (no priority set)');
+  });
+
   it('puts the Hustle on the anchor calendar', () => {
     expect(block).toContain('goal_event: the_hustle_cx');
   });

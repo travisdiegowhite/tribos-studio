@@ -215,9 +215,14 @@ FOR AN ATHLETE WHO RIDES AND RUNS, set "sport" on every session and every weekly
               type: 'number',
               description: 'For generate_block: fraction to change target_load by per week across the block, e.g. 0.05 for a 5%/week build, -0.1 for a taper, 0 or omitted for steady. Applied cumulatively from the first week.',
             },
+            priority: {
+              type: 'string',
+              enum: ['A', 'B', 'C'],
+              description: 'For a race (create or update): what the race means to the athlete — A (the goal), B (important), C (training race). Set it only from something the athlete told you, never from an old memory. When a race shows "(no priority set)" and its priority matters to what they asked, ask them first, then record their answer here so it is not asked again.',
+            },
             notes: {
               type: 'string',
-              description: 'Detail the athlete should see on the entry — course notes, race priority, execution cues.',
+              description: 'Detail the athlete should see on the entry — course notes, execution cues. Race priority goes in `priority`, not here.',
             },
             reason: {
               type: 'string',
@@ -252,6 +257,7 @@ export function spanWeeks(fromKey, toKey) {
 }
 const ENTRY_TYPES = new Set(['workout', 'race', 'rest', 'note']);
 const SETTABLE_STATUSES = new Set(['planned', 'done', 'skipped']);
+const RACE_PRIORITIES = new Set(['A', 'B', 'C']);
 
 /**
  * Check the model's operations against the athlete's real entries.
@@ -289,6 +295,9 @@ export function validateOps(operations, byHandle, ambiguous = new Set(), default
     }
     if (op.sport != null && !OP_SPORTS.includes(op.sport)) {
       errors.push(`${at}: unknown sport "${op.sport}". Expected one of ${OP_SPORTS.join(', ')}.`);
+    }
+    if (op.priority != null && !RACE_PRIORITIES.has(op.priority)) {
+      errors.push(`${at}: priority must be A, B or C (got ${JSON.stringify(op.priority)}).`);
     }
 
     if (op.op === 'generate_block') {
@@ -342,6 +351,9 @@ export function validateOps(operations, byHandle, ambiguous = new Set(), default
       if (op.type && !ENTRY_TYPES.has(op.type)) {
         errors.push(`${at}: unknown type "${op.type}".`);
       }
+      if (op.priority != null && op.type !== 'race') {
+        errors.push(`${at}: priority is only for races.`);
+      }
       const createSport = op.sport ?? ((op.type ?? 'workout') === 'workout' ? defaultSport : null);
       errors.push(...normalizeIntervals(op.intervals, `${at}, intervals`, createSport).errors);
       resolved.push({ ...op, entry: null });
@@ -371,6 +383,9 @@ export function validateOps(operations, byHandle, ambiguous = new Set(), default
     }
     if (op.op === 'update' && op.type && !ENTRY_TYPES.has(op.type)) {
       errors.push(`${at}: unknown type "${op.type}".`);
+    }
+    if (op.op === 'update' && op.priority != null && (op.type ?? entry.type ?? entry.entry_type) !== 'race') {
+      errors.push(`${at}: priority is only for races.`);
     }
     if (op.op === 'update') {
       errors.push(...normalizeIntervals(op.intervals, `${at}, intervals`, op.sport ?? entrySport(entry)).errors);
