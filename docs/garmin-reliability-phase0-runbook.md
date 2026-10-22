@@ -5,8 +5,10 @@
 > gets built on. Run these in order; record the results inline. ~1 hour of work.
 >
 > Context: `docs/garmin-integration-context.md` and the reliability plan.
-> Spec references are to `docs/Activity_API-1.2.5.pdf` (current) and
-> `docs/Activity_API-1.2.3_0.pdf` (last version documenting `/backfill/*`).
+> Spec references are to Garmin's Activity API spec 1.2.5 (current) and 1.2.3
+> (last version documenting `/backfill/*`). Garmin program documents are
+> confidential (Developer Program Agreement §8) and are NOT kept in this repo —
+> get them from the Garmin developer portal.
 
 ## Why this gate exists
 
