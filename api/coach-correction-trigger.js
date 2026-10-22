@@ -17,6 +17,7 @@
 import Anthropic from '@anthropic-ai/sdk';
 import { getSupabaseAdmin } from './utils/supabaseAdmin.js';
 import { verifyCronAuth } from './utils/verifyCronAuth.js';
+import { hasAiConsent } from './utils/aiConsent.js';
 import { buildTemporalAnchor, fetchTemporalAnchorData, buildSessionLabelMap, sanitizeSessionIds } from './utils/temporalAnchor.js';
 import {
   CORRECTION_TOOLS,
@@ -175,6 +176,13 @@ export default async function handler(req, res) {
     if (processedUsers.has(goal.user_id)) continue;
     processedUsers.add(goal.user_id);
     results.evaluated++;
+
+    // The proposal sends the athlete's training load to Claude
+    // (Garmin Agreement §15.10).
+    if (!(await hasAiConsent(goal.user_id, supabase))) {
+      results.skipped++;
+      continue;
+    }
 
     const conditions = {
       has_goal: true,

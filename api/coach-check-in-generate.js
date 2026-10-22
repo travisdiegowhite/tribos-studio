@@ -8,6 +8,7 @@
  */
 
 import Anthropic from '@anthropic-ai/sdk';
+import { hasAiConsent } from './utils/aiConsent.js';
 import { getSupabaseAdmin } from './utils/supabaseAdmin.js';
 import { setupCors } from './utils/cors.js';
 import { assembleCheckInContext } from './utils/checkInContext.js';
@@ -161,6 +162,16 @@ async function generateCheckIn(checkIn) {
   const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) {
     throw new Error('ANTHROPIC_API_KEY not configured');
+  }
+
+  // Rows queued before the consent guard in enqueueCheckIn, or whose user
+  // withdrew since (Garmin Agreement §15.10).
+  if (!(await hasAiConsent(checkIn.user_id, supabaseAdmin))) {
+    await supabaseAdmin
+      .from('coach_check_ins')
+      .update({ status: 'failed' })
+      .eq('id', checkIn.id);
+    return false;
   }
 
   // Mark as processing

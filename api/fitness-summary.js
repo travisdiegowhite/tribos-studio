@@ -6,6 +6,7 @@ import Anthropic from '@anthropic-ai/sdk';
 import { getSupabaseAdmin } from './utils/supabaseAdmin.js';
 import { setupCors } from './utils/cors.js';
 import { enforceAiQuota } from './utils/aiQuota.js';
+import { rejectWithoutAiConsent } from './utils/aiConsent.js';
 import { assembleFitnessContext, buildCacheKey, formatDateInTz } from './utils/assembleFitnessContext.js';
 import { buildCoachVoiceRules } from './utils/coachVoiceRules.js';
 
@@ -102,6 +103,9 @@ export default async function handler(req, res) {
     }
 
     const userId = authUser.id;
+
+    // Garmin Agreement §15.10: no training data reaches Claude without consent.
+    if (await rejectWithoutAiConsent(res, userId)) return;
 
     // Daily AI quota (per-user cap + global ceiling)
     const quotaExceeded = await enforceAiQuota(req, res, userId);

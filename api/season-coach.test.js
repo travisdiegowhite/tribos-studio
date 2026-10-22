@@ -20,6 +20,7 @@ vi.mock('@anthropic-ai/sdk', () => {
 });
 
 vi.mock('./utils/cors.js', () => ({ setupCors: vi.fn().mockReturnValue(false) }));
+vi.mock('./utils/aiConsent.js', () => ({ rejectWithoutAiConsent: vi.fn().mockResolvedValue(false) }));
 vi.mock('./utils/rateLimit.js', () => ({ rateLimitByUser: vi.fn().mockResolvedValue(null) }));
 vi.mock('./utils/aiQuota.js', () => ({ enforceAiQuota: vi.fn().mockResolvedValue(null) }));
 

@@ -54,6 +54,12 @@ function FitnessSummary({ tfi, afi, formScore, lastRideRss, ctlDeltaPct }) {
           }),
         });
 
+        // 403 = the athlete hasn't turned on AI coaching; show no AI summary
+        // rather than an error.
+        if (res.status === 403) {
+          if (!cancelled) setSummary(null);
+          return;
+        }
         if (!res.ok) {
           throw new Error(`HTTP ${res.status}`);
         }
