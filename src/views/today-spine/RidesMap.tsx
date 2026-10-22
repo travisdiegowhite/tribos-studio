@@ -23,6 +23,7 @@ import 'mapbox-gl/dist/mapbox-gl.css';
 import { Box, Group, Text, useComputedColorScheme } from '@mantine/core';
 import { Link } from 'react-router-dom';
 import ColoredRouteMap from '../../components/ColoredRouteMap.jsx';
+import { PoweredByGarmin } from '../../components/GarminBranding.jsx';
 import { decodePolyline } from '../today/shared/decodePolyline';
 import { filterRidesNearLatest } from '../today/shared/recentRides';
 import { C, FONT, MAP_COLORS } from './tokens';
@@ -381,6 +382,12 @@ export function RidesMap({
               </Text>
             </Box>
           )}
+        </Box>
+      )}
+      {/* Garmin attribution whenever a Garmin-sourced ride is on the map (Agreement §6.4) */}
+      {rides.some((r) => r.provider === 'garmin') && (
+        <Box style={{ padding: '6px 14px' }}>
+          <PoweredByGarmin size="sm" />
         </Box>
       )}
     </Box>
