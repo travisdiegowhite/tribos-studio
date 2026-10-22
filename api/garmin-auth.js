@@ -878,6 +878,21 @@ async function pushRoute(req, res, userId, routeData) {
       });
     }
 
+    // Uploading to Garmin needs the athlete's express consent to the
+    // transfer (Garmin Agreement §4.5), recorded by GarminConsentModal at
+    // connect time or by the one-time ConsentGate.
+    const { data: profile } = await supabase
+      .from('user_profiles')
+      .select('garmin_data_consent_at')
+      .eq('id', userId)
+      .maybeSingle();
+    if (!profile?.garmin_data_consent_at) {
+      return res.status(412).json({
+        error: 'Please confirm the Garmin data-sharing notice before sending routes to Garmin. Reload tribos to see it, or reconnect Garmin in Settings.',
+        code: 'GARMIN_CONSENT_REQUIRED'
+      });
+    }
+
     // Unknown permissions (older connections) fall through to Garmin, whose
     // 412 below is the backstop.
     const permissions = integration.provider_user_data?.permissions;
