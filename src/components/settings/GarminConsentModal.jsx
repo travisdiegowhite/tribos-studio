@@ -11,7 +11,7 @@ import { useState } from 'react';
 import { Modal, Text, Stack, List, Button, Group, Checkbox, Anchor } from '@mantine/core';
 import { Link } from 'react-router-dom';
 
-export default function GarminConsentModal({ opened, onClose, onConsent }) {
+export default function GarminConsentModal({ opened, onClose, onConsent, zIndex }) {
   const [accepted, setAccepted] = useState(false);
 
   const handleConsent = () => {
@@ -30,6 +30,7 @@ export default function GarminConsentModal({ opened, onClose, onConsent }) {
       onClose={handleClose}
       title="Connect to Garmin Connect"
       size="md"
+      zIndex={zIndex}
     >
       <Stack gap="md">
         <Text size="sm" style={{ color: 'var(--color-text-secondary)' }}>

@@ -46,6 +46,7 @@ import { useAuth } from '../contexts/AuthContext.jsx';
 import { supabase } from '../lib/supabase';
 import { stravaService } from '../utils/stravaService';
 import { garminService } from '../utils/garminService';
+import GarminConsentModal from './settings/GarminConsentModal.jsx';
 import { wahooService } from '../utils/wahooService';
 import { PERSONAS } from '../data/coachingPersonas';
 import {
@@ -147,6 +148,7 @@ const CONNECT_STEP = 7;
 function OnboardingModal({ opened, onClose }) {
   const navigate = useNavigate();
   const { user } = useAuth();
+  const [garminConsentOpen, setGarminConsentOpen] = useState(false);
 
   // Resume state stashed before a device-connect OAuth round trip (see
   // utils/onboardingState.js). Read once; the lazy initialisers below seed
@@ -226,9 +228,16 @@ function OnboardingModal({ opened, onClose }) {
     stashDraft('strava');
     window.location.href = stravaService.getAuthorizationUrl();
   };
-  const handleConnectGarmin = async () => {
+  // Garmin requires the data-transfer notice and consent before OAuth
+  // (Agreement §4.5), the same modal Settings shows.
+  const handleConnectGarmin = () => {
     if (!garminService.isConfigured()) return;
+    setGarminConsentOpen(true);
+  };
+  const handleGarminConsented = async () => {
+    setGarminConsentOpen(false);
     stashDraft('garmin');
+    await garminService.recordDataConsent();
     window.location.href = await garminService.getAuthorizationUrl();
   };
   const handleConnectWahoo = () => {
@@ -454,6 +463,7 @@ function OnboardingModal({ opened, onClose }) {
   };
 
   return (
+    <>
     <Modal
       opened={opened}
       onClose={onClose}
@@ -857,6 +867,13 @@ function OnboardingModal({ opened, onClose }) {
         </>
       )}
     </Modal>
+    <GarminConsentModal
+      opened={garminConsentOpen}
+      onClose={() => setGarminConsentOpen(false)}
+      onConsent={handleGarminConsented}
+      zIndex={400}
+    />
+    </>
   );
 }
 

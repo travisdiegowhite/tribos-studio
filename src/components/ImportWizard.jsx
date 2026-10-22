@@ -26,6 +26,7 @@ import { wahooService } from '../utils/wahooService';
 import { tokens } from '../theme';
 import { Calendar, Check, CheckCircle, DownloadSimple, FileZip, Lightning, TrendUp, UploadSimple, WarningCircle, Watch } from '@phosphor-icons/react';
 import BulkGpxUploadModal from './BulkGpxUploadModal.jsx';
+import GarminConsentModal from './settings/GarminConsentModal.jsx';
 
 /**
  * Smart Import Wizard - Guides users through hybrid Strava + Device setup
@@ -55,6 +56,7 @@ const ImportWizard = ({ opened, onClose }) => {
   // with a Garmin Connect "Export Your Data" archive.
   const [garminBulkOpen, setGarminBulkOpen] = useState(false);
   const [garminBulkResults, setGarminBulkResults] = useState(null);
+  const [garminConsentOpen, setGarminConsentOpen] = useState(false);
 
   useEffect(() => {
     if (opened) {
@@ -88,11 +90,22 @@ const ImportWizard = ({ opened, onClose }) => {
     window.location.href = authUrl;
   };
 
+  // Garmin requires the data-transfer notice and consent before OAuth
+  // (Agreement §4.5); the modal's onConsent continues the connect.
+  const connectGarminAfterConsent = async () => {
+    setGarminConsentOpen(false);
+    try {
+      await garminService.recordDataConsent();
+      window.location.href = await garminService.getAuthorizationUrl();
+    } catch (error) {
+      console.error('Error getting auth URL:', error);
+    }
+  };
+
   const handleDeviceConnect = async () => {
     try {
       if (selectedDevice === 'garmin') {
-        const authUrl = await garminService.getAuthorizationUrl();
-        window.location.href = authUrl;
+        setGarminConsentOpen(true);
       } else {
         const authUrl = wahooService.getAuthorizationUrl();
         window.location.href = authUrl;
@@ -183,6 +196,12 @@ const ImportWizard = ({ opened, onClose }) => {
       opened={garminBulkOpen}
       onClose={() => setGarminBulkOpen(false)}
       onUploadComplete={(results) => setGarminBulkResults(results)}
+      zIndex={400}
+    />
+    <GarminConsentModal
+      opened={garminConsentOpen}
+      onClose={() => setGarminConsentOpen(false)}
+      onConsent={connectGarminAfterConsent}
       zIndex={400}
     />
     <Modal
