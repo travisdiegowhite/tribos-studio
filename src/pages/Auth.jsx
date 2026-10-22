@@ -25,6 +25,7 @@ import { supabase } from '../lib/supabase';
 import { peekReturnTo, clearReturnTo } from '../utils/returnTo';
 import { tokens } from '../theme';
 import { detectWebview, getWebviewInstructions } from '../utils/webviewDetection';
+import { CURRENT_TOS_VERSION, CURRENT_PRIVACY_VERSION } from '../utils/legalVersions';
 
 // Update beta_signups status when user activates their account
 async function markBetaSignupActivated(email) {
@@ -123,8 +124,8 @@ function Auth() {
           localStorage.setItem('tribos_consent_pending', JSON.stringify({
             tos_accepted_at: new Date().toISOString(),
             privacy_accepted_at: new Date().toISOString(),
-            tos_version: '2026-02',
-            privacy_version: '2026-02',
+            tos_version: CURRENT_TOS_VERSION,
+            privacy_version: CURRENT_PRIVACY_VERSION,
           }));
         } catch (storageErr) {
           console.error('Failed to store consent locally:', storageErr);
