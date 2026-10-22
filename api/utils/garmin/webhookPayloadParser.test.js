@@ -1,6 +1,19 @@
 import { parseWebhookPayload, extractActivityFields } from './webhookPayloadParser.js';
 
 describe('parseWebhookPayload', () => {
+  it('parses deregistration notifications', () => {
+    const result = parseWebhookPayload({ deregistrations: [{ userId: '4aacafe8' }] });
+    expect(result.type).toBe('DEREGISTRATION');
+    expect(result.items).toEqual([{ userId: '4aacafe8' }]);
+  });
+
+  it('parses user permission change notifications', () => {
+    const item = { userId: 'u1', summaryId: 'x1', permissions: ['ACTIVITY_EXPORT'], changeTimeInSeconds: 1613065860 };
+    const result = parseWebhookPayload({ userPermissionsChange: [item] });
+    expect(result.type).toBe('USER_PERMISSIONS');
+    expect(result.items).toEqual([item]);
+  });
+
   it('parses CONNECT_ACTIVITY payloads', () => {
     const payload = {
       activities: [

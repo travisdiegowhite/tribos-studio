@@ -263,8 +263,8 @@ async function getCachedIntegration(garminUserId, cache, fullSelect = false) {
   }
 
   const selectFields = fullSelect
-    ? 'id, user_id, access_token, refresh_token, token_expires_at, provider_user_id, refresh_token_invalid'
-    : 'id, user_id, refresh_token_invalid';
+    ? 'id, user_id, access_token, refresh_token, token_expires_at, provider_user_id, refresh_token_invalid, sync_enabled'
+    : 'id, user_id, refresh_token_invalid, sync_enabled';
 
   const { data: integration, error } = await supabase
     .from('bike_computer_integrations')
@@ -376,6 +376,13 @@ async function processHealthEvent(event, integrationCache) {
         .from('garmin_webhook_events')
         .update({ user_id: integration.user_id, integration_id: integration.id })
         .eq('id', event.id);
+
+      // sync_enabled=false means the user turned off data sharing for tribos
+      // in Garmin Connect (userPermissionsChange webhook). Store nothing.
+      if (integration.sync_enabled === false) {
+        await markEventProcessed(event.id, 'Garmin data sharing turned off by user (sync_enabled=false)');
+        return;
+      }
     }
   }
 
@@ -427,6 +434,13 @@ async function processActivityEvent(event, integrationCache) {
   // pollutes logs. The user only recovers via the in-app reconnect prompt.
   if (integration.refresh_token_invalid) {
     await markEventProcessed(event.id, 'Integration disconnected (refresh_token_invalid); user must reconnect Garmin');
+    return;
+  }
+
+  // The user withdrew ACTIVITY_EXPORT for tribos in Garmin Connect
+  // (userPermissionsChange webhook). Store nothing.
+  if (integration.sync_enabled === false) {
+    await markEventProcessed(event.id, 'Garmin activity sharing turned off by user (sync_enabled=false)');
     return;
   }
 

@@ -4,6 +4,8 @@
 
 import { getSupabaseAdmin } from './utils/supabaseAdmin.js';
 import { setupCors } from './utils/cors.js';
+import { ensureValidAccessToken } from './utils/garmin/tokenManager.js';
+import { deregisterGarminUser } from './utils/garmin/garminApiClient.js';
 
 // Initialize Supabase with service role (server-side only)
 const supabase = getSupabaseAdmin();
@@ -100,12 +102,15 @@ async function revokeStravaTokens(userId) {
   }
 }
 
-// Attempt to revoke Garmin OAuth tokens
+// Delete the user's Garmin registration (OAuth2 PKCE spec §6). Garmin
+// requires this whenever we offer "delete my account"; without it the user
+// stays registered and Garmin keeps pushing their data to us. The local
+// integration row then goes with the account cascade.
 async function revokeGarminTokens(userId) {
   try {
     const { data: integration, error } = await supabase
       .from('bike_computer_integrations')
-      .select('access_token, refresh_token')
+      .select('id, access_token, refresh_token, token_expires_at')
       .eq('user_id', userId)
       .eq('provider', 'garmin')
       .maybeSingle();
@@ -115,11 +120,17 @@ async function revokeGarminTokens(userId) {
       return { revoked: false, reason: 'no_integration' };
     }
 
-    // Garmin OAuth 2.0 does not expose a public token revocation endpoint.
-    // We delete the local integration record, which effectively disconnects the user.
-    // The tokens will expire naturally on Garmin's side.
-    console.log('Garmin integration found - will be deleted with account cascade');
-    return { revoked: true, method: 'local_delete' };
+    let accessToken = integration.access_token;
+    try {
+      accessToken = await ensureValidAccessToken(integration, supabase);
+    } catch (tokenErr) {
+      console.warn('Garmin token refresh failed before deregistration, trying stored token:', tokenErr.message);
+    }
+
+    const result = await deregisterGarminUser(accessToken);
+    return result.ok
+      ? { revoked: true, method: 'garmin_deregistration' }
+      : { revoked: false, reason: 'garmin_deregistration_failed', status: result.status };
   } catch (err) {
     console.error('Error in revokeGarminTokens:', err.message);
     return { revoked: false, reason: 'error', error: err.message };

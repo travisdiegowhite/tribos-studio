@@ -118,19 +118,61 @@ export async function requestActivityDetailsBackfill(accessToken, startTimeInSec
   }
 }
 
+const PARTNER_GATEWAY_BASE = 'https://apis.garmin.com/partner-gateway/rest';
+// The pre-2.0 path. Garmin's OAuth2 PKCE spec 2.0 documents the user
+// endpoints under partner-gateway; this stays as a fallback until the new
+// path has been confirmed for every user.
+const LEGACY_USER_ID_URL = 'https://apis.garmin.com/wellness-api/rest/user/id';
+
 /**
  * Fetch the Garmin User ID for an access token. This ID is the linchpin for
  * webhook matching (bike_computer_integrations.provider_user_id) — without
- * it every webhook for the user is unmatchable. Mirrors the fetch in
- * api/garmin-auth.js exchange/repair; extracted here so the webhook
- * processor and token maintenance can self-heal NULL provider_user_id rows.
+ * it every webhook for the user is unmatchable. Used by api/garmin-auth.js
+ * exchange/repair, the webhook processor and token maintenance (to self-heal
+ * NULL provider_user_id rows).
+ *
+ * Tries the documented partner-gateway path first and falls back to the
+ * legacy wellness-api path on a 404.
  *
  * @param {string} accessToken - Valid Garmin OAuth access token
  * @returns {Promise<string|null>} Garmin user ID, or null on failure
  */
 export async function fetchGarminUserId(accessToken) {
+  for (const url of [`${PARTNER_GATEWAY_BASE}/user/id`, LEGACY_USER_ID_URL]) {
+    try {
+      const response = await fetch(url, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${accessToken}`,
+          'Accept': 'application/json'
+        }
+      });
+      if (response.status === 404) continue;
+      if (!response.ok) {
+        console.warn('⚠️ Garmin /user/id fetch failed:', response.status);
+        return null;
+      }
+      const data = await response.json();
+      return data?.userId ? String(data.userId) : null;
+    } catch (error) {
+      console.warn('⚠️ Garmin /user/id fetch error:', error.message);
+      return null;
+    }
+  }
+  return null;
+}
+
+/**
+ * Fetch the permissions the user granted at consent time (OAuth2 PKCE spec
+ * §8), e.g. ['ACTIVITY_EXPORT', 'HEALTH_EXPORT', 'COURSE_IMPORT'].
+ * Later changes arrive through the userPermissionsChange webhook.
+ *
+ * @param {string} accessToken - Valid Garmin OAuth access token
+ * @returns {Promise<string[]|null>} Granted permissions, or null on failure
+ */
+export async function fetchGarminPermissions(accessToken) {
   try {
-    const response = await fetch('https://apis.garmin.com/wellness-api/rest/user/id', {
+    const response = await fetch(`${PARTNER_GATEWAY_BASE}/user/permissions`, {
       method: 'GET',
       headers: {
         'Authorization': `Bearer ${accessToken}`,
@@ -138,14 +180,44 @@ export async function fetchGarminUserId(accessToken) {
       }
     });
     if (!response.ok) {
-      console.warn('⚠️ Garmin /user/id fetch failed:', response.status);
+      console.warn('⚠️ Garmin /user/permissions fetch failed:', response.status);
       return null;
     }
     const data = await response.json();
-    return data?.userId ? String(data.userId) : null;
+    return Array.isArray(data?.permissions) ? data.permissions : null;
   } catch (error) {
-    console.warn('⚠️ Garmin /user/id fetch error:', error.message);
+    console.warn('⚠️ Garmin /user/permissions fetch error:', error.message);
     return null;
+  }
+}
+
+/**
+ * Delete the user's registration with Garmin (OAuth2 PKCE spec §6). Garmin
+ * requires this whenever tribos offers a disconnect or delete-account path:
+ * without it the user stays registered and Garmin keeps pushing their data.
+ * Garmin answers with a deregistration notification, which the webhook
+ * receivers treat as an idempotent cleanup.
+ *
+ * Never throws: a failed call must not block the local disconnect.
+ *
+ * @param {string} accessToken - Valid Garmin OAuth access token
+ * @returns {Promise<{ok: boolean, status: number}>}
+ */
+export async function deregisterGarminUser(accessToken) {
+  if (!accessToken) return { ok: false, status: 0 };
+  try {
+    const response = await fetch(`${PARTNER_GATEWAY_BASE}/user/registration`, {
+      method: 'DELETE',
+      headers: { 'Authorization': `Bearer ${accessToken}` }
+    });
+    if (!response.ok) {
+      const body = await response.text().catch(() => '');
+      console.warn('⚠️ Garmin DELETE /user/registration failed:', response.status, body.substring(0, 200));
+    }
+    return { ok: response.ok, status: response.status };
+  } catch (error) {
+    console.warn('⚠️ Garmin DELETE /user/registration error:', error.message);
+    return { ok: false, status: 0 };
   }
 }
 

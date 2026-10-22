@@ -23,6 +23,7 @@ import { setupCors } from './utils/cors.js';
 import { rateLimitMiddleware, RATE_LIMITS } from './utils/rateLimit.js';
 import { verifySignature, getSignatureFromHeaders } from './utils/garmin/signatureVerifier.js';
 import { parseWebhookPayload, extractActivityFields } from './utils/garmin/webhookPayloadParser.js';
+import { applyDeregistrations, applyPermissionChanges } from './utils/garmin/registrationEvents.js';
 import { captureServerError } from './utils/serverSentry.js';
 
 // Circuit breaker state (per serverless instance, best effort).
@@ -155,6 +156,19 @@ export default async function handler(req, res) {
       itemCount: parsed.items.length,
       ip: clientIP
     });
+
+    // Registration notifications are small and idempotent: apply them now.
+    // 503 on failure so Garmin redelivers.
+    if (parsed.type === 'DEREGISTRATION' || parsed.type === 'USER_PERMISSIONS') {
+      const result = parsed.type === 'DEREGISTRATION'
+        ? await applyDeregistrations(supabase, parsed.items)
+        : await applyPermissionChanges(supabase, parsed.items);
+      if (result.failed > 0) {
+        return respondUnavailable(res, { type: parsed.type, failed: result.failed });
+      }
+      consecutiveFailures = 0;
+      return res.status(200).json({ success: true, type: parsed.type, ...result });
+    }
 
     // Drop health events whose type the processor doesn't handle. These
     // (epochs / allDayRespiration / userMetrics) accounted for ~90% of
