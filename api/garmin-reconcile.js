@@ -49,6 +49,7 @@ import { extractStreamsFromActivityDetails } from './utils/garmin/activityDetail
 import { refreshCompleteness } from './utils/garmin/completeness.js';
 import { captureServerError } from './utils/serverSentry.js';
 import { verifyCronAuth } from './utils/verifyCronAuth.js';
+import { isGarminHistoricalAccessEnabled, STARTER_TIER_SKIP } from './utils/garmin/accessTier.js';
 
 const supabase = getSupabaseAdmin();
 
@@ -70,6 +71,11 @@ const LEGACY_BACKFILL_AGE_HOURS = 4;
 export default async function handler(req, res) {
   if (!verifyCronAuth(req).authorized) {
     return res.status(401).json({ error: 'Unauthorized' });
+  }
+
+  // Reconciliation is pull + backfill, both Enterprise-only (accessTier.js).
+  if (!isGarminHistoricalAccessEnabled()) {
+    return res.status(200).json({ success: true, skipped: STARTER_TIER_SKIP });
   }
 
   console.log('=== Garmin Reconciliation Started (Pull-first) ===');

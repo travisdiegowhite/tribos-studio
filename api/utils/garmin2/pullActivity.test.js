@@ -95,8 +95,13 @@ describe('fetchActivityDetailsByCallbackURL', () => {
 });
 
 describe('pullActivityDetail', () => {
-  beforeEach(() => { vi.stubGlobal('fetch', vi.fn()); });
-  afterEach(() => { vi.unstubAllGlobals(); });
+  // The dormant garmin2 pull stack is Enterprise-only (accessTier.js);
+  // these tests cover its behaviour with historical access granted.
+  beforeEach(() => {
+    vi.stubGlobal('fetch', vi.fn());
+    vi.stubEnv('GARMIN_HISTORICAL_ACCESS_ENABLED', 'true');
+  });
+  afterEach(() => { vi.unstubAllGlobals(); vi.unstubAllEnvs(); });
 
   it('returns the matched detail via callbackURL happy path', async () => {
     fetch.mockResolvedValue(jsonResponse(200, SAMPLE_DETAILS));

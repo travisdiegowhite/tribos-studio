@@ -43,6 +43,10 @@ import { buildRideSummary } from '../utils/rideSummary';
 import { rideRouteCoords } from '../utils/rideGeo';
 import { ArrowRight, ArrowsClockwise, Clock, Fire, Gauge, Heart, Heartbeat, Lightning, MapTrifold, Mountains, Path, ShareNetwork, Watch } from '@phosphor-icons/react';
 
+// Re-sync is a Garmin pull + backfill, which Garmin's Starter access does not
+// allow (api/utils/garmin/accessTier.js). Off unless both sides opt in.
+const GARMIN_RESYNC_AVAILABLE = import.meta.env.VITE_GARMIN_HISTORICAL_ACCESS === 'true';
+
 // FIT protocol uses 0xFFFF (65535) for "no data" - must filter before display
 const MAX_VALID_POWER_WATTS = 2500;
 const MAX_VALID_HR_BPM = 250;
@@ -869,7 +873,7 @@ const RideAnalysisModal = ({
           <Box pt="sm" style={{ borderTop: ride.provider === 'strava' ? 'none' : '1px solid var(--color-border)' }}>
             <Group justify="space-between" align="center" wrap="nowrap">
               <PoweredByGarmin variant="light" size="sm" />
-              {ride.data_completeness && ride.data_completeness !== 'full' && (
+              {GARMIN_RESYNC_AVAILABLE && ride.data_completeness && ride.data_completeness !== 'full' && (
                 <Tooltip
                   label={
                     ride.data_completeness === 'unrecoverable'

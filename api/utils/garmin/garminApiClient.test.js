@@ -1,4 +1,6 @@
 import {
+  fetchActivityDetailsByUploadRange,
+  HistoricalAccessDisabledError,
   fetchGarminActivityDetails,
   requestActivityDetailsBackfill,
   fetchGarminUserId,
@@ -7,8 +9,12 @@ import {
 } from './garminApiClient.js';
 
 describe('fetchGarminActivityDetails', () => {
+  beforeEach(() => {
+    vi.stubEnv('GARMIN_HISTORICAL_ACCESS_ENABLED', 'true');
+  });
   afterEach(() => {
     vi.restoreAllMocks();
+    vi.unstubAllEnvs();
   });
 
   it('returns activity details on success', async () => {
@@ -82,8 +88,12 @@ describe('fetchGarminActivityDetails', () => {
 });
 
 describe('requestActivityDetailsBackfill', () => {
+  beforeEach(() => {
+    vi.stubEnv('GARMIN_HISTORICAL_ACCESS_ENABLED', 'true');
+  });
   afterEach(() => {
     vi.restoreAllMocks();
+    vi.unstubAllEnvs();
   });
 
   it('returns true on 202 Accepted', async () => {
@@ -200,6 +210,24 @@ describe('deregisterGarminUser', () => {
   it('skips the call without a token', async () => {
     const spy = vi.spyOn(globalThis, 'fetch');
     expect(await deregisterGarminUser(null)).toEqual({ ok: false, status: 0 });
+    expect(spy).not.toHaveBeenCalled();
+  });
+});
+
+describe('Starter access (historical access disabled)', () => {
+  beforeEach(() => {
+    vi.stubEnv('GARMIN_HISTORICAL_ACCESS_ENABLED', '');
+  });
+  afterEach(() => {
+    vi.restoreAllMocks();
+    vi.unstubAllEnvs();
+  });
+
+  it('never calls Garmin for a pull, a backfill or an upload-range pull', async () => {
+    const spy = vi.spyOn(globalThis, 'fetch');
+    expect(await fetchGarminActivityDetails('t', 's')).toBeNull();
+    expect(await requestActivityDetailsBackfill('t', 1700000000)).toBe(false);
+    await expect(fetchActivityDetailsByUploadRange('t', 0, 100)).rejects.toBeInstanceOf(HistoricalAccessDisabledError);
     expect(spy).not.toHaveBeenCalled();
   });
 });

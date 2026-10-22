@@ -5,7 +5,13 @@ import { getSupabaseAdmin } from './utils/supabaseAdmin.js';
 import { rateLimitMiddleware } from './utils/rateLimit.js';
 import { setupCors } from './utils/cors.js';
 import { completeActivationStep } from './utils/activation.js';
+import { captureServerError } from './utils/serverSentry.js';
 import { ensureValidAccessToken } from './utils/garmin/tokenManager.js';
+import {
+  isGarminHistoricalAccessEnabled,
+  getGarminMaxConnections,
+  STARTER_TIER_SKIP,
+} from './utils/garmin/accessTier.js';
 import {
   fetchGarminUserId,
   fetchGarminPermissions,
@@ -197,6 +203,45 @@ export default async function handler(req, res) {
   }
 }
 
+// Starter access allows a limited number of connected Garmin users
+// (accessTier.js). A user who already has a row (reconnecting or repairing)
+// never counts against the cap. Fails open if the count itself fails, so a
+// database hiccup never blocks connecting.
+async function checkConnectionCapacity(userId) {
+  const { data: existing } = await supabase
+    .from('bike_computer_integrations')
+    .select('id')
+    .eq('user_id', userId)
+    .eq('provider', 'garmin')
+    .maybeSingle();
+  if (existing) return { allowed: true };
+
+  const { count, error } = await supabase
+    .from('bike_computer_integrations')
+    .select('id', { count: 'exact', head: true })
+    .eq('provider', 'garmin');
+  if (error || typeof count !== 'number') {
+    console.warn('Garmin capacity check failed (allowing connect):', error?.message);
+    return { allowed: true };
+  }
+
+  const max = getGarminMaxConnections();
+  if (count >= max) {
+    captureServerError(`Garmin connection cap reached: ${count}/${max}`, {
+      tag: 'garmin.connection_cap_reached',
+      extra: { count, max },
+    });
+    return { allowed: false, count, max };
+  }
+  if (count >= Math.floor(max * 0.9)) {
+    captureServerError(`Garmin connections at ${count}/${max} (90% of the Starter cap)`, {
+      tag: 'garmin.connection_cap_warning',
+      extra: { count, max },
+    });
+  }
+  return { allowed: true, count, max };
+}
+
 // OAuth 2.0 PKCE Step 1: Generate authorization URL
 async function getAuthorizationUrl(req, res, userId) {
   if (!userId) {
@@ -207,6 +252,14 @@ async function getAuthorizationUrl(req, res, userId) {
     `${process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : 'http://localhost:3000'}/oauth/garmin/callback`;
 
   try {
+    const capacity = await checkConnectionCapacity(userId);
+    if (!capacity.allowed) {
+      return res.status(409).json({
+        error: 'Garmin connections are temporarily full. We are working on raising the limit — please try again later, or import rides from Strava in the meantime.',
+        code: 'GARMIN_CAPACITY'
+      });
+    }
+
     // Generate PKCE parameters
     const codeVerifier = generateCodeVerifier();
     const codeChallenge = generateCodeChallenge(codeVerifier);
@@ -703,6 +756,11 @@ async function getConnectionStatus(req, res, userId) {
       healthStatus = 'missing_user_id';
       healthMessage = 'Missing Garmin User ID - activity sync will not work. Please reconnect.';
       requiresReconnect = true;
+    } else if (integration.sync_enabled === false) {
+      // userPermissionsChange webhook: the user turned off activity sharing
+      // for tribos in Garmin Connect.
+      healthStatus = 'sharing_off';
+      healthMessage = 'Activity sharing with tribos is turned off in Garmin Connect. Turn it back on there to resume syncing.';
     } else if (isExpired) {
       healthStatus = 'token_expired';
       healthMessage = 'Token expired - try refreshing or reconnecting.';
@@ -720,6 +778,10 @@ async function getConnectionStatus(req, res, userId) {
       healthStatus,
       healthMessage,
       requiresReconnect,
+      permissions: integration.provider_user_data?.permissions || null,
+      // False on Garmin Starter access: no backfill or pull, so the UI hides
+      // the import/backfill tools.
+      historicalAccess: isGarminHistoricalAccessEnabled(),
       // Debug
       debug: { queriedUserId: userId }
     });
@@ -1072,6 +1134,12 @@ async function refreshGarminToken(userId, refreshToken) {
 async function getHealthData(req, res, userId) {
   if (!userId) {
     return res.status(400).json({ error: 'UserId required' });
+  }
+
+  // Pulling dailies/sleeps/bodyComps by upload time is an ad-hoc pull,
+  // Enterprise-only (accessTier.js). Health data arrives by PUSH instead.
+  if (!isGarminHistoricalAccessEnabled()) {
+    return res.status(200).json({ success: false, skipped: STARTER_TIER_SKIP });
   }
 
   try {

@@ -2099,7 +2099,7 @@ function Settings() {
                 loading={garminStatus.loading}
                 onConnect={connectGarmin}
                 onDisconnect={disconnectGarmin}
-                onSync={syncGarminActivities}
+                onSync={garminStatus.historicalAccess ? syncGarminActivities : undefined}
                 syncing={garminSyncing}
                 onCheckWebhook={checkGarminWebhookStatus}
                 webhookStatus={garminWebhookStatus}
@@ -2109,11 +2109,11 @@ function Settings() {
                 recovering={garminRecovering}
                 onDiagnose={diagnoseGarmin}
                 diagnosis={garminDiagnosis}
-                onBackfillGps={backfillGarminGps}
+                onBackfillGps={garminStatus.historicalAccess ? backfillGarminGps : undefined}
                 backfillingGps={garminBackfillingGps}
-                onBackfillStreams={backfillGarminStreams}
+                onBackfillStreams={garminStatus.historicalAccess ? backfillGarminStreams : undefined}
                 backfillingStreams={garminBackfillingStreams}
-                onBackfillHistory={backfillGarminHistory}
+                onBackfillHistory={garminStatus.historicalAccess ? backfillGarminHistory : undefined}
                 backfillingHistory={garminBackfillingHistory}
                 backfillStatus={garminBackfillStatus}
                 unitsPreference={unitsPreference}
@@ -2485,6 +2485,28 @@ function ServiceConnection({ name, icon, connected, username, loading, onConnect
           )}
         </Group>
       </Group>
+
+      {/* Garmin on Starter access: PUSH-only, nothing to import by hand */}
+      {connected && name === 'Garmin Connect' && !onSync && (
+        <Box
+          style={{
+            backgroundColor: 'var(--color-bg-secondary)',
+            padding: tokens.spacing.sm,
+            borderRadius: tokens.radius.sm,
+            marginLeft: '2.5rem'
+          }}
+        >
+          <Stack gap={4}>
+            <Text size="sm" style={{ color: 'var(--color-text-primary)' }}>
+              Activity Sync
+            </Text>
+            <Text size="xs" style={{ color: 'var(--color-text-muted)' }}>
+              New activities arrive automatically after your device syncs with Garmin Connect. Garmin does not share activities from before you connected.
+            </Text>
+            <PoweredByGarmin variant="light" size="sm" />
+          </Stack>
+        </Box>
+      )}
 
       {/* Sync Activities Button */}
       {connected && onSync && (

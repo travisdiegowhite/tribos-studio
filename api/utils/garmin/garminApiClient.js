@@ -1,7 +1,13 @@
 /**
  * Garmin Health API client functions
  * All functions accept accessToken as a parameter (no module-level state)
+ *
+ * The pull and backfill functions are Enterprise-only under the 2026-10
+ * Developer Program; they return without contacting Garmin unless
+ * isGarminHistoricalAccessEnabled() (see ./accessTier.js).
  */
+
+import { isGarminHistoricalAccessEnabled, STARTER_TIER_SKIP } from './accessTier.js';
 
 /**
  * Fetch activity details from Garmin Health API.
@@ -12,6 +18,10 @@
  * @returns {Promise<object|null>} Activity details or null on failure
  */
 export async function fetchGarminActivityDetails(accessToken, summaryId) {
+  if (!isGarminHistoricalAccessEnabled()) {
+    console.log('ℹ️ Skipping Garmin activity pull: not allowed on Starter access');
+    return null;
+  }
   try {
     console.log('🔍 Fetching activity details from Garmin API for summaryId:', summaryId);
 
@@ -81,6 +91,10 @@ export async function fetchGarminActivityDetails(accessToken, summaryId) {
  * @returns {Promise<boolean>} true if backfill was requested successfully
  */
 export async function requestActivityDetailsBackfill(accessToken, startTimeInSeconds) {
+  if (!isGarminHistoricalAccessEnabled()) {
+    console.log('ℹ️ Skipping Garmin backfill request: not allowed on Starter access');
+    return false;
+  }
   try {
     if (!startTimeInSeconds || !accessToken) {
       console.log('ℹ️ Cannot request backfill: missing startTime or accessToken');
@@ -245,6 +259,13 @@ export class GarminPullError extends Error {
 export class BadRangeError extends GarminPullError {}
 export class AuthError extends GarminPullError {}
 export class ConsentRevokedError extends GarminPullError {}
+// Thrown instead of calling Garmin when pulls are not allowed on our tier.
+export class HistoricalAccessDisabledError extends GarminPullError {
+  constructor() {
+    super('Garmin pull is not allowed on Starter access', 0);
+    this.reason = STARTER_TIER_SKIP;
+  }
+}
 
 /**
  * Pull Activity Details for a 24-hour upload window.
@@ -260,8 +281,11 @@ export class ConsentRevokedError extends GarminPullError {}
  * @throws {AuthError}            on HTTP 401 or 403
  * @throws {ConsentRevokedError}  on HTTP 412 (user revoked summary consent)
  * @throws {GarminPullError}      on any other non-2xx
+ * @throws {HistoricalAccessDisabledError} without calling Garmin, unless
+ *   historical access is enabled (Enterprise only)
  */
 export async function fetchActivityDetailsByUploadRange(accessToken, startSec, endSec) {
+  if (!isGarminHistoricalAccessEnabled()) throw new HistoricalAccessDisabledError();
   if (!accessToken) throw new Error('accessToken required');
   if (!Number.isFinite(startSec) || !Number.isFinite(endSec)) {
     throw new RangeError('startSec and endSec must be finite numbers');
