@@ -43,6 +43,7 @@ import { ensureValidAccessToken } from './utils/garmin/tokenManager.js';
 import { requestActivityDetailsBackfill } from './utils/garmin/garminApiClient.js';
 import { captureServerError } from './utils/serverSentry.js';
 import { setupCors } from './utils/cors.js';
+import { isGarminHistoricalAccessEnabled, STARTER_TIER_SKIP } from './utils/garmin/accessTier.js';
 
 const supabase = getSupabaseAdmin();
 
@@ -71,6 +72,15 @@ export default async function handler(req, res) {
     const { activity_id } = req.body || {};
     if (!activity_id || typeof activity_id !== 'string') {
       return res.status(400).json({ success: false, error: 'activity_id required' });
+    }
+
+    // Re-sync is a pull + backfill, both Enterprise-only (accessTier.js).
+    if (!isGarminHistoricalAccessEnabled()) {
+      return res.status(200).json({
+        success: false,
+        status: STARTER_TIER_SKIP,
+        message: 'Re-sync from Garmin is not available. Garmin sends each activity once, when your device syncs.'
+      });
     }
 
     // Fetch + ownership check in one round trip

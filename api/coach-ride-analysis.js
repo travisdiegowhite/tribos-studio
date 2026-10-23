@@ -22,6 +22,7 @@ import { fetchEntryById } from './utils/calendarRead.js';
 import { setupCors } from './utils/cors.js';
 import { rateLimitByUser } from './utils/rateLimit.js';
 import { enforceAiQuota } from './utils/aiQuota.js';
+import { rejectWithoutAiConsent } from './utils/aiConsent.js';
 import { PERSONA_DATA } from './utils/personaData.js';
 import { buildCoachVoiceRules } from './utils/coachVoiceRules.js';
 
@@ -245,6 +246,9 @@ export default async function handler(req, res) {
   // Rate limit (10 requests / 5 min per user) — caps Claude spend
   const limited = await rateLimitByUser(req, res, 'coach-ride-analysis', userId, 10, 5);
   if (limited) return;
+
+  // Garmin Agreement §15.10: no training data reaches Claude without consent.
+  if (await rejectWithoutAiConsent(res, userId)) return;
 
   // Daily AI quota (per-user cap + global ceiling)
   const quotaExceeded = await enforceAiQuota(req, res, userId);

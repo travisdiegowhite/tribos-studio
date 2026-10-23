@@ -4,6 +4,7 @@
 
 import { getSupabaseAdmin } from './utils/supabaseAdmin.js';
 import { setupCors } from './utils/cors.js';
+import { isGarminHistoricalAccessEnabled, STARTER_TIER_SKIP } from './utils/garmin/accessTier.js';
 import { downloadAndParseFitFile } from './utils/fitParser.js';
 import { fetchAthleteProfile } from './utils/athleteProfile.js';
 import { sanitizeStressScore } from './utils/stressScoreSanitizer.js';
@@ -92,6 +93,18 @@ export default async function handler(req, res) {
     const validationError = await validateUserAccess(req, res, userId);
     if (validationError) {
       return; // Response already sent
+    }
+
+    // Starter access has no historical data and no ad-hoc pulls. These
+    // actions only ever ask Garmin for old data, so refuse them up front.
+    const HISTORICAL_ONLY_ACTIONS = ['sync_activities', 'backfill_activities', 'get_activity', 'backfill_historical'];
+    if (HISTORICAL_ONLY_ACTIONS.includes(action) && !isGarminHistoricalAccessEnabled()) {
+      return res.status(200).json({
+        success: false,
+        skipped: STARTER_TIER_SKIP,
+        code: 'GARMIN_HISTORICAL_UNAVAILABLE',
+        message: 'Garmin only sends new activities to tribos, as you sync your device. Past activities cannot be imported from Garmin.'
+      });
     }
 
     switch (action) {
@@ -1092,7 +1105,8 @@ async function backfillGpsData(req, res, userId) {
     // If we have dates that need backfill, request it from Garmin
     let backfillError = null;
     let skippedOldActivities = 0;
-    if (dateRangesToBackfill.size > 0) {
+    // Backfill is Enterprise-only (accessTier.js); FIT re-reads above still run.
+    if (dateRangesToBackfill.size > 0 && isGarminHistoricalAccessEnabled()) {
       const now = new Date();
       const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
 
@@ -1542,7 +1556,8 @@ async function backfillPowerData(req, res, userId) {
     // If we have dates that need backfill, request it from Garmin
     let backfillError = null;
     let skippedOldActivities = 0;
-    if (dateRangesToBackfill.size > 0) {
+    // Backfill is Enterprise-only (accessTier.js); FIT re-reads above still run.
+    if (dateRangesToBackfill.size > 0 && isGarminHistoricalAccessEnabled()) {
       const now = new Date();
       const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
 
@@ -1911,7 +1926,8 @@ async function backfillStreamsData(req, res, userId) {
     // If we have dates that need backfill, request it from Garmin
     let backfillError = null;
     let skippedOldActivities = 0;
-    if (dateRangesToBackfill.size > 0) {
+    // Backfill is Enterprise-only (accessTier.js); FIT re-reads above still run.
+    if (dateRangesToBackfill.size > 0 && isGarminHistoricalAccessEnabled()) {
       const now = new Date();
       const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
 

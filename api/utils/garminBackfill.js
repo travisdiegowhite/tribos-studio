@@ -11,9 +11,14 @@
  * - We request 2 years in 2-month chunks (12 chunks total)
  * - 409 errors mean the time range was already processed (OK to ignore)
  * - Must add delays between requests to be respectful of Garmin's servers
+ *
+ * Historical data is Enterprise-only under the 2026-10 Developer Program.
+ * Requests return without contacting Garmin unless
+ * isGarminHistoricalAccessEnabled() (see ./garmin/accessTier.js).
  */
 
 import { getSupabaseAdmin } from './supabaseAdmin.js';
+import { isGarminHistoricalAccessEnabled, STARTER_TIER_SKIP } from './garmin/accessTier.js';
 
 // Initialize Supabase (server-side)
 const supabase = getSupabaseAdmin();
@@ -74,6 +79,9 @@ export function generateBackfillChunks(yearsBack = DEFAULT_YEARS_BACK) {
  * @returns {Promise<{success: boolean, status: number, error?: string, duplicate?: boolean}>}
  */
 export async function requestActivityBackfill(accessToken, startTimestamp, endTimestamp) {
+  if (!isGarminHistoricalAccessEnabled()) {
+    return { success: false, status: 0, error: 'Historical data is not available on Garmin Starter access', skipped: STARTER_TIER_SKIP };
+  }
   try {
     const url = `${GARMIN_API_BASE}/backfill/activities?summaryStartTimeInSeconds=${startTimestamp}&summaryEndTimeInSeconds=${endTimestamp}`;
 
@@ -269,6 +277,14 @@ export async function updateBackfillChunkIfApplicable(userId, activityStartTimes
  */
 export async function executeBackfillForUser(userId, accessToken, options = {}) {
   const { yearsBack = DEFAULT_YEARS_BACK, delayMs = DELAY_BETWEEN_CHUNKS_MS } = options;
+
+  if (!isGarminHistoricalAccessEnabled()) {
+    return {
+      success: false,
+      skipped: STARTER_TIER_SKIP,
+      summary: { error: 'Historical data is not available on Garmin Starter access' }
+    };
+  }
 
   console.log(`🔄 Starting historical backfill for user ${userId}: ${yearsBack} years`);
 

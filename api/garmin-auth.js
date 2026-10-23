@@ -5,6 +5,18 @@ import { getSupabaseAdmin } from './utils/supabaseAdmin.js';
 import { rateLimitMiddleware } from './utils/rateLimit.js';
 import { setupCors } from './utils/cors.js';
 import { completeActivationStep } from './utils/activation.js';
+import { captureServerError } from './utils/serverSentry.js';
+import { ensureValidAccessToken } from './utils/garmin/tokenManager.js';
+import {
+  isGarminHistoricalAccessEnabled,
+  getGarminMaxConnections,
+  STARTER_TIER_SKIP,
+} from './utils/garmin/accessTier.js';
+import {
+  fetchGarminUserId,
+  fetchGarminPermissions,
+  deregisterGarminUser,
+} from './utils/garmin/garminApiClient.js';
 import crypto from 'crypto';
 
 // Initialize Supabase (server-side)
@@ -14,6 +26,20 @@ const supabase = getSupabaseAdmin();
 const GARMIN_AUTHORIZE_URL = 'https://connect.garmin.com/oauth2Confirm';
 const GARMIN_TOKEN_URL = 'https://diauth.garmin.com/di-oauth2-service/oauth/token';
 const GARMIN_API_BASE = 'https://apis.garmin.com';
+
+// Garmin access tokens last a day and refresh tokens about 90 days (OAuth2
+// PKCE spec §2/§3). The fallbacks only apply if a response omits them.
+const DEFAULT_ACCESS_TOKEN_SECONDS = 86400;
+const DEFAULT_REFRESH_TOKEN_SECONDS = 7776000;
+const OAUTH_TEMP_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000;
+
+function tokenExpiryFrom(tokenData) {
+  return new Date(Date.now() + (tokenData.expires_in || DEFAULT_ACCESS_TOKEN_SECONDS) * 1000);
+}
+
+function refreshTokenExpiryFrom(tokenData) {
+  return new Date(Date.now() + (tokenData.refresh_token_expires_in || DEFAULT_REFRESH_TOKEN_SECONDS) * 1000);
+}
 
 // Helper to get user ID from Authorization header (more secure than trusting request body)
 async function getUserFromAuthHeader(req) {
@@ -107,15 +133,17 @@ export default async function handler(req, res) {
       });
     }
 
-    // For user-specific actions, prefer auth token over request body userId
-    // This is more secure and ensures consistency with other endpoints
-    let authenticatedUserId = userId; // Fall back to request body for backwards compatibility
+    // Every action is user-scoped, so the caller must prove who they are with
+    // a Supabase session token. The request-body userId is never trusted: it
+    // used to be a fallback, which let an unauthenticated caller disconnect,
+    // read or push routes for any user.
     const authUser = await getUserFromAuthHeader(req);
-    if (authUser) {
-      authenticatedUserId = authUser.id;
-      if (userId && userId !== authUser.id) {
-        console.warn('User ID mismatch - request body:', userId, 'auth token:', authUser.id);
-      }
+    if (!authUser) {
+      return res.status(401).json({ error: 'Authentication required', code: 'UNAUTHENTICATED' });
+    }
+    const authenticatedUserId = authUser.id;
+    if (userId && userId !== authUser.id) {
+      console.warn('User ID mismatch - request body:', userId, 'auth token:', authUser.id);
     }
 
     switch (action) {
@@ -175,6 +203,45 @@ export default async function handler(req, res) {
   }
 }
 
+// Starter access allows a limited number of connected Garmin users
+// (accessTier.js). A user who already has a row (reconnecting or repairing)
+// never counts against the cap. Fails open if the count itself fails, so a
+// database hiccup never blocks connecting.
+async function checkConnectionCapacity(userId) {
+  const { data: existing } = await supabase
+    .from('bike_computer_integrations')
+    .select('id')
+    .eq('user_id', userId)
+    .eq('provider', 'garmin')
+    .maybeSingle();
+  if (existing) return { allowed: true };
+
+  const { count, error } = await supabase
+    .from('bike_computer_integrations')
+    .select('id', { count: 'exact', head: true })
+    .eq('provider', 'garmin');
+  if (error || typeof count !== 'number') {
+    console.warn('Garmin capacity check failed (allowing connect):', error?.message);
+    return { allowed: true };
+  }
+
+  const max = getGarminMaxConnections();
+  if (count >= max) {
+    captureServerError(`Garmin connection cap reached: ${count}/${max}`, {
+      tag: 'garmin.connection_cap_reached',
+      extra: { count, max },
+    });
+    return { allowed: false, count, max };
+  }
+  if (count >= Math.floor(max * 0.9)) {
+    captureServerError(`Garmin connections at ${count}/${max} (90% of the Starter cap)`, {
+      tag: 'garmin.connection_cap_warning',
+      extra: { count, max },
+    });
+  }
+  return { allowed: true, count, max };
+}
+
 // OAuth 2.0 PKCE Step 1: Generate authorization URL
 async function getAuthorizationUrl(req, res, userId) {
   if (!userId) {
@@ -185,6 +252,14 @@ async function getAuthorizationUrl(req, res, userId) {
     `${process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : 'http://localhost:3000'}/oauth/garmin/callback`;
 
   try {
+    const capacity = await checkConnectionCapacity(userId);
+    if (!capacity.allowed) {
+      return res.status(409).json({
+        error: 'Garmin connections are temporarily full. We are working on raising the limit — please try again later, or import rides from Strava in the meantime.',
+        code: 'GARMIN_CAPACITY'
+      });
+    }
+
     // Generate PKCE parameters
     const codeVerifier = generateCodeVerifier();
     const codeChallenge = generateCodeChallenge(codeVerifier);
@@ -245,7 +320,7 @@ async function exchangeToken(req, res, userId, code, state) {
     // Retrieve the stored PKCE verifier
     const { data: tempData, error: tempError } = await supabase
       .from('garmin_oauth_temp')
-      .select('request_token, request_token_secret, user_id')
+      .select('request_token, request_token_secret, user_id, created_at')
       .eq('user_id', userId)
       .single();
 
@@ -257,6 +332,13 @@ async function exchangeToken(req, res, userId, code, state) {
 
     if (tempError || !tempData) {
       throw new Error('Authorization session not found. Please start the authorization flow again.');
+    }
+
+    // A PKCE verifier/state pair is single-use and short-lived; never accept
+    // one left over from an abandoned attempt days ago.
+    if (tempData.created_at && Date.now() - new Date(tempData.created_at).getTime() > OAUTH_TEMP_MAX_AGE_MS) {
+      await supabase.from('garmin_oauth_temp').delete().eq('user_id', userId);
+      throw new Error('Authorization session expired. Please start the authorization flow again.');
     }
 
     const storedState = tempData.request_token;
@@ -304,28 +386,14 @@ async function exchangeToken(req, res, userId, code, state) {
     let lastError = null;
 
     for (let attempt = 1; attempt <= maxRetries; attempt++) {
-      try {
-        console.log(`Fetching Garmin user ID (attempt ${attempt}/${maxRetries})...`);
-        const userIdResponse = await fetch('https://apis.garmin.com/wellness-api/rest/user/id', {
-          headers: {
-            'Authorization': `Bearer ${tokenData.access_token}`
-          }
-        });
-
-        if (userIdResponse.ok) {
-          const userData = await userIdResponse.json();
-          garminUserId = userData.userId;
-          console.log('Garmin user ID retrieved successfully:', garminUserId);
-          break; // Success - exit retry loop
-        } else {
-          const errorText = await userIdResponse.text();
-          lastError = `HTTP ${userIdResponse.status}: ${errorText}`;
-          console.warn(`Attempt ${attempt} failed to fetch Garmin user ID:`, lastError);
-        }
-      } catch (userIdError) {
-        lastError = userIdError.message;
-        console.warn(`Attempt ${attempt} error fetching Garmin user ID:`, lastError);
+      console.log(`Fetching Garmin user ID (attempt ${attempt}/${maxRetries})...`);
+      garminUserId = await fetchGarminUserId(tokenData.access_token);
+      if (garminUserId) {
+        console.log('Garmin user ID retrieved successfully:', garminUserId);
+        break; // Success - exit retry loop
       }
+      lastError = 'user/id request failed';
+      console.warn(`Attempt ${attempt} failed to fetch Garmin user ID`);
 
       // Wait before retrying (exponential backoff: 1s, 2s, 4s)
       if (attempt < maxRetries) {
@@ -343,9 +411,13 @@ async function exchangeToken(req, res, userId, code, state) {
       );
     }
 
-    // Calculate token expiration (Garmin tokens expire in 3 months)
-    const expiresAt = new Date();
-    expiresAt.setSeconds(expiresAt.getSeconds() + (tokenData.expires_in || 7776000)); // Default 90 days
+    // Which data the user agreed to share (OAuth2 PKCE spec §8). Later
+    // changes arrive through the userPermissionsChange webhook. Null when
+    // the call fails; readers treat unknown as "not restricted".
+    const permissions = await fetchGarminPermissions(tokenData.access_token);
+
+    const expiresAt = tokenExpiryFrom(tokenData);
+    const refreshExpiresAt = refreshTokenExpiryFrom(tokenData);
 
     // Detect first-time connection so we can mark Garmin as the primary
     // ingestion source (suppresses Strava auto-import). Re-auths leave the
@@ -368,12 +440,15 @@ async function exchangeToken(req, res, userId, code, state) {
         access_token: tokenData.access_token,
         refresh_token: tokenData.refresh_token,
         token_expires_at: expiresAt.toISOString(),
+        refresh_token_expires_at: refreshExpiresAt.toISOString(),
+        refresh_token_invalid: false,
         provider_user_data: {
           connected_at: new Date().toISOString(),
           scope: tokenData.scope,
-          garmin_user_id: garminUserId
+          garmin_user_id: garminUserId,
+          ...(permissions ? { permissions, permissions_updated_at: new Date().toISOString() } : {})
         },
-        sync_enabled: true,
+        sync_enabled: !permissions || permissions.includes('ACTIVITY_EXPORT'),
         updated_at: new Date().toISOString()
       }, {
         onConflict: 'user_id,provider'
@@ -460,17 +535,16 @@ async function refreshToken(req, res, userId) {
 
     const tokenData = await response.json();
 
-    // Calculate new expiration
-    const expiresAt = new Date();
-    expiresAt.setSeconds(expiresAt.getSeconds() + (tokenData.expires_in || 7776000));
-
-    // Update stored tokens
+    // Update stored tokens. Garmin rotates the refresh token on every
+    // refresh; keep the old one only if a response ever omits it.
     const { error: updateError } = await supabase
       .from('bike_computer_integrations')
       .update({
         access_token: tokenData.access_token,
-        refresh_token: tokenData.refresh_token,
-        token_expires_at: expiresAt.toISOString(),
+        refresh_token: tokenData.refresh_token || integration.refresh_token,
+        token_expires_at: tokenExpiryFrom(tokenData).toISOString(),
+        refresh_token_expires_at: refreshTokenExpiryFrom(tokenData).toISOString(),
+        refresh_token_invalid: false,
         updated_at: new Date().toISOString()
       })
       .eq('user_id', userId)
@@ -502,7 +576,7 @@ async function repairConnection(req, res, userId) {
     // Get stored integration data
     const { data: integration, error: fetchError } = await supabase
       .from('bike_computer_integrations')
-      .select('access_token, refresh_token, provider_user_id, token_expires_at')
+      .select('access_token, refresh_token, provider_user_id, provider_user_data, token_expires_at')
       .eq('user_id', userId)
       .eq('provider', 'garmin')
       .single();
@@ -559,26 +633,13 @@ async function repairConnection(req, res, userId) {
     const maxRetries = 3;
 
     for (let attempt = 1; attempt <= maxRetries; attempt++) {
-      try {
-        const userIdResponse = await fetch('https://apis.garmin.com/wellness-api/rest/user/id', {
-          headers: {
-            'Authorization': `Bearer ${newAccessToken}`
-          }
-        });
-
-        if (userIdResponse.ok) {
-          const userData = await userIdResponse.json();
-          garminUserId = userData.userId;
-          console.log('Repair: Garmin User ID retrieved:', garminUserId);
-          break;
-        } else {
-          lastError = await userIdResponse.text();
-          console.warn(`Repair: Attempt ${attempt} failed:`, lastError);
-        }
-      } catch (err) {
-        lastError = err.message;
-        console.warn(`Repair: Attempt ${attempt} error:`, lastError);
+      garminUserId = await fetchGarminUserId(newAccessToken);
+      if (garminUserId) {
+        console.log('Repair: Garmin User ID retrieved:', garminUserId);
+        break;
       }
+      lastError = 'user/id request failed';
+      console.warn(`Repair: Attempt ${attempt} failed`);
 
       if (attempt < maxRetries) {
         await new Promise(resolve => setTimeout(resolve, 1000 * Math.pow(2, attempt - 1)));
@@ -594,20 +655,23 @@ async function repairConnection(req, res, userId) {
       });
     }
 
-    // Step 3: Update the database with new token and User ID
-    const expiresAt = new Date();
-    expiresAt.setSeconds(expiresAt.getSeconds() + (tokenData.expires_in || 7776000));
-
+    // Step 3: Update the database with new token and User ID. Merge into
+    // provider_user_data so the stored permissions survive a repair.
+    const permissions = await fetchGarminPermissions(newAccessToken);
     const { error: updateError } = await supabase
       .from('bike_computer_integrations')
       .update({
         access_token: newAccessToken,
         refresh_token: tokenData.refresh_token || integration.refresh_token,
-        token_expires_at: expiresAt.toISOString(),
+        token_expires_at: tokenExpiryFrom(tokenData).toISOString(),
+        refresh_token_expires_at: refreshTokenExpiryFrom(tokenData).toISOString(),
+        refresh_token_invalid: false,
         provider_user_id: garminUserId,
         provider_user_data: {
+          ...(integration.provider_user_data || {}),
           repaired_at: new Date().toISOString(),
-          garmin_user_id: garminUserId
+          garmin_user_id: garminUserId,
+          ...(permissions ? { permissions, permissions_updated_at: new Date().toISOString() } : {})
         },
         updated_at: new Date().toISOString()
       })
@@ -692,6 +756,11 @@ async function getConnectionStatus(req, res, userId) {
       healthStatus = 'missing_user_id';
       healthMessage = 'Missing Garmin User ID - activity sync will not work. Please reconnect.';
       requiresReconnect = true;
+    } else if (integration.sync_enabled === false) {
+      // userPermissionsChange webhook: the user turned off activity sharing
+      // for tribos in Garmin Connect.
+      healthStatus = 'sharing_off';
+      healthMessage = 'Activity sharing with tribos is turned off in Garmin Connect. Turn it back on there to resume syncing.';
     } else if (isExpired) {
       healthStatus = 'token_expired';
       healthMessage = 'Token expired - try refreshing or reconnecting.';
@@ -709,6 +778,10 @@ async function getConnectionStatus(req, res, userId) {
       healthStatus,
       healthMessage,
       requiresReconnect,
+      permissions: integration.provider_user_data?.permissions || null,
+      // False on Garmin Starter access: no backfill or pull, so the UI hides
+      // the import/backfill tools.
+      historicalAccess: isGarminHistoricalAccessEnabled(),
       // Debug
       debug: { queriedUserId: userId }
     });
@@ -725,6 +798,27 @@ async function disconnect(req, res, userId) {
   }
 
   try {
+    // Garmin requires the registration to be deleted on their side whenever
+    // we offer a disconnect (OAuth2 PKCE spec §6). Best effort: a failure is
+    // logged but never blocks the local disconnect.
+    const { data: integration } = await supabase
+      .from('bike_computer_integrations')
+      .select('id, access_token, refresh_token, token_expires_at')
+      .eq('user_id', userId)
+      .eq('provider', 'garmin')
+      .maybeSingle();
+
+    if (integration) {
+      let accessToken = integration.access_token;
+      try {
+        accessToken = await ensureValidAccessToken(integration, supabase);
+      } catch (tokenErr) {
+        console.warn('Disconnect: token refresh failed, trying stored token:', tokenErr.message);
+      }
+      const result = await deregisterGarminUser(accessToken);
+      console.log('Disconnect: Garmin deregistration', result.ok ? 'succeeded' : `failed (${result.status})`);
+    }
+
     const { error } = await supabase
       .from('bike_computer_integrations')
       .delete()
@@ -772,7 +866,7 @@ async function pushRoute(req, res, userId, routeData) {
     // Get user's Garmin integration
     const { data: integration, error: fetchError } = await supabase
       .from('bike_computer_integrations')
-      .select('access_token, refresh_token, token_expires_at')
+      .select('access_token, refresh_token, token_expires_at, provider_user_data')
       .eq('user_id', userId)
       .eq('provider', 'garmin')
       .single();
@@ -781,6 +875,31 @@ async function pushRoute(req, res, userId, routeData) {
       return res.status(400).json({
         error: 'Garmin not connected. Please connect your Garmin account first.',
         requiresConnection: true
+      });
+    }
+
+    // Uploading to Garmin needs the athlete's express consent to the
+    // transfer (Garmin Agreement §4.5), recorded by GarminConsentModal at
+    // connect time or by the one-time ConsentGate.
+    const { data: profile } = await supabase
+      .from('user_profiles')
+      .select('garmin_data_consent_at')
+      .eq('id', userId)
+      .maybeSingle();
+    if (!profile?.garmin_data_consent_at) {
+      return res.status(412).json({
+        error: 'Please confirm the Garmin data-sharing notice before sending routes to Garmin. Reload tribos to see it, or reconnect Garmin in Settings.',
+        code: 'GARMIN_CONSENT_REQUIRED'
+      });
+    }
+
+    // Unknown permissions (older connections) fall through to Garmin, whose
+    // 412 below is the backstop.
+    const permissions = integration.provider_user_data?.permissions;
+    if (Array.isArray(permissions) && !permissions.includes('COURSE_IMPORT')) {
+      return res.status(412).json({
+        error: 'Your Garmin account has not allowed tribos to send courses. Turn on course import for tribos in Garmin Connect, or reconnect Garmin and allow it.',
+        code: 'COURSE_IMPORT_NOT_GRANTED'
       });
     }
 
@@ -1004,15 +1123,14 @@ async function refreshGarminToken(userId, refreshToken) {
   console.log('Token refresh successful, new token received');
 
   // Update stored tokens
-  const expiresAt = new Date();
-  expiresAt.setSeconds(expiresAt.getSeconds() + (tokenData.expires_in || 7776000));
-
   const { error: updateError } = await supabase
     .from('bike_computer_integrations')
     .update({
       access_token: tokenData.access_token,
       refresh_token: tokenData.refresh_token || refreshToken,
-      token_expires_at: expiresAt.toISOString(),
+      token_expires_at: tokenExpiryFrom(tokenData).toISOString(),
+      refresh_token_expires_at: refreshTokenExpiryFrom(tokenData).toISOString(),
+      refresh_token_invalid: false,
       updated_at: new Date().toISOString()
     })
     .eq('user_id', userId)
@@ -1031,6 +1149,12 @@ async function refreshGarminToken(userId, refreshToken) {
 async function getHealthData(req, res, userId) {
   if (!userId) {
     return res.status(400).json({ error: 'UserId required' });
+  }
+
+  // Pulling dailies/sleeps/bodyComps by upload time is an ad-hoc pull,
+  // Enterprise-only (accessTier.js). Health data arrives by PUSH instead.
+  if (!isGarminHistoricalAccessEnabled()) {
+    return res.status(200).json({ success: false, skipped: STARTER_TIER_SKIP });
   }
 
   try {

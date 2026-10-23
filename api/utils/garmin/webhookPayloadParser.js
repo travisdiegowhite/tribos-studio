@@ -7,6 +7,8 @@
  * - ACTIVITY_DETAIL: activityDetails[] array (PUSH - data in payload)
  * - ACTIVITY_FILE_DATA: activityFiles[] array (PING - needs callback URL)
  * - Health: dailies[], sleeps[], bodyComps[], stressDetails[], hrv[], etc.
+ * - DEREGISTRATION: deregistrations[] (user disconnected; OAuth2 PKCE spec §7)
+ * - USER_PERMISSIONS: userPermissionsChange[] (sharing changed; spec §9)
  */
 
 const HEALTH_DATA_TYPES = ['dailies', 'epochs', 'sleeps', 'bodyComps', 'stressDetails', 'userMetrics', 'hrv',
@@ -22,6 +24,14 @@ const HEALTH_DATA_TYPES = ['dailies', 'epochs', 'sleeps', 'bodyComps', 'stressDe
 export function parseWebhookPayload(webhookData) {
   if (!webhookData || typeof webhookData !== 'object') {
     return { type: 'UNKNOWN', items: [] };
+  }
+
+  // Registration notifications (applied inline by the receivers, never queued)
+  if (webhookData.deregistrations?.length > 0) {
+    return { type: 'DEREGISTRATION', items: webhookData.deregistrations };
+  }
+  if (webhookData.userPermissionsChange?.length > 0) {
+    return { type: 'USER_PERMISSIONS', items: webhookData.userPermissionsChange };
   }
 
   // Check for health data types first

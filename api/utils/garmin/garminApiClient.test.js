@@ -1,8 +1,20 @@
-import { fetchGarminActivityDetails, requestActivityDetailsBackfill } from './garminApiClient.js';
+import {
+  fetchActivityDetailsByUploadRange,
+  HistoricalAccessDisabledError,
+  fetchGarminActivityDetails,
+  requestActivityDetailsBackfill,
+  fetchGarminUserId,
+  fetchGarminPermissions,
+  deregisterGarminUser,
+} from './garminApiClient.js';
 
 describe('fetchGarminActivityDetails', () => {
+  beforeEach(() => {
+    vi.stubEnv('GARMIN_HISTORICAL_ACCESS_ENABLED', 'true');
+  });
   afterEach(() => {
     vi.restoreAllMocks();
+    vi.unstubAllEnvs();
   });
 
   it('returns activity details on success', async () => {
@@ -76,8 +88,12 @@ describe('fetchGarminActivityDetails', () => {
 });
 
 describe('requestActivityDetailsBackfill', () => {
+  beforeEach(() => {
+    vi.stubEnv('GARMIN_HISTORICAL_ACCESS_ENABLED', 'true');
+  });
   afterEach(() => {
     vi.restoreAllMocks();
+    vi.unstubAllEnvs();
   });
 
   it('returns true on 202 Accepted', async () => {
@@ -124,5 +140,94 @@ describe('requestActivityDetailsBackfill', () => {
 
     const result = await requestActivityDetailsBackfill('token', 1705312800);
     expect(result).toBe(false);
+  });
+});
+
+describe('fetchGarminUserId', () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it('uses the partner-gateway path', async () => {
+    vi.spyOn(globalThis, 'fetch').mockResolvedValueOnce({ ok: true, status: 200, json: async () => ({ userId: 'abc' }) });
+    expect(await fetchGarminUserId('t')).toBe('abc');
+    expect(fetch).toHaveBeenCalledWith('https://apis.garmin.com/partner-gateway/rest/user/id', expect.anything());
+  });
+
+  it('falls back to the legacy wellness-api path on 404', async () => {
+    vi.spyOn(globalThis, 'fetch')
+      .mockResolvedValueOnce({ ok: false, status: 404 })
+      .mockResolvedValueOnce({ ok: true, status: 200, json: async () => ({ userId: 'abc' }) });
+    expect(await fetchGarminUserId('t')).toBe('abc');
+    expect(fetch).toHaveBeenLastCalledWith('https://apis.garmin.com/wellness-api/rest/user/id', expect.anything());
+  });
+
+  it('returns null on other failures without trying the fallback', async () => {
+    vi.spyOn(globalThis, 'fetch').mockResolvedValueOnce({ ok: false, status: 401 });
+    expect(await fetchGarminUserId('t')).toBeNull();
+    expect(fetch).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('fetchGarminPermissions', () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it('returns the granted permissions', async () => {
+    vi.spyOn(globalThis, 'fetch').mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({ permissions: ['ACTIVITY_EXPORT', 'COURSE_IMPORT'] }),
+    });
+    expect(await fetchGarminPermissions('t')).toEqual(['ACTIVITY_EXPORT', 'COURSE_IMPORT']);
+  });
+
+  it('returns null on failure', async () => {
+    vi.spyOn(globalThis, 'fetch').mockResolvedValueOnce({ ok: false, status: 500 });
+    expect(await fetchGarminPermissions('t')).toBeNull();
+  });
+});
+
+describe('deregisterGarminUser', () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it('sends DELETE to the registration endpoint', async () => {
+    vi.spyOn(globalThis, 'fetch').mockResolvedValueOnce({ ok: true, status: 204 });
+    expect(await deregisterGarminUser('t')).toEqual({ ok: true, status: 204 });
+    expect(fetch).toHaveBeenCalledWith(
+      'https://apis.garmin.com/partner-gateway/rest/user/registration',
+      expect.objectContaining({ method: 'DELETE', headers: { Authorization: 'Bearer t' } }),
+    );
+  });
+
+  it('never throws', async () => {
+    vi.spyOn(globalThis, 'fetch').mockRejectedValueOnce(new Error('network'));
+    expect(await deregisterGarminUser('t')).toEqual({ ok: false, status: 0 });
+  });
+
+  it('skips the call without a token', async () => {
+    const spy = vi.spyOn(globalThis, 'fetch');
+    expect(await deregisterGarminUser(null)).toEqual({ ok: false, status: 0 });
+    expect(spy).not.toHaveBeenCalled();
+  });
+});
+
+describe('Starter access (historical access disabled)', () => {
+  beforeEach(() => {
+    vi.stubEnv('GARMIN_HISTORICAL_ACCESS_ENABLED', '');
+  });
+  afterEach(() => {
+    vi.restoreAllMocks();
+    vi.unstubAllEnvs();
+  });
+
+  it('never calls Garmin for a pull, a backfill or an upload-range pull', async () => {
+    const spy = vi.spyOn(globalThis, 'fetch');
+    expect(await fetchGarminActivityDetails('t', 's')).toBeNull();
+    expect(await requestActivityDetailsBackfill('t', 1700000000)).toBe(false);
+    await expect(fetchActivityDetailsByUploadRange('t', 0, 100)).rejects.toBeInstanceOf(HistoricalAccessDisabledError);
+    expect(spy).not.toHaveBeenCalled();
   });
 });

@@ -58,7 +58,7 @@ function Terms() {
               <Title order={1} mb="xs" style={{ color: 'var(--color-text-primary)' }}>
                 Terms of Service
               </Title>
-              <Text c="dimmed" size="sm">Last Updated: February 2026</Text>
+              <Text c="dimmed" size="sm">Last Updated: October 2026</Text>
             </div>
 
             <div>
@@ -180,6 +180,21 @@ function Terms() {
                 <List.Item>
                   Neither tribos.studio nor Garmin shall be liable for any damages arising from your
                   use of or reliance on Garmin Connect data accessed through our Service.
+                </List.Item>
+                <List.Item>
+                  To the fullest extent permitted by law, you release Garmin from, and agree to defend,
+                  indemnify and hold harmless Garmin and its officers, directors, employees and agents
+                  against, any claim, loss, liability, cost or expense (including reasonable attorneys'
+                  fees) arising from your use of Garmin Connect data through our Service or your breach
+                  of these Terms.
+                </List.Item>
+                <List.Item>
+                  The Service and Garmin Connect data are not designed for, and must not be relied on in,
+                  any situation where human life or safety may be at stake.
+                </List.Item>
+                <List.Item>
+                  You must not upload data to, or download data from, Garmin Connect through our Service
+                  if you are restricted from doing so.
                 </List.Item>
                 <List.Item>
                   You agree to comply with{' '}

@@ -37,6 +37,20 @@ export class GarminService {
   }
 
   /**
+   * Record that the user accepted the Garmin data-transfer notice
+   * (GarminConsentModal; Garmin Agreement §4.5). Call before OAuth.
+   */
+  async recordDataConsent() {
+    const userId = await this.getCurrentUserId();
+    if (!userId) return;
+    const { error } = await supabase
+      .from('user_profiles')
+      .update({ garmin_data_consent_at: new Date().toISOString() })
+      .eq('id', userId);
+    if (error) console.warn('Failed to record Garmin data consent:', error.message);
+  }
+
+  /**
    * Get auth headers for API requests
    * Uses session access token for consistent auth with all endpoints
    */

@@ -14,6 +14,7 @@ import { getSupabaseAdmin } from './utils/supabaseAdmin.js';
 import { requireAuth } from './utils/auth.js';
 import { rateLimitByUser } from './utils/rateLimit.js';
 import { enforceAiQuota } from './utils/aiQuota.js';
+import { rejectWithoutAiConsent } from './utils/aiConsent.js';
 import { setupCors } from './utils/cors.js';
 import { getCoachPersona } from './utils/routeCoachContext.js';
 import {
@@ -50,6 +51,8 @@ export default async function handler(req, res) {
   if (!user) return;
 
   if ((await rateLimitByUser(req, res, 'SEASON_COACH', user.id, 10, 5)) !== null) return;
+  // Garmin Agreement §15.10: no training data reaches Claude without consent.
+  if (await rejectWithoutAiConsent(res, user.id)) return;
   if ((await enforceAiQuota(req, res, user.id)) !== null) return;
 
   let payload;

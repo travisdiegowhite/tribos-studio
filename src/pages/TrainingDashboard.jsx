@@ -379,7 +379,7 @@ function TrainingDashboard() {
     };
   }, [user]);
 
-  // Automatic Garmin sync - recover failed events and backfill GPS on load
+  // Automatic Garmin sync - recover failed webhook imports on load (no Garmin calls)
   useEffect(() => {
     const runGarminAutoSync = async () => {
       if (!user) return;
@@ -418,47 +418,8 @@ function TrainingDashboard() {
           console.log('ℹ️ Garmin recover check:', err.message);
         }
 
-        // Run GPS backfill for activities missing GPS data
-        try {
-          const gpsResult = await garminService.backfillGps(20); // Limit to 20 for faster completion
-          if (gpsResult.stats?.success > 0) {
-            console.log(`✅ Auto-backfilled GPS for ${gpsResult.stats.success} activities`);
-            // Reload activities to show updated GPS data
-            const { data: activityData } = await supabase
-              .from('activities')
-              .select('*')
-              .eq('user_id', user.id)
-              .is('duplicate_of', null)
-              .order('start_date', { ascending: false })
-              .limit(2000);
-            if (activityData) {
-              setActivities(activityData);
-            }
-          }
-        } catch (err) {
-          // Silent fail - this is a background optimization
-          console.log('ℹ️ Garmin GPS backfill check:', err.message);
-        }
-
-        // Run streams backfill for activities missing ride analysis
-        try {
-          const streamsResult = await garminService.backfillStreams(10);
-          if (streamsResult.stats?.success > 0) {
-            console.log(`✅ Auto-backfilled streams for ${streamsResult.stats.success} activities`);
-            const { data: activityData } = await supabase
-              .from('activities')
-              .select('*')
-              .eq('user_id', user.id)
-              .is('duplicate_of', null)
-              .order('start_date', { ascending: false })
-              .limit(2000);
-            if (activityData) {
-              setActivities(activityData);
-            }
-          }
-        } catch (err) {
-          console.log('ℹ️ Garmin streams backfill check:', err.message);
-        }
+        // No GPS/streams backfill here: Garmin's Starter access is PUSH-only,
+        // so nothing may ask Garmin for old data on page load.
       } catch (err) {
         // Silent fail - Garmin might not be set up
         console.log('ℹ️ Garmin auto-sync not available:', err.message);

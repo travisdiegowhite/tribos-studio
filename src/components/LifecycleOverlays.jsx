@@ -12,7 +12,13 @@
  * - BetaFeedbackWidget: floating feedback button, bottom right (referenced by
  *   the onboarding "Ready" screen and the welcome emails)
  *
- * The three modals are STRICTLY ORDERED and never stack. Onboarding outranks
+ * - ConsentGate: athletes with no current Terms acceptance, or Garmin
+ *   connected without the data-transfer consent (Garmin Agreement §4.5/§5.3)
+ *
+ * ConsentGate outranks everything: no other modal opens until it resolves,
+ * because it gates using the app at all.
+ *
+ * The other three modals are STRICTLY ORDERED and never stack. Onboarding outranks
  * What's New, which outranks the age prompt — a first-run flow interrupted by
  * a changelog is worse than a changelog seen a day late, and both matter more
  * than a nudge that has several more chances to land. useAgePrompt does
@@ -26,6 +32,9 @@ import OnboardingModal from './OnboardingModal.jsx';
 import WhatsNewModal, { hasSeenLatestUpdates } from './WhatsNewModal.jsx';
 import AgePromptModal from './AgePromptModal.jsx';
 import BetaFeedbackWidget from './BetaFeedbackWidget.jsx';
+import ConsentGate, { missingConsents } from './ConsentGate.jsx';
+import { garminService } from '../utils/garminService';
+import { CURRENT_TOS_VERSION } from '../utils/legalVersions';
 import { useAgePrompt } from '../hooks/useAgePrompt';
 import {
   hasSeenOnboarding,
@@ -34,8 +43,19 @@ import {
   clearOnboardingDraft,
 } from '../utils/onboardingState';
 
+function hasPendingSignupConsent() {
+  try {
+    const pending = JSON.parse(localStorage.getItem('tribos_consent_pending') || 'null');
+    return !!pending?.tos_accepted_at && pending.tos_version >= CURRENT_TOS_VERSION;
+  } catch {
+    return false;
+  }
+}
+
 function LifecycleOverlays({ showFeedbackButton = true }) {
-  const { user } = useAuth();
+  const { user, signOut } = useAuth();
+  // null while checking; ConsentGate holds every other modal back until then.
+  const [consentNeeded, setConsentNeeded] = useState(null);
   const [showOnboarding, setShowOnboarding] = useState(false);
   const [showWhatsNew, setShowWhatsNew] = useState(false);
   // Tri-state on purpose: null means "still asking the database". Treating
@@ -85,8 +105,41 @@ function LifecycleOverlays({ showFeedbackButton = true }) {
     checkOnboarding();
   }, [user]);
 
+  useEffect(() => {
+    if (!user) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const { data: profile } = await supabase
+          .from('user_profiles')
+          .select('tos_accepted_at, tos_version, garmin_data_consent_at')
+          .eq('id', user.id)
+          .maybeSingle();
+        // Only ask the server about Garmin when the consent is missing.
+        let garminConnected = false;
+        if (!profile?.garmin_data_consent_at && garminService.isConfigured()) {
+          const status = await garminService.getConnectionStatus().catch(() => null);
+          garminConnected = !!status?.connected;
+        }
+        const needed = missingConsents(profile, garminConnected);
+        // Just signed up in this browser: AppShell is flushing the acceptance
+        // the signup form captured, so don't ask twice.
+        if (needed.terms && hasPendingSignupConsent()) needed.terms = false;
+        if (!cancelled) setConsentNeeded(needed);
+      } catch {
+        // Never lock the app on a failed check; it runs again next load.
+        if (!cancelled) setConsentNeeded({ terms: false, garmin: false });
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [user]);
+
+  const consentPending = consentNeeded === null || consentNeeded.terms || consentNeeded.garmin;
+
   const agePrompt = useAgePrompt(user?.id, {
-    enabled: settled === true && !showOnboarding && !showWhatsNew,
+    enabled: !consentPending && settled === true && !showOnboarding && !showWhatsNew,
   });
 
   const handleCloseOnboarding = useCallback(() => setShowOnboarding(false), []);
@@ -96,8 +149,16 @@ function LifecycleOverlays({ showFeedbackButton = true }) {
 
   return (
     <>
-      <OnboardingModal opened={showOnboarding} onClose={handleCloseOnboarding} />
-      <WhatsNewModal opened={showWhatsNew} onClose={handleCloseWhatsNew} userId={user.id} />
+      <ConsentGate
+        opened={!!consentNeeded && (consentNeeded.terms || consentNeeded.garmin)}
+        userId={user.id}
+        needsTerms={!!consentNeeded?.terms}
+        needsGarmin={!!consentNeeded?.garmin}
+        onAccepted={() => setConsentNeeded({ terms: false, garmin: false })}
+        onSignOut={signOut}
+      />
+      <OnboardingModal opened={!consentPending && showOnboarding} onClose={handleCloseOnboarding} />
+      <WhatsNewModal opened={!consentPending && showWhatsNew} onClose={handleCloseWhatsNew} userId={user.id} />
       <AgePromptModal
         opened={agePrompt.shouldShow}
         onClose={agePrompt.close}

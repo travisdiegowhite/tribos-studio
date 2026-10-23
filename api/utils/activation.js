@@ -5,6 +5,8 @@
  * Used by webhook handlers and API routes (all server-side with service key).
  */
 
+import { hasAiConsent } from './aiConsent.js';
+
 export const VALID_STEPS = ['connect_device', 'first_sync', 'first_insight', 'first_route', 'first_plan'];
 
 /**
@@ -96,6 +98,13 @@ export async function completeActivationStep(supabase, userId, stepName) {
  */
 export async function enqueueCheckIn(supabase, userId, activityId) {
   try {
+    // Guard: AI consent (Garmin Agreement §15.10) — the check-in sends the
+    // activity to Claude, so never queue one the user has not agreed to.
+    if (!(await hasAiConsent(userId, supabase))) {
+      console.log(`ℹ️ No AI consent for user ${userId}, skipping check-in`);
+      return null;
+    }
+
     // Guard: user has a persona set (completed intake)
     const { data: settings } = await supabase
       .from('user_coach_settings')
@@ -147,6 +156,13 @@ export async function enqueueCheckIn(supabase, userId, activityId) {
 
 export async function enqueueProactiveInsight(supabase, userId, activityId, insightType = 'post_ride') {
   try {
+    // Guard: AI consent (Garmin Agreement §15.10) — the insight sends the
+    // activity to Claude.
+    if (!(await hasAiConsent(userId, supabase))) {
+      console.log(`ℹ️ No AI consent for user ${userId}, skipping proactive insight`);
+      return;
+    }
+
     // Check if an insight already exists for this activity
     const { data: existing } = await supabase
       .from('proactive_insights')

@@ -10,7 +10,7 @@
  * - Do not modify Garmin logos or brand features (Section 6.3c)
  */
 
-import { Text, Group, Anchor } from '@mantine/core';
+import { Text, Group, Anchor, useComputedColorScheme } from '@mantine/core';
 
 // Garmin brand color
 export const GARMIN_BLUE = '#007dcd';
@@ -19,13 +19,20 @@ export const GARMIN_BLUE = '#007dcd';
  * "Powered by Garmin Connect" Attribution
  * Required when displaying Garmin-sourced data (Section 6.4)
  *
+ * The colours follow the app's colour scheme. `variant` used to choose
+ * them, but every caller passed 'light' (white text, meant for dark
+ * backgrounds), so on the white-paper design the attribution rendered
+ * white-on-white and was invisible. It is kept so callers need not change.
+ *
  * @param {Object} props
- * @param {string} props.variant - 'light' (for dark backgrounds) or 'dark' (for light backgrounds)
+ * @param {string} [props.variant] - ignored; colours follow the colour scheme
  * @param {string} props.size - 'sm', 'md', or 'lg'
  */
-export function PoweredByGarmin({ variant = 'light', size = 'sm' }) {
-  const textColor = variant === 'light' ? '#999999' : '#666666';
-  const garminColor = variant === 'light' ? '#FFFFFF' : GARMIN_BLUE;
+// eslint-disable-next-line no-unused-vars
+export function PoweredByGarmin({ variant, size = 'sm' }) {
+  const onDark = useComputedColorScheme('light') === 'dark';
+  const textColor = onDark ? '#999999' : '#666666';
+  const garminColor = onDark ? '#FFFFFF' : GARMIN_BLUE;
 
   const fontSize = size === 'sm' ? '10px' : size === 'md' ? '12px' : '14px';
   const garminFontSize = size === 'sm' ? '11px' : size === 'md' ? '13px' : '15px';

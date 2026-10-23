@@ -7,6 +7,7 @@ import { buildEvidenceSection } from './utils/evidenceCoachSection.js';
 import { VOCABULARY_RULES, TRANSLATION_RULES, DATA_CORRECTION_NOTICE } from './utils/coachVoiceRules.js';
 import { rateLimitByUser } from './utils/rateLimit.js';
 import { enforceAiQuota } from './utils/aiQuota.js';
+import { rejectWithoutAiConsent } from './utils/aiConsent.js';
 import { WORKOUT_LIBRARY_FOR_AI, ALL_COACH_TOOLS } from './utils/workoutLibrary.js';
 import { CALENDAR_CHANGE_TOOL, validateOps, adjudicateOps, describeVerdict } from './utils/calendarChangeTool.js';
 import { applyCalendarOps, persistProposal } from './utils/calendarChangeApply.js';
@@ -713,6 +714,9 @@ export default async function handler(req, res) {
     if (rateLimitResult !== null) {
       return;
     }
+
+    // Garmin Agreement §15.10: no training data reaches Claude without consent.
+    if (await rejectWithoutAiConsent(res, verifiedUserId)) return;
 
     // Daily AI quota (per-user cap + global ceiling)
     const quotaExceeded = await enforceAiQuota(req, res, verifiedUserId);

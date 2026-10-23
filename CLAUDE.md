@@ -581,6 +581,38 @@ Rules:
   preserve the option of a future cutover, which would be a scoped project
   with a soak plan, not a cleanup task.
 
+### Garmin Developer Program 2.0 — Starter access (2026-10)
+
+The freeze above was lifted once, for compliance-only changes, when Garmin moved
+to program 2.0. `docs/garmin-program-v2-compliance.md` maps each obligation to
+the code that meets it. The rules that now bind every change:
+
+- **Starter access is PUSH-only: no backfill and no pulls.** Every Garmin
+  backfill or pull checks `isGarminHistoricalAccessEnabled()`
+  (`api/utils/garmin/accessTier.js`, off unless
+  `GARMIN_HISTORICAL_ACCESS_ENABLED=true`). Any new call to `/backfill/*`,
+  `activityDetails`, `activities?summaryId` or a health pull goes through that
+  gate. Never trigger a Garmin request on page load.
+- **At most 1,000 connected users** (`GARMIN_MAX_CONNECTIONS`), enforced in
+  `garmin-auth` `get_authorization_url`.
+- **Disconnect and account deletion call `deregisterGarminUser`**
+  (`DELETE /user/registration`). Deregistration and permission-change
+  notifications are applied inline by `api/utils/garmin/registrationEvents.js`
+  and by its mirror in the Cloudflare worker. Keep the two in sync, and
+  redeploy the worker by hand.
+- **No Claude call may carry training data without AI consent.** Check with
+  `hasAiConsent` / `rejectWithoutAiConsent` (`api/utils/aiConsent.js`) in every
+  new endpoint or job that sends activities, health metrics or derived load to
+  Claude (Agreement §15.10).
+- **Never commit Garmin program documents** (spec PDFs, the start guide, brand
+  kits). They are confidential under Agreement §8.
+- **Show `PoweredByGarmin` wherever Garmin-sourced data is displayed.** Give
+  Garmin 30 days' notice before launching a new surface that shows it.
+- **Data moving to or from Garmin needs `garmin_data_consent_at`.** It is
+  collected by `GarminConsentModal` at every connect entry point, or by
+  `ConsentGate`. Bump `src/utils/legalVersions.js` when the Terms or Privacy
+  Policy change materially, so everyone is asked again.
+
 ## Auth Flow — Critical Path (DO NOT BREAK)
 
 The signup and login flow is the most critical path in the app. Any breakage blocks all new users. Follow these rules strictly:

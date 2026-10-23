@@ -58,7 +58,7 @@ export default function PrivacyPolicy() {
                 <Title order={1} mb="xs" style={{ color: 'var(--color-text-primary)' }}>
                   Privacy Policy
                 </Title>
-                <Text c="dimmed" size="sm">Last Updated: February 2026</Text>
+                <Text c="dimmed" size="sm">Last Updated: October 2026</Text>
               </div>
 
               <div>
@@ -140,7 +140,9 @@ export default function PrivacyPolicy() {
                   All data retrieved from Garmin Connect is stored securely, encrypted, and used solely for providing
                   our services to you. We do not share your Garmin data with third parties except as required to provide
                   our services (e.g., hosting infrastructure). You can disconnect your Garmin account at any time,
-                  which will immediately stop data synchronization and remove stored Garmin OAuth tokens.
+                  which will immediately stop data synchronization, remove stored Garmin OAuth tokens and end
+                  tribos.studio's registration with Garmin. Activities already imported stay in your account until you
+                  delete them or your account.
                 </Text>
                 <Text mt="sm" style={{ color: 'var(--color-text-secondary)' }}>
                   For more information about how Garmin handles your data, please review the{' '}
@@ -190,24 +192,38 @@ export default function PrivacyPolicy() {
                   When you use smart features, the following data may be sent to Anthropic's API for processing:
                 </Text>
                 <List style={{ color: 'var(--color-text-secondary)' }}>
-                  <List.Item>Your recent activity summaries (distance, duration, intensity metrics)</List.Item>
+                  <List.Item>Your recent activity summaries (distance, duration, intensity metrics), including activities synced from Garmin Connect, Strava, Wahoo and COROS</List.Item>
+                  <List.Item>Per-ride analysis derived from your activity files (power, heart rate and cadence summaries) when you open a ride's deep analysis</List.Item>
+                  <List.Item>Health and recovery metrics such as resting heart rate, heart rate variability (HRV) and sleep, when a connected device provides them</List.Item>
                   <List.Item>Your fitness profile (FTP, weight, fitness level, training goals)</List.Item>
                   <List.Item>Your conversation history with the coach</List.Item>
                   <List.Item>Your training plan details and compliance data</List.Item>
                   <List.Item>Route preferences and location context</List.Item>
                 </List>
                 <Text mt="sm" fw={500} style={{ color: 'var(--color-text-secondary)' }}>
-                  Important: Raw GPS coordinates, your exact home location, and personally identifiable
+                  Important: Full GPS tracks, your exact home location, and personally identifiable
                   information (email, full name) are NOT sent for processing. Data sent to Anthropic is processed
-                  in accordance with Anthropic's data usage policies and is not used to train models.
+                  in accordance with Anthropic's commercial terms and is not used to train models.
+                </Text>
+
+                <Title order={3} size="h4" mt="md" mb="sm" style={{ color: 'var(--color-text-primary)' }}>
+                  4.2a What We Keep
+                </Title>
+                <Text style={{ color: 'var(--color-text-secondary)' }}>
+                  To show you your history and keep the coach consistent, we store your conversations with the coach,
+                  the insights and check-ins it writes, short notes it keeps about your preferences, and a snapshot of
+                  the training context each response was based on. These stay in your account, are deleted when you
+                  delete your account, and are never used by us or anyone else to train, evaluate or improve any AI
+                  model. Data that comes from Garmin is never used for AI training of any kind.
                 </Text>
 
                 <Title order={3} size="h4" mt="md" mb="sm" style={{ color: 'var(--color-text-primary)' }}>
                   4.3 Consent
                 </Title>
                 <Text style={{ color: 'var(--color-text-secondary)' }}>
-                  Smart features require your explicit opt-in consent before any data is processed.
-                  You will be prompted for consent the first time you use a smart feature. You can grant or withdraw
+                  Smart features require your explicit opt-in consent before any data is processed, and our servers
+                  check that consent before every request. You will be prompted for consent the first time you use a
+                  smart feature. You can grant or withdraw
                   consent at any time from Settings. Withdrawing consent will immediately stop all smart processing
                   of your data — the Coach, smart route suggestions, and proactive training insights will
                   be disabled. Your existing data, activity history, and all other features will remain unaffected.
@@ -331,7 +347,42 @@ export default function PrivacyPolicy() {
                     <Anchor href="https://posthog.com/privacy" target="_blank" style={{ color: 'var(--color-teal)' }}>
                       PostHog Privacy Policy
                     </Anchor>
-                    {' '}&mdash; Product analytics (anonymized)
+                    {' '}&mdash; Product analytics: page views and feature usage, linked to your account ID
+                  </List.Item>
+                  <List.Item>
+                    <strong>COROS:</strong>{' '}
+                    <Anchor href="https://coros.com/privacy" target="_blank" style={{ color: 'var(--color-teal)' }}>
+                      COROS Privacy Policy
+                    </Anchor>
+                    {' '}&mdash; Activity sync
+                  </List.Item>
+                  <List.Item>
+                    <strong>Cloudflare:</strong>{' '}
+                    <Anchor href="https://www.cloudflare.com/privacypolicy/" target="_blank" style={{ color: 'var(--color-teal)' }}>
+                      Cloudflare Privacy Policy
+                    </Anchor>
+                    {' '}&mdash; Content delivery, and receiving the activity notifications Garmin sends us
+                  </List.Item>
+                  <List.Item>
+                    <strong>Resend:</strong>{' '}
+                    <Anchor href="https://resend.com/legal/privacy-policy" target="_blank" style={{ color: 'var(--color-teal)' }}>
+                      Resend Privacy Policy
+                    </Anchor>
+                    {' '}&mdash; Transactional email
+                  </List.Item>
+                  <List.Item>
+                    <strong>Google Calendar:</strong>{' '}
+                    <Anchor href="https://policies.google.com/privacy" target="_blank" style={{ color: 'var(--color-teal)' }}>
+                      Google Privacy Policy
+                    </Anchor>
+                    {' '}&mdash; Optional calendar sync, only if you connect it
+                  </List.Item>
+                  <List.Item>
+                    <strong>Stadia Maps, GraphHopper and BRouter:</strong> route calculation. Only the route points you
+                    choose are sent.
+                  </List.Item>
+                  <List.Item>
+                    <strong>OpenWeatherMap:</strong> weather for the locations of your routes and rides.
                   </List.Item>
                 </List>
               </div>
@@ -399,7 +450,8 @@ export default function PrivacyPolicy() {
                   For logged-in users, we collect usage data to improve our service, including pages visited,
                   features used, sync events, and file uploads. This data is stored securely in our database,
                   associated with your user account, and is{' '}
-                  <strong>never shared with or sold to third parties</strong>.
+                  <strong>never sold</strong>. It is processed for us by PostHog, our analytics provider,
+                  and shared with no one else.
                 </Text>
               </div>
 

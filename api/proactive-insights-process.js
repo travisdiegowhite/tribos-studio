@@ -3,6 +3,7 @@
 // Picks up pending rows from proactive_insights table and calls Claude API.
 
 import Anthropic from '@anthropic-ai/sdk';
+import { hasAiConsent } from './utils/aiConsent.js';
 import { getSupabaseAdmin } from './utils/supabaseAdmin.js';
 import { completeActivationStep } from './utils/activation.js';
 import { assembleCheckInContext } from './utils/checkInContext.js';
@@ -49,6 +50,17 @@ export default async function handler(req, res) {
 
     for (const insight of pendingInsights) {
       try {
+        // Rows queued before the consent guard in enqueueProactiveInsight,
+        // or whose user withdrew since (Garmin Agreement §15.10).
+        if (!(await hasAiConsent(insight.user_id, supabase))) {
+          await supabase
+            .from('proactive_insights')
+            .update({ status: 'failed', error_message: 'ai_consent_not_granted' })
+            .eq('id', insight.id);
+          results.push({ id: insight.id, status: 'failed', error: 'ai_consent_not_granted' });
+          continue;
+        }
+
         // Mark as processing
         await supabase
           .from('proactive_insights')

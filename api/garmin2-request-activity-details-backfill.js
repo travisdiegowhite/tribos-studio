@@ -47,6 +47,7 @@
 import { getSupabaseAdmin } from './utils/supabaseAdmin.js';
 import { setupCors } from './utils/cors.js';
 import { ensureValidAccessToken } from './utils/garmin/tokenManager.js';
+import { isGarminHistoricalAccessEnabled, STARTER_TIER_SKIP } from './utils/garmin/accessTier.js';
 
 const supabase = getSupabaseAdmin();
 
@@ -68,6 +69,11 @@ export default async function handler(req, res) {
     await supabase.auth.getUser(authHeader.substring(7));
   if (authError || !authUser) {
     return res.status(401).json({ error: 'Invalid or expired token' });
+  }
+
+  // Backfill is Enterprise-only (accessTier.js).
+  if (!isGarminHistoricalAccessEnabled()) {
+    return res.status(200).json({ success: false, skipped: STARTER_TIER_SKIP });
   }
 
   // --- Input ---------------------------------------------------------------

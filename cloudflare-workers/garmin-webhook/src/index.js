@@ -73,7 +73,7 @@ export default {
       return json(200, {
         status: 'ok',
         service: 'garmin-webhook-proxy-cf',
-        version: '5.0.0',
+        version: '5.1.0',
         timestamp: new Date().toISOString(),
         model: 'activityDetails-push-primary (samples inline), ping+legacy-push supported',
         processing: 'async (Vercel cron every 5 min)',
@@ -113,6 +113,23 @@ export default {
     }
 
     const classified = classifyPayload(webhookData);
+
+    // Registration notifications (OAuth2 PKCE spec §7/§9) are applied inline,
+    // never queued. 503 on failure so Garmin redelivers.
+    if (classified.kind === 'DEREGISTRATION' || classified.kind === 'USER_PERMISSIONS') {
+      try {
+        const supabase = createClient(env.SUPABASE_URL, env.SUPABASE_SERVICE_KEY);
+        const result = classified.kind === 'DEREGISTRATION'
+          ? await applyDeregistrations(supabase, classified.items)
+          : await applyPermissionChanges(supabase, classified.items);
+        if (result.failed > 0) return respondUnavailable();
+        consecutiveFailures = 0;
+        return json(200, { success: true, kind: classified.kind, ...result });
+      } catch (err) {
+        console.error('Registration notification error:', err);
+        return respondUnavailable();
+      }
+    }
 
     if (classified.kind === 'UNKNOWN') {
       return json(200, { stored: 0, skipped: classified.items.length || 0, reason: 'unhandled_or_unknown_payload' });
@@ -371,10 +388,19 @@ async function verifyHmac(secret, signature, body) {
 }
 
 /**
- * Mirror of api/utils/garmin2/pingParser.js#classifyPayload. Keep in sync.
+ * Mirror of api/utils/garmin2/pingParser.js#classifyPayload (keep in sync),
+ * plus the registration-notification kinds from
+ * api/utils/garmin/webhookPayloadParser.js.
  */
 function classifyPayload(body) {
   if (!body || typeof body !== 'object') return { kind: 'UNKNOWN', healthType: null, items: [] };
+
+  if (Array.isArray(body.deregistrations) && body.deregistrations.length > 0) {
+    return { kind: 'DEREGISTRATION', healthType: null, items: body.deregistrations };
+  }
+  if (Array.isArray(body.userPermissionsChange) && body.userPermissionsChange.length > 0) {
+    return { kind: 'USER_PERMISSIONS', healthType: null, items: body.userPermissionsChange };
+  }
 
   if (Array.isArray(body.activityDetails) && body.activityDetails.length > 0) {
     const sample = body.activityDetails[0];
@@ -407,6 +433,80 @@ function classifyPayload(body) {
     }
   }
   return { kind: 'UNKNOWN', healthType: null, items: [] };
+}
+
+// --- Registration notifications ---------------------------------------------
+// Mirror of api/utils/garmin/registrationEvents.js. Keep in sync.
+
+async function applyDeregistrations(supabase, items) {
+  let removed = 0;
+  let failed = 0;
+  for (const item of items || []) {
+    const garminUserId = item?.userId ? String(item.userId) : null;
+    if (!garminUserId) continue;
+    const { data, error } = await supabase
+      .from('bike_computer_integrations')
+      .delete()
+      .eq('provider', 'garmin')
+      .eq('provider_user_id', garminUserId)
+      .select('id');
+    if (error) {
+      console.error('Garmin deregistration: delete failed for', garminUserId, error.message);
+      failed++;
+    } else {
+      removed += data?.length || 0;
+    }
+  }
+  return { removed, failed };
+}
+
+async function applyPermissionChanges(supabase, items) {
+  let updated = 0;
+  let failed = 0;
+  for (const item of items || []) {
+    const garminUserId = item?.userId ? String(item.userId) : null;
+    if (!garminUserId || !Array.isArray(item.permissions)) continue;
+
+    const { data: integration, error: readError } = await supabase
+      .from('bike_computer_integrations')
+      .select('id, provider_user_data')
+      .eq('provider', 'garmin')
+      .eq('provider_user_id', garminUserId)
+      .maybeSingle();
+    if (readError) {
+      console.error('Garmin permission change: lookup failed for', garminUserId, readError.message);
+      failed++;
+      continue;
+    }
+    if (!integration) continue;
+
+    const previous = integration.provider_user_data || {};
+    const changeTime = Number(item.changeTimeInSeconds) || null;
+    if (changeTime && previous.permissions_change_time && previous.permissions_change_time > changeTime) {
+      continue;
+    }
+
+    const { error: updateError } = await supabase
+      .from('bike_computer_integrations')
+      .update({
+        provider_user_data: {
+          ...previous,
+          permissions: item.permissions,
+          permissions_change_time: changeTime,
+          permissions_updated_at: new Date().toISOString(),
+        },
+        sync_enabled: item.permissions.includes('ACTIVITY_EXPORT'),
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', integration.id);
+    if (updateError) {
+      console.error('Garmin permission change: update failed for', garminUserId, updateError.message);
+      failed++;
+    } else {
+      updated++;
+    }
+  }
+  return { updated, failed };
 }
 
 function validatePingItem(item) {
