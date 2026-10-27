@@ -629,3 +629,32 @@ describe('race priority', () => {
     expect(calls.find((c) => c.op === 'insert').payload.details).toEqual({ priority: 'B' });
   });
 });
+
+describe('expandBlock — strength beside rides and runs, with timing', () => {
+  // 2026-09-07 is a Monday.
+  const WEEK = { op: 'generate_block', from: '2026-09-07', to: '2026-09-13' };
+
+  it('puts a strength session beside an existing ride instead of skipping it as a second ride', async () => {
+    const { buildDayIndex } = await import('./calendarOccupancy.js');
+    const index = buildDayIndex([{ date: '2026-09-09', slot: 0, type: 'workout', sport: 'cycling' }]);
+    const { entries, skipped } = expandBlock(
+      { ...WEEK, weekly_pattern: [{ day: 'wed', title: 'Full Body Strength', workout_type: 'strength', timing: 'PM, 6h+ after the ride' }] },
+      index,
+      null,
+      'cycling',
+    );
+    expect(skipped).toEqual([]);
+    expect(entries).toEqual([expect.objectContaining({ date: '2026-09-09', slot: 1, sport: 'other' })]);
+    expect(entries[0].details).toEqual({ timing: 'PM, 6h+ after the ride' });
+  });
+
+  it('never hands a strength session to the %FTP designer', () => {
+    const design = vi.fn(() => ({ patch: { title: 'designed' } }));
+    expandBlock(
+      { ...WEEK, weekly_pattern: [{ day: 'mon', title: 'Lift', sport: 'other' }] },
+      new Map(),
+      design,
+    );
+    expect(design).not.toHaveBeenCalled();
+  });
+});

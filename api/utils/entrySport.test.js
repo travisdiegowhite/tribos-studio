@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { inferEntrySport, entrySport } from './entrySport.js';
+import { inferEntrySport, entrySport, isStrengthSession, planSessionSport } from './entrySport.js';
 
 describe('inferEntrySport — the migration 134 backfill rules, from the row alone', () => {
   it('gives rest days and notes no sport', () => {
@@ -25,5 +25,20 @@ describe('entrySport', () => {
   it('prefers a valid stored sport over inference', () => {
     expect(entrySport({ type: 'workout', workout_id: 'endurance', sport: 'running' })).toBe('running');
     expect(entrySport({ type: 'workout', workout_id: 'run_easy', sport: 'bogus' })).toBe('running');
+  });
+});
+
+describe('strength and mobility are sport "other"', () => {
+  it('infers other from the workout type or the library id', () => {
+    expect(inferEntrySport({ type: 'workout', workout_type: 'strength' })).toBe('other');
+    expect(inferEntrySport({ type: 'workout', workout_type: 'flexibility' })).toBe('other');
+    expect(inferEntrySport({ type: 'workout', workout_id: 'strength_max_lower' })).toBe('other');
+    expect(inferEntrySport({ type: 'workout', workout_id: 'core_stability' })).toBe('other');
+    expect(isStrengthSession({ workout_type: 'endurance' })).toBe(false);
+  });
+
+  it('gives a plan strength day "other" and every other day the plan sport', () => {
+    expect(planSessionSport({ workout_id: 'strength_foundation' }, 'running')).toBe('other');
+    expect(planSessionSport({ workout_id: 'run_easy' }, 'running')).toBe('running');
   });
 });

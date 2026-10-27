@@ -463,7 +463,14 @@ total. Pass `includeRaces` only if you are NOT reading `race_goals` too.
   Activities are linked only to an entry of their own sport (a triathlon
   accepts either); the coach's `calendar_change` takes `sport` per op and per
   pattern day (default: the athlete's `primary_sport`), and a run's intervals
-  use `target_pct_threshold_pace_*`, never %FTP.
+  use `target_pct_threshold_pace_*`, never %FTP. Strength, core, mobility and
+  yoga are `other` (`isStrengthSession`, migration 138 re-tagged the coach's
+  rows), so they share a ride or run day instead of being skipped as a second
+  ride. A two-session day's order and gap is the coach's `timing` op field,
+  stored in `details.timing` and shown on the calendar.
+- **The calendar draws every entry on a day**, in slot order
+  (`getWorkoutsForDate` in `TrainingCalendar.jsx`). It used to `.find` one, so
+  every two-a-day hid its second session.
 - **`calendar_change` is the coach's only calendar tool.** `recommend_workout`,
   `create_training_plan` and `adjust_schedule` are gone, along with their
   handlers. Multi-week blocks are its `generate_block` operation — one

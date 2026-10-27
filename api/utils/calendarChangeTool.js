@@ -70,13 +70,26 @@ import { normalizeIntervals } from './prescription.js';
 import { entrySport } from './entrySport.js';
 
 const OPS = ['create', 'generate_block', 'update', 'move', 'delete', 'set_status'];
-/** Sports an op may name. 'multi' is for races only and comes from the race type. */
-export const OP_SPORTS = ['cycling', 'running'];
+/**
+ * Sports an op may name. 'multi' is for races only and comes from the race
+ * type. 'other' is strength, core, mobility and yoga: without it a gym session
+ * defaulted to the athlete's primary sport, was skipped on every ride day as a
+ * "second ride", and could be matched to a completed ride.
+ */
+export const OP_SPORTS = ['cycling', 'running', 'other'];
 
 const SPORT_SCHEMA = {
   type: 'string',
   enum: OP_SPORTS,
-  description: 'cycling or running. Set it on EVERY session for an athlete who trains both; it decides the day a session may share, the interval targets that apply, and which completed activity it is matched to. Omitted, it defaults to the athlete\'s primary sport.',
+  description: 'cycling, running, or other. Use "other" for strength, weights, core, mobility and yoga — never cycling or running, even for a cyclist. Set it on EVERY session for an athlete who trains more than one way; it decides the day a session may share, the interval targets that apply, and which completed activity it is matched to. Omitted, a workout defaults to the athlete\'s primary sport (or "other" when its workout_type is strength, core, flexibility, mobility or yoga).',
+};
+
+/** Longest timing note we keep; it is a one-line cue, not a session plan. */
+export const MAX_TIMING_LENGTH = 120;
+
+const TIMING_SCHEMA = {
+  type: 'string',
+  description: 'For a day with more than one session: when to do this one, relative to the other — order and gap, e.g. "AM — run first", "PM, at least 6h after the run", "Brick: straight off the bike, <5 min transition". Set it on EVERY session of a two-session day. Omit on a single-session day.',
 };
 
 /**
@@ -121,7 +134,9 @@ WHAT HAPPENS AFTER YOU CALL THIS is decided by the server, not by you:
 
 So do NOT promise a specific outcome in your reply. After calling this, describe what you did — the tool result tells you whether it applied or is awaiting their approval, and you should say which.
 
-FOR AN ATHLETE WHO RIDES AND RUNS, set "sport" on every session and every weekly_pattern day. A ride and a run may share a day: the server puts the second beside the first. It never stacks two sessions of the same sport on one day, and never adds training to a race day or a rest day. Give runs pace targets (target_pct_threshold_pace_*), never %FTP.`,
+FOR AN ATHLETE WHO RIDES AND RUNS, OR LIFTS, set "sport" on every session and every weekly_pattern day. Strength, weights, core, mobility and yoga are sport "other". Sessions of different sports may share a day: the server puts the second beside the first. It never stacks two sessions of the same sport on one day, and never adds training to a race day or a rest day. Give runs pace targets (target_pct_threshold_pace_*), never %FTP; give strength sessions no intervals.
+
+ON A TWO-SESSION DAY, set "timing" on both sessions: which comes first and how long to leave between them (or that it is a brick).`,
   input_schema: {
     type: 'object',
     properties: {
@@ -174,6 +189,7 @@ FOR AN ATHLETE WHO RIDES AND RUNS, set "sport" on every session and every weekly
               description: 'Planned or race distance in kilometres, when distance is the meaningful target.',
             },
             sport: SPORT_SCHEMA,
+            timing: TIMING_SCHEMA,
             intervals: INTERVALS_SCHEMA,
             status: {
               type: 'string',
@@ -190,7 +206,7 @@ FOR AN ATHLETE WHO RIDES AND RUNS, set "sport" on every session and every weekly
             },
             weekly_pattern: {
               type: 'array',
-              description: 'For generate_block: what a typical week looks like. The server repeats it across every week in [from, to], skipping race days, rest days and any day that already has a session of the same sport, so existing entries are never overwritten. A day may appear twice with different sports (a ride and a run). Omit days that should stay empty rather than adding rest entries for them.',
+              description: 'For generate_block: what a typical week looks like. The server repeats it across every week in [from, to], skipping race days, rest days and any day that already has a session of the same sport, so existing entries are never overwritten. A day may appear twice with different sports (a ride and a run, or a run and a strength session) — list them in the order the athlete should do them, and give each a timing. Omit days that should stay empty rather than adding rest entries for them.',
               items: {
                 type: 'object',
                 properties: {
@@ -205,6 +221,7 @@ FOR AN ATHLETE WHO RIDES AND RUNS, set "sport" on every session and every weekly
                   target_load: { type: 'number', description: 'Planned RSS for this session.' },
                   target_duration_min: { type: 'integer', description: 'Planned duration in minutes.' },
                   sport: SPORT_SCHEMA,
+                  timing: TIMING_SCHEMA,
                   intervals: INTERVALS_SCHEMA,
                   notes: { type: 'string', description: 'Execution detail for the athlete.' },
                 },
@@ -259,6 +276,16 @@ const ENTRY_TYPES = new Set(['workout', 'race', 'rest', 'note']);
 const SETTABLE_STATUSES = new Set(['planned', 'done', 'skipped']);
 const RACE_PRIORITIES = new Set(['A', 'B', 'C']);
 
+/** A timing cue must be a short string; an empty one clears it. */
+function timingErrors(timing, at) {
+  if (timing == null) return [];
+  if (typeof timing !== 'string') return [`${at}: timing must be a short string.`];
+  if (timing.length > MAX_TIMING_LENGTH) {
+    return [`${at}: timing is ${timing.length} characters; keep it under ${MAX_TIMING_LENGTH} (session detail goes in notes).`];
+  }
+  return [];
+}
+
 /**
  * Check the model's operations against the athlete's real entries.
  *
@@ -296,6 +323,7 @@ export function validateOps(operations, byHandle, ambiguous = new Set(), default
     if (op.sport != null && !OP_SPORTS.includes(op.sport)) {
       errors.push(`${at}: unknown sport "${op.sport}". Expected one of ${OP_SPORTS.join(', ')}.`);
     }
+    errors.push(...timingErrors(op.timing, at));
     if (op.priority != null && !RACE_PRIORITIES.has(op.priority)) {
       errors.push(`${at}: priority must be A, B or C (got ${JSON.stringify(op.priority)}).`);
     }
@@ -323,6 +351,7 @@ export function validateOps(operations, byHandle, ambiguous = new Set(), default
           if (d?.sport != null && !OP_SPORTS.includes(d.sport)) {
             errors.push(`${at}, pattern day ${j + 1}: unknown sport "${d.sport}". Expected one of ${OP_SPORTS.join(', ')}.`);
           }
+          errors.push(...timingErrors(d?.timing, `${at}, pattern day ${j + 1}`));
           const daySport = d?.sport ?? op.sport ?? defaultSport;
           errors.push(...normalizeIntervals(d?.intervals, `${at}, pattern day ${j + 1}, intervals`, daySport).errors);
         });
