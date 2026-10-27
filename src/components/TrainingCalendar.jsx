@@ -477,17 +477,22 @@ const TrainingCalendar = ({ activePlan, rides = [], formatDistance: formatDistan
     return days;
   };
 
-  // Get workout for a specific date. User-scoped: match by scheduled_date across all
-  // loaded workouts (no activePlan requirement). If two plans somehow share a date, the
-  // first loaded wins — acceptable until plan membership is fully demoted to metadata.
-  const getWorkoutForDate = (date) => {
-    if (!date) return null;
+  // Every entry on a date, in slot order. User-scoped: match by scheduled_date
+  // across all loaded workouts (no activePlan requirement).
+  //
+  // ALL of them, not the first. This used to be a `.find`, so a day drew one
+  // session and silently hid the rest — every two-a-day since multisport
+  // phase 3 (a ride + a run, a run + the coach's strength session) showed only
+  // whichever entry loaded first. The rows were written; the calendar just
+  // never drew them.
+  const getWorkoutsForDate = (date) => {
+    if (!date) return [];
     const dateStr = formatLocalDate(date);
     // Races render through getRaceGoalForDate, so exclude them here or a race
     // day draws twice — once as the race banner and once as a session chip.
-    return plannedWorkouts.find(
-      (w) => w.scheduled_date === dateStr && w.entry_type !== 'race'
-    );
+    return plannedWorkouts
+      .filter((w) => w.scheduled_date === dateStr && w.entry_type !== 'race')
+      .sort((a, b) => (a.slot ?? 0) - (b.slot ?? 0));
   };
 
   // Get rides for a specific date
@@ -1218,7 +1223,11 @@ const TrainingCalendar = ({ activePlan, rides = [], formatDistance: formatDistan
                   return <div key={`empty-${index}`} style={{ minHeight: 80 }} />;
                 }
 
-                const workout = getWorkoutForDate(date);
+                const dayWorkouts = getWorkoutsForDate(date);
+                // The day's sessions (rest entries aside), in the order to do them.
+                const sessions = dayWorkouts.filter((w) => w.workout_type !== 'rest');
+                const isRestDay = sessions.length === 0 && dayWorkouts.some((w) => w.workout_type === 'rest');
+                const allDone = sessions.length > 0 && sessions.every((w) => w.completed);
                 const dayRides = getRidesForDate(date);
                 const raceGoal = getRaceGoalForDate(date);
                 const isToday = date.toDateString() === new Date().toDateString();
@@ -1266,9 +1275,6 @@ const TrainingCalendar = ({ activePlan, rides = [], formatDistance: formatDistan
                 let borderColor = isToday ? 'var(--color-ink)' : 'var(--color-border)';
                 let borderWidth = isToday ? 2 : 1;
                 const backgroundColor = isPast && !isToday ? 'var(--color-bg-secondary)' : 'var(--color-card)';
-                const isMissed = Boolean(
-                  workout && isPast && !isToday && !workout.completed && workout.workout_type !== 'rest'
-                );
 
                 if (raceGoal && raceGoal.priority !== 'C') {
                   borderColor = 'var(--color-signal)';
@@ -1277,16 +1283,12 @@ const TrainingCalendar = ({ activePlan, rides = [], formatDistance: formatDistan
 
                 // Check if this date is a drop target (use formatLocalDate for consistent comparison)
                 const isDropTarget = dragOverDate === formatLocalDate(date);
-                const hasDraggableWorkout = workout && workout.workout_type !== 'rest';
 
                 return (
                   <Card
                     key={index}
                     withBorder
                     p="xs"
-                    draggable={hasDraggableWorkout}
-                    onDragStart={(e) => handleDragStart(e, workout, date)}
-                    onDragEnd={handleDragEnd}
                     onDragOver={(e) => handleDragOver(e, date)}
                     onDragLeave={handleDragLeave}
                     onDrop={(e) => handleDrop(e, date)}
@@ -1294,8 +1296,8 @@ const TrainingCalendar = ({ activePlan, rides = [], formatDistance: formatDistan
                       minHeight: 110,
                       backgroundColor: isDropTarget ? 'var(--color-ink-subtle)' : backgroundColor,
                       border: isDropTarget ? '2px dashed var(--color-ink)' : `${borderWidth}px solid ${borderColor}`,
-                      opacity: isPast && !workout?.completed && !dayRides.length ? 0.7 : 1,
-                      cursor: hasDraggableWorkout ? 'grab' : (activePlan ? 'pointer' : 'default'),
+                      opacity: isPast && !allDone && !dayRides.length ? 0.7 : 1,
+                      cursor: 'pointer',
                       transition: 'background-color 0.2s, border 0.2s',
                     }}
                     onClick={() => {
@@ -1311,11 +1313,12 @@ const TrainingCalendar = ({ activePlan, rides = [], formatDistance: formatDistan
                       // session has never once worked. Drag still works on
                       // desktop for anyone who prefers it.
                       if (heldEntryId) {
-                        // Tapping the held session again opens it instead of
-                        // placing it on itself.
-                        if (workout && workout.id === heldEntryId) {
+                        // Tapping the held session's own day opens it instead
+                        // of placing it on itself.
+                        const held = dayWorkouts.find((w) => w.id === heldEntryId);
+                        if (held) {
                           setHeldEntryId(null);
-                          openEditModal(workout, date);
+                          openEditModal(held, date);
                         } else {
                           placeEntry(heldEntryId, date);
                         }
@@ -1325,8 +1328,11 @@ const TrainingCalendar = ({ activePlan, rides = [], formatDistance: formatDistan
                       // tap do NOTHING — no modal, no error, no explanation —
                       // whenever no plan was active, which is indistinguishable
                       // from a broken app.
-                      if (workout) {
-                        setHeldEntryId(workout.id);
+                      //
+                      // A tap on a session lifts THAT session (its own handler
+                      // below); a tap on the rest of the cell lifts the first.
+                      if (dayWorkouts.length > 0) {
+                        setHeldEntryId((sessions[0] ?? dayWorkouts[0]).id);
                       } else {
                         openAddModal(date);
                       }
@@ -1341,19 +1347,6 @@ const TrainingCalendar = ({ activePlan, rides = [], formatDistance: formatDistan
                             {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'][date.getDay()]}
                           </Text>
                         </Text>
-                        {workout && workout.workout_type !== 'rest' && (
-                          <ActionIcon
-                            size="sm"
-                            variant="subtle"
-                            color={workout.completed ? 'green' : 'gray'}
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              toggleWorkoutCompletion(workout);
-                            }}
-                          >
-                            {workout.completed ? <Check size={14} /> : <Circle size={14} />}
-                          </ActionIcon>
-                        )}
                       </Group>
 
                       {/* Weather forecast strip */}
@@ -1372,18 +1365,61 @@ const TrainingCalendar = ({ activePlan, rides = [], formatDistance: formatDistan
                         </Tooltip>
                       )}
 
-                      {/* Workout info - visible at a glance */}
-                      {workout && workout.workout_type !== 'rest' && (
-                        <Box>
-                          {/* Workout type with icon */}
-                          <Group gap={4} mb={4}>
+                      {/* Sessions — every one on the day, in the order to do
+                          them. Each is its own tap and drag target, so either
+                          half of a two-a-day can be moved or ticked off. */}
+                      {sessions.map((workout) => {
+                        const isMissed = isPast && !isToday && !workout.completed;
+                        const sessionSport = workout.sport;
+                        const timing = typeof workout.details?.timing === 'string' ? workout.details.timing : null;
+                        const doneLabel = sessionSport === 'running' ? 'Run' : sessionSport === 'other' ? 'Done' : 'Ridden';
+                        return (
+                          <Box
+                            key={workout.id}
+                            draggable
+                            onDragStart={(e) => {
+                              e.stopPropagation();
+                              handleDragStart(e, workout, date);
+                            }}
+                            onDragEnd={handleDragEnd}
+                            onClick={(e) => {
+                              // While placing or assigning, the tap belongs to the day.
+                              if (heldEntryId || selectedWorkoutId) return;
+                              e.stopPropagation();
+                              setHeldEntryId(workout.id);
+                            }}
+                            style={{
+                              cursor: 'grab',
+                              outline: heldEntryId === workout.id ? '2px solid var(--color-signal)' : undefined,
+                              borderTop: sessions.length > 1 && workout !== sessions[0] ? '1px solid var(--color-border)' : undefined,
+                              paddingTop: sessions.length > 1 && workout !== sessions[0] ? 4 : 0,
+                            }}
+                          >
+                          {/* Workout type with icon, and its completion tick */}
+                          <Group gap={4} mb={4} justify="space-between" wrap="nowrap">
                             <Badge
                               size="sm"
                               color={WORKOUT_CATEGORY_PALETTE[workout.workout_type] || 'gray'}
                               variant={workout.completed ? 'filled' : 'light'}
+                              leftSection={
+                                sessionSport === 'running' ? <PersonSimpleRun size={10} />
+                                  : sessionSport === 'other' ? <Barbell size={10} />
+                                  : sessions.length > 1 ? <Bicycle size={10} /> : undefined
+                              }
                             >
-                              {WORKOUT_TYPES[workout.workout_type]?.name || workout.workout_type}
+                              {WORKOUT_TYPES[workout.workout_type]?.name || String(workout.workout_type || 'workout').replace(/_/g, ' ')}
                             </Badge>
+                            <ActionIcon
+                              size="sm"
+                              variant="subtle"
+                              color={workout.completed ? 'green' : 'gray'}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                toggleWorkoutCompletion(workout);
+                              }}
+                            >
+                              {workout.completed ? <Check size={14} /> : <Circle size={14} />}
+                            </ActionIcon>
                           </Group>
                           {/* Workout name */}
                           <Text
@@ -1396,12 +1432,20 @@ const TrainingCalendar = ({ activePlan, rides = [], formatDistance: formatDistan
                               textDecoration: isMissed ? 'line-through' : undefined,
                             }}
                           >
-                            {getWorkoutById(workout.workout_id)?.name || WORKOUT_TYPES[workout.workout_type]?.name || 'Workout'}
+                            {getWorkoutById(workout.workout_id)?.name || workout.name || WORKOUT_TYPES[workout.workout_type]?.name || 'Workout'}
                           </Text>
+                          {/* Order and gap on a two-session day, as the coach set it */}
+                          {timing && (
+                            <Tooltip label={timing} multiline w={200} withArrow>
+                              <Text size="xs" c="dimmed" lineClamp={1} mb={2}>
+                                {timing}
+                              </Text>
+                            </Tooltip>
+                          )}
                           {workout.completed && (
                             <Group gap={4} mb={2}>
                               <HandTick size={14} />
-                              <Text size="xs" fw={500} style={{ color: 'var(--color-done)' }}>Ridden</Text>
+                              <Text size="xs" fw={500} style={{ color: 'var(--color-done)' }}>{doneLabel}</Text>
                             </Group>
                           )}
                           {/* Duration and TSS - prominent */}
@@ -1477,8 +1521,8 @@ const TrainingCalendar = ({ activePlan, rides = [], formatDistance: formatDistan
                               </Badge>
                             </Tooltip>
                           )}
-                          {/* Create Route button - only for today or future workouts */}
-                          {!isPast && (
+                          {/* Create Route button - only for today or future rides and runs */}
+                          {!isPast && sessionSport !== 'other' && (
                             <Tooltip label="Create route for this workout" withArrow>
                               <ActionIcon
                                 size="xs"
@@ -1491,11 +1535,12 @@ const TrainingCalendar = ({ activePlan, rides = [], formatDistance: formatDistan
                               </ActionIcon>
                             </Tooltip>
                           )}
-                        </Box>
-                      )}
+                          </Box>
+                        );
+                      })}
 
                       {/* Rest day indicator */}
-                      {workout && workout.workout_type === 'rest' && !raceGoal && (
+                      {isRestDay && !raceGoal && (
                         <Text size="xs" c="dimmed" fw={500}>Rest</Text>
                       )}
 

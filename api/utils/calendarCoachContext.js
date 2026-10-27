@@ -119,6 +119,8 @@ whatever you and the athlete agree on.`;
     bits.push([load, dur, dist].filter(Boolean).join(' ').padEnd(18));
     bits.push(`[${e.status}]`);
     if (e.pinned) bits.push('PINNED');
+    const timing = e.details?.timing;
+    if (typeof timing === 'string' && timing) bits.push(`timing: ${timing}`);
     return bits.join('  ').trimEnd();
   });
 
@@ -126,8 +128,10 @@ whatever you and the athlete agree on.`;
 ${lines.join('\n')}
 
 Address these entries by their sess_ handle in calendar_change — never by date
-or day name. The column after the type is the sport (ride / run / multi); a day
-can hold one session of each sport. PINNED means the athlete has already made a decision about that
+or day name. The column after the type is the sport (ride / run / multi /
+other — "other" is strength, core, mobility, yoga); a day can hold one session of
+each sport, listed in the order they were added. A "timing:" note is the order
+and gap you gave a two-session day. PINNED means the athlete has already made a decision about that
 entry: you may still propose changing it, but the server will require their
 approval rather than applying it.`;
 }

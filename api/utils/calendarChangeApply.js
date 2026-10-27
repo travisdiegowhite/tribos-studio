@@ -20,7 +20,7 @@ import { randomUUID } from 'node:crypto';
 import { getSupabaseAdmin } from './supabaseAdmin.js';
 import { WEEKDAYS } from './calendarChangeTool.js';
 import { normalizeIntervals, buildPrescription, withPrescription } from './prescription.js';
-import { entrySport } from './entrySport.js';
+import { entrySport, isStrengthSession } from './entrySport.js';
 import { buildDayIndex, placeSession, OCCUPANCY_COLUMNS } from './calendarOccupancy.js';
 import { selectWithSportFallback, writeWithSportFallback } from './calendarSportColumn.js';
 
@@ -43,14 +43,15 @@ function prescriptionFrom(op, sport = null, source = 'coach') {
 }
 
 /**
- * The sport a new entry gets: what the coach said, else the athlete's primary
- * sport for a workout, else what the row itself implies (entrySport.js).
- * Rest days and notes have none.
+ * The sport a new entry gets: what the coach said, else 'other' for strength
+ * or mobility work, else the athlete's primary sport for a workout, else what
+ * the row itself implies (entrySport.js). Rest days and notes have none.
  */
 function sportFor(draft, defaultSport = null) {
   const type = draft.type || 'workout';
   if (type === 'rest' || type === 'note') return null;
   if (draft.sport) return draft.sport;
+  if (type === 'workout' && isStrengthSession(draft)) return 'other';
   if (type === 'workout' && defaultSport) return defaultSport;
   return entrySport({ ...draft, type });
 }
@@ -64,6 +65,20 @@ function withPriority(details, priority) {
   const base = details && typeof details === 'object' && !Array.isArray(details) ? { ...details } : {};
   base.priority = priority;
   return base;
+}
+
+/**
+ * A double day's order-and-gap cue, merged into `details.timing` beside
+ * whatever is already there. Undefined when the op sets none; an empty string
+ * removes it.
+ */
+function withTiming(details, timing) {
+  if (timing == null) return details;
+  const base = details && typeof details === 'object' && !Array.isArray(details) ? { ...details } : {};
+  const cue = String(timing).trim();
+  if (cue) base.timing = cue;
+  else delete base.timing;
+  return Object.keys(base).length > 0 ? base : null;
 }
 
 /**
@@ -82,6 +97,7 @@ function draftFrom(op, existingDetails = null, sport = null) {
   const prescription = prescriptionFrom(op, op.sport ?? sport);
   if (prescription !== undefined) { details = withPrescription(details, prescription); touched = true; }
   if (op.priority != null) { details = withPriority(details, op.priority); touched = true; }
+  if (op.timing != null) { details = withTiming(details, op.timing); touched = true; }
   if (touched) draft.details = details;
   return draft;
 }
@@ -207,7 +223,10 @@ export function expandBlock(op, occupied = new Map(), design = null, defaultSpor
         target_duration_min: session.target_duration_min ?? null,
         target_distance_km: session.target_distance_km ?? null,
         notes: session.notes ?? null,
-        details: withPrescription(null, prescriptionFrom(session, sport) ?? null),
+        details: withTiming(
+          withPrescription(null, prescriptionFrom(session, sport) ?? null),
+          session.timing ?? op.timing,
+        ),
       };
       entries.push(applyDesign(entry, design, { weekIndex }));
     }
@@ -395,7 +414,10 @@ export async function applyCalendarOps(userId, resolved, opts = {}) {
           target_distance_km: op.target_distance_km ?? null,
           notes: op.notes ?? null,
           sport: createSport,
-          details: withPriority(withPrescription(null, prescriptionFrom(op, createSport) ?? null), op.priority),
+          details: withTiming(
+            withPriority(withPrescription(null, prescriptionFrom(op, createSport) ?? null), op.priority),
+            op.timing,
+          ),
         }, design);
         const { __design, ...fields } = draft;
         const { error } = await writeWithSportFallback(

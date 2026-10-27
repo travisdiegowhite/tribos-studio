@@ -24,6 +24,7 @@ import {
   describeVerdict,
   CALENDAR_CHANGE_TOOL,
   WEEKDAYS,
+  MAX_TIMING_LENGTH,
 } from './calendarChangeTool.js';
 
 const UUID_A = '1af3bc12-0000-4000-8000-000000000001';
@@ -294,8 +295,8 @@ describe('intervals on an operation', () => {
     expect(itemProps.intervals.items.required).toEqual(['repeats', 'duration_min', 'recovery_min']);
     expect(itemProps.intervals.items.properties).toHaveProperty('target_pct_ftp_min');
     expect(itemProps.intervals.items.properties).toHaveProperty('target_pct_threshold_pace_min');
-    expect(itemProps.sport.enum).toEqual(['cycling', 'running']);
-    expect(itemProps.weekly_pattern.items.properties.sport.enum).toEqual(['cycling', 'running']);
+    expect(itemProps.sport.enum).toEqual(['cycling', 'running', 'other']);
+    expect(itemProps.weekly_pattern.items.properties.sport.enum).toEqual(['cycling', 'running', 'other']);
   });
 
   it('accepts a well-formed set on create, update and a pattern day', () => {
@@ -392,5 +393,35 @@ describe('race priority on an operation', () => {
   it('the schema tells the model to ask, not assume', () => {
     const desc = JSON.stringify(CALENDAR_CHANGE_TOOL);
     expect(desc).toContain('never from an old memory');
+  });
+});
+
+describe('strength sessions and double-day timing', () => {
+  const itemProps = CALENDAR_CHANGE_TOOL.input_schema.properties.operations.items.properties;
+
+  it('offers timing on a create and on every weekly_pattern day', () => {
+    expect(itemProps.timing.type).toBe('string');
+    expect(itemProps.weekly_pattern.items.properties.timing.type).toBe('string');
+  });
+
+  it('accepts sport "other" for a strength session', () => {
+    const r = validateOps(
+      [{ op: 'create', date: '2026-11-04', title: 'Full Body Strength', workout_type: 'strength', sport: 'other', timing: 'PM, 6h+ after the run', reason: 'r' }],
+      new Map(),
+    );
+    expect(r.errors).toEqual([]);
+  });
+
+  it('rejects a timing cue that is not a short string', () => {
+    const long = 'x'.repeat(MAX_TIMING_LENGTH + 1);
+    const r = validateOps(
+      [
+        { op: 'create', date: '2026-11-04', title: 'A', timing: 5, reason: 'r' },
+        { op: 'generate_block', from: '2026-11-02', to: '2026-11-08', reason: 'r', weekly_pattern: [{ day: 'mon', title: 'Lift', timing: long }] },
+      ],
+      new Map(),
+    );
+    expect(r.valid).toBe(false);
+    expect(r.errors).toHaveLength(2);
   });
 });

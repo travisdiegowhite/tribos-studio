@@ -54,6 +54,7 @@ import {
 } from '../lib/calendar/calendarMutations';
 import type { EntryDraft } from '../lib/calendar/calendarMutations';
 import { isPlanCurrent } from '../utils/planLifecycle';
+import { planSessionSport } from '../../api/utils/entrySport.js';
 
 // Day mapping for workout generation
 const DAY_MAP: DayOfWeek[] = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
@@ -423,7 +424,9 @@ export function useTrainingPlan({
               type: dayPlan.workout ? 'workout' : 'rest',
               // The plan's sport decides which day a session may share
               // (insertSessions → calendarOccupancy). Rest days have none.
-              sport: dayPlan.workout ? (template.sportType === 'running' ? 'running' : 'cycling') : null,
+              sport: dayPlan.workout
+                ? planSessionSport({ workout_id: dayPlan.workout, workout_type: workout?.category }, template.sportType === 'running' ? 'running' : 'cycling')
+                : null,
               title: workout?.name || dayPlan.workout || 'Workout',
               workout_id: dayPlan.workout || null,
               workout_type: workout?.category || (dayPlan.workout ? null : 'rest'),
@@ -606,7 +609,9 @@ export function useTrainingPlan({
           workoutsToInsert.push({
             date: newDate,
             type: w.workoutType === 'rest' ? 'rest' : 'workout',
-            sport: w.workoutType === 'rest' ? null : (template.sportType === 'running' ? 'running' : 'cycling'),
+            sport: w.workoutType === 'rest'
+              ? null
+              : planSessionSport({ workout_id: w.workoutId, workout_type: w.workoutType }, template.sportType === 'running' ? 'running' : 'cycling'),
             title: getAnyWorkoutById(w.workoutId)?.name || w.workoutId || 'Workout',
             workout_id: w.workoutId,
             workout_type: w.workoutType,

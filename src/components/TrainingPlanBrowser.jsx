@@ -32,6 +32,7 @@ import { WORKOUT_LIBRARY } from '../data/workoutLibrary';
 import { RUNNING_WORKOUT_LIBRARY } from '../data/runningWorkoutLibrary';
 import { supabase } from '../lib/supabase';
 import { insertSessions } from '../lib/calendar/calendarMutations';
+import { planSessionSport } from '../../api/utils/entrySport.js';
 import { useAuth } from '../contexts/AuthContext';
 import { trackFeature, EventType } from '../utils/activityTracking';
 import { ArrowsClockwise, Bicycle, Calendar, CaretRight, Check, Clock, DotsThreeVertical, Info, Pause, PersonSimpleRun, Play, Target, Trash, TrendUp, X } from '@phosphor-icons/react';
@@ -405,7 +406,7 @@ const TrainingPlanBrowser = ({ activePlan, onPlanActivated, compact = false }) =
         const planSport = (activePlan?.sport_type || activePlan?.sportType || template?.sportType) === 'running' ? 'running' : 'cycling';
         const written = await insertSessions(
           user.id,
-          workouts.map((w) => ({ ...w, sport: w.type === 'workout' ? planSport : null })),
+          workouts.map((w) => ({ ...w, sport: w.type === 'workout' ? planSessionSport(w, planSport) : null })),
           { source: 'plan', planId: activePlan.id },
         );
         if (!written.success) throw new Error(written.error);
@@ -886,7 +887,7 @@ const TrainingPlanBrowser = ({ activePlan, onPlanActivated, compact = false }) =
         // Strip the scratch fields the redistributor needed; they are not columns.
         const drafts = workouts.map(({ _weekNumber, _dayOfWeek, ...draft }) => ({
           ...draft,
-          sport: draft.type === 'workout' ? (planSportType === 'running' ? 'running' : 'cycling') : null,
+          sport: draft.type === 'workout' ? planSessionSport(draft, planSportType === 'running' ? 'running' : 'cycling') : null,
         }));
 
         // Days the athlete has already filled are skipped, not overwritten, so

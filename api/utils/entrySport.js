@@ -18,8 +18,34 @@ export const MULTI_RACE_TYPES = ['triathlon', 'duathlon'];
 const NO_SPORT_TYPES = new Set(['rest', 'note']);
 
 /**
+ * Strength, core and mobility work is sport 'other'. It is not a ride or a
+ * run, so it must neither block a ride day (calendarOccupancy) nor be matched
+ * to a completed ride (useActivityAutoLink). Until 2026-10 it inferred as
+ * 'cycling', which skipped the coach's gym sessions on every ride day.
+ * Categories and id prefixes are the workout library's (getSupplementType).
+ */
+export const STRENGTH_WORKOUT_TYPES = ['strength', 'core', 'flexibility', 'mobility', 'yoga'];
+const STRENGTH_ID_PREFIXES = ['strength_', 'core_', 'flexibility_'];
+
+/** Whether a session is gym / mobility work rather than a ride or a run. */
+export function isStrengthSession(entry) {
+  if (!entry) return false;
+  if (STRENGTH_WORKOUT_TYPES.includes(entry.workout_type)) return true;
+  const id = entry.workout_id;
+  return typeof id === 'string' && STRENGTH_ID_PREFIXES.some((p) => id.startsWith(p));
+}
+
+/**
+ * The sport a plan-generated workout gets: 'other' for its strength and
+ * mobility days, otherwise the plan's own sport.
+ */
+export function planSessionSport(draft, planSport) {
+  return isStrengthSession(draft) ? 'other' : planSport;
+}
+
+/**
  * @param {{type?: string, workout_id?: string|null, workout_type?: string|null}|null} entry
- * @returns {'cycling'|'running'|'multi'|null}
+ * @returns {'cycling'|'running'|'multi'|'other'|null}
  */
 export function inferEntrySport(entry) {
   if (!entry || NO_SPORT_TYPES.has(entry.type)) return null;
@@ -27,6 +53,7 @@ export function inferEntrySport(entry) {
     if (RUN_RACE_TYPES.includes(entry.workout_type)) return 'running';
     if (MULTI_RACE_TYPES.includes(entry.workout_type)) return 'multi';
   }
+  if (isStrengthSession(entry)) return 'other';
   if (typeof entry.workout_id === 'string' && entry.workout_id.startsWith('run_')) return 'running';
   return 'cycling';
 }
