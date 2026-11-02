@@ -1,0 +1,4460 @@
+{
+ "meta": {
+  "engine": "brouter-tribos",
+  "brouter_base": "https://brouter.de",
+  "run_at": "2026-11-02T03:10:33.558Z",
+  "duration_s": 165,
+  "brouter_calls": 54,
+  "args": {
+   "points": null,
+   "distances": [
+    15,
+    30,
+    50,
+    75
+   ],
+   "levels": [
+    1,
+    2,
+    3,
+    4,
+    5
+   ],
+   "surfaces": [
+    "road",
+    "gravel"
+   ],
+   "skipUrbanGravel": true
+  },
+  "classifier_probe": 5,
+  "partial": true
+ },
+ "generations": [
+  {
+   "point": "boulder-downtown",
+   "category": "urban",
+   "distance_mi": 15,
+   "surface": "road",
+   "variant": "tribos-road-0",
+   "levels": [
+    1,
+    2
+   ],
+   "bearing_deg": 45,
+   "ok": true,
+   "error": null,
+   "actual_mi": 16,
+   "attempts": 1,
+   "tag_source": "engine",
+   "trace_calls": 0,
+   "latency_ms": 2246,
+   "coverage": {
+    "service": {
+     "m": 875.0068148084109,
+     "maxspeed": 0,
+     "lanes": 0,
+     "cycleway": 0,
+     "shoulder": 0,
+     "surface": 648.1399281354014,
+     "traffic_class": 0
+    },
+    "residential": {
+     "m": 1790.696685225164,
+     "maxspeed": 1740.4258829619537,
+     "lanes": 1067.4230351875237,
+     "cycleway": 1067.4230351875237,
+     "shoulder": 0,
+     "surface": 1790.696685225164,
+     "traffic_class": 0
+    },
+    "cycleway": {
+     "m": 7125.054656841645,
+     "maxspeed": 0,
+     "lanes": 0,
+     "cycleway": 17.58184275299121,
+     "shoulder": 0,
+     "surface": 7052.76574875948,
+     "traffic_class": 0
+    },
+    "tertiary": {
+     "m": 7683.383780964375,
+     "maxspeed": 7683.383780964375,
+     "lanes": 7683.383780964375,
+     "cycleway": 6788.360746792904,
+     "shoulder": 0,
+     "surface": 7683.383780964375,
+     "traffic_class": 7683.383780964375
+    },
+    "footway": {
+     "m": 143.5619811959795,
+     "maxspeed": 0,
+     "lanes": 0,
+     "cycleway": 0,
+     "shoulder": 0,
+     "surface": 143.5619811959795,
+     "traffic_class": 0
+    },
+    "secondary": {
+     "m": 5602.725491232482,
+     "maxspeed": 5602.725491232482,
+     "lanes": 5353.667476180442,
+     "cycleway": 4941.587299839228,
+     "shoulder": 0,
+     "surface": 5602.725491232482,
+     "traffic_class": 5602.725491232482
+    },
+    "unclassified": {
+     "m": 538.0936184840383,
+     "maxspeed": 519.2227949336439,
+     "lanes": 189.55388720870937,
+     "cycleway": 189.55388720870937,
+     "shoulder": 0,
+     "surface": 538.0936184840383,
+     "traffic_class": 0
+    },
+    "path": {
+     "m": 982.2754686278491,
+     "maxspeed": 0,
+     "lanes": 0,
+     "cycleway": 0,
+     "shoulder": 0,
+     "surface": 982.2754686278491,
+     "traffic_class": 0
+    }
+   },
+   "trace_check": null,
+   "transient": false
+  },
+  {
+   "point": "boulder-downtown",
+   "category": "urban",
+   "distance_mi": 15,
+   "surface": "road",
+   "variant": "tribos-road-1",
+   "levels": [
+    3
+   ],
+   "bearing_deg": 45,
+   "ok": true,
+   "error": null,
+   "actual_mi": 16,
+   "attempts": 1,
+   "tag_source": "engine",
+   "trace_calls": 0,
+   "latency_ms": 1662,
+   "coverage": {
+    "service": {
+     "m": 569.9491214129931,
+     "maxspeed": 0,
+     "lanes": 0,
+     "cycleway": 0,
+     "shoulder": 0,
+     "surface": 412.63652257461257,
+     "traffic_class": 0
+    },
+    "residential": {
+     "m": 3142.905175278417,
+     "maxspeed": 3113.5930704075813,
+     "lanes": 2143.778389270348,
+     "cycleway": 2517.557807759157,
+     "shoulder": 0,
+     "surface": 3142.905175278417,
+     "traffic_class": 0
+    },
+    "cycleway": {
+     "m": 7252.2140990427115,
+     "maxspeed": 0,
+     "lanes": 0,
+     "cycleway": 17.58184275299121,
+     "shoulder": 0,
+     "surface": 7209.716338277855,
+     "traffic_class": 0
+    },
+    "tertiary": {
+     "m": 5241.2788436375,
+     "maxspeed": 5241.2788436375,
+     "lanes": 5241.2788436375,
+     "cycleway": 4843.558542453622,
+     "shoulder": 0,
+     "surface": 5241.2788436375,
+     "traffic_class": 5241.2788436375
+    },
+    "path": {
+     "m": 1365.8576003993733,
+     "maxspeed": 0,
+     "lanes": 0,
+     "cycleway": 0,
+     "shoulder": 0,
+     "surface": 1365.8576003993733,
+     "traffic_class": 0
+    },
+    "primary": {
+     "m": 68.94880906165076,
+     "maxspeed": 68.94880906165076,
+     "lanes": 68.94880906165076,
+     "cycleway": 68.94880906165076,
+     "shoulder": 0,
+     "surface": 68.94880906165076,
+     "traffic_class": 68.94880906165076
+    },
+    "footway": {
+     "m": 140.41551928732383,
+     "maxspeed": 0,
+     "lanes": 0,
+     "cycleway": 0,
+     "shoulder": 0,
+     "surface": 140.41551928732383,
+     "traffic_class": 0
+    },
+    "secondary": {
+     "m": 7002.521115826604,
+     "maxspeed": 7002.521115826604,
+     "lanes": 7002.521115826604,
+     "cycleway": 6036.147736416987,
+     "shoulder": 0,
+     "surface": 7002.521115826604,
+     "traffic_class": 7002.521115826604
+    },
+    "unclassified": {
+     "m": 266.76957637303275,
+     "maxspeed": 189.55388720870937,
+     "lanes": 189.55388720870937,
+     "cycleway": 189.55388720870937,
+     "shoulder": 0,
+     "surface": 266.76957637303275,
+     "traffic_class": 0
+    }
+   },
+   "trace_check": null,
+   "transient": false
+  },
+  {
+   "point": "boulder-downtown",
+   "category": "urban",
+   "distance_mi": 15,
+   "surface": "road",
+   "variant": "tribos-road-2",
+   "levels": [
+    4,
+    5
+   ],
+   "bearing_deg": 45,
+   "ok": true,
+   "error": null,
+   "actual_mi": 15.8,
+   "attempts": 1,
+   "tag_source": "engine",
+   "trace_calls": 0,
+   "latency_ms": 1684,
+   "coverage": {
+    "service": {
+     "m": 598.2442554347998,
+     "maxspeed": 0,
+     "lanes": 0,
+     "cycleway": 0,
+     "shoulder": 0,
+     "surface": 434.486689981676,
+     "traffic_class": 0
+    },
+    "residential": {
+     "m": 2505.3668500817107,
+     "maxspeed": 2455.0960478185,
+     "lanes": 1782.09320004407,
+     "cycleway": 1782.09320004407,
+     "shoulder": 0,
+     "surface": 2505.3668500817107,
+     "traffic_class": 0
+    },
+    "cycleway": {
+     "m": 7501.460467729871,
+     "maxspeed": 0,
+     "lanes": 0,
+     "cycleway": 18.00020752543545,
+     "shoulder": 0,
+     "surface": 7471.669320412561,
+     "traffic_class": 0
+    },
+    "tertiary": {
+     "m": 3340.556255724008,
+     "maxspeed": 3340.556255724008,
+     "lanes": 3340.556255724008,
+     "cycleway": 3340.556255724008,
+     "shoulder": 0,
+     "surface": 3340.556255724008,
+     "traffic_class": 3340.556255724008
+    },
+    "path": {
+     "m": 2184.2525134104176,
+     "maxspeed": 0,
+     "lanes": 0,
+     "cycleway": 0,
+     "shoulder": 0,
+     "surface": 1397.5862037830307,
+     "traffic_class": 0
+    },
+    "primary": {
+     "m": 728.0378267324286,
+     "maxspeed": 728.0378267324286,
+     "lanes": 728.0378267324286,
+     "cycleway": 728.0378267324286,
+     "shoulder": 0,
+     "surface": 728.0378267324286,
+     "traffic_class": 728.0378267324286
+    },
+    "footway": {
+     "m": 1447.986464565264,
+     "maxspeed": 0,
+     "lanes": 0,
+     "cycleway": 0,
+     "shoulder": 0,
+     "surface": 1298.3137492621133,
+     "traffic_class": 0
+    },
+    "secondary": {
+     "m": 5928.53467263909,
+     "maxspeed": 5928.53467263909,
+     "lanes": 5679.476657587049,
+     "cycleway": 5267.396481245835,
+     "shoulder": 0,
+     "surface": 5928.53467263909,
+     "traffic_class": 5928.53467263909
+    },
+    "unclassified": {
+     "m": 184.11760359258133,
+     "maxspeed": 165.24678004218686,
+     "lanes": 165.24678004218686,
+     "cycleway": 165.24678004218686,
+     "shoulder": 0,
+     "surface": 184.11760359258133,
+     "traffic_class": 0
+    }
+   },
+   "trace_check": null,
+   "transient": false
+  },
+  {
+   "point": "boulder-downtown",
+   "category": "urban",
+   "distance_mi": 30,
+   "surface": "road",
+   "variant": "tribos-road-0",
+   "levels": [
+    1,
+    2
+   ],
+   "bearing_deg": 0,
+   "ok": true,
+   "error": null,
+   "actual_mi": 26.8,
+   "attempts": 3,
+   "tag_source": "engine",
+   "trace_calls": 0,
+   "latency_ms": 6220,
+   "coverage": {
+    "service": {
+     "m": 82.7842351545028,
+     "maxspeed": 0,
+     "lanes": 0,
+     "cycleway": 0,
+     "shoulder": 0,
+     "surface": 40.170520264454574,
+     "traffic_class": 0
+    },
+    "residential": {
+     "m": 9645.477795571802,
+     "maxspeed": 4626.2633052216415,
+     "lanes": 3519.42405271061,
+     "cycleway": 869.4225916460464,
+     "shoulder": 0,
+     "surface": 9645.477795571802,
+     "traffic_class": 0
+    },
+    "cycleway": {
+     "m": 7522.9013307393925,
+     "maxspeed": 0,
+     "lanes": 0,
+     "cycleway": 43.79571177117287,
+     "shoulder": 0,
+     "surface": 7522.9013307393925,
+     "traffic_class": 0
+    },
+    "tertiary": {
+     "m": 8746.38681895713,
+     "maxspeed": 8235.557894327601,
+     "lanes": 8746.38681895713,
+     "cycleway": 8158.382398018347,
+     "shoulder": 0,
+     "surface": 8746.38681895713,
+     "traffic_class": 8746.38681895713
+    },
+    "path": {
+     "m": 2978.7609046108205,
+     "maxspeed": 0,
+     "lanes": 0,
+     "cycleway": 0,
+     "shoulder": 0,
+     "surface": 270.4470529874881,
+     "traffic_class": 0
+    },
+    "footway": {
+     "m": 1235.1660193740338,
+     "maxspeed": 0,
+     "lanes": 0,
+     "cycleway": 0,
+     "shoulder": 0,
+     "surface": 999.5923587286912,
+     "traffic_class": 0
+    },
+    "secondary": {
+     "m": 5789.363821296757,
+     "maxspeed": 3748.300219494552,
+     "lanes": 4029.878808180678,
+     "cycleway": 2868.227413923354,
+     "shoulder": 0,
+     "surface": 5789.363821296757,
+     "traffic_class": 5789.363821296757
+    },
+    "primary": {
+     "m": 135.92930926652292,
+     "maxspeed": 135.92930926652292,
+     "lanes": 135.92930926652292,
+     "cycleway": 43.28480932915785,
+     "shoulder": 0,
+     "surface": 135.92930926652292,
+     "traffic_class": 135.92930926652292
+    },
+    "trunk": {
+     "m": 4186.143662676542,
+     "maxspeed": 4186.143662676542,
+     "lanes": 4186.143662676542,
+     "cycleway": 3317.5749206972473,
+     "shoulder": 0,
+     "surface": 4186.143662676542,
+     "traffic_class": 0
+    }
+   },
+   "trace_check": null,
+   "transient": false
+  },
+  {
+   "point": "boulder-downtown",
+   "category": "urban",
+   "distance_mi": 30,
+   "surface": "road",
+   "variant": "tribos-road-1",
+   "levels": [
+    3
+   ],
+   "bearing_deg": 0,
+   "ok": true,
+   "error": null,
+   "actual_mi": 26.9,
+   "attempts": 3,
+   "tag_source": "engine",
+   "trace_calls": 0,
+   "latency_ms": 6106,
+   "coverage": {
+    "service": {
+     "m": 379.59304861982247,
+     "maxspeed": 0,
+     "lanes": 0,
+     "cycleway": 0,
+     "shoulder": 0,
+     "surface": 0,
+     "traffic_class": 0
+    },
+    "residential": {
+     "m": 8320.78878196047,
+     "maxspeed": 3197.0362118600565,
+     "lanes": 2529.876376613213,
+     "cycleway": 721.0730458545967,
+     "shoulder": 0,
+     "surface": 8320.78878196047,
+     "traffic_class": 0
+    },
+    "cycleway": {
+     "m": 7363.200821833815,
+     "maxspeed": 0,
+     "lanes": 0,
+     "cycleway": 59.41197052266599,
+     "shoulder": 0,
+     "surface": 7363.200821833815,
+     "traffic_class": 0
+    },
+    "tertiary": {
+     "m": 9264.457947618761,
+     "maxspeed": 8753.629022989233,
+     "lanes": 9264.457947618761,
+     "cycleway": 8676.45352667998,
+     "shoulder": 0,
+     "surface": 9264.457947618761,
+     "traffic_class": 9264.457947618761
+    },
+    "path": {
+     "m": 4097.484701860781,
+     "maxspeed": 0,
+     "lanes": 0,
+     "cycleway": 0,
+     "shoulder": 0,
+     "surface": 144.88328261346663,
+     "traffic_class": 0
+    },
+    "footway": {
+     "m": 1328.1405790827544,
+     "maxspeed": 0,
+     "lanes": 0,
+     "cycleway": 0,
+     "shoulder": 0,
+     "surface": 1092.566918437412,
+     "traffic_class": 0
+    },
+    "primary": {
+     "m": 400.75201251208637,
+     "maxspeed": 400.75201251208637,
+     "lanes": 400.75201251208637,
+     "cycleway": 308.1075125747212,
+     "shoulder": 0,
+     "surface": 400.75201251208637,
+     "traffic_class": 400.75201251208637
+    },
+    "secondary": {
+     "m": 6495.403901280251,
+     "maxspeed": 4652.139495320823,
+     "lanes": 4933.718084006948,
+     "cycleway": 3772.0666897496244,
+     "shoulder": 0,
+     "surface": 6495.403901280251,
+     "traffic_class": 6495.403901280251
+    },
+    "trunk": {
+     "m": 3463.970999418308,
+     "maxspeed": 3463.970999418308,
+     "lanes": 3463.970999418308,
+     "cycleway": 3317.5749241143276,
+     "shoulder": 0,
+     "surface": 3463.970999418308,
+     "traffic_class": 0
+    },
+    "secondary_link": {
+     "m": 130.2451586289676,
+     "maxspeed": 130.2451586289676,
+     "lanes": 130.2451586289676,
+     "cycleway": 0,
+     "shoulder": 0,
+     "surface": 130.2451586289676,
+     "traffic_class": 130.2451586289676
+    }
+   },
+   "trace_check": null,
+   "transient": false
+  },
+  {
+   "point": "boulder-downtown",
+   "category": "urban",
+   "distance_mi": 30,
+   "surface": "road",
+   "variant": "tribos-road-2",
+   "levels": [
+    4,
+    5
+   ],
+   "bearing_deg": 0,
+   "ok": true,
+   "error": null,
+   "actual_mi": 25,
+   "attempts": 3,
+   "tag_source": "engine",
+   "trace_calls": 0,
+   "latency_ms": 6037,
+   "coverage": {
+    "service": {
+     "m": 42.61371489004822,
+     "maxspeed": 0,
+     "lanes": 0,
+     "cycleway": 0,
+     "shoulder": 0,
+     "surface": 0,
+     "traffic_class": 0
+    },
+    "residential": {
+     "m": 6277.435713705459,
+     "maxspeed": 2314.4038800495555,
+     "lanes": 1748.8803011540172,
+     "cycleway": 1748.8803011540172,
+     "shoulder": 0,
+     "surface": 6277.435713705459,
+     "traffic_class": 0
+    },
+    "cycleway": {
+     "m": 5844.574600856414,
+     "maxspeed": 0,
+     "lanes": 0,
+     "cycleway": 45.954878678178666,
+     "shoulder": 0,
+     "surface": 5844.574600856414,
+     "traffic_class": 0
+    },
+    "tertiary": {
+     "m": 5378.273354149157,
+     "maxspeed": 5378.273354149157,
+     "lanes": 5378.273354149157,
+     "cycleway": 5378.273354149157,
+     "shoulder": 0,
+     "surface": 5378.273354149157,
+     "traffic_class": 5378.273354149157
+    },
+    "path": {
+     "m": 4102.2118423440415,
+     "maxspeed": 0,
+     "lanes": 0,
+     "cycleway": 0,
+     "shoulder": 0,
+     "surface": 144.88328261346663,
+     "traffic_class": 0
+    },
+    "primary": {
+     "m": 2249.673860106819,
+     "maxspeed": 2249.673860106819,
+     "lanes": 2249.673860106819,
+     "cycleway": 2249.673860106819,
+     "shoulder": 0,
+     "surface": 2249.673860106819,
+     "traffic_class": 2249.673860106819
+    },
+    "footway": {
+     "m": 1286.1651207584641,
+     "maxspeed": 0,
+     "lanes": 0,
+     "cycleway": 0,
+     "shoulder": 0,
+     "surface": 1162.5624787458241,
+     "traffic_class": 0
+    },
+    "secondary": {
+     "m": 6945.533708375774,
+     "maxspeed": 5335.98422225361,
+     "lanes": 5335.98422225361,
+     "cycleway": 5335.98422225361,
+     "shoulder": 0,
+     "surface": 6945.533708375774,
+     "traffic_class": 6945.533708375774
+    },
+    "trunk": {
+     "m": 5918.119697835157,
+     "maxspeed": 5918.119697835157,
+     "lanes": 5918.119697835157,
+     "cycleway": 5918.119697835157,
+     "shoulder": 0,
+     "surface": 5918.119697835157,
+     "traffic_class": 0
+    },
+    "trunk_link": {
+     "m": 36.20856693223807,
+     "maxspeed": 36.20856693223807,
+     "lanes": 36.20856693223807,
+     "cycleway": 0,
+     "shoulder": 0,
+     "surface": 36.20856693223807,
+     "traffic_class": 0
+    },
+    "unclassified": {
+     "m": 217.01570816486733,
+     "maxspeed": 217.01570816486733,
+     "lanes": 217.01570816486733,
+     "cycleway": 217.01570816486733,
+     "shoulder": 0,
+     "surface": 217.01570816486733,
+     "traffic_class": 0
+    }
+   },
+   "trace_check": null,
+   "transient": false
+  },
+  {
+   "point": "boulder-downtown",
+   "category": "urban",
+   "distance_mi": 50,
+   "surface": "road",
+   "variant": "tribos-road-0",
+   "levels": [
+    1,
+    2
+   ],
+   "bearing_deg": 270,
+   "ok": true,
+   "error": null,
+   "actual_mi": 45.1,
+   "attempts": 3,
+   "tag_source": "engine",
+   "trace_calls": 0,
+   "latency_ms": 6316,
+   "coverage": {
+    "service": {
+     "m": 1347.1926312780024,
+     "maxspeed": 0,
+     "lanes": 0,
+     "cycleway": 0,
+     "shoulder": 0,
+     "surface": 1251.5701740721784,
+     "traffic_class": 0
+    },
+    "cycleway": {
+     "m": 2181.678137770886,
+     "maxspeed": 0,
+     "lanes": 0,
+     "cycleway": 0,
+     "shoulder": 0,
+     "surface": 2181.678137770886,
+     "traffic_class": 0
+    },
+    "tertiary": {
+     "m": 31578.320464228884,
+     "maxspeed": 8182.304350052513,
+     "lanes": 21673.58568336961,
+     "cycleway": 3239.369530989754,
+     "shoulder": 11946.817653994434,
+     "surface": 31578.320464228884,
+     "traffic_class": 26894.068482953662
+    },
+    "track": {
+     "m": 7764.803773368064,
+     "maxspeed": 0,
+     "lanes": 0,
+     "cycleway": 0,
+     "shoulder": 0,
+     "surface": 4516.911920908311,
+     "traffic_class": 0
+    },
+    "path": {
+     "m": 2176.883758847134,
+     "maxspeed": 0,
+     "lanes": 0,
+     "cycleway": 0,
+     "shoulder": 0,
+     "surface": 1233.3675039660473,
+     "traffic_class": 0
+    },
+    "primary": {
+     "m": 1870.320505764569,
+     "maxspeed": 1870.320505764569,
+     "lanes": 1870.320505764569,
+     "cycleway": 0,
+     "shoulder": 0,
+     "surface": 1870.320505764569,
+     "traffic_class": 1870.320505764569
+    },
+    "residential": {
+     "m": 15307.174900510567,
+     "maxspeed": 1702.6155117176409,
+     "lanes": 736.2322621279757,
+     "cycleway": 736.2322621279757,
+     "shoulder": 0,
+     "surface": 14261.048440741697,
+     "traffic_class": 0
+    },
+    "unclassified": {
+     "m": 2640.406209213191,
+     "maxspeed": 0,
+     "lanes": 0,
+     "cycleway": 0,
+     "shoulder": 0,
+     "surface": 2640.406209213191,
+     "traffic_class": 0
+    },
+    "secondary": {
+     "m": 6526.3547281344045,
+     "maxspeed": 458.7686382553687,
+     "lanes": 458.7686382553687,
+     "cycleway": 458.7686382553687,
+     "shoulder": 0,
+     "surface": 6526.3547281344045,
+     "traffic_class": 6526.3547281344045
+    },
+    "footway": {
+     "m": 1114.117029316312,
+     "maxspeed": 0,
+     "lanes": 0,
+     "cycleway": 0,
+     "shoulder": 0,
+     "surface": 806.2096313869467,
+     "traffic_class": 0
+    }
+   },
+   "trace_check": null,
+   "transient": false
+  },
+  {
+   "point": "boulder-downtown",
+   "category": "urban",
+   "distance_mi": 50,
+   "surface": "road",
+   "variant": "tribos-road-1",
+   "levels": [
+    3
+   ],
+   "bearing_deg": 270,
+   "ok": true,
+   "error": null,
+   "actual_mi": 44.7,
+   "attempts": 3,
+   "tag_source": "engine",
+   "trace_calls": 0,
+   "latency_ms": 7777,
+   "coverage": {
+    "service": {
+     "m": 1102.5499426946963,
+     "maxspeed": 0,
+     "lanes": 0,
+     "cycleway": 0,
+     "shoulder": 0,
+     "surface": 1006.9274854888724,
+     "traffic_class": 0
+    },
+    "cycleway": {
+     "m": 2373.797449034185,
+     "maxspeed": 0,
+     "lanes": 0,
+     "cycleway": 0,
+     "shoulder": 0,
+     "surface": 2373.797449034185,
+     "traffic_class": 0
+    },
+    "tertiary": {
+     "m": 30637.04731241616,
+     "maxspeed": 7823.393190545814,
+     "lanes": 21314.966215250886,
+     "cycleway": 2880.458371483054,
+     "shoulder": 11954.31305699273,
+     "surface": 30637.04731241616,
+     "traffic_class": 26164.64623449593
+    },
+    "track": {
+     "m": 7629.543616751685,
+     "maxspeed": 0,
+     "lanes": 0,
+     "cycleway": 0,
+     "shoulder": 0,
+     "surface": 4351.9167258951875,
+     "traffic_class": 0
+    },
+    "path": {
+     "m": 2127.999096152646,
+     "maxspeed": 0,
+     "lanes": 0,
+     "cycleway": 0,
+     "shoulder": 0,
+     "surface": 1682.2121282678754,
+     "traffic_class": 0
+    },
+    "primary": {
+     "m": 2398.7178147313352,
+     "maxspeed": 2398.7178147313352,
+     "lanes": 2398.7178147313352,
+     "cycleway": 271.53137442530897,
+     "shoulder": 0,
+     "surface": 2398.7178147313352,
+     "traffic_class": 2398.7178147313352
+    },
+    "residential": {
+     "m": 14318.17783525919,
+     "maxspeed": 897.4627659525742,
+     "lanes": 358.3621115797203,
+     "cycleway": 358.3621115797203,
+     "shoulder": 0,
+     "surface": 13461.963203828636,
+     "traffic_class": 0
+    },
+    "unclassified": {
+     "m": 2802.8679455032375,
+     "maxspeed": 0,
+     "lanes": 0,
+     "cycleway": 0,
+     "shoulder": 0,
+     "surface": 2802.8679455032375,
+     "traffic_class": 0
+    },
+    "secondary": {
+     "m": 6640.6883531326885,
+     "maxspeed": 399.66187484681564,
+     "lanes": 399.66187484681564,
+     "cycleway": 399.66187484681564,
+     "shoulder": 0,
+     "surface": 6640.6883531326885,
+     "traffic_class": 6640.6883531326885
+    },
+    "footway": {
+     "m": 1802.7116332128473,
+     "maxspeed": 0,
+     "lanes": 0,
+     "cycleway": 0,
+     "shoulder": 0,
+     "surface": 931.3996692230158,
+     "traffic_class": 0
+    }
+   },
+   "trace_check": null,
+   "transient": false
+  },
+  {
+   "point": "boulder-downtown",
+   "category": "urban",
+   "distance_mi": 50,
+   "surface": "road",
+   "variant": "tribos-road-2",
+   "levels": [
+    4,
+    5
+   ],
+   "bearing_deg": 270,
+   "ok": true,
+   "error": null,
+   "actual_mi": 44.8,
+   "attempts": 3,
+   "tag_source": "engine",
+   "trace_calls": 0,
+   "latency_ms": 7567,
+   "coverage": {
+    "service": {
+     "m": 1310.971885406439,
+     "maxspeed": 0,
+     "lanes": 0,
+     "cycleway": 0,
+     "shoulder": 0,
+     "surface": 1215.3494282006154,
+     "traffic_class": 0
+    },
+    "cycleway": {
+     "m": 1388.9361259155746,
+     "maxspeed": 0,
+     "lanes": 0,
+     "cycleway": 0,
+     "shoulder": 0,
+     "surface": 1388.9361259155746,
+     "traffic_class": 0
+    },
+    "tertiary": {
+     "m": 30952.077478352483,
+     "maxspeed": 7822.477852622379,
+     "lanes": 21323.424802621474,
+     "cycleway": 2879.5430335596197,
+     "shoulder": 11954.31305699273,
+     "surface": 30952.077478352483,
+     "traffic_class": 26384.579619835247
+    },
+    "track": {
+     "m": 7615.0642808588345,
+     "maxspeed": 0,
+     "lanes": 0,
+     "cycleway": 0,
+     "shoulder": 0,
+     "surface": 4336.300761841578,
+     "traffic_class": 0
+    },
+    "path": {
+     "m": 2071.8285111770724,
+     "maxspeed": 0,
+     "lanes": 0,
+     "cycleway": 0,
+     "shoulder": 0,
+     "surface": 1561.335177601949,
+     "traffic_class": 0
+    },
+    "primary": {
+     "m": 3030.3166914778985,
+     "maxspeed": 3030.3166914778985,
+     "lanes": 3030.3166914778985,
+     "cycleway": 903.1302511718734,
+     "shoulder": 0,
+     "surface": 3030.3166914778985,
+     "traffic_class": 3030.3166914778985
+    },
+    "residential": {
+     "m": 14203.67067651008,
+     "maxspeed": 1146.0633994682032,
+     "lanes": 736.2322621279757,
+     "cycleway": 736.2322621279757,
+     "shoulder": 0,
+     "surface": 13309.68299686929,
+     "traffic_class": 0
+    },
+    "unclassified": {
+     "m": 2773.3053893050924,
+     "maxspeed": 0,
+     "lanes": 0,
+     "cycleway": 0,
+     "shoulder": 0,
+     "surface": 2773.3053893050924,
+     "traffic_class": 0
+    },
+    "secondary": {
+     "m": 7096.715120511887,
+     "maxspeed": 839.4773938963542,
+     "lanes": 839.4773938963542,
+     "cycleway": 839.4773938963542,
+     "shoulder": 0,
+     "surface": 7096.715120511887,
+     "traffic_class": 7096.715120511887
+    },
+    "footway": {
+     "m": 1447.414407885729,
+     "maxspeed": 0,
+     "lanes": 0,
+     "cycleway": 0,
+     "shoulder": 0,
+     "surface": 951.3535112203856,
+     "traffic_class": 0
+    }
+   },
+   "trace_check": null,
+   "transient": false
+  },
+  {
+   "point": "boulder-downtown",
+   "category": "urban",
+   "distance_mi": 75,
+   "surface": "road",
+   "variant": "tribos-road-0",
+   "levels": [
+    1,
+    2
+   ],
+   "bearing_deg": 135,
+   "ok": true,
+   "error": null,
+   "actual_mi": 74.6,
+   "attempts": 2,
+   "tag_source": "engine",
+   "trace_calls": 0,
+   "latency_ms": 6569,
+   "coverage": {
+    "service": {
+     "m": 471.54241998280884,
+     "maxspeed": 0,
+     "lanes": 0,
+     "cycleway": 0,
+     "shoulder": 0,
+     "surface": 0,
+     "traffic_class": 0
+    },
+    "cycleway": {
+     "m": 53259.95271451038,
+     "maxspeed": 0,
+     "lanes": 1573.850399986994,
+     "cycleway": 756.8982242033942,
+     "shoulder": 0,
+     "surface": 52108.294309847275,
+     "traffic_class": 0
+    },
+    "path": {
+     "m": 1285.9906764265504,
+     "maxspeed": 0,
+     "lanes": 0,
+     "cycleway": 0,
+     "shoulder": 0,
+     "surface": 1285.9906764265504,
+     "traffic_class": 0
+    },
+    "footway": {
+     "m": 2963.0932004506967,
+     "maxspeed": 0,
+     "lanes": 0,
+     "cycleway": 0,
+     "shoulder": 0,
+     "surface": 1966.4589861296083,
+     "traffic_class": 0
+    },
+    "residential": {
+     "m": 17137.029011691804,
+     "maxspeed": 12916.388028224625,
+     "lanes": 3206.940132735283,
+     "cycleway": 2269.839105803081,
+     "shoulder": 0,
+     "surface": 7041.424392879611,
+     "traffic_class": 0
+    },
+    "tertiary": {
+     "m": 22453.846783251956,
+     "maxspeed": 12516.137263890301,
+     "lanes": 17112.268844129478,
+     "cycleway": 16563.83394713731,
+     "shoulder": 0,
+     "surface": 19612.101714986988,
+     "traffic_class": 22453.846783251956
+    },
+    "secondary": {
+     "m": 13411.315549479492,
+     "maxspeed": 12063.000554836286,
+     "lanes": 13411.315549479492,
+     "cycleway": 10917.374829869095,
+     "shoulder": 0,
+     "surface": 12624.791631975088,
+     "traffic_class": 13411.315549479492
+    },
+    "unclassified": {
+     "m": 2321.3104893047644,
+     "maxspeed": 1049.878381246367,
+     "lanes": 2199.704294207621,
+     "cycleway": 2031.7427953282186,
+     "shoulder": 0,
+     "surface": 1637.563674149882,
+     "traffic_class": 0
+    },
+    "tertiary_link": {
+     "m": 153.37548888117828,
+     "maxspeed": 0,
+     "lanes": 153.37548888117828,
+     "cycleway": 0,
+     "shoulder": 0,
+     "surface": 0,
+     "traffic_class": 0
+    },
+    "primary": {
+     "m": 3083.1553734659556,
+     "maxspeed": 3083.1553734659556,
+     "lanes": 3083.1553734659556,
+     "cycleway": 0,
+     "shoulder": 0,
+     "surface": 3083.1553734659556,
+     "traffic_class": 3083.1553734659556
+    }
+   },
+   "trace_check": null,
+   "transient": false
+  },
+  {
+   "point": "boulder-downtown",
+   "category": "urban",
+   "distance_mi": 75,
+   "surface": "road",
+   "variant": "tribos-road-1",
+   "levels": [
+    3
+   ],
+   "bearing_deg": 135,
+   "ok": true,
+   "error": null,
+   "actual_mi": 75.3,
+   "attempts": 2,
+   "tag_source": "engine",
+   "trace_calls": 0,
+   "latency_ms": 6048,
+   "coverage": {
+    "service": {
+     "m": 1794.379841790303,
+     "maxspeed": 438.21486770133686,
+     "lanes": 121.8630582620492,
+     "cycleway": 0,
+     "shoulder": 0,
+     "surface": 121.8630582620492,
+     "traffic_class": 0
+    },
+    "cycleway": {
+     "m": 53393.08273390895,
+     "maxspeed": 0,
+     "lanes": 1566.2408681719828,
+     "cycleway": 786.7016059866745,
+     "shoulder": 0,
+     "surface": 52353.40350586121,
+     "traffic_class": 0
+    },
+    "path": {
+     "m": 1418.4543631758254,
+     "maxspeed": 0,
+     "lanes": 0,
+     "cycleway": 0,
+     "shoulder": 0,
+     "surface": 1418.4543631758254,
+     "traffic_class": 0
+    },
+    "footway": {
+     "m": 1610.089512871796,
+     "maxspeed": 0,
+     "lanes": 0,
+     "cycleway": 0,
+     "shoulder": 0,
+     "surface": 1092.6921242757833,
+     "traffic_class": 0
+    },
+    "residential": {
+     "m": 13408.783398320391,
+     "maxspeed": 10783.70577968307,
+     "lanes": 1654.5056858443902,
+     "cycleway": 1299.0550212632738,
+     "shoulder": 0,
+     "surface": 5547.268845463116,
+     "traffic_class": 0
+    },
+    "tertiary": {
+     "m": 25699.84954607375,
+     "maxspeed": 16185.842260835663,
+     "lanes": 20761.47927386863,
+     "cycleway": 18753.01366754614,
+     "shoulder": 0,
+     "surface": 21684.671902477272,
+     "traffic_class": 25699.84954607375
+    },
+    "secondary": {
+     "m": 13339.562933652775,
+     "maxspeed": 12085.81326227489,
+     "lanes": 13339.562933652775,
+     "cycleway": 11150.88760641843,
+     "shoulder": 0,
+     "surface": 12555.230054148486,
+     "traffic_class": 13339.562933652775
+    },
+    "unclassified": {
+     "m": 1950.9966495179244,
+     "maxspeed": 822.8752520371975,
+     "lanes": 1590.123529194835,
+     "cycleway": 1443.412562555077,
+     "shoulder": 0,
+     "surface": 1599.1294480867018,
+     "traffic_class": 0
+    },
+    "tertiary_link": {
+     "m": 153.37548888117828,
+     "maxspeed": 0,
+     "lanes": 153.37548888117828,
+     "cycleway": 0,
+     "shoulder": 0,
+     "surface": 0,
+     "traffic_class": 0
+    },
+    "primary": {
+     "m": 5660.29754345893,
+     "maxspeed": 5660.29754345893,
+     "lanes": 5660.29754345893,
+     "cycleway": 0,
+     "shoulder": 0,
+     "surface": 5660.29754345893,
+     "traffic_class": 5660.29754345893
+    }
+   },
+   "trace_check": null,
+   "transient": false
+  },
+  {
+   "point": "boulder-downtown",
+   "category": "urban",
+   "distance_mi": 75,
+   "surface": "road",
+   "variant": "tribos-road-2",
+   "levels": [
+    4,
+    5
+   ],
+   "bearing_deg": 135,
+   "ok": true,
+   "error": null,
+   "actual_mi": 66.7,
+   "attempts": 3,
+   "tag_source": "engine",
+   "trace_calls": 0,
+   "latency_ms": 11392,
+   "coverage": {
+    "service": {
+     "m": 355.76452453366414,
+     "maxspeed": 0,
+     "lanes": 0,
+     "cycleway": 0,
+     "shoulder": 0,
+     "surface": 0,
+     "traffic_class": 0
+    },
+    "cycleway": {
+     "m": 31633.880437361622,
+     "maxspeed": 0,
+     "lanes": 1478.7825540934998,
+     "cycleway": 920.2756335446704,
+     "shoulder": 0,
+     "surface": 30698.253011738758,
+     "traffic_class": 0
+    },
+    "footway": {
+     "m": 1206.9875863562156,
+     "maxspeed": 0,
+     "lanes": 0,
+     "cycleway": 41.81667613252925,
+     "shoulder": 0,
+     "surface": 791.363022926264,
+     "traffic_class": 0
+    },
+    "secondary": {
+     "m": 27901.99324117013,
+     "maxspeed": 25878.34720167691,
+     "lanes": 27901.99324117013,
+     "cycleway": 20303.33995120325,
+     "shoulder": 0,
+     "surface": 24696.06865880883,
+     "traffic_class": 27901.99324117013
+    },
+    "residential": {
+     "m": 11150.80278989517,
+     "maxspeed": 8471.743106143094,
+     "lanes": 2187.1947226156058,
+     "cycleway": 2332.8153516710336,
+     "shoulder": 0,
+     "surface": 4948.600398587511,
+     "traffic_class": 0
+    },
+    "tertiary": {
+     "m": 17320.324033189932,
+     "maxspeed": 9870.62338229225,
+     "lanes": 15196.530437503232,
+     "cycleway": 14543.89705426825,
+     "shoulder": 0,
+     "surface": 14874.523152031434,
+     "traffic_class": 17320.324033189932
+    },
+    "unclassified": {
+     "m": 1780.9750330926993,
+     "maxspeed": 685.75962674298,
+     "lanes": 1365.754980373085,
+     "cycleway": 1365.754980373085,
+     "shoulder": 0,
+     "surface": 1169.4063712748161,
+     "traffic_class": 0
+    },
+    "track": {
+     "m": 197.42157696042148,
+     "maxspeed": 0,
+     "lanes": 0,
+     "cycleway": 0,
+     "shoulder": 0,
+     "surface": 197.42157696042148,
+     "traffic_class": 0
+    },
+    "primary": {
+     "m": 12271.426685317654,
+     "maxspeed": 11554.275981389153,
+     "lanes": 12271.426685317654,
+     "cycleway": 5501.816514401247,
+     "shoulder": 0,
+     "surface": 12271.426685317654,
+     "traffic_class": 11968.784347661931
+    },
+    "path": {
+     "m": 1833.1670054508918,
+     "maxspeed": 0,
+     "lanes": 0,
+     "cycleway": 0,
+     "shoulder": 0,
+     "surface": 572.6599991123006,
+     "traffic_class": 0
+    },
+    "primary_link": {
+     "m": 534.6095528376795,
+     "maxspeed": 0,
+     "lanes": 534.6095528376795,
+     "cycleway": 0,
+     "shoulder": 0,
+     "surface": 534.6095528376795,
+     "traffic_class": 534.6095528376795
+    }
+   },
+   "trace_check": null,
+   "transient": false
+  },
+  {
+   "point": "denver-wash-park",
+   "category": "urban",
+   "distance_mi": 15,
+   "surface": "road",
+   "variant": "tribos-road-0",
+   "levels": [
+    1,
+    2
+   ],
+   "bearing_deg": 180,
+   "ok": true,
+   "error": null,
+   "actual_mi": 15.2,
+   "attempts": 2,
+   "tag_source": "engine",
+   "trace_calls": 0,
+   "latency_ms": 2489,
+   "coverage": {
+    "path": {
+     "m": 829.9292824841774,
+     "maxspeed": 0,
+     "lanes": 0,
+     "cycleway": 0,
+     "shoulder": 0,
+     "surface": 672.2197611611372,
+     "traffic_class": 0
+    },
+    "footway": {
+     "m": 221.11217328677603,
+     "maxspeed": 0,
+     "lanes": 0,
+     "cycleway": 0,
+     "shoulder": 0,
+     "surface": 39.18797196870438,
+     "traffic_class": 0
+    },
+    "cycleway": {
+     "m": 4717.649302905625,
+     "maxspeed": 0,
+     "lanes": 0,
+     "cycleway": 12.935444573990218,
+     "shoulder": 0,
+     "surface": 3977.26329246397,
+     "traffic_class": 0
+    },
+    "residential": {
+     "m": 9338.751055158016,
+     "maxspeed": 600.2314385927393,
+     "lanes": 885.3878942190511,
+     "cycleway": 211.58466118753466,
+     "shoulder": 0,
+     "surface": 7885.321707761168,
+     "traffic_class": 0
+    },
+    "tertiary": {
+     "m": 5897.4018763249305,
+     "maxspeed": 3371.9441093571695,
+     "lanes": 5897.4018763249305,
+     "cycleway": 4472.710113936268,
+     "shoulder": 1149.308024428262,
+     "surface": 5897.4018763249305,
+     "traffic_class": 5897.4018763249305
+    },
+    "service": {
+     "m": 2045.8335404958182,
+     "maxspeed": 0,
+     "lanes": 0,
+     "cycleway": 0,
+     "shoulder": 0,
+     "surface": 251.63958229840875,
+     "traffic_class": 0
+    },
+    "secondary": {
+     "m": 1264.8996296553369,
+     "maxspeed": 353.22974340906046,
+     "lanes": 1099.4828280987062,
+     "cycleway": 187.81294185243007,
+     "shoulder": 0,
+     "surface": 1254.2019046839541,
+     "traffic_class": 1264.8996296553369
+    },
+    "unclassified": {
+     "m": 31.41519704164814,
+     "maxspeed": 0,
+     "lanes": 31.41519704164814,
+     "cycleway": 31.41519704164814,
+     "shoulder": 0,
+     "surface": 31.41519704164814,
+     "traffic_class": 0
+    },
+    "primary": {
+     "m": 73.80215850883074,
+     "maxspeed": 73.80215850883074,
+     "lanes": 73.80215850883074,
+     "cycleway": 0,
+     "shoulder": 0,
+     "surface": 73.80215850883074,
+     "traffic_class": 73.80215850883074
+    }
+   },
+   "trace_check": null,
+   "transient": false
+  },
+  {
+   "point": "denver-wash-park",
+   "category": "urban",
+   "distance_mi": 15,
+   "surface": "road",
+   "variant": "tribos-road-1",
+   "levels": [
+    3
+   ],
+   "bearing_deg": 180,
+   "ok": true,
+   "error": null,
+   "actual_mi": 14.4,
+   "attempts": 2,
+   "tag_source": "engine",
+   "trace_calls": 0,
+   "latency_ms": 2509,
+   "coverage": {
+    "path": {
+     "m": 1014.074111616368,
+     "maxspeed": 0,
+     "lanes": 0,
+     "cycleway": 0,
+     "shoulder": 0,
+     "surface": 1014.074111616368,
+     "traffic_class": 0
+    },
+    "footway": {
+     "m": 212.2990971550193,
+     "maxspeed": 0,
+     "lanes": 0,
+     "cycleway": 0,
+     "shoulder": 0,
+     "surface": 66.56841144808027,
+     "traffic_class": 0
+    },
+    "cycleway": {
+     "m": 5501.480758740499,
+     "maxspeed": 0,
+     "lanes": 0,
+     "cycleway": 24.55164640119951,
+     "shoulder": 0,
+     "surface": 4991.447565866562,
+     "traffic_class": 0
+    },
+    "tertiary": {
+     "m": 7157.388610579248,
+     "maxspeed": 4304.341432173133,
+     "lanes": 6773.431504563865,
+     "cycleway": 1711.5170007722477,
+     "shoulder": 0,
+     "surface": 7157.388610579248,
+     "traffic_class": 7157.388610579248
+    },
+    "secondary": {
+     "m": 1940.6754512959046,
+     "maxspeed": 818.4752512666691,
+     "lanes": 1885.951239110093,
+     "cycleway": 247.50683535153445,
+     "shoulder": 0,
+     "surface": 1546.5741326152229,
+     "traffic_class": 1940.6754512959046
+    },
+    "residential": {
+     "m": 6471.549599909605,
+     "maxspeed": 788.9663832089866,
+     "lanes": 645.2264348725554,
+     "cycleway": 0,
+     "shoulder": 0,
+     "surface": 5674.634428095169,
+     "traffic_class": 0
+    },
+    "service": {
+     "m": 706.6976552900159,
+     "maxspeed": 0,
+     "lanes": 0,
+     "cycleway": 0,
+     "shoulder": 0,
+     "surface": 454.28625420093454,
+     "traffic_class": 0
+    },
+    "unclassified": {
+     "m": 31.41519704164814,
+     "maxspeed": 0,
+     "lanes": 31.41519704164814,
+     "cycleway": 31.41519704164814,
+     "shoulder": 0,
+     "surface": 31.41519704164814,
+     "traffic_class": 0
+    }
+   },
+   "trace_check": null,
+   "transient": false
+  },
+  {
+   "point": "denver-wash-park",
+   "category": "urban",
+   "distance_mi": 15,
+   "surface": "road",
+   "variant": "tribos-road-2",
+   "levels": [
+    4,
+    5
+   ],
+   "bearing_deg": 180,
+   "ok": true,
+   "error": null,
+   "actual_mi": 14.7,
+   "attempts": 2,
+   "tag_source": "engine",
+   "trace_calls": 0,
+   "latency_ms": 2785,
+   "coverage": {
+    "path": {
+     "m": 120.63949937219003,
+     "maxspeed": 0,
+     "lanes": 0,
+     "cycleway": 0,
+     "shoulder": 0,
+     "surface": 120.63949937219003,
+     "traffic_class": 0
+    },
+    "footway": {
+     "m": 160.54890957362613,
+     "maxspeed": 0,
+     "lanes": 0,
+     "cycleway": 0,
+     "shoulder": 0,
+     "surface": 39.18797196870438,
+     "traffic_class": 0
+    },
+    "cycleway": {
+     "m": 4281.795913739276,
+     "maxspeed": 0,
+     "lanes": 0,
+     "cycleway": 24.55164640119951,
+     "shoulder": 0,
+     "surface": 3771.7627208653353,
+     "traffic_class": 0
+    },
+    "tertiary": {
+     "m": 10604.16609163672,
+     "maxspeed": 4225.177130817227,
+     "lanes": 10220.208985621339,
+     "cycleway": 3192.5375008857404,
+     "shoulder": 0,
+     "surface": 9823.168751993682,
+     "traffic_class": 10604.16609163672
+    },
+    "service": {
+     "m": 1056.777022987583,
+     "maxspeed": 0,
+     "lanes": 0,
+     "cycleway": 0,
+     "shoulder": 0,
+     "surface": 0,
+     "traffic_class": 0
+    },
+    "residential": {
+     "m": 5015.843214341682,
+     "maxspeed": 788.9663832089866,
+     "lanes": 377.04089419191496,
+     "cycleway": 0,
+     "shoulder": 0,
+     "surface": 4053.7313085840537,
+     "traffic_class": 0
+    },
+    "secondary": {
+     "m": 2294.5494169912586,
+     "maxspeed": 921.3979052444174,
+     "lanes": 2024.199653352624,
+     "cycleway": 0,
+     "shoulder": 0,
+     "surface": 1900.4480983105768,
+     "traffic_class": 2294.5494169912586
+    },
+    "primary": {
+     "m": 73.80215850883074,
+     "maxspeed": 73.80215850883074,
+     "lanes": 73.80215850883074,
+     "cycleway": 0,
+     "shoulder": 0,
+     "surface": 73.80215850883074,
+     "traffic_class": 73.80215850883074
+    }
+   },
+   "trace_check": null,
+   "transient": false
+  },
+  {
+   "point": "denver-wash-park",
+   "category": "urban",
+   "distance_mi": 30,
+   "surface": "road",
+   "variant": "tribos-road-0",
+   "levels": [
+    1,
+    2
+   ],
+   "bearing_deg": 45,
+   "ok": true,
+   "error": null,
+   "actual_mi": 27.2,
+   "attempts": 2,
+   "tag_source": "engine",
+   "trace_calls": 0,
+   "latency_ms": 3275,
+   "coverage": {
+    "path": {
+     "m": 555.0367520292892,
+     "maxspeed": 0,
+     "lanes": 0,
+     "cycleway": 0,
+     "shoulder": 0,
+     "surface": 165.5320396056305,
+     "traffic_class": 0
+    },
+    "residential": {
+     "m": 14403.346110771448,
+     "maxspeed": 5726.9937342700805,
+     "lanes": 8105.024926634249,
+     "cycleway": 8515.915426674552,
+     "shoulder": 0,
+     "surface": 14403.346110771448,
+     "traffic_class": 0
+    },
+    "tertiary": {
+     "m": 9172.843907916942,
+     "maxspeed": 3882.9203935434653,
+     "lanes": 8848.695391206236,
+     "cycleway": 3461.806415692874,
+     "shoulder": 595.4312491269853,
+     "surface": 7466.066648902305,
+     "traffic_class": 9172.843907916942
+    },
+    "service": {
+     "m": 543.1839683405083,
+     "maxspeed": 0,
+     "lanes": 0,
+     "cycleway": 0,
+     "shoulder": 0,
+     "surface": 195.3026399166071,
+     "traffic_class": 0
+    },
+    "cycleway": {
+     "m": 14630.035313645274,
+     "maxspeed": 0,
+     "lanes": 102.85800958982706,
+     "cycleway": 1140.6317502074226,
+     "shoulder": 2832.330137616679,
+     "surface": 13455.077646763708,
+     "traffic_class": 0
+    },
+    "footway": {
+     "m": 1231.900547256791,
+     "maxspeed": 0,
+     "lanes": 0,
+     "cycleway": 0,
+     "shoulder": 0,
+     "surface": 1097.8336748874478,
+     "traffic_class": 0
+    },
+    "unclassified": {
+     "m": 207.32959174076697,
+     "maxspeed": 0,
+     "lanes": 78.78855496728687,
+     "cycleway": 39.535041452049,
+     "shoulder": 0,
+     "surface": 207.32959174076697,
+     "traffic_class": 0
+    },
+    "secondary": {
+     "m": 2800.1641357136673,
+     "maxspeed": 944.7271419993574,
+     "lanes": 2691.5453665175287,
+     "cycleway": 1039.8578616441716,
+     "shoulder": 0,
+     "surface": 2800.1641357136673,
+     "traffic_class": 2800.1641357136673
+    },
+    "primary": {
+     "m": 60.73968676924397,
+     "maxspeed": 0,
+     "lanes": 60.73968676924397,
+     "cycleway": 0,
+     "shoulder": 0,
+     "surface": 60.73968676924397,
+     "traffic_class": 60.73968676924397
+    }
+   },
+   "trace_check": null,
+   "transient": false
+  },
+  {
+   "point": "denver-wash-park",
+   "category": "urban",
+   "distance_mi": 30,
+   "surface": "road",
+   "variant": "tribos-road-1",
+   "levels": [
+    3
+   ],
+   "bearing_deg": 45,
+   "ok": true,
+   "error": null,
+   "actual_mi": 31.6,
+   "attempts": 1,
+   "tag_source": "engine",
+   "trace_calls": 0,
+   "latency_ms": 1394,
+   "coverage": {
+    "path": {
+     "m": 318.1455951807689,
+     "maxspeed": 0,
+     "lanes": 0,
+     "cycleway": 0,
+     "shoulder": 0,
+     "surface": 174.9674779554579,
+     "traffic_class": 0
+    },
+    "residential": {
+     "m": 12433.19963881868,
+     "maxspeed": 7762.591056173482,
+     "lanes": 5939.889856530972,
+     "cycleway": 4895.303347376043,
+     "shoulder": 0,
+     "surface": 12433.19963881868,
+     "traffic_class": 0
+    },
+    "tertiary": {
+     "m": 13939.76492425706,
+     "maxspeed": 7919.791773495328,
+     "lanes": 13515.561943521678,
+     "cycleway": 6638.994809212041,
+     "shoulder": 749.5406710408189,
+     "surface": 12217.73829598541,
+     "traffic_class": 13939.76492425706
+    },
+    "footway": {
+     "m": 149.10540146467088,
+     "maxspeed": 0,
+     "lanes": 0,
+     "cycleway": 0,
+     "shoulder": 0,
+     "surface": 29.605856271318686,
+     "traffic_class": 0
+    },
+    "cycleway": {
+     "m": 19210.03930743054,
+     "maxspeed": 0,
+     "lanes": 143.5568402946656,
+     "cycleway": 933.1512885359448,
+     "shoulder": 1406.5114725399683,
+     "surface": 17989.508933381392,
+     "traffic_class": 0
+    },
+    "unclassified": {
+     "m": 864.2119419270475,
+     "maxspeed": 117.65013564394499,
+     "lanes": 864.2119419270475,
+     "cycleway": 34.06489713035757,
+     "shoulder": 0,
+     "surface": 864.2119419270475,
+     "traffic_class": 0
+    },
+    "tertiary_link": {
+     "m": 35.127590399945674,
+     "maxspeed": 0,
+     "lanes": 35.127590399945674,
+     "cycleway": 0,
+     "shoulder": 0,
+     "surface": 35.127590399945674,
+     "traffic_class": 0
+    },
+    "service": {
+     "m": 257.17083205026825,
+     "maxspeed": 0,
+     "lanes": 0,
+     "cycleway": 0,
+     "shoulder": 0,
+     "surface": 0,
+     "traffic_class": 0
+    },
+    "secondary": {
+     "m": 3279.1459477708186,
+     "maxspeed": 0,
+     "lanes": 3279.1459477708186,
+     "cycleway": 29.299540018330504,
+     "shoulder": 0,
+     "surface": 2541.8371293626824,
+     "traffic_class": 3279.1459477708186
+    },
+    "primary": {
+     "m": 142.04795286920606,
+     "maxspeed": 101.01008990306347,
+     "lanes": 142.04795286920606,
+     "cycleway": 0,
+     "shoulder": 0,
+     "surface": 142.04795286920606,
+     "traffic_class": 142.04795286920606
+    }
+   },
+   "trace_check": null,
+   "transient": false
+  },
+  {
+   "point": "denver-wash-park",
+   "category": "urban",
+   "distance_mi": 30,
+   "surface": "road",
+   "variant": "tribos-road-2",
+   "levels": [
+    4,
+    5
+   ],
+   "bearing_deg": 45,
+   "ok": true,
+   "error": null,
+   "actual_mi": 31.4,
+   "attempts": 1,
+   "tag_source": "engine",
+   "trace_calls": 0,
+   "latency_ms": 947,
+   "coverage": {
+    "path": {
+     "m": 295.5033306868963,
+     "maxspeed": 0,
+     "lanes": 0,
+     "cycleway": 0,
+     "shoulder": 0,
+     "surface": 152.3252134615853,
+     "traffic_class": 0
+    },
+    "residential": {
+     "m": 11142.574932637239,
+     "maxspeed": 7954.927581456288,
+     "lanes": 5509.26964242401,
+     "cycleway": 4737.2641045970395,
+     "shoulder": 0,
+     "surface": 11142.574932637239,
+     "traffic_class": 0
+    },
+    "tertiary": {
+     "m": 15357.415399650692,
+     "maxspeed": 8464.532676790028,
+     "lanes": 14643.620495257006,
+     "cycleway": 7567.409598095295,
+     "shoulder": 671.3392399222591,
+     "surface": 13738.276180452985,
+     "traffic_class": 15357.415399650692
+    },
+    "footway": {
+     "m": 118.52969976415535,
+     "maxspeed": 0,
+     "lanes": 0,
+     "cycleway": 0,
+     "shoulder": 0,
+     "surface": 29.605856271318686,
+     "traffic_class": 0
+    },
+    "cycleway": {
+     "m": 18301.955479233522,
+     "maxspeed": 0,
+     "lanes": 202.19720428889497,
+     "cycleway": 740.2857904383616,
+     "shoulder": 1417.7139692738817,
+     "surface": 17126.59418081251,
+     "traffic_class": 0
+    },
+    "unclassified": {
+     "m": 961.6414178117429,
+     "maxspeed": 117.65013564394499,
+     "lanes": 961.6414178117429,
+     "cycleway": 131.4943730150529,
+     "shoulder": 0,
+     "surface": 961.6414178117429,
+     "traffic_class": 0
+    },
+    "tertiary_link": {
+     "m": 35.127590399945674,
+     "maxspeed": 0,
+     "lanes": 35.127590399945674,
+     "cycleway": 0,
+     "shoulder": 0,
+     "surface": 35.127590399945674,
+     "traffic_class": 0
+    },
+    "service": {
+     "m": 408.47237906031,
+     "maxspeed": 0,
+     "lanes": 0,
+     "cycleway": 0,
+     "shoulder": 0,
+     "surface": 151.30154701004176,
+     "traffic_class": 0
+    },
+    "secondary": {
+     "m": 3638.5768428830424,
+     "maxspeed": 0,
+     "lanes": 3638.5768428830424,
+     "cycleway": 388.7304351305543,
+     "shoulder": 0,
+     "surface": 2663.5476621449347,
+     "traffic_class": 3638.5768428830424
+    },
+    "primary": {
+     "m": 109.98471139249327,
+     "maxspeed": 72.09008990271592,
+     "lanes": 109.98471139249327,
+     "cycleway": 0,
+     "shoulder": 0,
+     "surface": 109.98471139249327,
+     "traffic_class": 109.98471139249327
+    }
+   },
+   "trace_check": null,
+   "transient": false
+  },
+  {
+   "point": "denver-wash-park",
+   "category": "urban",
+   "distance_mi": 50,
+   "surface": "road",
+   "variant": "tribos-road-0",
+   "levels": [
+    1,
+    2
+   ],
+   "bearing_deg": 315,
+   "ok": true,
+   "error": null,
+   "actual_mi": 45.3,
+   "attempts": 2,
+   "tag_source": "engine",
+   "trace_calls": 0,
+   "latency_ms": 4060,
+   "coverage": {
+    "path": {
+     "m": 1862.2488017966632,
+     "maxspeed": 0,
+     "lanes": 0,
+     "cycleway": 0,
+     "shoulder": 0,
+     "surface": 1202.812272488312,
+     "traffic_class": 0
+    },
+    "cycleway": {
+     "m": 32193.381995837855,
+     "maxspeed": 480.546825426383,
+     "lanes": 0,
+     "cycleway": 954.8763932890419,
+     "shoulder": 0,
+     "surface": 31422.592883387635,
+     "traffic_class": 0
+    },
+    "footway": {
+     "m": 714.7752531228932,
+     "maxspeed": 0,
+     "lanes": 0,
+     "cycleway": 0,
+     "shoulder": 0,
+     "surface": 479.1007213546177,
+     "traffic_class": 0
+    },
+    "residential": {
+     "m": 21092.612511058163,
+     "maxspeed": 9995.386492079639,
+     "lanes": 6725.494974268963,
+     "cycleway": 8457.209748813968,
+     "shoulder": 0,
+     "surface": 19241.510520974094,
+     "traffic_class": 0
+    },
+    "secondary": {
+     "m": 5444.953065902608,
+     "maxspeed": 4243.433360058497,
+     "lanes": 5444.953065902608,
+     "cycleway": 4778.192528832051,
+     "shoulder": 0,
+     "surface": 5259.142328760571,
+     "traffic_class": 5444.953065902608
+    },
+    "tertiary": {
+     "m": 8648.091505663171,
+     "maxspeed": 7358.206747044896,
+     "lanes": 8595.242107264155,
+     "cycleway": 6170.485232481673,
+     "shoulder": 0,
+     "surface": 8595.242107264155,
+     "traffic_class": 8440.371652930084
+    },
+    "unclassified": {
+     "m": 1743.0228309638542,
+     "maxspeed": 1544.586318709672,
+     "lanes": 1743.0228309638542,
+     "cycleway": 55.18787801475654,
+     "shoulder": 0,
+     "surface": 1743.0228309638542,
+     "traffic_class": 0
+    },
+    "service": {
+     "m": 426.50728818694296,
+     "maxspeed": 0,
+     "lanes": 0,
+     "cycleway": 0,
+     "shoulder": 0,
+     "surface": 0,
+     "traffic_class": 0
+    }
+   },
+   "trace_check": null,
+   "transient": false
+  },
+  {
+   "point": "denver-wash-park",
+   "category": "urban",
+   "distance_mi": 50,
+   "surface": "road",
+   "variant": "tribos-road-1",
+   "levels": [
+    3
+   ],
+   "bearing_deg": 315,
+   "ok": true,
+   "error": null,
+   "actual_mi": 53.7,
+   "attempts": 3,
+   "tag_source": "engine",
+   "trace_calls": 0,
+   "latency_ms": 7141,
+   "coverage": {
+    "path": {
+     "m": 1614.9144701154887,
+     "maxspeed": 0,
+     "lanes": 0,
+     "cycleway": 0,
+     "shoulder": 0,
+     "surface": 1095.3261547457096,
+     "traffic_class": 0
+    },
+    "cycleway": {
+     "m": 41992.63297558196,
+     "maxspeed": 524.9467718933275,
+     "lanes": 0,
+     "cycleway": 718.600678831392,
+     "shoulder": 0,
+     "surface": 41289.080075930506,
+     "traffic_class": 0
+    },
+    "steps": {
+     "m": 157.59617110084568,
+     "maxspeed": 0,
+     "lanes": 0,
+     "cycleway": 0,
+     "shoulder": 0,
+     "surface": 0,
+     "traffic_class": 0
+    },
+    "residential": {
+     "m": 13923.457453303523,
+     "maxspeed": 7253.018942338843,
+     "lanes": 4352.082227587358,
+     "cycleway": 7654.958284156982,
+     "shoulder": 0,
+     "surface": 12238.892619650778,
+     "traffic_class": 0
+    },
+    "secondary": {
+     "m": 8731.167615858196,
+     "maxspeed": 7077.220100323284,
+     "lanes": 8731.167615858196,
+     "cycleway": 5549.368910637729,
+     "shoulder": 0,
+     "surface": 8018.613329483551,
+     "traffic_class": 8731.167615858196
+    },
+    "footway": {
+     "m": 1002.3155620411131,
+     "maxspeed": 0,
+     "lanes": 0,
+     "cycleway": 0,
+     "shoulder": 0,
+     "surface": 521.8173848255568,
+     "traffic_class": 0
+    },
+    "tertiary": {
+     "m": 14910.791980640197,
+     "maxspeed": 7952.510914173289,
+     "lanes": 12813.013989868543,
+     "cycleway": 13539.207754629286,
+     "shoulder": 0,
+     "surface": 13759.37860672904,
+     "traffic_class": 14910.791980640197
+    },
+    "unclassified": {
+     "m": 2112.447879091342,
+     "maxspeed": 67.60746465382051,
+     "lanes": 375.5820213629349,
+     "cycleway": 67.60746465382051,
+     "shoulder": 0,
+     "surface": 2112.447879091342,
+     "traffic_class": 0
+    },
+    "service": {
+     "m": 895.9884382241784,
+     "maxspeed": 0,
+     "lanes": 0,
+     "cycleway": 0,
+     "shoulder": 0,
+     "surface": 423.7887590526118,
+     "traffic_class": 0
+    }
+   },
+   "trace_check": null,
+   "transient": false
+  },
+  {
+   "point": "denver-wash-park",
+   "category": "urban",
+   "distance_mi": 50,
+   "surface": "road",
+   "variant": "tribos-road-2",
+   "levels": [
+    4,
+    5
+   ],
+   "bearing_deg": 315,
+   "ok": true,
+   "error": null,
+   "actual_mi": 44.1,
+   "attempts": 3,
+   "tag_source": "engine",
+   "trace_calls": 0,
+   "latency_ms": 8848,
+   "coverage": {
+    "path": {
+     "m": 1231.3645879353983,
+     "maxspeed": 0,
+     "lanes": 0,
+     "cycleway": 0,
+     "shoulder": 0,
+     "surface": 804.3904646112774,
+     "traffic_class": 0
+    },
+    "cycleway": {
+     "m": 28659.888855088862,
+     "maxspeed": 480.546825426383,
+     "lanes": 0,
+     "cycleway": 296.4880155453741,
+     "shoulder": 0,
+     "surface": 27675.558639316183,
+     "traffic_class": 0
+    },
+    "footway": {
+     "m": 611.5570805274369,
+     "maxspeed": 0,
+     "lanes": 0,
+     "cycleway": 0,
+     "shoulder": 0,
+     "surface": 528.9538532645804,
+     "traffic_class": 0
+    },
+    "residential": {
+     "m": 14148.045350569893,
+     "maxspeed": 8060.027106355834,
+     "lanes": 3795.2352437265185,
+     "cycleway": 5379.079250856489,
+     "shoulder": 0,
+     "surface": 12294.341348724825,
+     "traffic_class": 0
+    },
+    "secondary": {
+     "m": 13646.553872395725,
+     "maxspeed": 8909.73653172715,
+     "lanes": 13133.88819872217,
+     "cycleway": 8058.191556517528,
+     "shoulder": 0,
+     "surface": 10456.814687888342,
+     "traffic_class": 13646.553872395725
+    },
+    "tertiary": {
+     "m": 10651.814364017559,
+     "maxspeed": 7557.97014139973,
+     "lanes": 9438.481753704147,
+     "cycleway": 10112.093120243564,
+     "shoulder": 0,
+     "surface": 9772.661598133462,
+     "traffic_class": 10651.814364017559
+    },
+    "unclassified": {
+     "m": 1051.1581168289208,
+     "maxspeed": 889.8272370415622,
+     "lanes": 1051.1581168289208,
+     "cycleway": 55.18787801475654,
+     "shoulder": 0,
+     "surface": 1051.1581168289208,
+     "traffic_class": 0
+    },
+    "secondary_link": {
+     "m": 111.57668927669452,
+     "maxspeed": 0,
+     "lanes": 0,
+     "cycleway": 0,
+     "shoulder": 0,
+     "surface": 111.57668927669452,
+     "traffic_class": 111.57668927669452
+    },
+    "service": {
+     "m": 91.45248743711574,
+     "maxspeed": 0,
+     "lanes": 0,
+     "cycleway": 0,
+     "shoulder": 0,
+     "surface": 0,
+     "traffic_class": 0
+    }
+   },
+   "trace_check": null,
+   "transient": false
+  },
+  {
+   "point": "denver-wash-park",
+   "category": "urban",
+   "distance_mi": 75,
+   "surface": "road",
+   "variant": "tribos-road-0",
+   "levels": [
+    1,
+    2
+   ],
+   "bearing_deg": 270,
+   "ok": true,
+   "error": null,
+   "actual_mi": 79.9,
+   "attempts": 2,
+   "tag_source": "engine",
+   "trace_calls": 0,
+   "latency_ms": 3387,
+   "coverage": {
+    "path": {
+     "m": 2572.5221372858937,
+     "maxspeed": 0,
+     "lanes": 0,
+     "cycleway": 0,
+     "shoulder": 0,
+     "surface": 2280.3116445262913,
+     "traffic_class": 0
+    },
+    "footway": {
+     "m": 4414.7962425398755,
+     "maxspeed": 0,
+     "lanes": 0,
+     "cycleway": 243.83515854923903,
+     "shoulder": 0,
+     "surface": 3557.7669564038174,
+     "traffic_class": 0
+    },
+    "residential": {
+     "m": 28068.375088682697,
+     "maxspeed": 8419.828248678456,
+     "lanes": 10561.239553203433,
+     "cycleway": 3219.365841295201,
+     "shoulder": 0,
+     "surface": 15509.931830926926,
+     "traffic_class": 5273.886997928456
+    },
+    "secondary": {
+     "m": 8584.283188808564,
+     "maxspeed": 5657.978050672678,
+     "lanes": 8584.283188808564,
+     "cycleway": 2185.7314802695773,
+     "shoulder": 0,
+     "surface": 8584.283188808564,
+     "traffic_class": 8584.283188808564
+    },
+    "cycleway": {
+     "m": 60945.10922914716,
+     "maxspeed": 0,
+     "lanes": 0,
+     "cycleway": 992.3076520596557,
+     "shoulder": 0,
+     "surface": 58640.042286829565,
+     "traffic_class": 0
+    },
+    "tertiary": {
+     "m": 20106.37140130261,
+     "maxspeed": 9873.335219804056,
+     "lanes": 14707.970161223297,
+     "cycleway": 12488.92345850225,
+     "shoulder": 0,
+     "surface": 13518.668754281225,
+     "traffic_class": 20106.37140130261
+    },
+    "unclassified": {
+     "m": 2782.8508361643485,
+     "maxspeed": 0,
+     "lanes": 0,
+     "cycleway": 0,
+     "shoulder": 0,
+     "surface": 915.1243641162445,
+     "traffic_class": 2355.276583816014
+    },
+    "primary": {
+     "m": 557.9738944872544,
+     "maxspeed": 0,
+     "lanes": 557.9738944872544,
+     "cycleway": 557.9738944872544,
+     "shoulder": 0,
+     "surface": 557.9738944872544,
+     "traffic_class": 557.9738944872544
+    },
+    "service": {
+     "m": 70.9686656709629,
+     "maxspeed": 0,
+     "lanes": 0,
+     "cycleway": 0,
+     "shoulder": 0,
+     "surface": 0,
+     "traffic_class": 0
+    }
+   },
+   "trace_check": null,
+   "transient": false
+  },
+  {
+   "point": "denver-wash-park",
+   "category": "urban",
+   "distance_mi": 75,
+   "surface": "road",
+   "variant": "tribos-road-1",
+   "levels": [
+    3
+   ],
+   "bearing_deg": 270,
+   "ok": true,
+   "error": null,
+   "actual_mi": 75.6,
+   "attempts": 2,
+   "tag_source": "engine",
+   "trace_calls": 0,
+   "latency_ms": 3245,
+   "coverage": {
+    "path": {
+     "m": 1399.3890610516303,
+     "maxspeed": 0,
+     "lanes": 0,
+     "cycleway": 0,
+     "shoulder": 0,
+     "surface": 1118.9917112267556,
+     "traffic_class": 0
+    },
+    "footway": {
+     "m": 2076.9810448473263,
+     "maxspeed": 0,
+     "lanes": 0,
+     "cycleway": 98.88864546483629,
+     "shoulder": 0,
+     "surface": 1636.2428752563746,
+     "traffic_class": 0
+    },
+    "residential": {
+     "m": 17131.586542360685,
+     "maxspeed": 3479.176164180068,
+     "lanes": 3208.073841478017,
+     "cycleway": 3158.9414829116504,
+     "shoulder": 0,
+     "surface": 9243.327708125576,
+     "traffic_class": 0
+    },
+    "secondary": {
+     "m": 32483.960024554723,
+     "maxspeed": 27167.90489887711,
+     "lanes": 31377.30546810576,
+     "cycleway": 12845.578520655572,
+     "shoulder": 0,
+     "surface": 28141.026731075333,
+     "traffic_class": 32483.960024554723
+    },
+    "cycleway": {
+     "m": 59647.16014771061,
+     "maxspeed": 0,
+     "lanes": 0,
+     "cycleway": 691.0449703050612,
+     "shoulder": 0,
+     "surface": 57032.873314694654,
+     "traffic_class": 0
+    },
+    "unclassified": {
+     "m": 804.1997460961057,
+     "maxspeed": 0,
+     "lanes": 567.7992084307106,
+     "cycleway": 567.7992084307106,
+     "shoulder": 0,
+     "surface": 567.7992084307106,
+     "traffic_class": 0
+    },
+    "tertiary": {
+     "m": 6873.875634507614,
+     "maxspeed": 1807.0774199078226,
+     "lanes": 5505.617138324358,
+     "cycleway": 5468.452325587366,
+     "shoulder": 0,
+     "surface": 3578.078256782898,
+     "traffic_class": 6873.875634507614
+    },
+    "primary": {
+     "m": 256.79916980146595,
+     "maxspeed": 0,
+     "lanes": 256.79916980146595,
+     "cycleway": 256.79916980146595,
+     "shoulder": 0,
+     "surface": 256.79916980146595,
+     "traffic_class": 256.79916980146595
+    },
+    "service": {
+     "m": 67.01227408697986,
+     "maxspeed": 0,
+     "lanes": 0,
+     "cycleway": 0,
+     "shoulder": 0,
+     "surface": 0,
+     "traffic_class": 0
+    }
+   },
+   "trace_check": null,
+   "transient": false
+  },
+  {
+   "point": "denver-wash-park",
+   "category": "urban",
+   "distance_mi": 75,
+   "surface": "road",
+   "variant": "tribos-road-2",
+   "levels": [
+    4,
+    5
+   ],
+   "bearing_deg": 270,
+   "ok": true,
+   "error": null,
+   "actual_mi": 75.8,
+   "attempts": 2,
+   "tag_source": "engine",
+   "trace_calls": 0,
+   "latency_ms": 3631,
+   "coverage": {
+    "path": {
+     "m": 1357.0562592925637,
+     "maxspeed": 0,
+     "lanes": 0,
+     "cycleway": 0,
+     "shoulder": 0,
+     "surface": 972.7361385061082,
+     "traffic_class": 0
+    },
+    "residential": {
+     "m": 13582.300496514328,
+     "maxspeed": 2758.323693621557,
+     "lanes": 1109.1301165876496,
+     "cycleway": 1710.2932743776635,
+     "shoulder": 0,
+     "surface": 8603.34082966439,
+     "traffic_class": 0
+    },
+    "tertiary": {
+     "m": 12817.370861450532,
+     "maxspeed": 4033.2438208547114,
+     "lanes": 11150.50803053878,
+     "cycleway": 10145.076905789096,
+     "shoulder": 0,
+     "surface": 6513.593340782305,
+     "traffic_class": 12817.370861450532
+    },
+    "footway": {
+     "m": 1510.8303562250162,
+     "maxspeed": 0,
+     "lanes": 0,
+     "cycleway": 85.43412434509433,
+     "shoulder": 0,
+     "surface": 1165.1657317536133,
+     "traffic_class": 0
+    },
+    "cycleway": {
+     "m": 57403.7874848823,
+     "maxspeed": 0,
+     "lanes": 0,
+     "cycleway": 464.69847033975856,
+     "shoulder": 0,
+     "surface": 54835.723419923066,
+     "traffic_class": 0
+    },
+    "secondary": {
+     "m": 33794.68572827228,
+     "maxspeed": 28209.660961690253,
+     "lanes": 32229.80349094518,
+     "cycleway": 13847.004634762518,
+     "shoulder": 0,
+     "surface": 29719.229723993692,
+     "traffic_class": 33794.68572827228
+    },
+    "unclassified": {
+     "m": 673.7221630698367,
+     "maxspeed": 0,
+     "lanes": 545.0944469579439,
+     "cycleway": 545.0944469579439,
+     "shoulder": 0,
+     "surface": 545.0944469579439,
+     "traffic_class": 0
+    },
+    "primary": {
+     "m": 250.58557488851565,
+     "maxspeed": 0,
+     "lanes": 250.58557488851565,
+     "cycleway": 250.58557488851565,
+     "shoulder": 0,
+     "surface": 250.58557488851565,
+     "traffic_class": 250.58557488851565
+    },
+    "service": {
+     "m": 120.6982119038268,
+     "maxspeed": 0,
+     "lanes": 0,
+     "cycleway": 0,
+     "shoulder": 0,
+     "surface": 0,
+     "traffic_class": 0
+    }
+   },
+   "trace_check": null,
+   "transient": false
+  },
+  {
+   "point": "denver-sloans-lake",
+   "category": "urban",
+   "distance_mi": 15,
+   "surface": "road",
+   "variant": "tribos-road-0",
+   "levels": [
+    1,
+    2
+   ],
+   "bearing_deg": 90,
+   "ok": true,
+   "error": null,
+   "actual_mi": 14.9,
+   "attempts": 2,
+   "tag_source": "engine",
+   "trace_calls": 0,
+   "latency_ms": 2948,
+   "coverage": {
+    "path": {
+     "m": 2755.753471041765,
+     "maxspeed": 0,
+     "lanes": 0,
+     "cycleway": 0,
+     "shoulder": 0,
+     "surface": 2106.0983224544334,
+     "traffic_class": 0
+    },
+    "cycleway": {
+     "m": 5920.134745454383,
+     "maxspeed": 0,
+     "lanes": 0,
+     "cycleway": 240.6581835220513,
+     "shoulder": 0,
+     "surface": 5525.79776669001,
+     "traffic_class": 0
+    },
+    "residential": {
+     "m": 8905.526175983421,
+     "maxspeed": 746.062584468855,
+     "lanes": 3634.5628151425294,
+     "cycleway": 831.4862427701406,
+     "shoulder": 0,
+     "surface": 1817.9167142447773,
+     "traffic_class": 0
+    },
+    "tertiary": {
+     "m": 3970.461213932398,
+     "maxspeed": 508.9740490455498,
+     "lanes": 3970.461213932398,
+     "cycleway": 2852.589844987181,
+     "shoulder": 0,
+     "surface": 2459.1465327526003,
+     "traffic_class": 3970.461213932398
+    },
+    "service": {
+     "m": 313.4433816269703,
+     "maxspeed": 0,
+     "lanes": 0,
+     "cycleway": 0,
+     "shoulder": 0,
+     "surface": 47.955441428168434,
+     "traffic_class": 0
+    },
+    "footway": {
+     "m": 421.8818967235896,
+     "maxspeed": 0,
+     "lanes": 0,
+     "cycleway": 0,
+     "shoulder": 0,
+     "surface": 70.0658467174425,
+     "traffic_class": 0
+    },
+    "unclassified": {
+     "m": 1503.7730601751598,
+     "maxspeed": 18.761192082055878,
+     "lanes": 1503.7730601751598,
+     "cycleway": 1077.7611679653653,
+     "shoulder": 0,
+     "surface": 412.89872714596163,
+     "traffic_class": 0
+    },
+    "pedestrian": {
+     "m": 145.64978575496798,
+     "maxspeed": 0,
+     "lanes": 145.64978575496798,
+     "cycleway": 145.64978575496798,
+     "shoulder": 0,
+     "surface": 105.44918589408758,
+     "traffic_class": 0
+    }
+   },
+   "trace_check": null,
+   "transient": false
+  },
+  {
+   "point": "denver-sloans-lake",
+   "category": "urban",
+   "distance_mi": 15,
+   "surface": "road",
+   "variant": "tribos-road-1",
+   "levels": [
+    3
+   ],
+   "bearing_deg": 90,
+   "ok": true,
+   "error": null,
+   "actual_mi": 16.5,
+   "attempts": 1,
+   "tag_source": "engine",
+   "trace_calls": 0,
+   "latency_ms": 758,
+   "coverage": {
+    "path": {
+     "m": 2427.9060093782837,
+     "maxspeed": 0,
+     "lanes": 0,
+     "cycleway": 0,
+     "shoulder": 0,
+     "surface": 1849.7127907661263,
+     "traffic_class": 0
+    },
+    "cycleway": {
+     "m": 4390.613738522805,
+     "maxspeed": 0,
+     "lanes": 0,
+     "cycleway": 65.1663749794385,
+     "shoulder": 0,
+     "surface": 3579.097393997137,
+     "traffic_class": 0
+    },
+    "residential": {
+     "m": 10408.052203356743,
+     "maxspeed": 97.2060594624596,
+     "lanes": 5024.388079346738,
+     "cycleway": 3990.3392763377215,
+     "shoulder": 0,
+     "surface": 3512.294341543366,
+     "traffic_class": 0
+    },
+    "tertiary": {
+     "m": 6678.207075704428,
+     "maxspeed": 2061.7423938867178,
+     "lanes": 6305.6754034425685,
+     "cycleway": 3394.088818506246,
+     "shoulder": 0,
+     "surface": 2547.219789217872,
+     "traffic_class": 6678.207075704428
+    },
+    "footway": {
+     "m": 907.8327386747287,
+     "maxspeed": 0,
+     "lanes": 0,
+     "cycleway": 0,
+     "shoulder": 0,
+     "surface": 599.8772229394517,
+     "traffic_class": 0
+    },
+    "unclassified": {
+     "m": 1476.7342799913245,
+     "maxspeed": 668.7738451255542,
+     "lanes": 1476.7342799913245,
+     "cycleway": 878.888419498345,
+     "shoulder": 0,
+     "surface": 948.349373986288,
+     "traffic_class": 0
+    },
+    "secondary": {
+     "m": 134.66725920131012,
+     "maxspeed": 134.66725920131012,
+     "lanes": 134.66725920131012,
+     "cycleway": 0,
+     "shoulder": 0,
+     "surface": 134.66725920131012,
+     "traffic_class": 134.66725920131012
+    }
+   },
+   "trace_check": null,
+   "transient": false
+  },
+  {
+   "point": "denver-sloans-lake",
+   "category": "urban",
+   "distance_mi": 15,
+   "surface": "road",
+   "variant": "tribos-road-2",
+   "levels": [
+    4,
+    5
+   ],
+   "bearing_deg": 90,
+   "ok": true,
+   "error": null,
+   "actual_mi": 16.5,
+   "attempts": 1,
+   "tag_source": "engine",
+   "trace_calls": 0,
+   "latency_ms": 1186,
+   "coverage": {
+    "path": {
+     "m": 2183.720257893476,
+     "maxspeed": 0,
+     "lanes": 0,
+     "cycleway": 0,
+     "shoulder": 0,
+     "surface": 1877.9222791576187,
+     "traffic_class": 0
+    },
+    "cycleway": {
+     "m": 4380.559079609133,
+     "maxspeed": 0,
+     "lanes": 0,
+     "cycleway": 369.1134587287689,
+     "shoulder": 0,
+     "surface": 3516.3962242201783,
+     "traffic_class": 0
+    },
+    "residential": {
+     "m": 10142.168500442556,
+     "maxspeed": 173.5744687233506,
+     "lanes": 4908.312311460432,
+     "cycleway": 3903.823190971754,
+     "shoulder": 0,
+     "surface": 3417.5120906561465,
+     "traffic_class": 0
+    },
+    "tertiary": {
+     "m": 6817.958197987849,
+     "maxspeed": 2373.0001535999404,
+     "lanes": 6551.141903972968,
+     "cycleway": 3741.7723329363857,
+     "shoulder": 0,
+     "surface": 2800.504759222893,
+     "traffic_class": 6817.958197987849
+    },
+    "footway": {
+     "m": 513.5649537999111,
+     "maxspeed": 0,
+     "lanes": 0,
+     "cycleway": 0,
+     "shoulder": 0,
+     "surface": 155.0476214917931,
+     "traffic_class": 0
+    },
+    "secondary": {
+     "m": 838.96015948437,
+     "maxspeed": 838.96015948437,
+     "lanes": 838.96015948437,
+     "cycleway": 0,
+     "shoulder": 0,
+     "surface": 626.4865446725024,
+     "traffic_class": 838.96015948437
+    },
+    "unclassified": {
+     "m": 1538.9051570438198,
+     "maxspeed": 613.2596715462454,
+     "lanes": 1538.9051570438198,
+     "cycleway": 902.3327714519927,
+     "shoulder": 0,
+     "surface": 1024.8936757086576,
+     "traffic_class": 0
+    }
+   },
+   "trace_check": null,
+   "transient": false
+  },
+  {
+   "point": "denver-sloans-lake",
+   "category": "urban",
+   "distance_mi": 30,
+   "surface": "road",
+   "variant": "tribos-road-0",
+   "levels": [
+    1,
+    2
+   ],
+   "bearing_deg": 135,
+   "ok": true,
+   "error": null,
+   "actual_mi": 29,
+   "attempts": 1,
+   "tag_source": "engine",
+   "trace_calls": 0,
+   "latency_ms": 1034,
+   "coverage": {
+    "path": {
+     "m": 1778.0129998269324,
+     "maxspeed": 0,
+     "lanes": 0,
+     "cycleway": 0,
+     "shoulder": 0,
+     "surface": 1596.2181289153625,
+     "traffic_class": 0
+    },
+    "cycleway": {
+     "m": 10032.342493796308,
+     "maxspeed": 0,
+     "lanes": 0,
+     "cycleway": 371.6002279086323,
+     "shoulder": 0,
+     "surface": 8801.767938313724,
+     "traffic_class": 0
+    },
+    "residential": {
+     "m": 15795.092448731977,
+     "maxspeed": 4439.2577864608365,
+     "lanes": 3890.3165483799494,
+     "cycleway": 3708.563169503725,
+     "shoulder": 0,
+     "surface": 13574.476262691323,
+     "traffic_class": 0
+    },
+    "tertiary": {
+     "m": 14197.93417683511,
+     "maxspeed": 4178.263346852928,
+     "lanes": 13954.174070823121,
+     "cycleway": 11875.373283142088,
+     "shoulder": 1164.737503016396,
+     "surface": 11372.283214381636,
+     "traffic_class": 14197.93417683511
+    },
+    "secondary": {
+     "m": 1097.1361191986457,
+     "maxspeed": 954.674123980565,
+     "lanes": 1097.1361191986457,
+     "cycleway": 959.9724002604353,
+     "shoulder": 0,
+     "surface": 697.7677678005653,
+     "traffic_class": 1097.1361191986457
+    },
+    "service": {
+     "m": 1663.3949657560092,
+     "maxspeed": 0,
+     "lanes": 96.17618681007065,
+     "cycleway": 1267.660000346923,
+     "shoulder": 0,
+     "surface": 1567.2187789459388,
+     "traffic_class": 0
+    },
+    "unclassified": {
+     "m": 1665.6119615658567,
+     "maxspeed": 602.4549672466276,
+     "lanes": 1665.6119615658567,
+     "cycleway": 888.9704726152471,
+     "shoulder": 0,
+     "surface": 1156.5463658593285,
+     "traffic_class": 0
+    },
+    "footway": {
+     "m": 226.7083284260459,
+     "maxspeed": 0,
+     "lanes": 0,
+     "cycleway": 0,
+     "shoulder": 0,
+     "surface": 128.73858191449037,
+     "traffic_class": 0
+    }
+   },
+   "trace_check": null,
+   "transient": false
+  },
+  {
+   "point": "denver-sloans-lake",
+   "category": "urban",
+   "distance_mi": 30,
+   "surface": "road",
+   "variant": "tribos-road-1",
+   "levels": [
+    3
+   ],
+   "bearing_deg": 135,
+   "ok": true,
+   "error": null,
+   "actual_mi": 28.6,
+   "attempts": 1,
+   "tag_source": "engine",
+   "trace_calls": 0,
+   "latency_ms": 1064,
+   "coverage": {
+    "path": {
+     "m": 1767.6289272157203,
+     "maxspeed": 0,
+     "lanes": 0,
+     "cycleway": 0,
+     "shoulder": 0,
+     "surface": 1585.8340563041504,
+     "traffic_class": 0
+    },
+    "cycleway": {
+     "m": 10032.342493796308,
+     "maxspeed": 0,
+     "lanes": 0,
+     "cycleway": 371.6002279086323,
+     "shoulder": 0,
+     "surface": 8801.767938313724,
+     "traffic_class": 0
+    },
+    "residential": {
+     "m": 12060.911816496066,
+     "maxspeed": 4439.2577864608365,
+     "lanes": 3685.7463938334713,
+     "cycleway": 3708.563169503725,
+     "shoulder": 0,
+     "surface": 10766.928613970586,
+     "traffic_class": 0
+    },
+    "tertiary": {
+     "m": 16654.870005752844,
+     "maxspeed": 4069.388619705589,
+     "lanes": 15929.20883256977,
+     "cycleway": 12186.01808267281,
+     "shoulder": 1164.737503016396,
+     "surface": 13711.399387446621,
+     "traffic_class": 16654.870005752844
+    },
+    "secondary": {
+     "m": 1773.9518727048458,
+     "maxspeed": 954.674123980565,
+     "lanes": 1773.9518727048458,
+     "cycleway": 959.9724002604353,
+     "shoulder": 0,
+     "surface": 1374.5835213067653,
+     "traffic_class": 1773.9518727048458
+    },
+    "service": {
+     "m": 1663.3949657560092,
+     "maxspeed": 0,
+     "lanes": 96.17618681007065,
+     "cycleway": 1267.660000346923,
+     "shoulder": 0,
+     "surface": 1567.2187789459388,
+     "traffic_class": 0
+    },
+    "unclassified": {
+     "m": 1665.6119615658567,
+     "maxspeed": 602.4549672466276,
+     "lanes": 1665.6119615658567,
+     "cycleway": 888.9704726152471,
+     "shoulder": 0,
+     "surface": 1156.5463658593285,
+     "traffic_class": 0
+    },
+    "footway": {
+     "m": 279.4775839636311,
+     "maxspeed": 0,
+     "lanes": 0,
+     "cycleway": 0,
+     "shoulder": 0,
+     "surface": 128.73858191449037,
+     "traffic_class": 0
+    }
+   },
+   "trace_check": null,
+   "transient": false
+  },
+  {
+   "point": "denver-sloans-lake",
+   "category": "urban",
+   "distance_mi": 30,
+   "surface": "road",
+   "variant": "tribos-road-2",
+   "levels": [
+    4,
+    5
+   ],
+   "bearing_deg": 135,
+   "ok": true,
+   "error": null,
+   "actual_mi": 27.5,
+   "attempts": 1,
+   "tag_source": "engine",
+   "trace_calls": 0,
+   "latency_ms": 813,
+   "coverage": {
+    "path": {
+     "m": 1984.1872164433114,
+     "maxspeed": 0,
+     "lanes": 0,
+     "cycleway": 0,
+     "shoulder": 0,
+     "surface": 1885.6518490770484,
+     "traffic_class": 0
+    },
+    "cycleway": {
+     "m": 4305.199440097241,
+     "maxspeed": 0,
+     "lanes": 0,
+     "cycleway": 110.39871204322333,
+     "shoulder": 0,
+     "surface": 3532.9876857353456,
+     "traffic_class": 0
+    },
+    "residential": {
+     "m": 13270.635083428475,
+     "maxspeed": 3521.586462763323,
+     "lanes": 4280.7152784150985,
+     "cycleway": 4251.254588147407,
+     "shoulder": 0,
+     "surface": 10675.2947496116,
+     "traffic_class": 0
+    },
+    "tertiary": {
+     "m": 18637.524627765462,
+     "maxspeed": 4797.797117678114,
+     "lanes": 17433.897880168264,
+     "cycleway": 12555.10166461259,
+     "shoulder": 0,
+     "surface": 15527.727009409671,
+     "traffic_class": 18637.524627765462
+    },
+    "secondary": {
+     "m": 2977.1305075532086,
+     "maxspeed": 915.8449237772604,
+     "lanes": 2977.1305075532086,
+     "cycleway": 853.4596249497666,
+     "shoulder": 0,
+     "surface": 2668.0163256010196,
+     "traffic_class": 2977.1305075532086
+    },
+    "service": {
+     "m": 1062.8850478432653,
+     "maxspeed": 0,
+     "lanes": 0,
+     "cycleway": 986.5841235452958,
+     "shoulder": 0,
+     "surface": 1062.8850478432653,
+     "traffic_class": 0
+    },
+    "footway": {
+     "m": 165.40368842346533,
+     "maxspeed": 0,
+     "lanes": 0,
+     "cycleway": 0,
+     "shoulder": 0,
+     "surface": 65.35598960151391,
+     "traffic_class": 0
+    },
+    "unclassified": {
+     "m": 1603.3492650630128,
+     "maxspeed": 458.5632095621095,
+     "lanes": 1603.3492650630128,
+     "cycleway": 1140.1189521780238,
+     "shoulder": 0,
+     "surface": 1072.2955351705998,
+     "traffic_class": 0
+    },
+    "primary": {
+     "m": 102.58429031986323,
+     "maxspeed": 102.58429031986323,
+     "lanes": 102.58429031986323,
+     "cycleway": 0,
+     "shoulder": 0,
+     "surface": 102.58429031986323,
+     "traffic_class": 102.58429031986323
+    }
+   },
+   "trace_check": null,
+   "transient": false
+  }
+ ],
+ "runs": [
+  {
+   "point": "boulder-downtown",
+   "category": "urban",
+   "distance_mi": 15,
+   "surface": "road",
+   "level": 1,
+   "variant": "tribos-road-0",
+   "outcome": "fail",
+   "failure_kinds": [
+    "blocked",
+    "stretch_too_long",
+    "too_much_flagged"
+   ],
+   "within_pct": 43.7,
+   "unknown_pct": 3.9,
+   "flagged_mi": 7.93,
+   "flagged_stretches": 8,
+   "longest_stretch_mi": 3.42,
+   "blocked_mi": 0.46,
+   "blocked_stretches": 2,
+   "heads_ups": 11,
+   "worst_blocked": [
+    {
+     "at_mi": 10.3,
+     "mi": 0.41,
+     "cls": 4,
+     "reasons": [
+      "35 mph",
+      "no bike lane or shoulder"
+     ]
+    },
+    {
+     "at_mi": 6.6,
+     "mi": 0.05,
+     "cls": 4,
+     "reasons": [
+      "4 lanes",
+      "bike lane",
+      "35 mph"
+     ]
+    }
+   ]
+  },
+  {
+   "point": "boulder-downtown",
+   "category": "urban",
+   "distance_mi": 15,
+   "surface": "road",
+   "level": 2,
+   "variant": "tribos-road-0",
+   "outcome": "fail",
+   "failure_kinds": [
+    "stretch_too_long",
+    "too_much_flagged"
+   ],
+   "within_pct": 74.3,
+   "unknown_pct": 3.9,
+   "flagged_mi": 3.49,
+   "flagged_stretches": 5,
+   "longest_stretch_mi": 1.03,
+   "blocked_mi": 0,
+   "blocked_stretches": 0,
+   "heads_ups": 8,
+   "worst_blocked": []
+  },
+  {
+   "point": "boulder-downtown",
+   "category": "urban",
+   "distance_mi": 15,
+   "surface": "road",
+   "level": 3,
+   "variant": "tribos-road-1",
+   "outcome": "fail",
+   "failure_kinds": [
+    "stretch_too_long"
+   ],
+   "within_pct": 91.6,
+   "unknown_pct": 2.8,
+   "flagged_mi": 0.9,
+   "flagged_stretches": 4,
+   "longest_stretch_mi": 0.6,
+   "blocked_mi": 0,
+   "blocked_stretches": 0,
+   "heads_ups": 6,
+   "worst_blocked": []
+  },
+  {
+   "point": "boulder-downtown",
+   "category": "urban",
+   "distance_mi": 15,
+   "surface": "road",
+   "level": 4,
+   "variant": "tribos-road-2",
+   "outcome": "pass",
+   "failure_kinds": [],
+   "within_pct": 96,
+   "unknown_pct": 4,
+   "flagged_mi": 0,
+   "flagged_stretches": 0,
+   "longest_stretch_mi": 0,
+   "blocked_mi": 0,
+   "blocked_stretches": 0,
+   "heads_ups": 3,
+   "worst_blocked": []
+  },
+  {
+   "point": "boulder-downtown",
+   "category": "urban",
+   "distance_mi": 15,
+   "surface": "road",
+   "level": 5,
+   "variant": "tribos-road-2",
+   "outcome": "pass",
+   "failure_kinds": [],
+   "within_pct": 96.1,
+   "unknown_pct": 3.9,
+   "flagged_mi": 0,
+   "flagged_stretches": 0,
+   "longest_stretch_mi": 0,
+   "blocked_mi": 0,
+   "blocked_stretches": 0,
+   "heads_ups": 2,
+   "worst_blocked": []
+  },
+  {
+   "point": "boulder-downtown",
+   "category": "urban",
+   "distance_mi": 30,
+   "surface": "road",
+   "level": 1,
+   "variant": "tribos-road-0",
+   "outcome": "fail",
+   "failure_kinds": [
+    "blocked",
+    "stretch_too_long",
+    "too_much_flagged"
+   ],
+   "within_pct": 44.6,
+   "unknown_pct": 12.3,
+   "flagged_mi": 5.93,
+   "flagged_stretches": 13,
+   "longest_stretch_mi": 2.6,
+   "blocked_mi": 5.62,
+   "blocked_stretches": 7,
+   "heads_ups": 18,
+   "worst_blocked": [
+    {
+     "at_mi": 10.1,
+     "mi": 2.01,
+     "cls": 5,
+     "reasons": [
+      "60 mph",
+      "paved shoulder"
+     ]
+    },
+    {
+     "at_mi": 5.7,
+     "mi": 1.13,
+     "cls": "X",
+     "reasons": [
+      "closed to bikes"
+     ]
+    }
+   ]
+  },
+  {
+   "point": "boulder-downtown",
+   "category": "urban",
+   "distance_mi": 30,
+   "surface": "road",
+   "level": 2,
+   "variant": "tribos-road-0",
+   "outcome": "fail",
+   "failure_kinds": [
+    "blocked",
+    "stretch_too_long",
+    "too_much_flagged"
+   ],
+   "within_pct": 54.2,
+   "unknown_pct": 12.3,
+   "flagged_mi": 5.3,
+   "flagged_stretches": 6,
+   "longest_stretch_mi": 3.81,
+   "blocked_mi": 3.69,
+   "blocked_stretches": 4,
+   "heads_ups": 11,
+   "worst_blocked": [
+    {
+     "at_mi": 10.1,
+     "mi": 1.96,
+     "cls": 5,
+     "reasons": [
+      "60 mph",
+      "paved shoulder"
+     ]
+    },
+    {
+     "at_mi": 5.7,
+     "mi": 1.13,
+     "cls": "X",
+     "reasons": [
+      "closed to bikes"
+     ]
+    }
+   ]
+  },
+  {
+   "point": "boulder-downtown",
+   "category": "urban",
+   "distance_mi": 30,
+   "surface": "road",
+   "level": 3,
+   "variant": "tribos-road-1",
+   "outcome": "fail",
+   "failure_kinds": [
+    "blocked",
+    "stretch_too_long",
+    "too_much_flagged"
+   ],
+   "within_pct": 67.9,
+   "unknown_pct": 10,
+   "flagged_mi": 4.04,
+   "flagged_stretches": 6,
+   "longest_stretch_mi": 2.01,
+   "blocked_mi": 1.9,
+   "blocked_stretches": 1,
+   "heads_ups": 10,
+   "worst_blocked": [
+    {
+     "at_mi": 5.6,
+     "mi": 1.9,
+     "cls": "X",
+     "reasons": [
+      "closed to bikes"
+     ]
+    }
+   ]
+  },
+  {
+   "point": "boulder-downtown",
+   "category": "urban",
+   "distance_mi": 30,
+   "surface": "road",
+   "level": 4,
+   "variant": "tribos-road-2",
+   "outcome": "fail",
+   "failure_kinds": [
+    "blocked",
+    "stretch_too_long",
+    "too_much_flagged"
+   ],
+   "within_pct": 71.1,
+   "unknown_pct": 8.7,
+   "flagged_mi": 3.11,
+   "flagged_stretches": 3,
+   "longest_stretch_mi": 2.13,
+   "blocked_mi": 1.94,
+   "blocked_stretches": 1,
+   "heads_ups": 6,
+   "worst_blocked": [
+    {
+     "at_mi": 5.7,
+     "mi": 1.94,
+     "cls": "X",
+     "reasons": [
+      "closed to bikes"
+     ]
+    }
+   ]
+  },
+  {
+   "point": "boulder-downtown",
+   "category": "urban",
+   "distance_mi": 30,
+   "surface": "road",
+   "level": 5,
+   "variant": "tribos-road-2",
+   "outcome": "fail",
+   "failure_kinds": [
+    "blocked"
+   ],
+   "within_pct": 87.6,
+   "unknown_pct": 4.7,
+   "flagged_mi": 0,
+   "flagged_stretches": 0,
+   "longest_stretch_mi": 0,
+   "blocked_mi": 1.94,
+   "blocked_stretches": 1,
+   "heads_ups": 1,
+   "worst_blocked": [
+    {
+     "at_mi": 5.7,
+     "mi": 1.94,
+     "cls": "X",
+     "reasons": [
+      "closed to bikes"
+     ]
+    }
+   ]
+  },
+  {
+   "point": "boulder-downtown",
+   "category": "urban",
+   "distance_mi": 50,
+   "surface": "road",
+   "level": 1,
+   "variant": "tribos-road-0",
+   "outcome": "fail",
+   "failure_kinds": [
+    "blocked",
+    "stretch_too_long",
+    "too_much_flagged"
+   ],
+   "within_pct": 41.2,
+   "unknown_pct": 39.4,
+   "flagged_mi": 7.56,
+   "flagged_stretches": 6,
+   "longest_stretch_mi": 4.41,
+   "blocked_mi": 1.16,
+   "blocked_stretches": 1,
+   "heads_ups": 14,
+   "worst_blocked": [
+    {
+     "at_mi": 16.3,
+     "mi": 1.16,
+     "cls": 5,
+     "reasons": [
+      "main highway",
+      "35 mph",
+      "no bike lane or shoulder"
+     ]
+    }
+   ]
+  },
+  {
+   "point": "boulder-downtown",
+   "category": "urban",
+   "distance_mi": 50,
+   "surface": "road",
+   "level": 2,
+   "variant": "tribos-road-0",
+   "outcome": "fail",
+   "failure_kinds": [
+    "blocked"
+   ],
+   "within_pct": 58,
+   "unknown_pct": 39.4,
+   "flagged_mi": 0,
+   "flagged_stretches": 0,
+   "longest_stretch_mi": 0,
+   "blocked_mi": 1.16,
+   "blocked_stretches": 1,
+   "heads_ups": 8,
+   "worst_blocked": [
+    {
+     "at_mi": 16.3,
+     "mi": 1.16,
+     "cls": 5,
+     "reasons": [
+      "main highway",
+      "35 mph",
+      "no bike lane or shoulder"
+     ]
+    }
+   ]
+  },
+  {
+   "point": "boulder-downtown",
+   "category": "urban",
+   "distance_mi": 50,
+   "surface": "road",
+   "level": 3,
+   "variant": "tribos-road-1",
+   "outcome": "fail",
+   "failure_kinds": [
+    "stretch_too_long"
+   ],
+   "within_pct": 57.9,
+   "unknown_pct": 39.1,
+   "flagged_mi": 1.32,
+   "flagged_stretches": 1,
+   "longest_stretch_mi": 1.32,
+   "blocked_mi": 0,
+   "blocked_stretches": 0,
+   "heads_ups": 9,
+   "worst_blocked": []
+  },
+  {
+   "point": "boulder-downtown",
+   "category": "urban",
+   "distance_mi": 50,
+   "surface": "road",
+   "level": 4,
+   "variant": "tribos-road-2",
+   "outcome": "fail",
+   "failure_kinds": [
+    "stretch_too_long"
+   ],
+   "within_pct": 57.4,
+   "unknown_pct": 39.6,
+   "flagged_mi": 1.32,
+   "flagged_stretches": 1,
+   "longest_stretch_mi": 1.32,
+   "blocked_mi": 0,
+   "blocked_stretches": 0,
+   "heads_ups": 9,
+   "worst_blocked": []
+  },
+  {
+   "point": "boulder-downtown",
+   "category": "urban",
+   "distance_mi": 50,
+   "surface": "road",
+   "level": 5,
+   "variant": "tribos-road-2",
+   "outcome": "pass",
+   "failure_kinds": [],
+   "within_pct": 100,
+   "unknown_pct": 0,
+   "flagged_mi": 0,
+   "flagged_stretches": 0,
+   "longest_stretch_mi": 0,
+   "blocked_mi": 0,
+   "blocked_stretches": 0,
+   "heads_ups": 0,
+   "worst_blocked": []
+  },
+  {
+   "point": "boulder-downtown",
+   "category": "urban",
+   "distance_mi": 75,
+   "surface": "road",
+   "level": 1,
+   "variant": "tribos-road-0",
+   "outcome": "fail",
+   "failure_kinds": [
+    "blocked",
+    "stretch_too_long",
+    "too_much_flagged"
+   ],
+   "within_pct": 61.5,
+   "unknown_pct": 13.2,
+   "flagged_mi": 11.16,
+   "flagged_stretches": 20,
+   "longest_stretch_mi": 4.02,
+   "blocked_mi": 7.68,
+   "blocked_stretches": 16,
+   "heads_ups": 35,
+   "worst_blocked": [
+    {
+     "at_mi": 8.5,
+     "mi": 1.47,
+     "cls": 5,
+     "reasons": [
+      "4 lanes",
+      "35 mph",
+      "no bike lane or shoulder"
+     ]
+    },
+    {
+     "at_mi": 56.8,
+     "mi": 1.24,
+     "cls": 4,
+     "reasons": [
+      "35 mph",
+      "no bike lane or shoulder",
+      "shared lane markings"
+     ]
+    }
+   ]
+  },
+  {
+   "point": "boulder-downtown",
+   "category": "urban",
+   "distance_mi": 75,
+   "surface": "road",
+   "level": 2,
+   "variant": "tribos-road-0",
+   "outcome": "fail",
+   "failure_kinds": [
+    "blocked",
+    "stretch_too_long",
+    "too_much_flagged"
+   ],
+   "within_pct": 66.5,
+   "unknown_pct": 13.2,
+   "flagged_mi": 12.46,
+   "flagged_stretches": 10,
+   "longest_stretch_mi": 4.33,
+   "blocked_mi": 2.7,
+   "blocked_stretches": 7,
+   "heads_ups": 25,
+   "worst_blocked": [
+    {
+     "at_mi": 40.1,
+     "mi": 1.02,
+     "cls": 5,
+     "reasons": [
+      "main highway",
+      "55 mph",
+      "no bike lane or shoulder"
+     ]
+    },
+    {
+     "at_mi": 48,
+     "mi": 0.42,
+     "cls": 5,
+     "reasons": [
+      "main highway",
+      "55 mph",
+      "no bike lane or shoulder"
+     ]
+    }
+   ]
+  },
+  {
+   "point": "boulder-downtown",
+   "category": "urban",
+   "distance_mi": 75,
+   "surface": "road",
+   "level": 3,
+   "variant": "tribos-road-1",
+   "outcome": "fail",
+   "failure_kinds": [
+    "stretch_too_long",
+    "too_much_flagged"
+   ],
+   "within_pct": 73,
+   "unknown_pct": 11.8,
+   "flagged_mi": 11.4,
+   "flagged_stretches": 15,
+   "longest_stretch_mi": 2.02,
+   "blocked_mi": 0,
+   "blocked_stretches": 0,
+   "heads_ups": 27,
+   "worst_blocked": []
+  },
+  {
+   "point": "boulder-downtown",
+   "category": "urban",
+   "distance_mi": 75,
+   "surface": "road",
+   "level": 4,
+   "variant": "tribos-road-2",
+   "outcome": "fail",
+   "failure_kinds": [
+    "stretch_too_long",
+    "too_much_flagged"
+   ],
+   "within_pct": 84.6,
+   "unknown_pct": 3,
+   "flagged_mi": 8.21,
+   "flagged_stretches": 9,
+   "longest_stretch_mi": 3.21,
+   "blocked_mi": 0,
+   "blocked_stretches": 0,
+   "heads_ups": 18,
+   "worst_blocked": []
+  },
+  {
+   "point": "boulder-downtown",
+   "category": "urban",
+   "distance_mi": 75,
+   "surface": "road",
+   "level": 5,
+   "variant": "tribos-road-2",
+   "outcome": "pass",
+   "failure_kinds": [],
+   "within_pct": 99.3,
+   "unknown_pct": 0.7,
+   "flagged_mi": 0,
+   "flagged_stretches": 0,
+   "longest_stretch_mi": 0,
+   "blocked_mi": 0,
+   "blocked_stretches": 0,
+   "heads_ups": 1,
+   "worst_blocked": []
+  },
+  {
+   "point": "denver-wash-park",
+   "category": "urban",
+   "distance_mi": 15,
+   "surface": "road",
+   "level": 1,
+   "variant": "tribos-road-0",
+   "outcome": "fail",
+   "failure_kinds": [
+    "blocked",
+    "stretch_too_long",
+    "too_much_flagged"
+   ],
+   "within_pct": 70.2,
+   "unknown_pct": 14.2,
+   "flagged_mi": 2.33,
+   "flagged_stretches": 5,
+   "longest_stretch_mi": 1.07,
+   "blocked_mi": 0.05,
+   "blocked_stretches": 1,
+   "heads_ups": 13,
+   "worst_blocked": [
+    {
+     "at_mi": 11.3,
+     "mi": 0.05,
+     "cls": 5,
+     "reasons": [
+      "main highway",
+      "30 mph",
+      "no bike lane or shoulder"
+     ]
+    }
+   ]
+  },
+  {
+   "point": "denver-wash-park",
+   "category": "urban",
+   "distance_mi": 15,
+   "surface": "road",
+   "level": 2,
+   "variant": "tribos-road-0",
+   "outcome": "fail",
+   "failure_kinds": [
+    "blocked"
+   ],
+   "within_pct": 85.5,
+   "unknown_pct": 14.2,
+   "flagged_mi": 0,
+   "flagged_stretches": 0,
+   "longest_stretch_mi": 0,
+   "blocked_mi": 0.05,
+   "blocked_stretches": 1,
+   "heads_ups": 8,
+   "worst_blocked": [
+    {
+     "at_mi": 11.3,
+     "mi": 0.05,
+     "cls": 5,
+     "reasons": [
+      "main highway",
+      "30 mph",
+      "no bike lane or shoulder"
+     ]
+    }
+   ]
+  },
+  {
+   "point": "denver-wash-park",
+   "category": "urban",
+   "distance_mi": 15,
+   "surface": "road",
+   "level": 3,
+   "variant": "tribos-road-1",
+   "outcome": "pass",
+   "failure_kinds": [],
+   "within_pct": 82.1,
+   "unknown_pct": 17.4,
+   "flagged_mi": 0.07,
+   "flagged_stretches": 1,
+   "longest_stretch_mi": 0.07,
+   "blocked_mi": 0,
+   "blocked_stretches": 0,
+   "heads_ups": 9,
+   "worst_blocked": []
+  },
+  {
+   "point": "denver-wash-park",
+   "category": "urban",
+   "distance_mi": 15,
+   "surface": "road",
+   "level": 4,
+   "variant": "tribos-road-2",
+   "outcome": "pass",
+   "failure_kinds": [],
+   "within_pct": 69.8,
+   "unknown_pct": 29.1,
+   "flagged_mi": 0.17,
+   "flagged_stretches": 3,
+   "longest_stretch_mi": 0.07,
+   "blocked_mi": 0,
+   "blocked_stretches": 0,
+   "heads_ups": 9,
+   "worst_blocked": []
+  },
+  {
+   "point": "denver-wash-park",
+   "category": "urban",
+   "distance_mi": 15,
+   "surface": "road",
+   "level": 5,
+   "variant": "tribos-road-2",
+   "outcome": "pass",
+   "failure_kinds": [],
+   "within_pct": 100,
+   "unknown_pct": 0,
+   "flagged_mi": 0,
+   "flagged_stretches": 0,
+   "longest_stretch_mi": 0,
+   "blocked_mi": 0,
+   "blocked_stretches": 0,
+   "heads_ups": 0,
+   "worst_blocked": []
+  },
+  {
+   "point": "denver-wash-park",
+   "category": "urban",
+   "distance_mi": 30,
+   "surface": "road",
+   "level": 1,
+   "variant": "tribos-road-0",
+   "outcome": "fail",
+   "failure_kinds": [
+    "blocked",
+    "stretch_too_long",
+    "too_much_flagged"
+   ],
+   "within_pct": 71,
+   "unknown_pct": 16.9,
+   "flagged_mi": 3.23,
+   "flagged_stretches": 13,
+   "longest_stretch_mi": 0.81,
+   "blocked_mi": 0.06,
+   "blocked_stretches": 2,
+   "heads_ups": 28,
+   "worst_blocked": [
+    {
+     "at_mi": 24,
+     "mi": 0.04,
+     "cls": 5,
+     "reasons": [
+      "main highway",
+      "no bike lane or shoulder"
+     ]
+    },
+    {
+     "at_mi": 15.8,
+     "mi": 0.03,
+     "cls": 5,
+     "reasons": [
+      "4 lanes",
+      "30 mph",
+      "no bike lane or shoulder"
+     ]
+    }
+   ]
+  },
+  {
+   "point": "denver-wash-park",
+   "category": "urban",
+   "distance_mi": 30,
+   "surface": "road",
+   "level": 2,
+   "variant": "tribos-road-0",
+   "outcome": "fail",
+   "failure_kinds": [
+    "blocked"
+   ],
+   "within_pct": 82.7,
+   "unknown_pct": 16.9,
+   "flagged_mi": 0.06,
+   "flagged_stretches": 1,
+   "longest_stretch_mi": 0.06,
+   "blocked_mi": 0.06,
+   "blocked_stretches": 2,
+   "heads_ups": 16,
+   "worst_blocked": [
+    {
+     "at_mi": 24,
+     "mi": 0.04,
+     "cls": 5,
+     "reasons": [
+      "main highway",
+      "no bike lane or shoulder"
+     ]
+    },
+    {
+     "at_mi": 15.8,
+     "mi": 0.03,
+     "cls": 5,
+     "reasons": [
+      "4 lanes",
+      "30 mph",
+      "no bike lane or shoulder"
+     ]
+    }
+   ]
+  },
+  {
+   "point": "denver-wash-park",
+   "category": "urban",
+   "distance_mi": 30,
+   "surface": "road",
+   "level": 3,
+   "variant": "tribos-road-1",
+   "outcome": "pass",
+   "failure_kinds": [],
+   "within_pct": 79.8,
+   "unknown_pct": 19.9,
+   "flagged_mi": 0.09,
+   "flagged_stretches": 2,
+   "longest_stretch_mi": 0.06,
+   "blocked_mi": 0,
+   "blocked_stretches": 0,
+   "heads_ups": 15,
+   "worst_blocked": []
+  },
+  {
+   "point": "denver-wash-park",
+   "category": "urban",
+   "distance_mi": 30,
+   "surface": "road",
+   "level": 4,
+   "variant": "tribos-road-2",
+   "outcome": "pass",
+   "failure_kinds": [],
+   "within_pct": 79.1,
+   "unknown_pct": 20.7,
+   "flagged_mi": 0.07,
+   "flagged_stretches": 2,
+   "longest_stretch_mi": 0.04,
+   "blocked_mi": 0,
+   "blocked_stretches": 0,
+   "heads_ups": 16,
+   "worst_blocked": []
+  },
+  {
+   "point": "denver-wash-park",
+   "category": "urban",
+   "distance_mi": 30,
+   "surface": "road",
+   "level": 5,
+   "variant": "tribos-road-2",
+   "outcome": "pass",
+   "failure_kinds": [],
+   "within_pct": 100,
+   "unknown_pct": 0,
+   "flagged_mi": 0,
+   "flagged_stretches": 0,
+   "longest_stretch_mi": 0,
+   "blocked_mi": 0,
+   "blocked_stretches": 0,
+   "heads_ups": 0,
+   "worst_blocked": []
+  },
+  {
+   "point": "denver-wash-park",
+   "category": "urban",
+   "distance_mi": 50,
+   "surface": "road",
+   "level": 1,
+   "variant": "tribos-road-0",
+   "outcome": "fail",
+   "failure_kinds": [
+    "blocked",
+    "stretch_too_long",
+    "too_much_flagged"
+   ],
+   "within_pct": 75.6,
+   "unknown_pct": 3.9,
+   "flagged_mi": 8.99,
+   "flagged_stretches": 9,
+   "longest_stretch_mi": 3.77,
+   "blocked_mi": 0.3,
+   "blocked_stretches": 3,
+   "heads_ups": 15,
+   "worst_blocked": [
+    {
+     "at_mi": 32.5,
+     "mi": 0.13,
+     "cls": 5,
+     "reasons": [
+      "4 lanes",
+      "25 mph",
+      "no bike lane or shoulder"
+     ]
+    },
+    {
+     "at_mi": 3.7,
+     "mi": 0.11,
+     "cls": 5,
+     "reasons": [
+      "5 lanes",
+      "30 mph",
+      "no bike lane or shoulder"
+     ]
+    }
+   ]
+  },
+  {
+   "point": "denver-wash-park",
+   "category": "urban",
+   "distance_mi": 50,
+   "surface": "road",
+   "level": 2,
+   "variant": "tribos-road-0",
+   "outcome": "fail",
+   "failure_kinds": [
+    "blocked"
+   ],
+   "within_pct": 95.5,
+   "unknown_pct": 3.9,
+   "flagged_mi": 0.06,
+   "flagged_stretches": 1,
+   "longest_stretch_mi": 0.06,
+   "blocked_mi": 0.24,
+   "blocked_stretches": 2,
+   "heads_ups": 7,
+   "worst_blocked": [
+    {
+     "at_mi": 32.5,
+     "mi": 0.13,
+     "cls": 5,
+     "reasons": [
+      "4 lanes",
+      "25 mph",
+      "no bike lane or shoulder"
+     ]
+    },
+    {
+     "at_mi": 3.7,
+     "mi": 0.11,
+     "cls": 5,
+     "reasons": [
+      "5 lanes",
+      "30 mph",
+      "no bike lane or shoulder"
+     ]
+    }
+   ]
+  },
+  {
+   "point": "denver-wash-park",
+   "category": "urban",
+   "distance_mi": 50,
+   "surface": "road",
+   "level": 3,
+   "variant": "tribos-road-1",
+   "outcome": "fail",
+   "failure_kinds": [
+    "stretch_too_long"
+   ],
+   "within_pct": 83.9,
+   "unknown_pct": 13.3,
+   "flagged_mi": 1.51,
+   "flagged_stretches": 5,
+   "longest_stretch_mi": 0.56,
+   "blocked_mi": 0,
+   "blocked_stretches": 0,
+   "heads_ups": 20,
+   "worst_blocked": []
+  },
+  {
+   "point": "denver-wash-park",
+   "category": "urban",
+   "distance_mi": 50,
+   "surface": "road",
+   "level": 4,
+   "variant": "tribos-road-2",
+   "outcome": "pass",
+   "failure_kinds": [],
+   "within_pct": 93.5,
+   "unknown_pct": 3.8,
+   "flagged_mi": 1.23,
+   "flagged_stretches": 8,
+   "longest_stretch_mi": 0.25,
+   "blocked_mi": 0,
+   "blocked_stretches": 0,
+   "heads_ups": 17,
+   "worst_blocked": []
+  },
+  {
+   "point": "denver-wash-park",
+   "category": "urban",
+   "distance_mi": 50,
+   "surface": "road",
+   "level": 5,
+   "variant": "tribos-road-2",
+   "outcome": "pass",
+   "failure_kinds": [],
+   "within_pct": 99.4,
+   "unknown_pct": 0.6,
+   "flagged_mi": 0,
+   "flagged_stretches": 0,
+   "longest_stretch_mi": 0,
+   "blocked_mi": 0,
+   "blocked_stretches": 0,
+   "heads_ups": 1,
+   "worst_blocked": []
+  },
+  {
+   "point": "denver-wash-park",
+   "category": "urban",
+   "distance_mi": 75,
+   "surface": "road",
+   "level": 1,
+   "variant": "tribos-road-0",
+   "outcome": "fail",
+   "failure_kinds": [
+    "blocked",
+    "stretch_too_long"
+   ],
+   "within_pct": 75,
+   "unknown_pct": 12.4,
+   "flagged_mi": 7.13,
+   "flagged_stretches": 5,
+   "longest_stretch_mi": 4.7,
+   "blocked_mi": 2.91,
+   "blocked_stretches": 3,
+   "heads_ups": 18,
+   "worst_blocked": [
+    {
+     "at_mi": 26.3,
+     "mi": 1.66,
+     "cls": 4,
+     "reasons": [
+      "35 mph",
+      "no bike lane or shoulder"
+     ]
+    },
+    {
+     "at_mi": 45,
+     "mi": 0.9,
+     "cls": 4,
+     "reasons": [
+      "35 mph",
+      "no bike lane or shoulder"
+     ]
+    }
+   ]
+  },
+  {
+   "point": "denver-wash-park",
+   "category": "urban",
+   "distance_mi": 75,
+   "surface": "road",
+   "level": 2,
+   "variant": "tribos-road-0",
+   "outcome": "fail",
+   "failure_kinds": [
+    "stretch_too_long"
+   ],
+   "within_pct": 83.9,
+   "unknown_pct": 12.4,
+   "flagged_mi": 2.91,
+   "flagged_stretches": 3,
+   "longest_stretch_mi": 1.66,
+   "blocked_mi": 0,
+   "blocked_stretches": 0,
+   "heads_ups": 16,
+   "worst_blocked": []
+  },
+  {
+   "point": "denver-wash-park",
+   "category": "urban",
+   "distance_mi": 75,
+   "surface": "road",
+   "level": 3,
+   "variant": "tribos-road-1",
+   "outcome": "fail",
+   "failure_kinds": [
+    "stretch_too_long",
+    "too_much_flagged"
+   ],
+   "within_pct": 71,
+   "unknown_pct": 9.6,
+   "flagged_mi": 14.63,
+   "flagged_stretches": 8,
+   "longest_stretch_mi": 5.34,
+   "blocked_mi": 0,
+   "blocked_stretches": 0,
+   "heads_ups": 23,
+   "worst_blocked": []
+  },
+  {
+   "point": "denver-wash-park",
+   "category": "urban",
+   "distance_mi": 75,
+   "surface": "road",
+   "level": 4,
+   "variant": "tribos-road-2",
+   "outcome": "fail",
+   "failure_kinds": [
+    "stretch_too_long",
+    "too_much_flagged"
+   ],
+   "within_pct": 76.1,
+   "unknown_pct": 6.4,
+   "flagged_mi": 13.26,
+   "flagged_stretches": 5,
+   "longest_stretch_mi": 5.06,
+   "blocked_mi": 0,
+   "blocked_stretches": 0,
+   "heads_ups": 15,
+   "worst_blocked": []
+  },
+  {
+   "point": "denver-wash-park",
+   "category": "urban",
+   "distance_mi": 75,
+   "surface": "road",
+   "level": 5,
+   "variant": "tribos-road-2",
+   "outcome": "pass",
+   "failure_kinds": [],
+   "within_pct": 100,
+   "unknown_pct": 0,
+   "flagged_mi": 0,
+   "flagged_stretches": 0,
+   "longest_stretch_mi": 0,
+   "blocked_mi": 0,
+   "blocked_stretches": 0,
+   "heads_ups": 0,
+   "worst_blocked": []
+  },
+  {
+   "point": "denver-sloans-lake",
+   "category": "urban",
+   "distance_mi": 15,
+   "surface": "road",
+   "level": 1,
+   "variant": "tribos-road-0",
+   "outcome": "pass",
+   "failure_kinds": [],
+   "within_pct": 78.2,
+   "unknown_pct": 19.2,
+   "flagged_mi": 0.38,
+   "flagged_stretches": 5,
+   "longest_stretch_mi": 0.3,
+   "blocked_mi": 0,
+   "blocked_stretches": 0,
+   "heads_ups": 15,
+   "worst_blocked": []
+  },
+  {
+   "point": "denver-sloans-lake",
+   "category": "urban",
+   "distance_mi": 15,
+   "surface": "road",
+   "level": 2,
+   "variant": "tribos-road-0",
+   "outcome": "pass",
+   "failure_kinds": [],
+   "within_pct": 80.8,
+   "unknown_pct": 19.2,
+   "flagged_mi": 0,
+   "flagged_stretches": 0,
+   "longest_stretch_mi": 0,
+   "blocked_mi": 0,
+   "blocked_stretches": 0,
+   "heads_ups": 10,
+   "worst_blocked": []
+  },
+  {
+   "point": "denver-sloans-lake",
+   "category": "urban",
+   "distance_mi": 15,
+   "surface": "road",
+   "level": 3,
+   "variant": "tribos-road-1",
+   "outcome": "pass",
+   "failure_kinds": [],
+   "within_pct": 79.5,
+   "unknown_pct": 20.5,
+   "flagged_mi": 0,
+   "flagged_stretches": 0,
+   "longest_stretch_mi": 0,
+   "blocked_mi": 0,
+   "blocked_stretches": 0,
+   "heads_ups": 11,
+   "worst_blocked": []
+  },
+  {
+   "point": "denver-sloans-lake",
+   "category": "urban",
+   "distance_mi": 15,
+   "surface": "road",
+   "level": 4,
+   "variant": "tribos-road-2",
+   "outcome": "pass",
+   "failure_kinds": [],
+   "within_pct": 81.5,
+   "unknown_pct": 17.9,
+   "flagged_mi": 0.1,
+   "flagged_stretches": 1,
+   "longest_stretch_mi": 0.1,
+   "blocked_mi": 0,
+   "blocked_stretches": 0,
+   "heads_ups": 14,
+   "worst_blocked": []
+  },
+  {
+   "point": "denver-sloans-lake",
+   "category": "urban",
+   "distance_mi": 15,
+   "surface": "road",
+   "level": 5,
+   "variant": "tribos-road-2",
+   "outcome": "pass",
+   "failure_kinds": [],
+   "within_pct": 100,
+   "unknown_pct": 0,
+   "flagged_mi": 0,
+   "flagged_stretches": 0,
+   "longest_stretch_mi": 0,
+   "blocked_mi": 0,
+   "blocked_stretches": 0,
+   "heads_ups": 0,
+   "worst_blocked": []
+  },
+  {
+   "point": "denver-sloans-lake",
+   "category": "urban",
+   "distance_mi": 30,
+   "surface": "road",
+   "level": 1,
+   "variant": "tribos-road-0",
+   "outcome": "fail",
+   "failure_kinds": [
+    "stretch_too_long",
+    "too_much_flagged"
+   ],
+   "within_pct": 62,
+   "unknown_pct": 24.1,
+   "flagged_mi": 4.02,
+   "flagged_stretches": 12,
+   "longest_stretch_mi": 1.23,
+   "blocked_mi": 0,
+   "blocked_stretches": 0,
+   "heads_ups": 26,
+   "worst_blocked": []
+  },
+  {
+   "point": "denver-sloans-lake",
+   "category": "urban",
+   "distance_mi": 30,
+   "surface": "road",
+   "level": 2,
+   "variant": "tribos-road-0",
+   "outcome": "pass",
+   "failure_kinds": [],
+   "within_pct": 75.7,
+   "unknown_pct": 24.1,
+   "flagged_mi": 0.04,
+   "flagged_stretches": 1,
+   "longest_stretch_mi": 0.04,
+   "blocked_mi": 0,
+   "blocked_stretches": 0,
+   "heads_ups": 15,
+   "worst_blocked": []
+  },
+  {
+   "point": "denver-sloans-lake",
+   "category": "urban",
+   "distance_mi": 30,
+   "surface": "road",
+   "level": 3,
+   "variant": "tribos-road-1",
+   "outcome": "pass",
+   "failure_kinds": [],
+   "within_pct": 68.5,
+   "unknown_pct": 31.5,
+   "flagged_mi": 0,
+   "flagged_stretches": 0,
+   "longest_stretch_mi": 0,
+   "blocked_mi": 0,
+   "blocked_stretches": 0,
+   "heads_ups": 13,
+   "worst_blocked": []
+  },
+  {
+   "point": "denver-sloans-lake",
+   "category": "urban",
+   "distance_mi": 30,
+   "surface": "road",
+   "level": 4,
+   "variant": "tribos-road-2",
+   "outcome": "pass",
+   "failure_kinds": [],
+   "within_pct": 69.8,
+   "unknown_pct": 30,
+   "flagged_mi": 0.06,
+   "flagged_stretches": 1,
+   "longest_stretch_mi": 0.06,
+   "blocked_mi": 0,
+   "blocked_stretches": 0,
+   "heads_ups": 15,
+   "worst_blocked": []
+  },
+  {
+   "point": "denver-sloans-lake",
+   "category": "urban",
+   "distance_mi": 30,
+   "surface": "road",
+   "level": 5,
+   "variant": "tribos-road-2",
+   "outcome": "pass",
+   "failure_kinds": [],
+   "within_pct": 100,
+   "unknown_pct": 0,
+   "flagged_mi": 0,
+   "flagged_stretches": 0,
+   "longest_stretch_mi": 0,
+   "blocked_mi": 0,
+   "blocked_stretches": 0,
+   "heads_ups": 0,
+   "worst_blocked": []
+  }
+ ]
+}
