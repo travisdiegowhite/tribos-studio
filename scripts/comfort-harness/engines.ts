@@ -11,7 +11,7 @@
 import type { Coordinate } from '../../src/types/geo';
 import type { TaggedWay } from '../../src/utils/wayTags';
 import { taggedWaysFromBRouterProperties } from '../../src/utils/wayTags';
-import { renderTribosProfile, type TribosParams } from '../../src/utils/brouterProfiles';
+import { renderTribosProfile, renderProfile, type TribosParams } from '../../src/utils/brouterProfiles';
 import { toleranceForComfortLevel, type ComfortLevel } from '../../src/utils/comfortLevels';
 import { haversineMeters } from '../../src/utils/distanceUnits';
 
@@ -149,7 +149,7 @@ const brouterTribos: Engine = {
     return { id: `tribos-${p.template}-c${p.comfort_level}`, describe: `tribos-${p.template} comfort_level=${p.comfort_level}` };
   },
   async route(waypoints, surface, level) {
-    const id = await uploadProfile(withTagProbe(renderTribosProfile(tribosParams(surface, level))));
+    const id = await uploadProfile(withTagProbe(applyProfileOverrides(renderTribosProfile(tribosParams(surface, level)))));
     const r = await brouterRoute(waypoints, id);
     // The Tribos profiles read every tag the classifier needs.
     const ways = taggedWaysFromBRouterProperties(r.coordinates, r.properties);
@@ -187,6 +187,21 @@ export async function createEngine(name: EngineName): Promise<Engine> {
   if (name === 'brouter-tribos') return brouterTribos;
   if (name === 'stadia') return stadiaEngine();
   throw new Error(`unknown engine ${name}`);
+}
+
+/**
+ * Tuning hook: COMFORT_PROFILE_PARAMS='{"comfort_penalty_one":4}' overrides
+ * profile parameters for the brouter-tribos engine without editing the .brf.
+ */
+export const PROFILE_OVERRIDES: Record<string, number> = (() => {
+  const raw = env('COMFORT_PROFILE_PARAMS');
+  if (!raw) return {};
+  const parsed = JSON.parse(raw) as Record<string, number>;
+  return parsed && typeof parsed === 'object' ? parsed : {};
+})();
+
+function applyProfileOverrides(text: string): string {
+  return Object.keys(PROFILE_OVERRIDES).length ? renderProfile(text, PROFILE_OVERRIDES) : text;
 }
 
 // ── Tag re-ride ─────────────────────────────────────────────────────────

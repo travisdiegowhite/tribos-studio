@@ -21,7 +21,7 @@ import { comfortClassForTags } from '../../src/utils/comfortClass';
 import { loopWaypoints, rescaleRoadFactor, DEFAULT_ROAD_FACTOR } from '../../src/utils/loopWaypoints';
 import { matchRouteWays } from '../../src/utils/surfaceOverlay.js';
 import { fnv1a32 } from '../../src/utils/stableHash';
-import { createEngine, traceTaggedWays, isThrottled, BROUTER_BASE, type EngineName, type Surface } from './engines';
+import { createEngine, traceTaggedWays, isThrottled, BROUTER_BASE, PROFILE_OVERRIDES, type EngineName, type Surface } from './engines';
 import { renderSummary, diffResults, type HarnessResults, type RunRecord, type GenerationRecord } from './report';
 
 const MI_M = 1609.344;
@@ -140,7 +140,7 @@ export async function main(argv: string[]): Promise<void> {
         run_at: new Date().toISOString(),
         duration_s: Math.round((Date.now() - startedAt) / 1000),
         brouter_calls: brouterCalls,
-        args: { points: args.points, distances: args.distances, levels: args.levels, surfaces: args.surfaces, skipUrbanGravel: args.skipUrbanGravel },
+        args: { points: args.points, distances: args.distances, levels: args.levels, surfaces: args.surfaces, skipUrbanGravel: args.skipUrbanGravel, profileOverrides: PROFILE_OVERRIDES },
         classifier_probe: comfortClassForTags({ highway: 'secondary', maxspeed: '45 mph' })?.cls ?? null,
         partial,
       },
