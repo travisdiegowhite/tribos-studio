@@ -3,7 +3,6 @@ import {
   TEMPLATES,
   renderProfile,
   renderTribosProfile,
-  toleranceLevel,
   tribosParamsFor,
   ensureProfileId,
   forgetProfileId,
@@ -22,10 +21,13 @@ beforeEach(() => {
 });
 
 describe('templates', () => {
-  it('ship the Tribos parameter lines and the tags the LTS scorer wants', () => {
+  it('ship the Tribos parameter lines, the comfort penalty and the tags the scorers want', () => {
     for (const text of Object.values(TEMPLATES)) {
-      expect(text).toMatch(/^assign traffic_tolerance = \d\s+# %traffic_tolerance%/m);
-      expect(text).toMatch(/tribos_road_penalty/);
+      expect(text).toMatch(/^assign comfort_level = \d\s+# %comfort_level%/m);
+      expect(text).toMatch(/add tribos_comfort_penalty/);
+      // Closed to bikes is prohibitive, not "walk your bike".
+      expect(text).toMatch(/else if or bicycle=no\|private\|use_sidepath .* then 10000/);
+      expect(text).not.toMatch(/traffic_tolerance/);
       for (const tag of ['maxspeed=', 'lanes=', 'shoulder=', 'lit=', 'cycleway:right=']) expect(text).toContain(tag);
     }
     expect(TEMPLATES.gravel).toMatch(/^assign gravel_target = [\d.]+\s+# %gravel_target%/m);
@@ -35,14 +37,14 @@ describe('templates', () => {
 
 describe('renderProfile', () => {
   it('rewrites only the parameter lines and leaves every other byte alone', () => {
-    const out = renderProfile(TEMPLATES.gravel, { traffic_tolerance: 2, gravel_target: 0.8 });
+    const out = renderProfile(TEMPLATES.gravel, { comfort_level: 5, gravel_target: 0.8 });
     const before = TEMPLATES.gravel.split('\n');
     const after = out.split('\n');
     expect(after.length).toBe(before.length);
     const changed = before.map((l, i) => (l === after[i] ? null : i)).filter((i) => i !== null);
     expect(changed.length).toBe(2);
-    for (const i of changed as number[]) expect(before[i]).toMatch(/# %(traffic_tolerance|gravel_target)%/);
-    expect(out).toMatch(/^assign traffic_tolerance = 2\s+# %traffic_tolerance%/m);
+    for (const i of changed as number[]) expect(before[i]).toMatch(/# %(comfort_level|gravel_target)%/);
+    expect(out).toMatch(/^assign comfort_level = 5\s+# %comfort_level%/m);
     expect(out).toMatch(/^assign gravel_target = 0\.8\s+# %gravel_target%/m);
   });
 
@@ -52,21 +54,25 @@ describe('renderProfile', () => {
   });
 });
 
-describe('tribosParamsFor / toleranceLevel', () => {
-  it('maps tolerance to 0/1/2 with balanced as the default', () => {
-    expect(toleranceLevel('low')).toBe(0);
-    expect(toleranceLevel('medium')).toBe(1);
-    expect(toleranceLevel('high')).toBe(2);
-    expect(toleranceLevel(null)).toBe(1);
-    expect(toleranceLevel(undefined)).toBe(1);
+describe('tribosParamsFor', () => {
+  it('maps the legacy setting to Comfort levels (low→2, medium→3, high→4)', () => {
+    expect(tribosParamsFor({ trafficTolerance: 'low' }).comfort_level).toBe(2);
+    expect(tribosParamsFor({ trafficTolerance: 'medium' }).comfort_level).toBe(3);
+    expect(tribosParamsFor({ trafficTolerance: 'high' }).comfort_level).toBe(4);
+    expect(tribosParamsFor({}).comfort_level).toBe(3);
+  });
+
+  it('a Comfort level wins over the legacy setting', () => {
+    expect(tribosParamsFor({ comfortLevel: 1, trafficTolerance: 'high' }).comfort_level).toBe(1);
+    expect(tribosParamsFor({ comfortLevel: 9 }).comfort_level).toBe(3);
   });
 
   it('picks the gravel template for unpaved surfaces with a 0–1 target', () => {
-    expect(tribosParamsFor({ surface: 'road', trafficTolerance: 'low' })).toEqual({ template: 'road', traffic_tolerance: 0 });
-    expect(tribosParamsFor({ surface: null })).toEqual({ template: 'road', traffic_tolerance: 1 });
+    expect(tribosParamsFor({ surface: 'road', trafficTolerance: 'low' })).toEqual({ template: 'road', comfort_level: 2 });
+    expect(tribosParamsFor({ surface: null })).toEqual({ template: 'road', comfort_level: 3 });
     expect(tribosParamsFor({ surface: 'gravel', trafficTolerance: 'high', gravelTargetPct: 70 })).toEqual({
       template: 'gravel',
-      traffic_tolerance: 2,
+      comfort_level: 4,
       gravel_target: 0.7,
     });
     expect(tribosParamsFor({ surface: 'mixed' }).gravel_target).toBe(0.5);
@@ -76,7 +82,7 @@ describe('tribosParamsFor / toleranceLevel', () => {
 });
 
 describe('ensureProfileId', () => {
-  const params = { template: 'road' as const, traffic_tolerance: 0 as const };
+  const params = { template: 'road' as const, comfort_level: 2 as const };
 
   it('uploads the rendered text once per server and caches the id', async () => {
     const fetchImpl = vi.fn(async () => okResponse('custom_1'));
@@ -89,7 +95,7 @@ describe('ensureProfileId', () => {
     expect(init.body).toBe(renderTribosProfile(params));
     // Another server or other params is another upload.
     await ensureProfileId('https://other.example', params, { fetchImpl });
-    await ensureProfileId(SERVER, { ...params, traffic_tolerance: 2 }, { fetchImpl });
+    await ensureProfileId(SERVER, { ...params, comfort_level: 4 as const }, { fetchImpl });
     expect(fetchImpl).toHaveBeenCalledTimes(3);
   });
 

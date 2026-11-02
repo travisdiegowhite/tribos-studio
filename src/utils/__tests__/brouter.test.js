@@ -146,17 +146,17 @@ describe('getBRouterDirections — Tribos profiles', () => {
     ensureProfileId.mockResolvedValue('custom_quiet');
     fetchMock.mockResolvedValueOnce(routeResponse());
     const route = await getBRouterDirections(COORDS, { profile: 'trekking', tolerance: 'low' });
-    expect(ensureProfileId).toHaveBeenCalledWith(PUBLIC_BROUTER_URL, { template: 'road', traffic_tolerance: 0 });
+    expect(ensureProfileId).toHaveBeenCalledWith(PUBLIC_BROUTER_URL, { template: 'road', comfort_level: 2 });
     expect(profileOf(0)).toBe('custom_quiet');
     expect(route.profile).toBe('custom_quiet');
     expect(trackRouteBuilder).toHaveBeenCalledWith('brouter_server_used', expect.objectContaining({ tribos: true }));
   });
 
   it('maps the stock names: safety is always quiet, fastbike direct, gravel the gravel template, mtb untouched', () => {
-    expect(tribosForProfileName('safety', 'high')).toEqual({ template: 'road', traffic_tolerance: 0 });
-    expect(tribosForProfileName('fastbike', 'low')).toEqual({ template: 'road', traffic_tolerance: 2 });
-    expect(tribosForProfileName('trekking', 'high')).toEqual({ template: 'road', traffic_tolerance: 2 });
-    expect(tribosForProfileName('gravel', 'medium', 60)).toEqual({ template: 'gravel', traffic_tolerance: 1, gravel_target: 0.6 });
+    expect(tribosForProfileName('safety', 'high')).toEqual({ template: 'road', comfort_level: 2 });
+    expect(tribosForProfileName('fastbike', 'low')).toEqual({ template: 'road', comfort_level: 4 });
+    expect(tribosForProfileName('trekking', 'high')).toEqual({ template: 'road', comfort_level: 4 });
+    expect(tribosForProfileName('gravel', 'medium', 60)).toEqual({ template: 'gravel', comfort_level: 3, gravel_target: 0.6 });
     expect(tribosForProfileName('mtb')).toBeNull();
   });
 
@@ -167,8 +167,8 @@ describe('getBRouterDirections — Tribos profiles', () => {
     await getBRouterDirections(COORDS, { profile: 'trekking', tribos: false });
     expect(ensureProfileId).not.toHaveBeenCalled();
     expect(profileOf(0)).toBe('trekking');
-    await getBRouterDirections(COORDS, { profile: 'trekking', tribos: { template: 'gravel', traffic_tolerance: 1, gravel_target: 0.3 } });
-    expect(ensureProfileId).toHaveBeenLastCalledWith(PUBLIC_BROUTER_URL, { template: 'gravel', traffic_tolerance: 1, gravel_target: 0.3 });
+    await getBRouterDirections(COORDS, { profile: 'trekking', tribos: { template: 'gravel', comfort_level: 3, gravel_target: 0.3 } });
+    expect(ensureProfileId).toHaveBeenLastCalledWith(PUBLIC_BROUTER_URL, { template: 'gravel', comfort_level: 3, gravel_target: 0.3 });
     expect(profileOf(1)).toBe('custom_x');
   });
 
@@ -189,7 +189,7 @@ describe('getBRouterDirections — Tribos profiles', () => {
       .mockResolvedValueOnce(errorResponse(500, 'profile custom_old not found'))
       .mockResolvedValueOnce(routeResponse());
     const route = await getBRouterDirections(COORDS, { profile: 'trekking' });
-    expect(forgetProfileId).toHaveBeenCalledWith(PUBLIC_BROUTER_URL, { template: 'road', traffic_tolerance: 1 });
+    expect(forgetProfileId).toHaveBeenCalledWith(PUBLIC_BROUTER_URL, { template: 'road', comfort_level: 3 });
     expect(profileOf(0)).toBe('custom_old');
     expect(profileOf(1)).toBe('custom_new');
     expect(route.profile).toBe('custom_new');

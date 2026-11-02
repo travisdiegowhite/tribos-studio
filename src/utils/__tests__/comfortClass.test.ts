@@ -78,6 +78,7 @@ describe('comfortClassForTags — spec §1 table', () => {
       [{ highway: 'residential', bicycle: 'no' }],
       [{ highway: 'service', access: 'private' }],
       [{ highway: 'footway', bicycle: 'no' }],
+      [{ highway: 'path', bicycle: 'private' }],
       [{ highway: 'construction' }],
     ])('%o → X', (tags) => {
       expect(cls(tags)).toBe('X');

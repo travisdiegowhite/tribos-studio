@@ -12,7 +12,7 @@ import type { Coordinate } from '../../src/types/geo';
 import type { TaggedWay } from '../../src/utils/wayTags';
 import { taggedWaysFromBRouterProperties } from '../../src/utils/wayTags';
 import { renderTribosProfile, type TribosParams } from '../../src/utils/brouterProfiles';
-import type { TrafficTolerance } from '../../src/utils/trafficStress';
+import { toleranceForComfortLevel, type ComfortLevel } from '../../src/utils/comfortLevels';
 import { haversineMeters } from '../../src/utils/distanceUnits';
 
 export type EngineName = 'stadia' | 'brouter-stock' | 'brouter-tribos';
@@ -34,9 +34,9 @@ export interface EngineVariant {
 
 export interface Engine {
   name: EngineName;
-  /** The request variant a tolerance maps to (several levels share one). */
-  variant(surface: Surface, tolerance: TrafficTolerance): EngineVariant;
-  route(waypoints: Coordinate[], surface: Surface, tolerance: TrafficTolerance): Promise<EngineRoute>;
+  /** The request variant a comfort level maps to (engines with three settings share one across levels). */
+  variant(surface: Surface, level: ComfortLevel): EngineVariant;
+  route(waypoints: Coordinate[], surface: Surface, level: ComfortLevel): Promise<EngineRoute>;
 }
 
 const env = (k: string) => (typeof process !== 'undefined' ? process.env[k] : undefined);
@@ -115,31 +115,27 @@ export async function brouterRoute(waypoints: ReadonlyArray<Coordinate>, profile
   return { coordinates: coords, distance_m: Number(props['track-length']) || 0, properties: props };
 }
 
-function toleranceLevel(t: TrafficTolerance): 0 | 1 | 2 {
-  return t === 'low' ? 0 : t === 'high' ? 2 : 1;
-}
-
-function tribosParams(surface: Surface, tolerance: TrafficTolerance): TribosParams {
+function tribosParams(surface: Surface, level: ComfortLevel): TribosParams {
   return surface === 'gravel'
-    ? { template: 'gravel', traffic_tolerance: toleranceLevel(tolerance), gravel_target: 0.5 }
-    : { template: 'road', traffic_tolerance: toleranceLevel(tolerance) };
+    ? { template: 'gravel', comfort_level: level, gravel_target: 0.5 }
+    : { template: 'road', comfort_level: level };
 }
 
 /** Today's BRouter fallback: `selectBRouterProfile('endurance', surface, tolerance)` in brouter.js. */
-function stockProfile(surface: Surface, tolerance: TrafficTolerance): string {
+function stockProfile(surface: Surface, level: ComfortLevel): string {
   if (surface === 'gravel') return 'gravel';
-  if (tolerance === 'low') return 'safety';
+  if (toleranceForComfortLevel(level) === 'low') return 'safety';
   return 'trekking';
 }
 
 const brouterStock: Engine = {
   name: 'brouter-stock',
-  variant(surface, tolerance) {
-    const p = stockProfile(surface, tolerance);
+  variant(surface, level) {
+    const p = stockProfile(surface, level);
     return { id: p, describe: `brouter ${p}` };
   },
-  async route(waypoints, surface, tolerance) {
-    const r = await brouterRoute(waypoints, stockProfile(surface, tolerance));
+  async route(waypoints, surface, level) {
+    const r = await brouterRoute(waypoints, stockProfile(surface, level));
     // Stock profiles don't read maxspeed/lanes/shoulder, so BRouter omits
     // them from WayTags: the tags are incomplete for classing.
     return { coordinates: r.coordinates, distance_m: r.distance_m, taggedWays: null };
@@ -148,12 +144,12 @@ const brouterStock: Engine = {
 
 const brouterTribos: Engine = {
   name: 'brouter-tribos',
-  variant(surface, tolerance) {
-    const p = tribosParams(surface, tolerance);
-    return { id: `tribos-${p.template}-${p.traffic_tolerance}`, describe: `tribos-${p.template} traffic_tolerance=${p.traffic_tolerance}` };
+  variant(surface, level) {
+    const p = tribosParams(surface, level);
+    return { id: `tribos-${p.template}-c${p.comfort_level}`, describe: `tribos-${p.template} comfort_level=${p.comfort_level}` };
   },
-  async route(waypoints, surface, tolerance) {
-    const id = await uploadProfile(withTagProbe(renderTribosProfile(tribosParams(surface, tolerance))));
+  async route(waypoints, surface, level) {
+    const id = await uploadProfile(withTagProbe(renderTribosProfile(tribosParams(surface, level))));
     const r = await brouterRoute(waypoints, id);
     // The Tribos profiles read every tag the classifier needs.
     const ways = taggedWaysFromBRouterProperties(r.coordinates, r.properties);
@@ -168,10 +164,12 @@ async function stadiaEngine(): Promise<Engine> {
   const { getStadiaMapsRoute } = await import('../../src/utils/stadiaMapsRouter.js');
   return {
     name: 'stadia',
-    variant(surface, tolerance) {
+    variant(surface, level) {
+      const tolerance = toleranceForComfortLevel(level);
       return { id: `${surface}-${tolerance}`, describe: `stadia ${surface} trafficTolerance=${tolerance}` };
     },
-    async route(waypoints, surface, tolerance) {
+    async route(waypoints, surface, level) {
+      const tolerance = toleranceForComfortLevel(level);
       const r = await getStadiaMapsRoute(waypoints, {
         profile: surface === 'gravel' ? 'gravel' : 'road',
         preferences: { trafficTolerance: tolerance },
@@ -204,7 +202,14 @@ export const TRACE_CHUNK_VIAS = 40;
  * than detouring to quieter roads, and it reads maxspeed/lanes/shoulder.
  */
 export function traceProfileText(): string {
-  return withTagProbe(renderTribosProfile({ template: 'road', traffic_tolerance: 2 }));
+  // Comfort 5 so it follows the drawn line rather than detouring, and with
+  // closed-to-bikes access softened back to "walk your bike": the re-ride
+  // has to travel the closed road to report it as class X, or the validator
+  // would see it as merely unconfirmed.
+  const text = renderTribosProfile({ template: 'road', comfort_level: 5 });
+  const softened = text.replace(/(else if or bicycle=no\|private\|use_sidepath .* then )10000/, '$14');
+  if (softened === text) throw new Error('trace profile: closed-to-bikes rule not found');
+  return withTagProbe(softened);
 }
 
 /**

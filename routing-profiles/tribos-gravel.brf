@@ -2,7 +2,7 @@
 # *** the share they asked for, and still keeps them off busy arterials.
 # ***
 # *** Derived from BRouter's trekking.brf (MIT, abrensch/brouter). Rider
-# *** parameters (%traffic_tolerance%, %gravel_target%) are rendered per
+# *** parameters (%comfort_level%, %gravel_target%) are rendered per
 # *** request by src/utils/brouterProfiles.ts and uploaded as a custom profile.
 
 ---context:global   # following code refers to global config
@@ -59,7 +59,10 @@ assign correctMisplacedViaPointsDistance = 400 # %correctMisplacedViaPointsDista
 assign processUnusedTags            = false # %processUnusedTags% | Set true to output unused tags in data tab | boolean
 
 # Tribos rider parameters (rendered per request by src/utils/brouterProfiles.ts)
-assign traffic_tolerance = 1 # %traffic_tolerance% | Road comfort: 0 quiet, 1 balanced, 2 direct | number
+assign comfort_level = 3 # %comfort_level% | Comfort 1 calm to 5 direct (src/utils/comfortLevels.ts) | number
+assign comfort_penalty_one = 2 # %comfort_penalty_one% | Added cost on a road one class above the rider | number
+assign comfort_penalty_two = 6 # %comfort_penalty_two% | Added cost two classes above | number
+assign comfort_penalty_blocked = 40 # %comfort_penalty_blocked% | Added cost three or more above (kept off) | number
 assign gravel_target = 0.5 # %gravel_target% | Share of the ride wanted unpaved, 0 to 1 | number
 assign unpavedPenalty = 0.3 # %unpavedPenalty% | Extra penalty multiplier applied to the non-probablyGood cost of track/road/path/footway ways depending on tracktype grade | number
 
@@ -172,6 +175,10 @@ assign footaccess =
 #
 assign accesspenalty =
        if bikeaccess then 0
+       # Closed to bikes (comfort class X): not "walk your bike". Stock
+       # trekking pushes through bicycle=no when foot access exists, which
+       # routed riders down closed canyon roads (docs/comfort-harness.md).
+       else if or bicycle=no|private|use_sidepath ( and bicycle= vehicle=no|private ) then 10000
        else if footaccess then 4
        else if any_cycleroute then 15
        else if bicycle=use_sidepath then 25
@@ -290,7 +297,7 @@ assign tribos_protected = or cycleway=track|opposite_track
                           or cycleway:left=track|sidepath|opposite_track
                           or cycleway:right=track|sidepath|opposite_track
                              cycleway:both=track|separate
-assign tribos_shoulder = or shoulder=yes|right|left|both or cycleway=shoulder cycleway:both=shoulder
+assign tribos_shoulder = or shoulder=yes|right|left|both or shoulder:right=yes or cycleway=shoulder|yes cycleway:both=shoulder
 assign tribos_hasfacility = or tribos_lane or tribos_protected tribos_shoulder
 
 # maxspeed value classes fold mph in (70 = 45 mph, 80 = 50 mph).
@@ -299,30 +306,79 @@ assign tribos_manylanes = lanes=4|5|6|7|8
 assign tribos_arterial = highway=primary|primary_link|trunk|trunk_link
 assign tribos_busy = and highway=secondary|secondary_link|tertiary|tertiary_link ( or tribos_fast tribos_manylanes )
 
-assign tribos_quiet = equal traffic_tolerance 0
-assign tribos_direct = equal traffic_tolerance 2
+# --- Comfort classes (docs/COMFORT-ROUTING-SPEC.md §1) -----------------
+# Mirrors src/utils/comfortClass.ts as closely as the profile language
+# allows; the validator (src/utils/comfortValidator.ts) is the authority,
+# so this only has to steer. Speeds are BRouter's maxspeed buckets
+# (lookups.dat: 50 = 30 mph, 60 = 35 or 40 mph, 70 = 45, 80 = 50, 90 = 55).
+assign c_separated = or highway=cycleway|path|footway|pedestrian|track|bridleway tribos_protected
+assign c_main = highway=primary|primary_link|trunk|trunk_link
+assign c_many = lanes=4|5|6|7|8
+assign c_quietroad = highway=residential|living_street|service|unclassified|road
+assign c_unpaved = or isunpaved tracktype=grade2|grade3|grade4|grade5
+assign c_unknownspeed = and maxspeed= highway=unclassified|tertiary|tertiary_link|secondary|secondary_link
 
-# Added to the costfactor: a quiet rider pays dearly for an arterial with no
-# facility, a direct rider barely notices it. A protected track or a lane
-# cuts the penalty; a shoulder counts as a facility.
-assign tribos_road_penalty =
-  if tribos_arterial then
+# Speed in mph. With no maxspeed, quiet classes take their default; the
+# classes where a missing limit means "we don't know" read BRouter's own
+# traffic estimate instead (present on nearly every such mile).
+assign c_mph =
+  if maxspeed=10|20|30 then 20
+  else if maxspeed=40 then 25
+  else if maxspeed=50 then 30
+  else if maxspeed=60 then 40
+  else if maxspeed=70 then 45
+  else if maxspeed=80 then 50
+  else if maxspeed=90 then 55
+  else if maxspeed=100|110|120|130 then 65
+  else if c_unknownspeed then
   (
-    if tribos_protected then ( if tribos_quiet then 0.6 else if tribos_direct then 0.1 else 0.3 )
-    else if tribos_hasfacility then ( if tribos_quiet then 1.5 else if tribos_direct then 0.1 else 0.6 )
-    else ( if tribos_quiet then 5 else if tribos_direct then 0.5 else 2 )
+    if estimated_traffic_class=1|2 then 30
+    else if estimated_traffic_class=3 then 40
+    else if estimated_traffic_class=4|5|6|7 then 50
+    else 40
   )
-  else if tribos_busy then
-  (
-    if tribos_hasfacility then ( if tribos_quiet then 0.5 else if tribos_direct then 0 else 0.2 )
-    else ( if tribos_quiet then 2 else if tribos_direct then 0.2 else 0.8 )
-  )
-  else 0
+  else if highway=living_street|service then 15
+  else if highway=residential|road then 25
+  else if c_main then 55
+  else 30
 
-# BRouter's own traffic estimate, weighted by tolerance.
-assign tribos_traffic_penalty =
-  if estimated_traffic_class=5|6|7 then ( if tribos_quiet then 0.5 else if tribos_direct then 0 else 0.2 )
-  else 0
+assign c_class =
+  if c_separated then 1
+  else if ( and c_unpaved not c_main ) then ( if highway=track then 1 else if and c_quietroad lesser c_mph 26 then 1 else 2 )
+  else if tribos_lane then
+  (
+    if c_many then ( if lesser c_mph 36 then 3 else 4 )
+    else if lesser c_mph 36 then 2
+    else if lesser c_mph 41 then 3
+    else if lesser c_mph 56 then 4
+    else 5
+  )
+  else if tribos_shoulder then
+  (
+    if lesser c_mph 31 then ( if c_many then 3 else 2 )
+    else if lesser c_mph 41 then ( if c_many then 4 else 3 )
+    else if ( and lesser c_mph 46 not c_many ) then 3
+    else if lesser c_mph 56 then 4
+    else 5
+  )
+  else if c_main then 5
+  else if c_many then 5
+  else if greater c_mph 40 then 5
+  else if greater c_mph 35 then 4
+  else if greater c_mph 30 then 3
+  else if greater c_mph 25 then 2
+  else if c_quietroad then 1
+  else 2
+
+# Added to the costfactor by how far the road sits above the rider's level:
+# within comfort is free, one or two above is a flagged stretch (strong
+# penalty), three above is "kept off" (near-prohibitive but routable, so
+# the validator and ladder see the least-bad line rather than no route).
+assign tribos_comfort_penalty =
+  if not greater c_class comfort_level then 0
+  else if not greater c_class add comfort_level 1 then comfort_penalty_one
+  else if not greater c_class add comfort_level 2 then comfort_penalty_two
+  else comfort_penalty_blocked
 
 # Gravel: every paved metre costs extra in proportion to how much of the ride
 # the rider wants unpaved. Unpaved surfaces and graded tracks pay nothing here
@@ -356,8 +412,7 @@ assign costfactor
   add no_river_penalty
   add noise_penalty
   add traffic_penalty
-  add tribos_road_penalty
-  add tribos_traffic_penalty
+  add tribos_comfort_penalty
   add tribos_paved_penalty
 
   #

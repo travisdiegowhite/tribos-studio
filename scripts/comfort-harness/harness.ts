@@ -15,7 +15,7 @@ import { readFileSync, writeFileSync, mkdirSync, existsSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import type { Coordinate } from '../../src/types/geo';
 import type { TaggedWay } from '../../src/utils/wayTags';
-import { COMFORT_LEVELS, toleranceForComfortLevel, type ComfortLevel } from '../../src/utils/comfortLevels';
+import { COMFORT_LEVELS, type ComfortLevel } from '../../src/utils/comfortLevels';
 import { classifyRouteSegments, validateMatchedSegments } from '../../src/utils/comfortValidator';
 import { comfortClassForTags } from '../../src/utils/comfortClass';
 import { loopWaypoints, rescaleRoadFactor, DEFAULT_ROAD_FACTOR } from '../../src/utils/loopWaypoints';
@@ -159,7 +159,7 @@ export async function main(argv: string[]): Promise<void> {
         // Levels that share one engine request share one generation.
         const byVariant = new Map<string, ComfortLevel[]>();
         for (const level of args.levels) {
-          const v = engine.variant(surface, toleranceForComfortLevel(level)).id;
+          const v = engine.variant(surface, level).id;
           byVariant.set(v, [...(byVariant.get(v) ?? []), level]);
         }
         for (const [variantId, levels] of byVariant) {
@@ -171,8 +171,7 @@ export async function main(argv: string[]): Promise<void> {
             runs.push(...reuse.runs);
             continue;
           }
-          const tolerance = toleranceForComfortLevel(levels[0]);
-          const variant = engine.variant(surface, tolerance);
+          const variant = engine.variant(surface, levels[0]);
           const targetKm = distanceMi * KM_PER_MI;
           const bearingDeg = bearingFor(point.id, distanceMi);
           const tag = `${point.id} ${distanceMi}mi ${surface} [${variant.describe}]`;
@@ -205,7 +204,7 @@ export async function main(argv: string[]): Promise<void> {
               gen.attempts++;
               const wps = loopWaypoints(point.lnglat as Coordinate, targetKm, { bearingDeg, roadFactor });
               try {
-                const r = await engine.route(wps, surface, tolerance);
+                const r = await engine.route(wps, surface, levels[0]);
                 if (engine.name !== 'stadia') brouterCalls++;
                 const km = r.distance_m / 1000;
                 if (!best || Math.abs(km - targetKm) < Math.abs(best.distance_m / 1000 - targetKm)) best = r;

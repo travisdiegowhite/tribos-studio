@@ -5,7 +5,7 @@
  * BRouter's profile parser is Java, so the only way to know a profile is
  * syntactically valid is to upload it and route with it. This uploads each
  * profile in routing-profiles/ at its default parameters (and the road one
- * at quiet / direct), routes Erie → Boulder, and prints the distance and the
+ * at Comfort 1 / 3 / 5), routes Erie → Boulder, and prints the distance and the
  * tag keys BRouter reported for the ways it rode — those keys are what the
  * traffic-stress and surface analyses see.
  *
@@ -70,8 +70,8 @@ for (const file of fs.readdirSync(DIR).filter((f) => f.endsWith('.brf')).sort())
   const template = fs.readFileSync(path.join(DIR, file), 'utf8');
   const variants =
     file.includes('road')
-      ? [{ traffic_tolerance: 0 }, { traffic_tolerance: 1 }, { traffic_tolerance: 2 }]
-      : [{ traffic_tolerance: 1, gravel_target: 0.5 }, { traffic_tolerance: 0, gravel_target: 0.9 }];
+      ? [{ comfort_level: 1 }, { comfort_level: 3 }, { comfort_level: 5 }]
+      : [{ comfort_level: 3, gravel_target: 0.5 }, { comfort_level: 1, gravel_target: 0.9 }];
   for (const params of variants) {
     const label = `${file} ${JSON.stringify(params)}`;
     try {

@@ -511,9 +511,13 @@ route. The self-hosted server lives in `deploy/brouter/` (Fly.io app
 is the deploy and operations guide.
 
 - **Tribos profiles** (`routing-profiles/tribos-road.brf`, `tribos-gravel.brf`)
-  are BRouter cost functions that read `maxspeed`, `lanes`, `shoulder`,
-  `cycleway*`, `estimated_traffic_class` and take the rider's Road comfort as
-  a parameter. `src/utils/brouterProfiles.ts` renders and uploads them at
+  are BRouter cost functions that score each way's comfort class 1–5
+  (mirroring `src/utils/comfortClass.ts`) from `maxspeed`, `lanes`,
+  `shoulder`, `cycleway*` and `estimated_traffic_class`, and take the rider's
+  Comfort level 1–5 as `comfort_level` (it replaced the 0/1/2
+  `traffic_tolerance` in 2026-11; legacy low/medium/high map to 2/3/4).
+  `bicycle=no|private|use_sidepath` is prohibitive (10000), not the stock
+  trekking "walk your bike" ×4. `src/utils/brouterProfiles.ts` renders and uploads them at
   runtime (`POST /brouter/profile` → `custom_…` id, cached per server). They
   are **gated by `VITE_BROUTER_TRIBOS_PROFILES`** (default off); when on,
   named-profile calls are upgraded transparently (trekking → road at the

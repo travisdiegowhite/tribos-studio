@@ -138,7 +138,7 @@ function parseLaneCount(tags: Record<string, string>, highway: string, extras?: 
 
 function isClosedToBikes(tags: Record<string, string>): boolean {
   const bicycle = tags.bicycle;
-  if (bicycle === 'no' || bicycle === 'use_sidepath') return true;
+  if (bicycle === 'no' || bicycle === 'private' || bicycle === 'use_sidepath') return true;
   if (bicycle && BIKE_YES.has(bicycle)) return false;
   if (NO_ACCESS.has(tags.access ?? '') || NO_ACCESS.has(tags.vehicle ?? '')) return true;
   return false;

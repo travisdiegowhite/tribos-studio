@@ -18,13 +18,18 @@ import roadTemplate from '../../routing-profiles/tribos-road.brf?raw';
 import gravelTemplate from '../../routing-profiles/tribos-gravel.brf?raw';
 import { fnv1a32 } from './stableHash';
 import type { TrafficTolerance } from './trafficStress';
+import { comfortLevelFromTolerance, toComfortLevel, type ComfortLevel } from './comfortLevels';
 
 export type TribosTemplate = 'road' | 'gravel';
 
 export interface TribosParams {
   template: TribosTemplate;
-  /** 0 quiet, 1 balanced, 2 direct — the Road comfort setting. */
-  traffic_tolerance: 0 | 1 | 2;
+  /**
+   * Comfort 1 (calm) … 5 (direct), docs/COMFORT-ROUTING-SPEC.md §2. The
+   * profile scores each road's comfort class and penalises it by how far it
+   * sits above this level. Replaced the 0/1/2 `traffic_tolerance` (2026-11).
+   */
+  comfort_level: ComfortLevel;
   /** Share of the ride wanted unpaved, 0–1; gravel template only. */
   gravel_target?: number;
 }
@@ -46,22 +51,27 @@ export function renderProfile(template: string, params: Record<string, number | 
   );
 }
 
-export function toleranceLevel(tolerance: TrafficTolerance | null | undefined): 0 | 1 | 2 {
-  if (tolerance === 'low') return 0;
-  if (tolerance === 'high') return 2;
-  return 1;
-}
-
-/** Rider settings → profile parameters. */
+/**
+ * Rider settings → profile parameters. A Comfort level wins; otherwise the
+ * legacy three-way setting maps low→2, medium→3, high→4 (spec §5.4), and
+ * no setting at all is 3, which is what `medium` was the default for.
+ */
 export function tribosParamsFor(input: {
   surface?: string | null;
+  comfortLevel?: number | null;
   trafficTolerance?: TrafficTolerance | null;
   gravelTargetPct?: number | null;
 }): TribosParams {
   const gravel = input.surface === 'gravel' || input.surface === 'mixed' || input.surface === 'mountain' || input.surface === 'mtb';
+  const level =
+    input.comfortLevel != null
+      ? toComfortLevel(input.comfortLevel, 3)
+      : input.trafficTolerance
+        ? comfortLevelFromTolerance(input.trafficTolerance)
+        : 3;
   const params: TribosParams = {
     template: gravel ? 'gravel' : 'road',
-    traffic_tolerance: toleranceLevel(input.trafficTolerance),
+    comfort_level: level,
   };
   if (gravel) {
     const pct = typeof input.gravelTargetPct === 'number' && Number.isFinite(input.gravelTargetPct) ? input.gravelTargetPct : 50;
@@ -72,7 +82,7 @@ export function tribosParamsFor(input: {
 
 /** The profile text for these params. */
 export function renderTribosProfile(params: TribosParams): string {
-  const values: Record<string, number> = { traffic_tolerance: params.traffic_tolerance };
+  const values: Record<string, number> = { comfort_level: params.comfort_level };
   if (params.template === 'gravel') values.gravel_target = params.gravel_target ?? 0.5;
   return renderProfile(TEMPLATES[params.template], values);
 }
