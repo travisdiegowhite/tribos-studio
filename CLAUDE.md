@@ -530,6 +530,27 @@ is the deploy and operations guide.
   the `supabaseAdmin` singleton and one row in `system_health_checks`
   (migration 126, apply by hand; the monitor is fail-soft without it).
 
+### Comfort routing — Phase 0 (2026-11)
+
+Tribos is pivoting back to routing; the specs are `docs/COMFORT-ROUTING-SPEC.md`
+(rules, ladder, validator) and `docs/ROUTING-LANDING-SPEC.md` (landing and
+result view). Phase 0 is measurement only and is wired into nothing:
+
+- `src/utils/comfortLevels.ts` holds the Comfort 1–5 rules AND the landing
+  card copy, derived from them. Never hand-write a level's lists elsewhere.
+- `src/utils/comfortClass.ts` (road class 1–5/X) and
+  `src/utils/comfortValidator.ts` (the authority on pass/fail) are pure and
+  run in the browser and Node.
+- `npm run harness:comfort` (`docs/comfort-harness.md`) measures routing
+  against 20 Front Range start points; diff every profile or data change
+  against a committed baseline.
+- **BRouter reports only the tags its profile reads.** Stock profiles
+  (trekking/safety/gravel, and `brouterTrace.ts`) return no `maxspeed`,
+  `lanes` or `shoulder`, so anything classified from them falls back to
+  class-default speeds.
+- No absolutes ("never", "always", "guaranteed") in rider-facing comfort
+  copy; `comfortLevels.test.ts` enforces it.
+
 ### Shop inventory — a self-contained feature (2026-10)
 
 `/garage/shop` is a parts-and-tools inventory, owner-only for now. It is
