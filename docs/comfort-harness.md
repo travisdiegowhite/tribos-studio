@@ -116,3 +116,33 @@ What the runs turned up:
 5. **Lyons 15 mi has no loop at all** ("target island": the waypoints land
    in terrain BRouter can't reach). The ladder's nearby-start search
    covers this case.
+
+## Profile work 1: closed roads and Comfort 1–5 (2026-11-02)
+
+Changes in `tribos-road.brf` / `tribos-gravel.brf`: `bicycle=no|private|use_sidepath`
+is prohibitive (10000). The 0/1/2 `traffic_tolerance` became `comfort_level` 1–5,
+with a per-way comfort class in the profile and an added cost of
+`comfort_penalty_one/two/blocked` for roads 1, 2 and 3+ classes above the
+rider. The penalties were tuned on the 30 mi slice (180 loops each):
+
+| Penalties | C1 | C2 | C3 | C4 | Blocked leaks | Distance error | No route |
+|---|---:|---:|---:|---:|---:|---:|---:|
+| 2 / 6 / 40 | 11% | 33% | 50% | 44% | 48 | 5.7% | 0 |
+| **4 / 12 / 200 (adopted)** | 24% | 37% | 56% | 58% | 41 | 7.3% | 3 |
+
+Full matrix with the adopted values
+(`results/brouter-tribos-c15-2026-11-02.*`), compared with the Phase 0 baseline:
+
+| Level | Pass before → after | Has blocked road before → after |
+|---|---:|---:|
+| Comfort 1 | 1% → 25% | 92% → 57% |
+| Comfort 2 (default) | 9% → 40% | 85% → 47% |
+| Comfort 3 | 22% → 51% | 15% → 3% |
+| Comfort 4 | 36% → 60% | 16% → 1% |
+| Comfort 5 | 84% → 100% | 16% → 0% |
+
+- Blocked-class leaks fell from 320 to 149. 179 checks now pass and 7 now fail, five of them failures and two no-route.
+- Class X is gone from every level. Comfort 5 had been failing only because of `bicycle=no`.
+- Costs: median distance error rose from about 6% to 8%, and 21 of 720 generations returned no route. Of those, 11 are "target island" (waypoints in unreachable terrain, mostly foothills), 8 are brouter.de's 1–2 s compute watchdog, and 2 are gateway timeouts. The watchdog is a public-server limit; the self-hosted server can allow longer.
+- What's left at Comfort 1–2 is mostly 55 mph highways on the plains (Kiowa, Aurora, Platteville, Bennett) and foothill corridors where the map holds no quieter way through. A profile can't route around that. The ladder handles it: an alternative start or distance, or a refusal.
+- These are still one-shot routes per level. The baseline shared one route across levels 1–2 and 4–5, so the per-level rows are like for like, but generation counts differ (432 → 720).
