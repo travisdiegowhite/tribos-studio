@@ -33,7 +33,7 @@ The script bundles `scripts/comfort-harness/harness.ts` with esbuild (it ships w
 
 | Option | Default | |
 |---|---|---|
-| `--engine` | `stadia` | `stadia` (today's primary router; needs `STADIA_API_KEY`), `brouter-stock` (today's BRouter fallback: safety/trekking/gravel), `brouter-tribos` (the Tribos profiles at tolerance 0/1/2) |
+| `--engine` | `stadia` | `stadia` (today's primary router; needs `STADIA_API_KEY`), `brouter-stock` (today's BRouter fallback: safety/trekking/gravel), `brouter-tribos` (the Tribos profiles, one request per Comfort level 1–5) |
 | `--points` | all 20 | comma-separated ids from `start-points.json` |
 | `--distances` | 15,30,50,75 | miles |
 | `--surfaces` | road,gravel | gravel is skipped at urban points unless `--include-urban-gravel` |
@@ -42,10 +42,11 @@ The script bundles `scripts/comfort-harness/harness.ts` with esbuild (it ships w
 | `--delay-ms` | 400 | pause between requests. Use 1500 on brouter.de, which throttles (HTTP 403 "Please, retry later!") |
 | `--resume <file>` | – | reuse every settled generation in a previous results file, redo the rest. The run checkpoints every 10 generations, so `--resume` with the same `--out` survives interruptions |
 | `BROUTER_URL` env | brouter.de | point at the self-hosted server for big runs |
+| `COMFORT_PROFILE_PARAMS` env | – | JSON of profile parameters to override for a tuning run, e.g. `{"comfort_penalty_one":4}` |
 
 How a run works:
 
-- **One generation per (point, distance, surface, engine request).** Levels that map to the same request share it: 1–2 → low, 3 → medium, 4–5 → high, the same mapping the landing form uses until the router takes 1–5. Each generation is validated at each of its levels.
+- **One generation per (point, distance, surface, engine request).** Levels that map to the same request share it. For `stadia` and `brouter-stock` that's 1–2 → low, 3 → medium, 4–5 → high. `brouter-tribos` takes `comfort_level` 1–5 directly, so each level gets its own route. Each generation is validated at each of its levels.
 - **Loop**: `loopWaypoints` with a bearing hashed from the point and distance. Up to 3 attempts, rescaling toward ±10% of the target distance.
 - **Tags**: `brouter-tribos` routes carry their own. For the other engines the line is re-ridden with BRouter (Tribos road profile at "direct", vias every 750 m, 40 per request) and the ways are matched back onto the original line.
 - **Throttling and network errors** back off (15 s → 2 min) and, if they persist, are recorded as `error`, not `no_route`. They're excluded from the stats and retried by `--resume`.

@@ -60,9 +60,9 @@ assign processUnusedTags            = false # %processUnusedTags% | Set true to 
 
 # Tribos rider parameters (rendered per request by src/utils/brouterProfiles.ts)
 assign comfort_level = 3 # %comfort_level% | Comfort 1 calm to 5 direct (src/utils/comfortLevels.ts) | number
-assign comfort_penalty_one = 2 # %comfort_penalty_one% | Added cost on a road one class above the rider | number
-assign comfort_penalty_two = 6 # %comfort_penalty_two% | Added cost two classes above | number
-assign comfort_penalty_blocked = 40 # %comfort_penalty_blocked% | Added cost three or more above (kept off) | number
+assign comfort_penalty_one = 4 # %comfort_penalty_one% | Added cost on a road one class above the rider | number
+assign comfort_penalty_two = 12 # %comfort_penalty_two% | Added cost two classes above | number
+assign comfort_penalty_blocked = 200 # %comfort_penalty_blocked% | Added cost three or more above (kept off) | number
 assign gravel_target = 0.5 # %gravel_target% | Share of the ride wanted unpaved, 0 to 1 | number
 assign unpavedPenalty = 0.3 # %unpavedPenalty% | Extra penalty multiplier applied to the non-probablyGood cost of track/road/path/footway ways depending on tracktype grade | number
 
