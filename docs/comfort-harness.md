@@ -65,3 +65,53 @@ npm run audit:osm-coverage
 ```
 
 One Overpass query sums way lengths per highway class and tag server-side (`make stat … sum(length())`) for the Front Range bounding box, and writes `docs/audit/osm-coverage-<date>.md`. `--dry-run` prints the query, `--endpoint` picks a mirror. The harness summary has the same columns for ridden miles.
+
+## Phase 0 results (2026-11-02, brouter.de)
+
+Run from a cloud session that could reach only brouter.de: no Stadia key, and
+Overpass, Geofabrik and the self-hosted BRouter were blocked. So **the Stadia
+baseline (today's primary router) and the OSM coverage audit are not yet
+run.** Both are one command each from a machine that has the key and network
+(see above). Results are in `scripts/comfort-harness/results/`.
+
+| Run | Loops | Checks | Pass | Has blocked road | Median within % (C2) |
+|---|---:|---:|---:|---:|---:|
+| `brouter-tribos` (Tribos profiles, full matrix) | 432 | 720 | 30% | 45% | 59% |
+| `brouter-stock` (today's BRouter fallback; road, 30/50 mi) | 80 | 200 | 28% | 47% | 59% |
+
+These are loops with **no ladder**: one route per request, handed back
+whatever it holds. Comfort 2 (the default) passes **9%** of the time with
+the Tribos profiles and 5% with the stock ones, and 85–93% of those routes
+include a blocked road. Most failures are stretches over 0.5 mi (402) and
+blocked classes (320), then >10% flagged (251). That gap is what the ladder
+and the profile work (§5 items 1 and 3) have to close.
+
+What the runs turned up:
+
+1. **Both profile families route on `bicycle=no`.** The Tribos profiles keep
+   BRouter trekking's `accesspenalty` (bike access no, but foot access → ×4,
+   "walk your bike"). That's why 15–16% of routes at Comfort 5 still contain
+   class X: about 16 km of `bicycle=no` trail on one Nederland loop, and
+   `bicycle=no` primary (US-6 Clear Creek Canyon) on Golden loops. The
+   validator blocks them correctly. **Fix in the profile work: make
+   `bicycle=no` prohibitive (10000) in `tribos-road.brf` / `tribos-gravel.brf`,
+   and validate with `node scripts/validate-brouter-profiles.mjs`.** The
+   stock fallback has the same behaviour today.
+2. **Unknown speed is about a quarter of the ride** (median 23–28% at Comfort
+   1–4). On ridden miles only 31% of `tertiary`, 54% of `secondary` and 11% of
+   `unclassified` carry `maxspeed`. BRouter's `estimated_traffic_class` is on
+   97–100% of tertiary/secondary miles, which makes it the cheapest way to
+   resolve unknowns before §6 data. Worth testing as an `extras` input.
+3. **Shoulders are invisible:** 0–1% of ridden miles carry any `shoulder*`
+   tag, so classes 3 and 4 can't be told from 5 on fast roads in OSM. CDOT
+   cross-section data (§6) is the only route to that.
+4. **Trace fidelity is good where it matches:** 97–100% class agreement on
+   20 routes. But the re-ride leaves a median 5% unconfirmed, and up to
+   58% / 39% / 27% at Bennett, Kiowa and Wellington, where the road profile
+   detours around the gravel the original line used. That errs toward
+   `unknown` (the safe direction), but a Stadia baseline will overstate
+   unknown in gravel country. Next step: re-ride with the gravel template
+   there.
+5. **Lyons 15 mi has no loop at all** ("target island": the waypoints land
+   in terrain BRouter can't reach). The ladder's nearby-start search
+   covers this case.
