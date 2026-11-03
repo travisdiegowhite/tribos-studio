@@ -23,6 +23,7 @@ import { matchRouteWays } from '../../src/utils/surfaceOverlay.js';
 import { fnv1a32 } from '../../src/utils/stableHash';
 import { createEngine, traceTaggedWays, isThrottled, BROUTER_BASE, PROFILE_OVERRIDES, type EngineName, type Surface } from './engines';
 import { renderSummary, diffResults, type HarnessResults, type RunRecord, type GenerationRecord } from './report';
+import { runLadder } from './ladder';
 
 const MI_M = 1609.344;
 const KM_PER_MI = 1.609344;
@@ -46,6 +47,8 @@ interface Args {
   skipUrbanGravel: boolean;
   checkTrace: boolean;
   resume: string | null;
+  ladder: boolean;
+  allowNearbyStart: boolean;
 }
 
 function parseArgs(argv: string[], defaults: { distances: number[]; surfaces: Surface[] }): Args {
@@ -62,13 +65,15 @@ function parseArgs(argv: string[], defaults: { distances: number[]; surfaces: Su
     distances: list(get('distances'))?.map(Number) ?? defaults.distances,
     levels: (list(get('levels'))?.map(Number) ?? [...COMFORT_LEVELS]) as ComfortLevel[],
     surfaces: (list(get('surfaces')) ?? defaults.surfaces) as Surface[],
-    out: get('out') ?? `scripts/comfort-harness/results/${engine}-${date}.json`,
+    out: get('out') ?? `scripts/comfort-harness/results/${engine}${argv.includes('--ladder') ? '-ladder' : ''}-${date}.json`,
     baseline: get('baseline') ?? null,
     delayMs: Number(get('delay-ms') ?? 400),
     limit: Number(get('limit') ?? Infinity),
     skipUrbanGravel: !argv.includes('--include-urban-gravel'),
     checkTrace: argv.includes('--check-trace'),
     resume: get('resume') ?? null,
+    ladder: argv.includes('--ladder'),
+    allowNearbyStart: !argv.includes('--no-nearby-start'),
   };
 }
 
@@ -110,6 +115,10 @@ export async function main(argv: string[]): Promise<void> {
   const args = parseArgs(argv, { distances: pointsFile.matrix.distances_mi, surfaces: pointsFile.matrix.surfaces });
   const engine = await createEngine(args.engine);
   const points = pointsFile.points.filter((p) => !args.points || args.points.includes(p.id));
+  if (args.ladder) {
+    await runLadder({ engine, points, args, bearingFor });
+    return;
+  }
 
   const generations: GenerationRecord[] = [];
   const runs: RunRecord[] = [];
