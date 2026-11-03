@@ -48,6 +48,7 @@ function RouteSummary({ c, onTryAnother }: { c: ComfortCandidate; onTryAnother: 
       <p className="rl-chips">
         {formatMiles(c.distance_m)} · {comfortChip(c.level)}
       </p>
+      {c.note && <p className="rl-sub">{c.note}</p>}
       <p id="rl-result-stat" className="rl-stat">
         <strong className="rl-num">{Math.round(v.withinPct)}%</strong> {C.withinSuffix}
       </p>

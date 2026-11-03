@@ -32,6 +32,7 @@ import {
 } from './landingPrefs';
 import { searchStart, reverseGeocodeStart, currentLocation, type StartSuggestion } from './geocodeStart';
 import { planLandingRoute } from './landingEngine';
+import { firstToShow } from './firstToShow';
 import { trackLanding, routeResultProps } from './landingTelemetry';
 import './routingLanding.css';
 
@@ -134,7 +135,7 @@ export default function RoutingLanding() {
         if (id !== runId.current) return;
         trackLanding('route_result', routeResultProps(plan, Math.round(performance.now() - t0)));
         setStatus({ kind: 'done', plan });
-        setShown(plan.route);
+        setShown(firstToShow(plan));
       } catch {
         if (id !== runId.current) return;
         trackLanding('route_result', { outcome: 'error', latency_ms: Math.round(performance.now() - t0) });
