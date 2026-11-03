@@ -166,3 +166,23 @@ Full matrix with the adopted values
 - Costs: median distance error rose from about 6% to 8%, and 21 of 720 generations returned no route. Of those, 11 are "target island" (waypoints in unreachable terrain, mostly foothills), 8 are brouter.de's 1–2 s compute watchdog, and 2 are gateway timeouts. The watchdog is a public-server limit; the self-hosted server can allow longer.
 - What's left at Comfort 1–2 is mostly 55 mph highways on the plains (Kiowa, Aurora, Platteville, Bennett) and foothill corridors where the map holds no quieter way through. A profile can't route around that. The ladder handles it: an alternative start or distance, or a refusal.
 - These are still one-shot routes per level. The baseline shared one route across levels 1–2 and 4–5, so the per-level rows are like for like, but generation counts differ (432 → 720).
+
+## Ladder runs (2026-11-03, brouter.de, 30 mi, 180 plans each)
+
+| | Run 1 | Run 2 (refusal reserve) |
+|---|---:|---:|
+| Returned routes breaking the rules | 0 | 0 |
+| ok / alternatives / refused | 45% / 38% / 17% | 45% / 38% / 17% |
+| A ride at the rider's own level | 71% | 72% |
+| Refusals with a suggestion | 0 of 30 | 2 of 31 (shorter loop) |
+| Median calls / latency | 5.5 / 10 s | 5.5 / 10 s |
+
+By level (run 2), a ride at the rider's own level: Comfort 1 42%, 2 61%, 3 75%, 4 81%, 5 100%.
+
+- **Acceptance holds.** No returned route breaks §3 at the level it's shown for.
+- **Refusals cluster.** They're in Kiowa, Lyons, Morrison, Masonville, Erie, Platteville and Bennett at Comfort 1–2, where the map has no quiet way through.
+- **The refusal reserve barely helps.** Run 1 spent all 12 calls on alternatives, so no refusal had a suggestion. Run 2 keeps 4 calls back:
+  - It found 2 shorter loops and 0 nearby starts; 3–6 km away is still the same road network.
+  - It moved 7 plans between alternatives and refused (4 lost an alternative, 3 gained one), roughly a wash.
+  - The reserve stays, because a refusal with a suggestion beats a bare one. Real gains for these starts need data (spec §6, shoulders and speeds) or a wider nearby-start radius, not more calls.
+- **Nearby-start search was on for these runs to measure it.** In the app it's off while brouter.de serves.
