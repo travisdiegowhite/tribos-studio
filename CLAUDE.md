@@ -558,6 +558,13 @@ result view). Phase 0 is measurement only and is wired into nothing:
   class-default speeds.
 - No absolutes ("never", "always", "guaranteed") in rider-facing comfort
   copy; `comfortLevels.test.ts` enforces it.
+- **`user_road_preferences.comfort_level` (1–5, migration 139, apply by
+  hand) is dual-written with `traffic_tolerance`** by `api/road-segments.js`
+  (1–2 low, 3 medium, 4–5 high; tolerance → 2/3/4). Do not change or drop
+  `traffic_tolerance`. Every router still reads it. Readers use
+  `comfort_level ?? fromTolerance(traffic_tolerance)`. The API's mapping in
+  `api/utils/comfortLevel.js` mirrors `comfortLevels.ts`, and a test keeps
+  the two equal.
 
 ### Shop inventory — a self-contained feature (2026-10)
 
