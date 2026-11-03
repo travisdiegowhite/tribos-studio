@@ -1,0 +1,35 @@
+{
+  "_about": "Comfort-routing harness start points (docs/COMFORT-ROUTING-SPEC.md §5 Phase 0B). PROPOSED 2026-11-02, awaiting Travis's confirmation. Coordinates are canonical [lng, lat], approximate town/area centres; the harness snaps each to the nearest routable way before generating. 'expect' is a prior for sanity-checking the baseline, not an assertion.",
+  "points": [
+    { "id": "boulder-downtown", "category": "urban", "lnglat": [-105.2790, 40.0176], "why": "Dense path network (Boulder Creek, Goose Creek) beside fast arterials (28th, Canyon, US-36).", "expect": "ok at every level" },
+    { "id": "denver-wash-park", "category": "urban", "lnglat": [-104.9730, 39.7000], "why": "Bike-lane grid plus Cherry Creek trail; arterials (Downing, University, Colorado Blvd) to cross.", "expect": "ok; flagged crossings at L1" },
+    { "id": "denver-sloans-lake", "category": "urban", "lnglat": [-105.0450, 39.7480], "why": "West-side urban, Federal/Sheridan arterials, I-25/I-70 barriers.", "expect": "ok at L2+; tests barrier crossings" },
+    { "id": "fort-collins-oldtown", "category": "urban", "lnglat": [-105.0770, 40.5870], "why": "Strong bike network (Spring Creek, Poudre trails) and a well-tagged city.", "expect": "ok at every level; best-case tag coverage" },
+
+    { "id": "westminster-sheridan", "category": "suburban", "lnglat": [-105.0530, 39.8870], "why": "Arterial-heavy grid (Sheridan, 104th, US-36); the classic 'only fast roads connect' suburb.", "expect": "alternatives likely at L1–L2" },
+    { "id": "aurora-southlands", "category": "suburban", "lnglat": [-104.7200, 39.6000], "why": "Six-lane arterial grid (E-470, Arapahoe, Gun Club) with cul-de-sac neighbourhoods.", "expect": "alternatives/refused at L1–L2" },
+    { "id": "highlands-ranch", "category": "suburban", "lnglat": [-104.9700, 39.5530], "why": "Planned suburb: good internal paths, fast boundary roads (C-470, Santa Fe, Broadway).", "expect": "ok at short distances; harder at 50–75 mi" },
+    { "id": "louisville-downtown", "category": "suburban", "lnglat": [-105.1320, 39.9780], "why": "Small-town core with Coal Creek trail; South Boulder Rd and 96th as the fast links.", "expect": "ok at L2+" },
+    { "id": "erie", "category": "suburban", "lnglat": [-105.0500, 40.0500], "why": "Fast-growing exurb on the edge of county roads; already the brouter validate-profiles origin.", "expect": "ok at L3+; tests unknown-speed county roads" },
+
+    { "id": "hygiene", "category": "rural-plains", "lnglat": [-105.1780, 40.1890], "why": "Popular road-ride hub; quiet county roads mixed with CO-66 / US-36.", "expect": "ok at L2+; many unknown-speed roads" },
+    { "id": "berthoud", "category": "rural-plains", "lnglat": [-105.0810, 40.3080], "why": "Paved county grid between US-287 and I-25; few roads have maxspeed.", "expect": "high unknown_pct; key test of the flag-not-block rule" },
+    { "id": "platteville", "category": "rural-plains", "lnglat": [-104.8230, 40.2150], "why": "Weld County plains: US-85, fast straight paved county roads, oil-field traffic.", "expect": "alternatives/refused at L1–L2" },
+    { "id": "bennett", "category": "rural-plains", "lnglat": [-104.4270, 39.7590], "why": "Eastern plains on the I-70 corridor; sparse network, few loop options.", "expect": "refused at L1–L2 at 50–75 mi; tests nearby-start search" },
+
+    { "id": "lyons", "category": "foothills", "lnglat": [-105.2710, 40.2250], "why": "Canyon gateway: US-36 and CO-7 are the only ways in and out, with shoulders that come and go.", "expect": "flagged stretches common at L3; refused at L1" },
+    { "id": "golden", "category": "foothills", "lnglat": [-105.2210, 39.7550], "why": "Lookout Mtn and Clear Creek trail beside US-6 / CO-93 (bikes legal, fast).", "expect": "ok at L2+ short; tests class-5 avoidance" },
+    { "id": "morrison", "category": "foothills", "lnglat": [-105.1910, 39.6540], "why": "Red Rocks and Bear Creek Canyon (CO-74); a choke point between hills and suburbs.", "expect": "flagged at L2–L3" },
+    { "id": "nederland", "category": "foothills", "lnglat": [-105.5110, 39.9620], "why": "Mountain town: CO-119 / CO-72 only, plus dirt roads.", "expect": "refused on road at L1–L3; ok on gravel" },
+
+    { "id": "masonville", "category": "gravel", "lnglat": [-105.2100, 40.4870], "why": "Buckhorn / Rist Canyon gravel network west of Loveland.", "expect": "ok on gravel at every level; tests the unpaved cap" },
+    { "id": "wellington", "category": "gravel", "lnglat": [-105.0090, 40.7030], "why": "Northern Larimer grid of unpaved county roads.", "expect": "ok on gravel; road surface mostly unknown-speed paved" },
+    { "id": "kiowa", "category": "gravel", "lnglat": [-104.4640, 39.3470], "why": "Elbert County gravel with CO-86 as the paved spine.", "expect": "ok on gravel; tests flagged state-highway crossings" }
+  ],
+  "matrix": {
+    "distances_mi": [15, 30, 50, 75],
+    "levels": [1, 2, 3, 4, 5],
+    "surfaces": ["road", "gravel"],
+    "_skip": "Proposed: skip surface=gravel for the 4 urban points (no meaningful gravel loops). Full matrix 20×4×5×2 = 800 runs; with the skip, 640."
+  }
+}

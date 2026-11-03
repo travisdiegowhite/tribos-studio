@@ -511,9 +511,13 @@ route. The self-hosted server lives in `deploy/brouter/` (Fly.io app
 is the deploy and operations guide.
 
 - **Tribos profiles** (`routing-profiles/tribos-road.brf`, `tribos-gravel.brf`)
-  are BRouter cost functions that read `maxspeed`, `lanes`, `shoulder`,
-  `cycleway*`, `estimated_traffic_class` and take the rider's Road comfort as
-  a parameter. `src/utils/brouterProfiles.ts` renders and uploads them at
+  are BRouter cost functions that score each way's comfort class 1–5
+  (mirroring `src/utils/comfortClass.ts`) from `maxspeed`, `lanes`,
+  `shoulder`, `cycleway*` and `estimated_traffic_class`, and take the rider's
+  Comfort level 1–5 as `comfort_level` (it replaced the 0/1/2
+  `traffic_tolerance` in 2026-11; legacy low/medium/high map to 2/3/4).
+  `bicycle=no|private|use_sidepath` is prohibitive (10000), not the stock
+  trekking "walk your bike" ×4. `src/utils/brouterProfiles.ts` renders and uploads them at
   runtime (`POST /brouter/profile` → `custom_…` id, cached per server). They
   are **gated by `VITE_BROUTER_TRIBOS_PROFILES`** (default off); when on,
   named-profile calls are upgraded transparently (trekking → road at the
@@ -529,6 +533,31 @@ is the deploy and operations guide.
 - **Never call `createClient`/Realtime for this** — the health monitor uses
   the `supabaseAdmin` singleton and one row in `system_health_checks`
   (migration 126, apply by hand; the monitor is fail-soft without it).
+
+### Comfort routing — Phase 0 (2026-11)
+
+Tribos is pivoting back to routing; the specs are `docs/COMFORT-ROUTING-SPEC.md`
+(rules, ladder, validator) and `docs/ROUTING-LANDING-SPEC.md` (landing and
+result view). Phase 0 is measurement only and is wired into nothing:
+
+- `src/utils/comfortLevels.ts` holds the Comfort 1–5 rules AND the landing
+  card copy, derived from them. Never hand-write a level's lists elsewhere.
+- `src/utils/comfortClass.ts` (road class 1–5/X) and
+  `src/utils/comfortValidator.ts` (the authority on pass/fail) are pure and
+  run in the browser and Node.
+- `src/utils/comfortLadder.ts` (`planComfortRoute`) is the §4 ladder: ok /
+  alternatives / refused, engine injected, 12-call budget. It must never
+  return a route that fails the validator at the level it is shown for;
+  `harness:comfort -- --ladder` counts violations (target 0).
+- `npm run harness:comfort` (`docs/comfort-harness.md`) measures routing
+  against 20 Front Range start points; diff every profile or data change
+  against a committed baseline.
+- **BRouter reports only the tags its profile reads.** Stock profiles
+  (trekking/safety/gravel, and `brouterTrace.ts`) return no `maxspeed`,
+  `lanes` or `shoulder`, so anything classified from them falls back to
+  class-default speeds.
+- No absolutes ("never", "always", "guaranteed") in rider-facing comfort
+  copy; `comfortLevels.test.ts` enforces it.
 
 ### Shop inventory — a self-contained feature (2026-10)
 

@@ -1,0 +1,2635 @@
+{
+ "meta": {
+  "engine": "brouter-tribos",
+  "brouter_base": "https://brouter.de",
+  "run_at": "2026-11-02T04:04:04.827Z",
+  "duration_s": 139,
+  "brouter_calls": 80,
+  "args": {
+   "points": null,
+   "distances": [
+    30
+   ],
+   "levels": [
+    2
+   ],
+   "surfaces": [
+    "road"
+   ],
+   "skipUrbanGravel": true
+  },
+  "classifier_probe": 5,
+  "partial": false
+ },
+ "generations": [
+  {
+   "point": "boulder-downtown",
+   "category": "urban",
+   "distance_mi": 30,
+   "surface": "road",
+   "variant": "tribos-road-0",
+   "levels": [
+    2
+   ],
+   "bearing_deg": 0,
+   "ok": true,
+   "error": null,
+   "actual_mi": 26.8,
+   "attempts": 3,
+   "tag_source": "engine",
+   "trace_calls": 0,
+   "latency_ms": 10258,
+   "coverage": {
+    "service": {
+     "m": 82.7842351545028,
+     "maxspeed": 0,
+     "lanes": 0,
+     "cycleway": 0,
+     "shoulder": 0,
+     "surface": 40.170520264454574,
+     "traffic_class": 0
+    },
+    "residential": {
+     "m": 9645.477795571802,
+     "maxspeed": 4626.2633052216415,
+     "lanes": 3519.42405271061,
+     "cycleway": 869.4225916460464,
+     "shoulder": 0,
+     "surface": 9645.477795571802,
+     "traffic_class": 0
+    },
+    "cycleway": {
+     "m": 7522.9013307393925,
+     "maxspeed": 0,
+     "lanes": 0,
+     "cycleway": 43.79571177117287,
+     "shoulder": 0,
+     "surface": 7522.9013307393925,
+     "traffic_class": 0
+    },
+    "tertiary": {
+     "m": 8746.38681895713,
+     "maxspeed": 8235.557894327601,
+     "lanes": 8746.38681895713,
+     "cycleway": 8158.382398018347,
+     "shoulder": 0,
+     "surface": 8746.38681895713,
+     "traffic_class": 8746.38681895713
+    },
+    "path": {
+     "m": 2978.7609046108205,
+     "maxspeed": 0,
+     "lanes": 0,
+     "cycleway": 0,
+     "shoulder": 0,
+     "surface": 270.4470529874881,
+     "traffic_class": 0
+    },
+    "footway": {
+     "m": 1235.1660193740338,
+     "maxspeed": 0,
+     "lanes": 0,
+     "cycleway": 0,
+     "shoulder": 0,
+     "surface": 999.5923587286912,
+     "traffic_class": 0
+    },
+    "secondary": {
+     "m": 5789.363821296757,
+     "maxspeed": 3748.300219494552,
+     "lanes": 4029.878808180678,
+     "cycleway": 2868.227413923354,
+     "shoulder": 0,
+     "surface": 5789.363821296757,
+     "traffic_class": 5789.363821296757
+    },
+    "primary": {
+     "m": 135.92930926652292,
+     "maxspeed": 135.92930926652292,
+     "lanes": 135.92930926652292,
+     "cycleway": 43.28480932915785,
+     "shoulder": 0,
+     "surface": 135.92930926652292,
+     "traffic_class": 135.92930926652292
+    },
+    "trunk": {
+     "m": 4186.143662676542,
+     "maxspeed": 4186.143662676542,
+     "lanes": 4186.143662676542,
+     "cycleway": 3317.5749206972473,
+     "shoulder": 0,
+     "surface": 4186.143662676542,
+     "traffic_class": 0
+    }
+   },
+   "trace_check": {
+    "agree_pct": 99.9,
+    "trace_unmatched_pct": 8,
+    "calls": 2
+   },
+   "transient": false
+  },
+  {
+   "point": "denver-wash-park",
+   "category": "urban",
+   "distance_mi": 30,
+   "surface": "road",
+   "variant": "tribos-road-0",
+   "levels": [
+    2
+   ],
+   "bearing_deg": 45,
+   "ok": true,
+   "error": null,
+   "actual_mi": 27.2,
+   "attempts": 2,
+   "tag_source": "engine",
+   "trace_calls": 0,
+   "latency_ms": 4368,
+   "coverage": {
+    "path": {
+     "m": 555.0367520292892,
+     "maxspeed": 0,
+     "lanes": 0,
+     "cycleway": 0,
+     "shoulder": 0,
+     "surface": 165.5320396056305,
+     "traffic_class": 0
+    },
+    "residential": {
+     "m": 14403.346110771448,
+     "maxspeed": 5726.9937342700805,
+     "lanes": 8105.024926634249,
+     "cycleway": 8515.915426674552,
+     "shoulder": 0,
+     "surface": 14403.346110771448,
+     "traffic_class": 0
+    },
+    "tertiary": {
+     "m": 9172.843907916942,
+     "maxspeed": 3882.9203935434653,
+     "lanes": 8848.695391206236,
+     "cycleway": 3461.806415692874,
+     "shoulder": 595.4312491269853,
+     "surface": 7466.066648902305,
+     "traffic_class": 9172.843907916942
+    },
+    "service": {
+     "m": 543.1839683405083,
+     "maxspeed": 0,
+     "lanes": 0,
+     "cycleway": 0,
+     "shoulder": 0,
+     "surface": 195.3026399166071,
+     "traffic_class": 0
+    },
+    "cycleway": {
+     "m": 14630.035313645274,
+     "maxspeed": 0,
+     "lanes": 102.85800958982706,
+     "cycleway": 1140.6317502074226,
+     "shoulder": 2832.330137616679,
+     "surface": 13455.077646763708,
+     "traffic_class": 0
+    },
+    "footway": {
+     "m": 1231.900547256791,
+     "maxspeed": 0,
+     "lanes": 0,
+     "cycleway": 0,
+     "shoulder": 0,
+     "surface": 1097.8336748874478,
+     "traffic_class": 0
+    },
+    "unclassified": {
+     "m": 207.32959174076697,
+     "maxspeed": 0,
+     "lanes": 78.78855496728687,
+     "cycleway": 39.535041452049,
+     "shoulder": 0,
+     "surface": 207.32959174076697,
+     "traffic_class": 0
+    },
+    "secondary": {
+     "m": 2800.1641357136673,
+     "maxspeed": 944.7271419993574,
+     "lanes": 2691.5453665175287,
+     "cycleway": 1039.8578616441716,
+     "shoulder": 0,
+     "surface": 2800.1641357136673,
+     "traffic_class": 2800.1641357136673
+    },
+    "primary": {
+     "m": 60.73968676924397,
+     "maxspeed": 0,
+     "lanes": 60.73968676924397,
+     "cycleway": 0,
+     "shoulder": 0,
+     "surface": 60.73968676924397,
+     "traffic_class": 60.73968676924397
+    }
+   },
+   "trace_check": {
+    "agree_pct": 99.4,
+    "trace_unmatched_pct": 4.5,
+    "calls": 2
+   },
+   "transient": false
+  },
+  {
+   "point": "denver-sloans-lake",
+   "category": "urban",
+   "distance_mi": 30,
+   "surface": "road",
+   "variant": "tribos-road-0",
+   "levels": [
+    2
+   ],
+   "bearing_deg": 135,
+   "ok": true,
+   "error": null,
+   "actual_mi": 29,
+   "attempts": 1,
+   "tag_source": "engine",
+   "trace_calls": 0,
+   "latency_ms": 1972,
+   "coverage": {
+    "path": {
+     "m": 1778.0129998269324,
+     "maxspeed": 0,
+     "lanes": 0,
+     "cycleway": 0,
+     "shoulder": 0,
+     "surface": 1596.2181289153625,
+     "traffic_class": 0
+    },
+    "cycleway": {
+     "m": 10032.342493796308,
+     "maxspeed": 0,
+     "lanes": 0,
+     "cycleway": 371.6002279086323,
+     "shoulder": 0,
+     "surface": 8801.767938313724,
+     "traffic_class": 0
+    },
+    "residential": {
+     "m": 15795.092448731977,
+     "maxspeed": 4439.2577864608365,
+     "lanes": 3890.3165483799494,
+     "cycleway": 3708.563169503725,
+     "shoulder": 0,
+     "surface": 13574.476262691323,
+     "traffic_class": 0
+    },
+    "tertiary": {
+     "m": 14197.93417683511,
+     "maxspeed": 4178.263346852928,
+     "lanes": 13954.174070823121,
+     "cycleway": 11875.373283142088,
+     "shoulder": 1164.737503016396,
+     "surface": 11372.283214381636,
+     "traffic_class": 14197.93417683511
+    },
+    "secondary": {
+     "m": 1097.1361191986457,
+     "maxspeed": 954.674123980565,
+     "lanes": 1097.1361191986457,
+     "cycleway": 959.9724002604353,
+     "shoulder": 0,
+     "surface": 697.7677678005653,
+     "traffic_class": 1097.1361191986457
+    },
+    "service": {
+     "m": 1663.3949657560092,
+     "maxspeed": 0,
+     "lanes": 96.17618681007065,
+     "cycleway": 1267.660000346923,
+     "shoulder": 0,
+     "surface": 1567.2187789459388,
+     "traffic_class": 0
+    },
+    "unclassified": {
+     "m": 1665.6119615658567,
+     "maxspeed": 602.4549672466276,
+     "lanes": 1665.6119615658567,
+     "cycleway": 888.9704726152471,
+     "shoulder": 0,
+     "surface": 1156.5463658593285,
+     "traffic_class": 0
+    },
+    "footway": {
+     "m": 226.7083284260459,
+     "maxspeed": 0,
+     "lanes": 0,
+     "cycleway": 0,
+     "shoulder": 0,
+     "surface": 128.73858191449037,
+     "traffic_class": 0
+    }
+   },
+   "trace_check": {
+    "agree_pct": 99.9,
+    "trace_unmatched_pct": 2.3,
+    "calls": 2
+   },
+   "transient": false
+  },
+  {
+   "point": "fort-collins-oldtown",
+   "category": "urban",
+   "distance_mi": 30,
+   "surface": "road",
+   "variant": "tribos-road-0",
+   "levels": [
+    2
+   ],
+   "bearing_deg": 90,
+   "ok": true,
+   "error": null,
+   "actual_mi": 31,
+   "attempts": 2,
+   "tag_source": "engine",
+   "trace_calls": 0,
+   "latency_ms": 2998,
+   "coverage": {
+    "tertiary": {
+     "m": 15918.454690981838,
+     "maxspeed": 4998.807786801215,
+     "lanes": 5362.520440854185,
+     "cycleway": 5584.408636909453,
+     "shoulder": 0,
+     "surface": 13784.423387633164,
+     "traffic_class": 15918.454690981838
+    },
+    "residential": {
+     "m": 3861.235746888439,
+     "maxspeed": 2493.317920877992,
+     "lanes": 1406.4734016317664,
+     "cycleway": 2263.855742842556,
+     "shoulder": 0,
+     "surface": 3377.4368056210055,
+     "traffic_class": 0
+    },
+    "secondary": {
+     "m": 4484.576328394057,
+     "maxspeed": 1559.0854911768329,
+     "lanes": 23.379462633780616,
+     "cycleway": 4414.158417333909,
+     "shoulder": 0,
+     "surface": 3314.1090385253783,
+     "traffic_class": 4484.576328394057
+    },
+    "unclassified": {
+     "m": 6341.349876909794,
+     "maxspeed": 1092.1703055624075,
+     "lanes": 236.5731089229167,
+     "cycleway": 0,
+     "shoulder": 0,
+     "surface": 6272.15764702882,
+     "traffic_class": 0
+    },
+    "service": {
+     "m": 1668.3993063291477,
+     "maxspeed": 0,
+     "lanes": 0,
+     "cycleway": 0,
+     "shoulder": 0,
+     "surface": 0,
+     "traffic_class": 0
+    },
+    "cycleway": {
+     "m": 5193.792428195364,
+     "maxspeed": 0,
+     "lanes": 0,
+     "cycleway": 383.77270420557755,
+     "shoulder": 0,
+     "surface": 5110.395792694611,
+     "traffic_class": 0
+    },
+    "footway": {
+     "m": 2291.1588508838513,
+     "maxspeed": 0,
+     "lanes": 0,
+     "cycleway": 73.42925074360228,
+     "shoulder": 0,
+     "surface": 1172.6753961576167,
+     "traffic_class": 0
+    },
+    "path": {
+     "m": 135.51251881556558,
+     "maxspeed": 0,
+     "lanes": 0,
+     "cycleway": 0,
+     "shoulder": 0,
+     "surface": 53.31950779231623,
+     "traffic_class": 0
+    },
+    "tertiary_link": {
+     "m": 15.292050866101214,
+     "maxspeed": 15.292050866101214,
+     "lanes": 0,
+     "cycleway": 0,
+     "shoulder": 0,
+     "surface": 15.292050866101214,
+     "traffic_class": 0
+    }
+   },
+   "trace_check": {
+    "agree_pct": 99.9,
+    "trace_unmatched_pct": 21.2,
+    "calls": 2
+   },
+   "transient": false
+  },
+  {
+   "point": "westminster-sheridan",
+   "category": "suburban",
+   "distance_mi": 30,
+   "surface": "road",
+   "variant": "tribos-road-0",
+   "levels": [
+    2
+   ],
+   "bearing_deg": 90,
+   "ok": true,
+   "error": null,
+   "actual_mi": 27.4,
+   "attempts": 3,
+   "tag_source": "engine",
+   "trace_calls": 0,
+   "latency_ms": 5735,
+   "coverage": {
+    "primary": {
+     "m": 109.98621694104122,
+     "maxspeed": 0,
+     "lanes": 109.98621694104122,
+     "cycleway": 0,
+     "shoulder": 0,
+     "surface": 109.98621694104122,
+     "traffic_class": 109.98621694104122
+    },
+    "service": {
+     "m": 984.0938446124443,
+     "maxspeed": 0,
+     "lanes": 0,
+     "cycleway": 0,
+     "shoulder": 0,
+     "surface": 984.0938446124443,
+     "traffic_class": 0
+    },
+    "footway": {
+     "m": 1564.3366406640773,
+     "maxspeed": 0,
+     "lanes": 0,
+     "cycleway": 0,
+     "shoulder": 0,
+     "surface": 1564.3366406640773,
+     "traffic_class": 0
+    },
+    "cycleway": {
+     "m": 24464.854448561284,
+     "maxspeed": 0,
+     "lanes": 2867.0548035241586,
+     "cycleway": 275.4276670585272,
+     "shoulder": 0,
+     "surface": 24339.143646765402,
+     "traffic_class": 0
+    },
+    "residential": {
+     "m": 6918.307042319268,
+     "maxspeed": 2810.165282933269,
+     "lanes": 1475.544193957152,
+     "cycleway": 406.9386105442498,
+     "shoulder": 0,
+     "surface": 6713.98679680618,
+     "traffic_class": 0
+    },
+    "tertiary": {
+     "m": 7592.594768368909,
+     "maxspeed": 6390.678693824268,
+     "lanes": 4130.1428742413755,
+     "cycleway": 4365.072680353374,
+     "shoulder": 0,
+     "surface": 7511.020187587538,
+     "traffic_class": 7592.594768368909
+    },
+    "path": {
+     "m": 1098.94200839127,
+     "maxspeed": 0,
+     "lanes": 0,
+     "cycleway": 0,
+     "shoulder": 0,
+     "surface": 1098.94200839127,
+     "traffic_class": 0
+    },
+    "secondary": {
+     "m": 931.9609994128161,
+     "maxspeed": 743.5686248303584,
+     "lanes": 931.9609994128161,
+     "cycleway": 694.0939000065866,
+     "shoulder": 0,
+     "surface": 846.0585702017156,
+     "traffic_class": 931.9609994128161
+    },
+    "unclassified": {
+     "m": 232.30656955159097,
+     "maxspeed": 0,
+     "lanes": 0,
+     "cycleway": 0,
+     "shoulder": 0,
+     "surface": 232.30656955159097,
+     "traffic_class": 0
+    }
+   },
+   "trace_check": {
+    "agree_pct": 99.6,
+    "trace_unmatched_pct": 1.5,
+    "calls": 2
+   },
+   "transient": false
+  },
+  {
+   "point": "aurora-southlands",
+   "category": "suburban",
+   "distance_mi": 30,
+   "surface": "road",
+   "variant": "tribos-road-0",
+   "levels": [
+    2
+   ],
+   "bearing_deg": 0,
+   "ok": true,
+   "error": null,
+   "actual_mi": 31.4,
+   "attempts": 2,
+   "tag_source": "engine",
+   "trace_calls": 0,
+   "latency_ms": 4023,
+   "coverage": {
+    "footway": {
+     "m": 5980.87354833421,
+     "maxspeed": 0,
+     "lanes": 0,
+     "cycleway": 0,
+     "shoulder": 0,
+     "surface": 5466.742612443759,
+     "traffic_class": 0
+    },
+    "service": {
+     "m": 3586.557815137453,
+     "maxspeed": 864.4850665964224,
+     "lanes": 1755.0012611322861,
+     "cycleway": 0,
+     "shoulder": 0,
+     "surface": 2336.3143045256015,
+     "traffic_class": 0
+    },
+    "residential": {
+     "m": 4530.9018606470845,
+     "maxspeed": 1685.4062045028722,
+     "lanes": 1685.4062045028722,
+     "cycleway": 769.2434107010121,
+     "shoulder": 0,
+     "surface": 2855.648424105947,
+     "traffic_class": 0
+    },
+    "tertiary": {
+     "m": 8093.9205852812665,
+     "maxspeed": 4905.726817102637,
+     "lanes": 6767.609117403395,
+     "cycleway": 2476.905180907271,
+     "shoulder": 0,
+     "surface": 6899.479844677914,
+     "traffic_class": 7299.320784978414
+    },
+    "cycleway": {
+     "m": 14210.457450862657,
+     "maxspeed": 0,
+     "lanes": 0,
+     "cycleway": 134.85137693614928,
+     "shoulder": 0,
+     "surface": 13998.796592454131,
+     "traffic_class": 0
+    },
+    "secondary": {
+     "m": 1368.3490846471786,
+     "maxspeed": 1209.1613170835321,
+     "lanes": 1209.1613170835321,
+     "cycleway": 159.1877675636463,
+     "shoulder": 0,
+     "surface": 1209.1613170835321,
+     "traffic_class": 1368.3490846471786
+    },
+    "primary": {
+     "m": 4493.744474885808,
+     "maxspeed": 2359.148240260022,
+     "lanes": 4493.744474885808,
+     "cycleway": 2184.6673765663886,
+     "shoulder": 0,
+     "surface": 4384.272572205996,
+     "traffic_class": 4493.744474885808
+    },
+    "path": {
+     "m": 1176.5484601377866,
+     "maxspeed": 0,
+     "lanes": 0,
+     "cycleway": 0,
+     "shoulder": 0,
+     "surface": 612.8207283718255,
+     "traffic_class": 0
+    },
+    "unclassified": {
+     "m": 3231.5117242442857,
+     "maxspeed": 2798.504155643379,
+     "lanes": 2798.504155643379,
+     "cycleway": 0,
+     "shoulder": 0,
+     "surface": 2798.504155643379,
+     "traffic_class": 0
+    }
+   },
+   "trace_check": {
+    "agree_pct": 97.4,
+    "trace_unmatched_pct": 8.1,
+    "calls": 2
+   },
+   "transient": false
+  },
+  {
+   "point": "highlands-ranch",
+   "category": "suburban",
+   "distance_mi": 30,
+   "surface": "road",
+   "variant": "tribos-road-0",
+   "levels": [
+    2
+   ],
+   "bearing_deg": 45,
+   "ok": true,
+   "error": null,
+   "actual_mi": 29.1,
+   "attempts": 2,
+   "tag_source": "engine",
+   "trace_calls": 0,
+   "latency_ms": 3666,
+   "coverage": {
+    "residential": {
+     "m": 8580.52445816037,
+     "maxspeed": 822.7604519073486,
+     "lanes": 2527.6224016000288,
+     "cycleway": 848.1240892282141,
+     "shoulder": 0,
+     "surface": 6211.086978585402,
+     "traffic_class": 0
+    },
+    "tertiary": {
+     "m": 8206.17592525449,
+     "maxspeed": 3255.7309427779664,
+     "lanes": 8206.17592525449,
+     "cycleway": 7295.446008576078,
+     "shoulder": 0,
+     "surface": 6262.861619844262,
+     "traffic_class": 8051.8575088181215
+    },
+    "secondary": {
+     "m": 3935.750672319976,
+     "maxspeed": 2775.0726104067144,
+     "lanes": 3550.1231025780426,
+     "cycleway": 3251.133623083677,
+     "shoulder": 0,
+     "surface": 3935.750672319976,
+     "traffic_class": 3935.750672319976
+    },
+    "cycleway": {
+     "m": 20297.37678522994,
+     "maxspeed": 0,
+     "lanes": 0,
+     "cycleway": 52.31105198937257,
+     "shoulder": 0,
+     "surface": 20163.317247089308,
+     "traffic_class": 0
+    },
+    "footway": {
+     "m": 2775.940432126571,
+     "maxspeed": 0,
+     "lanes": 0,
+     "cycleway": 0,
+     "shoulder": 0,
+     "surface": 2145.5231813975743,
+     "traffic_class": 0
+    },
+    "service": {
+     "m": 1027.8371778676294,
+     "maxspeed": 71.68592151309757,
+     "lanes": 119.97794553077637,
+     "cycleway": 0,
+     "shoulder": 0,
+     "surface": 286.10102308640825,
+     "traffic_class": 0
+    },
+    "path": {
+     "m": 668.6735295027129,
+     "maxspeed": 0,
+     "lanes": 0,
+     "cycleway": 0,
+     "shoulder": 0,
+     "surface": 668.6735295027129,
+     "traffic_class": 0
+    },
+    "unclassified": {
+     "m": 1065.3154535806989,
+     "maxspeed": 766.8827687961284,
+     "lanes": 811.7834250066055,
+     "cycleway": 151.56221249770175,
+     "shoulder": 0,
+     "surface": 995.50182932423,
+     "traffic_class": 0
+    }
+   },
+   "trace_check": {
+    "agree_pct": 98.4,
+    "trace_unmatched_pct": 3.4,
+    "calls": 2
+   },
+   "transient": false
+  },
+  {
+   "point": "louisville-downtown",
+   "category": "suburban",
+   "distance_mi": 30,
+   "surface": "road",
+   "variant": "tribos-road-0",
+   "levels": [
+    2
+   ],
+   "bearing_deg": 135,
+   "ok": true,
+   "error": null,
+   "actual_mi": 31.7,
+   "attempts": 1,
+   "tag_source": "engine",
+   "trace_calls": 0,
+   "latency_ms": 1487,
+   "coverage": {
+    "footway": {
+     "m": 4650.223873258772,
+     "maxspeed": 0,
+     "lanes": 0,
+     "cycleway": 0,
+     "shoulder": 0,
+     "surface": 4228.822073251362,
+     "traffic_class": 0
+    },
+    "residential": {
+     "m": 6069.864413415734,
+     "maxspeed": 1186.3085189359467,
+     "lanes": 372.4863167224108,
+     "cycleway": 0,
+     "shoulder": 0,
+     "surface": 3779.3782412499604,
+     "traffic_class": 0
+    },
+    "tertiary": {
+     "m": 9081.791862721944,
+     "maxspeed": 9081.791862721944,
+     "lanes": 9081.791862721944,
+     "cycleway": 6541.092471717418,
+     "shoulder": 0,
+     "surface": 7747.807463342127,
+     "traffic_class": 9081.791862721944
+    },
+    "cycleway": {
+     "m": 19802.386607927707,
+     "maxspeed": 7221.656603501201,
+     "lanes": 0,
+     "cycleway": 155.8839034049418,
+     "shoulder": 0,
+     "surface": 19493.28864455701,
+     "traffic_class": 0
+    },
+    "secondary": {
+     "m": 8982.92506774797,
+     "maxspeed": 8551.211930774847,
+     "lanes": 8982.92506774797,
+     "cycleway": 8733.325587758673,
+     "shoulder": 0,
+     "surface": 8982.92506774797,
+     "traffic_class": 8982.92506774797
+    },
+    "service": {
+     "m": 796.1189486444972,
+     "maxspeed": 0,
+     "lanes": 0,
+     "cycleway": 0,
+     "shoulder": 0,
+     "surface": 0,
+     "traffic_class": 0
+    },
+    "path": {
+     "m": 1181.014620756699,
+     "maxspeed": 0,
+     "lanes": 0,
+     "cycleway": 0,
+     "shoulder": 0,
+     "surface": 953.7133437255529,
+     "traffic_class": 0
+    },
+    "tertiary_link": {
+     "m": 280.83241825621474,
+     "maxspeed": 0,
+     "lanes": 280.83241825621474,
+     "cycleway": 0,
+     "shoulder": 0,
+     "surface": 0,
+     "traffic_class": 0
+    },
+    "primary": {
+     "m": 91.88660994464564,
+     "maxspeed": 0,
+     "lanes": 91.88660994464564,
+     "cycleway": 91.88660994464564,
+     "shoulder": 0,
+     "surface": 91.88660994464564,
+     "traffic_class": 91.88660994464564
+    }
+   },
+   "trace_check": {
+    "agree_pct": 100,
+    "trace_unmatched_pct": 1.9,
+    "calls": 2
+   },
+   "transient": false
+  },
+  {
+   "point": "erie",
+   "category": "suburban",
+   "distance_mi": 30,
+   "surface": "road",
+   "variant": "tribos-road-0",
+   "levels": [
+    2
+   ],
+   "bearing_deg": 315,
+   "ok": true,
+   "error": null,
+   "actual_mi": 29.1,
+   "attempts": 2,
+   "tag_source": "engine",
+   "trace_calls": 0,
+   "latency_ms": 2989,
+   "coverage": {
+    "footway": {
+     "m": 133.95925047557262,
+     "maxspeed": 0,
+     "lanes": 0,
+     "cycleway": 28.89668513090343,
+     "shoulder": 0,
+     "surface": 133.95925047557262,
+     "traffic_class": 0
+    },
+    "residential": {
+     "m": 8355.69622399286,
+     "maxspeed": 3480.0188590274274,
+     "lanes": 1660.5136146679515,
+     "cycleway": 0,
+     "shoulder": 0,
+     "surface": 7400.793206136838,
+     "traffic_class": 0
+    },
+    "secondary": {
+     "m": 9617.372786118034,
+     "maxspeed": 5311.081598211155,
+     "lanes": 6298.256365935553,
+     "cycleway": 4290.230910510354,
+     "shoulder": 0,
+     "surface": 9617.372786118034,
+     "traffic_class": 9617.372786118034
+    },
+    "tertiary": {
+     "m": 9405.553452377368,
+     "maxspeed": 3441.5874481611313,
+     "lanes": 8314.397753829027,
+     "cycleway": 3772.1442105268457,
+     "shoulder": 0,
+     "surface": 9405.553452377368,
+     "traffic_class": 9405.553452377368
+    },
+    "cycleway": {
+     "m": 14074.430544937777,
+     "maxspeed": 0,
+     "lanes": 0,
+     "cycleway": 295.3559343997618,
+     "shoulder": 0,
+     "surface": 14074.430544937777,
+     "traffic_class": 0
+    },
+    "primary": {
+     "m": 1091.7026909027818,
+     "maxspeed": 1091.7026909027818,
+     "lanes": 1091.7026909027818,
+     "cycleway": 1091.7026909027818,
+     "shoulder": 0,
+     "surface": 1091.7026909027818,
+     "traffic_class": 1091.7026909027818
+    },
+    "service": {
+     "m": 1959.9703892950401,
+     "maxspeed": 0,
+     "lanes": 0,
+     "cycleway": 0,
+     "shoulder": 0,
+     "surface": 0,
+     "traffic_class": 0
+    }
+   },
+   "trace_check": {
+    "agree_pct": 100,
+    "trace_unmatched_pct": 5.9,
+    "calls": 2
+   },
+   "transient": false
+  },
+  {
+   "point": "hygiene",
+   "category": "rural-plains",
+   "distance_mi": 30,
+   "surface": "road",
+   "variant": "tribos-road-0",
+   "levels": [
+    2
+   ],
+   "bearing_deg": 135,
+   "ok": true,
+   "error": null,
+   "actual_mi": 30,
+   "attempts": 1,
+   "tag_source": "engine",
+   "trace_calls": 0,
+   "latency_ms": 17903,
+   "coverage": {
+    "secondary_link": {
+     "m": 86.30521717151379,
+     "maxspeed": 0,
+     "lanes": 0,
+     "cycleway": 0,
+     "shoulder": 0,
+     "surface": 86.30521717151379,
+     "traffic_class": 86.30521717151379
+    },
+    "secondary": {
+     "m": 13588.726079465438,
+     "maxspeed": 2244.6329745565813,
+     "lanes": 8106.31284354161,
+     "cycleway": 5442.7325254180505,
+     "shoulder": 0,
+     "surface": 13588.726079465438,
+     "traffic_class": 13588.726079465438
+    },
+    "service": {
+     "m": 1270.4588192334597,
+     "maxspeed": 0,
+     "lanes": 0,
+     "cycleway": 0,
+     "shoulder": 0,
+     "surface": 169.96602844642095,
+     "traffic_class": 0
+    },
+    "footway": {
+     "m": 2979.4609493784124,
+     "maxspeed": 0,
+     "lanes": 0,
+     "cycleway": 0,
+     "shoulder": 0,
+     "surface": 2979.4609493784124,
+     "traffic_class": 0
+    },
+    "tertiary": {
+     "m": 17590.32925488276,
+     "maxspeed": 280.08790035359175,
+     "lanes": 9200.960285802461,
+     "cycleway": 10642.04088464857,
+     "shoulder": 0,
+     "surface": 16697.92390834363,
+     "traffic_class": 17590.32925488276
+    },
+    "cycleway": {
+     "m": 4762.019609542427,
+     "maxspeed": 0,
+     "lanes": 0,
+     "cycleway": 0,
+     "shoulder": 0,
+     "surface": 3599.8633024327432,
+     "traffic_class": 0
+    },
+    "path": {
+     "m": 4727.282682181671,
+     "maxspeed": 0,
+     "lanes": 0,
+     "cycleway": 0,
+     "shoulder": 0,
+     "surface": 4727.282682181671,
+     "traffic_class": 0
+    },
+    "residential": {
+     "m": 1495.5864060072051,
+     "maxspeed": 0,
+     "lanes": 0,
+     "cycleway": 0,
+     "shoulder": 0,
+     "surface": 1400.7192145030074,
+     "traffic_class": 0
+    },
+    "primary": {
+     "m": 25.421481082237207,
+     "maxspeed": 0,
+     "lanes": 0,
+     "cycleway": 25.421481082237207,
+     "shoulder": 0,
+     "surface": 25.421481082237207,
+     "traffic_class": 25.421481082237207
+    },
+    "trunk": {
+     "m": 744.179147203246,
+     "maxspeed": 744.179147203246,
+     "lanes": 744.179147203246,
+     "cycleway": 0,
+     "shoulder": 379.83775874413936,
+     "surface": 364.34138845910655,
+     "traffic_class": 0
+    }
+   },
+   "trace_check": {
+    "agree_pct": 100,
+    "trace_unmatched_pct": 3.6,
+    "calls": 2
+   },
+   "transient": false
+  },
+  {
+   "point": "berthoud",
+   "category": "rural-plains",
+   "distance_mi": 30,
+   "surface": "road",
+   "variant": "tribos-road-0",
+   "levels": [
+    2
+   ],
+   "bearing_deg": 225,
+   "ok": true,
+   "error": null,
+   "actual_mi": 27.3,
+   "attempts": 2,
+   "tag_source": "engine",
+   "trace_calls": 0,
+   "latency_ms": 2352,
+   "coverage": {
+    "residential": {
+     "m": 2972.8373231259216,
+     "maxspeed": 0,
+     "lanes": 0,
+     "cycleway": 0,
+     "shoulder": 0,
+     "surface": 2919.9804140363412,
+     "traffic_class": 0
+    },
+    "tertiary": {
+     "m": 14008.480180793587,
+     "maxspeed": 0,
+     "lanes": 8551.53413178998,
+     "cycleway": 2428.235492943425,
+     "shoulder": 0,
+     "surface": 13571.522530222324,
+     "traffic_class": 14008.480180793587
+    },
+    "unclassified": {
+     "m": 7182.039422072689,
+     "maxspeed": 0,
+     "lanes": 1580.490721933168,
+     "cycleway": 0,
+     "shoulder": 0,
+     "surface": 7182.039422072689,
+     "traffic_class": 0
+    },
+    "secondary": {
+     "m": 16353.38937630868,
+     "maxspeed": 0,
+     "lanes": 15570.73180591704,
+     "cycleway": 5474.193329382166,
+     "shoulder": 0,
+     "surface": 16331.11848130049,
+     "traffic_class": 16353.38937630868
+    },
+    "primary": {
+     "m": 227.46010871518678,
+     "maxspeed": 227.46010871518678,
+     "lanes": 0,
+     "cycleway": 0,
+     "shoulder": 0,
+     "surface": 227.46010871518678,
+     "traffic_class": 227.46010871518678
+    },
+    "service": {
+     "m": 72.54971870027353,
+     "maxspeed": 0,
+     "lanes": 0,
+     "cycleway": 0,
+     "shoulder": 0,
+     "surface": 0,
+     "traffic_class": 0
+    },
+    "cycleway": {
+     "m": 1033.3914147348114,
+     "maxspeed": 0,
+     "lanes": 0,
+     "cycleway": 0,
+     "shoulder": 0,
+     "surface": 0,
+     "traffic_class": 0
+    }
+   },
+   "trace_check": {
+    "agree_pct": 100,
+    "trace_unmatched_pct": 6.6,
+    "calls": 2
+   },
+   "transient": false
+  },
+  {
+   "point": "platteville",
+   "category": "rural-plains",
+   "distance_mi": 30,
+   "surface": "road",
+   "variant": "tribos-road-0",
+   "levels": [
+    2
+   ],
+   "bearing_deg": 180,
+   "ok": true,
+   "error": null,
+   "actual_mi": 30.1,
+   "attempts": 2,
+   "tag_source": "engine",
+   "trace_calls": 0,
+   "latency_ms": 2151,
+   "coverage": {
+    "residential": {
+     "m": 62.27101937882243,
+     "maxspeed": 0,
+     "lanes": 0,
+     "cycleway": 0,
+     "shoulder": 0,
+     "surface": 0,
+     "traffic_class": 0
+    },
+    "secondary": {
+     "m": 2913.5899468832204,
+     "maxspeed": 0,
+     "lanes": 1902.4702701389529,
+     "cycleway": 0,
+     "shoulder": 0,
+     "surface": 2913.5899468832204,
+     "traffic_class": 2913.5899468832204
+    },
+    "tertiary": {
+     "m": 14727.905187641358,
+     "maxspeed": 1816.43396066083,
+     "lanes": 8792.103011593028,
+     "cycleway": 0,
+     "shoulder": 0,
+     "surface": 11927.5346596405,
+     "traffic_class": 14727.905187641358
+    },
+    "unclassified": {
+     "m": 11780.73410569672,
+     "maxspeed": 245.33570348259,
+     "lanes": 2199.088718400754,
+     "cycleway": 0,
+     "shoulder": 0,
+     "surface": 11780.73410569672,
+     "traffic_class": 0
+    },
+    "track": {
+     "m": 1501.391796652719,
+     "maxspeed": 0,
+     "lanes": 0,
+     "cycleway": 0,
+     "shoulder": 0,
+     "surface": 0,
+     "traffic_class": 0
+    },
+    "service": {
+     "m": 10894.118880861837,
+     "maxspeed": 0,
+     "lanes": 0,
+     "cycleway": 0,
+     "shoulder": 0,
+     "surface": 4213.178105372708,
+     "traffic_class": 0
+    }
+   },
+   "trace_check": {
+    "agree_pct": 99.9,
+    "trace_unmatched_pct": 16.3,
+    "calls": 2
+   },
+   "transient": false
+  },
+  {
+   "point": "bennett",
+   "category": "rural-plains",
+   "distance_mi": 30,
+   "surface": "road",
+   "variant": "tribos-road-0",
+   "levels": [
+    2
+   ],
+   "bearing_deg": 270,
+   "ok": true,
+   "error": null,
+   "actual_mi": 28.4,
+   "attempts": 2,
+   "tag_source": "engine",
+   "trace_calls": 0,
+   "latency_ms": 2131,
+   "coverage": {
+    "residential": {
+     "m": 13219.186131308481,
+     "maxspeed": 0,
+     "lanes": 0,
+     "cycleway": 0,
+     "shoulder": 0,
+     "surface": 4806.361272975587,
+     "traffic_class": 0
+    },
+    "tertiary": {
+     "m": 2973.7676245154803,
+     "maxspeed": 0,
+     "lanes": 2708.695208893302,
+     "cycleway": 0,
+     "shoulder": 0,
+     "surface": 2973.7676245154803,
+     "traffic_class": 2973.7676245154803
+    },
+    "secondary": {
+     "m": 3287.3507800040793,
+     "maxspeed": 2046.7419615876606,
+     "lanes": 3287.3507800040793,
+     "cycleway": 0,
+     "shoulder": 0,
+     "surface": 3287.3507800040793,
+     "traffic_class": 3287.3507800040793
+    },
+    "unclassified": {
+     "m": 200.93477547643056,
+     "maxspeed": 0,
+     "lanes": 0,
+     "cycleway": 0,
+     "shoulder": 0,
+     "surface": 200.93477547643056,
+     "traffic_class": 0
+    }
+   },
+   "trace_check": {
+    "agree_pct": 100,
+    "trace_unmatched_pct": 58,
+    "calls": 2
+   },
+   "transient": false
+  },
+  {
+   "point": "lyons",
+   "category": "foothills",
+   "distance_mi": 30,
+   "surface": "road",
+   "variant": "tribos-road-0",
+   "levels": [
+    2
+   ],
+   "bearing_deg": 135,
+   "ok": true,
+   "error": null,
+   "actual_mi": 27.7,
+   "attempts": 2,
+   "tag_source": "engine",
+   "trace_calls": 0,
+   "latency_ms": 2663,
+   "coverage": {
+    "trunk": {
+     "m": 9864.757889674122,
+     "maxspeed": 8954.963193259873,
+     "lanes": 9864.757889674122,
+     "cycleway": 9788.636700585546,
+     "shoulder": 0,
+     "surface": 9864.757889674122,
+     "traffic_class": 0
+    },
+    "trunk_link": {
+     "m": 68.02990203783214,
+     "maxspeed": 68.02990203783214,
+     "lanes": 68.02990203783214,
+     "cycleway": 0,
+     "shoulder": 0,
+     "surface": 68.02990203783214,
+     "traffic_class": 39.35057175564395
+    },
+    "secondary": {
+     "m": 10694.617082690762,
+     "maxspeed": 4332.268453472883,
+     "lanes": 10639.098802436873,
+     "cycleway": 10626.043280790755,
+     "shoulder": 0,
+     "surface": 10639.098802436873,
+     "traffic_class": 10694.617082690762
+    },
+    "residential": {
+     "m": 4290.451530927962,
+     "maxspeed": 0,
+     "lanes": 0,
+     "cycleway": 0,
+     "shoulder": 0,
+     "surface": 4290.451530927962,
+     "traffic_class": 0
+    },
+    "tertiary": {
+     "m": 13689.97965774796,
+     "maxspeed": 0,
+     "lanes": 13036.739323859849,
+     "cycleway": 0,
+     "shoulder": 0,
+     "surface": 13689.97965774796,
+     "traffic_class": 13036.739323859849
+    },
+    "path": {
+     "m": 2312.1963870885506,
+     "maxspeed": 0,
+     "lanes": 0,
+     "cycleway": 0,
+     "shoulder": 0,
+     "surface": 2312.1963870885506,
+     "traffic_class": 0
+    },
+    "service": {
+     "m": 816.0383688078457,
+     "maxspeed": 0,
+     "lanes": 0,
+     "cycleway": 0,
+     "shoulder": 0,
+     "surface": 0,
+     "traffic_class": 0
+    }
+   },
+   "trace_check": {
+    "agree_pct": 99,
+    "trace_unmatched_pct": 9.8,
+    "calls": 2
+   },
+   "transient": false
+  },
+  {
+   "point": "golden",
+   "category": "foothills",
+   "distance_mi": 30,
+   "surface": "road",
+   "variant": "tribos-road-0",
+   "levels": [
+    2
+   ],
+   "bearing_deg": 135,
+   "ok": true,
+   "error": null,
+   "actual_mi": 26.8,
+   "attempts": 3,
+   "tag_source": "engine",
+   "trace_calls": 0,
+   "latency_ms": 8620,
+   "coverage": {
+    "tertiary": {
+     "m": 11766.015816155756,
+     "maxspeed": 6653.780968844113,
+     "lanes": 10649.241367282559,
+     "cycleway": 8722.34614683014,
+     "shoulder": 0,
+     "surface": 11766.015816155756,
+     "traffic_class": 11766.015816155756
+    },
+    "secondary": {
+     "m": 4963.0821416246135,
+     "maxspeed": 499.1614097659041,
+     "lanes": 4520.58774160583,
+     "cycleway": 2589.4804595379806,
+     "shoulder": 0,
+     "surface": 3020.2903652961018,
+     "traffic_class": 4963.0821416246135
+    },
+    "residential": {
+     "m": 2613.1958013044623,
+     "maxspeed": 0,
+     "lanes": 148.9038069761343,
+     "cycleway": 0,
+     "shoulder": 0,
+     "surface": 2532.5128756742947,
+     "traffic_class": 0
+    },
+    "unclassified": {
+     "m": 1716.5403720708189,
+     "maxspeed": 0,
+     "lanes": 1716.5403720708189,
+     "cycleway": 1435.7353637861822,
+     "shoulder": 0,
+     "surface": 1716.5403720708189,
+     "traffic_class": 0
+    },
+    "path": {
+     "m": 6752.973686635842,
+     "maxspeed": 0,
+     "lanes": 0,
+     "cycleway": 0,
+     "shoulder": 0,
+     "surface": 6752.973686635842,
+     "traffic_class": 0
+    },
+    "cycleway": {
+     "m": 11511.922878333717,
+     "maxspeed": 0,
+     "lanes": 0,
+     "cycleway": 1387.062889153218,
+     "shoulder": 0,
+     "surface": 10419.831347686073,
+     "traffic_class": 0
+    },
+    "footway": {
+     "m": 1358.2415769779957,
+     "maxspeed": 0,
+     "lanes": 0,
+     "cycleway": 47.93680791406501,
+     "shoulder": 0,
+     "surface": 1358.2415769779957,
+     "traffic_class": 0
+    },
+    "primary": {
+     "m": 251.73663301142778,
+     "maxspeed": 251.73663301142778,
+     "lanes": 251.73663301142778,
+     "cycleway": 251.73663301142778,
+     "shoulder": 0,
+     "surface": 251.73663301142778,
+     "traffic_class": 251.73663301142778
+    },
+    "pedestrian": {
+     "m": 1754.6895600918867,
+     "maxspeed": 0,
+     "lanes": 1754.6895600918867,
+     "cycleway": 0,
+     "shoulder": 0,
+     "surface": 1754.6895600918867,
+     "traffic_class": 0
+    },
+    "service": {
+     "m": 338.58632006766845,
+     "maxspeed": 0,
+     "lanes": 0,
+     "cycleway": 0,
+     "shoulder": 0,
+     "surface": 61.01103565488414,
+     "traffic_class": 0
+    }
+   },
+   "trace_check": {
+    "agree_pct": 100,
+    "trace_unmatched_pct": 2.1,
+    "calls": 2
+   },
+   "transient": false
+  },
+  {
+   "point": "morrison",
+   "category": "foothills",
+   "distance_mi": 30,
+   "surface": "road",
+   "variant": "tribos-road-0",
+   "levels": [
+    2
+   ],
+   "bearing_deg": 315,
+   "ok": true,
+   "error": null,
+   "actual_mi": 32.3,
+   "attempts": 2,
+   "tag_source": "engine",
+   "trace_calls": 0,
+   "latency_ms": 3282,
+   "coverage": {
+    "footway": {
+     "m": 1601.12721851161,
+     "maxspeed": 0,
+     "lanes": 0,
+     "cycleway": 0,
+     "shoulder": 0,
+     "surface": 1601.12721851161,
+     "traffic_class": 0
+    },
+    "secondary": {
+     "m": 22903.500070060014,
+     "maxspeed": 20639.850097561164,
+     "lanes": 22903.500070060014,
+     "cycleway": 1779.1112729636322,
+     "shoulder": 0,
+     "surface": 21138.687764416583,
+     "traffic_class": 22903.500070060014
+    },
+    "service": {
+     "m": 991.2240046421948,
+     "maxspeed": 0,
+     "lanes": 0,
+     "cycleway": 0,
+     "shoulder": 0,
+     "surface": 0,
+     "traffic_class": 0
+    },
+    "path": {
+     "m": 3821.0141317856087,
+     "maxspeed": 0,
+     "lanes": 0,
+     "cycleway": 0,
+     "shoulder": 0,
+     "surface": 3821.0141317856087,
+     "traffic_class": 0
+    },
+    "residential": {
+     "m": 6924.487073138202,
+     "maxspeed": 6546.521037878007,
+     "lanes": 6546.521037878007,
+     "cycleway": 0,
+     "shoulder": 0,
+     "surface": 6546.521037878007,
+     "traffic_class": 6546.521037878007
+    },
+    "tertiary": {
+     "m": 6029.5708305089765,
+     "maxspeed": 1413.743558077566,
+     "lanes": 5502.727519947388,
+     "cycleway": 1218.789548924553,
+     "shoulder": 0,
+     "surface": 5502.727519947388,
+     "traffic_class": 3554.226676815649
+    },
+    "secondary_link": {
+     "m": 381.1610214148962,
+     "maxspeed": 0,
+     "lanes": 381.1610214148962,
+     "cycleway": 0,
+     "shoulder": 0,
+     "surface": 0,
+     "traffic_class": 381.1610214148962
+    },
+    "cycleway": {
+     "m": 8682.27734827592,
+     "maxspeed": 0,
+     "lanes": 0,
+     "cycleway": 0,
+     "shoulder": 0,
+     "surface": 8682.27734827592,
+     "traffic_class": 0
+    }
+   },
+   "trace_check": {
+    "agree_pct": 100,
+    "trace_unmatched_pct": 2.7,
+    "calls": 2
+   },
+   "transient": false
+  },
+  {
+   "point": "nederland",
+   "category": "foothills",
+   "distance_mi": 30,
+   "surface": "road",
+   "variant": "tribos-road-0",
+   "levels": [
+    2
+   ],
+   "bearing_deg": 45,
+   "ok": true,
+   "error": null,
+   "actual_mi": 32.7,
+   "attempts": 3,
+   "tag_source": "engine",
+   "trace_calls": 0,
+   "latency_ms": 4490,
+   "coverage": {
+    "residential": {
+     "m": 28390.202172474008,
+     "maxspeed": 0,
+     "lanes": 961.7111209585323,
+     "cycleway": 0,
+     "shoulder": 0,
+     "surface": 21739.981366292188,
+     "traffic_class": 0
+    },
+    "path": {
+     "m": 11730.188082737355,
+     "maxspeed": 0,
+     "lanes": 0,
+     "cycleway": 0,
+     "shoulder": 0,
+     "surface": 9337.32244012717,
+     "traffic_class": 0
+    },
+    "tertiary": {
+     "m": 8885.74210516729,
+     "maxspeed": 0,
+     "lanes": 0,
+     "cycleway": 0,
+     "shoulder": 0,
+     "surface": 8885.74210516729,
+     "traffic_class": 8885.74210516729
+    },
+    "primary": {
+     "m": 694.7943994151098,
+     "maxspeed": 694.7943994151098,
+     "lanes": 694.7943994151098,
+     "cycleway": 0,
+     "shoulder": 0,
+     "surface": 694.7943994151098,
+     "traffic_class": 694.7943994151098
+    },
+    "footway": {
+     "m": 279.6892743602169,
+     "maxspeed": 0,
+     "lanes": 0,
+     "cycleway": 0,
+     "shoulder": 0,
+     "surface": 34.975379168993065,
+     "traffic_class": 0
+    },
+    "track": {
+     "m": 2494.7967654475574,
+     "maxspeed": 0,
+     "lanes": 916.2086512829535,
+     "cycleway": 0,
+     "shoulder": 0,
+     "surface": 2494.7967654475574,
+     "traffic_class": 0
+    }
+   },
+   "trace_check": {
+    "agree_pct": 99.1,
+    "trace_unmatched_pct": 2.9,
+    "calls": 2
+   },
+   "transient": false
+  },
+  {
+   "point": "masonville",
+   "category": "gravel",
+   "distance_mi": 30,
+   "surface": "road",
+   "variant": "tribos-road-0",
+   "levels": [
+    2
+   ],
+   "bearing_deg": 270,
+   "ok": true,
+   "error": null,
+   "actual_mi": 27.4,
+   "attempts": 3,
+   "tag_source": "engine",
+   "trace_calls": 0,
+   "latency_ms": 22422,
+   "coverage": {
+    "secondary": {
+     "m": 13184.469622630897,
+     "maxspeed": 11570.009654005782,
+     "lanes": 13184.469622630897,
+     "cycleway": 0,
+     "shoulder": 0,
+     "surface": 13184.469622630897,
+     "traffic_class": 13184.469622630897
+    },
+    "residential": {
+     "m": 1678.8443580235385,
+     "maxspeed": 1678.8443580235385,
+     "lanes": 0,
+     "cycleway": 0,
+     "shoulder": 0,
+     "surface": 1678.8443580235385,
+     "traffic_class": 0
+    },
+    "service": {
+     "m": 4615.796520848705,
+     "maxspeed": 0,
+     "lanes": 0,
+     "cycleway": 0,
+     "shoulder": 0,
+     "surface": 95.04470354896827,
+     "traffic_class": 0
+    },
+    "path": {
+     "m": 11200.872938990886,
+     "maxspeed": 0,
+     "lanes": 0,
+     "cycleway": 0,
+     "shoulder": 0,
+     "surface": 11200.872938990886,
+     "traffic_class": 0
+    },
+    "track": {
+     "m": 12858.697945306936,
+     "maxspeed": 0,
+     "lanes": 5684.592452710618,
+     "cycleway": 0,
+     "shoulder": 0,
+     "surface": 5684.592452710618,
+     "traffic_class": 0
+    }
+   },
+   "trace_check": {
+    "agree_pct": 100,
+    "trace_unmatched_pct": 2.8,
+    "calls": 2
+   },
+   "transient": false
+  },
+  {
+   "point": "wellington",
+   "category": "gravel",
+   "distance_mi": 30,
+   "surface": "road",
+   "variant": "tribos-road-0",
+   "levels": [
+    2
+   ],
+   "bearing_deg": 135,
+   "ok": true,
+   "error": null,
+   "actual_mi": 30.8,
+   "attempts": 1,
+   "tag_source": "engine",
+   "trace_calls": 0,
+   "latency_ms": 512,
+   "coverage": {
+    "track": {
+     "m": 249.62627721221207,
+     "maxspeed": 0,
+     "lanes": 0,
+     "cycleway": 0,
+     "shoulder": 0,
+     "surface": 249.62627721221207,
+     "traffic_class": 0
+    },
+    "service": {
+     "m": 2123.486002463334,
+     "maxspeed": 0,
+     "lanes": 0,
+     "cycleway": 0,
+     "shoulder": 0,
+     "surface": 0,
+     "traffic_class": 0
+    },
+    "residential": {
+     "m": 1630.707824090767,
+     "maxspeed": 0,
+     "lanes": 0,
+     "cycleway": 0,
+     "shoulder": 0,
+     "surface": 1515.640287325209,
+     "traffic_class": 0
+    },
+    "tertiary": {
+     "m": 8705.673280542254,
+     "maxspeed": 0,
+     "lanes": 0,
+     "cycleway": 1230.1785996220863,
+     "shoulder": 0,
+     "surface": 5033.05721512277,
+     "traffic_class": 8705.673280542254
+    },
+    "path": {
+     "m": 1629.479283205011,
+     "maxspeed": 0,
+     "lanes": 0,
+     "cycleway": 0,
+     "shoulder": 0,
+     "surface": 1531.3175726726697,
+     "traffic_class": 0
+    },
+    "unclassified": {
+     "m": 23129.126718514755,
+     "maxspeed": 1293.4655071111672,
+     "lanes": 210.5810574921595,
+     "cycleway": 0,
+     "shoulder": 0,
+     "surface": 23091.981030294406,
+     "traffic_class": 0
+    },
+    "secondary": {
+     "m": 607.971793556061,
+     "maxspeed": 0,
+     "lanes": 0,
+     "cycleway": 0,
+     "shoulder": 0,
+     "surface": 607.971793556061,
+     "traffic_class": 607.971793556061
+    }
+   },
+   "trace_check": {
+    "agree_pct": 100,
+    "trace_unmatched_pct": 27.2,
+    "calls": 2
+   },
+   "transient": false
+  },
+  {
+   "point": "kiowa",
+   "category": "gravel",
+   "distance_mi": 30,
+   "surface": "road",
+   "variant": "tribos-road-0",
+   "levels": [
+    2
+   ],
+   "bearing_deg": 45,
+   "ok": true,
+   "error": null,
+   "actual_mi": 19.3,
+   "attempts": 3,
+   "tag_source": "engine",
+   "trace_calls": 0,
+   "latency_ms": 5101,
+   "coverage": {
+    "residential": {
+     "m": 9617.463562713641,
+     "maxspeed": 0,
+     "lanes": 0,
+     "cycleway": 0,
+     "shoulder": 0,
+     "surface": 1123.7926398175514,
+     "traffic_class": 0
+    },
+    "service": {
+     "m": 3216.692054521814,
+     "maxspeed": 0,
+     "lanes": 0,
+     "cycleway": 0,
+     "shoulder": 0,
+     "surface": 1232.5159011689739,
+     "traffic_class": 0
+    },
+    "primary": {
+     "m": 5852.09986033761,
+     "maxspeed": 5852.09986033761,
+     "lanes": 5852.09986033761,
+     "cycleway": 0,
+     "shoulder": 0,
+     "surface": 5852.09986033761,
+     "traffic_class": 5852.09986033761
+    },
+    "trunk": {
+     "m": 870.7516854901069,
+     "maxspeed": 0,
+     "lanes": 870.7516854901069,
+     "cycleway": 0,
+     "shoulder": 0,
+     "surface": 0,
+     "traffic_class": 0
+    }
+   },
+   "trace_check": {
+    "agree_pct": 100,
+    "trace_unmatched_pct": 39.4,
+    "calls": 1
+   },
+   "transient": false
+  }
+ ],
+ "runs": [
+  {
+   "point": "boulder-downtown",
+   "category": "urban",
+   "distance_mi": 30,
+   "surface": "road",
+   "level": 2,
+   "variant": "tribos-road-0",
+   "outcome": "fail",
+   "failure_kinds": [
+    "blocked",
+    "stretch_too_long",
+    "too_much_flagged"
+   ],
+   "within_pct": 54.2,
+   "unknown_pct": 12.3,
+   "flagged_mi": 5.3,
+   "flagged_stretches": 6,
+   "longest_stretch_mi": 3.81,
+   "blocked_mi": 3.69,
+   "blocked_stretches": 4,
+   "heads_ups": 11,
+   "worst_blocked": [
+    {
+     "at_mi": 10.1,
+     "mi": 1.96,
+     "cls": 5,
+     "reasons": [
+      "60 mph",
+      "paved shoulder"
+     ]
+    },
+    {
+     "at_mi": 5.7,
+     "mi": 1.13,
+     "cls": "X",
+     "reasons": [
+      "closed to bikes"
+     ]
+    }
+   ]
+  },
+  {
+   "point": "denver-wash-park",
+   "category": "urban",
+   "distance_mi": 30,
+   "surface": "road",
+   "level": 2,
+   "variant": "tribos-road-0",
+   "outcome": "fail",
+   "failure_kinds": [
+    "blocked"
+   ],
+   "within_pct": 82.7,
+   "unknown_pct": 16.9,
+   "flagged_mi": 0.06,
+   "flagged_stretches": 1,
+   "longest_stretch_mi": 0.06,
+   "blocked_mi": 0.06,
+   "blocked_stretches": 2,
+   "heads_ups": 16,
+   "worst_blocked": [
+    {
+     "at_mi": 24,
+     "mi": 0.04,
+     "cls": 5,
+     "reasons": [
+      "main highway",
+      "no bike lane or shoulder"
+     ]
+    },
+    {
+     "at_mi": 15.8,
+     "mi": 0.03,
+     "cls": 5,
+     "reasons": [
+      "4 lanes",
+      "30 mph",
+      "no bike lane or shoulder"
+     ]
+    }
+   ]
+  },
+  {
+   "point": "denver-sloans-lake",
+   "category": "urban",
+   "distance_mi": 30,
+   "surface": "road",
+   "level": 2,
+   "variant": "tribos-road-0",
+   "outcome": "pass",
+   "failure_kinds": [],
+   "within_pct": 75.7,
+   "unknown_pct": 24.1,
+   "flagged_mi": 0.04,
+   "flagged_stretches": 1,
+   "longest_stretch_mi": 0.04,
+   "blocked_mi": 0,
+   "blocked_stretches": 0,
+   "heads_ups": 15,
+   "worst_blocked": []
+  },
+  {
+   "point": "fort-collins-oldtown",
+   "category": "urban",
+   "distance_mi": 30,
+   "surface": "road",
+   "level": 2,
+   "variant": "tribos-road-0",
+   "outcome": "fail",
+   "failure_kinds": [
+    "stretch_too_long",
+    "too_much_flagged"
+   ],
+   "within_pct": 37.7,
+   "unknown_pct": 52.2,
+   "flagged_mi": 3.11,
+   "flagged_stretches": 6,
+   "longest_stretch_mi": 1.01,
+   "blocked_mi": 0,
+   "blocked_stretches": 0,
+   "heads_ups": 17,
+   "worst_blocked": []
+  },
+  {
+   "point": "westminster-sheridan",
+   "category": "suburban",
+   "distance_mi": 30,
+   "surface": "road",
+   "level": 2,
+   "variant": "tribos-road-0",
+   "outcome": "fail",
+   "failure_kinds": [
+    "blocked",
+    "stretch_too_long"
+   ],
+   "within_pct": 91,
+   "unknown_pct": 3.7,
+   "flagged_mi": 1.36,
+   "flagged_stretches": 2,
+   "longest_stretch_mi": 0.73,
+   "blocked_mi": 0.1,
+   "blocked_stretches": 2,
+   "heads_ups": 6,
+   "worst_blocked": [
+    {
+     "at_mi": 0,
+     "mi": 0.07,
+     "cls": 5,
+     "reasons": [
+      "main highway",
+      "no bike lane or shoulder"
+     ]
+    },
+    {
+     "at_mi": 21.4,
+     "mi": 0.03,
+     "cls": 5,
+     "reasons": [
+      "5 lanes",
+      "30 mph",
+      "no bike lane or shoulder"
+     ]
+    }
+   ]
+  },
+  {
+   "point": "aurora-southlands",
+   "category": "suburban",
+   "distance_mi": 30,
+   "surface": "road",
+   "level": 2,
+   "variant": "tribos-road-0",
+   "outcome": "fail",
+   "failure_kinds": [
+    "blocked",
+    "stretch_too_long"
+   ],
+   "within_pct": 72.5,
+   "unknown_pct": 14.6,
+   "flagged_mi": 1.81,
+   "flagged_stretches": 4,
+   "longest_stretch_mi": 1.37,
+   "blocked_mi": 2.23,
+   "blocked_stretches": 7,
+   "heads_ups": 16,
+   "worst_blocked": [
+    {
+     "at_mi": 14.8,
+     "mi": 0.9,
+     "cls": 5,
+     "reasons": [
+      "main highway",
+      "no bike lane or shoulder"
+     ]
+    },
+    {
+     "at_mi": 11.3,
+     "mi": 0.78,
+     "cls": 5,
+     "reasons": [
+      "main highway",
+      "no bike lane or shoulder"
+     ]
+    }
+   ]
+  },
+  {
+   "point": "highlands-ranch",
+   "category": "suburban",
+   "distance_mi": 30,
+   "surface": "road",
+   "level": 2,
+   "variant": "tribos-road-0",
+   "outcome": "fail",
+   "failure_kinds": [
+    "blocked",
+    "stretch_too_long"
+   ],
+   "within_pct": 77,
+   "unknown_pct": 13.4,
+   "flagged_mi": 2.75,
+   "flagged_stretches": 6,
+   "longest_stretch_mi": 1.11,
+   "blocked_mi": 0.04,
+   "blocked_stretches": 1,
+   "heads_ups": 13,
+   "worst_blocked": [
+    {
+     "at_mi": 17,
+     "mi": 0.04,
+     "cls": 5,
+     "reasons": [
+      "4 lanes",
+      "25 mph",
+      "no bike lane or shoulder"
+     ]
+    }
+   ]
+  },
+  {
+   "point": "louisville-downtown",
+   "category": "suburban",
+   "distance_mi": 30,
+   "surface": "road",
+   "level": 2,
+   "variant": "tribos-road-0",
+   "outcome": "fail",
+   "failure_kinds": [
+    "blocked",
+    "stretch_too_long",
+    "too_much_flagged"
+   ],
+   "within_pct": 66.8,
+   "unknown_pct": 1.4,
+   "flagged_mi": 9.83,
+   "flagged_stretches": 10,
+   "longest_stretch_mi": 2.08,
+   "blocked_mi": 0.25,
+   "blocked_stretches": 3,
+   "heads_ups": 12,
+   "worst_blocked": [
+    {
+     "at_mi": 11.4,
+     "mi": 0.11,
+     "cls": 5,
+     "reasons": [
+      "4 lanes",
+      "35 mph",
+      "no bike lane or shoulder"
+     ]
+    },
+    {
+     "at_mi": 22,
+     "mi": 0.1,
+     "cls": 5,
+     "reasons": [
+      "6 lanes",
+      "35 mph",
+      "no bike lane or shoulder"
+     ]
+    }
+   ]
+  },
+  {
+   "point": "erie",
+   "category": "suburban",
+   "distance_mi": 30,
+   "surface": "road",
+   "level": 2,
+   "variant": "tribos-road-0",
+   "outcome": "fail",
+   "failure_kinds": [
+    "blocked",
+    "stretch_too_long",
+    "too_much_flagged"
+   ],
+   "within_pct": 53.1,
+   "unknown_pct": 26.3,
+   "flagged_mi": 5.34,
+   "flagged_stretches": 4,
+   "longest_stretch_mi": 4.56,
+   "blocked_mi": 0.64,
+   "blocked_stretches": 2,
+   "heads_ups": 12,
+   "worst_blocked": [
+    {
+     "at_mi": 26.2,
+     "mi": 0.34,
+     "cls": 5,
+     "reasons": [
+      "45 mph",
+      "no shoulder"
+     ]
+    },
+    {
+     "at_mi": 25.3,
+     "mi": 0.3,
+     "cls": 5,
+     "reasons": [
+      "45 mph",
+      "no shoulder"
+     ]
+    }
+   ]
+  },
+  {
+   "point": "hygiene",
+   "category": "rural-plains",
+   "distance_mi": 30,
+   "surface": "road",
+   "level": 2,
+   "variant": "tribos-road-0",
+   "outcome": "fail",
+   "failure_kinds": [
+    "blocked"
+   ],
+   "within_pct": 33.6,
+   "unknown_pct": 61.6,
+   "flagged_mi": 1.21,
+   "flagged_stretches": 5,
+   "longest_stretch_mi": 0.45,
+   "blocked_mi": 0.23,
+   "blocked_stretches": 1,
+   "heads_ups": 14,
+   "worst_blocked": [
+    {
+     "at_mi": 23.3,
+     "mi": 0.23,
+     "cls": 5,
+     "reasons": [
+      "main highway",
+      "55 mph",
+      "no bike lane or shoulder"
+     ]
+    }
+   ]
+  },
+  {
+   "point": "berthoud",
+   "category": "rural-plains",
+   "distance_mi": 30,
+   "surface": "road",
+   "level": 2,
+   "variant": "tribos-road-0",
+   "outcome": "fail",
+   "failure_kinds": [
+    "blocked"
+   ],
+   "within_pct": 16,
+   "unknown_pct": 83.5,
+   "flagged_mi": 0,
+   "flagged_stretches": 0,
+   "longest_stretch_mi": 0,
+   "blocked_mi": 0.14,
+   "blocked_stretches": 1,
+   "heads_ups": 5,
+   "worst_blocked": [
+    {
+     "at_mi": 25.7,
+     "mi": 0.14,
+     "cls": 5,
+     "reasons": [
+      "main highway",
+      "45 mph",
+      "no bike lane or shoulder"
+     ]
+    }
+   ]
+  },
+  {
+   "point": "platteville",
+   "category": "rural-plains",
+   "distance_mi": 30,
+   "surface": "road",
+   "level": 2,
+   "variant": "tribos-road-0",
+   "outcome": "fail",
+   "failure_kinds": [
+    "blocked"
+   ],
+   "within_pct": 46.1,
+   "unknown_pct": 50.2,
+   "flagged_mi": 0,
+   "flagged_stretches": 0,
+   "longest_stretch_mi": 0,
+   "blocked_mi": 1.13,
+   "blocked_stretches": 3,
+   "heads_ups": 12,
+   "worst_blocked": [
+    {
+     "at_mi": 25.1,
+     "mi": 0.48,
+     "cls": 5,
+     "reasons": [
+      "55 mph",
+      "no shoulder"
+     ]
+    },
+    {
+     "at_mi": 19.3,
+     "mi": 0.38,
+     "cls": 5,
+     "reasons": [
+      "55 mph",
+      "no shoulder"
+     ]
+    }
+   ]
+  },
+  {
+   "point": "bennett",
+   "category": "rural-plains",
+   "distance_mi": 30,
+   "surface": "road",
+   "level": 2,
+   "variant": "tribos-road-0",
+   "outcome": "fail",
+   "failure_kinds": [
+    "blocked"
+   ],
+   "within_pct": 30.1,
+   "unknown_pct": 65.4,
+   "flagged_mi": 0,
+   "flagged_stretches": 0,
+   "longest_stretch_mi": 0,
+   "blocked_mi": 1.28,
+   "blocked_stretches": 5,
+   "heads_ups": 22,
+   "worst_blocked": [
+    {
+     "at_mi": 13.1,
+     "mi": 0.39,
+     "cls": 5,
+     "reasons": [
+      "55 mph",
+      "no shoulder"
+     ]
+    },
+    {
+     "at_mi": 15,
+     "mi": 0.39,
+     "cls": 5,
+     "reasons": [
+      "55 mph",
+      "no shoulder"
+     ]
+    }
+   ]
+  },
+  {
+   "point": "lyons",
+   "category": "foothills",
+   "distance_mi": 30,
+   "surface": "road",
+   "level": 2,
+   "variant": "tribos-road-0",
+   "outcome": "fail",
+   "failure_kinds": [
+    "blocked",
+    "stretch_too_long"
+   ],
+   "within_pct": 24.6,
+   "unknown_pct": 51.2,
+   "flagged_mi": 1.09,
+   "flagged_stretches": 3,
+   "longest_stretch_mi": 0.52,
+   "blocked_mi": 5.59,
+   "blocked_stretches": 7,
+   "heads_ups": 14,
+   "worst_blocked": [
+    {
+     "at_mi": 21.9,
+     "mi": 2.75,
+     "cls": 5,
+     "reasons": [
+      "60 mph",
+      "paved shoulder"
+     ]
+    },
+    {
+     "at_mi": 20.6,
+     "mi": 1.14,
+     "cls": 5,
+     "reasons": [
+      "60 mph",
+      "paved shoulder"
+     ]
+    }
+   ]
+  },
+  {
+   "point": "golden",
+   "category": "foothills",
+   "distance_mi": 30,
+   "surface": "road",
+   "level": 2,
+   "variant": "tribos-road-0",
+   "outcome": "fail",
+   "failure_kinds": [
+    "blocked"
+   ],
+   "within_pct": 71.6,
+   "unknown_pct": 25.7,
+   "flagged_mi": 0.68,
+   "flagged_stretches": 2,
+   "longest_stretch_mi": 0.43,
+   "blocked_mi": 0.06,
+   "blocked_stretches": 1,
+   "heads_ups": 10,
+   "worst_blocked": [
+    {
+     "at_mi": 22.6,
+     "mi": 0.06,
+     "cls": 5,
+     "reasons": [
+      "5 lanes",
+      "35 mph",
+      "no bike lane or shoulder"
+     ]
+    }
+   ]
+  },
+  {
+   "point": "morrison",
+   "category": "foothills",
+   "distance_mi": 30,
+   "surface": "road",
+   "level": 2,
+   "variant": "tribos-road-0",
+   "outcome": "fail",
+   "failure_kinds": [
+    "blocked",
+    "stretch_too_long",
+    "too_much_flagged"
+   ],
+   "within_pct": 40.9,
+   "unknown_pct": 14.9,
+   "flagged_mi": 6.99,
+   "flagged_stretches": 6,
+   "longest_stretch_mi": 1.79,
+   "blocked_mi": 7.28,
+   "blocked_stretches": 8,
+   "heads_ups": 10,
+   "worst_blocked": [
+    {
+     "at_mi": 7.2,
+     "mi": 2.02,
+     "cls": "X",
+     "reasons": [
+      "closed to bikes"
+     ]
+    },
+    {
+     "at_mi": 20.9,
+     "mi": 1.93,
+     "cls": 5,
+     "reasons": [
+      "50 mph",
+      "no shoulder"
+     ]
+    }
+   ]
+  },
+  {
+   "point": "nederland",
+   "category": "foothills",
+   "distance_mi": 30,
+   "surface": "road",
+   "level": 2,
+   "variant": "tribos-road-0",
+   "outcome": "fail",
+   "failure_kinds": [
+    "blocked"
+   ],
+   "within_pct": 98.7,
+   "unknown_pct": 0,
+   "flagged_mi": 0,
+   "flagged_stretches": 0,
+   "longest_stretch_mi": 0,
+   "blocked_mi": 0.43,
+   "blocked_stretches": 3,
+   "heads_ups": 0,
+   "worst_blocked": [
+    {
+     "at_mi": 10,
+     "mi": 0.26,
+     "cls": 5,
+     "reasons": [
+      "main highway",
+      "45 mph",
+      "no bike lane or shoulder"
+     ]
+    },
+    {
+     "at_mi": 7.2,
+     "mi": 0.15,
+     "cls": 5,
+     "reasons": [
+      "main highway",
+      "45 mph",
+      "no bike lane or shoulder"
+     ]
+    }
+   ]
+  },
+  {
+   "point": "masonville",
+   "category": "gravel",
+   "distance_mi": 30,
+   "surface": "road",
+   "level": 2,
+   "variant": "tribos-road-0",
+   "outcome": "fail",
+   "failure_kinds": [
+    "blocked",
+    "stretch_too_long",
+    "too_much_flagged"
+   ],
+   "within_pct": 68.7,
+   "unknown_pct": 5.1,
+   "flagged_mi": 6.03,
+   "flagged_stretches": 5,
+   "longest_stretch_mi": 3.09,
+   "blocked_mi": 1.15,
+   "blocked_stretches": 2,
+   "heads_ups": 8,
+   "worst_blocked": [
+    {
+     "at_mi": 25.2,
+     "mi": 0.59,
+     "cls": 5,
+     "reasons": [
+      "45 mph",
+      "no shoulder"
+     ]
+    },
+    {
+     "at_mi": 10,
+     "mi": 0.56,
+     "cls": 5,
+     "reasons": [
+      "45 mph",
+      "no shoulder"
+     ]
+    }
+   ]
+  },
+  {
+   "point": "wellington",
+   "category": "gravel",
+   "distance_mi": 30,
+   "surface": "road",
+   "level": 2,
+   "variant": "tribos-road-0",
+   "outcome": "pass",
+   "failure_kinds": [],
+   "within_pct": 56.7,
+   "unknown_pct": 43.3,
+   "flagged_mi": 0,
+   "flagged_stretches": 0,
+   "longest_stretch_mi": 0,
+   "blocked_mi": 0,
+   "blocked_stretches": 0,
+   "heads_ups": 15,
+   "worst_blocked": []
+  },
+  {
+   "point": "kiowa",
+   "category": "gravel",
+   "distance_mi": 30,
+   "surface": "road",
+   "level": 2,
+   "variant": "tribos-road-0",
+   "outcome": "fail",
+   "failure_kinds": [
+    "blocked"
+   ],
+   "within_pct": 41.8,
+   "unknown_pct": 36.5,
+   "flagged_mi": 0,
+   "flagged_stretches": 0,
+   "longest_stretch_mi": 0,
+   "blocked_mi": 4.19,
+   "blocked_stretches": 8,
+   "heads_ups": 16,
+   "worst_blocked": [
+    {
+     "at_mi": 1.6,
+     "mi": 2.44,
+     "cls": 5,
+     "reasons": [
+      "main highway",
+      "55 mph",
+      "no bike lane or shoulder"
+     ]
+    },
+    {
+     "at_mi": 9.7,
+     "mi": 0.69,
+     "cls": 5,
+     "reasons": [
+      "main highway",
+      "55 mph",
+      "no bike lane or shoulder"
+     ]
+    }
+   ]
+  }
+ ]
+}

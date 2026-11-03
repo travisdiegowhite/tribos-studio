@@ -17,7 +17,9 @@
     "build:rules": "node scripts/build-coaching-rules.mjs",
     "build:session-rules": "node scripts/build-session-rules.mjs",
     "audit:schema": "node scripts/audit-schema.mjs",
-    "backfill:evidence": "node scripts/backfill-evidence.mjs"
+    "backfill:evidence": "node scripts/backfill-evidence.mjs",
+    "harness:comfort": "node scripts/comfort-harness/run.mjs",
+    "audit:osm-coverage": "node scripts/osm-coverage-audit.mjs"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.71.0",
