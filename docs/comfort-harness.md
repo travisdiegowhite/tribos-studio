@@ -12,6 +12,7 @@ here is wired into the app yet.
 | `comfortClass.ts` | `comfortClassForTags(tags, extras?)` → `{ cls 1–5 \| X, confidence, reasons[], worstCaseCls }`. Thresholds in `COMFORT_CLASS_CONFIG`. Built on `trafficStress.ts`. |
 | `comfortValidator.ts` | `validateComfortRoute(coords, ways, { level })`: per-segment status and tone, flagged/blocked/unknown stretches, totals, pass/fail, heads-ups. `toneRuns()` feeds the comfort strip and map line. |
 | `loopWaypoints.ts` | Deterministic loop waypoints for a start + distance (no AI). Harness today; landing form next. |
+| `comfortLadder.ts` | `planComfortRoute(request, { route, budget, allowNearbyStart, isFatal })`: the §4 ladder. Returns `outcome: 'ok' \| 'alternatives' \| 'refused'`, with every returned route validated at the level it's shown for. The engine is injected. |
 
 The copy test (`comfortLevels.test.ts`) fails on "never", "always" or
 "guaranteed" in any card string or heads-up reason.
@@ -22,6 +23,23 @@ The copy test (`comfortLevels.test.ts`) fails on "never", "always" or
 - **Unknown speed is flagged, not blocked**: paved `unclassified`/`tertiary`/`secondary` with no `maxspeed` have `confidence: 'unknown'`. The validator counts them as within comfort only if `worstCaseCls` (55 mph, no shoulder) would be. Otherwise they're `unknown`: a heads-up, grey dashed, counted in `unknownPct`, and **not** counted toward the 0.5 mi / 10% limits.
 - **Trace fidelity**: a segment no way matched within the 25 m snap radius is `unknown`, never within comfort.
 - **Stretch merging**: within-comfort gaps under 50 m don't split a flagged stretch.
+
+## The ladder (`comfortLadder.ts`)
+
+Evaluated in order, within a budget of 12 route calls (`LADDER_CONFIG`):
+
+1. **The request.** Up to 2 calls, rescaling the loop toward the target. If it passes at L and lands within ±15% of the distance, the outcome is `ok`. Heads-ups come from the validator.
+2. **Alternatives.** Each one passes at the level it's shown for. At most 3, one of each kind:
+   - `shape`: the same distance, reversed, then rotated 180°, 90° and 270°. Stops at the first that passes.
+   - `distance`: −25% first, then +25%. A request that passes but missed the distance is offered as this kind as is.
+   - `comfort_up`: "ride it at Comfort L+1". This first re-validates lines already routed at L+1, which costs no call. Only if none passes does it spend one call steering for L+1. The note says what that adds, e.g. "At Comfort 3: adds 0.4 mi of 45 mph, no shoulder".
+3. **Refused.** `refusalMessage(L)`, plus whichever of these passes:
+   - a nearby start: 4 points on rings at 3 km and 6 km, skipped when `allowNearbyStart` is false, as it should be while brouter.de is serving;
+   - a loop at half the distance.
+
+   `tryLevel` is L+1 for the "try Comfort 3" link.
+
+A failed call (target island, watchdog) counts as no route there, and the ladder carries on. If every call fails, it throws, because that's an engine problem, not a refusal. `isFatal` errors (throttling) abort at once. `meetsAcceptance()` re-checks the §5 criteria on any returned route. The harness's `--ladder` mode counts violations, and the target is 0.
 
 ## Running the harness
 
@@ -41,6 +59,8 @@ The script bundles `scripts/comfort-harness/harness.ts` with esbuild (it ships w
 | `--check-trace` | off | for engines that report their own tags, also classify through a BRouter re-ride and report agreement |
 | `--delay-ms` | 400 | pause between requests. Use 1500 on brouter.de, which throttles (HTTP 403 "Please, retry later!") |
 | `--resume <file>` | – | reuse every settled generation in a previous results file, redo the rest. The run checkpoints every 10 generations, so `--resume` with the same `--out` survives interruptions |
+| `--ladder` | off | run `planComfortRoute` per point × distance × surface × level instead of one-shot routes; writes `<engine>-ladder-<date>.json/.md` |
+| `--no-nearby-start` | – | ladder mode: skip the nearby-start search |
 | `BROUTER_URL` env | brouter.de | point at the self-hosted server for big runs |
 | `COMFORT_PROFILE_PARAMS` env | – | JSON of profile parameters to override for a tuning run, e.g. `{"comfort_penalty_one":4}` |
 

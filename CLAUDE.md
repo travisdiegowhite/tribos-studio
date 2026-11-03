@@ -545,6 +545,10 @@ result view). Phase 0 is measurement only and is wired into nothing:
 - `src/utils/comfortClass.ts` (road class 1–5/X) and
   `src/utils/comfortValidator.ts` (the authority on pass/fail) are pure and
   run in the browser and Node.
+- `src/utils/comfortLadder.ts` (`planComfortRoute`) is the §4 ladder: ok /
+  alternatives / refused, engine injected, 12-call budget. It must never
+  return a route that fails the validator at the level it is shown for;
+  `harness:comfort -- --ladder` counts violations (target 0).
 - `npm run harness:comfort` (`docs/comfort-harness.md`) measures routing
   against 20 Front Range start points; diff every profile or data change
   against a committed baseline.
