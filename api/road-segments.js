@@ -3,6 +3,8 @@
  * Handles road segment extraction from activities and preference-based route scoring
  */
 
+import { optionalColumn } from './utils/optionalColumn.js';
+import { isComfortLevel, comfortLevelFromTolerance, toleranceForComfortLevel, resolveComfortLevel } from './utils/comfortLevel.js';
 import { getSupabaseAdmin } from './utils/supabaseAdmin.js';
 import { setupCors } from './utils/cors.js';
 import {
@@ -403,6 +405,8 @@ async function getSegmentStats(req, res, authUser) {
 // Allowed values for the "Road comfort" fields (migration 125).
 const TRAFFIC_TOLERANCES = new Set(['low', 'medium', 'high']);
 const BIKE_INFRA_PREFERENCES = new Set(['flexible', 'preferred', 'required']);
+// comfort_level (migration 139) is optional until applied: writes drop it and retry.
+const comfortLevelColumn = optionalColumn('user_road_preferences', 'comfort_level');
 
 /**
  * Get user's road preference settings
@@ -435,6 +439,12 @@ async function getPreferences(req, res, authUser) {
   if (!BIKE_INFRA_PREFERENCES.has(preferences.bike_infra_preference)) {
     preferences.bike_infra_preference = 'preferred';
   }
+  // Comfort level 1–5 (migration 139): stored, else derived from the
+  // tolerance, else Comfort 2 for a rider with no row. traffic_tolerance
+  // keeps its legacy 'medium' default so today's routing is unchanged.
+  const comfort = resolveComfortLevel(data || null);
+  preferences.comfort_level = comfort.level;
+  preferences.comfort_level_source = comfort.source;
 
   return res.json({
     success: true,
@@ -453,7 +463,8 @@ async function updatePreferences(req, res, authUser) {
     recency_weight,
     familiarity_decay_days,
     traffic_tolerance,
-    bike_infra_preference
+    bike_infra_preference,
+    comfort_level
   } = req.body;
 
   const updates = {};
@@ -468,6 +479,22 @@ async function updatePreferences(req, res, authUser) {
     }
     updates.traffic_tolerance = traffic_tolerance;
   }
+  // Dual-write (migration 139): a level writes its tolerance; a tolerance
+  // from the three-choice controls writes its mapped level. When both come
+  // in, the level wins and the tolerance must agree with it.
+  if (comfort_level !== undefined) {
+    if (!isComfortLevel(comfort_level)) {
+      return res.status(400).json({ error: 'comfort_level must be an integer from 1 to 5' });
+    }
+    const tolerance = toleranceForComfortLevel(comfort_level);
+    if (traffic_tolerance !== undefined && traffic_tolerance !== tolerance) {
+      return res.status(400).json({ error: `traffic_tolerance ${traffic_tolerance} does not match comfort_level ${comfort_level} (${tolerance})` });
+    }
+    updates.comfort_level = comfort_level;
+    updates.traffic_tolerance = tolerance;
+  } else if (updates.traffic_tolerance !== undefined) {
+    updates.comfort_level = comfortLevelFromTolerance(updates.traffic_tolerance);
+  }
   if (bike_infra_preference !== undefined) {
     if (!BIKE_INFRA_PREFERENCES.has(bike_infra_preference)) {
       return res.status(400).json({ error: 'bike_infra_preference must be flexible, preferred or required' });
@@ -479,15 +506,15 @@ async function updatePreferences(req, res, authUser) {
     return res.status(400).json({ error: 'No preference updates provided' });
   }
 
-  const { data, error } = await supabase
-    .from('user_road_preferences')
-    .upsert({
-      user_id: authUser.id,
-      ...updates,
-      updated_at: new Date().toISOString()
-    }, { onConflict: 'user_id' })
-    .select()
-    .single();
+  const { data, error } = await comfortLevelColumn.write(
+    { user_id: authUser.id, ...updates, updated_at: new Date().toISOString() },
+    (payload) =>
+      supabase
+        .from('user_road_preferences')
+        .upsert(payload, { onConflict: 'user_id' })
+        .select()
+        .single(),
+  );
 
   if (error) {
     console.error('Error updating preferences:', error);
@@ -501,9 +528,10 @@ async function updatePreferences(req, res, authUser) {
     return res.status(500).json({ error: 'Failed to update preferences' });
   }
 
+  const comfort = resolveComfortLevel(data);
   return res.json({
     success: true,
-    preferences: data
+    preferences: { ...data, comfort_level: comfort.level, comfort_level_source: comfort.source }
   });
 }
 

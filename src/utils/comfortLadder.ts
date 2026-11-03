@@ -83,6 +83,14 @@ export const LADDER_CONFIG = {
   /** "A shorter loop" on a refusal: this share of the target. */
   shorterShare: 0.5,
   maxAlternatives: 3,
+  /**
+   * Calls held back from the alternatives step for the refusal suggestions
+   * (shorter loop first, then nearby starts). The first harness run spent
+   * the whole budget on alternatives and every refusal came back bare.
+   */
+  refusalReserve: 4,
+  /** Reserve when the nearby-start search is off: the shorter loop only. */
+  refusalReserveNoNearby: 1,
 } as const;
 
 export interface ComfortCandidate {
@@ -299,6 +307,10 @@ export async function planComfortRoute(request: ComfortRouteRequest, deps: Ladde
   }
 
   // ── Step 2: alternatives, each passing at its own level ─────────────────
+  const altBudget = Math.max(
+    calls,
+    budget - (deps.allowNearbyStart ? LADDER_CONFIG.refusalReserve : LADDER_CONFIG.refusalReserveNoNearby),
+  );
   const alternatives: ComfortCandidate[] = [];
   const routedAtLevel: Routed[] = primary ? [primary] : [];
 
@@ -315,7 +327,7 @@ export async function planComfortRoute(request: ComfortRouteRequest, deps: Ladde
     { bearingDeg: bearing0 + 270, clockwise: clockwise0 },
   ];
   for (const s of shapes) {
-    if (calls >= budget - 1) break; // keep a call for the distance step
+    if (calls >= altBudget - 1) break; // keep a call for the distance step
     const r = await attempt('shape', s);
     if (!r) continue;
     routedAtLevel.push(r);
@@ -330,7 +342,7 @@ export async function planComfortRoute(request: ComfortRouteRequest, deps: Ladde
   // Different distance: nearest of ±25%, shorter first (shorter loops pass more often).
   if (!alternatives.some((a) => a.kind === 'distance')) {
     for (const f of [1 - LADDER_CONFIG.distanceStep, 1 + LADDER_CONFIG.distanceStep]) {
-      if (calls >= budget) break;
+      if (calls >= altBudget) break;
       const target_km = request.targetDistance_km * f;
       const r = await attempt('distance', { targetDistance_km: target_km });
       if (!r) continue;
@@ -357,7 +369,7 @@ export async function planComfortRoute(request: ComfortRouteRequest, deps: Ladde
       if (!best || v.withinPct > best.v.withinPct) best = { r, v, atL };
     }
     // Nothing we have passes at L+1: one call steering for L+1, if the budget allows.
-    if (!best && calls < budget) {
+    if (!best && calls < altBudget) {
       const r = await attempt('comfort_up', { steerLevel: up });
       if (r && distanceOk(r, request.targetDistance_km)) {
         const v = validate(r, up);
@@ -394,12 +406,24 @@ export async function planComfortRoute(request: ComfortRouteRequest, deps: Ladde
   // Every call failed outright (nothing routed): that's an engine problem, not a refusal.
   if (!anyRouted && lastError) throw lastError;
 
-  // ── Step 3: refuse, with a nearby start and/or a shorter loop ───────────
+  // ── Step 3: refuse, with a shorter loop and/or a nearby start ──────────
+  // The shorter loop first: one call, and the likelier of the two to pass.
+  let shorter: ComfortCandidate | null = null;
+  if (calls < budget) {
+    const target_km = request.targetDistance_km * LADDER_CONFIG.shorterShare;
+    const r = await attempt('shorter', { targetDistance_km: target_km, roadFactor: DEFAULT_ROAD_FACTOR });
+    if (r) {
+      const v = validate(r, level);
+      mark(r, !!v?.passes);
+      if (v?.passes) shorter = toCandidate(r, 'shorter', level, v);
+    }
+  }
+
   let nearbyStart: ComfortCandidate | null = null;
   if (deps.allowNearbyStart) {
     search: for (const radius_km of LADDER_CONFIG.nearbyRadii_km) {
       for (let k = 0; k < LADDER_CONFIG.nearbyPerRing; k++) {
-        if (calls >= budget - 1) break search; // keep a call for the shorter loop
+        if (calls >= budget) break search;
         const ringBearing = bearing0 + (360 / LADDER_CONFIG.nearbyPerRing) * k;
         const start = destinationPoint(request.start, radius_km, normBearing(ringBearing));
         const r = await attempt('nearby_start', { start });
@@ -411,17 +435,6 @@ export async function planComfortRoute(request: ComfortRouteRequest, deps: Ladde
           break search;
         }
       }
-    }
-  }
-
-  let shorter: ComfortCandidate | null = null;
-  if (calls < budget) {
-    const target_km = request.targetDistance_km * LADDER_CONFIG.shorterShare;
-    const r = await attempt('shorter', { targetDistance_km: target_km, roadFactor: DEFAULT_ROAD_FACTOR });
-    if (r) {
-      const v = validate(r, level);
-      mark(r, !!v?.passes);
-      if (v?.passes) shorter = toCandidate(r, 'shorter', level, v);
     }
   }
 

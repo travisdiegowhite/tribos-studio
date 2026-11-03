@@ -95,6 +95,11 @@ The response carries `outcome: 'ok' | 'alternatives' | 'refused'` so the front e
    - **Stretch merging.** A within-comfort gap shorter than 50 m (config) doesn't end a flagged stretch, so a driveway or crossing can't split one stretch into two and get around the 0.5 mi cap.
 3. **Ladder.** A `planComfortRoute(request)` orchestrator calls BRouter, validates, then generates and validates alternatives as needed. It returns the §4 outcome.
 4. **Preferences.** `user_road_preferences.traffic_tolerance` is currently `low | medium | high` (migration 125, `CHECK` + `DEFAULT 'medium'`). Don't change its type: migrations are applied by hand, so an in-place change leaves a window where deployed code and the database disagree. **Add `comfort_level smallint` (1–5)**, backfill low→2, medium→3, high→4, and dual-write both columns. Read `comfort_level ?? fromTolerance(traffic_tolerance)`. Existing riders keep their mapped level (default `medium` → 3); only new riders default to 2. Update `routeBuilderStore`, `RoadPreferencesCard`, `FloatingRouteSettings`, `PreferenceSettings`, and `api/road-segments.js` validation.
+   - *Status (2026-11-03):*
+     - **Done:** migration 139 (`comfort_level`, backfilled, no column default) and `api/road-segments.js`. The API validates 1–5 and dual-writes both columns (a level writes its tolerance; a tolerance writes its mapped level). It reads `comfort_level ?? fromTolerance ?? 2` with a `comfort_level_source`, and fails soft while 139 is unapplied.
+     - **Store and hook:** `routeBuilderStore.comfortLevel` and `useRoadComfort().comfortLevel / setComfortLevel` are kept in step with the tolerance.
+     - **Not yet:** the settings controls are still three-choice (they write the tolerance, and the API maps it). Moving them to 1–5 belongs with the landing form.
+     - **Open:** a rider with no row reads as Comfort 2 in the API, but their routing tolerance stays `medium` (Comfort 3) until comfort routing ships, so live routing doesn't change for new riders.
 5. **Stat.** Replace "quiet %" on results with **"% within your comfort"** (distance at class ≤ L ÷ total). Report unknown-confidence distance separately; don't count it as within comfort.
 
 ### Phase 0 — measure first (do this before the profile changes)

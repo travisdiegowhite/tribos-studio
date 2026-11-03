@@ -9,6 +9,7 @@ import { useState, useEffect } from 'react';
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
 import { isRunProfile, sportOfProfile, defaultProfileFor } from '../utils/runProfiles';
+import { isComfortLevel, comfortLevelFromTolerance, toleranceForComfortLevel } from '../utils/comfortLevels';
 
 const STORAGE_KEY = 'tribos-route-builder';
 
@@ -71,6 +72,13 @@ const initialState = {
   // persisted locally so the choice survives a reload before the server
   // answers, and works for guests.
   trafficTolerance: 'medium',
+  // Comfort level 1–5 (migration 139, docs/COMFORT-ROUTING-SPEC.md). Null
+  // until the rider or the server sets one; read it with
+  // `state.comfortLevel ?? comfortLevelFromTolerance(state.trafficTolerance)`.
+  // Kept in step with trafficTolerance: setting either updates the other
+  // (1–2 low, 3 medium, 4–5 high), so routers that take three settings
+  // agree with the level.
+  comfortLevel: null,
   explicitDistanceKm: null, // When user specifies distance directly (e.g., "100km loop")
 
   // What the rider actually asked for on the last generation:
@@ -194,10 +202,26 @@ export const useRouteBuilderStore = create(
         });
       },
 
-      setTrafficTolerance: (tolerance) => set({
+      // A tolerance from the three-choice control keeps a level that already
+      // maps to it (Comfort 1 stays 1 under "Quiet"); otherwise it moves the
+      // level to the tolerance's mapped level.
+      setTrafficTolerance: (tolerance) => set((state) => ({
         trafficTolerance: tolerance,
+        comfortLevel:
+          isComfortLevel(state.comfortLevel) && toleranceForComfortLevel(state.comfortLevel) === tolerance
+            ? state.comfortLevel
+            : comfortLevelFromTolerance(tolerance),
         lastSaved: Date.now()
-      }),
+      })),
+
+      setComfortLevel: (level) => {
+        if (!isComfortLevel(level)) return;
+        set({
+          comfortLevel: level,
+          trafficTolerance: toleranceForComfortLevel(level),
+          lastSaved: Date.now()
+        });
+      },
 
       setExplicitDistanceKm: (distance) => set({
         explicitDistanceKm: distance,
@@ -336,6 +360,7 @@ export const useRouteBuilderStore = create(
         routeProfile: state.routeProfile,
         sport: state.sport,
         trafficTolerance: state.trafficTolerance,
+        comfortLevel: state.comfortLevel,
         explicitDistanceKm: state.explicitDistanceKm,
         routeTarget: state.routeTarget,
         raceType: state.raceType,

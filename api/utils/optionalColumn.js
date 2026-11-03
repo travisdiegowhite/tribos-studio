@@ -19,9 +19,12 @@
  */
 export function optionalColumn(table, column) {
   let missing = false;
-  // "column routes.sport does not exist" (Postgres) or "Could not find the
-  // 'sport' column of 'routes' in the schema cache" (PostgREST).
-  const qualified = new RegExp(`${table}\\.${column}\\b|'${column}' column of '${table}'`);
+  // "column routes.sport does not exist" or 'column "sport" of relation
+  // "routes" does not exist' (Postgres, read and write forms), or "Could not
+  // find the 'sport' column of 'routes' in the schema cache" (PostgREST).
+  const qualified = new RegExp(
+    `${table}\\.${column}\\b|'${column}' column of '${table}'|column "${column}" of relation "${table}"`,
+  );
 
   /** True for PostgREST's "<table> has no <column> column" errors. */
   function isMissingError(error) {

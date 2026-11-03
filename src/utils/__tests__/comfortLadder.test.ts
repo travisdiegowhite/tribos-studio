@@ -259,3 +259,21 @@ describe('copy', () => {
     expect(candidateNote(base, req({ clockwise: true }))).toBe('Counter-clockwise instead');
   });
 });
+
+describe('refusal budget', () => {
+  it('keeps calls for both refusal suggestions when the alternatives all fail', async () => {
+    // Only the half-distance loop and starts away from the original pass.
+    const eng = fakeEngine((call) => {
+      const [lng, lat] = call.waypoints[0];
+      const away = haversineMeters(lat, lng, START[1], START[0]) > 1000;
+      const leg_m = haversineMeters(call.waypoints[0][1], call.waypoints[0][0], call.waypoints[1][1], call.waypoints[1][0]);
+      return away || leg_m < 4000 ? 1 : 'X';
+    });
+    const plan = await planComfortRoute(req(), { route: eng.route, allowNearbyStart: true });
+    expect(plan.outcome).toBe('refused');
+    expect(plan.refusal?.shorter).not.toBeNull();
+    expect(plan.refusal?.nearbyStart).not.toBeNull();
+    expect(plan.calls).toBeLessThanOrEqual(LADDER_CONFIG.budget);
+    expectAllAccepted(plan);
+  });
+});

@@ -1,0 +1,421 @@
+/*
+ * Routing landing (docs/ROUTING-LANDING-SPEC.md). Design-system tokens only,
+ * so dark mode follows global.css. Flat, no radius, no shadows; hierarchy
+ * from rules and type. No orange or red.
+ */
+
+.rl-shell {
+  min-height: 100vh;
+  background: var(--color-bg);
+  color: var(--color-text-primary);
+  font-family: var(--font-body);
+}
+
+.rl-nav {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 24px;
+  border-bottom: 1px solid var(--color-border);
+}
+.rl-wordmark {
+  font-family: var(--font-display);
+  font-weight: 900;
+  font-size: 22px;
+  text-transform: uppercase;
+  color: var(--color-ink);
+  text-decoration: none;
+}
+.rl-nav-link {
+  color: var(--color-text-primary);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+/* Two columns on desktop; one on phone, form first and map after. */
+.rl-main {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 24px;
+  padding: 24px 16px;
+}
+@media (min-width: 62em) {
+  .rl-main {
+    grid-template-columns: minmax(360px, 520px) minmax(0, 1fr);
+    gap: 32px;
+    padding: 32px 24px;
+    align-items: start;
+  }
+  .rl-right {
+    position: sticky;
+    top: 24px;
+  }
+}
+
+.rl-headline {
+  font-family: var(--font-display);
+  font-weight: 900;
+  text-transform: uppercase;
+  font-size: clamp(30px, 5vw, 46px);
+  line-height: 0.98;
+  margin: 0 0 12px;
+}
+.rl-subline {
+  margin: 0 0 24px;
+  color: var(--color-text-secondary);
+  font-size: 17px;
+}
+
+.rl-form {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+.rl-field {
+  border: 0;
+  margin: 0;
+  padding: 0;
+  min-width: 0;
+}
+.rl-label {
+  display: block;
+  font-weight: 600;
+  font-size: 14px;
+  margin-bottom: 6px;
+  padding: 0;
+}
+.rl-locate {
+  margin-top: 6px;
+}
+
+/* Segmented radios */
+.rl-segments {
+  display: flex;
+  flex-wrap: wrap;
+  border: 1px solid var(--color-ink-border-strong);
+}
+.rl-segment {
+  flex: 1 1 0;
+  position: relative;
+  min-width: 0;
+}
+.rl-segment + .rl-segment {
+  border-left: 1px solid var(--color-ink-border-strong);
+}
+.rl-segment input {
+  position: absolute;
+  opacity: 0;
+  inset: 0;
+  margin: 0;
+  cursor: pointer;
+}
+.rl-segment label {
+  display: block;
+  text-align: center;
+  padding: 10px 6px;
+  font-size: 14px;
+  cursor: pointer;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.rl-segment input:checked + label {
+  background: var(--color-ink);
+  color: var(--tribos-on-ink, var(--color-bg));
+}
+.rl-segment input:focus-visible + label {
+  outline: 3px solid var(--color-accent, #2B2BFF);
+  outline-offset: -3px;
+}
+
+.rl-num {
+  font-family: var(--font-mono);
+}
+/* Comfort stops: number over label, so "Confident" fits at phone width. */
+.rl-seg-stack {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  line-height: 1.2;
+}
+.rl-seg-sub {
+  font-size: 13px;
+}
+@media (max-width: 30em) {
+  .rl-seg-sub {
+    font-size: 11px;
+  }
+  .rl-segment label {
+    padding: 8px 2px;
+  }
+}
+
+/* Comfort card */
+.rl-comfort-card {
+  background: var(--color-card);
+  border-left: 4px solid var(--color-ink);
+  padding: 14px 16px;
+}
+.rl-comfort-headline {
+  margin: 0 0 10px;
+  font-weight: 600;
+}
+.rl-comfort-chip {
+  font-family: var(--font-display);
+  text-transform: uppercase;
+  font-weight: 900;
+  margin-right: 4px;
+}
+.rl-comfort-lists {
+  margin: 0;
+  display: grid;
+  gap: 6px;
+  font-size: 14px;
+}
+.rl-comfort-lists dt {
+  font-weight: 600;
+}
+.rl-comfort-lists dd {
+  margin: 0;
+  color: var(--color-text-secondary);
+}
+.rl-comfort-tradeoff {
+  margin: 10px 0 0;
+  font-size: 14px;
+  color: var(--color-text-muted);
+}
+
+.rl-submit {
+  align-self: stretch;
+}
+.rl-free {
+  margin: -8px 0 0;
+  font-size: 14px;
+  color: var(--color-text-muted);
+}
+
+/* Map column */
+.rl-right {
+  position: relative;
+}
+.rl-map {
+  position: relative;
+  height: 60vh;
+  min-height: 360px;
+  border: 1px solid var(--color-border);
+}
+@media (min-width: 62em) {
+  .rl-map {
+    height: calc(100vh - 120px);
+  }
+}
+.rl-map-empty {
+  background: var(--color-card);
+}
+.rl-start-marker {
+  display: block;
+  width: 16px;
+  height: 16px;
+  background: var(--color-accent, #2B2BFF);
+  border: 3px solid #FFFFFF;
+}
+.rl-legend {
+  position: absolute;
+  left: 10px;
+  bottom: 28px;
+  margin: 0;
+  padding: 8px 10px;
+  list-style: none;
+  background: var(--color-bg);
+  border: 1px solid var(--color-border);
+  font-size: 12px;
+  display: grid;
+  gap: 4px;
+}
+.rl-legend li {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.rl-swatch {
+  display: inline-block;
+  width: 18px;
+  height: 4px;
+}
+.rl-swatch-unknown {
+  background: transparent !important;
+  border-top: 4px dashed #9C9CAA;
+  height: 0;
+}
+
+/* First-visit card: overlays the map on desktop, sits above the form on phone. */
+.rl-first-visit {
+  background: var(--color-bg);
+  border: 2px solid var(--color-ink);
+  padding: 18px 18px 16px;
+  margin-bottom: 20px;
+  position: relative;
+}
+@media (min-width: 62em) {
+  .rl-first-visit {
+    position: absolute;
+    z-index: 2;
+    top: 16px;
+    right: 16px;
+    width: min(360px, calc(100% - 32px));
+    margin: 0;
+  }
+}
+.rl-first-visit-stamp {
+  position: absolute;
+  top: -12px;
+  right: 14px;
+}
+.rl-first-visit-title {
+  font-family: var(--font-display);
+  font-weight: 900;
+  text-transform: uppercase;
+  font-size: 22px;
+  margin: 0 0 8px;
+}
+.rl-first-visit p,
+.rl-first-visit ul {
+  font-size: 14px;
+  margin: 0 0 10px;
+}
+.rl-first-visit ul {
+  padding-left: 18px;
+}
+
+/* Result */
+.rl-result {
+  margin-top: 24px;
+  border-top: 2px solid var(--color-ink);
+  padding-top: 16px;
+}
+.rl-chips {
+  margin: 0 0 8px;
+  font-size: 14px;
+  color: var(--color-text-secondary);
+}
+.rl-stat {
+  margin: 0;
+  font-size: 18px;
+}
+.rl-stat strong {
+  font-size: 40px;
+  margin-right: 4px;
+}
+.rl-stat-plain {
+  margin: 24px 0 0;
+  font-size: 18px;
+  font-weight: 600;
+}
+.rl-sub {
+  margin: 6px 0 12px;
+  color: var(--color-text-secondary);
+}
+.rl-headsups {
+  list-style: none;
+  margin: 0 0 16px;
+  padding: 0;
+  display: grid;
+  gap: 8px;
+}
+.rl-headsup {
+  border-left: 4px solid var(--color-signal);
+  background: var(--color-card);
+  padding: 8px 12px;
+}
+.rl-headsup-unknown {
+  border-left-color: #9C9CAA;
+}
+.rl-headsup p {
+  margin: 0;
+  font-size: 14px;
+}
+.rl-headsup-title {
+  font-weight: 700;
+}
+.rl-headsup-reasons {
+  color: var(--color-text-secondary);
+}
+.rl-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.rl-actions-stack {
+  flex-direction: column;
+  align-items: stretch;
+  margin-top: 12px;
+}
+.rl-alternatives {
+  list-style: none;
+  margin: 12px 0 0;
+  padding: 0;
+  display: grid;
+  gap: 8px;
+}
+.rl-alternative {
+  width: 100%;
+  text-align: left;
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 14px;
+  background: var(--color-card);
+  border: 1px solid var(--color-border);
+  color: var(--color-text-primary);
+  font: inherit;
+  cursor: pointer;
+}
+.rl-alternative[aria-pressed='true'] {
+  border-color: var(--color-ink);
+  border-width: 2px;
+}
+.rl-alternative:focus-visible {
+  outline: 3px solid var(--color-accent, #2B2BFF);
+  outline-offset: 2px;
+}
+.rl-alt-stat {
+  white-space: nowrap;
+  color: var(--color-text-secondary);
+}
+
+/* Below the fold */
+.rl-proofs {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 16px;
+  padding: 32px 16px;
+  border-top: 1px solid var(--color-border);
+}
+@media (min-width: 48em) {
+  .rl-proofs {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    padding: 40px 24px;
+  }
+}
+.rl-proof-title {
+  font-family: var(--font-display);
+  font-weight: 900;
+  text-transform: uppercase;
+  font-size: 20px;
+  margin: 0 0 4px;
+}
+.rl-proof p {
+  margin: 0;
+  color: var(--color-text-secondary);
+}
+.rl-footer {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  padding: 20px 24px 32px;
+  border-top: 1px solid var(--color-border);
+  font-size: 14px;
+}
+.rl-footer a {
+  color: var(--color-text-secondary);
+}
