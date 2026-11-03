@@ -90,6 +90,21 @@ Events, with properties:
 
 Funnel to watch: landing_viewed → route_requested → route_result(ok) → route_exported → account_created_from_route.
 
+## Status (2026-11-03)
+
+Step 1 is built in `src/features/routing-landing/`, and a first cut of the result panel and the ladder states (§2–3) is in too. **It isn't on `/` yet.** `RootRoute` renders it for signed-out visitors only with `VITE_ROUTING_LANDING=true` (default off). It previews at `/ride/start` either way.
+
+- **Engine:** the ladder (`planComfortRoute`) runs on BRouter with the Tribos comfort profile at the rider's level. `forceTribos` opts this caller in without flipping `VITE_BROUTER_TRIBOS_PROFILES` for the existing routers. There's no Claude call. The nearby-start search runs only when a self-hosted BRouter leads the server list.
+- **Copy:** fixed strings are in `landingCopy.ts` and comfort text comes from `comfortLevels.ts`. Tests check there are no absolutes, no LTS jargon, and no hard-coded product name (`src/utils/product.ts`).
+- **Memory:** the form and the first-visit flag live in localStorage (`landingPrefs.ts`). The card is hidden if storage is blocked. Events: `landing_viewed`, `route_requested`, `route_result`, `alternative_chosen`, `route_exported`.
+
+**Before the flag goes on:**
+1. A per-IP guest rate limit. Routing calls go browser → BRouter, so this needs the self-hosted server (or a proxy) to enforce it.
+2. `VITE_BROUTER_URL` pointing at the self-hosted server, so guests aren't routed on brouter.de.
+3. Send to Garmin / Wahoo and save, through the RB2 guest plumbing.
+4. The comfort strip, *Show on map* and the alternatives mini-maps (steps 2–4, after the design pass).
+5. Writing comfort to `user_road_preferences.comfort_level` after signup.
+
 ## 6. Build order
 
 1. `comfortLevels.ts` (labels and card copy) + the landing form and comfort card. This can ship against today's router by mapping 1–5 to the old low/medium/high (1–2→low, 3→medium, 4–5→high) until the routing spec lands.

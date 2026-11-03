@@ -109,10 +109,16 @@ export function tribosForProfileName(profile, tolerance = null, gravelTargetPct 
 /**
  * Which profile string to send to `base`: a Tribos custom id when enabled
  * and resolvable, else the named profile.
+ *
+ * `forceTribos` with an explicit `tribos` object uses the Tribos profile
+ * even while VITE_BROUTER_TRIBOS_PROFILES is off. The flag gates upgrading
+ * EXISTING named-profile callers; the comfort landing (a new caller that
+ * needs the profile's maxspeed/lanes tags to validate) opts in itself.
  */
 async function resolveProfile(base, options) {
-  const { profile, tribos, tolerance = null, gravelTargetPct = null } = options;
-  if (tribos === false || !tribosProfilesEnabled()) return { profile, tribosParams: null };
+  const { profile, tribos, tolerance = null, gravelTargetPct = null, forceTribos = false } = options;
+  const forced = forceTribos && tribos && typeof tribos === 'object';
+  if (tribos === false || (!tribosProfilesEnabled() && !forced)) return { profile, tribosParams: null };
   const params = tribos && typeof tribos === 'object' ? tribos : tribosForProfileName(profile, tolerance, gravelTargetPct);
   if (!params) return { profile, tribosParams: null };
   try {
@@ -135,6 +141,7 @@ async function resolveProfile(base, options) {
  * @param {object|false} [options.tribos] - Tribos params to render, or false to force the named profile
  * @param {string|null} [options.tolerance] - rider traffic tolerance, for the Tribos upgrade of a named profile
  * @param {number|null} [options.gravelTargetPct]
+ * @param {boolean} [options.forceTribos] - use `tribos` params even with VITE_BROUTER_TRIBOS_PROFILES off
  * @returns {Promise<Object>} Route data
  */
 export async function getBRouterDirections(coordinates, options = {}) {

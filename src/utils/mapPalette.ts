@@ -15,6 +15,21 @@ export const MAP_PALETTE = {
   muted: '#9C9CAA',
 } as const;
 
+/**
+ * Route line coloured relative to the rider's comfort level
+ * (docs/ROUTING-LANDING-SPEC.md §2). Used on the comfort result views only;
+ * everywhere else the route stays `MAP_PALETTE.route`. Keys match
+ * `SegmentTone` in comfortValidator.ts. A blocked tone never reaches a
+ * returned route; it's ink so a leak would be visible rather than pretty.
+ */
+export const COMFORT_TONE_COLORS = {
+  within: '#00C2FF',
+  at: '#2B2BFF',
+  flagged: '#FF3DB8',
+  unknown: '#9C9CAA',
+  blocked: '#0A0A14',
+} as const;
+
 export const LIGHT_BASEMAP = 'mapbox://styles/mapbox/light-v11';
 export const DARK_BASEMAP = 'mapbox://styles/mapbox/dark-v11';
 

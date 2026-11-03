@@ -26,6 +26,9 @@ const Dashboard = lazy(() => import('./pages/Dashboard.jsx'));
 const TodayEntry = lazy(() => import('./views/today-glance/TodayEntry.tsx'));
 // Training-Arc Today (docs/today-view) — the canonical /today since the flip;
 // /today/spine remains a working alias.
+// Routing landing (docs/ROUTING-LANDING-SPEC.md). Lazy: it pulls in Mapbox,
+// which the marketing landing deliberately doesn't.
+const RoutingLanding = lazy(() => import('./features/routing-landing/RoutingLanding.tsx'));
 const TodaySpine = lazy(() => import('./views/today-spine/TodaySpine.tsx'));
 const RouteBuilder = lazy(() => import('./pages/RouteBuilder.jsx'));
 const TrainingDashboard = lazy(() => import('./pages/TrainingDashboard.jsx'));
@@ -126,6 +129,12 @@ function RedirectGearToGarage() {
   return <Navigate to={`/garage${rest}${location.search}`} replace />;
 }
 
+// The routing landing replaces the marketing landing at / only with
+// VITE_ROUTING_LANDING=true (default off). Until then it previews at
+// /ride/start. Turn it on once guest routing has its own rate limit and a
+// self-hosted BRouter is serving (docs/ROUTING-LANDING-SPEC.md §1).
+const ROUTING_LANDING_ON = String(import.meta.env.VITE_ROUTING_LANDING).toLowerCase() === 'true';
+
 // Root route — signed-out visitors get the landing page, which explains the
 // whole product and leads with the guest route builder; signed-in users go
 // to /today. /welcome renders the same page for anyone, signed in or out.
@@ -151,7 +160,7 @@ function RootRoute() {
     return <Navigate to={returnTo || '/today'} replace />;
   }
 
-  return <Landing />;
+  return ROUTING_LANDING_ON ? <RoutingLanding /> : <Landing />;
 }
 
 // Public Route wrapper (redirects to today if already logged in)
@@ -287,6 +296,14 @@ function AppRoutes() {
       />
       {/* New route — RB2 is the canonical builder. Open to guests (no
           account needed to build/generate; saving prompts signup). */}
+      <Route
+        path="/ride/start"
+        element={
+          <OpenRoute>
+            <RoutingLanding />
+          </OpenRoute>
+        }
+      />
       <Route
         path="/ride/new"
         element={

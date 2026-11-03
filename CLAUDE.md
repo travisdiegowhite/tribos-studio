@@ -558,6 +558,12 @@ result view). Phase 0 is measurement only and is wired into nothing:
   class-default speeds.
 - No absolutes ("never", "always", "guaranteed") in rider-facing comfort
   copy; `comfortLevels.test.ts` enforces it.
+- **The routing landing** (`src/features/routing-landing/`, spec
+  `docs/ROUTING-LANDING-SPEC.md`) previews at `/ride/start` and replaces
+  the marketing landing at `/` only with `VITE_ROUTING_LANDING=true`
+  (default off). It is non-AI: `planComfortRoute` on BRouter with
+  `forceTribos`. Don't turn the flag on before the guest rate limit and a
+  self-hosted BRouter are in place (status list in the spec).
 - **`user_road_preferences.comfort_level` (1–5, migration 139, apply by
   hand) is dual-written with `traffic_tolerance`** by `api/road-segments.js`
   (1–2 low, 3 medium, 4–5 high; tolerance → 2/3/4). Do not change or drop
