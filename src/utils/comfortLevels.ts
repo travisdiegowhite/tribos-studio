@@ -29,11 +29,16 @@ const MI_M = 1609.344;
  *
  * - Free: class ≤ L.
  * - Flagged: L < class ≤ L + flaggedLevelsAbove, within both limits.
- * - Blocked: class > L + flaggedLevelsAbove, or X.
+ * - Blocked: class > L + flaggedLevelsAbove, or X — and class 5 (fast roads
+ *   with no space) below `fastNoSpaceMinLevel` (decision 2026-11-03: at
+ *   Comfort 1–3 those roads aren't an option at all, so Comfort 3 doesn't
+ *   flag them either).
  */
 export const COMFORT_RULES = {
   /** How many classes above the rider's level may appear as short flagged stretches. */
   flaggedLevelsAbove: 2,
+  /** Lowest level at which a class-5 road may appear, even as a flagged stretch. */
+  fastNoSpaceMinLevel: 4,
   /** Longest single flagged stretch (0.5 mi). */
   maxStretchM: 0.5 * MI_M,
   /**
@@ -141,6 +146,7 @@ export type ClassStatus = 'free' | 'flagged' | 'blocked';
 export function classStatus(cls: ComfortClass, level: ComfortLevel): ClassStatus {
   if (cls === 'X') return 'blocked';
   if (cls <= level) return 'free';
+  if (cls === 5 && level < COMFORT_RULES.fastNoSpaceMinLevel) return 'blocked';
   if (cls <= level + COMFORT_RULES.flaggedLevelsAbove) return 'flagged';
   return 'blocked';
 }

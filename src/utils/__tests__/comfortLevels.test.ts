@@ -37,7 +37,8 @@ describe('spec §2 table', () => {
   it.each([
     [1, [1], [2, 3], [4, 5, 'X']],
     [2, [1, 2], [3, 4], [5, 'X']],
-    [3, [1, 2, 3], [4, 5], ['X']],
+    // Class 5 (fast, no bike space) is kept off below Comfort 4 (decision 2026-11-03).
+    [3, [1, 2, 3], [4], [5, 'X']],
     [4, [1, 2, 3, 4], [5], ['X']],
     [5, [1, 2, 3, 4, 5], [], ['X']],
   ] as const)('level %i', (level, free, flagged, keptOff) => {

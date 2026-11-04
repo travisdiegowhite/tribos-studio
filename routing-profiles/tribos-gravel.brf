@@ -62,7 +62,7 @@ assign processUnusedTags            = false # %processUnusedTags% | Set true to 
 assign comfort_level = 3 # %comfort_level% | Comfort 1 calm to 5 direct (src/utils/comfortLevels.ts) | number
 assign comfort_penalty_one = 4 # %comfort_penalty_one% | Added cost on a road one class above the rider | number
 assign comfort_penalty_two = 12 # %comfort_penalty_two% | Added cost two classes above | number
-assign comfort_penalty_blocked = 200 # %comfort_penalty_blocked% | Added cost three or more above (kept off) | number
+assign comfort_penalty_blocked = 10000 # %comfort_penalty_blocked% | Kept-off roads: 10000 makes them unroutable, so a waypoint can't snap onto one | number
 assign gravel_target = 0.5 # %gravel_target% | Share of the ride wanted unpaved, 0 to 1 | number
 assign unpavedPenalty = 0.3 # %unpavedPenalty% | Extra penalty multiplier applied to the non-probablyGood cost of track/road/path/footway ways depending on tracktype grade | number
 
@@ -372,10 +372,13 @@ assign c_class =
 
 # Added to the costfactor by how far the road sits above the rider's level:
 # within comfort is free, one or two above is a flagged stretch (strong
-# penalty), three above is "kept off" (near-prohibitive but routable, so
-# the validator and ladder see the least-bad line rather than no route).
+# penalty), three above is "kept off". Kept off is 10000: unroutable, so
+# BRouter can't route along one or snap a loop's waypoint onto one (it did
+# both at 200, onto US-36 and the Diagonal, 2026-11-03). Class 5 (fast, no
+# space) is kept off at Comfort 1-3 too, matching comfortLevels.ts.
 assign tribos_comfort_penalty =
   if not greater c_class comfort_level then 0
+  else if ( and greater c_class 4 lesser comfort_level 4 ) then comfort_penalty_blocked
   else if not greater c_class add comfort_level 1 then comfort_penalty_one
   else if not greater c_class add comfort_level 2 then comfort_penalty_two
   else comfort_penalty_blocked

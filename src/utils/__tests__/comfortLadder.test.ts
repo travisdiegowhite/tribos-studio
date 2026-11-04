@@ -133,19 +133,19 @@ describe('step 2, alternatives', () => {
   });
 
   it('offers "ride it at Comfort L+1" with what that adds, re-using a routed line', async () => {
-    // Class 5 for 100 m everywhere: blocked at 2, a short flagged stretch at 3.
-    const eng = fakeEngine((_, i) => (i === 30 ? 5 : 1));
-    const plan = await planComfortRoute(req(), { route: eng.route });
+    // One 100 m class-4 segment: kept off at Comfort 1, a short flagged stretch at 2.
+    const eng = fakeEngine((_, i) => (i === 30 ? 4 : 1));
+    const plan = await planComfortRoute(req({ level: 1 }), { route: eng.route });
     expect(plan.outcome).toBe('alternatives');
     const up = plan.alternatives.find((a) => a.kind === 'comfort_up');
     expect(up).toBeDefined();
-    expect(up!.level).toBe(3);
-    expect(up!.comfortUp?.fromLevel).toBe(2);
-    expect(up!.note).toMatch(/^At Comfort 3: adds 0\.1 mi of 45 mph, no shoulder$/);
+    expect(up!.level).toBe(2);
+    expect(up!.comfortUp?.fromLevel).toBe(1);
+    expect(up!.note).toMatch(/^At Comfort 2: adds 0\.1 mi of 45 mph, no shoulder$/);
     expect(up!.validation.passes).toBe(true);
     expect(plan.alternatives.length).toBeLessThanOrEqual(LADDER_CONFIG.maxAlternatives);
     // No extra call steering for L+1 was needed.
-    expect(eng.calls.every((c) => c.level === 2)).toBe(true);
+    expect(eng.calls.every((c) => c.level === 1)).toBe(true);
     expectAllAccepted(plan);
   });
 

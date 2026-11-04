@@ -114,8 +114,9 @@ describe('§3 rules', () => {
     }
   });
 
-  it('class 5 is a flag at level 3 and free at level 5', () => {
-    expect(run([['quiet', 50], ['fast', 3], ['quiet', 50]], 3).passes).toBe(true);
+  it('class 5 is kept off at level 3, a flag at level 4 and free at level 5', () => {
+    expect(run([['quiet', 50], ['fast', 3], ['quiet', 50]], 3).passes).toBe(false);
+    expect(run([['quiet', 50], ['fast', 3], ['quiet', 50]], 4).passes).toBe(true);
     const v5 = run([['quiet', 50], ['fast', 30], ['quiet', 50]], 5);
     expect(v5.passes).toBe(true);
     expect(v5.withinPct).toBe(100);
