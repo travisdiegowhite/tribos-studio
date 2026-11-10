@@ -22,12 +22,13 @@ import { notifications } from '@mantine/notifications';
 import { useMediaQuery } from '@mantine/hooks';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
-import { WORKOUT_TYPES, WORKOUT_CATEGORY_PALETTE, TRAINING_PHASES, calculateTSS, estimateTSS } from '../utils/trainingPlans';
+import { WORKOUT_TYPES, TRAINING_PHASES, calculateTSS, estimateTSS } from '../utils/trainingPlans';
 import { isPowerSport, getActivitySport } from '../utils/sportType';
 // Either library: a run picked from the planner must resolve like a ride.
 import { getAnyWorkoutById as getWorkoutById } from '../data/workoutLookup';
 import { resolvePlannedWorkoutShape } from '../lib/training/plannedWorkoutShape';
 import { tokens } from '../theme';
+import { sessionTone, sessionToneStyle, sessionRuleBorder } from '../utils/calendarSessionTone';
 import { formatLocalDate, addDays, parseLocalDate } from '../utils/dateUtils';
 import { getCalendarRange } from '../lib/calendar/getCalendarRange';
 import {
@@ -1373,6 +1374,12 @@ const TrainingCalendar = ({ activePlan, rides = [], formatDistance: formatDistan
                         const sessionSport = workout.sport;
                         const timing = typeof workout.details?.timing === 'string' ? workout.details.timing : null;
                         const doneLabel = sessionSport === 'running' ? 'Run' : sessionSport === 'other' ? 'Done' : 'Ridden';
+                        // Colour = intensity, rule shape = sport; support work steps back.
+                        const tone = sessionTone(workout.workout_type, sessionSport);
+                        const toneStyle = sessionToneStyle(tone);
+                        const isSupport = tone === 'support';
+                        const typeName = WORKOUT_TYPES[workout.workout_type]?.name || String(workout.workout_type || 'workout').replace(/_/g, ' ');
+                        const sportName = sessionSport === 'running' ? 'Run' : sessionSport === 'other' ? null : 'Ride';
                         return (
                           <Box
                             key={workout.id}
@@ -1391,24 +1398,22 @@ const TrainingCalendar = ({ activePlan, rides = [], formatDistance: formatDistan
                             style={{
                               cursor: 'grab',
                               outline: heldEntryId === workout.id ? '2px solid var(--color-signal)' : undefined,
-                              borderTop: sessions.length > 1 && workout !== sessions[0] ? '1px solid var(--color-border)' : undefined,
-                              paddingTop: sessions.length > 1 && workout !== sessions[0] ? 4 : 0,
+                              borderLeft: sessionRuleBorder(tone, sessionSport),
+                              backgroundColor: toneStyle.wash,
+                              padding: isSupport || !toneStyle.wash ? '2px 0 2px 8px' : '6px 6px 6px 8px',
+                              marginTop: workout !== sessions[0] ? 6 : 0,
                             }}
                           >
                           {/* Workout type with icon, and its completion tick */}
                           <Group gap={4} mb={4} justify="space-between" wrap="nowrap">
-                            <Badge
-                              size="sm"
-                              color={WORKOUT_CATEGORY_PALETTE[workout.workout_type] || 'gray'}
-                              variant={workout.completed ? 'filled' : 'light'}
-                              leftSection={
-                                sessionSport === 'running' ? <PersonSimpleRun size={10} />
-                                  : sessionSport === 'other' ? <Barbell size={10} />
-                                  : sessions.length > 1 ? <Bicycle size={10} /> : undefined
-                              }
-                            >
-                              {WORKOUT_TYPES[workout.workout_type]?.name || String(workout.workout_type || 'workout').replace(/_/g, ' ')}
-                            </Badge>
+                            <Group gap={4} wrap="nowrap" style={{ minWidth: 0, color: 'var(--color-text-secondary)' }}>
+                              {sessionSport === 'running' ? <PersonSimpleRun size={12} style={{ flex: 'none' }} />
+                                : sessionSport === 'other' ? <Barbell size={12} style={{ flex: 'none' }} />
+                                : <Bicycle size={12} style={{ flex: 'none' }} />}
+                              <Text size="xs" fw={600} truncate="end" title={typeName} style={{ color: 'inherit', textTransform: 'capitalize' }}>
+                                {sportName && !isSupport ? `${sportName} · ${typeName}` : typeName}
+                              </Text>
+                            </Group>
                             <ActionIcon
                               size="sm"
                               variant="subtle"
@@ -1424,11 +1429,11 @@ const TrainingCalendar = ({ activePlan, rides = [], formatDistance: formatDistan
                           {/* Workout name */}
                           <Text
                             size="xs"
-                            fw={600}
+                            fw={isSupport ? 500 : 700}
                             lineClamp={1}
                             mb={2}
                             style={{
-                              color: workout.completed || isMissed ? 'var(--color-text-secondary)' : 'var(--color-text-primary)',
+                              color: workout.completed || isMissed || isSupport ? 'var(--color-text-secondary)' : 'var(--color-text-primary)',
                               textDecoration: isMissed ? 'line-through' : undefined,
                             }}
                           >
@@ -1456,7 +1461,7 @@ const TrainingCalendar = ({ activePlan, rides = [], formatDistance: formatDistan
                               </Text>
                             )}
                             {workout.target_tss > 0 && (
-                              <Text size="xs" fw={600} c="orange">
+                              <Text size="xs" fw={600} style={{ color: toneStyle.rssColor }}>
                                 {workout.target_tss} RSS
                               </Text>
                             )}
@@ -1677,13 +1682,26 @@ const TrainingCalendar = ({ activePlan, rides = [], formatDistance: formatDistan
             {/* Legend */}
             <Stack gap="xs" mt="md">
               <Group gap="xs">
-                <Text size="xs" style={{ color: 'var(--color-text-muted)' }} fw={600}>Workout types</Text>
-                {Object.entries(WORKOUT_TYPES).slice(1, 6).map(([key, type]) => (
-                  <Group gap={4} key={key}>
-                    <span style={{ width: 10, height: 10, background: type.color, display: 'inline-block' }} />
-                    <Text size="xs" style={{ color: 'var(--color-text-secondary)' }}>{type.name}</Text>
+                <Text size="xs" style={{ color: 'var(--color-text-muted)' }} fw={600}>Intensity</Text>
+                {[
+                  ['recovery', 'Recovery'],
+                  ['endurance', 'Endurance'],
+                  ['tempo', 'Tempo / sweet spot'],
+                  ['hard', 'Threshold and up'],
+                ].map(([tone, label]) => (
+                  <Group gap={4} key={tone}>
+                    <span style={{ width: 10, height: 10, background: sessionToneStyle(tone).rule, display: 'inline-block' }} />
+                    <Text size="xs" style={{ color: 'var(--color-text-secondary)' }}>{label}</Text>
                   </Group>
                 ))}
+                <Group gap={4}>
+                  <span style={{ width: 10, height: 10, border: '2px dashed var(--color-border)', display: 'inline-block' }} />
+                  <Text size="xs" style={{ color: 'var(--color-text-secondary)' }}>Strength, core, mobility</Text>
+                </Group>
+                <Group gap={4}>
+                  <span style={{ width: 10, height: 10, borderLeft: '5px double var(--color-text-secondary)', display: 'inline-block' }} />
+                  <Text size="xs" style={{ color: 'var(--color-text-secondary)' }}>Run</Text>
+                </Group>
               </Group>
 
               {/* Race goals legend */}
