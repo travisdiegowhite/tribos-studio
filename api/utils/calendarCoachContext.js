@@ -22,7 +22,7 @@ import { selectWithSportFallback } from './calendarSportColumn.js';
 
 const WINDOW_COLUMNS =
   'id, date, slot, type, title, workout_id, workout_type, target_load, target_duration_min, ' +
-  'target_distance_km, status, pinned, notes, coach_rationale, details, sport';
+  'target_distance_km, status, skipped_reason, pinned, notes, coach_rationale, details, sport';
 
 /** Short sport tag for a line; blank for rest days and notes. */
 const SPORT_TAG = { cycling: 'ride', running: 'run', multi: 'multi', other: 'other' };
@@ -118,6 +118,9 @@ whatever you and the athlete agree on.`;
     const dist = e.target_distance_km ? `${e.target_distance_km}km` : '';
     bits.push([load, dur, dist].filter(Boolean).join(' ').padEnd(18));
     bits.push(`[${e.status}]`);
+    // A deliberate skip says why — "legs need rest" should shape the next
+    // few days differently from "no time".
+    if (e.status === 'skipped' && e.skipped_reason) bits.push(`reason: ${String(e.skipped_reason).slice(0, 80)}`);
     if (e.pinned) bits.push('PINNED');
     const timing = e.details?.timing;
     if (typeof timing === 'string' && timing) bits.push(`timing: ${timing}`);

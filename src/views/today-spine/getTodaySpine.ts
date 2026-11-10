@@ -27,6 +27,7 @@ import { PERSONAS } from '../../data/coachingPersonas';
 import { getPlanTemplate } from '../../data/trainingPlanTemplates';
 import { resolveActivePlan } from '../../utils/activePlan';
 import { fetchPlannedSessions } from '../../lib/calendar/readPlannedSessions';
+import { isSkippedSession } from '../../../api/utils/sessionSkipped.js';
 import { getISOWeek, getISOWeekYear } from '../../utils/isoWeek';
 import { formPhrase, workoutTypeCopy } from '../../utils/todayVocabulary';
 import { fmtDate } from '../today/athleteMetrics';
@@ -767,8 +768,13 @@ export async function getTodaySpine(userId: string): Promise<SpineData> {
       // excluded because race_goals is read separately two entries down — a
       // race lives in BOTH tables since migration 115, and counting it twice
       // would put it on the spine twice and add its load to a training total.
+      // A session the athlete skipped is a rest day here: it is neither
+      // today's session nor load on the projection.
       fetchPlannedSessions(userId, { from: todayKey, limit: 120 }).then(
-        (rows) => ({ data: rows, error: null as { message?: string } | null }),
+        (rows) => ({
+          data: rows.filter((r) => !isSkippedSession(r)),
+          error: null as { message?: string } | null,
+        }),
       ),
       supabase
         .from('race_goals')

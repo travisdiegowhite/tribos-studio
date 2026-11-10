@@ -10,7 +10,8 @@
  */
 
 import { getSupabaseAdmin } from './utils/supabaseAdmin.js';
-import { fetchSessionOn } from './utils/calendarRead.js';
+import { fetchPlannedSessions } from './utils/calendarRead.js';
+import { isSkippedSession } from './utils/sessionSkipped.js';
 import { verifyCronAuth } from './utils/verifyCronAuth.js';
 import { sendPushToUser, buildWorkoutPreviewMessage } from './utils/pushNotification.js';
 
@@ -100,9 +101,14 @@ export default async function handler(req, res) {
       // athlete with no active plan never got a preview even with tomorrow
       // scheduled, and a coach- or calendar-created session never triggered
       // one at all.
-      const plannedWorkout = await fetchSessionOn(user.id, userTomorrow, {
+      // The day's first session the athlete has not skipped. A session
+      // skipped in advance must not get a "tomorrow's workout" push.
+      const tomorrowSessions = await fetchPlannedSessions(user.id, {
+        from: userTomorrow,
+        to: userTomorrow,
         includeCompleted: false,
       });
+      const plannedWorkout = tomorrowSessions.find((s) => !isSkippedSession(s)) ?? null;
 
       // Use whichever is available (prefer the calendar as it has richer data)
       const workout = plannedWorkout || scheduledWorkout;

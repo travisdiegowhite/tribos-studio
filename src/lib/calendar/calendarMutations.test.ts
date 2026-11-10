@@ -191,12 +191,15 @@ describe('setEntryStatus', () => {
     expect((lastOp('update').payload as Record<string, unknown>).completed_at).toBeNull();
   });
 
-  it('records a skip reason only when skipping', async () => {
+  it('records a skip reason when skipping and clears it otherwise', async () => {
     await setEntryStatus('u1', 'e1', 'skipped', { skippedReason: 'sick' });
     expect((lastOp('update').payload as Record<string, unknown>).skipped_reason).toBe('sick');
 
     await setEntryStatus('u1', 'e1', 'done');
-    expect((lastOp('update').payload as Record<string, unknown>).skipped_reason).toBeUndefined();
+    expect((lastOp('update').payload as Record<string, unknown>).skipped_reason).toBeNull();
+
+    await setEntryStatus('u1', 'e1', 'planned');
+    expect((lastOp('update').payload as Record<string, unknown>).skipped_reason).toBeNull();
   });
 });
 

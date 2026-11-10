@@ -154,9 +154,25 @@ describe('buildCoachEnrichmentBlock', () => {
     expect(block).toContain('[MISSED] Tempo');
     expect(block).toContain('[TODAY] Sweet Spot 3x12');
     expect(block).toContain('[UPCOMING] Long Ride');
-    expect(block).toContain('[SKIPPED] Skipped One');
+    expect(block).toContain('[SKIPPED: sick] Skipped One');
+    expect(block).toContain('1 skipped by the athlete');
     // Upcoming: w3 (85) + w4 (120) = 205. w5 is skipped, excluded.
     expect(block).toContain('2 upcoming (~205 RSS remaining)');
+  });
+
+  it('leaves a past skip out of compliance and labels a reason-less skip SKIPPED', () => {
+    const data = {
+      recentActivities: [],
+      latestLoad: null,
+      weekPlanned: [
+        workout({ id: 'w1', scheduled_date: '2026-07-20', completed: true }),
+        workout({ id: 'w2', scheduled_date: '2026-07-21', name: 'Easy Run', status: 'skipped' }),
+      ],
+    };
+    const block = buildCoachEnrichmentBlock(data, { profile: null, timezone: TZ, now: NOW });
+    expect(block).toContain('Plan status: 1/1 past-due workouts done (weekly compliance 100%)');
+    expect(block).toContain('[SKIPPED] Easy Run');
+    expect(block).not.toContain('[MISSED] Easy Run');
   });
 
   it('reports 100% compliance when nothing is past due', () => {

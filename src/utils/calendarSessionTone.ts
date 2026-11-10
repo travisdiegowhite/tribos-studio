@@ -5,9 +5,12 @@
  * shows the SPORT (runs get a double rule). Strength, core, mobility and yoga
  * are "support": a dashed grey rule and no wash, so the day's key ride or run
  * leads. See the 2026-11 "Calendar card options" mock, option B.
+ *
+ * A session the athlete chose to skip is 'skipped' whatever its type: a
+ * dashed muted rule and no wash, so it reads as set aside rather than missed.
  */
 
-export type SessionTone = 'recovery' | 'endurance' | 'tempo' | 'hard' | 'support' | 'neutral';
+export type SessionTone = 'recovery' | 'endurance' | 'tempo' | 'hard' | 'support' | 'neutral' | 'skipped';
 
 const TONE_BY_TYPE: Record<string, SessionTone> = {
   recovery: 'recovery',
@@ -29,7 +32,12 @@ const TONE_BY_TYPE: Record<string, SessionTone> = {
   yoga: 'support',
 };
 
-export function sessionTone(workoutType: string | null | undefined, sport?: string | null): SessionTone {
+export function sessionTone(
+  workoutType: string | null | undefined,
+  sport?: string | null,
+  skipped = false,
+): SessionTone {
+  if (skipped) return 'skipped';
   if (sport === 'other') return 'support';
   return (workoutType && TONE_BY_TYPE[workoutType]) || 'neutral';
 }
@@ -50,6 +58,7 @@ const RULE: Record<SessionTone, string> = {
   hard: 'var(--color-signal)',
   support: 'var(--color-border)',
   neutral: 'var(--color-ink-border)',
+  skipped: 'var(--color-text-muted)',
 };
 
 // Lime is pale, so it needs more pigment than the others to read as a wash.
@@ -65,14 +74,16 @@ export function sessionToneStyle(tone: SessionTone): SessionToneStyle {
   return {
     rule: RULE[tone],
     wash: pct ? `color-mix(in srgb, ${RULE[tone]} ${pct}%, transparent)` : undefined,
-    rssColor: tone === 'hard' ? 'var(--color-signal-text)' : 'var(--color-text-primary)',
+    rssColor: tone === 'hard'
+      ? 'var(--color-signal-text)'
+      : tone === 'skipped' ? 'var(--color-text-muted)' : 'var(--color-text-primary)',
   };
 }
 
 /** Left-edge style for a session: double for runs, dashed for support work. */
 export function sessionRuleBorder(tone: SessionTone, sport?: string | null): string {
   const { rule } = sessionToneStyle(tone);
-  if (tone === 'support') return `2px dashed ${rule}`;
+  if (tone === 'support' || tone === 'skipped') return `2px dashed ${rule}`;
   if (sport === 'running') return `5px double ${rule}`;
   return `3px solid ${rule}`;
 }

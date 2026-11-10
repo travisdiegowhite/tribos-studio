@@ -1,4 +1,5 @@
 import { getTodayString } from '../utils/dateUtils';
+import { isSkippedSession } from '../../api/utils/sessionSkipped.js';
 
 /**
  * Unified Workout Recommendation Service
@@ -366,7 +367,7 @@ export function getWorkoutRecommendation({
   // primary recommendation so the Today card stays consistent with the calendar
   // and AI Coach (which also sees the planned calendar).
   const today = new Date().toISOString().split('T')[0];
-  const todayPlanned = plannedWorkouts.find(w => w.scheduled_date === today && !w.completed && !w.skipped_reason);
+  const todayPlanned = plannedWorkouts.find(w => w.scheduled_date === today && !w.completed && !isSkippedSession(w));
 
   if (todayPlanned) {
     const plannedType = todayPlanned.workout_type || 'endurance';

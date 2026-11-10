@@ -134,7 +134,7 @@ export function snapshot(entry) {
   const keep = [
     'id', 'date', 'slot', 'type', 'title', 'workout_id', 'workout_type',
     'target_load', 'target_duration_min', 'target_distance_km',
-    'status', 'notes', 'coach_rationale', 'pinned', 'details', 'sport',
+    'status', 'skipped_reason', 'notes', 'coach_rationale', 'pinned', 'details', 'sport',
   ];
   return Object.fromEntries(keep.map((k) => [k, entry[k] ?? null]));
 }
@@ -466,6 +466,9 @@ export async function applyCalendarOps(userId, resolved, opts = {}) {
         patch = {
           status: op.status,
           completed_at: op.status === 'done' ? new Date().toISOString() : null,
+          // The coach's reason is the skip reason the athlete and the next
+          // conversation will see; any other status clears it.
+          skipped_reason: op.status === 'skipped' ? (op.reason ?? null) : null,
         };
       } else {
         patch = draftFrom(op, entry.details ?? null, entrySport(entry));

@@ -15,6 +15,11 @@ describe('sessionTone', () => {
     expect(sessionTone('endurance', 'other')).toBe('support');
   });
 
+  it('marks a skipped session skipped whatever its type', () => {
+    expect(sessionTone('vo2max', 'cycling', true)).toBe('skipped');
+    expect(sessionTone('strength', 'other', true)).toBe('skipped');
+  });
+
   it('falls back to neutral for unknown types', () => {
     expect(sessionTone('mystery', 'cycling')).toBe('neutral');
     expect(sessionTone(null, 'cycling')).toBe('neutral');
@@ -26,6 +31,7 @@ describe('sessionToneStyle', () => {
     expect(sessionToneStyle('endurance').wash).toContain('color-mix');
     expect(sessionToneStyle('support').wash).toBeUndefined();
     expect(sessionToneStyle('neutral').wash).toBeUndefined();
+    expect(sessionToneStyle('skipped').wash).toBeUndefined();
   });
 
   it('reserves magenta RSS for threshold and up', () => {
@@ -39,5 +45,6 @@ describe('sessionRuleBorder', () => {
     expect(sessionRuleBorder('endurance', 'running')).toMatch(/double/);
     expect(sessionRuleBorder('support', 'other')).toMatch(/dashed/);
     expect(sessionRuleBorder('tempo', 'cycling')).toMatch(/solid/);
+    expect(sessionRuleBorder('skipped', 'running')).toMatch(/dashed/);
   });
 });

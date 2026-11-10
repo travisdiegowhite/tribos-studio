@@ -2,6 +2,7 @@ import { Box, SimpleGrid, Skeleton } from '@mantine/core';
 import { useMediaQuery } from '@mantine/hooks';
 import { MetricCitation } from '../ui/MetricCitation';
 import { getTodayString, toDateKey, weekRangeKeys } from '../../utils/dateUtils';
+import { isSkippedSession } from '../../../api/utils/sessionSkipped.js';
 
 /**
  * The week's plan-vs-actual citation row.
@@ -57,9 +58,13 @@ function WeekSummaryGrid({ actualWeeklyStats, plannedWorkouts, formatTime, loadi
 
   // A rest day is not a session — the plan's own `workouts_total` excludes
   // them too (api/coach.js handleActivateArc), so the counts agree.
-  const weekSessions = (plannedWorkouts || []).filter(
+  // A session the athlete chose to skip is a decision, not a miss: it leaves
+  // the planned count and planned load, and is reported on its own.
+  const weekNonRest = (plannedWorkouts || []).filter(
     (w) => inWeek(w.scheduled_date) && w.workout_type !== 'rest'
   );
+  const weekSessions = weekNonRest.filter((w) => w.completed === true || !isSkippedSession(w));
+  const skippedCount = weekNonRest.length - weekSessions.length;
 
   // Canonical target_rss first, legacy target_tss fallback (planned_workouts
   // has no `tss` column — reading it made plannedTSS silently always 0).
@@ -86,6 +91,7 @@ function WeekSummaryGrid({ actualWeeklyStats, plannedWorkouts, formatTime, loadi
       remaining === 0
         ? `All ${plannedCount} planned sessions done — the week's work is banked.`
         : `You're ${completedCount} of ${plannedCount} sessions into the week's plan, with ${remaining} still ahead.`;
+    if (skippedCount > 0) sentence += ` ${skippedCount === 1 ? 'One session' : `${skippedCount} sessions`} skipped by choice.`;
   } else if (weeklyTSS > 0 || totalTime > 0) {
     sentence = `An unplanned week so far — ${formattedTime} of riding logged.`;
   } else {
@@ -100,6 +106,7 @@ function WeekSummaryGrid({ actualWeeklyStats, plannedWorkouts, formatTime, loadi
     { label: 'Time', value: formattedTime },
     { label: 'Workouts', value: `${completedCount}/${plannedCount}` },
     { label: 'Compliance', value: plannedCount > 0 ? `${compliance}%` : '--' },
+    ...(skippedCount > 0 ? [{ label: 'Skipped', value: String(skippedCount) }] : []),
   ];
 
   return (
