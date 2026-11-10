@@ -75,6 +75,11 @@ describe('field mapping', () => {
     expect(toPlannedWorkoutShape(entry({ status: 'missed' })).completed).toBe(false);
   });
 
+  it('passes the raw status through so a skip is not read as missed', () => {
+    expect(toPlannedWorkoutShape(entry({ status: 'skipped' })).status).toBe('skipped');
+    expect(toPlannedWorkoutShape(entry({ status: 'planned' })).status).toBe('planned');
+  });
+
   it('lifts the move markers out of provenance', () => {
     const w = toPlannedWorkoutShape(entry({
       provenance: {

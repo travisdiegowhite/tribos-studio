@@ -17,6 +17,7 @@
 
 import { sportTypeOfActivity, formatPace } from './sportTypes.js';
 import { fetchPlannedSessions } from './calendarRead.js';
+import { isSkippedSession } from './sessionSkipped.js';
 import { RACE_DISTANCE_BANDS, formatRaceTime } from './runRacePrs.js';
 
 // ─── Timezone-safe date helpers (module-private, mirrors temporalAnchor.js) ──
@@ -352,7 +353,7 @@ export function buildCoachEnrichmentBlock(data, { profile = null, sportProfile =
         if (dur) parts.push(dur);
         const targetRss = w.target_rss ?? w.target_tss;
         if (targetRss) parts.push(`~${Math.round(targetRss)} RSS`);
-        const status = w.completed ? '[DONE]' : w.skipped_reason ? '[SKIPPED]' : '[NOT YET DONE]';
+        const status = w.completed ? '[DONE]' : isSkippedSession(w) ? '[SKIPPED]' : '[NOT YET DONE]';
         todayLines.push(`  planned: ${parts.join(', ')} ${status}`);
       }
     }
@@ -408,23 +409,28 @@ export function buildCoachEnrichmentBlock(data, { profile = null, sportProfile =
   );
   if (weekPlanned.length > 0) {
     // Weekly compliance counts only past-due non-rest workouts (same rule as
-    // the training dashboard) — future sessions are not failures.
-    const pastDue = weekPlanned.filter((w) => w.scheduled_date < todayStr && w.workout_type !== 'rest');
+    // the training dashboard) — future sessions are not failures, and a
+    // deliberate skip is a decision, not a failure, so it leaves the count.
+    const skippedCount = weekPlanned.filter((w) => !w.completed && isSkippedSession(w)).length;
+    const pastDue = weekPlanned.filter(
+      (w) => w.scheduled_date < todayStr && w.workout_type !== 'rest' && (w.completed || !isSkippedSession(w))
+    );
     const pastDueDone = pastDue.filter((w) => w.completed).length;
     const compliance = pastDue.length > 0 ? Math.round((pastDueDone / pastDue.length) * 100) : 100;
     const upcoming = weekPlanned.filter(
-      (w) => !w.completed && !w.skipped_reason && w.scheduled_date >= todayStr && w.workout_type !== 'rest'
+      (w) => !w.completed && !isSkippedSession(w) && w.scheduled_date >= todayStr && w.workout_type !== 'rest'
     );
     const upcomingRss = upcoming.reduce((s, w) => s + ((w.target_rss ?? w.target_tss) || 0), 0);
     weekLines.push(
       `  Plan status: ${pastDueDone}/${pastDue.length} past-due workouts done (weekly compliance ${compliance}%)` +
+        (skippedCount > 0 ? `; ${skippedCount} skipped by the athlete` : '') +
         (upcoming.length > 0 ? `; ${upcoming.length} upcoming (~${Math.round(upcomingRss)} RSS remaining)` : '')
     );
     for (const w of weekPlanned) {
       const status = w.completed
         ? 'DONE'
-        : w.skipped_reason
-          ? 'SKIPPED'
+        : isSkippedSession(w)
+          ? (w.skipped_reason ? `SKIPPED: ${String(w.skipped_reason).slice(0, 80)}` : 'SKIPPED')
           : w.scheduled_date < todayStr
             ? 'MISSED'
             : w.scheduled_date === todayStr

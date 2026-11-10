@@ -185,6 +185,19 @@ describe('applyCalendarOps', () => {
     expect(calls.find((c) => c.op === 'update').payload.completed_at).toBeNull();
   });
 
+  it('stores the reason when skipping, and clears it for any other status', async () => {
+    await applyCalendarOps(USER, [
+      { op: 'set_status', handle: 'sess_1af3bc12', entry: entry(), status: 'skipped', reason: 'Legs need rest.' },
+    ]);
+    expect(calls.find((c) => c.op === 'update').payload.skipped_reason).toBe('Legs need rest.');
+
+    calls = [];
+    await applyCalendarOps(USER, [
+      { op: 'set_status', handle: 'sess_1af3bc12', entry: entry({ status: 'skipped' }), status: 'planned', reason: 'Back on.' },
+    ]);
+    expect(calls.find((c) => c.op === 'update').payload.skipped_reason).toBeNull();
+  });
+
   it('does NOT undo earlier successes when a later op fails', async () => {
     state.failInsertAfter = 2; // third insert onwards fails
     const ops = Array.from({ length: 4 }, (_, i) => ({

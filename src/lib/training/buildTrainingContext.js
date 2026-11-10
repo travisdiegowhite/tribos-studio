@@ -9,6 +9,7 @@ import { estimateActivityTSS } from '../../utils/computeFitnessSnapshots';
 import { formatLocalDate, parsePlanStartDate } from '../../utils/dateUtils';
 import { getActivitySport } from '../../utils/sportType';
 import { isPlanCurrent } from '../../utils/planLifecycle';
+import { isSkippedSession } from '../../../api/utils/sessionSkipped.js';
 
 // Sport of an activity row — the shared classifier, so a Garmin
 // 'TRAIL_RUNNING' lands under running here exactly as it does in the load
@@ -347,7 +348,7 @@ export function buildTrainingContext(trainingMetrics, weeklyStats, actualWeeklyS
         const isToday = w.scheduled_date === formatLocalDate(today);
         const isPast = wDate < today && !isToday;
         const todayTag = isToday ? ' ** TODAY **' : '';
-        const status = w.completed ? 'DONE' : w.skipped_reason ? 'SKIPPED' : isPast ? 'MISSED' : isToday ? 'TODAY' : 'UPCOMING';
+        const status = w.completed ? 'DONE' : isSkippedSession(w) ? 'SKIPPED' : isPast ? 'MISSED' : isToday ? 'TODAY' : 'UPCOMING';
         const typeParts = [];
         typeParts.push(w.name || w.workout_type || w.workout_id || 'Workout');
         const dur = w.duration_minutes || w.target_duration;
@@ -383,7 +384,7 @@ export function buildTrainingContext(trainingMetrics, weeklyStats, actualWeeklyS
         // Summary: how many done vs remaining, with weekly compliance.
         // Prefer canonical target_rss (spec §2) with legacy fallback.
         const completed = thisWeekWorkouts.filter(w => w.completed).length;
-        const remaining = thisWeekWorkouts.filter(w => !w.completed && !w.skipped_reason && w.workout_type !== 'rest').length;
+        const remaining = thisWeekWorkouts.filter(w => !w.completed && !isSkippedSession(w) && w.workout_type !== 'rest').length;
         const totalTSS = thisWeekWorkouts.reduce((sum, w) => sum + ((w.target_rss ?? w.target_tss) || 0), 0);
 
         // Weekly compliance: only count past-due non-rest workouts (not future ones)

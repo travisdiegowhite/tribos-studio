@@ -39,7 +39,7 @@
  * reads races from here.
  */
 
-import type { CalendarEntry, CalendarEntryRow, EntrySport } from './getCalendarRange';
+import type { CalendarEntry, CalendarEntryRow, CalendarEntryStatus, EntrySport } from './getCalendarRange';
 import { entrySport } from '../../../api/utils/entrySport.js';
 
 /** The row shape TrainingCalendar.jsx renders. */
@@ -63,6 +63,8 @@ export interface PlannedWorkoutShape {
   actual_duration: number | null;
   actual_distance_km: number | null;
   completed: boolean;
+  /** Raw status, so a deliberate skip can be told apart from a missed session. */
+  status: CalendarEntryStatus;
   completed_at: string | null;
   skipped_reason: string | null;
   plan_id: string | null;
@@ -140,6 +142,7 @@ export function toPlannedWorkoutShape(
     actual_duration: entry.actual_duration_min,
     actual_distance_km: entry.actual_distance_km,
     completed: entry.status === 'done',
+    status: entry.status,
     completed_at: entry.completed_at,
     skipped_reason: entry.skipped_reason,
     plan_id: entry.plan_id,

@@ -29,6 +29,9 @@ import { getAnyWorkoutById as getWorkoutById } from '../data/workoutLookup';
 import { resolvePlannedWorkoutShape } from '../lib/training/plannedWorkoutShape';
 import { tokens } from '../theme';
 import { sessionTone, sessionToneStyle, sessionRuleBorder } from '../utils/calendarSessionTone';
+import { isSkippedSession } from '../../api/utils/sessionSkipped.js';
+import { SkipSessionModal } from './training/SkipSessionModal';
+import { useCoachCommandBar } from './coach';
 import { formatLocalDate, addDays, parseLocalDate } from '../utils/dateUtils';
 import { getCalendarRange } from '../lib/calendar/getCalendarRange';
 import {
@@ -47,7 +50,7 @@ import { useCrossTraining, ACTIVITY_CATEGORIES } from '../hooks/useCrossTraining
 import CrossTrainingModal from './CrossTrainingModal';
 import { WorkoutModal } from './planner/WorkoutModal';
 import { WorkoutLibrarySidebar } from './planner/WorkoutLibrarySidebar';
-import { Barbell, Bicycle, CalendarBlank, CalendarX, CaretDown, CaretLeft, CaretRight, Check, Circle, Cloud, CloudLightning, CloudRain, CloudSun, DotsSixVertical, Heartbeat, Moon, Path, PencilSimple, PersonSimpleRun, PersonSimpleWalk, Plus, Snowflake, Sun, Trash, Trophy, Wind, X } from '@phosphor-icons/react';
+import { Barbell, Bicycle, CalendarBlank, CalendarX, CaretDown, CaretLeft, CaretRight, Check, Circle, Cloud, CloudLightning, CloudRain, CloudSun, DotsSixVertical, Heartbeat, Moon, Path, PencilSimple, PersonSimpleRun, PersonSimpleWalk, Plus, SkipForward, Snowflake, Sun, Trash, Trophy, Wind, X } from '@phosphor-icons/react';
 import { useWeatherForecast } from '../hooks/useWeatherForecast';
 import { useRouteBuilderStore } from '../stores/routeBuilderStore';
 import { getWeatherSeverity, formatTemperature } from '../utils/weather';
@@ -125,6 +128,9 @@ const TrainingCalendar = ({ activePlan, rides = [], formatDistance: formatDistan
   // to drag: HTML5 drag-and-drop does not fire on touch at all, so on a phone
   // or iPad dragging a session has never once worked.
   const [heldEntryId, setHeldEntryId] = useState(null);
+  // The session the skip dialog is open for, or null.
+  const [skipTarget, setSkipTarget] = useState(null);
+  const { open: openCoach } = useCoachCommandBar();
   // Set when a placement lands on an occupied day — swap, or stack both?
   const [placePrompt, setPlacePrompt] = useState(null);
   // Coach changes the server withheld for the athlete to accept. Without this
@@ -549,14 +555,50 @@ const TrainingCalendar = ({ activePlan, rides = [], formatDistance: formatDistan
     setAnchorDate(lastMonday);
   };
 
-  // Toggle workout completion
+  // The status a session had before a change, so undo puts back exactly
+  // that, including a skip and its reason.
+  const statusBefore = (workout) =>
+    workout.completed ? 'done' : isSkippedSession(workout) ? 'skipped' : 'planned';
+  const restoreStatus = (workout) => () =>
+    setEntryStatus(user.id, workout.id, statusBefore(workout), { skippedReason: workout.skipped_reason ?? null });
+
+  // Toggle workout completion. Ticking a skipped session marks it done.
   const toggleWorkoutCompletion = async (workout) => {
     if (!user?.id || !workout?.id) return;
     const next = workout.completed ? 'planned' : 'done';
     await runCalendarChange(
       () => setEntryStatus(user.id, workout.id, next),
       next === 'done' ? `Marked ${workout.name} done` : `${workout.name} is planned again`,
-      () => setEntryStatus(user.id, workout.id, workout.completed ? 'done' : 'planned'),
+      restoreStatus(workout),
+    );
+  };
+
+  // Skip a session on purpose. A skip is the athlete's decision, so it pins
+  // (setEntryStatus does), and the coach can be asked to rebalance the week.
+  const skipSession = async (workout, reason, askCoach) => {
+    if (!user?.id || !workout?.id) return;
+    setSkipTarget(null);
+    setHeldEntryId(null);
+    const ok = await runCalendarChange(
+      () => setEntryStatus(user.id, workout.id, 'skipped', { skippedReason: reason }),
+      `Skipped ${workout.name}`,
+      restoreStatus(workout),
+    );
+    if (ok !== false && askCoach) {
+      const day = parseLocalDate(workout.scheduled_date).toLocaleDateString(undefined, { weekday: 'long', month: 'short', day: 'numeric' });
+      openCoach(
+        `I'm skipping ${workout.name} on ${day}${reason ? ` (${reason})` : ''}. Can you adjust the rest of my week?`,
+      );
+    }
+  };
+
+  const unskipSession = async (workout) => {
+    if (!user?.id || !workout?.id) return;
+    setHeldEntryId(null);
+    await runCalendarChange(
+      () => setEntryStatus(user.id, workout.id, 'planned'),
+      `${workout.name} is planned again`,
+      restoreStatus(workout),
     );
   };
 
@@ -1182,12 +1224,42 @@ const TrainingCalendar = ({ activePlan, rides = [], formatDistance: formatDistan
                 <Text span fw={600}>{heldWorkout.name}</Text>
                 <Text span c="dimmed"> — tap any day to place it</Text>
               </Text>
-              <Button variant="subtle" size="compact-xs" onClick={() => setHeldEntryId(null)}>
-                Cancel
-              </Button>
+              <Group gap={4} wrap="nowrap">
+                {!heldWorkout.completed && (
+                  isSkippedSession(heldWorkout) ? (
+                    <Button variant="subtle" size="compact-xs" onClick={() => unskipSession(heldWorkout)}>
+                      Unskip
+                    </Button>
+                  ) : (
+                    <Button
+                      variant="subtle"
+                      size="compact-xs"
+                      leftSection={<SkipForward size={12} />}
+                      onClick={() => setSkipTarget(heldWorkout)}
+                    >
+                      Skip
+                    </Button>
+                  )
+                )}
+                <Button variant="subtle" size="compact-xs" onClick={() => setHeldEntryId(null)}>
+                  Cancel
+                </Button>
+              </Group>
             </Group>
           );
         })()}
+
+        <SkipSessionModal
+          opened={!!skipTarget}
+          sessionName={skipTarget?.name || 'this session'}
+          dateLabel={
+            skipTarget?.scheduled_date
+              ? parseLocalDate(skipTarget.scheduled_date).toLocaleDateString(undefined, { weekday: 'long', month: 'short', day: 'numeric' })
+              : ''
+          }
+          onClose={() => setSkipTarget(null)}
+          onSkip={(reason, askCoach) => skipSession(skipTarget, reason, askCoach)}
+        />
 
         {/* Show info about no content yet */}
         {!activePlan && rides.length === 0 && plannedWorkouts.length === 0 && (
@@ -1228,7 +1300,8 @@ const TrainingCalendar = ({ activePlan, rides = [], formatDistance: formatDistan
                 // The day's sessions (rest entries aside), in the order to do them.
                 const sessions = dayWorkouts.filter((w) => w.workout_type !== 'rest');
                 const isRestDay = sessions.length === 0 && dayWorkouts.some((w) => w.workout_type === 'rest');
-                const allDone = sessions.length > 0 && sessions.every((w) => w.completed);
+                // A skipped session is settled, like a done one: the day isn't dimmed as missed.
+                const allDone = sessions.length > 0 && sessions.every((w) => w.completed || isSkippedSession(w));
                 const dayRides = getRidesForDate(date);
                 const raceGoal = getRaceGoalForDate(date);
                 const isToday = date.toDateString() === new Date().toDateString();
@@ -1370,14 +1443,15 @@ const TrainingCalendar = ({ activePlan, rides = [], formatDistance: formatDistan
                           them. Each is its own tap and drag target, so either
                           half of a two-a-day can be moved or ticked off. */}
                       {sessions.map((workout) => {
-                        const isMissed = isPast && !isToday && !workout.completed;
+                        const isSkipped = !workout.completed && isSkippedSession(workout);
+                        const isMissed = isPast && !isToday && !workout.completed && !isSkipped;
                         const sessionSport = workout.sport;
                         const timing = typeof workout.details?.timing === 'string' ? workout.details.timing : null;
                         const doneLabel = sessionSport === 'running' ? 'Run' : sessionSport === 'other' ? 'Done' : 'Ridden';
                         // Colour = intensity, rule shape = sport; support work steps back.
-                        const tone = sessionTone(workout.workout_type, sessionSport);
+                        const tone = sessionTone(workout.workout_type, sessionSport, isSkipped);
                         const toneStyle = sessionToneStyle(tone);
-                        const isSupport = tone === 'support';
+                        const isSupport = tone === 'support' || tone === 'skipped';
                         const typeName = WORKOUT_TYPES[workout.workout_type]?.name || String(workout.workout_type || 'workout').replace(/_/g, ' ');
                         const sportName = sessionSport === 'running' ? 'Run' : sessionSport === 'other' ? null : 'Ride';
                         return (
@@ -1445,6 +1519,16 @@ const TrainingCalendar = ({ activePlan, rides = [], formatDistance: formatDistan
                               <Text size="xs" c="dimmed" lineClamp={1} mb={2}>
                                 {timing}
                               </Text>
+                            </Tooltip>
+                          )}
+                          {isSkipped && (
+                            <Tooltip label={workout.skipped_reason || 'Skipped by choice'} multiline w={220} withArrow>
+                              <Group gap={4} mb={2} wrap="nowrap" style={{ minWidth: 0, color: 'var(--color-text-secondary)' }}>
+                                <SkipForward size={12} style={{ flex: 'none' }} />
+                                <Text size="xs" fw={500} truncate="end" style={{ color: 'inherit' }}>
+                                  {workout.skipped_reason ? `Skipped · ${workout.skipped_reason}` : 'Skipped'}
+                                </Text>
+                              </Group>
                             </Tooltip>
                           )}
                           {workout.completed && (
@@ -1701,6 +1785,10 @@ const TrainingCalendar = ({ activePlan, rides = [], formatDistance: formatDistan
                 <Group gap={4}>
                   <span style={{ width: 10, height: 10, borderLeft: '5px double var(--color-text-secondary)', display: 'inline-block' }} />
                   <Text size="xs" style={{ color: 'var(--color-text-secondary)' }}>Run</Text>
+                </Group>
+                <Group gap={4}>
+                  <SkipForward size={12} style={{ color: 'var(--color-text-secondary)' }} />
+                  <Text size="xs" style={{ color: 'var(--color-text-secondary)' }}>Skipped</Text>
                 </Group>
               </Group>
 

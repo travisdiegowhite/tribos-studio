@@ -54,6 +54,21 @@ describe('WeekSummaryGrid', () => {
     expect(screen.getByText(/You're 3 of 6 sessions into the week's plan, with 3 still ahead\./)).toBeTruthy();
   });
 
+  it('leaves a deliberately skipped session out of the planned count and load', () => {
+    renderGrid({
+      plannedWorkouts: [
+        ...WEEK.slice(0, 5),
+        { scheduled_date: '2026-08-23', workout_type: 'threshold', target_rss: 90, completed: false, status: 'skipped', skipped_reason: null },
+      ],
+      actualWeeklyStats: ACTUAL,
+    });
+
+    // 6 sessions, 1 skipped → 3 of 5, and 561 − 90 = 471 planned RSS.
+    expect(screen.getByText('3/5')).toBeTruthy();
+    expect(screen.getByText('324/471')).toBeTruthy();
+    expect(screen.getByText(/One session skipped by choice\./)).toBeTruthy();
+  });
+
   it('divides completed PLANNED sessions by planned sessions, never activities', () => {
     // Three unplanned rides against two planned sessions used to read 150%.
     renderGrid({

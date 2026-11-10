@@ -617,7 +617,9 @@ export async function setEntryStatus(
     completed_at: status === 'done' ? new Date().toISOString() : null,
     pinned: true,
   };
-  if (status === 'skipped') patch.skipped_reason = options.skippedReason ?? null;
+  // Un-skipping (or marking done) clears the old reason, so a session that
+  // was skipped and then ridden never reads as skipped again.
+  patch.skipped_reason = status === 'skipped' ? options.skippedReason ?? null : null;
   if (options.activityId !== undefined) patch.activity_id = options.activityId;
 
   try {
