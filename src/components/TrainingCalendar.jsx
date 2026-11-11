@@ -50,7 +50,7 @@ import { useCrossTraining, ACTIVITY_CATEGORIES } from '../hooks/useCrossTraining
 import CrossTrainingModal from './CrossTrainingModal';
 import { WorkoutModal } from './planner/WorkoutModal';
 import { WorkoutLibrarySidebar } from './planner/WorkoutLibrarySidebar';
-import { Barbell, Bicycle, CalendarBlank, CalendarX, CaretDown, CaretLeft, CaretRight, Check, Circle, Cloud, CloudLightning, CloudRain, CloudSun, DotsSixVertical, Heartbeat, Moon, Path, PencilSimple, PersonSimpleRun, PersonSimpleWalk, Plus, SkipForward, Snowflake, Sun, Trash, Trophy, Wind, X } from '@phosphor-icons/react';
+import { ArrowCounterClockwise, Barbell, Bicycle, CalendarBlank, CalendarX, CaretDown, CaretLeft, CaretRight, Check, Circle, Cloud, CloudLightning, CloudRain, CloudSun, DotsSixVertical, Heartbeat, Moon, Path, PencilSimple, PersonSimpleRun, PersonSimpleWalk, Plus, SkipForward, Snowflake, Sun, Trash, Trophy, Wind, X } from '@phosphor-icons/react';
 import { useWeatherForecast } from '../hooks/useWeatherForecast';
 import { useRouteBuilderStore } from '../stores/routeBuilderStore';
 import { getWeatherSeverity, formatTemperature } from '../utils/weather';
@@ -1224,27 +1224,9 @@ const TrainingCalendar = ({ activePlan, rides = [], formatDistance: formatDistan
                 <Text span fw={600}>{heldWorkout.name}</Text>
                 <Text span c="dimmed"> — tap any day to place it</Text>
               </Text>
-              <Group gap={4} wrap="nowrap">
-                {!heldWorkout.completed && (
-                  isSkippedSession(heldWorkout) ? (
-                    <Button variant="subtle" size="compact-xs" onClick={() => unskipSession(heldWorkout)}>
-                      Unskip
-                    </Button>
-                  ) : (
-                    <Button
-                      variant="subtle"
-                      size="compact-xs"
-                      leftSection={<SkipForward size={12} />}
-                      onClick={() => setSkipTarget(heldWorkout)}
-                    >
-                      Skip
-                    </Button>
-                  )
-                )}
-                <Button variant="subtle" size="compact-xs" onClick={() => setHeldEntryId(null)}>
-                  Cancel
-                </Button>
-              </Group>
+              <Button variant="subtle" size="compact-xs" onClick={() => setHeldEntryId(null)}>
+                Cancel
+              </Button>
             </Group>
           );
         })()}
@@ -1488,17 +1470,39 @@ const TrainingCalendar = ({ activePlan, rides = [], formatDistance: formatDistan
                                 {sportName && !isSupport ? `${sportName} · ${typeName}` : typeName}
                               </Text>
                             </Group>
-                            <ActionIcon
-                              size="sm"
-                              variant="subtle"
-                              color={workout.completed ? 'green' : 'gray'}
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                toggleWorkoutCompletion(workout);
-                              }}
-                            >
-                              {workout.completed ? <Check size={14} /> : <Circle size={14} />}
-                            </ActionIcon>
+                            <Group gap={0} wrap="nowrap" style={{ flex: 'none' }}>
+                              {/* Skip (or unskip) right on the card, beside the tick. */}
+                              {!workout.completed && (
+                                <Tooltip label={isSkipped ? 'Unskip' : 'Skip session'} withArrow>
+                                  <ActionIcon
+                                    size="sm"
+                                    variant="subtle"
+                                    color="gray"
+                                    aria-label={isSkipped ? 'Unskip' : 'Skip session'}
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      // While placing or assigning, the tap belongs to the day.
+                                      if (heldEntryId || selectedWorkoutId) return;
+                                      if (isSkipped) unskipSession(workout);
+                                      else setSkipTarget(workout);
+                                    }}
+                                  >
+                                    {isSkipped ? <ArrowCounterClockwise size={14} /> : <SkipForward size={14} />}
+                                  </ActionIcon>
+                                </Tooltip>
+                              )}
+                              <ActionIcon
+                                size="sm"
+                                variant="subtle"
+                                color={workout.completed ? 'green' : 'gray'}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  toggleWorkoutCompletion(workout);
+                                }}
+                              >
+                                {workout.completed ? <Check size={14} /> : <Circle size={14} />}
+                              </ActionIcon>
+                            </Group>
                           </Group>
                           {/* Workout name */}
                           <Text
