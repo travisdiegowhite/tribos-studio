@@ -6,6 +6,7 @@ import { getSupabaseAdmin } from './utils/supabaseAdmin.js';
 import { setupCors } from './utils/cors.js';
 import { ensureValidAccessToken } from './utils/garmin/tokenManager.js';
 import { deregisterGarminUser } from './utils/garmin/garminApiClient.js';
+import { deauthorizeWahoo } from './utils/wahoo/tokens.js';
 
 // Initialize Supabase with service role (server-side only)
 const supabase = getSupabaseAdmin();
@@ -137,12 +138,13 @@ async function revokeGarminTokens(userId) {
   }
 }
 
-// Attempt to revoke Wahoo OAuth tokens
+// Revoke the app's Wahoo access (DELETE /v1/permissions). Best effort: the
+// integration row is cascade-deleted with the account either way.
 async function revokeWahooTokens(userId) {
   try {
     const { data: integration, error } = await supabase
       .from('bike_computer_integrations')
-      .select('access_token')
+      .select('id, user_id, access_token, refresh_token, token_expires_at, refresh_token_invalid')
       .eq('user_id', userId)
       .eq('provider', 'wahoo')
       .maybeSingle();
@@ -152,10 +154,11 @@ async function revokeWahooTokens(userId) {
       return { revoked: false, reason: 'no_integration' };
     }
 
-    // Wahoo does not expose a public token revocation endpoint.
-    // The integration record will be deleted with the account cascade.
-    console.log('Wahoo integration found - will be deleted with account cascade');
-    return { revoked: true, method: 'local_delete' };
+    const result = await deauthorizeWahoo(integration);
+    console.log('Wahoo deauthorization:', result);
+    return result.revoked
+      ? { revoked: true, method: 'delete_permissions' }
+      : { revoked: false, reason: 'api_error', error: result.error || `HTTP ${result.status}` };
   } catch (err) {
     console.error('Error in revokeWahooTokens:', err.message);
     return { revoked: false, reason: 'error', error: err.message };

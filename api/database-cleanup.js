@@ -42,6 +42,22 @@ export default async function handler(req, res) {
     results.errors.push(`webhookEvents: ${err.message}`);
   }
 
+  // 1b. Wahoo webhook audit log (migration 140) — keep 90 days of finished
+  // deliveries; 'error'/'received' rows stay until someone looks at them.
+  try {
+    const cutoff = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString();
+    const { count, error } = await supabase
+      .from('wahoo_webhook_events')
+      .delete({ count: 'exact' })
+      .lt('created_at', cutoff)
+      .in('status', ['processed', 'skipped']);
+    if (error) throw error;
+    results.webhookEvents = { ...(results.webhookEvents || {}), wahoo: count || 0 };
+  } catch (err) {
+    console.error('Wahoo webhook cleanup failed (migration 140 applied?):', err.message);
+    results.errors.push(`wahooWebhookEvents: ${err.message}`);
+  }
+
   // 2. Clean up old proactive insights
   try {
     const { data, error } = await supabase.rpc('cleanup_old_insights');

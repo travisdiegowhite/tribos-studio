@@ -44,6 +44,8 @@ export interface RouteData {
   elevationLossM?: number;
   routeType?: 'loop' | 'out_back' | 'point_to_point';
   surfaceType?: 'paved' | 'gravel' | 'mixed';
+  /** Sport the course is for; written to the FIT course message. Defaults to cycling. */
+  sport?: 'cycling' | 'running';
 }
 
 export interface RouteExportOptions {

@@ -861,7 +861,7 @@ const FIT_DOWNLOAD_TIMEOUT_MS = 30_000;
  * with a newer parser, without depending on Garmin.
  *
  * @param {string} url - Pre-signed Garmin URL (or Wahoo file link).
- * @param {string} accessToken - OAuth Bearer token for the partner.
+ * @param {string|null} accessToken - OAuth Bearer token for the partner; null sends no Authorization header.
  * @param {object|null} athlete - Athlete profile for power-zone calculations.
  * @param {object|null} storageOptions - When provided, the downloaded bytes are
  *   uploaded to Supabase Storage and the returned object includes
@@ -870,6 +870,7 @@ const FIT_DOWNLOAD_TIMEOUT_MS = 30_000;
  *     - userId: the Tribos user_id (string UUID)
  *     - activityId: the activities.id (string UUID; used as the object key)
  *     - bucket: optional, defaults to 'garmin-fit'
+ *     - keyPrefix: optional, defaults to 'garmin' (object key is `<prefix>/<userId>/<activityId>.fit`)
  *   If omitted, no upload happens (backwards-compatible).
  * @returns {Promise<object>} Same parseFitBuffer shape, plus optional
  *   `fit_storage_path` and possibly `error`.
@@ -882,8 +883,10 @@ export async function downloadAndParseFitFile(url, accessToken, athlete = null, 
 
     const response = await fetch(url, {
       method: 'GET',
+      // No token → no Authorization header. Wahoo file URLs are CDN links that
+      // need none (and a signed URL can reject one); Garmin always passes one.
       headers: {
-        'Authorization': `Bearer ${accessToken}`,
+        ...(accessToken ? { 'Authorization': `Bearer ${accessToken}` } : {}),
         'Accept': 'application/octet-stream, application/fit, */*'
       },
       signal: controller.signal
@@ -924,7 +927,9 @@ export async function downloadAndParseFitFile(url, accessToken, athlete = null, 
     let fit_storage_path = null;
     if (storageOptions?.supabase && storageOptions?.userId && storageOptions?.activityId) {
       const bucket = storageOptions.bucket || 'garmin-fit';
-      const objectKey = `garmin/${storageOptions.userId}/${storageOptions.activityId}.fit`;
+      // keyPrefix defaults to 'garmin' so existing Garmin paths are unchanged.
+      const keyPrefix = storageOptions.keyPrefix || 'garmin';
+      const objectKey = `${keyPrefix}/${storageOptions.userId}/${storageOptions.activityId}.fit`;
       try {
         const { error: uploadErr } = await storageOptions.supabase.storage
           .from(bucket)

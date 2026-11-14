@@ -104,6 +104,7 @@ function Settings() {
   const [garminBackfillingHistory, setGarminBackfillingHistory] = useState(false);
   const [garminBackfillStatus, setGarminBackfillStatus] = useState(null);
   const [wahooStatus, setWahooStatus] = useState({ connected: false, loading: true });
+  const [wahooSyncing, setWahooSyncing] = useState(false);
   const [googleCalendarStatus, setGoogleCalendarStatus] = useState({ connected: false, loading: true, email: null });
   // Consolidated modal state — only one modal open at a time
   const [openModal, setOpenModal] = useState(null);
@@ -1331,6 +1332,32 @@ function Settings() {
     }
   };
 
+  const syncWahooActivities = async () => {
+    setWahooSyncing(true);
+    try {
+      const result = await wahooService.syncWorkouts();
+      notifications.show({
+        title: result.partial ? 'Wahoo sync paused' : 'Wahoo sync complete',
+        message: result.message || `Synced ${result.synced || 0} new workouts`,
+        color: result.partial ? 'gold' : 'sage',
+      });
+      const status = await wahooService.getConnectionStatus();
+      setWahooStatus({ ...status, loading: false });
+    } catch (error) {
+      console.error('Error syncing Wahoo:', error);
+      if (error.requiresReconnect) {
+        setWahooStatus((prev) => ({ ...prev, needsReconnect: true }));
+      }
+      notifications.show({
+        title: error.requiresReconnect ? 'Reconnect Wahoo' : 'Sync failed',
+        message: error.message || 'Failed to sync Wahoo workouts',
+        color: 'red',
+      });
+    } finally {
+      setWahooSyncing(false);
+    }
+  };
+
   const disconnectWahoo = async () => {
     try {
       await wahooService.disconnect();
@@ -2129,6 +2156,11 @@ function Settings() {
                 loading={wahooStatus.loading}
                 onConnect={connectWahoo}
                 onDisconnect={disconnectWahoo}
+                onSync={wahooStatus.needsReconnect ? undefined : syncWahooActivities}
+                syncing={wahooSyncing}
+                syncDescription="Rides arrive automatically after your ELEMNT syncs. Use this to pull in your most recent workouts."
+                needsReconnect={wahooStatus.needsReconnect}
+                statusNote={wahooStatusNote(wahooStatus)}
                 unitsPreference={unitsPreference}
               />
 
@@ -2436,7 +2468,15 @@ function Settings() {
   );
 }
 
-function ServiceConnection({ name, icon, connected, username, loading, onConnect, onDisconnect, onSync, syncing, speedProfile, onCheckWebhook, webhookStatus, onRepair, repairing, onRecover, recovering, onDiagnose, diagnosis, onBackfillGps, backfillingGps, onBackfillStreams, backfillingStreams, onBackfillHistory, backfillingHistory, backfillStatus, unitsPreference }) {
+/** One line under the Wahoo card: last import, or the last import error. */
+function wahooStatusNote(status) {
+  if (!status?.connected || status.needsReconnect) return null;
+  if (status.errorMessage) return `Last import problem: ${status.errorMessage}`;
+  if (status.lastSyncAt) return `Last workout received ${new Date(status.lastSyncAt).toLocaleString()}`;
+  return 'Waiting for your first workout from Wahoo.';
+}
+
+function ServiceConnection({ name, icon, connected, username, loading, onConnect, onDisconnect, onSync, syncing, syncDescription, needsReconnect, statusNote, speedProfile, onCheckWebhook, webhookStatus, onRepair, repairing, onRecover, recovering, onDiagnose, diagnosis, onBackfillGps, backfillingGps, onBackfillStreams, backfillingStreams, onBackfillHistory, backfillingHistory, backfillStatus, unitsPreference }) {
   const isStrava = name === 'Strava';
   const [diagnosticsOpen, setDiagnosticsOpen] = useState(false);
 
@@ -2486,6 +2526,33 @@ function ServiceConnection({ name, icon, connected, username, loading, onConnect
         </Group>
       </Group>
 
+      {/* Connection exists but cannot receive activities (expired, or made before a required permission) */}
+      {connected && needsReconnect && (
+        <Box
+          style={{
+            backgroundColor: 'var(--color-bg-secondary)',
+            padding: tokens.spacing.sm,
+            borderRadius: tokens.radius.sm,
+            marginLeft: '2.5rem'
+          }}
+        >
+          <Group justify="space-between" align="center" wrap="nowrap">
+            <Text size="xs" style={{ color: 'var(--color-text-secondary)' }}>
+              Reconnect {name} so new activities can arrive automatically.
+            </Text>
+            <Button size="xs" color="teal" variant="filled" onClick={onConnect}>
+              Reconnect
+            </Button>
+          </Group>
+        </Box>
+      )}
+
+      {connected && statusNote && (
+        <Text size="xs" style={{ color: 'var(--color-text-muted)', marginLeft: '2.5rem' }}>
+          {statusNote}
+        </Text>
+      )}
+
       {/* Garmin on Starter access: PUSH-only, nothing to import by hand */}
       {connected && name === 'Garmin Connect' && !onSync && (
         <Box
@@ -2533,7 +2600,7 @@ function ServiceConnection({ name, icon, connected, username, loading, onConnect
                 </Stack>
               ) : (
                 <Text size="xs" style={{ color: 'var(--color-text-muted)' }}>
-                  {onCheckWebhook ? 'Sync last 90 days of activities' : 'Sync recent activities (for full history, see Activity Maintenance below)'}
+                  {syncDescription || (onCheckWebhook ? 'Sync last 90 days of activities' : 'Sync recent activities (for full history, see Activity Maintenance below)')}
                 </Text>
               )}
             </Box>

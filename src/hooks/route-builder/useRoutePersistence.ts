@@ -592,6 +592,7 @@ export function useRoutePersistence(): UseRoutePersistenceReturn {
         distanceKm: routeStats?.distance_km ?? undefined,
         elevationGainM: routeStats?.elevation_gain_m ?? undefined,
         elevationLossM: routeStats?.elevation_loss_m ?? undefined,
+        sport: sport === 'running' ? 'running' : 'cycling',
       });
       const [startLng, startLat] = coordinates[0];
       const result = (await (wahooService as {
@@ -611,6 +612,7 @@ export function useRoutePersistence(): UseRoutePersistenceReturn {
         distance_m: Math.round((routeStats?.distance_km ?? 0) * 1000),
         ascent_m: Math.round(routeStats?.elevation_gain_m ?? 0),
         descent_m: Math.round(routeStats?.elevation_loss_m ?? 0),
+        sport: sport === 'running' ? 'running' : 'cycling',
       })) ?? {};
 
       if (result.success) {
@@ -647,7 +649,7 @@ export function useRoutePersistence(): UseRoutePersistenceReturn {
     } finally {
       setIsPushingToDevice(false);
     }
-  }, [routeGeometry, routeCues, routeName, routeDescription, routeStats, savedRouteId]);
+  }, [routeGeometry, routeCues, routeName, routeDescription, routeStats, savedRouteId, sport]);
 
   const shareRoute = useCallback(async (): Promise<ShareResult> => {
     if (!savedRouteId) {

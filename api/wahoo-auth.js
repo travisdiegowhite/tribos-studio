@@ -1,614 +1,376 @@
-// Vercel API Route: Wahoo Fitness Authentication
-// Wahoo uses OAuth 2.0
+// Vercel API Route: Wahoo Cloud connection (OAuth 2.0) + manual sync + route push.
+// See docs/wahoo-integration.md.
+//
+// Every action authenticates the caller with requireAuth() and acts on THAT
+// user. The body `userId` the old client sent is ignored — trusting it let
+// anyone disconnect, sync or push routes for any account.
 
 import { getSupabaseAdmin } from './utils/supabaseAdmin.js';
-import { rateLimitMiddleware, RATE_LIMITS } from './utils/rateLimit.js';
+import { rateLimitMiddleware } from './utils/rateLimit.js';
 import { setupCors } from './utils/cors.js';
+import { requireAuth } from './utils/auth.js';
 import { completeActivationStep } from './utils/activation.js';
+import {
+  WAHOO_API_BASE,
+  WahooReauthRequired,
+  deauthorizeWahoo,
+  getValidWahooToken,
+  requestWahooToken,
+  tokenColumns,
+} from './utils/wahoo/tokens.js';
+import { ingestWahooWorkout } from './utils/wahoo/ingest.js';
+import { WAHOO_FAMILY_BIKING, WAHOO_FAMILY_RUNNING } from './utils/wahoo/workoutTypes.js';
 
-// Initialize Supabase (server-side)
 const supabase = getSupabaseAdmin();
 
-const WAHOO_OAUTH_BASE = 'https://api.wahooligan.com/oauth';
-const WAHOO_API_BASE = 'https://api.wahooligan.com/v1';
-
-export default async function handler(req, res) {
-  // Handle CORS
-  if (setupCors(req, res)) {
-    return; // Was an OPTIONS request, already handled
-  }
-
-  if (req.method !== 'POST') {
-    return res.status(405).json({ error: 'Method not allowed' });
-  }
-
-  // Rate limiting
-  const rateLimitResult = await rateLimitMiddleware(
-    req,
-    res,
-    'wahoo_auth',
-    30,
-    60
-  );
-
-  if (rateLimitResult !== null) {
-    return;
-  }
-
-  try {
-    const { action, code, userId, routeData } = req.body;
-
-    // Validate required environment variables
-    if (!process.env.WAHOO_CLIENT_ID || !process.env.WAHOO_CLIENT_SECRET) {
-      return res.status(200).json({
-        error: 'Wahoo integration not configured',
-        configured: false
-      });
-    }
-
-    switch (action) {
-      case 'exchange_code':
-        return await exchangeCodeForToken(req, res, code, userId);
-
-      case 'get_connection_status':
-        return await getConnectionStatus(req, res, userId);
-
-      case 'disconnect':
-        return await disconnect(req, res, userId);
-
-      case 'sync_workouts':
-        return await syncWorkouts(req, res, userId);
-
-      case 'push_route':
-        return await pushRoute(req, res, userId, routeData);
-
-      default:
-        return res.status(400).json({ error: 'Invalid action' });
-    }
-
-  } catch (error) {
-    console.error('Wahoo auth error:', error);
-
-    return res.status(500).json({
-      error: 'Authentication failed',
-      details: process.env.NODE_ENV === 'development' ? error.message : undefined
-    });
-  }
-}
-
-async function exchangeCodeForToken(req, res, code, userId) {
-  if (!code || !userId) {
-    return res.status(400).json({ error: 'Code and userId required' });
-  }
-
-  // IMPORTANT: The redirect_uri MUST match exactly what was used when initiating OAuth
-  // Priority: explicit env var > production domain > Vercel URL > localhost
-  let redirectUri = process.env.WAHOO_REDIRECT_URI;
-
-  if (!redirectUri) {
-    // Construct from known production domain or Vercel URL
-    const baseUrl = process.env.PRODUCTION_URL
-      || (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : null)
-      || 'http://localhost:3000';
-    redirectUri = `${baseUrl}/wahoo/callback`;
-  }
-
-  try {
-    console.log('🔄 Exchanging Wahoo code for tokens...');
-    console.log('📍 Using redirect_uri:', redirectUri);
-
-    // Exchange code with Wahoo
-    const response = await fetch(`${WAHOO_OAUTH_BASE}/token`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/x-www-form-urlencoded',
-      },
-      body: new URLSearchParams({
-        client_id: process.env.WAHOO_CLIENT_ID,
-        client_secret: process.env.WAHOO_CLIENT_SECRET,
-        code: code,
-        grant_type: 'authorization_code',
-        redirect_uri: redirectUri
-      }).toString()
-    });
-
-    if (!response.ok) {
-      const error = await response.text();
-      console.error('❌ Wahoo token exchange failed:', {
-        status: response.status,
-        statusText: response.statusText,
-        error: error,
-        redirect_uri_used: redirectUri
-      });
-
-      // Return more helpful error message
-      if (response.status === 400 || response.status === 401) {
-        return res.status(400).json({
-          error: 'Wahoo authentication failed',
-          details: 'The authorization code may have expired or the redirect URI doesn\'t match. Please try again.',
-          hint: 'Ensure WAHOO_REDIRECT_URI matches exactly what\'s registered with Wahoo'
-        });
-      }
-
-      throw new Error(`Wahoo token exchange failed: ${error}`);
-    }
-
-    const tokenData = await response.json();
-    console.log('✅ Wahoo tokens received');
-
-    // Get user profile
-    const userResponse = await fetch(`${WAHOO_API_BASE}/user`, {
-      headers: {
-        'Authorization': `Bearer ${tokenData.access_token}`
-      }
-    });
-
-    let userData = {};
-    if (userResponse.ok) {
-      userData = await userResponse.json();
-    }
-
-    // Calculate expiration
-    const expiresAt = new Date(Date.now() + tokenData.expires_in * 1000).toISOString();
-
-    // Detect first-time connection so we can mark Wahoo as the primary
-    // ingestion source (suppresses Strava auto-import). Re-auths leave the
-    // user's existing strava_auto_sync_enabled choice untouched.
-    const { data: priorIntegration } = await supabase
-      .from('bike_computer_integrations')
-      .select('id')
-      .eq('user_id', userId)
-      .eq('provider', 'wahoo')
-      .maybeSingle();
-    const isFirstConnect = !priorIntegration;
-
-    // Store tokens in database
-    const { error: dbError } = await supabase
-      .from('bike_computer_integrations')
-      .upsert({
-        user_id: userId,
-        provider: 'wahoo',
-        provider_user_id: userData.id?.toString() || null,
-        provider_user_data: {
-          email: userData.email,
-          first: userData.first,
-          last: userData.last,
-          created_at: userData.created_at
-        },
-        access_token: tokenData.access_token,
-        refresh_token: tokenData.refresh_token,
-        token_expires_at: expiresAt,
-        sync_enabled: true,
-        updated_at: new Date().toISOString()
-      }, {
-        onConflict: 'user_id,provider'
-      });
-
-    if (dbError) {
-      console.error('Database error storing tokens:', dbError);
-      throw new Error('Failed to store authentication data');
-    }
-
-    console.log('✅ Wahoo integration stored successfully');
-
-    if (isFirstConnect) {
-      const { error: prefError } = await supabase
-        .from('user_profiles')
-        .update({ strava_auto_sync_enabled: false })
-        .eq('id', userId);
-      if (prefError) {
-        console.warn('⚠️ Failed to set strava_auto_sync_enabled=false on Wahoo first connect (non-fatal):', prefError.message);
-      } else {
-        console.log('🛑 Strava auto-import disabled (Wahoo is now primary)');
-      }
-    }
-
-    // Track activation step
-    await completeActivationStep(supabase, userId, 'connect_device').catch(() => {});
-
-    return res.status(200).json({
-      success: true,
-      user: {
-        id: userData.id,
-        email: userData.email,
-        name: `${userData.first || ''} ${userData.last || ''}`.trim()
-      }
-    });
-
-  } catch (error) {
-    console.error('Token exchange error:', error);
-    throw error;
-  }
-}
-
-async function refreshAccessToken(userId, refreshToken) {
-  try {
-    const response = await fetch(`${WAHOO_OAUTH_BASE}/token`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/x-www-form-urlencoded',
-      },
-      body: new URLSearchParams({
-        client_id: process.env.WAHOO_CLIENT_ID,
-        client_secret: process.env.WAHOO_CLIENT_SECRET,
-        refresh_token: refreshToken,
-        grant_type: 'refresh_token'
-      }).toString()
-    });
-
-    if (!response.ok) {
-      throw new Error('Failed to refresh token');
-    }
-
-    const tokenData = await response.json();
-    const expiresAt = new Date(Date.now() + tokenData.expires_in * 1000).toISOString();
-
-    // Update stored tokens
-    await supabase
-      .from('bike_computer_integrations')
-      .update({
-        access_token: tokenData.access_token,
-        refresh_token: tokenData.refresh_token || refreshToken,
-        token_expires_at: expiresAt,
-        updated_at: new Date().toISOString()
-      })
-      .eq('user_id', userId)
-      .eq('provider', 'wahoo');
-
-    return tokenData.access_token;
-  } catch (error) {
-    console.error('Token refresh error:', error);
-    throw error;
-  }
-}
-
-async function getValidAccessToken(userId) {
-  const { data: integration, error } = await supabase
-    .from('bike_computer_integrations')
-    .select('access_token, refresh_token, token_expires_at')
-    .eq('user_id', userId)
-    .eq('provider', 'wahoo')
-    .single();
-
-  if (error || !integration) {
-    throw new Error('Wahoo not connected');
-  }
-
-  // Check if token needs refresh (5 minute buffer)
-  const expiresAt = new Date(integration.token_expires_at);
-  const now = new Date();
-
-  if ((expiresAt.getTime() - 300000) < now.getTime()) {
-    return await refreshAccessToken(userId, integration.refresh_token);
-  }
-
-  return integration.access_token;
-}
-
-async function getConnectionStatus(req, res, userId) {
-  if (!userId) {
-    return res.status(400).json({ error: 'UserId required' });
-  }
-
-  try {
-    const { data: integration, error } = await supabase
-      .from('bike_computer_integrations')
-      .select('provider_user_id, provider_user_data, token_expires_at, updated_at, sync_enabled')
-      .eq('user_id', userId)
-      .eq('provider', 'wahoo')
-      .maybeSingle();
-
-    if (error) {
-      console.error('Error fetching integration:', error);
-      return res.status(500).json({ error: 'Failed to check connection status' });
-    }
-
-    if (!integration) {
-      return res.status(200).json({ connected: false });
-    }
-
-    // Check if token is still valid
-    const expiresAt = new Date(integration.token_expires_at);
-    const now = new Date();
-    const isExpired = (expiresAt.getTime() - 300000) < now.getTime();
-
-    return res.status(200).json({
-      connected: true,
-      isExpired,
-      username: integration.provider_user_data?.email ||
-                `${integration.provider_user_data?.first} ${integration.provider_user_data?.last}`.trim(),
-      userId: integration.provider_user_id,
-      syncEnabled: integration.sync_enabled,
-      lastUpdated: integration.updated_at
-    });
-
-  } catch (error) {
-    console.error('Get connection status error:', error);
-    throw error;
-  }
-}
-
-async function disconnect(req, res, userId) {
-  if (!userId) {
-    return res.status(400).json({ error: 'UserId required' });
-  }
-
-  try {
-    const { error } = await supabase
-      .from('bike_computer_integrations')
-      .delete()
-      .eq('user_id', userId)
-      .eq('provider', 'wahoo');
-
-    if (error) {
-      throw new Error('Failed to disconnect Wahoo');
-    }
-
-    console.log('✅ Wahoo integration disconnected');
-
-    return res.status(200).json({
-      success: true,
-      message: 'Wahoo connection disconnected'
-    });
-
-  } catch (error) {
-    console.error('Disconnect error:', error);
-    throw error;
-  }
-}
-
-async function syncWorkouts(req, res, userId) {
-  if (!userId) {
-    return res.status(400).json({ error: 'UserId required' });
-  }
-
-  try {
-    const accessToken = await getValidAccessToken(userId);
-
-    // Get integration record for this user
-    const { data: integration, error: intError } = await supabase
-      .from('bike_computer_integrations')
-      .select('id, user_id')
-      .eq('user_id', userId)
-      .eq('provider', 'wahoo')
-      .single();
-
-    if (intError || !integration) {
-      return res.status(400).json({ error: 'Wahoo not connected' });
-    }
-
-    // Fetch workouts from Wahoo (paginated)
-    let allWorkouts = [];
-    let page = 1;
-    const perPage = 30;
-    let hasMore = true;
-
-    while (hasMore && page <= 10) { // Cap at 10 pages (300 workouts) to avoid timeout
-      const response = await fetch(`${WAHOO_API_BASE}/workouts?page=${page}&per_page=${perPage}`, {
-        headers: { 'Authorization': `Bearer ${accessToken}` }
-      });
-
-      if (!response.ok) {
-        throw new Error(`Failed to fetch workouts from Wahoo (page ${page})`);
-      }
-
-      const data = await response.json();
-      const workouts = data.workouts || [];
-      allWorkouts = allWorkouts.concat(workouts);
-
-      hasMore = workouts.length === perPage;
-      page++;
-    }
-
-    console.log(`📥 Wahoo manual sync: fetched ${allWorkouts.length} workouts for user ${userId}`);
-
-    let imported = 0;
-    let skipped = 0;
-    let updated = 0;
-    let errors = 0;
-
-    for (const workoutItem of allWorkouts) {
-      try {
-        const workout = workoutItem.workout || workoutItem;
-        if (!workout.id) {
-          skipped++;
-          continue;
-        }
-
-        // Check if already imported
-        const { data: existing } = await supabase
-          .from('activities')
-          .select('id, distance, moving_time')
-          .eq('provider_activity_id', workout.id.toString())
-          .eq('user_id', userId)
-          .eq('provider', 'wahoo')
-          .maybeSingle();
-
-        // Map workout type
-        const activityType = mapWahooWorkoutType(workout.workout_type);
-        if (!activityType) {
-          skipped++;
-          continue;
-        }
-
-        // Extract summary from nested workout_summary (API response structure)
-        const summary = workout.workout_summary || {};
-
-        const activityData = {
-          user_id: userId,
-          provider: 'wahoo',
-          provider_activity_id: workout.id.toString(),
-          name: workout.name || `Wahoo ${['Run', 'VirtualRun', 'TrailRun'].includes(activityType) ? 'Run' : 'Ride'}`,
-          type: activityType,
-          sport_type: workout.workout_type,
-          start_date: workout.starts || workout.created_at || new Date().toISOString(),
-          distance: summary.distance_accum ?? null,
-          moving_time: summary.duration_active_accum ?? null,
-          elapsed_time: summary.duration_total_accum ?? null,
-          total_elevation_gain: summary.ascent_accum ?? null,
-          average_speed: summary.speed_avg ?? null,
-          max_speed: summary.speed_max ?? null,
-          average_watts: summary.power_avg ?? null,
-          average_heartrate: summary.heart_rate_avg ?? null,
-          max_heartrate: summary.heart_rate_max ?? null,
-          average_cadence: summary.cadence_avg ?? null,
-          kilojoules: summary.work_accum ? summary.work_accum / 1000 : null,
-          calories: summary.calories_accum ?? null,
-          trainer: workout.workout_type === 'indoor_cycling' || workout.workout_type === 'treadmill_running',
-          raw_data: workout,
-          imported_from: 'wahoo_manual_sync'
-        };
-
-        if (existing) {
-          // Update existing activity if it has missing metrics
-          const needsUpdate = !existing.distance && activityData.distance;
-          if (needsUpdate) {
-            const updates = {};
-            for (const [key, value] of Object.entries(activityData)) {
-              if (value != null && key !== 'user_id' && key !== 'provider' && key !== 'provider_activity_id') {
-                updates[key] = value;
-              }
-            }
-            updates.updated_at = new Date().toISOString();
-
-            await supabase.from('activities').update(updates).eq('id', existing.id);
-            updated++;
-          } else {
-            skipped++;
-          }
-        } else {
-          // Insert new activity
-          const { error: insertError } = await supabase
-            .from('activities')
-            .insert(activityData);
-
-          if (insertError) {
-            console.error('Error inserting synced workout:', insertError.message);
-            errors++;
-          } else {
-            imported++;
-          }
-        }
-      } catch (workoutError) {
-        console.error('Error processing workout during sync:', workoutError.message);
-        errors++;
-      }
-    }
-
-    // Update integration last sync
-    await supabase
-      .from('bike_computer_integrations')
-      .update({
-        last_sync_at: new Date().toISOString(),
-        sync_error: null
-      })
-      .eq('id', integration.id);
-
-    console.log(`✅ Wahoo manual sync complete: ${imported} imported, ${updated} updated, ${skipped} skipped, ${errors} errors`);
-
-    return res.status(200).json({
-      success: true,
-      synced: imported,
-      updated,
-      skipped,
-      errors,
-      total: allWorkouts.length,
-      message: `Synced ${imported} new, updated ${updated}, skipped ${skipped} workouts from Wahoo`
-    });
-
-  } catch (error) {
-    console.error('Sync workouts error:', error);
-    return res.status(500).json({ error: error.message });
-  }
-}
-
-// Map Wahoo workout type to activity type (shared with webhook handler)
-function mapWahooWorkoutType(wahooType) {
-  const typeMap = {
-    'cycling': 'Ride', 'indoor_cycling': 'VirtualRide',
-    'mountain_biking': 'MountainBikeRide', 'gravel_cycling': 'GravelRide',
-    'running': 'Run', 'treadmill_running': 'Run',
-    'indoor_running': 'Run', 'trail_running': 'TrailRun'
-  };
-  const lowerType = (wahooType || '').toLowerCase();
-  if (typeMap[lowerType]) return typeMap[lowerType];
-  if (lowerType.includes('bike') || lowerType.includes('cycling')) return 'Ride';
-  if (lowerType.includes('run')) return 'Run';
+/** Scopes we ask for. `offline_data` is what makes Wahoo send webhooks. */
+export const WAHOO_DEFAULT_SCOPES = ['email', 'user_read', 'workouts_read', 'offline_data', 'routes_read', 'routes_write'];
+
+// Manual sync budget. Sandbox apps get 25 requests / 5 min for the WHOLE app,
+// so a sync reads at most a few pages and leaves headroom for everyone else.
+const SYNC_PER_PAGE = 30;
+const SYNC_MAX_PAGES = 2;
+const SYNC_TIME_BUDGET_MS = 45 * 1000;
+const RATE_LIMIT_FLOOR = 3;
+
+const INTEGRATION_COLUMNS =
+  'id, user_id, provider_user_id, provider_user_data, access_token, refresh_token, token_expires_at, ' +
+  'refresh_token_invalid, scopes, status, error_message, last_sync_at, sync_enabled, updated_at';
+
+export function parseScopes(scope) {
+  if (Array.isArray(scope)) return scope.filter(Boolean);
+  if (typeof scope === 'string' && scope.trim()) return scope.trim().split(/[\s,]+/);
   return null;
 }
 
-/**
- * Push a route to Wahoo Cloud as a base64 FIT course.
- * https://cloud-api.wahooligan.com POST /v1/routes — the FIT file is encoded
- * client-side (fitCourseEncoder) and arrives as a data URI in
- * routeData.fitBase64 ("data:application/vnd.fit;base64,…").
- */
-async function pushRoute(req, res, userId, routeData) {
-  if (!userId || !routeData) {
-    return res.status(400).json({ error: 'UserId and routeData required' });
+/** True when this connection cannot receive rides and the user must reconnect. */
+export function needsReconnect(integration) {
+  if (!integration) return false;
+  if (integration.refresh_token_invalid) return true;
+  const scopes = parseScopes(integration.scopes);
+  return !scopes || !scopes.includes('offline_data');
+}
+
+function redirectUri() {
+  if (process.env.WAHOO_REDIRECT_URI) return process.env.WAHOO_REDIRECT_URI;
+  const baseUrl = process.env.PRODUCTION_URL
+    || (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : null)
+    || 'http://localhost:3000';
+  return `${baseUrl}/wahoo/callback`;
+}
+
+async function loadIntegration(userId) {
+  const { data, error } = await supabase
+    .from('bike_computer_integrations')
+    .select(INTEGRATION_COLUMNS)
+    .eq('user_id', userId)
+    .eq('provider', 'wahoo')
+    .maybeSingle();
+  if (error) throw new Error(`Failed to load Wahoo integration: ${error.message}`);
+  return data;
+}
+
+function reconnectResponse(res) {
+  return res.status(401).json({
+    error: 'Your Wahoo connection has expired. Reconnect Wahoo in Settings.',
+    requiresReconnect: true,
+  });
+}
+
+export default async function handler(req, res) {
+  if (setupCors(req, res)) return;
+  if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
+
+  const rateLimitResult = await rateLimitMiddleware(req, res, 'wahoo_auth', 30, 60);
+  if (rateLimitResult !== null) return;
+
+  const user = await requireAuth(req, res);
+  if (!user) return;
+
+  if (!process.env.WAHOO_CLIENT_ID || !process.env.WAHOO_CLIENT_SECRET) {
+    return res.status(200).json({ error: 'Wahoo integration not configured', configured: false });
   }
+
+  const { action, code, routeData, scope } = req.body || {};
+
+  try {
+    switch (action) {
+      case 'exchange_code':
+        return await exchangeCodeForToken(res, user.id, code, scope);
+      case 'get_connection_status':
+        return await getConnectionStatus(res, user.id);
+      case 'disconnect':
+        return await disconnect(res, user.id);
+      case 'sync_workouts':
+        return await syncWorkouts(res, user.id);
+      case 'push_route':
+        return await pushRoute(res, user.id, routeData);
+      default:
+        return res.status(400).json({ error: 'Invalid action' });
+    }
+  } catch (error) {
+    if (error instanceof WahooReauthRequired) return reconnectResponse(res);
+    console.error(`Wahoo ${action} error:`, error.message);
+    return res.status(500).json({
+      error: 'Wahoo request failed',
+      details: process.env.NODE_ENV === 'development' ? error.message : undefined,
+    });
+  }
+}
+
+async function exchangeCodeForToken(res, userId, code, requestedScope) {
+  if (!code) return res.status(400).json({ error: 'Authorization code required' });
+
+  const uri = redirectUri();
+  let tokenData;
+  try {
+    tokenData = await requestWahooToken({ code, grant_type: 'authorization_code', redirect_uri: uri });
+  } catch (err) {
+    console.error('❌ Wahoo token exchange failed:', { status: err.status, redirect_uri_used: uri, error: err.message });
+    if (err.status === 400 || err.status === 401) {
+      return res.status(400).json({
+        error: 'Wahoo authentication failed',
+        details: "The authorization code may have expired or the redirect URI doesn't match. Please try again.",
+      });
+    }
+    throw err;
+  }
+
+  // Wahoo's user record gives us the id webhooks are addressed to.
+  let wahooUser = {};
+  try {
+    const userResponse = await fetch(`${WAHOO_API_BASE}/user`, {
+      headers: { Authorization: `Bearer ${tokenData.access_token}` },
+    });
+    if (userResponse.ok) wahooUser = await userResponse.json();
+    else console.warn('⚠️ Wahoo /v1/user returned', userResponse.status);
+  } catch (err) {
+    console.warn('⚠️ Wahoo /v1/user failed:', err.message);
+  }
+  if (!wahooUser.id) {
+    // Without the Wahoo user id no webhook can ever be matched to this user.
+    return res.status(502).json({ error: 'Could not read your Wahoo account. Please try connecting again.' });
+  }
+
+  // Prefer what Wahoo says it granted; fall back to what the client requested.
+  const scopes = parseScopes(tokenData.scope) || parseScopes(requestedScope) || WAHOO_DEFAULT_SCOPES;
+
+  const now = new Date().toISOString();
+  const { error: dbError } = await supabase
+    .from('bike_computer_integrations')
+    .upsert({
+      user_id: userId,
+      provider: 'wahoo',
+      provider_user_id: String(wahooUser.id),
+      provider_user_data: {
+        email: wahooUser.email ?? null,
+        first: wahooUser.first ?? null,
+        last: wahooUser.last ?? null,
+        created_at: wahooUser.created_at ?? null,
+      },
+      ...tokenColumns(tokenData),
+      scopes,
+      status: 'active',
+      error_message: null,
+      sync_enabled: true,
+      refresh_lock_until: null,
+      updated_at: now,
+    }, { onConflict: 'user_id,provider' });
+
+  if (dbError) {
+    console.error('Database error storing Wahoo tokens:', dbError.message);
+    throw new Error('Failed to store authentication data');
+  }
+
+  // Strava auto-import is NOT switched off here any more — the first workout
+  // that actually imports does it (api/utils/wahoo/ingest.js), so a Wahoo
+  // connection that never delivers can never silence Strava.
+  await completeActivationStep(supabase, userId, 'connect_device').catch(() => {});
+
+  console.log(`✅ Wahoo connected for ${userId} (wahoo user ${wahooUser.id}, scopes: ${scopes.join(' ')})`);
+  return res.status(200).json({
+    success: true,
+    scopes,
+    webhooksEnabled: scopes.includes('offline_data'),
+    user: {
+      id: wahooUser.id,
+      email: wahooUser.email ?? null,
+      name: `${wahooUser.first || ''} ${wahooUser.last || ''}`.trim(),
+    },
+  });
+}
+
+async function getConnectionStatus(res, userId) {
+  const integration = await loadIntegration(userId);
+  if (!integration) return res.status(200).json({ connected: false });
+
+  const data = integration.provider_user_data || {};
+  const name = `${data.first || ''} ${data.last || ''}`.trim();
+  return res.status(200).json({
+    connected: true,
+    needsReconnect: needsReconnect(integration),
+    username: data.email || name || null,
+    userId: integration.provider_user_id,
+    syncEnabled: integration.sync_enabled,
+    lastSyncAt: integration.last_sync_at,
+    errorMessage: integration.error_message,
+    lastUpdated: integration.updated_at,
+  });
+}
+
+async function disconnect(res, userId) {
+  const integration = await loadIntegration(userId);
+  if (integration) {
+    // Best effort — revoke on Wahoo's side so webhooks stop, then forget locally.
+    const revoke = await deauthorizeWahoo(integration);
+    console.log('Wahoo deauthorization:', revoke);
+  }
+
+  const { error } = await supabase
+    .from('bike_computer_integrations')
+    .delete()
+    .eq('user_id', userId)
+    .eq('provider', 'wahoo');
+  if (error) throw new Error(`Failed to disconnect Wahoo: ${error.message}`);
+
+  return res.status(200).json({ success: true, message: 'Wahoo connection disconnected' });
+}
+
+async function syncWorkouts(res, userId) {
+  const integration = await loadIntegration(userId);
+  if (!integration) return res.status(400).json({ error: 'Wahoo not connected' });
+
+  const started = Date.now();
+  const counts = { inserted: 0, updated: 0, merged: 0, takeover: 0, unchanged: 0, skipped: 0, errors: 0 };
+  let fetched = 0;
+  let stoppedEarly = null;
+
+  for (let page = 1; page <= SYNC_MAX_PAGES; page++) {
+    const token = await getValidWahooToken(integration);
+    const response = await fetch(`${WAHOO_API_BASE}/workouts?page=${page}&per_page=${SYNC_PER_PAGE}`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+
+    if (response.status === 401 || response.status === 403) return reconnectResponse(res);
+    if (response.status === 429) {
+      stoppedEarly = 'Wahoo rate limit reached — try again in a few minutes';
+      break;
+    }
+    if (!response.ok) throw new Error(`Wahoo workouts list failed (page ${page}): ${response.status}`);
+
+    const body = await response.json();
+    const workouts = Array.isArray(body.workouts) ? body.workouts : [];
+    fetched += workouts.length;
+
+    for (const workout of workouts) {
+      if (Date.now() - started > SYNC_TIME_BUDGET_MS) {
+        stoppedEarly = 'Sync paused to stay within the time limit — run it again to continue';
+        break;
+      }
+      try {
+        const result = await ingestWahooWorkout(integration, { workout }, {
+          source: 'wahoo_manual_sync',
+          raw: workout,
+          skipExisting: true,
+        });
+        counts[result.status] = (counts[result.status] || 0) + 1;
+      } catch (err) {
+        console.error(`Wahoo sync: workout ${workout?.id} failed:`, err.message);
+        counts.errors++;
+      }
+    }
+    if (stoppedEarly) break;
+
+    const remaining = Number(response.headers.get('x-ratelimit-remaining'));
+    const total = Number(body.total);
+    const more = workouts.length === SYNC_PER_PAGE && (!Number.isFinite(total) || page * SYNC_PER_PAGE < total);
+    if (!more) break;
+    if (Number.isFinite(remaining) && remaining < RATE_LIMIT_FLOOR) {
+      stoppedEarly = 'Wahoo rate limit nearly reached — try again in a few minutes';
+      break;
+    }
+  }
+
+  // last_sync_at is set by the importer only when a workout actually lands —
+  // an empty sync must not look like a received ride (or pre-empt the
+  // first-import Strava switch-off in ingest.js).
+  const newCount = counts.inserted + counts.takeover;
+  const message = stoppedEarly
+    ? `Synced ${newCount} new workout${newCount === 1 ? '' : 's'}. ${stoppedEarly}.`
+    : `Synced ${newCount} new workout${newCount === 1 ? '' : 's'} from Wahoo`;
+
+  console.log(`✅ Wahoo manual sync for ${userId}:`, { fetched, ...counts, stoppedEarly });
+  return res.status(200).json({
+    success: true,
+    synced: newCount,
+    ...counts,
+    total: fetched,
+    partial: Boolean(stoppedEarly),
+    message,
+  });
+}
+
+/**
+ * Push a route to Wahoo Cloud as a base64 FIT course (POST /v1/routes). The
+ * FIT is encoded client-side (src/utils/fitCourseEncoder.ts) and arrives as a
+ * data URI in routeData.fitBase64 ("data:application/vnd.fit;base64,…").
+ */
+async function pushRoute(res, userId, routeData) {
+  if (!routeData) return res.status(400).json({ error: 'routeData required' });
   if (!routeData.fitBase64 || !String(routeData.fitBase64).startsWith('data:application/vnd.fit;base64,')) {
     return res.status(400).json({ error: 'routeData.fitBase64 (FIT data URI) required' });
   }
 
-  try {
-    const accessToken = await getValidAccessToken(userId);
+  const integration = await loadIntegration(userId);
+  if (!integration) return res.status(400).json({ error: 'Wahoo not connected' });
+  const token = await getValidWahooToken(integration);
 
-    const safeName = String(routeData.name || 'Tribos Route').slice(0, 120);
-    const filename = safeName.replace(/[^a-zA-Z0-9-_]+/g, '_').slice(0, 60) || 'route';
+  const safeName = String(routeData.name || 'Tribos Route').slice(0, 120);
+  const filename = safeName.replace(/[^a-zA-Z0-9-_]+/g, '_').slice(0, 60) || 'route';
+  const isRun = routeData.sport === 'running';
 
-    const wahooRoute = {
-      route: {
-        name: safeName,
-        description: routeData.description || '',
-        file: routeData.fitBase64,
-        filename: `${filename}.fit`,
-        external_id: String(routeData.external_id || `tribos-${userId}-${Date.now()}`),
-        provider_updated_at: new Date().toISOString(),
-        // Wahoo workout family 0 = Biking.
-        workout_type_family_id: 0,
-        start_lat: routeData.start_lat ?? null,
-        start_lng: routeData.start_lng ?? null,
-        distance: routeData.distance_m ?? 0,
-        ascent: routeData.ascent_m ?? 0,
-        descent: routeData.descent_m ?? 0
-      }
-    };
+  const wahooRoute = {
+    route: {
+      name: safeName,
+      description: routeData.description || '',
+      file: routeData.fitBase64,
+      filename: `${filename}.fit`,
+      external_id: String(routeData.external_id || `tribos-${userId}-${Date.now()}`),
+      provider_updated_at: new Date().toISOString(),
+      workout_type_family_id: isRun ? WAHOO_FAMILY_RUNNING : WAHOO_FAMILY_BIKING,
+      start_lat: routeData.start_lat ?? null,
+      start_lng: routeData.start_lng ?? null,
+      distance: routeData.distance_m ?? 0,
+      ascent: routeData.ascent_m ?? 0,
+      descent: routeData.descent_m ?? 0,
+    },
+  };
 
-    const response = await fetch(`${WAHOO_API_BASE}/routes`, {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${accessToken}`,
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify(wahooRoute)
-    });
+  const response = await fetch(`${WAHOO_API_BASE}/routes`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify(wahooRoute),
+  });
 
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error('Wahoo route push error:', response.status, errorText);
-      if (response.status === 401 || response.status === 403) {
-        return res.status(response.status).json({
-          error: 'Wahoo authorization failed',
-          requiresReconnect: true
-        });
-      }
-      return res.status(502).json({
-        error: `Wahoo rejected the route (${response.status})`,
-        details: errorText.slice(0, 300)
-      });
+  if (!response.ok) {
+    const errorText = await response.text();
+    console.error('Wahoo route push error:', response.status, errorText.slice(0, 300));
+    if (response.status === 401 || response.status === 403) {
+      // 403 also means the token lacks routes_write (connected before we asked for it).
+      return reconnectResponse(res);
     }
-
-    const result = await response.json();
-
-    return res.status(200).json({
-      success: true,
-      routeId: result.route?.id ?? result.id ?? null,
-      message: 'Route sent to Wahoo. Sync your ELEMNT to download it.'
+    return res.status(502).json({
+      error: `Wahoo rejected the route (${response.status})`,
+      details: errorText.slice(0, 300),
     });
-
-  } catch (error) {
-    console.error('Push route error:', error);
-    return res.status(500).json({ error: error.message });
   }
+
+  const result = await response.json();
+  return res.status(200).json({
+    success: true,
+    routeId: result.route?.id ?? result.id ?? null,
+    message: isRun
+      ? 'Route sent to Wahoo. It will appear in your Wahoo routes.'
+      : 'Route sent to Wahoo. Sync your ELEMNT to download it.',
+  });
 }

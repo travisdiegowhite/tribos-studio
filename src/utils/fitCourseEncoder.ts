@@ -126,7 +126,7 @@ export function encodeFitCourse(route: RouteData): Uint8Array {
   encoder.writeMesg({
     mesgNum: MESG_NUM_COURSE,
     name: (route.name || 'Course').substring(0, 15),
-    sport: 'cycling',
+    sport: route.sport === 'running' ? 'running' : 'cycling',
   });
 
   // 3. event — timer start

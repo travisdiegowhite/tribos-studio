@@ -21,8 +21,6 @@ const ALLOWED = new Map([
   ['api/strava-webhook.js', 'Strava import allowlist'],
   ['api/strava-activities.js', 'Strava import allowlist + Strava-only counts and speed profile'],
   ['api/internal/backfill-strava-gap.js', 'Strava import allowlist'],
-  ['api/wahoo-auth.js', 'default name for an imported Wahoo workout'],
-  ['api/wahoo-webhook.js', 'default name for an imported Wahoo workout'],
   // Filters that run in SQL against `type`, mirroring another system.
   ['api/garmin-activities.js', 'PostgREST .in(type) filter for the power backfill'],
   ['api/utils/garmin/completeness.js', 'JS mirror of the garmin_completeness_audit SQL view (migration 093)'],

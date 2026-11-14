@@ -662,6 +662,25 @@ the code that meets it. The rules that now bind every change:
   `ConsentGate`. Bump `src/utils/legalVersions.js` when the Terms or Privacy
   Policy change materially, so everyone is asked again.
 
+### Wahoo — rebuilt 2026-11, see `docs/wahoo-integration.md`
+
+The first Wahoo integration never imported a workout (wrong payload shape, a
+string type field that doesn't exist, no `offline_data` scope, and writes to
+columns that don't exist). It was rebuilt on the documented API.
+
+- **One import path**, `api/utils/wahoo/ingest.js`, shared by the webhook and
+  manual sync. It is idempotent on `provider_activity_id`.
+- **The webhook returns 5xx on a transient failure on purpose.** Wahoo's
+  redelivery (30 min, 4 h, 24 h, 72 h) is the retry queue, so there is no
+  processor cron. `wahoo_webhook_events` (migration 140, apply by hand) is an
+  audit log, not a queue.
+- **Refresh tokens only via `getValidWahooToken`**, right before a request,
+  never from a cron. Wahoo caps each user at 10 unrevoked tokens.
+- **Strava auto-import is switched off at the first successful Wahoo import,
+  not at connect.**
+- `activities` has no `calories` column and integrations have no `sync_error`.
+  Don't reintroduce them.
+
 ## Auth Flow — Critical Path (DO NOT BREAK)
 
 The signup and login flow is the most critical path in the app. Any breakage blocks all new users. Follow these rules strictly:

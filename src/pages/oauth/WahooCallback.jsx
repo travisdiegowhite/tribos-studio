@@ -4,7 +4,7 @@ import { Box, Text, Stack, Alert } from '@mantine/core';
 import { useAuth } from '../../contexts/AuthContext.jsx';
 import { hasOnboardingDraft } from '../../utils/onboardingState';
 import { tokens } from '../../theme';
-import { wahooService } from '../../utils/wahooService';
+import { wahooService, consumeWahooOAuthState } from '../../utils/wahooService';
 
 function WahooCallback() {
   const navigate = useNavigate();
@@ -60,6 +60,16 @@ function WahooCallback() {
       // We have a user - now mark as processed to prevent re-runs
       hasProcessed.current = true;
 
+      // CSRF: the state must match the nonce stored before the redirect
+      // (wahooService.getAuthorizationUrl). Checked once, here, so the
+      // auth-wait retries above don't consume it.
+      if (!consumeWahooOAuthState(searchParams.get('state'))) {
+        setError('This Wahoo connection link has expired. Please start the connection again from Settings.');
+        setStatus('error');
+        setTimeout(() => navigate('/settings'), 4000);
+        return;
+      }
+
       try {
         console.log('🔄 Processing Wahoo callback...');
         setStatus('exchanging');
@@ -74,7 +84,7 @@ function WahooCallback() {
         navigate(hasOnboardingDraft(user.id) ? '/today' : '/settings?connected=wahoo');
       } catch (err) {
         console.error('Wahoo callback error:', err);
-        setError('Failed to connect Wahoo. Please try again.');
+        setError(err?.message ? `Failed to connect Wahoo: ${err.message}` : 'Failed to connect Wahoo. Please try again.');
         setStatus('error');
         setTimeout(() => navigate('/settings'), 3000);
       }
