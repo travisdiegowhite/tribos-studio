@@ -240,6 +240,8 @@ function AppRoutes() {
       <Route path="/oauth/strava/callback" element={<StravaCallback />} />
       <Route path="/oauth/garmin/callback" element={<GarminCallback />} />
       <Route path="/oauth/google/callback" element={<GoogleCalendarCallback />} />
+      <Route path="/oauth/wahoo/callback" element={<WahooCallback />} />
+      {/* Legacy alias: the Wahoo redirect lived here before 2026-11. */}
       <Route path="/wahoo/callback" element={<WahooCallback />} />
       <Route path="/oauth/coros/callback" element={<CorosCallback />} />
 

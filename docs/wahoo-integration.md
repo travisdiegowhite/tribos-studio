@@ -21,6 +21,7 @@ fixes the causes:
 | 6 | Read `workout.file.url` | `workout_summary.file.url` | Fixed |
 | 7 | Threw away FIT power metrics | — | NP/EP, TSS/RSS, IF/RI dual-written |
 | 8 | Trusted body `userId`; no OAuth `state`; `?token=` only | Wahoo sends `webhook_token` in the body | `requireAuth`, state nonce, body token |
+| 9 | Portal had the OAuth callback and the webhook URI swapped | Webhook POSTs to an SPA path get 200 from the `index.html` rewrite, so they are silently dropped | Portal fix (see the setup checklist); `/oauth/wahoo/callback` is now canonical |
 
 ## How it works
 
@@ -79,25 +80,72 @@ Route builder "Send to Wahoo" ─▶ /api/wahoo-auth push_route ─▶ POST /v1/
 
 ## Setup checklist (Wahoo developer portal + Vercel)
 
-1. Check whether the app is in **sandbox or production**. Production needs
-   Wahoo's review; apply early.
-2. The app's scopes must include `email user_read workouts_read offline_data
-   routes_read routes_write`. If the app has more scopes (for example
-   `plans_read plans_write`), set `VITE_WAHOO_SCOPES` to the full
-   space-separated list. Asking for a scope the app lacks makes authorization
-   fail.
-3. The redirect URI must equal both `WAHOO_REDIRECT_URI` and
-   `VITE_WAHOO_REDIRECT_URI` (`https://www.tribos.studio/wahoo/callback`).
-4. Webhook settings:
-   - Set the URL to `https://www.tribos.studio/api/wahoo-webhook`.
-   - Enable webhooks.
-   - Copy the portal's **webhook token** into Vercel as `WAHOO_WEBHOOK_TOKEN`.
-5. Vercel environment variables: `WAHOO_CLIENT_ID`, `WAHOO_CLIENT_SECRET`,
-   `WAHOO_REDIRECT_URI`, `WAHOO_WEBHOOK_TOKEN`, `VITE_WAHOO_CLIENT_ID` and
-   `VITE_WAHOO_REDIRECT_URI`.
-6. Apply migration 140 by hand, then run `npm run audit:schema`.
-7. The deauthorize flags ("Delete Upcoming Workouts", "Delete Owned Plans") act
-   when a user disconnects. Leave them off unless we start pushing plans.
+### The two URLs, and the silent failure if they are swapped
+
+| Portal field | Value |
+|---|---|
+| **Callback URLs** (OAuth redirect) | `https://www.tribos.studio/oauth/wahoo/callback` |
+| **Webhook URI** | `https://www.tribos.studio/api/wahoo-webhook` |
+
+As of 2026-11-14 these were swapped in the sandbox app. That breaks both directions:
+- **Connecting.** Wahoo sends the browser to the API endpoint, which shows a
+  JSON health check, so the connection never completes.
+- **Webhooks.** Wahoo POSTs rides to an SPA path. The `vercel.json` rewrite
+  answers every non-`/api` path with `index.html` and **200**, so Wahoo
+  counts each ride as delivered, never retries, and nothing imports. Nothing
+  errors anywhere.
+
+`/wahoo/callback` still renders the callback page as a legacy alias, but
+`/oauth/wahoo/callback` is the canonical path. It matches the other
+providers.
+
+### Sandbox and production are separate apps
+
+A Wahoo sandbox app cannot be converted to production. Production is a
+**separate application** with its own client ID, secret and webhook token, and
+it goes through Wahoo's review.
+
+| | Sandbox | Production |
+|---|---|---|
+| Rate limit (whole app) | 25 per 5 min · 100 per hour · 250 per day | 200 per 5 min · 1,000 per hour · 5,000 per day |
+| Use for | testing, Vercel Preview | Vercel Production |
+
+Tokens belong to one app. When Production switches from the sandbox
+credentials to the production ones, each rider connected through sandbox must
+reconnect. That happens without extra code: the first refresh with the new
+client credentials fails, `refresh_token_invalid` is set, and Settings shows
+**Reconnect**.
+
+### Checklist (do it once per app)
+
+1. **Scopes.** We request
+   `email user_read workouts_read offline_data routes_read routes_write`, so
+   the app must have at least these. Extra scopes enabled on the app are
+   harmless while we don't request them. If we start requesting more (for
+   example `plans_write` for plan push), set `VITE_WAHOO_SCOPES`.
+2. **Confidential = true.** The token exchange sends the client secret
+   server-side.
+3. **Set the two URLs** exactly as in the table above.
+4. **Turn webhooks on**, then copy the portal's **webhook token** into Vercel as
+   `WAHOO_WEBHOOK_TOKEN`. Never paste it anywhere else.
+5. **Deauthorization flags.** "Delete upcoming workouts" and "Delete owned
+   plans" are fine on. We create neither today, and they are the right
+   behaviour once plan push exists.
+6. **Vercel environment variables** for the matching environment:
+   - `WAHOO_CLIENT_ID`, `WAHOO_CLIENT_SECRET`, `VITE_WAHOO_CLIENT_ID`
+   - `WAHOO_WEBHOOK_TOKEN`
+   - `WAHOO_REDIRECT_URI` and `VITE_WAHOO_REDIRECT_URI`, both exactly
+     `https://www.tribos.studio/oauth/wahoo/callback`. Set them explicitly:
+     the server fallback is built from `VERCEL_URL`, which is the deployment
+     URL, not `www`.
+
+   Redeploy after changing any `VITE_*` value; they are compiled into the
+   build.
+7. **Apply migration 140** by hand, then run `npm run audit:schema`.
+8. **Check after deploying:**
+   `curl https://www.tribos.studio/api/wahoo-webhook` must return
+   `{"status":"ok","service":"wahoo-webhook-handler",…}`. If it returns HTML,
+   the request never reached the function.
 
 ## Testing without a device
 

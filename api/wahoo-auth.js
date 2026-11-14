@@ -56,7 +56,7 @@ function redirectUri() {
   const baseUrl = process.env.PRODUCTION_URL
     || (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : null)
     || 'http://localhost:3000';
-  return `${baseUrl}/wahoo/callback`;
+  return `${baseUrl}/oauth/wahoo/callback`;
 }
 
 async function loadIntegration(userId) {

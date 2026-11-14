@@ -230,7 +230,7 @@ The codebase is **gradually migrating from JavaScript to TypeScript**. New code 
 | `/oauth/strava/callback` | Strava OAuth | Public |
 | `/oauth/garmin/callback` | Garmin OAuth | Public |
 | `/oauth/google/callback` | Google Calendar OAuth | Public |
-| `/wahoo/callback` | Wahoo OAuth | Public |
+| `/oauth/wahoo/callback` | Wahoo OAuth (`/wahoo/callback` kept as an alias) | Public |
 
 ## Testing
 
