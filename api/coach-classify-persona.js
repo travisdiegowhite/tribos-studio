@@ -87,13 +87,16 @@ export default async function handler(req, res) {
       .replace('{answer_4}', answers.q4)
       .replace('{answer_5}', answers.q5);
 
-    const response = await claude.messages.create({
-      model: 'claude-sonnet-4-20250514',
-      max_tokens: 256,
+    const response = await claude.beta.messages.create({
+      model: 'claude-sonnet-5-5',
+      max_tokens: 1024,
+      betas: ['server-side-fallback-2026-07-01'],
+      fallbacks: 'default',
+      output_config: { effort: 'low' },
       messages: [{ role: 'user', content: prompt }],
     });
 
-    const text = response.content[0]?.text || '';
+    const text = response.content.filter((b) => b.type === 'text').map((b) => b.text).join('');
     let classification;
 
     try {

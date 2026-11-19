@@ -143,13 +143,16 @@ export default async function handler(req, res) {
           .replace('{hours}', weekly_hours_available ? `${weekly_hours_available} hrs/week` : 'not provided')
           .replace('{coach_role}', coach_role_answer);
 
-        const response = await claude.messages.create({
-          model: 'claude-sonnet-4-20250514',
-          max_tokens: 256,
+        const response = await claude.beta.messages.create({
+          model: 'claude-sonnet-5-5',
+          max_tokens: 1024,
+          betas: ['server-side-fallback-2026-07-01'],
+          fallbacks: 'default',
+          output_config: { effort: 'low' },
           messages: [{ role: 'user', content: prompt }],
         });
 
-        const text = response.content[0]?.text || '';
+        const text = response.content.filter((b) => b.type === 'text').map((b) => b.text).join('');
         const classification = JSON.parse(text);
 
         if (VALID_PERSONAS.includes(classification.persona)) {
@@ -178,9 +181,12 @@ export default async function handler(req, res) {
           ftp && `FTP: ${ftp}W`,
         ].filter(Boolean).join('\n');
 
-        const msgResponse = await claude.messages.create({
-          model: 'claude-sonnet-4-20250514',
-          max_tokens: 200,
+        const msgResponse = await claude.beta.messages.create({
+          model: 'claude-sonnet-5-5',
+          max_tokens: 1024,
+          betas: ['server-side-fallback-2026-07-01'],
+          fallbacks: 'default',
+          output_config: { effort: 'low' },
           system: `You are ${PERSONA_NAMES[persona]}, a cycling coach. Voice: ${voice}`,
           messages: [{
             role: 'user',
@@ -196,7 +202,7 @@ Maximum 3 sentences.`,
           }],
         });
 
-        const msgText = msgResponse.content[0]?.text?.trim();
+        const msgText = msgResponse.content.filter((b) => b.type === 'text').map((b) => b.text).join('').trim();
         if (msgText) openingMessage = msgText;
       } catch (msgErr) {
         console.error('Opening message generation failed:', msgErr.message);

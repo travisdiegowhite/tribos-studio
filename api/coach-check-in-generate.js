@@ -190,10 +190,12 @@ async function generateCheckIn(checkIn) {
 
     // Call Claude
     const claude = new Anthropic({ apiKey });
-    const response = await claude.messages.create({
-      model: 'claude-sonnet-4-20250514',
-      max_tokens: 1024,
-      temperature: 0.4,
+    const response = await claude.beta.messages.create({
+      model: 'claude-sonnet-5-5',
+      max_tokens: 2048,
+      betas: ['server-side-fallback-2026-07-01'],
+      fallbacks: 'default',
+      output_config: { effort: 'low' },
       system: systemPrompt,
       messages: [
         {
@@ -205,7 +207,7 @@ async function generateCheckIn(checkIn) {
       ],
     });
 
-    const text = response.content[0]?.text || '';
+    const text = response.content.filter((b) => b.type === 'text').map((b) => b.text).join('');
 
     // Parse JSON from response (handle potential markdown wrapping)
     let parsed;

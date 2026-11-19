@@ -28,9 +28,9 @@ import { buildCoachVoiceRules } from './utils/coachVoiceRules.js';
 
 const supabase = getSupabaseAdmin();
 
-const CLAUDE_MODEL = 'claude-sonnet-4-20250514';
-const MAX_TOKENS = 900;
-const TEMPERATURE = 0.5;
+const CLAUDE_MODEL = 'claude-sonnet-5-5';
+// Thinking counts toward max_tokens on Sonnet 5.5, so leave headroom over the ~900-token reply.
+const MAX_TOKENS = 2048;
 
 // ─── Prompt Builders ────────────────────────────────────────────────────────
 
@@ -327,10 +327,12 @@ export default async function handler(req, res) {
     });
 
     const claude = new Anthropic({ apiKey });
-    const response = await claude.messages.create({
+    const response = await claude.beta.messages.create({
       model: CLAUDE_MODEL,
       max_tokens: MAX_TOKENS,
-      temperature: TEMPERATURE,
+      betas: ['server-side-fallback-2026-07-01'],
+      fallbacks: 'default',
+      output_config: { effort: 'low' },
       system: systemPrompt,
       messages: [{ role: 'user', content: userPrompt }],
     });
