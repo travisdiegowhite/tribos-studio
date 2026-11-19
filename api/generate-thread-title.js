@@ -89,9 +89,12 @@ export default async function handler(req, res) {
       apiKey: process.env.ANTHROPIC_API_KEY,
     });
 
-    const response = await anthropic.messages.create({
-      model: 'claude-sonnet-4-20250514',
-      max_tokens: 150,
+    const response = await anthropic.beta.messages.create({
+      model: 'claude-sonnet-5-5',
+      max_tokens: 1024,
+      betas: ['server-side-fallback-2026-07-01'],
+      fallbacks: 'default',
+      output_config: { effort: 'low' },
       system: TITLE_GENERATION_PROMPT,
       messages: [
         {

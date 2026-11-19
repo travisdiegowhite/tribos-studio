@@ -209,13 +209,17 @@ Example: "Pack 4-5 gels or equivalent energy. Two bottles minimum with electroly
 Your summary:`;
 
   try {
-    const response = await anthropic.messages.create({
-      model: 'claude-sonnet-4-20250514',
-      max_tokens: 200,
+    const response = await anthropic.beta.messages.create({
+      model: 'claude-sonnet-5-5',
+      max_tokens: 1024,
+      betas: ['server-side-fallback-2026-07-01'],
+      fallbacks: 'default',
+      output_config: { effort: 'low' },
       messages: [{ role: 'user', content: prompt }],
     });
 
-    return response.content[0]?.text || null;
+    const text = response.content.filter((b) => b.type === 'text').map((b) => b.text).join('').trim();
+    return text || null;
   } catch (error) {
     console.error('[fuel-plan] AI summary error:', error);
     return null;

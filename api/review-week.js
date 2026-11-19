@@ -401,9 +401,12 @@ export default async function handler(req, res) {
     });
 
     // Call Claude API — shared voice rules ride as the system prompt.
-    const message = await anthropic.messages.create({
-      model: 'claude-sonnet-4-20250514',
-      max_tokens: 2048, // Increased for more detailed analysis
+    const message = await anthropic.beta.messages.create({
+      model: 'claude-sonnet-5-5',
+      max_tokens: 4096, // Headroom: thinking counts toward max_tokens on Sonnet 5.5
+      betas: ['server-side-fallback-2026-07-01'],
+      fallbacks: 'default',
+      output_config: { effort: 'low' },
       system: buildCoachVoiceRules({ correctionNotice: false }),
       messages: [
         {
