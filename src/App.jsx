@@ -36,6 +36,7 @@ const PlannerPage = lazy(() => import('./pages/PlannerPage.tsx'));
 const Settings = lazy(() => import('./pages/Settings.jsx'));
 const CommunityPage = lazy(() => import('./pages/CommunityPage.jsx'));
 const GaragePage = lazy(() => import('./pages/GaragePage.tsx'));
+const CoachChatPage = lazy(() => import('./features/coach-chat/CoachChatPage.tsx'));
 const BikeDetailPage = lazy(() => import('./pages/BikeDetailPage.tsx'));
 // Shop inventory (parts + shop tools) — self-contained feature, owner-only; see docs/shop-inventory.md
 const ShopApp = lazy(() => import('./features/shop/ShopApp.tsx'));
@@ -382,6 +383,16 @@ function AppRoutes() {
 
       {/* PROGRESS — now the Progress tab on /train (training cleanup, 2026-10) */}
       <Route path="/progress" element={<Navigate to="/train?tab=progress" replace />} />
+
+      {/* COACH — the full conversation, with charts and maps the coach can show */}
+      <Route
+        path="/coach"
+        element={
+          <ProtectedRoute>
+            <CoachChatPage />
+          </ProtectedRoute>
+        }
+      />
 
       {/* GARAGE — bikes, parts, wear and the rides that did it */}
       <Route

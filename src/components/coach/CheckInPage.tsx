@@ -7,7 +7,8 @@
  */
 
 import { useEffect, useState } from 'react';
-import { Stack, Text, Center, Loader, Paper, Group, Button } from '@mantine/core';
+import { Stack, Text, Center, Loader, Paper, Group, Button, Anchor } from '@mantine/core';
+import { Link } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext.jsx';
 import { useCoachCheckIn } from '../../hooks/useCoachCheckIn';
 import { useDeviations } from '../../hooks/useDeviations';
@@ -269,6 +270,11 @@ export default function CheckInPage({ plannedWorkouts = [], activities = [], ftp
         checkInId={currentCheckIn.id}
         trainingContext={trainingContext}
       />
+      <Group justify="flex-end">
+        <Anchor component={Link} to="/coach" size="sm">
+          Longer conversation, charts and maps → Coach
+        </Anchor>
+      </Group>
     </Stack>
   );
 }

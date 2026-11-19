@@ -652,15 +652,16 @@ function CoachCommandBar({ trainingContext, onAddWorkout }) {
                 </Group>
               </Group>
 
+              {/* The exchange is already saved, so /coach shows it; an
+                  unsent question rides along as ?q= to prefill there. */}
               <UnstyledButton
-                onClick={() => {
-                  close();
-                  // Could navigate to full history page
-                }}
+                component={Link}
+                to={!response && query.trim() ? `/coach?q=${encodeURIComponent(query.trim())}` : '/coach'}
+                onClick={close}
               >
                 <Group gap={4}>
                   <Text size="xs" c="dimmed">
-                    View full history
+                    Open in Coach
                   </Text>
                   <ArrowRight size={12} style={{ color: 'var(--color-text-muted)' }} />
                 </Group>

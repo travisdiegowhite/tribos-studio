@@ -187,8 +187,19 @@ const StreamsTooltip = ({ active, payload, label, activeMetrics, metricConfig, x
  * Power/HR are smoothed with a rolling average and all series are
  * downsampled with peak-preserving LTTB. Elevation always renders as a
  * muted background area. Drag horizontally to zoom; double-click to reset.
+ *
+ * Optional, for the coach chat:
+ *   highlightRange_km — [start, end] km band drawn over the chart (lime).
+ *   onSelectRange     — when given (and the x axis is distance), a drag
+ *                       SELECTS a km range and calls onSelectRange(start_km,
+ *                       end_km) instead of zooming.
  */
-const RideStreamsChart = ({ activity, isImperial = false }) => {
+const RideStreamsChart = ({
+  activity,
+  isImperial = false,
+  highlightRange_km = /** @type {[number, number] | null} */ (null),
+  onSelectRange = /** @type {((start_km: number, end_km: number) => void) | null} */ (null),
+}) => {
   const streams = activity?.activity_streams;
   const isRun = isRunningActivity(activity);
   const metricConfig = useMemo(
@@ -256,6 +267,11 @@ const RideStreamsChart = ({ activity, isImperial = false }) => {
   );
 
   const fullSpan = baseRows.length > 0 ? baseRows[baseRows.length - 1].x - baseRows[0].x : 0;
+  const selecting = typeof onSelectRange === 'function' && xMode === 'distance_km';
+  const highlight =
+    xMode === 'distance_km' && Array.isArray(highlightRange_km) && highlightRange_km[1] > highlightRange_km[0]
+      ? highlightRange_km
+      : null;
 
   if (availableMetrics.length === 0 && !hasElevation) return null;
 
@@ -280,7 +296,10 @@ const RideStreamsChart = ({ activity, isImperial = false }) => {
     const x1 = Math.min(drag.start, drag.end);
     const x2 = Math.max(drag.start, drag.end);
     // Ignore clicks and accidental micro-drags (< 1% of the full ride)
-    if (fullSpan > 0 && x2 - x1 > fullSpan * 0.01) setZoom({ x1, x2 });
+    if (fullSpan > 0 && x2 - x1 > fullSpan * 0.01) {
+      if (selecting) onSelectRange(x1, x2);
+      else setZoom({ x1, x2 });
+    }
     setDrag(null);
   };
 
@@ -450,6 +469,18 @@ const RideStreamsChart = ({ activity, isImperial = false }) => {
               );
             })}
 
+            {highlight && (
+              <ReferenceArea
+                yAxisId={dragRefAxisId}
+                x1={highlight[0]}
+                x2={highlight[1]}
+                fill="var(--color-highlight)"
+                fillOpacity={0.28}
+                stroke="var(--color-highlight-border)"
+                ifOverflow="hidden"
+              />
+            )}
+
             {drag && Math.abs(drag.end - drag.start) > 0 && (
               <ReferenceArea
                 yAxisId={dragRefAxisId}
@@ -466,7 +497,7 @@ const RideStreamsChart = ({ activity, isImperial = false }) => {
       </Box>
 
       <Text size="xs" c="dimmed" ta="right">
-        drag to zoom · double-click to reset
+        {selecting ? 'drag to select a stretch to ask about' : 'drag to zoom · double-click to reset'}
       </Text>
     </Stack>
   );

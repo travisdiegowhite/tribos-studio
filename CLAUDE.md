@@ -223,6 +223,7 @@ The codebase is **gradually migrating from JavaScript to TypeScript**. New code 
 | `/routes/:routeId` | Edit existing route | Protected |
 | `/train` | Training: Calendar · Season · Coach · Progress · Rides · Find an event (`?tab=`; old tab names redirect via `src/components/train/trainTabs.ts`) | Protected |
 | `/planner`, `/training`, `/progress` | Redirects into `/train` (`/progress` → `?tab=progress`) | Protected |
+| `/coach` | Coach: full conversation; the coach can show charts and maps (`src/features/coach-chat/`, `docs/coach-page.md`) | Protected |
 | `/community` | Community (pods, cafe) | Protected |
 | `/gear` | Gear tracking | Protected |
 | `/settings` | User settings | Protected |

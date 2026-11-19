@@ -33,6 +33,8 @@ import { fetchRiderStateData, toRiderState } from './utils/toRiderState.js';
 import { evaluateRules, selectInjectedRules, droppedRuleIds } from './utils/rulesEngine.js';
 import { isPlanCurrent, planLifecycle } from './utils/planLifecycle.js';
 import { saveCoachMemory } from './utils/coachMemoryWrite.js';
+import { SHOW_VISUAL_TOOL, handleShowVisual, buildVisualReferenceBlock } from './utils/showVisualTool.js';
+import { buildFocusContext } from './utils/coachFocus.js';
 
 // Initialize Supabase for auth validation
 const supabase = getSupabaseAdmin();
@@ -673,6 +675,12 @@ export default async function handler(req, res) {
       checkInId = null,
       planId = null,
       raceGoalId = null,
+      // The /coach page renders charts and maps; only it sets this, so other
+      // surfaces never get a reply that points at a chart they can't show.
+      canShowVisuals = false,
+      // The part of a chart the athlete selected (/coach page). Re-validated
+      // against their own rows in buildFocusContext; never trusted as sent.
+      focus = null,
     } = req.body;
 
     if (!message || typeof message !== 'string') {
@@ -1034,6 +1042,9 @@ export default async function handler(req, res) {
       ...ALL_COACH_TOOLS.filter((t) => !LEGACY_CALENDAR_WRITERS.has(t.name)),
       CALENDAR_CHANGE_TOOL,
     ];
+    // Read-only, and only where the client can draw it (the /coach page). The
+    // calendar menu above stays unconditional; this only ever adds.
+    if (canShowVisuals === true) coachTools.push(SHOW_VISUAL_TOOL);
 
     // Determine persona
     const personaId = coachSettings?.coaching_persona && coachSettings.coaching_persona !== 'pending'
@@ -1430,7 +1441,7 @@ Default: 2–4 sentences. Use bullet lists only when the athlete explicitly asks
 The athlete's upcoming planned sessions are already loaded in the SESSIONS block of the TEMPORAL ANCHOR above. You have their full schedule for the next 14 days: every day appears in CALENDAR_ANCHOR, and days marked "(nothing planned)" are free. Do not ask the athlete what their schedule is — look it up there. When advising around a key day (a race or big ride), reason about EVERY day between now and it, including the free ones — e.g. moving intervals to tomorrow matters differently if the day before the race is free vs loaded. "(nothing planned)" means no scheduled-and-not-yet-completed session on that day; a day can carry the marker because its session was already done — completion status for this week is in the SERVER TRAINING SNAPSHOT.
 
 === TOOL RESULTS ===
-When you use a server-side tool (calendar_change, query_fitness_history, query_training_data, save_coach_memory), the result is returned to you internally. Do not narrate the JSON output or describe what the tool returned. Confirm the outcome in one plain sentence (e.g., "Moved Tuesday's Sweet Spot to Wednesday.") and move on. Never say "Looks like X is marked complete" or "It appears the tool shows Y" — just state the outcome directly.
+When you use a server-side tool (calendar_change, query_fitness_history, query_training_data, save_coach_memory, show_visual), the result is returned to you internally. Do not narrate the JSON output or describe what the tool returned. Confirm the outcome in one plain sentence (e.g., "Moved Tuesday's Sweet Spot to Wednesday.") and move on. Never say "Looks like X is marked complete" or "It appears the tool shows Y" — just state the outcome directly.
 CRITICAL: if a tool result reports success:false or workouts_affected:0, the change did NOT happen — NEVER claim it did. Tell the athlete plainly what failed using the result's error message (e.g., "I couldn't find a planned workout on Saturday to change") and offer the next step.
 
 === CRITICAL: TODAY'S WORKOUT CONSISTENCY ===
@@ -1485,12 +1496,28 @@ ${conversationSummary}
 (The full recent messages follow below. Use this summary for continuity with earlier discussion topics.)`;
     }
 
+    // Coach page only: ids the coach can point show_visual at, and the stretch
+    // of a chart the athlete selected. Both fail soft — a reply without a
+    // chart is better than no reply.
+    let focusContext = null;
+    if (canShowVisuals === true && verifiedUserId) {
+      const [visualRefs, focusText] = await Promise.all([
+        buildVisualReferenceBlock(supabase, verifiedUserId).catch((err) => {
+          console.error('visual reference block failed (non-blocking):', err?.message || err);
+          return '';
+        }),
+        buildFocusContext(supabase, verifiedUserId, focus),
+      ]);
+      systemPrompt += visualRefs;
+      focusContext = focusText;
+    }
+
     // Build conversation messages - prepend a brief date reminder using the anchor's NOW line
     const todayDateStr = new Date().toLocaleDateString('en-US', {
       weekday: 'long', year: 'numeric', month: 'long', day: 'numeric',
       timeZone: resolvedTimezone,
     });
-    const userMessageWithDate = `[Today is ${todayDateStr}]\n\n${message}`;
+    const userMessageWithDate = `[Today is ${todayDateStr}]\n\n${focusContext ? `[${focusContext}]\n\n` : ''}${message}`;
 
     // Date prior-day history messages so the model can't mistake an earlier
     // day's "today's ride" for the current day. Same-day messages stay
@@ -1633,7 +1660,12 @@ ${conversationSummary}
       // APPLIED or is awaiting approval — it must not guess, because its reply
       // to the athlete has to say which.
       'calendar_change',
+      // Validated server-side so the model reads back what the athlete will
+      // actually see (or why the visual was refused) before it writes prose.
+      'show_visual',
     ]);
+    // Visual specs accepted this turn, returned to the /coach page.
+    const visualState = { visuals: [], todayStr: formatDateInTimezone(new Date(), resolvedTimezone) };
 
     // Client-side tool calls (recommend_workout, create_training_plan,
     // generate_fuel_plan) are processed AFTER this loop, so collect them from
@@ -1688,6 +1720,9 @@ ${conversationSummary}
         }
         console.log(`🗓️  calendar_change result:`, JSON.stringify(result));
         calendarChangeResults.push(result);
+      } else if (tool.name === 'show_visual') {
+        result = await handleShowVisual(supabase, verifiedUserId, tool.input, visualState);
+        console.log(`📊 show_visual ${tool.input?.kind}: ${result.shown ? 'shown' : `refused (${result.error})`}`);
       }
       return result;
     };
@@ -1952,6 +1987,7 @@ ${conversationSummary}
         ? scheduleAdjustResults.flatMap(r => r?.adjustments || [])
         : null,
       suggestedActions: suggestedActions,
+      visuals: visualState.visuals.length > 0 ? visualState.visuals : null,
       usage: response.usage
     });
 

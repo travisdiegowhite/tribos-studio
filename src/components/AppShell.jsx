@@ -32,7 +32,9 @@ import { useActivation } from '../hooks/useActivation.ts';
 import { formatDistance } from '../utils/units';
 import { ListChecks } from '@phosphor-icons/react';
 
-// Primary navigation: TODAY · RIDE · TRAIN · PROGRESS · GARAGE.
+// Primary navigation: TODAY · RIDE · TRAIN · COACH · GARAGE.
+// COACH is the full-height conversation (src/features/coach-chat/); the Cmd+K
+// bar and the Today panel are quick entry points that link into it.
 // GARAGE is the gear tracker (bikes, parts, wear); /gear redirects to it.
 // RIDE opens the route builder directly (/ride redirects to /ride/new; the
 // tab stays active anywhere under /ride). The old route-library hub is kept
@@ -44,6 +46,7 @@ const NAV_ITEMS = [
   { path: '/today', label: 'Today' },
   { path: '/ride', label: 'Ride' },
   { path: '/train', label: 'Train' },
+  { path: '/coach', label: 'Coach' },
   { path: '/garage', label: 'Garage' },
 ];
 
@@ -101,6 +104,9 @@ function AppShell({ children, fullWidth = false, hideNav = false }) {
     }
     if (item.path === '/train') {
       return location.pathname.startsWith('/train') || location.pathname === '/planner' || location.pathname === '/progress';
+    }
+    if (item.path === '/coach') {
+      return location.pathname.startsWith('/coach');
     }
     if (item.path === '/garage') {
       // /gear is the legacy path; it redirects here but may still be mid-transition.
