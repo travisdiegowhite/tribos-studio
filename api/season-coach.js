@@ -10,6 +10,8 @@
 // the engine's numbers and never computes a date (see seasonCoachPrompt.js).
 
 import Anthropic from '@anthropic-ai/sdk';
+import { createClaudeClient } from './utils/claudeClient.js';
+import { MODELS } from './utils/claudeModels.js';
 import { getSupabaseAdmin } from './utils/supabaseAdmin.js';
 import { requireAuth } from './utils/auth.js';
 import { rateLimitByUser } from './utils/rateLimit.js';
@@ -25,7 +27,7 @@ import {
   sanitizePayload,
 } from './utils/seasonCoachPrompt.js';
 
-const MODEL = 'claude-opus-5-5';
+const MODEL = MODELS.SEASON_COACH;
 // Thinking is always on for this model; low effort keeps a short commentary
 // quick and cheap, and max_tokens leaves room for thinking plus the reply.
 const EFFORT = 'low';
@@ -75,7 +77,7 @@ export default async function handler(req, res) {
     const { system, personaName } = buildSeasonCoachSystemPrompt({ personaId, riderName });
     const userText = renderPayload(payload);
 
-    const client = new Anthropic({ apiKey });
+    const client = createClaudeClient({ apiKey, endpoint: 'season-coach' });
     const response = await client.beta.messages.create({
       model: MODEL,
       max_tokens: MAX_TOKENS,

@@ -1,7 +1,8 @@
 // Vercel API Route: Fuel Plan Generation
 // Generates fueling recommendations for rides with optional AI summary
 
-import Anthropic from '@anthropic-ai/sdk';
+import { createClaudeClient } from './utils/claudeClient.js';
+import { MODELS } from './utils/claudeModels.js';
 import { setupCors } from './utils/cors.js';
 import { requireAuth } from './utils/auth.js';
 import { rateLimitByUser } from './utils/rateLimit.js';
@@ -180,7 +181,7 @@ function calculateFuelPlan(input) {
 }
 
 async function generatePlainEnglishSummary(plan, context = {}) {
-  const anthropic = new Anthropic();
+  const anthropic = createClaudeClient({ endpoint: 'fuel-plan' });
 
   const prompt = `You are a cycling nutrition expert. Generate a brief, friendly "plain English" summary for this fueling plan.
 
@@ -210,7 +211,7 @@ Your summary:`;
 
   try {
     const response = await anthropic.beta.messages.create({
-      model: 'claude-sonnet-5-5',
+      model: MODELS.FUEL_SUMMARY,
       max_tokens: 1024,
       betas: ['server-side-fallback-2026-07-01'],
       fallbacks: 'default',

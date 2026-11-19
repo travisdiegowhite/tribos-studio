@@ -10,6 +10,7 @@
 // values, never a raw web candidate. See api/utils/raceSearch.js.
 
 import Anthropic from '@anthropic-ai/sdk';
+import { createClaudeClient } from './utils/claudeClient.js';
 import { getSupabaseAdmin } from './utils/supabaseAdmin.js';
 import { requireAuth } from './utils/auth.js';
 import { rateLimitByUser } from './utils/rateLimit.js';
@@ -83,7 +84,7 @@ async function web(req, res, user, body) {
   if ((await enforceAiQuota(req, res, user.id)) !== null) return;
 
   try {
-    const client = new Anthropic({ apiKey });
+    const client = createClaudeClient({ apiKey, endpoint: 'race-search' });
     const { candidates, message } = await webSearchRaces(client, {
       query,
       near: clip(body.near, MAX_NEAR_CHARS) || null,

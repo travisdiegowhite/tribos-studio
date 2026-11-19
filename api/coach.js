@@ -1,7 +1,8 @@
 // Vercel API Route: AI Training Coach
 // Server-side endpoint for AI coaching conversations
 
-import Anthropic from '@anthropic-ai/sdk';
+import { createClaudeClient } from './utils/claudeClient.js';
+import { MODELS } from './utils/claudeModels.js';
 import { getSupabaseAdmin } from './utils/supabaseAdmin.js';
 import { buildEvidenceSection } from './utils/evidenceCoachSection.js';
 import { VOCABULARY_RULES, TRANSLATION_RULES, DATA_CORRECTION_NOTICE } from './utils/coachVoiceRules.js';
@@ -658,8 +659,9 @@ export default async function handler(req, res) {
     }
 
     // Initialize Claude client
-    const claude = new Anthropic({
+    const claude = createClaudeClient({
       apiKey: apiKey,
+      endpoint: 'coach',
     });
 
     // Validate request body
@@ -1542,7 +1544,7 @@ ${conversationSummary}
     ];
 
     // Call Claude API
-    const model = 'claude-sonnet-4-6';
+    const model = MODELS.COACH_CHAT;
 
     let response = await claude.messages.create({
       model: model,

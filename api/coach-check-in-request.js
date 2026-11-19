@@ -8,7 +8,8 @@
  * Auth: Bearer <JWT>
  */
 
-import Anthropic from '@anthropic-ai/sdk';
+import { createClaudeClient } from './utils/claudeClient.js';
+import { MODELS } from './utils/claudeModels.js';
 import { getSupabaseAdmin } from './utils/supabaseAdmin.js';
 import { setupCors } from './utils/cors.js';
 import { enforceAiQuota } from './utils/aiQuota.js';
@@ -277,10 +278,10 @@ export default async function handler(req, res) {
 
     // Build prompt and call Claude
     const systemPrompt = buildSystemPrompt(personaId, context, anchorBlock);
-    const claude = new Anthropic({ apiKey });
+    const claude = createClaudeClient({ apiKey, endpoint: 'coach-check-in-request' });
 
     const response = await claude.messages.create({
-      model: 'claude-sonnet-4-6',
+      model: MODELS.COACH_CHECK_IN_REQUEST,
       max_tokens: 1024,
       temperature: 0.4,
       system: systemPrompt,

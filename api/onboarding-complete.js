@@ -14,7 +14,8 @@
  * Returns: { persona, personaName, openingMessage, confidence, secondary }
  */
 
-import Anthropic from '@anthropic-ai/sdk';
+import { createClaudeClient } from './utils/claudeClient.js';
+import { MODELS } from './utils/claudeModels.js';
 import { getSupabaseAdmin } from './utils/supabaseAdmin.js';
 import { setupCors } from './utils/cors.js';
 import { enforceAiQuota } from './utils/aiQuota.js';
@@ -126,7 +127,7 @@ export default async function handler(req, res) {
 
   try {
     const apiKey = process.env.ANTHROPIC_API_KEY;
-    const claude = apiKey ? new Anthropic({ apiKey }) : null;
+    const claude = apiKey ? createClaudeClient({ apiKey, endpoint: 'onboarding-complete' }) : null;
 
     // ── 1. Classify persona ──
     let persona = 'pragmatist';
@@ -144,7 +145,7 @@ export default async function handler(req, res) {
           .replace('{coach_role}', coach_role_answer);
 
         const response = await claude.beta.messages.create({
-          model: 'claude-sonnet-5-5',
+          model: MODELS.COACH_PERSONA_CLASSIFY,
           max_tokens: 1024,
           betas: ['server-side-fallback-2026-07-01'],
           fallbacks: 'default',
@@ -182,7 +183,7 @@ export default async function handler(req, res) {
         ].filter(Boolean).join('\n');
 
         const msgResponse = await claude.beta.messages.create({
-          model: 'claude-sonnet-5-5',
+          model: MODELS.ONBOARDING_MESSAGE,
           max_tokens: 1024,
           betas: ['server-side-fallback-2026-07-01'],
           fallbacks: 'default',

@@ -11,6 +11,7 @@
  * Node ≥ 22.18 (runs the .ts engine with built-in type stripping).
  */
 import Anthropic from '@anthropic-ai/sdk';
+import { MODELS } from '../api/utils/claudeModels.js';
 import { computeSeason } from '../src/lib/season/engine.ts';
 import { DEFAULT_SEASON_WEEKS, defaultSeasonStart, toSeasonRaces } from '../src/lib/season/view.ts';
 import { moveRace, removeRace, setFocus, setPriority } from '../src/lib/season/edits.ts';
@@ -82,7 +83,7 @@ for (const [i, s] of SAMPLES.entries()) {
     continue;
   }
   const response = await client.beta.messages.create({
-    model: 'claude-opus-5-5',
+    model: MODELS.SEASON_COACH,
     max_tokens: 4000,
     betas: ['server-side-fallback-2026-07-01'],
     fallbacks: 'default',

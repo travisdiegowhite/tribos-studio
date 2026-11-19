@@ -6,9 +6,9 @@
 //     and returns each planned change, for eyeballing before trusting a batch.
 //
 // Batch size: ?limit=, else EVENT_REFRESH_BATCH, else 24 (max 60). Each check
-// is up to 3 web searches + 2 page fetches on claude-sonnet-5-5.
+// is up to 3 web searches + 2 page fetches on MODELS.RACE_SEARCH.
 
-import Anthropic from '@anthropic-ai/sdk';
+import { createClaudeClient } from './utils/claudeClient.js';
 import { getSupabaseAdmin } from './utils/supabaseAdmin.js';
 import { verifyCronAuth } from './utils/verifyCronAuth.js';
 import { DEFAULT_BATCH, MAX_BATCH, runRefresh } from './utils/eventCatalogRefresh.js';
@@ -38,7 +38,7 @@ export default async function handler(req, res) {
     const summary = await runRefresh({
       supabase,
       // One slow check must not eat the run: 70 s per request, one retry.
-      client: new Anthropic({ apiKey, timeout: 70_000, maxRetries: 1 }),
+      client: createClaudeClient({ apiKey, timeout: 70_000, maxRetries: 1, endpoint: 'event-catalog-refresh' }),
       today: new Date().toISOString().slice(0, 10),
       limit: batchSize(req.query),
       dryRun,

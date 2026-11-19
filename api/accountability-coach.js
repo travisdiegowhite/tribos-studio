@@ -1,7 +1,8 @@
 // Vercel API Route: Accountability Coach
 // AI coach for cycling accountability with memory extraction
 
-import Anthropic from '@anthropic-ai/sdk';
+import { createClaudeClient } from './utils/claudeClient.js';
+import { MODELS } from './utils/claudeModels.js';
 import { getSupabaseAdmin } from './utils/supabaseAdmin.js';
 import { rateLimitByUser } from './utils/rateLimit.js';
 import { setupCors } from './utils/cors.js';
@@ -78,7 +79,7 @@ export default async function handler(req, res) {
     if (!authUser) return;
     const userId = authUser.id;
 
-    const claude = new Anthropic({ apiKey });
+    const claude = createClaudeClient({ apiKey, endpoint: 'accountability-coach' });
 
     const {
       message,
@@ -135,20 +136,26 @@ export default async function handler(req, res) {
     ];
 
     // Call Claude API for coach response
-    const model = 'claude-sonnet-4-5-20250929';
+    const model = MODELS.ACCOUNTABILITY_COACH;
 
     // The shared voice rules append server-side so a client-supplied prompt
     // can never drop the vocabulary contract.
-    const response = await claude.messages.create({
+    const response = await claude.beta.messages.create({
       model,
-      max_tokens: Math.min(maxTokens, 1024),
-      temperature: 0.8, // Slightly more creative for personality
+      // Reply cap of 1024 as before, plus headroom: thinking counts toward
+      // max_tokens on Sonnet 5.5.
+      max_tokens: Math.min(maxTokens, 1024) + 1024,
+      betas: ['server-side-fallback-2026-07-01'],
+      fallbacks: 'default',
+      output_config: { effort: 'low' },
       system: `${systemPrompt || ''}\n\n${buildCoachVoiceRules({ correctionNotice: false })}`,
       messages
     });
 
-    const textContent = response.content.find(block => block.type === 'text');
-    const coachResponse = textContent?.text || '';
+    const coachResponse = response.content
+      .filter(block => block.type === 'text')
+      .map(block => block.text)
+      .join('');
 
     // Extract memories from the exchange (in background, don't block response)
     let extractedMemories = [];
@@ -157,10 +164,12 @@ export default async function handler(req, res) {
         .replace('{user_message}', message)
         .replace('{coach_response}', coachResponse);
 
-      const memoryResponse = await claude.messages.create({
-        model: 'claude-sonnet-4-5-20250929',
-        max_tokens: 500,
-        temperature: 0,
+      const memoryResponse = await claude.beta.messages.create({
+        model: MODELS.ACCOUNTABILITY_MEMORY,
+        max_tokens: 1500,
+        betas: ['server-side-fallback-2026-07-01'],
+        fallbacks: 'default',
+        output_config: { effort: 'low' },
         messages: [{ role: 'user', content: extractionPrompt }]
       });
 

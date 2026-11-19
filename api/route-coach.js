@@ -15,7 +15,8 @@
 // Adapts the /api/coach.js pattern: same auth gate, same persona-aware
 // prompt construction, same single messages.create shape (not streaming).
 
-import Anthropic from '@anthropic-ai/sdk';
+import { createClaudeClient } from './utils/claudeClient.js';
+import { MODELS } from './utils/claudeModels.js';
 import { getSupabaseAdmin } from './utils/supabaseAdmin.js';
 import { rateLimitByUser } from './utils/rateLimit.js';
 import { enforceAiQuota } from './utils/aiQuota.js';
@@ -26,7 +27,7 @@ import {
   buildRouteCoachSystemPrompt,
 } from './utils/routeCoachContext.js';
 
-const MODEL = 'claude-sonnet-4-6';
+const MODEL = MODELS.ROUTE_COACH;
 const RECENT_WINDOW = 10;
 const MAX_TOOL_USE_ROUNDS = 4;
 
@@ -143,7 +144,7 @@ export default async function handler(req, res) {
     const messages = [...windowed, { role: 'user', content: message.trim() }];
 
     // ── Claude call with bounded tool-use loop ──────────────────────────────
-    const claude = new Anthropic({ apiKey });
+    const claude = createClaudeClient({ apiKey, endpoint: 'route-coach' });
     const createParams = {
       model: MODEL,
       max_tokens: Math.min(Number(maxTokens) || 1024, 4096),

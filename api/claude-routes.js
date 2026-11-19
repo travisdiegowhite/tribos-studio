@@ -1,7 +1,8 @@
 // Vercel API Route: Secure Claude AI Route Generation
 // This moves Claude AI calls server-side to protect API keys
 
-import Anthropic from '@anthropic-ai/sdk';
+import { createClaudeClient } from './utils/claudeClient.js';
+import { MODELS } from './utils/claudeModels.js';
 import { setupCors } from './utils/cors.js';
 import { getSupabaseAdmin } from './utils/supabaseAdmin.js';
 import {
@@ -16,6 +17,9 @@ import { enforceAiQuota, enforceGlobalAiQuota } from './utils/aiQuota.js';
 // the structured 429 below is the client's signal to prompt account creation.
 const GUEST_GENERATION_LIMIT = 3;
 const GUEST_WINDOW_MINUTES = 24 * 60;
+// Thinking counts toward max_tokens on Sonnet 5.5; leave room for it on top
+// of the reply cap so a full-length route isn't truncated.
+const THINKING_HEADROOM_TOKENS = 2048;
 
 /**
  * Resolve the caller from the Authorization header, if any.
@@ -103,12 +107,15 @@ export default async function handler(req, res) {
     }
 
     // Initialize Claude client (server-side only)
-    const claude = new Anthropic({
+    const claude = createClaudeClient({
       apiKey: apiKey,
+      endpoint: 'claude-routes',
     });
 
     // Validate request body
-    const { prompt, maxTokens = 2000, temperature = 0.7 } = req.body;
+    // `temperature` from older clients is ignored: Sonnet 5.5 rejects
+    // non-default sampling values with a 400.
+    const { prompt, maxTokens = 2000 } = req.body;
 
     if (!prompt || typeof prompt !== 'string') {
       return res.status(400).json({
@@ -128,13 +135,14 @@ export default async function handler(req, res) {
     console.log(`✅ Calling Claude API - prompt: ${prompt.length} chars`);
 
     // Call Claude API
-    // Claude Sonnet 4.5 - Best balance of intelligence, speed, and cost
-    const model = 'claude-sonnet-4-5-20250929';
-
-    const response = await claude.messages.create({
-      model: model,
-      max_tokens: Math.min(maxTokens, 3000), // Cap max tokens
-      temperature: Math.max(0, Math.min(temperature, 1)), // Clamp temperature
+    const response = await claude.beta.messages.create({
+      model: MODELS.ROUTE_GENERATION,
+      // Reply capped at 3000 as before, plus headroom: on Sonnet 5.5 thinking
+      // counts toward max_tokens.
+      max_tokens: Math.min(Math.max(Number(maxTokens) || 2000, 1), 3000) + THINKING_HEADROOM_TOKENS,
+      betas: ['server-side-fallback-2026-07-01'],
+      fallbacks: 'default',
+      output_config: { effort: 'low' },
       messages: [
         {
           role: 'user',
@@ -145,9 +153,22 @@ export default async function handler(req, res) {
 
     console.log('✅ Claude API response received');
 
+    if (response.stop_reason === 'refusal') {
+      return res.status(502).json({
+        success: false,
+        error: 'Route generation was declined. Try rephrasing your request.'
+      });
+    }
+
+    // Read text blocks by type: a Sonnet 5.5 reply can begin with a thinking block.
+    const content = response.content
+      .filter((block) => block.type === 'text')
+      .map((block) => block.text)
+      .join('');
+
     return res.status(200).json({
       success: true,
-      content: response.content[0].text,
+      content,
       usage: response.usage
     });
 

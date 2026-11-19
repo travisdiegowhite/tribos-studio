@@ -1,7 +1,8 @@
 // Vercel API Route: Parse Training Plan Screenshot
 // Uses Claude Vision to extract workout schedules from screenshots
 
-import Anthropic from '@anthropic-ai/sdk';
+import { createClaudeClient } from './utils/claudeClient.js';
+import { MODELS } from './utils/claudeModels.js';
 import { getSupabaseAdmin } from './utils/supabaseAdmin.js';
 import { rateLimitByUser } from './utils/rateLimit.js';
 import { setupCors } from './utils/cors.js';
@@ -143,7 +144,7 @@ async function parseScreenshot(req, res, { imageData, imageUrl, userId }) {
   try {
     console.log('Parsing training plan screenshot with Claude Vision...');
 
-    const claude = new Anthropic({ apiKey });
+    const claude = createClaudeClient({ apiKey, endpoint: 'parse-training-plan' });
 
     // Build the image content
     let imageContent;
@@ -171,9 +172,13 @@ async function parseScreenshot(req, res, { imageData, imageUrl, userId }) {
       };
     }
 
-    const response = await claude.messages.create({
-      model: 'claude-sonnet-4-5-20250929',
-      max_tokens: 2048,
+    const response = await claude.beta.messages.create({
+      model: MODELS.TRAINING_PLAN_PARSE,
+      // Headroom over the old 2048: thinking counts toward max_tokens on Sonnet 5.5.
+      max_tokens: 4096,
+      betas: ['server-side-fallback-2026-07-01'],
+      fallbacks: 'default',
+      output_config: { effort: 'low' },
       messages: [
         {
           role: 'user',

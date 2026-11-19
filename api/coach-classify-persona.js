@@ -6,7 +6,8 @@
  * Rate limited: 5 requests per 10 minutes per user.
  */
 
-import Anthropic from '@anthropic-ai/sdk';
+import { createClaudeClient } from './utils/claudeClient.js';
+import { MODELS } from './utils/claudeModels.js';
 import { getSupabaseAdmin } from './utils/supabaseAdmin.js';
 import { setupCors } from './utils/cors.js';
 import { requireAuth } from './utils/auth.js';
@@ -78,7 +79,7 @@ export default async function handler(req, res) {
     const quotaResult = await enforceAiQuota(req, res, userId);
     if (quotaResult !== null) return;
 
-    const claude = new Anthropic({ apiKey });
+    const claude = createClaudeClient({ apiKey, endpoint: 'coach-classify-persona' });
 
     const prompt = CLASSIFICATION_PROMPT
       .replace('{answer_1}', answers.q1)
@@ -88,7 +89,7 @@ export default async function handler(req, res) {
       .replace('{answer_5}', answers.q5);
 
     const response = await claude.beta.messages.create({
-      model: 'claude-sonnet-5-5',
+      model: MODELS.COACH_PERSONA_CLASSIFY,
       max_tokens: 1024,
       betas: ['server-side-fallback-2026-07-01'],
       fallbacks: 'default',
