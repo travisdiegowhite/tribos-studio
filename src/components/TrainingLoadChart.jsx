@@ -17,8 +17,17 @@ import { mono, tooltipStyle, useChartColors } from './train/progressUi.jsx';
 /**
  * Training Load Chart Component
  * Displays TFI (fitness), AFI (fatigue), FS (form), and daily RSS over time
+ *
+ * Optional, for the coach chat:
+ *   fixedRange — plot every row given (the caller chose the dates) and hide
+ *                the 7D/30D/90D toggle.
+ *   onDayClick — called with the clicked row's `date` (YYYY-MM-DD).
  */
-const TrainingLoadChart = ({ data }) => {
+const TrainingLoadChart = ({
+  data,
+  fixedRange = false,
+  onDayClick = /** @type {((date: string) => void) | null} */ (null),
+}) => {
   const [timeRange, setTimeRange] = useState('30'); // 7, 30, or 90 days
   const CHART = useChartColors();
 
@@ -51,7 +60,7 @@ const TrainingLoadChart = ({ data }) => {
 
     // Filter to selected time range for display
     const days = parseInt(timeRange);
-    const filtered = allDays.slice(-days);
+    const filtered = fixedRange ? allDays : allDays.slice(-days);
 
     return filtered.map(d => ({
       ...d,
@@ -60,7 +69,7 @@ const TrainingLoadChart = ({ data }) => {
         day: 'numeric'
       })
     }));
-  }, [data, timeRange]);
+  }, [data, timeRange, fixedRange]);
 
   // Custom tooltip: flat, ruled, numbers in Courier
   const CustomTooltip = ({ active, payload, label }) => {
@@ -111,7 +120,7 @@ const TrainingLoadChart = ({ data }) => {
             </Box>
           ))}
         </Group>
-        <SegmentedControl
+        {!fixedRange && <SegmentedControl
           size="xs"
           radius={0}
           value={timeRange}
@@ -122,7 +131,7 @@ const TrainingLoadChart = ({ data }) => {
             { label: '90D', value: '90' }
           ]}
           styles={{ label: { fontFamily: 'var(--font-mono)' } }}
-        />
+        />}
       </Group>
 
       {/* Daily RSS */}
@@ -141,7 +150,15 @@ const TrainingLoadChart = ({ data }) => {
 
       {/* Fitness / fatigue / form */}
       <ResponsiveContainer width="100%" height={220}>
-        <LineChart data={chartData} margin={{ top: 5, right: 12, left: 0, bottom: 5 }}>
+        <LineChart
+          data={chartData}
+          margin={{ top: 5, right: 12, left: 0, bottom: 5 }}
+          onClick={onDayClick ? (e) => {
+            const date = e?.activePayload?.[0]?.payload?.date;
+            if (date) onDayClick(String(date).slice(0, 10));
+          } : undefined}
+          style={onDayClick ? { cursor: 'pointer' } : undefined}
+        >
           <CartesianGrid strokeDasharray="3 3" stroke={CHART.grid} vertical={false} />
           <XAxis dataKey="formattedDate" tick={axisTick} interval="preserveStartEnd" minTickGap={28} stroke={CHART.baseline} />
           <YAxis tick={axisTick} stroke={CHART.baseline} width={36} />

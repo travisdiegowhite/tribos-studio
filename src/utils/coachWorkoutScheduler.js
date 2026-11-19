@@ -74,7 +74,7 @@ async function resolveActivePlanId(supabase, userId, planId) {
  * @param {string} args.userId
  * @param {object} args.recommendation  Coach tool payload: { workout_id, scheduled_date, reason, workout_type?, target_rss?, target_tss?, duration_minutes?, name? }
  * @param {string|null} [args.planId]   Plan to attach to; resolved/created if omitted
- * @returns {Promise<{ success: boolean, replaced?: boolean, workoutName?: string, scheduledDate?: string, planId?: string, error?: string }>}
+ * @returns {Promise<{ success: boolean, replaced?: boolean, replacedName?: string | null, workoutName?: string, scheduledDate?: string, planId?: string, error?: string }>}
  */
 export async function scheduleCoachWorkout(supabase, { userId, recommendation, planId = null }) {
   if (!userId || !recommendation?.workout_id) {

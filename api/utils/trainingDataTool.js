@@ -434,6 +434,8 @@ function getGroupKey(activity, groupBy) {
  */
 function formatActivity(a) {
   return {
+    // The id lets the coach point a show_visual call at this exact ride.
+    id: a.id,
     name: a.name,
     type: a.type,
     date: a.start_date ? new Date(a.start_date).toISOString().split('T')[0] : null,

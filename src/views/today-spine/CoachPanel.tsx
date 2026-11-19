@@ -285,6 +285,9 @@ export function CoachPanel({ data, onScheduleChanged }: CoachPanelProps) {
 
       <Group justify="space-between" align="center" style={{ padding: '13px 16px 11px', borderBottom: `1px solid ${C.border}` }}>
         <Text style={{ fontFamily: FONT.body, fontSize: 13, fontWeight: 600, color: C.text2 }}>From your coach</Text>
+        <Anchor component={Link} to="/coach" style={{ fontFamily: FONT.body, fontSize: 13, color: C.text2 }}>
+          Continue in Coach →
+        </Anchor>
       </Group>
 
       {/* Recommendation */}

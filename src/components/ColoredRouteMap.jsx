@@ -20,6 +20,7 @@ import {
   smoothRows,
 } from '../utils/streamChartData';
 import RideMetricStrip from './RideMetricStrip';
+import { MAP_PALETTE } from '../utils/mapPalette';
 import {
   HR_ZONE_DEFS,
   POWER_ZONE_DEFS,
@@ -467,6 +468,9 @@ function Frame({ frameless, fill, children }) {
  * `showStrip={false}` leaves out the scrub strip where the host is short.
  * `fill` (frameless only) lets the map grow to its host's height in a flex
  * column; `height` is then the floor rather than the size.
+ * `highlightRange_km` ([start, end], stream track only) draws that stretch
+ * in the lime selection colour over the route — the coach chat uses it to
+ * mark the segment it is talking about.
  */
 const ColoredRouteMap = ({
   activityStreams,
@@ -481,6 +485,7 @@ const ColoredRouteMap = ({
   // 'running' shows speed as pace and hides power (multisport phase 4).
   sport = /** @type {string | null} */ (null),
   isImperial = false,
+  highlightRange_km = /** @type {[number, number] | null} */ (null),
 }) => {
   const isRun = sport === 'running';
   const display = useMemo(() => ({ run: isRun, isImperial }), [isRun, isImperial]);
@@ -504,6 +509,15 @@ const ColoredRouteMap = ({
     () => (hasStreamTrack ? cumulativeDistancesKm(geometry.coords) : []),
     [hasStreamTrack, geometry.coords],
   );
+
+  const highlightGeoJSON = useMemo(() => {
+    if (!hasStreamTrack || !Array.isArray(highlightRange_km)) return null;
+    const [start_km, end_km] = highlightRange_km;
+    if (!(end_km > start_km)) return null;
+    const coordinates = geometry.coords.filter((_, i) => distances_km[i] >= start_km && distances_km[i] <= end_km);
+    if (coordinates.length < 2) return null;
+    return { type: 'Feature', properties: {}, geometry: { type: 'LineString', coordinates } };
+  }, [hasStreamTrack, highlightRange_km, geometry.coords, distances_km]);
 
   // Determine which color modes are available based on stream data. Colored
   // segments are only meaningful on the stream track itself.
@@ -789,6 +803,19 @@ const ColoredRouteMap = ({
                   'line-width': 4,
                   'line-opacity': 0.95,
                 }}
+              />
+            </Source>
+          )}
+
+          {/* Selected stretch (coach chat): lime under-glow so the metric colours stay readable */}
+          {highlightGeoJSON && (
+            <Source id="highlight-range" type="geojson" data={highlightGeoJSON}>
+              <Layer
+                id="highlight-range-line"
+                type="line"
+                layout={{ 'line-cap': 'round', 'line-join': 'round' }}
+                paint={{ 'line-color': MAP_PALETTE.highlight, 'line-width': 12, 'line-opacity': 0.75 }}
+                beforeId={showExtrusion ? undefined : showColoredRoute ? 'colored-route-line' : 'route-line'}
               />
             </Source>
           )}
