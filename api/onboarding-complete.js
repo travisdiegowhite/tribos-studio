@@ -15,7 +15,7 @@
  */
 
 import { createClaudeClient } from './utils/claudeClient.js';
-import { MODELS } from './utils/claudeModels.js';
+import { MODELS, EFFORT, maxTokensFor } from './utils/claudeModels.js';
 import { getSupabaseAdmin } from './utils/supabaseAdmin.js';
 import { setupCors } from './utils/cors.js';
 import { enforceAiQuota } from './utils/aiQuota.js';
@@ -146,10 +146,10 @@ export default async function handler(req, res) {
 
         const response = await claude.beta.messages.create({
           model: MODELS.COACH_PERSONA_CLASSIFY,
-          max_tokens: 1024,
+          max_tokens: maxTokensFor('COACH_PERSONA_CLASSIFY', 256),
           betas: ['server-side-fallback-2026-07-01'],
           fallbacks: 'default',
-          output_config: { effort: 'low' },
+          output_config: { effort: EFFORT.COACH_PERSONA_CLASSIFY },
           messages: [{ role: 'user', content: prompt }],
         });
 
@@ -184,10 +184,10 @@ export default async function handler(req, res) {
 
         const msgResponse = await claude.beta.messages.create({
           model: MODELS.ONBOARDING_MESSAGE,
-          max_tokens: 1024,
+          max_tokens: maxTokensFor('ONBOARDING_MESSAGE', 200),
           betas: ['server-side-fallback-2026-07-01'],
           fallbacks: 'default',
-          output_config: { effort: 'low' },
+          output_config: { effort: EFFORT.ONBOARDING_MESSAGE },
           system: `You are ${PERSONA_NAMES[persona]}, a cycling coach. Voice: ${voice}`,
           messages: [{
             role: 'user',

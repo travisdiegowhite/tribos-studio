@@ -2,7 +2,7 @@
 // This moves Claude AI calls server-side to protect API keys
 
 import { createClaudeClient } from './utils/claudeClient.js';
-import { MODELS } from './utils/claudeModels.js';
+import { MODELS, EFFORT, maxTokensFor } from './utils/claudeModels.js';
 import { setupCors } from './utils/cors.js';
 import { getSupabaseAdmin } from './utils/supabaseAdmin.js';
 import {
@@ -17,9 +17,6 @@ import { enforceAiQuota, enforceGlobalAiQuota } from './utils/aiQuota.js';
 // the structured 429 below is the client's signal to prompt account creation.
 const GUEST_GENERATION_LIMIT = 3;
 const GUEST_WINDOW_MINUTES = 24 * 60;
-// Thinking counts toward max_tokens on Sonnet 5.5; leave room for it on top
-// of the reply cap so a full-length route isn't truncated.
-const THINKING_HEADROOM_TOKENS = 2048;
 
 /**
  * Resolve the caller from the Authorization header, if any.
@@ -137,12 +134,12 @@ export default async function handler(req, res) {
     // Call Claude API
     const response = await claude.beta.messages.create({
       model: MODELS.ROUTE_GENERATION,
-      // Reply capped at 3000 as before, plus headroom: on Sonnet 5.5 thinking
-      // counts toward max_tokens.
-      max_tokens: Math.min(Math.max(Number(maxTokens) || 2000, 1), 3000) + THINKING_HEADROOM_TOKENS,
+      // Reply capped at 3000 as before, plus room for thinking at this
+      // feature's effort (thinking counts toward max_tokens).
+      max_tokens: maxTokensFor('ROUTE_GENERATION', Math.min(Math.max(Number(maxTokens) || 2000, 1), 3000)),
       betas: ['server-side-fallback-2026-07-01'],
       fallbacks: 'default',
-      output_config: { effort: 'low' },
+      output_config: { effort: EFFORT.ROUTE_GENERATION },
       messages: [
         {
           role: 'user',

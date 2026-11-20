@@ -10,7 +10,11 @@ import { RUN_ROUTE_BRIEF } from './naturalLanguagePrompt';
 // Hard cap on the time we'll wait for Claude before declaring failure.
 // Anything longer than this and the user is staring at a spinner — fall
 // back to a heuristic route instead. Per T1.3 spec and the Turn Model.
-export const CLAUDE_TIMEOUT_MS = 15000;
+// Was 15 s; raised 2026-11 when route generation moved to `high` effort
+// (EFFORT.ROUTE_GENERATION in api/utils/claudeModels.js), which thinks before
+// answering. Keep it below the server's maxDuration for api/claude-routes.js
+// in vercel.json (120 s), so the browser gives up first and falls back.
+export const CLAUDE_TIMEOUT_MS = 90000;
 
 // Error subclass that lets callers (notably generateAIRoutes) tell a
 // fallback-worthy Claude failure apart from a parse-empty / no-suggestions

@@ -2,7 +2,7 @@
 // AI coach for cycling accountability with memory extraction
 
 import { createClaudeClient } from './utils/claudeClient.js';
-import { MODELS } from './utils/claudeModels.js';
+import { MODELS, EFFORT, maxTokensFor } from './utils/claudeModels.js';
 import { getSupabaseAdmin } from './utils/supabaseAdmin.js';
 import { rateLimitByUser } from './utils/rateLimit.js';
 import { setupCors } from './utils/cors.js';
@@ -142,12 +142,12 @@ export default async function handler(req, res) {
     // can never drop the vocabulary contract.
     const response = await claude.beta.messages.create({
       model,
-      // Reply cap of 1024 as before, plus headroom: thinking counts toward
-      // max_tokens on Sonnet 5.5.
-      max_tokens: Math.min(maxTokens, 1024) + 1024,
+      // Reply cap of 1024 as before, plus room for thinking at this
+      // feature's effort (thinking counts toward max_tokens).
+      max_tokens: maxTokensFor('ACCOUNTABILITY_COACH', Math.min(maxTokens, 1024)),
       betas: ['server-side-fallback-2026-07-01'],
       fallbacks: 'default',
-      output_config: { effort: 'low' },
+      output_config: { effort: EFFORT.ACCOUNTABILITY_COACH },
       system: `${systemPrompt || ''}\n\n${buildCoachVoiceRules({ correctionNotice: false })}`,
       messages
     });
@@ -166,10 +166,10 @@ export default async function handler(req, res) {
 
       const memoryResponse = await claude.beta.messages.create({
         model: MODELS.ACCOUNTABILITY_MEMORY,
-        max_tokens: 1500,
+        max_tokens: maxTokensFor('ACCOUNTABILITY_MEMORY', 500),
         betas: ['server-side-fallback-2026-07-01'],
         fallbacks: 'default',
-        output_config: { effort: 'low' },
+        output_config: { effort: EFFORT.ACCOUNTABILITY_MEMORY },
         messages: [{ role: 'user', content: extractionPrompt }]
       });
 

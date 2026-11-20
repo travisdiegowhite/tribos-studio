@@ -16,6 +16,9 @@ import {
   MODEL_ID_PATTERN,
   RETIREMENT_WARNING_DAYS,
   daysUntilRetirement,
+  EFFORT,
+  EFFORT_LEVELS,
+  maxTokensFor,
 } from './claudeModels.js';
 
 // vitest runs from the repo root (as schemaContract.test.js assumes).
@@ -156,5 +159,42 @@ describe('daysUntilRetirement', () => {
     expect(daysUntilRetirement('claude-sonnet-4-20250514', new Date('2026-11-19T00:00:00Z'))).toBeLessThan(0);
     expect(daysUntilRetirement('claude-sonnet-5-5')).toBeNull();
     expect(daysUntilRetirement('claude-not-a-model')).toBeNull();
+  });
+});
+
+describe('EFFORT', () => {
+  it('only names roles that exist in MODELS, at a valid level', () => {
+    const bad = Object.entries(EFFORT)
+      .filter(([role, level]) => !(role in MODELS) || !EFFORT_LEVELS.includes(level))
+      .map(([role, level]) => `${role}: ${level}`);
+    expect(bad).toEqual([]);
+  });
+
+  it('has every role it lists used through EFFORT.<ROLE> or maxTokensFor', () => {
+    const code = files.filter((f) => f.path !== REGISTRY).map((f) => f.text).join('\n');
+    const unused = Object.keys(EFFORT).filter(
+      (role) => !code.includes(`EFFORT.${role}`) && !code.includes(`maxTokensFor('${role}'`),
+    );
+    expect(unused).toEqual([]);
+  });
+});
+
+describe('maxTokensFor', () => {
+  it('adds room for thinking that grows with effort', () => {
+    // Route generation runs at high effort: a 3000-token reply cap must leave
+    // well over that for thinking, or the reply is cut off.
+    expect(maxTokensFor('ROUTE_GENERATION', 3000)).toBeGreaterThanOrEqual(3000 + 8000);
+    expect(maxTokensFor('COACH_RIDE_ANALYSIS', 900)).toBeGreaterThan(900 + 2000);
+    expect(maxTokensFor('THREAD_TITLE', 150)).toBeGreaterThan(150);
+  });
+
+  it('stays under the SDK limit for non-streaming requests', () => {
+    for (const role of Object.keys(EFFORT)) {
+      expect(maxTokensFor(role, 3000)).toBeLessThanOrEqual(16000);
+    }
+  });
+
+  it('refuses a role with no effort set, rather than guessing', () => {
+    expect(() => maxTokensFor('COACH_CHAT', 500)).toThrow(/No EFFORT/);
   });
 });

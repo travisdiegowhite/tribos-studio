@@ -13,6 +13,14 @@
 //   claude.auth             401/403: key revoked, wrong workspace
 //   claude.refusal          200 with stop_reason "refusal": the model (and
 //                           any fallback) declined to answer
+//   claude.max_tokens       200 with stop_reason "max_tokens": the reply was
+//                           cut off, usually because thinking used up the
+//                           budget (raise the room in maxTokensFor)
+//
+// Every successful non-streaming call also logs one `[claude-usage]` JSON line
+// (endpoint, model, effort, input/output/thinking/cache tokens, duration), so
+// the cost of an effort or model change can be read from the Vercel logs.
+// Thinking is billed as output tokens.
 //
 // Rate limits (429), overloads (529) and 5xx are transient and the SDK
 // retries them, so they are not reported here.
@@ -52,9 +60,10 @@ export function createClaudeClient({ endpoint = 'unknown', ...options } = {}) {
 export function monitoredFetch(endpoint, baseFetch) {
   return async (url, init) => {
     const doFetch = baseFetch ?? globalThis.fetch;
+    const startedAt = Date.now();
     const response = await doFetch(url, init);
     try {
-      await inspect(endpoint, String(url), init, response);
+      await inspect(endpoint, String(url), init, response, startedAt);
     } catch {
       // Reporting is best-effort.
     }
@@ -62,7 +71,7 @@ export function monitoredFetch(endpoint, baseFetch) {
   };
 }
 
-async function inspect(endpoint, url, init, response) {
+async function inspect(endpoint, url, init, response, startedAt) {
   if (!url.includes('/v1/messages')) return;
 
   const tag = TAG_BY_STATUS[response.status];
@@ -85,12 +94,29 @@ async function inspect(endpoint, url, init, response) {
     return;
   }
 
-  // Refusals arrive as HTTP 200. Only non-streaming JSON bodies are checked;
-  // a streamed reply would have to be read to the end to see its stop reason.
+  // Refusals, truncation and usage arrive with HTTP 200. Only non-streaming
+  // JSON bodies are checked; a streamed reply would have to be read to the
+  // end to see its stop reason.
   const contentType = response.headers?.get?.('content-type') ?? '';
   if (response.ok && contentType.includes('application/json')) {
+    // The body has fully arrived once it has been read, so this is the
+    // whole call's duration.
     const message = parseJson(await response.clone().text());
-    if (message?.stop_reason === 'refusal') {
+    if (!message) return;
+    logUsage(endpoint, init, message, Date.now() - startedAt);
+    if (message.stop_reason === 'max_tokens') {
+      captureServerError(`Claude reply truncated at max_tokens on ${endpoint}`, {
+        tag: 'claude.max_tokens',
+        extra: {
+          endpoint,
+          model: message.model ?? requestedModel(init),
+          effort: requestedEffort(init),
+          output_tokens: message.usage?.output_tokens ?? null,
+          request_id: response.headers?.get?.('request-id') ?? null,
+        },
+      });
+    }
+    if (message.stop_reason === 'refusal') {
       captureServerError(`Claude refusal on ${endpoint}`, {
         tag: 'claude.refusal',
         extra: {
@@ -104,8 +130,32 @@ async function inspect(endpoint, url, init, response) {
   }
 }
 
+function logUsage(endpoint, init, message, durationMs) {
+  const usage = message.usage ?? {};
+  console.log('[claude-usage]', JSON.stringify({
+    endpoint,
+    model: message.model ?? requestedModel(init),
+    effort: requestedEffort(init),
+    stop_reason: message.stop_reason ?? null,
+    input_tokens: usage.input_tokens ?? null,
+    output_tokens: usage.output_tokens ?? null,
+    thinking_tokens: usage.output_tokens_details?.thinking_tokens ?? null,
+    cache_read_input_tokens: usage.cache_read_input_tokens ?? null,
+    cache_creation_input_tokens: usage.cache_creation_input_tokens ?? null,
+    duration_ms: durationMs,
+  }));
+}
+
+function requestBody(init) {
+  return typeof init?.body === 'string' ? parseJson(init.body) : null;
+}
+
 function requestedModel(init) {
-  return typeof init?.body === 'string' ? parseJson(init.body)?.model ?? null : null;
+  return requestBody(init)?.model ?? null;
+}
+
+function requestedEffort(init) {
+  return requestBody(init)?.output_config?.effort ?? null;
 }
 
 function parseJson(text) {

@@ -732,9 +732,17 @@ model IDs one registry with a CI guard and loud failures:
 - **Construct clients only with `createClaudeClient({ apiKey, endpoint })`**
   from `api/utils/claudeClient.js`, never `new Anthropic(` under `api/` (the
   test enforces it). The client reports 404 (`claude.model_not_found`), 400
-  (`claude.bad_request`), 401/403 (`claude.auth`) and refusals
-  (`claude.refusal`) to Sentry via `serverSentry.js`, even when the endpoint
-  swallows the error. Alert on those tags.
+  (`claude.bad_request`), 401/403 (`claude.auth`), refusals
+  (`claude.refusal`) and replies cut off at `max_tokens` (`claude.max_tokens`)
+  to Sentry via `serverSentry.js`, even when the endpoint swallows the error.
+  Alert on those tags. Every call also logs a `[claude-usage]` JSON line
+  (endpoint, model, effort, input/output/thinking tokens, duration).
+- **Effort lives in the same file (`EFFORT`).** Size `max_tokens` with
+  `maxTokensFor(role, replyTokens)`, never a bare number: thinking counts
+  toward `max_tokens`, so raising effort without more room truncates replies.
+  Route generation runs at `high`, so its browser timeout
+  (`CLAUDE_TIMEOUT_MS`, 90 s) and its `vercel.json` `maxDuration` (120 s) are
+  sized for that; keep the browser limit below the server's.
 
 ## Supabase Connection Hygiene — Critical Rules (DO NOT BREAK)
 
