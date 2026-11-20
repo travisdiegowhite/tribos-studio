@@ -2,7 +2,8 @@
 // Generates plain-language fitness summaries using Claude Haiku
 // Cached in fitness_summaries table with 4-hour TTL
 
-import Anthropic from '@anthropic-ai/sdk';
+import { createClaudeClient } from './utils/claudeClient.js';
+import { MODELS } from './utils/claudeModels.js';
 import { getSupabaseAdmin } from './utils/supabaseAdmin.js';
 import { setupCors } from './utils/cors.js';
 import { enforceAiQuota } from './utils/aiQuota.js';
@@ -17,8 +18,9 @@ const SUMMARY_CACHE_TTL_MS = 4 * 60 * 60 * 1000;
 
 const supabase = getSupabaseAdmin();
 
-const claude = new Anthropic({
+const claude = createClaudeClient({
   apiKey: process.env.ANTHROPIC_API_KEY,
+  endpoint: 'fitness-summary',
 });
 
 const SYSTEM_PROMPT = `You are a friendly fitness assistant for Tribos, a cycling coaching app.
@@ -185,7 +187,7 @@ export default async function handler(req, res) {
 
     // 3. Call Claude Haiku
     const response = await claude.messages.create({
-      model: 'claude-haiku-4-5-20251001',
+      model: MODELS.FITNESS_SUMMARY,
       max_tokens: 150,
       system: SYSTEM_PROMPT,
       messages: [{

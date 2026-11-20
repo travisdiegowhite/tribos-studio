@@ -1,7 +1,8 @@
 // Vercel API Route: Generate Thread Title
 // Uses AI to generate concise, descriptive titles for conversation threads
 
-import Anthropic from '@anthropic-ai/sdk';
+import { createClaudeClient } from './utils/claudeClient.js';
+import { MODELS } from './utils/claudeModels.js';
 import { rateLimitByUser } from './utils/rateLimit.js';
 import { setupCors } from './utils/cors.js';
 import { requireAuth } from './utils/auth.js';
@@ -85,12 +86,13 @@ export default async function handler(req, res) {
       : 'This is a Pulse conversation (accountability, motivation, check-ins).';
 
     // Initialize Anthropic client
-    const anthropic = new Anthropic({
+    const anthropic = createClaudeClient({
       apiKey: process.env.ANTHROPIC_API_KEY,
+      endpoint: 'generate-thread-title',
     });
 
     const response = await anthropic.beta.messages.create({
-      model: 'claude-sonnet-5-5',
+      model: MODELS.THREAD_TITLE,
       max_tokens: 1024,
       betas: ['server-side-fallback-2026-07-01'],
       fallbacks: 'default',

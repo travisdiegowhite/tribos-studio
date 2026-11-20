@@ -9,14 +9,15 @@
  * - Generates actionable plan adjustments
  */
 
-import Anthropic from '@anthropic-ai/sdk';
+import { createClaudeClient } from './utils/claudeClient.js';
+import { MODELS } from './utils/claudeModels.js';
 import { requireAuth } from './utils/auth.js';
 import { rateLimitByUser } from './utils/rateLimit.js';
 import { enforceAiQuota } from './utils/aiQuota.js';
 import { rejectWithoutAiConsent } from './utils/aiConsent.js';
 import { buildCoachVoiceRules } from './utils/coachVoiceRules.js';
 
-const anthropic = new Anthropic();
+const anthropic = createClaudeClient({ endpoint: 'review-week' });
 
 /**
  * Format adaptation analysis for the prompt
@@ -402,7 +403,7 @@ export default async function handler(req, res) {
 
     // Call Claude API — shared voice rules ride as the system prompt.
     const message = await anthropic.beta.messages.create({
-      model: 'claude-sonnet-5-5',
+      model: MODELS.WEEK_REVIEW,
       max_tokens: 4096, // Headroom: thinking counts toward max_tokens on Sonnet 5.5
       betas: ['server-side-fallback-2026-07-01'],
       fallbacks: 'default',

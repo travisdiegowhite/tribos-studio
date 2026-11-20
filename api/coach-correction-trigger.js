@@ -14,7 +14,8 @@
  * GET /api/coach-correction-trigger  (Vercel cron)
  */
 
-import Anthropic from '@anthropic-ai/sdk';
+import { createClaudeClient } from './utils/claudeClient.js';
+import { MODELS } from './utils/claudeModels.js';
 import { getSupabaseAdmin } from './utils/supabaseAdmin.js';
 import { verifyCronAuth } from './utils/verifyCronAuth.js';
 import { hasAiConsent } from './utils/aiConsent.js';
@@ -98,10 +99,10 @@ Your job: propose 1–3 specific session modifications to bring projected TFI in
 - Keep modifications realistic: ±15–40 min duration, not wholesale plan changes.
 - ${currentTfi < goal.target_tfi_min ? 'TFI is below target — prefer extending or adding load.' : 'TFI is above target — prefer reducing or skipping load.'}`;
 
-  const claude = new Anthropic({ apiKey });
+  const claude = createClaudeClient({ apiKey, endpoint: 'coach-correction-trigger' });
 
   const response = await claude.messages.create({
-    model: 'claude-sonnet-4-6',
+    model: MODELS.COACH_CORRECTION,
     max_tokens: 1024,
     temperature: 0.3,
     system: systemPrompt,

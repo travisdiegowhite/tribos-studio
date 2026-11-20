@@ -13,8 +13,9 @@
  */
 
 import { haversineDistance } from './polylineDecode.js';
+import { MODELS } from './claudeModels.js';
 
-export const SEARCH_MODEL = 'claude-sonnet-5-5';
+export const SEARCH_MODEL = MODELS.RACE_SEARCH;
 const MAX_TOKENS = 4000;
 const MAX_WEB_SEARCHES = 5;
 /** Pages the model may open to read a date or distance off the official site. */

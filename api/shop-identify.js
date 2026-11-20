@@ -15,6 +15,8 @@
 // limit and daily AI quota.
 
 import Anthropic from '@anthropic-ai/sdk';
+import { createClaudeClient } from './utils/claudeClient.js';
+import { MODELS } from './utils/claudeModels.js';
 import { getSupabaseAdmin } from './utils/supabaseAdmin.js';
 import { setupCors } from './utils/cors.js';
 import { requireAuth } from './utils/auth.js';
@@ -33,7 +35,7 @@ import {
 
 const supabase = getSupabaseAdmin();
 
-export const SHOP_IDENTIFY_MODEL = 'claude-opus-5-5';
+export const SHOP_IDENTIFY_MODEL = MODELS.SHOP_IDENTIFY;
 
 export default async function handler(req, res) {
   if (setupCors(req, res)) return;
@@ -93,7 +95,7 @@ export default async function handler(req, res) {
       treePaths(locations).map((p) => p.path),
     );
 
-    const client = new Anthropic({ apiKey });
+    const client = createClaudeClient({ apiKey, endpoint: 'shop-identify' });
     const response = await client.beta.messages.create({
       model: SHOP_IDENTIFY_MODEL,
       max_tokens: 4000,

@@ -16,7 +16,8 @@
  * Body: { activityId: string }
  */
 
-import Anthropic from '@anthropic-ai/sdk';
+import { createClaudeClient } from './utils/claudeClient.js';
+import { MODELS } from './utils/claudeModels.js';
 import { getSupabaseAdmin } from './utils/supabaseAdmin.js';
 import { fetchEntryById } from './utils/calendarRead.js';
 import { setupCors } from './utils/cors.js';
@@ -28,7 +29,7 @@ import { buildCoachVoiceRules } from './utils/coachVoiceRules.js';
 
 const supabase = getSupabaseAdmin();
 
-const CLAUDE_MODEL = 'claude-sonnet-5-5';
+const CLAUDE_MODEL = MODELS.COACH_RIDE_ANALYSIS;
 // Thinking counts toward max_tokens on Sonnet 5.5, so leave headroom over the ~900-token reply.
 const MAX_TOKENS = 2048;
 
@@ -326,7 +327,7 @@ export default async function handler(req, res) {
       intent,
     });
 
-    const claude = new Anthropic({ apiKey });
+    const claude = createClaudeClient({ apiKey, endpoint: 'coach-ride-analysis' });
     const response = await claude.beta.messages.create({
       model: CLAUDE_MODEL,
       max_tokens: MAX_TOKENS,

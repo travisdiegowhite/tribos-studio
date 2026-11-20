@@ -1,7 +1,8 @@
 // Vercel API Route: Admin Analytics Analysis with Claude AI
 // SECURITY: Restricted to admin (travis@tribos.studio) only
 
-import Anthropic from '@anthropic-ai/sdk';
+import { createClaudeClient } from './utils/claudeClient.js';
+import { MODELS } from './utils/claudeModels.js';
 import { getSupabaseAdmin } from './utils/supabaseAdmin.js';
 import { setupCors } from './utils/cors.js';
 import { rateLimitMiddleware } from './utils/rateLimit.js';
@@ -84,14 +85,17 @@ export default async function handler(req, res) {
   }
 
   try {
-    const claude = new Anthropic({ apiKey });
+    const claude = createClaudeClient({ apiKey, endpoint: 'admin-analysis' });
 
     const typePrompt = ANALYSIS_PROMPTS[analysisType] || ANALYSIS_PROMPTS.overview;
 
-    const response = await claude.messages.create({
-      model: 'claude-sonnet-4-5-20250929',
-      max_tokens: 2048,
-      temperature: 0.3,
+    const response = await claude.beta.messages.create({
+      model: MODELS.ADMIN_ANALYSIS,
+      // Headroom over the old 2048: thinking counts toward max_tokens on Sonnet 5.5.
+      max_tokens: 4096,
+      betas: ['server-side-fallback-2026-07-01'],
+      fallbacks: 'default',
+      output_config: { effort: 'low' },
       system: SYSTEM_PROMPT,
       messages: [
         {

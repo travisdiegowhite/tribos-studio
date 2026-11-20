@@ -2,7 +2,8 @@
 // Runs every minute to generate AI coaching insights for newly synced activities.
 // Picks up pending rows from proactive_insights table and calls Claude API.
 
-import Anthropic from '@anthropic-ai/sdk';
+import { createClaudeClient } from './utils/claudeClient.js';
+import { MODELS } from './utils/claudeModels.js';
 import { hasAiConsent } from './utils/aiConsent.js';
 import { getSupabaseAdmin } from './utils/supabaseAdmin.js';
 import { completeActivationStep } from './utils/activation.js';
@@ -201,7 +202,7 @@ Give one specific, actionable coaching insight about this activity in 2-3 senten
     throw new Error('ANTHROPIC_API_KEY not configured');
   }
 
-  const claude = new Anthropic({ apiKey });
+  const claude = createClaudeClient({ apiKey, endpoint: 'proactive-insights-process' });
 
   // Build persona-aware system prompt. The shared voice rules ride along
   // unconditionally — this endpoint's output renders verbatim in the
@@ -215,11 +216,11 @@ ${buildCoachVoiceRules()}`;
 
   const response = await claude.messages.create({
     // Current model IDs are complete as-is and take NO date suffix. The ID
-    // that stood here — 'claude-sonnet-4-5-20241022' — paired a 4-5 name with
-    // a Claude 3.5-era date and never existed, so every call 404'd from the
+    // that stood here paired a Sonnet 4.5 name with a Claude 3.5-era date
+    // (20241022) and never existed, so every call 404'd from the
     // day it landed: 215 of 215 insights failed across 45 athletes, none ever
     // produced any text. A dated suffix is the tell; don't reintroduce one.
-    model: 'claude-opus-5',
+    model: MODELS.PROACTIVE_INSIGHT,
     max_tokens: 300,
     system: systemPrompt,
     messages: [{ role: 'user', content: prompt }]

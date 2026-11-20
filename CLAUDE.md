@@ -708,6 +708,34 @@ The production domain `www.tribos.studio` routes through **Cloudflare CDN** befo
 - `vercel.json` rewrites `/((?!api/).*) → /index.html` — missing JS files return HTML with 200, not 404
 - This means stale SW or CDN cache issues surface as MIME type errors, not clear 404s
 
+## Claude Model IDs — Critical Rules (DO NOT BREAK)
+
+Anthropic retired `claude-sonnet-4-20250514` on 2026-06-15. Nine call sites
+in seven endpoints still used it, and most caught the 404 and fell back to a
+default, so features quietly degraded for five months. The fix (2026-11) made
+model IDs one registry with a CI guard and loud failures:
+
+- **`api/utils/claudeModels.js` is the only place a model ID is written.**
+  Endpoints import `MODELS.<ROLE>`; never write `'claude-…'` in code.
+  `MODEL_LIFECYCLE` lists every allowed ID with its retirement date.
+- **`api/utils/claudeModels.test.js` runs in CI** and fails on: an ID written
+  outside the registry (tests may use them as fixtures), an ID not in
+  `MODEL_LIFECYCLE`, a retired ID anywhere, and any role whose model retires
+  within 30 days. It is time-dependent on purpose: CI turns red on its own
+  before a retirement, with no code change.
+- **When Anthropic announces a deprecation**, set `retires` on that ID in
+  `MODEL_LIFECYCLE`. CI then names every role still on it. When moving a role
+  to a new model, read that model's migration notes: request parameters can
+  stop being accepted (Sonnet 5.5 returns 400 for `temperature`, and its
+  replies can start with a thinking block, so read text by block `type`,
+  never `content[0]`).
+- **Construct clients only with `createClaudeClient({ apiKey, endpoint })`**
+  from `api/utils/claudeClient.js`, never `new Anthropic(` under `api/` (the
+  test enforces it). The client reports 404 (`claude.model_not_found`), 400
+  (`claude.bad_request`), 401/403 (`claude.auth`) and refusals
+  (`claude.refusal`) to Sentry via `serverSentry.js`, even when the endpoint
+  swallows the error. Alert on those tags.
+
 ## Supabase Connection Hygiene — Critical Rules (DO NOT BREAK)
 
 On March 17, 2026, the database froze after running all day due to **connection pool exhaustion**. Root cause: 46 separate `createClient()` calls scattered across API routes and utilities, compounded by a Supabase Realtime subscription consuming 13 idle connections. See `docs/weekly-updates/` for the full postmortem.

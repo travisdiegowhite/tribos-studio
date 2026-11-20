@@ -14,6 +14,8 @@
 //  → { extraction, model, usage }
 
 import Anthropic from '@anthropic-ai/sdk';
+import { createClaudeClient } from './utils/claudeClient.js';
+import { MODELS } from './utils/claudeModels.js';
 import { getSupabaseAdmin } from './utils/supabaseAdmin.js';
 import { setupCors } from './utils/cors.js';
 import { requireAuth } from './utils/auth.js';
@@ -30,7 +32,7 @@ import {
 const supabase = getSupabaseAdmin();
 
 // Vision quality matters more than latency for a once-per-bike catalogue.
-export const GEAR_VISION_MODEL = 'claude-opus-5';
+export const GEAR_VISION_MODEL = MODELS.GEAR_VISION;
 
 export default async function handler(req, res) {
   if (setupCors(req, res)) return;
@@ -95,7 +97,7 @@ export default async function handler(req, res) {
       })
     );
 
-    const client = new Anthropic({ apiKey });
+    const client = createClaudeClient({ apiKey, endpoint: 'gear-vision' });
     const content = [];
     for (const shot of signed) {
       content.push({ type: 'text', text: `Photo "${shot.id}":` });

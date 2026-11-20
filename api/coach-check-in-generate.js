@@ -7,7 +7,8 @@
  * Not a cron — triggered directly by webhook handlers.
  */
 
-import Anthropic from '@anthropic-ai/sdk';
+import { createClaudeClient } from './utils/claudeClient.js';
+import { MODELS } from './utils/claudeModels.js';
 import { hasAiConsent } from './utils/aiConsent.js';
 import { getSupabaseAdmin } from './utils/supabaseAdmin.js';
 import { setupCors } from './utils/cors.js';
@@ -189,9 +190,9 @@ async function generateCheckIn(checkIn) {
     const systemPrompt = buildSystemPrompt(personaId, context);
 
     // Call Claude
-    const claude = new Anthropic({ apiKey });
+    const claude = createClaudeClient({ apiKey, endpoint: 'coach-check-in-generate' });
     const response = await claude.beta.messages.create({
-      model: 'claude-sonnet-5-5',
+      model: MODELS.COACH_CHECK_IN_GENERATE,
       max_tokens: 2048,
       betas: ['server-side-fallback-2026-07-01'],
       fallbacks: 'default',
