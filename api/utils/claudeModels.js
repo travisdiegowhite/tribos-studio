@@ -56,6 +56,62 @@ export const MODELS = Object.freeze({
 });
 
 /**
+ * Effort per feature, for the features that set it here. Effort only changes
+ * how long the model thinks: input cost is the same at every level, and
+ * thinking is billed as output. Higher effort also means a longer wait before
+ * the reply starts, so the user-facing timeouts on route generation are sized
+ * for `high` (src/utils/claudeRouteService.js, vercel.json).
+ *
+ * Levels are model-specific: when a role moves to another model, re-check
+ * its level (Sonnet 5.5 recalibrated them). Per-call token use is logged as
+ * `[claude-usage]` lines (claudeClient.js), so compare before and after.
+ */
+export const EFFORT = Object.freeze({
+  ROUTE_GENERATION: 'high',
+  COACH_RIDE_ANALYSIS: 'medium',
+  COACH_CHECK_IN_GENERATE: 'medium',
+  COACH_PERSONA_CLASSIFY: 'medium',
+  ONBOARDING_MESSAGE: 'medium',
+  ACCOUNTABILITY_COACH: 'medium',
+  WEEK_REVIEW: 'medium',
+  TRAINING_PLAN_PARSE: 'medium',
+  ADMIN_ANALYSIS: 'medium',
+  FUEL_SUMMARY: 'medium',
+  // A title and a memory list: thinking adds nothing here.
+  THREAD_TITLE: 'low',
+  ACCOUNTABILITY_MEMORY: 'low',
+});
+
+export const EFFORT_LEVELS = Object.freeze(['low', 'medium', 'high', 'xhigh', 'max']);
+
+/**
+ * Room for thinking on top of the reply, by effort. Thinking counts toward
+ * `max_tokens`, so a cap sized for the reply alone truncates it (the reply
+ * comes back cut off or empty with stop_reason "max_tokens"). Unused room
+ * costs nothing.
+ */
+const THINKING_HEADROOM_TOKENS = Object.freeze({
+  low: 1024,
+  medium: 4096,
+  high: 12000,
+  xhigh: 16000,
+  max: 16000,
+});
+
+/**
+ * Non-streaming requests above roughly 21K max_tokens are refused by the SDK
+ * (it asks for streaming), so stay well under it.
+ */
+const NON_STREAMING_MAX_TOKENS = 16000;
+
+/** max_tokens for a role: its reply budget plus thinking room at its effort. */
+export function maxTokensFor(role, replyTokens) {
+  const effort = EFFORT[role];
+  if (!effort) throw new Error(`No EFFORT set for role ${role}`);
+  return Math.min(replyTokens + THINKING_HEADROOM_TOKENS[effort], NON_STREAMING_MAX_TOKENS);
+}
+
+/**
  * Every model ID the codebase may name, with its retirement date
  * (YYYY-MM-DD, UTC) once Anthropic has announced one. `retires: null` means
  * no retirement announced. Keep retired IDs here with their date: they make

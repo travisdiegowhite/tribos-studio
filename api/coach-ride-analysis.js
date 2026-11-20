@@ -17,7 +17,7 @@
  */
 
 import { createClaudeClient } from './utils/claudeClient.js';
-import { MODELS } from './utils/claudeModels.js';
+import { MODELS, EFFORT, maxTokensFor } from './utils/claudeModels.js';
 import { getSupabaseAdmin } from './utils/supabaseAdmin.js';
 import { fetchEntryById } from './utils/calendarRead.js';
 import { setupCors } from './utils/cors.js';
@@ -30,8 +30,8 @@ import { buildCoachVoiceRules } from './utils/coachVoiceRules.js';
 const supabase = getSupabaseAdmin();
 
 const CLAUDE_MODEL = MODELS.COACH_RIDE_ANALYSIS;
-// Thinking counts toward max_tokens on Sonnet 5.5, so leave headroom over the ~900-token reply.
-const MAX_TOKENS = 2048;
+// ~900-token reply, plus room for thinking at this feature's effort.
+const MAX_TOKENS = maxTokensFor('COACH_RIDE_ANALYSIS', 900);
 
 // ─── Prompt Builders ────────────────────────────────────────────────────────
 
@@ -333,7 +333,7 @@ export default async function handler(req, res) {
       max_tokens: MAX_TOKENS,
       betas: ['server-side-fallback-2026-07-01'],
       fallbacks: 'default',
-      output_config: { effort: 'low' },
+      output_config: { effort: EFFORT.COACH_RIDE_ANALYSIS },
       system: systemPrompt,
       messages: [{ role: 'user', content: userPrompt }],
     });

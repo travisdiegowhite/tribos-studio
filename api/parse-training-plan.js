@@ -2,7 +2,7 @@
 // Uses Claude Vision to extract workout schedules from screenshots
 
 import { createClaudeClient } from './utils/claudeClient.js';
-import { MODELS } from './utils/claudeModels.js';
+import { MODELS, EFFORT, maxTokensFor } from './utils/claudeModels.js';
 import { getSupabaseAdmin } from './utils/supabaseAdmin.js';
 import { rateLimitByUser } from './utils/rateLimit.js';
 import { setupCors } from './utils/cors.js';
@@ -174,11 +174,10 @@ async function parseScreenshot(req, res, { imageData, imageUrl, userId }) {
 
     const response = await claude.beta.messages.create({
       model: MODELS.TRAINING_PLAN_PARSE,
-      // Headroom over the old 2048: thinking counts toward max_tokens on Sonnet 5.5.
-      max_tokens: 4096,
+      max_tokens: maxTokensFor('TRAINING_PLAN_PARSE', 2048),
       betas: ['server-side-fallback-2026-07-01'],
       fallbacks: 'default',
-      output_config: { effort: 'low' },
+      output_config: { effort: EFFORT.TRAINING_PLAN_PARSE },
       messages: [
         {
           role: 'user',

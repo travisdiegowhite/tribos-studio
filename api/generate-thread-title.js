@@ -2,7 +2,7 @@
 // Uses AI to generate concise, descriptive titles for conversation threads
 
 import { createClaudeClient } from './utils/claudeClient.js';
-import { MODELS } from './utils/claudeModels.js';
+import { MODELS, EFFORT, maxTokensFor } from './utils/claudeModels.js';
 import { rateLimitByUser } from './utils/rateLimit.js';
 import { setupCors } from './utils/cors.js';
 import { requireAuth } from './utils/auth.js';
@@ -93,10 +93,10 @@ export default async function handler(req, res) {
 
     const response = await anthropic.beta.messages.create({
       model: MODELS.THREAD_TITLE,
-      max_tokens: 1024,
+      max_tokens: maxTokensFor('THREAD_TITLE', 150),
       betas: ['server-side-fallback-2026-07-01'],
       fallbacks: 'default',
-      output_config: { effort: 'low' },
+      output_config: { effort: EFFORT.THREAD_TITLE },
       system: TITLE_GENERATION_PROMPT,
       messages: [
         {

@@ -274,7 +274,9 @@ function OnboardingModal({ opened, onClose }) {
       if (!session?.access_token) throw new Error('No session');
 
       const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), 15000);
+      // Two Claude calls at `medium` effort (persona + opening message); on
+      // timeout the coach silently falls back to pragmatist.
+      const timeout = setTimeout(() => controller.abort(), 30000);
 
       const res = await fetch('/api/onboarding-complete', {
         method: 'POST',

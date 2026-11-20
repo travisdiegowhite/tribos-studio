@@ -2,7 +2,7 @@
 // Generates fueling recommendations for rides with optional AI summary
 
 import { createClaudeClient } from './utils/claudeClient.js';
-import { MODELS } from './utils/claudeModels.js';
+import { MODELS, EFFORT, maxTokensFor } from './utils/claudeModels.js';
 import { setupCors } from './utils/cors.js';
 import { requireAuth } from './utils/auth.js';
 import { rateLimitByUser } from './utils/rateLimit.js';
@@ -212,10 +212,10 @@ Your summary:`;
   try {
     const response = await anthropic.beta.messages.create({
       model: MODELS.FUEL_SUMMARY,
-      max_tokens: 1024,
+      max_tokens: maxTokensFor('FUEL_SUMMARY', 200),
       betas: ['server-side-fallback-2026-07-01'],
       fallbacks: 'default',
-      output_config: { effort: 'low' },
+      output_config: { effort: EFFORT.FUEL_SUMMARY },
       messages: [{ role: 'user', content: prompt }],
     });
 

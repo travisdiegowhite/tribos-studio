@@ -2,7 +2,7 @@
 // SECURITY: Restricted to admin (travis@tribos.studio) only
 
 import { createClaudeClient } from './utils/claudeClient.js';
-import { MODELS } from './utils/claudeModels.js';
+import { MODELS, EFFORT, maxTokensFor } from './utils/claudeModels.js';
 import { getSupabaseAdmin } from './utils/supabaseAdmin.js';
 import { setupCors } from './utils/cors.js';
 import { rateLimitMiddleware } from './utils/rateLimit.js';
@@ -91,11 +91,10 @@ export default async function handler(req, res) {
 
     const response = await claude.beta.messages.create({
       model: MODELS.ADMIN_ANALYSIS,
-      // Headroom over the old 2048: thinking counts toward max_tokens on Sonnet 5.5.
-      max_tokens: 4096,
+      max_tokens: maxTokensFor('ADMIN_ANALYSIS', 2048),
       betas: ['server-side-fallback-2026-07-01'],
       fallbacks: 'default',
-      output_config: { effort: 'low' },
+      output_config: { effort: EFFORT.ADMIN_ANALYSIS },
       system: SYSTEM_PROMPT,
       messages: [
         {

@@ -10,7 +10,7 @@
  */
 
 import { createClaudeClient } from './utils/claudeClient.js';
-import { MODELS } from './utils/claudeModels.js';
+import { MODELS, EFFORT, maxTokensFor } from './utils/claudeModels.js';
 import { requireAuth } from './utils/auth.js';
 import { rateLimitByUser } from './utils/rateLimit.js';
 import { enforceAiQuota } from './utils/aiQuota.js';
@@ -404,10 +404,10 @@ export default async function handler(req, res) {
     // Call Claude API — shared voice rules ride as the system prompt.
     const message = await anthropic.beta.messages.create({
       model: MODELS.WEEK_REVIEW,
-      max_tokens: 4096, // Headroom: thinking counts toward max_tokens on Sonnet 5.5
+      max_tokens: maxTokensFor('WEEK_REVIEW', 2048),
       betas: ['server-side-fallback-2026-07-01'],
       fallbacks: 'default',
-      output_config: { effort: 'low' },
+      output_config: { effort: EFFORT.WEEK_REVIEW },
       system: buildCoachVoiceRules({ correctionNotice: false }),
       messages: [
         {

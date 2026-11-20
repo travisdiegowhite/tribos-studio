@@ -85,6 +85,64 @@ describe('monitoredFetch', () => {
     expect(captureServerError).not.toHaveBeenCalled();
   });
 
+  it('logs one [claude-usage] line with tokens, effort and duration', async () => {
+    const log = vi.spyOn(console, 'log').mockImplementation(() => {});
+    const base = vi.fn().mockResolvedValue(
+      jsonResponse(200, {
+        model: 'claude-sonnet-5-5',
+        stop_reason: 'end_turn',
+        content: [{ type: 'text', text: 'route' }],
+        usage: {
+          input_tokens: 1200,
+          output_tokens: 3400,
+          output_tokens_details: { thinking_tokens: 2900 },
+          cache_read_input_tokens: 0,
+          cache_creation_input_tokens: 0,
+        },
+      }),
+    );
+    await monitoredFetch('claude-routes', base)(
+      MESSAGES_URL,
+      body({ model: 'claude-sonnet-5-5', output_config: { effort: 'high' } }),
+    );
+    const lines = log.mock.calls.filter(([tag]) => tag === '[claude-usage]');
+    expect(lines).toHaveLength(1);
+    const entry = JSON.parse(lines[0][1]);
+    expect(entry).toMatchObject({
+      endpoint: 'claude-routes',
+      model: 'claude-sonnet-5-5',
+      effort: 'high',
+      stop_reason: 'end_turn',
+      input_tokens: 1200,
+      output_tokens: 3400,
+      thinking_tokens: 2900,
+    });
+    expect(entry.duration_ms).toBeGreaterThanOrEqual(0);
+    log.mockRestore();
+  });
+
+  it('reports a reply cut off at max_tokens, with the effort that caused it', async () => {
+    vi.spyOn(console, 'log').mockImplementation(() => {});
+    const base = vi.fn().mockResolvedValue(
+      jsonResponse(200, {
+        model: 'claude-sonnet-5-5',
+        stop_reason: 'max_tokens',
+        content: [{ type: 'thinking', thinking: '' }],
+        usage: { input_tokens: 900, output_tokens: 5000 },
+      }),
+    );
+    await monitoredFetch('review-week', base)(
+      MESSAGES_URL,
+      body({ model: 'claude-sonnet-5-5', output_config: { effort: 'medium' } }),
+    );
+    expect(captureServerError).toHaveBeenCalledTimes(1);
+    expect(captureServerError.mock.calls[0][1]).toMatchObject({
+      tag: 'claude.max_tokens',
+      extra: { endpoint: 'review-week', effort: 'medium', output_tokens: 5000 },
+    });
+    vi.mocked(console.log).mockRestore();
+  });
+
   it('ignores non-Messages URLs', async () => {
     const base = vi.fn().mockResolvedValue(jsonResponse(404, { error: { type: 'not_found_error', message: 'x' } }));
     await monitoredFetch('coach', base)('https://api.anthropic.com/v1/models/foo', { method: 'GET' });

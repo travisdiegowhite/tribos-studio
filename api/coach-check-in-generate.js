@@ -8,7 +8,7 @@
  */
 
 import { createClaudeClient } from './utils/claudeClient.js';
-import { MODELS } from './utils/claudeModels.js';
+import { MODELS, EFFORT, maxTokensFor } from './utils/claudeModels.js';
 import { hasAiConsent } from './utils/aiConsent.js';
 import { getSupabaseAdmin } from './utils/supabaseAdmin.js';
 import { setupCors } from './utils/cors.js';
@@ -193,10 +193,10 @@ async function generateCheckIn(checkIn) {
     const claude = createClaudeClient({ apiKey, endpoint: 'coach-check-in-generate' });
     const response = await claude.beta.messages.create({
       model: MODELS.COACH_CHECK_IN_GENERATE,
-      max_tokens: 2048,
+      max_tokens: maxTokensFor('COACH_CHECK_IN_GENERATE', 1024),
       betas: ['server-side-fallback-2026-07-01'],
       fallbacks: 'default',
-      output_config: { effort: 'low' },
+      output_config: { effort: EFFORT.COACH_CHECK_IN_GENERATE },
       system: systemPrompt,
       messages: [
         {
