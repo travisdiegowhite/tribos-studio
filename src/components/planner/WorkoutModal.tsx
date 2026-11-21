@@ -88,6 +88,7 @@ import {
 } from '../../lib/training/session';
 import { SessionProfile, ZoneLegend, ComplianceBadge } from '../training/session';
 import { formatCadence } from './runningTargets';
+import { encodeFitRunWorkout } from '../../utils/fitRunWorkoutEncoder';
 
 // ============================================================
 // TYPES
@@ -366,8 +367,10 @@ export function WorkoutModal({
     ? Math.sqrt(session.planned.load / ((session.planned.durationMin / 60) * 100))
     : null;
 
-  // Device files are ride files today: a run exported this way became a bike
-  // workout at ~50% FTP. Runs get their own export separately.
+  // Ride files for rides. A run exports as a FIT RUN workout with pace (speed)
+  // targets from threshold pace — it used to go through the bike encoder and
+  // land on the watch as a cycling workout at ~50% FTP.
+  const runExportable = hasSteps && sport === 'running';
   const exportStructure = hasSteps && usesPower(sport) && session.workout?.structure
     ? (session.source === 'library' && session.workout.cyclingStructure
         ? session.workout.cyclingStructure
@@ -423,6 +426,21 @@ export function WorkoutModal({
       }
     } catch (err) {
       console.error('Export failed:', err);
+    }
+  };
+
+  const handleRunExport = () => {
+    try {
+      const name = scheduledDate ? `${session.title} ${scheduledDate}` : session.title;
+      const content = encodeFitRunWorkout(steps, { workoutName: name, thresholdPaceSec: anchors.thresholdPaceSec });
+      downloadWorkout({ content, filename: `${name.replace(/[^a-zA-Z0-9-_]/g, '_')}.fit`, mimeType: 'application/octet-stream' });
+      try {
+        posthog.capture('workout_exported', { format: 'fit', sport: 'running', planned: !!plannedWorkout, paced: !!anchors.thresholdPaceSec });
+      } catch {
+        // telemetry never breaks an export
+      }
+    } catch (err) {
+      console.error('Run export failed:', err);
     }
   };
 
@@ -663,6 +681,22 @@ export function WorkoutModal({
             />
           )}
           {editable && fieldsLocked && editNotes && <Text size="sm" c="dimmed">{editNotes}</Text>}
+
+          {runExportable && (
+            <Box data-testid="workout-export">
+              <Text size="xs" c="dimmed" ta="center" mb="xs">Download for your watch</Text>
+              <Group justify="center" gap="xs">
+                <Button size="xs" variant="light" leftSection={<IconDownload size={14} />} onClick={handleRunExport}>
+                  FIT run workout (Garmin/COROS)
+                </Button>
+              </Group>
+              {!anchors.thresholdPaceSec && (
+                <Text size="xs" c="dimmed" ta="center" mt={4}>
+                  Set your threshold pace in Settings to put pace targets on each step.
+                </Text>
+              )}
+            </Box>
+          )}
 
           {exportStructure && (
             <Box data-testid="workout-export">

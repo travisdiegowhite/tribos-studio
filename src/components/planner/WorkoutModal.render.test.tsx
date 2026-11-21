@@ -150,7 +150,9 @@ describe('WorkoutModal draws the session from the shared core', () => {
     );
     expect(screen.getByTestId('step-list').textContent).toMatch(/4:54–5:06\/km/);
     expect(screen.getByTestId('step-list').textContent).not.toMatch(/FTP/);
-    expect(screen.queryByTestId('workout-export')).toBeNull();
+    // A run exports as a FIT run workout, never a bike/Zwift file.
+    expect(screen.getByTestId('workout-export').textContent).toMatch(/FIT run workout/);
+    expect(screen.queryByText('ZWO (Zwift)')).toBeNull();
     expect(screen.queryByText(/ride stress/i)).toBeNull();
   });
 

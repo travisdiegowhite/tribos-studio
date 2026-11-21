@@ -39,6 +39,9 @@ export function runTrendStats(activities, { isImperial = false, formatElev } = {
 // ============================================================================
 const TrendsSection = React.memo(function TrendsSection({
   dailyTSSData,
+  fitnessForecast = null,
+  raceMarkers = null,
+  sportLoadHistory = null,
   trainingMetrics,
   activities,
   speedProfile,
@@ -115,7 +118,14 @@ const TrendsSection = React.memo(function TrendsSection({
   return (
     <Stack gap="md">
       {dailyTSSData.length > 0 ? (
-        <TrainingLoadChart data={dailyTSSData} />
+        <TrainingLoadChart
+          data={dailyTSSData}
+          // The projection and per-sport lines describe COMBINED load, so they
+          // show on the All view only.
+          forecast={sport === 'all' ? fitnessForecast : null}
+          markers={raceMarkers}
+          sportSeries={sport === 'all' ? sportLoadHistory : null}
+        />
       ) : (
         <EmptyState type="noTrainingData" size="sm" />
       )}

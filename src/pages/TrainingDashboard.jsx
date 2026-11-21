@@ -1,4 +1,5 @@
 // Training Dashboard - Updated Dec 2024
+import { forecastFitness } from '../lib/training/session/forecast';
 import { sportNoun } from '../lib/training/session/sportCopy';
 import React, { useState, useEffect, useMemo, useCallback, useRef, lazy, Suspense } from 'react';
 import {
@@ -100,6 +101,7 @@ function TrainingDashboard() {
   // Adaptive EWA tau (user_profiles.tfi_tau/afi_tau) so client-filled tail
   // days decay at the athlete's actual rate — same guard as the server engine.
   const [taus, setTaus] = useState({ tfi: 42, afi: 7 });
+  const [sportLoadHistory, setSportLoadHistory] = useState([]);
   const [powerZones, setPowerZones] = useState(null);
   const [userWeight, setUserWeight] = useState(null);
   const [trainingMetrics, setTrainingMetrics] = useState({
@@ -224,6 +226,16 @@ function TrainingDashboard() {
           .gte('date', ninetyKey)
           .order('date', { ascending: true });
         setServerLoadHistory(serverLoadRows || []);
+
+        // Per-sport fitness (migration 133), in its own query so a missing
+        // column can never cost the combined series. Fail-soft.
+        const { data: splitRows, error: splitErr } = await supabase
+          .from('training_load_daily')
+          .select('date, tfi_cycling, tfi_running')
+          .eq('user_id', user.id)
+          .gte('date', ninetyKey)
+          .order('date', { ascending: true });
+        setSportLoadHistory(splitErr ? [] : splitRows || []);
 
         // Get all activities using pagination (Supabase caps at 1000 per request)
         let allActivities = [];
@@ -654,6 +666,26 @@ function TrainingDashboard() {
       { totalDistance: 0, totalTime: 0, totalTSS: 0, rideCount: 0, runCount: 0, otherCount: 0, activityCount: 0, bySport: {} }
     );
   }, [visibleActivities, ftp]);
+
+  // Where fitness is headed on the planned calendar (the PMC's future segment).
+  const fitnessForecast = useMemo(() => {
+    const last = dailyTSSData[dailyTSSData.length - 1];
+    if (!last) return null;
+    return forecastFitness({
+      from: { date: last.date, ctl: last.ctl, atl: last.atl },
+      planned: plannedWorkouts,
+      taus,
+      days: 42,
+    });
+  }, [dailyTSSData, plannedWorkouts, taus]);
+
+  // Upcoming races on the chart's time axis.
+  const raceMarkers = useMemo(
+    () => (raceGoals || [])
+      .filter((r) => r.race_date && r.race_date >= getTodayString())
+      .map((r) => ({ date: r.race_date, label: r.priority ? `${r.priority} race` : 'Race' })),
+    [raceGoals]
+  );
 
   // Format helpers
   const formatTime = (seconds) => {
@@ -1088,6 +1120,9 @@ function TrainingDashboard() {
             {activeTab === 'progress' && (
               <ProgressTab
                 dailyTSSData={dailyTSSData}
+                fitnessForecast={fitnessForecast}
+                raceMarkers={raceMarkers}
+                sportLoadHistory={sportLoadHistory}
                 trainingMetrics={trainingMetrics}
                 activities={visibleActivities}
                 speedProfile={speedProfile}

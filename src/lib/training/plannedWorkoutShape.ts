@@ -299,13 +299,17 @@ export function fitStructureToDuration(
       };
     }
     let left = delta;
-    const growTo = (current: number, cap: number) => {
-      const add = Math.max(0, Math.min(left, cap - current));
-      left -= add;
-      return round1(current + add);
-    };
-    const warmup = structure.warmup ? { ...structure.warmup, duration: growTo(flexWarm, MAX_GROWN_WARMUP_MIN) } : null;
-    const cooldown = structure.cooldown ? { ...structure.cooldown, duration: growTo(flexCool, MAX_GROWN_COOLDOWN_MIN) } : null;
+    // Split the bookends' share 60/40 between warmup and cooldown (each up to
+    // its cap), so neither soaks up all of it.
+    const warmRoom = structure.warmup ? Math.max(0, MAX_GROWN_WARMUP_MIN - flexWarm) : 0;
+    const coolRoom = structure.cooldown ? Math.max(0, MAX_GROWN_COOLDOWN_MIN - flexCool) : 0;
+    const bookendShare = Math.min(left, warmRoom + coolRoom);
+    let warmAdd = Math.min(warmRoom, bookendShare * 0.6);
+    let coolAdd = Math.min(coolRoom, bookendShare - warmAdd);
+    warmAdd = Math.min(warmRoom, bookendShare - coolAdd);
+    left -= warmAdd + coolAdd;
+    const warmup = structure.warmup ? { ...structure.warmup, duration: round1(flexWarm + warmAdd) } : null;
+    const cooldown = structure.cooldown ? { ...structure.cooldown, duration: round1(flexCool + coolAdd) } : null;
     const main = [...structure.main];
     if (left > 0 && left < FIT_TOLERANCE_MIN) {
       // A sliver isn't worth its own block; the cooldown takes it.
