@@ -1297,7 +1297,7 @@ const TrainingCalendar = ({ activePlan, rides = [], formatDistance: formatDistan
         {/* Show info about no content yet */}
         {!activePlan && rides.length === 0 && plannedWorkouts.length === 0 && (
           <Text style={{ color: 'var(--color-text-muted)' }} ta="center" py="xl">
-            No rides recorded yet. Connect Strava or upload rides to see them on the calendar.
+            No activities recorded yet. Connect a device or upload rides and runs to see them on the calendar.
           </Text>
         )}
 
@@ -1821,7 +1821,7 @@ const TrainingCalendar = ({ activePlan, rides = [], formatDistance: formatDistan
 
                       {/* Show actual TSS if rides */}
                       {dayTSS > 0 && (
-                        <Text size="xs" c="orange" fw={500}>{Math.round(dayTSS)} RSS</Text>
+                        <Text size="xs" fw={500} style={{ color: 'var(--color-signal-text)' }}>{Math.round(dayTSS)} RSS</Text>
                       )}
 
                       {dayRides.length > 0 && (
@@ -1882,16 +1882,23 @@ const TrainingCalendar = ({ activePlan, rides = [], formatDistance: formatDistan
                 </Button>
               </Group>
 
-              {activePlan && (
+              {/* The calendar belongs to the athlete, plan or no plan, so its legend shows either way. */}
+              {(
                 <Group gap="md">
                   <Text size="xs" style={{ color: 'var(--color-text-muted)' }} fw={600}>Status</Text>
                   <Group gap={4}>
                     <HandTick size={14} />
-                    <Text size="xs" style={{ color: 'var(--color-text-secondary)' }}>Ridden</Text>
+                    <Text size="xs" style={{ color: 'var(--color-text-secondary)' }}>Done</Text>
                   </Group>
                   <Group gap={4}>
                     <Text size="xs" style={{ color: 'var(--color-text-secondary)', textDecoration: 'line-through' }}>Missed</Text>
                   </Group>
+                  {['on_target', 'partial', 'off'].map((band) => (
+                    <Group key={band} gap={4}>
+                      <div style={{ width: 14, height: 3, background: COMPLIANCE_STYLE[band].strip }} />
+                      <Text size="xs" style={{ color: 'var(--color-text-secondary)' }}>{COMPLIANCE_STYLE[band].label}</Text>
+                    </Group>
+                  ))}
                   <Group gap={4}>
                     <div style={{ width: 12, height: 12, background: 'var(--color-card)', border: '2px solid var(--color-ink)' }} />
                     <Text size="xs" style={{ color: 'var(--color-text-secondary)' }}>Today</Text>
@@ -2244,7 +2251,7 @@ const TrainingCalendar = ({ activePlan, rides = [], formatDistance: formatDistan
               ? 'Checking your calendar…'
               : clearCount === 0
                 ? 'There are no upcoming planned sessions to clear.'
-                : `This removes ${clearCount} upcoming planned session${clearCount === 1 ? '' : 's'} from today onward. Completed sessions and past history are kept, and your logged rides are not affected.`}
+                : `This removes ${clearCount} upcoming planned session${clearCount === 1 ? '' : 's'} from today onward. Completed sessions and past history are kept, and your logged activities are not affected.`}
           </Text>
           <Group justify="flex-end" gap="xs">
             <Button variant="subtle" color="gray" onClick={() => setClearModalOpen(false)} disabled={clearing}>

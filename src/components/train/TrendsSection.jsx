@@ -100,7 +100,8 @@ const TrendsSection = React.memo(function TrendsSection({
     stats.push(...runTrendStats(activities, { isImperial, formatElev }));
   } else {
     stats.push({
-      label: `Avg speed (${isImperial ? 'mph' : 'km/h'})`,
+      // The speed profile is built from rides only; say so when the view mixes sports.
+      label: `${sport === 'cycling' ? 'Avg speed' : 'Ride avg speed'} (${isImperial ? 'mph' : 'km/h'})`,
       value: speedProfile ? (speedProfile.average_speed * (isImperial ? 0.621371 : 1)).toFixed(1) : '--',
     });
   }

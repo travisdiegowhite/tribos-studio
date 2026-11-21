@@ -40,7 +40,7 @@ const CONFIDENCE_LABEL: Record<string, string> = {
   power: 'Based on power data',
   hr: 'Estimated from heart rate',
   rpe: 'Estimated from effort rating',
-  inferred: 'Estimated from ride type',
+  inferred: 'Estimated from session type',
 };
 
 const OPTION_ICONS: Record<string, React.ReactNode> = {

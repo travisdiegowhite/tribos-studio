@@ -23,6 +23,7 @@ import { useRepeatAnchorSegments } from '../../hooks/useRepeatAnchorSegments';
 import { useRepeatsScan } from '../../hooks/useRepeatsScan';
 import { useSegmentNamer } from '../../hooks/useSegmentNamer';
 import { anchorFromRide, anchorFromSegment, effortPointAt, repeatBests } from '../../utils/rideRepeats';
+import { isRunningActivity } from '../../utils/sportType';
 import { C, FONT } from '../../views/today-spine/tokens';
 import EffortsTable, { formatDuration, formatShortDate } from './EffortsTable';
 import RepeatsGrid from './RepeatsGrid';
@@ -263,16 +264,19 @@ function RepeatsTabInner({ anchorRide, activities, userId, initialSegmentId = nu
     return `${Math.round(v)} ${metricDef.unit}`;
   };
 
+  // An anchor run compares runs; the words follow it.
+  const noun = anchorKind === 'ride' && anchorRide && isRunningActivity(anchorRide) ? 'run' : 'ride';
+  const nouns = `${noun}s`;
   let empty = null;
   if (!anchor) {
     empty =
       anchorKind === 'ride'
-        ? 'Pick a ride with GPS on the map card above to see its repeats.'
+        ? 'Pick a ride or run with GPS on the map card above to see its repeats.'
         : 'Pick a segment to see every ride along it.';
   } else if (!scan.done) {
-    empty = `Scanning ${scan.processed.toLocaleString()} of ${scan.total.toLocaleString()} rides…`;
+    empty = `Scanning ${scan.processed.toLocaleString()} of ${scan.total.toLocaleString()} ${nouns}…`;
   } else if (efforts.length === 0) {
-    empty = 'No rides along this path yet.';
+    empty = `No ${nouns} along this path yet.`;
   }
 
   const anchorRideDate = anchorRide?.start_date ? formatShortDate(anchorRide.start_date) : null;
@@ -285,7 +289,7 @@ function RepeatsTabInner({ anchorRide, activities, userId, initialSegmentId = nu
       <Text style={noteStyle}>
         {[anchorRideDate, anchor ? formatDistance(anchor.lengthKm) : null].filter(Boolean).join(' · ').toUpperCase()}
       </Text>
-      <Text style={noteStyle}>Step through rides with the arrows on the map card, or pick one from HISTORY.</Text>
+      <Text style={noteStyle}>Step through {nouns} with the arrows on the map card, or pick one from HISTORY.</Text>
     </Group>
   ) : (
     <Text px={16} py={14} style={noteStyle}>
@@ -295,7 +299,7 @@ function RepeatsTabInner({ anchorRide, activities, userId, initialSegmentId = nu
 
   const mapSummary = anchor
     ? [
-        `${efforts.length} ${efforts.length === 1 ? 'ride' : 'rides'}`,
+        `${efforts.length} ${efforts.length === 1 ? noun : nouns}`,
         formatDistance(anchor.lengthKm),
         measuredCount > 0 ? `${measuredCount} with full data` : null,
         scan.done && efforts.length > 0 ? `${selectedEfforts.length} shown` : null,
@@ -365,7 +369,7 @@ function RepeatsTabInner({ anchorRide, activities, userId, initialSegmentId = nu
               <Group justify="space-between" align="center" wrap="wrap" gap="sm" px={16} py={10} style={{ borderTop: `1px solid ${C.border}` }}>
                 <Group gap={14} align="center" wrap="wrap">
                   <Text style={eyebrowStyle}>
-                    {view === 'grid' ? 'Sectors' : 'Traces'} · distance along the {anchor.kind === 'segment' ? 'segment' : 'ride'}
+                    {view === 'grid' ? 'Sectors' : 'Traces'} · distance along the {anchor.kind === 'segment' ? 'segment' : noun}
                   </Text>
                   <Group gap={10} align="center" role="group" aria-label="Comparison view">
                     <ViewTab active={view === 'grid'} onClick={() => setView('grid')}>
@@ -385,7 +389,7 @@ function RepeatsTabInner({ anchorRide, activities, userId, initialSegmentId = nu
                     ))}
                   </Group>
                 ) : (
-                  <Text style={noteStyle}>No measured rides shown</Text>
+                  <Text style={noteStyle}>No measured {nouns} shown</Text>
                 )}
               </Group>
               {view === 'grid' ? (
@@ -432,7 +436,7 @@ function RepeatsTabInner({ anchorRide, activities, userId, initialSegmentId = nu
                     </Group>
                   );
                 })}
-                {selectedEfforts.length === 0 && <Text style={noteStyle}>Pick rides in the table below to draw them.</Text>}
+                {selectedEfforts.length === 0 && <Text style={noteStyle}>Pick {nouns} in the table below to draw them.</Text>}
               </Group>
             </>
           )}

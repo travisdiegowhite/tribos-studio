@@ -174,7 +174,7 @@ function RideMapCard({
               {shownTitle}
             </Text>
             <MetricCitation
-              sentence={ride.name || 'Untitled ride'}
+              sentence={ride.name || `Untitled ${noun}`}
               color="var(--color-text-primary)"
               metrics={metrics}
               receipt={formatRideDate(ride.start_date || ride.recorded_at)}

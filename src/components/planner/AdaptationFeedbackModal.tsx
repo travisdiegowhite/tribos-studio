@@ -59,7 +59,7 @@ const REASON_OPTIONS: { value: AdaptationReason; label: string; description: str
   {
     value: 'equipment',
     label: 'Equipment',
-    description: 'Bike/trainer issues',
+    description: 'Equipment issues',
   },
   {
     value: 'illness_injury',

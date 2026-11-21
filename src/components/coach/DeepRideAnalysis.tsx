@@ -98,7 +98,7 @@ export default function DeepRideAnalysis({ activityId }: DeepRideAnalysisProps) 
           <Group gap="xs">
             <ChartLine size={16} color="var(--color-teal)" />
             <Text size="xs" fw={700} tt="uppercase" ff="monospace" c="dimmed">
-              Deep Ride Analysis
+              Deep Analysis
             </Text>
           </Group>
           {status === 'idle' && (
@@ -121,7 +121,7 @@ export default function DeepRideAnalysis({ activityId }: DeepRideAnalysisProps) 
         {status === 'idle' && (
           <Text size="sm" c="dimmed">
             Generate a long-form coach analysis of power, heart rate, and cadence
-            for this ride — how well you executed the workout, where you faded, and what it cost. The works.
+            for this session — how well you executed the workout, where you faded, and what it cost. The works.
           </Text>
         )}
 

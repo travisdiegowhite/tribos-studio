@@ -235,7 +235,7 @@ export default function SupplementWorkoutModal({
                         <Group spacing="xs">
                           <Text fw={500} size="sm">{workout.name}</Text>
                           {isHeavy && (
-                            <Tooltip label="Heavy workout - needs 48-72h before hard bike sessions">
+                            <Tooltip label="Heavy workout - needs 48-72h before hard rides or runs">
                               <Badge size="xs" color="red" variant="light">Heavy</Badge>
                             </Tooltip>
                           )}
@@ -287,7 +287,7 @@ export default function SupplementWorkoutModal({
                     style={{ maxWidth: 300 }}
                   >
                     <Text size="xs">
-                      Allow 48-72h before hard bike sessions after heavy leg work
+                      Allow 48-72h before hard rides or runs after heavy leg work
                     </Text>
                   </Alert>
                 )}

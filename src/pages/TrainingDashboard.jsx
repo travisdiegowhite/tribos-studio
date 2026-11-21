@@ -1,4 +1,5 @@
 // Training Dashboard - Updated Dec 2024
+import { sportNoun } from '../lib/training/session/sportCopy';
 import React, { useState, useEffect, useMemo, useCallback, useRef, lazy, Suspense } from 'react';
 import {
   Container,
@@ -856,7 +857,7 @@ function TrainingDashboard() {
       ));
 
       notifications.show({
-        title: result.isHidden ? 'Ride hidden' : 'Ride restored',
+        title: `${sportNoun(getSportTypeForActivity(ride), { capital: true })} ${result.isHidden ? 'hidden' : 'restored'}`,
         message: result.isHidden
           ? `"${ride.name}" has been hidden from your history`
           : `"${ride.name}" is now visible in your history`,
@@ -866,7 +867,7 @@ function TrainingDashboard() {
       console.error('Error hiding ride:', error);
       notifications.show({
         title: 'Error',
-        message: error.message || 'Failed to update ride visibility',
+        message: error.message || 'Failed to update activity visibility',
         color: 'red'
       });
     }

@@ -92,7 +92,7 @@ const TrainingLoadChart = ({
     return (
       <Box style={{ borderTop: '1px solid var(--color-border)', padding: '16px 0' }}>
         <Text style={{ color: 'var(--color-text-muted)' }}>
-          No training data available. Import your rides to see your training load metrics.
+          No training data available. Import your rides and runs to see your training load.
         </Text>
       </Box>
     );
@@ -145,7 +145,7 @@ const TrainingLoadChart = ({
         </AreaChart>
       </ResponsiveContainer>
       <Text size="xs" style={{ color: 'var(--color-text-muted)' }} mb="md" mt={4}>
-        Daily ride stress (RSS)
+        Daily stress (RSS)
       </Text>
 
       {/* Fitness / fatigue / form */}
@@ -181,7 +181,7 @@ const TrainingLoadChart = ({
       </ResponsiveContainer>
 
       <Text style={{ ...mono, fontSize: 10, color: 'var(--color-text-muted)', marginTop: 6 }}>
-        RSS = daily ride stress · FTP = your current threshold power
+        RSS = daily training stress · rides score from power, runs from pace or heart rate
       </Text>
     </Box>
   );

@@ -1100,7 +1100,7 @@ const TrainingPlanBrowser = ({ activePlan, onPlanActivated, compact = false }) =
             <Paper p="sm" withBorder ta="center">
               <TrendUp size={20} style={{ color: 'var(--color-text-muted)', marginBottom: 4 }} />
               <Text size="lg" fw={700}>{selectedPlan.weeklyTSS?.min}-{selectedPlan.weeklyTSS?.max}</Text>
-              <Text size="xs" c="dimmed">weekly ride stress</Text>
+              <Text size="xs" c="dimmed">weekly stress</Text>
             </Paper>
           </SimpleGrid>
 
