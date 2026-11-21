@@ -8,6 +8,7 @@
  */
 
 import { tokens } from '../../theme';
+import { powerZoneFor } from '../../lib/training/session/zones';
 
 /**
  * Zone color definitions — mapped to Tribos brand palette
@@ -149,14 +150,10 @@ export function getZonesForChart() {
  * @returns {number} Zone number
  */
 export function getZoneFromPowerPct(powerPct) {
-  if (powerPct < 0.55) return 1;
-  if (powerPct < 0.75) return 2;
-  if (powerPct < 0.87) return 3;
-  if (powerPct < 0.94) return 3.5; // Sweet spot
-  if (powerPct < 1.05) return 4;
-  if (powerPct < 1.20) return 5;
-  if (powerPct < 1.50) return 6;
-  return 7;
+  // One set of zone edges for the whole app (src/lib/training/session/zones.ts):
+  // this used strict `<` while the workout modal used `<=`, so a 75% set was
+  // Z2 in the modal and Z3 on the route overlay.
+  return powerZoneFor(powerPct * 100);
 }
 
 /**

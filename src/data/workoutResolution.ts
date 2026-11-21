@@ -16,12 +16,14 @@
  * `vo2max` day paints as the library's 4x8min VO2 Max. The match is flagged
  * `inferred` so callers can say it is a stand-in rather than the prescription.
  *
- * Cycling-first (RB2 is a cycling surface): inference only ever picks from
- * `WORKOUT_LIBRARY`. An explicit `workout_id` still resolves against either
- * library via `getAnyWorkoutById`, so running rows keep working.
+ * Inference picks from the library of the row's sport: `WORKOUT_LIBRARY` by
+ * default (RB2 is a cycling surface), `RUNNING_WORKOUT_LIBRARY` for a run. An
+ * explicit `workout_id` resolves against either library via
+ * `getAnyWorkoutById`.
  */
 
 import { WORKOUT_LIBRARY } from './workoutLibrary';
+import { RUNNING_WORKOUT_LIBRARY } from './runningWorkoutLibrary';
 import { getAnyWorkoutById } from './workoutLookup';
 import { WORKOUT_TYPES } from '../utils/trainingPlans';
 import type { WorkoutCategory, WorkoutDefinition } from '../types/training';
@@ -101,6 +103,7 @@ function isPaintable(workout: WorkoutDefinition): boolean {
 export function inferWorkoutForType(
   planType: string | null | undefined,
   durationMinutes?: number | null,
+  sport?: string | null,
 ): WorkoutDefinition | null {
   const category = workoutCategoryForPlanType(planType);
   if (!category) return null;
@@ -112,7 +115,10 @@ export function inferWorkoutForType(
 
   let best: WorkoutDefinition | null = null;
   let bestDelta = Infinity;
-  for (const workout of Object.values(WORKOUT_LIBRARY)) {
+  // A run's stand-in comes from the running library: a cycling stand-in drew
+  // runs as %FTP rides with a bike workout's name.
+  const library = sport === 'running' ? RUNNING_WORKOUT_LIBRARY : WORKOUT_LIBRARY;
+  for (const workout of Object.values(library)) {
     if (workout.category !== category || !isPaintable(workout)) continue;
     const delta = Math.abs(workout.duration - targetMin);
     if (delta < bestDelta || (delta === bestDelta && best && workout.targetTSS < best.targetTSS)) {

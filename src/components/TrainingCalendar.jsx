@@ -26,6 +26,7 @@ import { WORKOUT_TYPES, TRAINING_PHASES, calculateTSS, estimateTSS } from '../ut
 import { isPowerSport, getActivitySport } from '../utils/sportType';
 // Either library: a run picked from the planner must resolve like a ride.
 import { getAnyWorkoutById as getWorkoutById } from '../data/workoutLookup';
+import { isStrengthSession } from '../../api/utils/entrySport.js';
 import { resolvePlannedWorkoutShape } from '../lib/training/plannedWorkoutShape';
 import { tokens } from '../theme';
 import { sessionTone, sessionToneStyle, sessionRuleBorder } from '../utils/calendarSessionTone';
@@ -854,12 +855,26 @@ const TrainingCalendar = ({ activePlan, rides = [], formatDistance: formatDistan
 
     if (!user?.id) return;
     const targetRss = def.targetTSS || 0;
+    const sport = def.sportType === 'running'
+      ? 'running'
+      : isStrengthSession({ workout_type: def.category, workout_id: workoutId }) ? 'other' : 'cycling';
+    // The old structure belongs to the old workout. Leaving it in
+    // details.prescription drew the previous intervals under the new name, so
+    // drop it (keeping timing and race fields) and let the library workout be
+    // the session.
+    const prevDetails = selectedWorkout.details && typeof selectedWorkout.details === 'object'
+      ? selectedWorkout.details
+      : null;
+    const nextDetails = prevDetails ? { ...prevDetails } : null;
+    if (nextDetails) delete nextDetails.prescription;
     const before = {
       workout_id: selectedWorkout.workout_id,
       workout_type: selectedWorkout.workout_type,
       title: selectedWorkout.name,
       target_load: selectedWorkout.target_rss ?? selectedWorkout.target_tss ?? null,
       target_duration_min: selectedWorkout.target_duration ?? null,
+      details: prevDetails,
+      ...(selectedWorkout.sport ? { sport: selectedWorkout.sport } : {}),
     };
 
     const ok = await runCalendarChange(
@@ -869,6 +884,8 @@ const TrainingCalendar = ({ activePlan, rides = [], formatDistance: formatDistan
         title: def.name,
         target_load: targetRss,
         target_duration_min: def.duration || 0,
+        details: nextDetails && Object.keys(nextDetails).length > 0 ? nextDetails : null,
+        sport,
       }),
       `Changed to ${def.name}`,
       () => updateEntry(user.id, selectedWorkout.id, before),
@@ -876,11 +893,22 @@ const TrainingCalendar = ({ activePlan, rides = [], formatDistance: formatDistan
     if (!ok) return;
 
     // Reflect the swap in the open modal so the profile/timeline update in place.
-    const updatedRow = { ...selectedWorkout, workout_id: workoutId, workout_type: def.category, name: def.name, target_duration: def.duration || 0, target_tss: targetRss, target_rss: targetRss };
+    const updatedRow = {
+      ...selectedWorkout,
+      workout_id: workoutId,
+      workout_type: def.category,
+      name: def.name,
+      target_duration: def.duration || 0,
+      target_tss: targetRss,
+      target_rss: targetRss,
+      details: nextDetails && Object.keys(nextDetails).length > 0 ? nextDetails : null,
+      sport,
+    };
     setSelectedWorkout(updatedRow);
     const mapped = mapToModalWorkout(updatedRow);
     setModalPlannedWorkout(mapped);
     setModalWorkoutDef(mapped?.workout || null);
+    setModalStructureNote(mapped?.structureNote || null);
   };
 
   /**
