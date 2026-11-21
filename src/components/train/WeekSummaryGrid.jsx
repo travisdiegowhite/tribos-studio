@@ -3,6 +3,7 @@ import { useMediaQuery } from '@mantine/hooks';
 import { MetricCitation } from '../ui/MetricCitation';
 import { getTodayString, toDateKey, weekRangeKeys } from '../../utils/dateUtils';
 import { isSkippedSession } from '../../../api/utils/sessionSkipped.js';
+import { sportNoun } from '../../lib/training/session/sportCopy';
 
 /**
  * The week's plan-vs-actual citation row.
@@ -18,7 +19,7 @@ import { isSkippedSession } from '../../../api/utils/sessionSkipped.js';
  * Keep all four metrics on one window — this row sits directly above
  * CheckInWeekBar, and any divergence between them is visible to the athlete.
  */
-function WeekSummaryGrid({ actualWeeklyStats, plannedWorkouts, formatTime, loading, frameless = false }) {
+function WeekSummaryGrid({ actualWeeklyStats, plannedWorkouts, formatTime, formatDistance, loading, frameless = false }) {
   const isMobile = useMediaQuery('(max-width: 768px)');
   // `frameless` drops the card chrome so the row can sit inside PlanWeekCard.
   const frame = frameless
@@ -93,12 +94,39 @@ function WeekSummaryGrid({ actualWeeklyStats, plannedWorkouts, formatTime, loadi
         : `You're ${completedCount} of ${plannedCount} sessions into the week's plan, with ${remaining} still ahead.`;
     if (skippedCount > 0) sentence += ` ${skippedCount === 1 ? 'One session' : `${skippedCount} sessions`} skipped by choice.`;
   } else if (weeklyTSS > 0 || totalTime > 0) {
-    sentence = `An unplanned week so far — ${formattedTime} of riding logged.`;
+    const sports = Object.keys(actualWeeklyStats?.bySport || {});
+    const doing = sports.length === 1 && sports[0] === 'cycling' ? 'riding'
+      : sports.length === 1 && sports[0] === 'running' ? 'running'
+      : 'training';
+    sentence = `An unplanned week so far — ${formattedTime} of ${doing} logged.`;
   } else {
     sentence = 'Nothing logged yet this week.';
   }
 
+  // Per-sport rows for a multisport week: time and distance done, and the
+  // stress done against the stress planned for that sport.
+  const bySport = actualWeeklyStats?.bySport || {};
+  const plannedBySport = {};
+  for (const w of weekSessions) {
+    const sp = w.sport || 'cycling';
+    plannedBySport[sp] = (plannedBySport[sp] || 0) + (Number(w.target_rss ?? w.target_tss) || 0);
+  }
+  const sportsShown = ['cycling', 'running'].filter((sp) => bySport[sp] || plannedBySport[sp]);
+  const sportMetrics = sportsShown.length > 1
+    ? sportsShown.map((sp) => {
+        const done = bySport[sp] || { time: 0, distance: 0, load: 0 };
+        const km = done.distance / 1000;
+        const parts = [
+          formatTime ? formatTime(done.time) : `${Math.round(done.time / 3600)}h`,
+          km > 0 ? (formatDistance ? formatDistance(km) : `${Math.round(km)} km`) : null,
+          plannedBySport[sp] ? `${Math.round(done.load)}/${Math.round(plannedBySport[sp])}` : `${Math.round(done.load)}`,
+        ].filter(Boolean);
+        return { label: sportNoun(sp, { capital: true }), value: parts.join(' · ') };
+      })
+    : [];
+
   const metrics = [
+    ...sportMetrics,
     {
       label: 'Stress',
       value: plannedTSS > 0 ? `${Math.round(weeklyTSS)}/${Math.round(plannedTSS)}` : String(Math.round(weeklyTSS)),

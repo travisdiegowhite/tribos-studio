@@ -58,8 +58,8 @@ describe('WorkoutModal for a planned entry with no library workout', () => {
       </MantineProvider>,
     );
 
-    expect(screen.getByText('Workout Profile')).toBeTruthy();
-    expect(screen.getByText('Interval Details')).toBeTruthy();
+    expect(screen.getByText('Workout profile')).toBeTruthy();
+    expect(screen.getByText('Interval details')).toBeTruthy();
     expect(screen.getByTestId('structure-note').textContent).toMatch(/Stand-in/);
     expect(screen.getByTestId('workout-export')).toBeTruthy();
     expect(screen.getByText('FIT (Garmin/Wahoo)')).toBeTruthy();
@@ -81,7 +81,7 @@ describe('WorkoutModal for a planned entry with no library workout', () => {
         />
       </MantineProvider>,
     );
-    expect(screen.queryByText('Workout Profile')).toBeNull();
+    expect(screen.queryByText('Workout profile')).toBeNull();
     expect(screen.queryByTestId('workout-export')).toBeNull();
   });
 });
@@ -106,8 +106,80 @@ describe('WorkoutModal duration edits', () => {
     );
     const duration = screen.getByLabelText('Duration (min)') as HTMLInputElement;
     fireEvent.change(duration, { target: { value: '120' } });
-    const load = screen.getByLabelText('Target ride stress') as HTMLInputElement;
-    expect(Number(load.value)).toBe(structureLoad(fitStructureToDuration(workout.structure, 120)));
+    const load = screen.getByLabelText('Planned stress') as HTMLInputElement;
+    // The extra hour is endurance riding, scored with the actual-load formula.
     expect(Number(load.value)).toBeGreaterThan(workout.targetTSS);
+    expect(Number(load.value)).toBeCloseTo(structureLoad(fitStructureToDuration(workout.structure, 120)), -1);
+  });
+});
+
+describe('WorkoutModal draws the session from the shared core', () => {
+  const runRow = {
+    id: 'run-1',
+    scheduled_date: '2026-11-25',
+    entry_type: 'workout',
+    name: 'Threshold Run',
+    workout_id: null,
+    workout_type: 'threshold',
+    sport: 'running',
+    target_duration: 50,
+    target_rss: 67,
+    status: 'planned',
+    details: {
+      prescription: {
+        version: 1,
+        source: 'coach',
+        basis: 'pace',
+        intervals: [{ repeats: 4, duration_min: 5, recovery_min: 2, target_pct_threshold_pace_min: 98, target_pct_threshold_pace_max: 102 }],
+      },
+    },
+  };
+
+  it('shows a run in paces, with no bike export or ride words', () => {
+    render(
+      <MantineProvider>
+        <WorkoutModal
+          workout={null}
+          entry={runRow}
+          anchors={{ ftp: 250, thresholdPaceSec: 300 }}
+          plannedWorkout={{ ...plannedFrom(ARC_ROW), id: 'run-1', workoutType: 'threshold', targetTSS: 67, targetDuration: 50 }}
+          opened
+          onClose={() => {}}
+        />
+      </MantineProvider>,
+    );
+    expect(screen.getByTestId('step-list').textContent).toMatch(/4:54–5:06\/km/);
+    expect(screen.getByTestId('step-list').textContent).not.toMatch(/FTP/);
+    expect(screen.queryByTestId('workout-export')).toBeNull();
+    expect(screen.queryByText(/ride stress/i)).toBeNull();
+  });
+
+  it('gives VO2 bars a real zone colour', () => {
+    render(
+      <MantineProvider>
+        <WorkoutModal workout={null} entry={{ ...ARC_ROW, sport: 'cycling', entry_type: 'workout', workout_id: 'four_by_eight_vo2' }} plannedWorkout={plannedFrom(ARC_ROW)} opened onClose={() => {}} />
+      </MantineProvider>,
+    );
+    const bars = screen.getByTestId('session-profile').querySelectorAll('[data-zone="5"]');
+    expect(bars.length).toBeGreaterThan(0);
+    expect((bars[0] as HTMLElement).style.background).toBe('var(--zone-5)');
+  });
+
+  it('compares a done session with its plan', () => {
+    render(
+      <MantineProvider>
+        <WorkoutModal
+          workout={null}
+          entry={{ ...ARC_ROW, sport: 'cycling', entry_type: 'workout', status: 'done', activity_id: 'a1', target_rss: 55, actual_rss: 49, actual_duration: 50, target_duration: 60 }}
+          plannedWorkout={{ ...plannedFrom(ARC_ROW), targetTSS: 55, targetDuration: 60, completed: true }}
+          opened
+          onClose={() => {}}
+        />
+      </MantineProvider>,
+    );
+    expect(screen.getByTestId('planned-vs-actual')).toBeTruthy();
+    expect(screen.getByTestId('compliance-badge').getAttribute('data-band')).toBe('on_target');
+    expect(screen.queryByLabelText('Planned stress')).toBeNull();
+    expect(screen.getByText('Edit plan')).toBeTruthy();
   });
 });

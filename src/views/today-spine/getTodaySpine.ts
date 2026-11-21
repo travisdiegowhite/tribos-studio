@@ -19,6 +19,7 @@
  * canonical-first fallbacks above still read the same way.
  */
 
+import type { SessionRow } from '../../lib/training/session';
 import { supabase } from '../../lib/supabase';
 import { estimateActivityTSS } from '../../utils/computeFitnessSnapshots';
 import { stepDay } from '../../lib/training/tsb-projection';
@@ -922,6 +923,9 @@ export async function getTodaySpine(userId: string): Promise<SpineData> {
         sport: asSpineSport(todayPlan.sport),
         entryId: todayPlan.id ?? null,
         targetDistanceKm: Number(todayPlan.target_distance_km) > 0 ? Number(todayPlan.target_distance_km) : null,
+        // The calendar row itself, so the Today card draws the same session
+        // steps as the calendar and the session detail (training core).
+        row: todayPlan as unknown as SessionRow,
         otherSession: otherPlan
           ? {
               sport: asSpineSport(otherPlan.sport),

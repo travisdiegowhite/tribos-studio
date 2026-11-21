@@ -14,6 +14,7 @@
 import { Box } from '@mantine/core';
 import { C } from '../../tokens';
 import type { SessionShape } from '../types';
+import { SessionProfile } from '../../../../components/training/session';
 
 /** Duration that fills the full width. Longer sessions clamp rather than shrink the rest. */
 const FULL_WIDTH_MIN = 180;
@@ -21,6 +22,15 @@ const HEIGHT = 52;
 
 export function WorkoutSilhouette({ session }: { session: SessionShape | null }) {
   if (!session) return null;
+
+  // The real session: the same steps the calendar and the session detail draw.
+  if (session.steps && session.steps.length > 0) {
+    return (
+      <Box data-testid="workout-silhouette" aria-label={`Shape of today's session: ${session.durationMin} minutes`}>
+        <SessionProfile steps={session.steps} sport={session.sport ?? null} height={HEIGHT} compact />
+      </Box>
+    );
+  }
 
   const widthPct = Math.max(12, Math.min(100, (session.durationMin / FULL_WIDTH_MIN) * 100));
   const barHeight = Math.max(6, Math.round(session.intensity * (HEIGHT - 8)));

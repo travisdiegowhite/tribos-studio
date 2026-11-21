@@ -628,20 +628,34 @@ function TrainingDashboard() {
       return !!(week && key && key >= week.startKey && key <= week.endKeyInclusive);
     });
 
+    const emptySport = () => ({ time: 0, distance: 0, load: 0, count: 0 });
     return weeklyActivities.reduce(
       (acc, a) => {
         const sport = getSportTypeForActivity(a);
+        const load = Math.min(estimateActivityTSS(a, ftp) || 0, 500);
+        const bucket = acc.bySport[sport] ?? emptySport();
         return {
           totalDistance: acc.totalDistance + (a.distance || 0),
           totalTime: acc.totalTime + (a.moving_time || 0),
-          totalTSS: acc.totalTSS + Math.min(estimateActivityTSS(a, ftp) || 0, 500),
+          totalTSS: acc.totalTSS + load,
           rideCount: acc.rideCount + (sport === 'cycling' ? 1 : 0),
           runCount: acc.runCount + (sport === 'running' ? 1 : 0),
           otherCount: acc.otherCount + (sport === 'other' ? 1 : 0),
           activityCount: acc.activityCount + 1,
+          // Per sport, so the week row can say "Ride 3h · Run 1h" the way
+          // a multisport athlete reads their week.
+          bySport: {
+            ...acc.bySport,
+            [sport]: {
+              time: bucket.time + (a.moving_time || 0),
+              distance: bucket.distance + (a.distance || 0),
+              load: bucket.load + load,
+              count: bucket.count + 1,
+            },
+          },
         };
       },
-      { totalDistance: 0, totalTime: 0, totalTSS: 0, rideCount: 0, runCount: 0, otherCount: 0, activityCount: 0 }
+      { totalDistance: 0, totalTime: 0, totalTSS: 0, rideCount: 0, runCount: 0, otherCount: 0, activityCount: 0, bySport: {} }
     );
   }, [visibleActivities, ftp]);
 
@@ -1027,6 +1041,7 @@ function TrainingDashboard() {
             plannedWorkouts={plannedWorkouts}
             actualWeeklyStats={actualWeeklyStats}
             formatTime={formatTime}
+            formatDistance={formatDist}
             loading={loading}
           />
           )}

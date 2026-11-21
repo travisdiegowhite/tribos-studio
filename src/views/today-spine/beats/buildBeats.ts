@@ -11,6 +11,7 @@
  * Today.
  */
 
+import { resolveSession } from '../../../lib/training/session';
 import { formPhrase, workoutTypeCopy } from '../../../utils/todayVocabulary';
 import { buildWorkoutRouteHref } from '../../../utils/workoutRouteHref';
 import { formBandForScore } from '../../../utils/formBands';
@@ -207,6 +208,15 @@ function buildBeat3(data: SpineData, feel: Feel | null): Beat3VM {
   if (prescribable && tw) {
     const targetType = feel === 'flat' ? (DOWNGRADE[plannedType] ?? plannedType) : plannedType;
     downgraded = targetType !== plannedType;
+    // The session's real steps when the row carries them. A downgrade draws
+    // the eased session (same length, endurance type, no old structure), so
+    // the silhouette still redraws on the felt-response tap.
+    const row = tw.row
+      ? downgraded
+        ? { ...tw.row, workout_type: targetType, workout_id: null, details: null }
+        : tw.row
+      : null;
+    const resolved = row ? resolveSession(row, { today: data.days[data.todayIndex]?.date ?? '' }) : null;
     session = {
       type: targetType,
       // Duration is unchanged by a downgrade: the trade is intensity for
@@ -214,6 +224,7 @@ function buildBeat3(data: SpineData, feel: Feel | null): Beat3VM {
       // the rider never asked for.
       durationMin: tw.durationMin,
       intensity: TYPE_INTENSITY[targetType] ?? 0.5,
+      ...(resolved && resolved.steps.length > 0 ? { steps: resolved.steps, sport: resolved.sport } : {}),
     };
   }
 

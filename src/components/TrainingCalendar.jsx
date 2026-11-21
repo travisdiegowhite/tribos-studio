@@ -28,6 +28,8 @@ import { isPowerSport, getActivitySport } from '../utils/sportType';
 import { getAnyWorkoutById as getWorkoutById } from '../data/workoutLookup';
 import { isStrengthSession } from '../../api/utils/entrySport.js';
 import { resolvePlannedWorkoutShape } from '../lib/training/plannedWorkoutShape';
+import { resolveSession, COMPLIANCE_STYLE } from '../lib/training/session';
+import { SessionProfile } from './training/session';
 import { tokens } from '../theme';
 import { sessionTone, sessionToneStyle, sessionRuleBorder } from '../utils/calendarSessionTone';
 import { isSkippedSession } from '../../api/utils/sessionSkipped.js';
@@ -50,6 +52,7 @@ import HandTick from './ui/HandTick';
 import { useCrossTraining, ACTIVITY_CATEGORIES } from '../hooks/useCrossTraining';
 import CrossTrainingModal from './CrossTrainingModal';
 import { WorkoutModal } from './planner/WorkoutModal';
+import { useRunThresholds } from '../hooks/useRunThresholds';
 import { WorkoutLibrarySidebar } from './planner/WorkoutLibrarySidebar';
 import { Barbell, Bicycle, CalendarBlank, CalendarX, CaretDown, CaretLeft, CaretRight, Check, Circle, Cloud, CloudLightning, CloudRain, CloudSun, DotsSixVertical, Heartbeat, Moon, Path, PencilSimple, PersonSimpleRun, PersonSimpleWalk, Plus, SkipForward, Snowflake, Sun, Trash, Trophy, Wind, X } from '@phosphor-icons/react';
 import { useWeatherForecast } from '../hooks/useWeatherForecast';
@@ -72,6 +75,8 @@ import { shouldPromptForFeedback } from '../utils/adaptationTrigger';
  * weekly summaries, race goals, and workout editing capabilities
  */
 const TrainingCalendar = ({ activePlan, rides = [], formatDistance: formatDistanceProp, ftp, onPlanUpdated, isImperial = false, refreshKey = 0 }) => {
+  const runThresholds = useRunThresholds();
+  const todayKey = formatLocalDate(new Date());
   const { user } = useAuth();
   const navigate = useNavigate();
 
@@ -1482,6 +1487,10 @@ const TrainingCalendar = ({ activePlan, rides = [], formatDistance: formatDistan
                         const isSupport = tone === 'support' || tone === 'skipped';
                         const typeName = WORKOUT_TYPES[workout.workout_type]?.name || String(workout.workout_type || 'workout').replace(/_/g, ' ');
                         const sportName = sessionSport === 'running' ? 'Run' : sessionSport === 'other' ? null : 'Ride';
+                        // The same session model the detail view and Today draw.
+                        const session = resolveSession(workout, { today: todayKey, thresholdPaceSec: runThresholds.thresholdPaceSec });
+                        const settled = session.compliance.band !== 'upcoming';
+                        const showActual = !!session.actual && (session.actual.durationMin != null || session.actual.load != null);
                         return (
                           <Box
                             key={workout.id}
@@ -1539,8 +1548,13 @@ const TrainingCalendar = ({ activePlan, rides = [], formatDistance: formatDistan
                               textDecoration: isMissed ? 'line-through' : undefined,
                             }}
                           >
-                            {getWorkoutById(workout.workout_id)?.name || workout.name || WORKOUT_TYPES[workout.workout_type]?.name || 'Workout'}
+                            {session.title || WORKOUT_TYPES[workout.workout_type]?.name || 'Workout'}
                           </Text>
+                          {session.steps.length > 0 && (
+                            <Box mb={4} style={{ opacity: isMissed || isSkipped ? 0.45 : 1 }}>
+                              <SessionProfile steps={session.steps} sport={session.sport} height={18} compact />
+                            </Box>
+                          )}
                           {/* Order and gap on a two-session day, as the coach set it */}
                           {timing && (
                             <Tooltip label={timing} multiline w={200} withArrow>
@@ -1565,17 +1579,37 @@ const TrainingCalendar = ({ activePlan, rides = [], formatDistance: formatDistan
                               <Text size="xs" fw={500} style={{ color: 'var(--color-done)' }}>{doneLabel}</Text>
                             </Group>
                           )}
-                          {/* Duration and TSS - prominent */}
+                          {/* Duration and stress: what was done once it is done
+                              (planned beside it), what is planned until then. */}
                           <Group gap={8}>
-                            {workout.target_duration > 0 && (
-                              <Text size="xs" fw={500} style={{ color: 'var(--color-text-secondary)' }}>
-                                {workout.target_duration} min
-                              </Text>
-                            )}
-                            {workout.target_tss > 0 && (
-                              <Text size="xs" fw={600} style={{ color: toneStyle.rssColor }}>
-                                {workout.target_tss} RSS
-                              </Text>
+                            {showActual ? (
+                              <>
+                                {session.actual.durationMin != null && (
+                                  <Text size="xs" fw={500} style={{ color: 'var(--color-text-secondary)' }}>
+                                    {Math.round(session.actual.durationMin)} min
+                                  </Text>
+                                )}
+                                {session.actual.load != null && (
+                                  <Tooltip label={`Planned ${session.planned.load != null ? Math.round(session.planned.load) : '—'} · ${COMPLIANCE_STYLE[session.compliance.band].label}`} withArrow>
+                                    <Text size="xs" fw={600} style={{ color: toneStyle.rssColor }}>
+                                      {Math.round(session.actual.load)}{session.planned.load != null ? `/${Math.round(session.planned.load)}` : ''} RSS
+                                    </Text>
+                                  </Tooltip>
+                                )}
+                              </>
+                            ) : (
+                              <>
+                                {workout.target_duration > 0 && (
+                                  <Text size="xs" fw={500} style={{ color: 'var(--color-text-secondary)' }}>
+                                    {workout.target_duration} min
+                                  </Text>
+                                )}
+                                {workout.target_tss > 0 && (
+                                  <Text size="xs" fw={600} style={{ color: toneStyle.rssColor }}>
+                                    {workout.target_tss} RSS
+                                  </Text>
+                                )}
+                              </>
                             )}
                             {/* Fuel indicator for longer workouts */}
                             <FuelBadge
@@ -1651,6 +1685,16 @@ const TrainingCalendar = ({ activePlan, rides = [], formatDistance: formatDistan
                                 <Path size={12} />
                               </ActionIcon>
                             </Tooltip>
+                          )}
+                          {/* Compliance: how the day went against the plan, in
+                              role colours (TrainingPeaks-style bands). */}
+                          {settled && session.compliance.band !== 'skipped' && (
+                            <Box
+                              data-testid="compliance-strip"
+                              data-band={session.compliance.band}
+                              title={COMPLIANCE_STYLE[session.compliance.band].label}
+                              style={{ height: 3, marginTop: 4, background: COMPLIANCE_STYLE[session.compliance.band].strip }}
+                            />
                           )}
                           </Box>
                         );
@@ -1995,6 +2039,8 @@ const TrainingCalendar = ({ activePlan, rides = [], formatDistance: formatDistan
         onAddWorkout={handleAddWorkoutFromModal}
         isAdd={isAddMode}
         structureNote={modalStructureNote}
+        entry={!isAddMode && selectedWorkout ? selectedWorkout : null}
+        anchors={{ ftp, thresholdPaceSec: runThresholds.thresholdPaceSec }}
         scheduledDate={selectedDate ? formatLocalDate(selectedDate) : undefined}
       />
 

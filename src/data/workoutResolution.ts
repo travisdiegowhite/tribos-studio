@@ -113,6 +113,12 @@ export function inferWorkoutForType(
       ? durationMinutes
       : WORKOUT_TYPES[(planType ?? '').toLowerCase()]?.defaultDuration || FALLBACK_TARGET_MIN;
 
+  // An easy session's stand-in is steady: "endurance" must not draw as the
+  // library's endurance-with-bursts just because its length is closer.
+  const wantSteady = category === 'endurance' || category === 'recovery';
+  const isSteady = (w: WorkoutDefinition) =>
+    !(w.structure?.main ?? []).some((m) => (m as { type?: string }).type === 'repeat');
+
   let best: WorkoutDefinition | null = null;
   let bestDelta = Infinity;
   // A run's stand-in comes from the running library: a cycling stand-in drew
@@ -120,6 +126,7 @@ export function inferWorkoutForType(
   const library = sport === 'running' ? RUNNING_WORKOUT_LIBRARY : WORKOUT_LIBRARY;
   for (const workout of Object.values(library)) {
     if (workout.category !== category || !isPaintable(workout)) continue;
+    if (wantSteady && !isSteady(workout)) continue;
     const delta = Math.abs(workout.duration - targetMin);
     if (delta < bestDelta || (delta === bestDelta && best && workout.targetTSS < best.targetTSS)) {
       best = workout;
