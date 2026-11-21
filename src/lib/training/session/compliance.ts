@@ -19,6 +19,8 @@
  * role colours instead (see COMPLIANCE_STYLE).
  */
 
+import { isSkippedSession } from '../../../../api/utils/sessionSkipped.js';
+
 export type ComplianceBand = 'on_target' | 'partial' | 'off' | 'missed' | 'skipped' | 'unplanned' | 'upcoming';
 export type ComplianceBasis = 'load' | 'time' | 'distance';
 
@@ -107,3 +109,42 @@ export const COMPLIANCE_STYLE: Record<ComplianceBand, { strip: string; label: st
   unplanned: { strip: 'var(--color-ink-border)', label: 'Unplanned' },
   upcoming: { strip: 'var(--color-easy)', label: 'Planned' },
 };
+
+export interface PlanCompliance {
+  /** Done ÷ due so far, 0–100; null when nothing is due yet. */
+  pct: number | null;
+  done: number;
+  /** Sessions of the plan dated before today (what could have been done). */
+  due: number;
+  /** All the plan's sessions. */
+  total: number;
+}
+
+/**
+ * A plan's compliance, from the calendar itself.
+ *
+ * `training_plans.compliance_percentage` is maintained by a trigger on the
+ * retired planned_workouts table, so it stopped moving when the calendar moved
+ * to calendar_entries — and the coach was still told it. A plan is provenance
+ * on the calendar (`plan_id`), so its compliance is its sessions' status.
+ * Rest days and skipped sessions (a decision, not a miss) are left out.
+ */
+export function planCompliance(
+  rows: Array<{ plan_id?: string | null; scheduled_date?: string | null; workout_type?: string | null; status?: string | null; completed?: boolean | null; skipped_reason?: string | null }>,
+  planId: string | null | undefined,
+  today: string,
+): PlanCompliance {
+  if (!planId) return { pct: null, done: 0, due: 0, total: 0 };
+  const sessions = rows.filter(
+    (r) => r.plan_id === planId && r.workout_type !== 'rest' && !isSkippedSession(r),
+  );
+  const isDone = (r: (typeof sessions)[number]) => r.status === 'done' || r.completed === true;
+  const due = sessions.filter((r) => (r.scheduled_date ?? '') < today || ((r.scheduled_date ?? '') === today && isDone(r)));
+  const done = due.filter(isDone).length;
+  return {
+    pct: due.length > 0 ? Math.round((done / due.length) * 100) : null,
+    done,
+    due: due.length,
+    total: sessions.length,
+  };
+}

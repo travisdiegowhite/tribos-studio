@@ -1422,11 +1422,10 @@ const TrainingPlanBrowser = ({ activePlan, onPlanActivated, compact = false }) =
                   <Text size="xs" c="dimmed">{daysRemaining} days remaining</Text>
                 </Group>
                 <Progress value={progress} color="teal" size="sm" radius="xl" />
-                {activePlan.compliance_percentage > 0 && (
-                  <Text size="xs" c="dimmed" mt={4}>
-                    Compliance: {Math.round(activePlan.compliance_percentage)}% ({activePlan.workouts_completed}/{activePlan.workouts_total} workouts)
-                  </Text>
-                )}
+                {/* No compliance line here: training_plans.compliance_percentage
+                    is maintained by a trigger on the retired planned_workouts
+                    table and stopped moving. The plan strip on /train computes
+                    it from the calendar. */}
               </Box>
             );
           })()}

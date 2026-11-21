@@ -11,7 +11,6 @@ import {
   Button,
   Paper,
   Box,
-  Divider,
   Flex,
   Drawer,
   Collapse,
@@ -22,7 +21,7 @@ import { notifications } from '@mantine/notifications';
 import { useMediaQuery } from '@mantine/hooks';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
-import { WORKOUT_TYPES, TRAINING_PHASES, calculateTSS, estimateTSS } from '../utils/trainingPlans';
+import { WORKOUT_TYPES, calculateTSS, estimateTSS } from '../utils/trainingPlans';
 import { isPowerSport, getActivitySport } from '../utils/sportType';
 // Either library: a run picked from the planner must resolve like a ride.
 import { getAnyWorkoutById as getWorkoutById } from '../data/workoutLookup';
@@ -30,7 +29,6 @@ import { isStrengthSession } from '../../api/utils/entrySport.js';
 import { resolvePlannedWorkoutShape } from '../lib/training/plannedWorkoutShape';
 import { resolveSession, COMPLIANCE_STYLE } from '../lib/training/session';
 import { SessionProfile } from './training/session';
-import { tokens } from '../theme';
 import { sessionTone, sessionToneStyle, sessionRuleBorder } from '../utils/calendarSessionTone';
 import { isSkippedSession } from '../../api/utils/sessionSkipped.js';
 import { SkipSessionModal } from './training/SkipSessionModal';
@@ -46,7 +44,7 @@ import {
   listPendingProposals, acceptProposal, rejectProposal, describeOp, explainReason,
 } from '../lib/calendar/calendarProposals';
 import RaceGoalModal from './RaceGoalModal';
-import { StravaLogo, STRAVA_ORANGE } from './StravaBranding';
+import { StravaLogo } from './StravaBranding';
 import { FuelBadge } from './fueling';
 import HandTick from './ui/HandTick';
 import { useCrossTraining, ACTIVITY_CATEGORIES } from '../hooks/useCrossTraining';
@@ -54,12 +52,11 @@ import CrossTrainingModal from './CrossTrainingModal';
 import { WorkoutModal } from './planner/WorkoutModal';
 import { useRunThresholds } from '../hooks/useRunThresholds';
 import { WorkoutLibrarySidebar } from './planner/WorkoutLibrarySidebar';
-import { Barbell, Bicycle, CalendarBlank, CalendarX, CaretDown, CaretLeft, CaretRight, Check, Circle, Cloud, CloudLightning, CloudRain, CloudSun, DotsSixVertical, Heartbeat, Moon, Path, PencilSimple, PersonSimpleRun, PersonSimpleWalk, Plus, SkipForward, Snowflake, Sun, Trash, Trophy, Wind, X } from '@phosphor-icons/react';
+import { Barbell, Bicycle, CalendarX, CaretDown, CaretLeft, CaretRight, Check, Circle, Cloud, CloudLightning, CloudRain, CloudSun, Heartbeat, Moon, Path, PersonSimpleRun, PersonSimpleWalk, Plus, SkipForward, Snowflake, Sun, Trash, Trophy, X } from '@phosphor-icons/react';
 import { useWeatherForecast } from '../hooks/useWeatherForecast';
 import { useRouteBuilderStore } from '../stores/routeBuilderStore';
 import { getWeatherSeverity, formatTemperature } from '../utils/weather';
 import { buildWorkoutRouteHref } from '../utils/workoutRouteHref';
-import { buildLibraryWorkoutRow, computeWeekNumber } from '../utils/plannedWorkoutFromLibrary';
 import { useActivityAutoLink } from '../hooks/useActivityAutoLink';
 import { useUserAvailability } from '../hooks/useUserAvailability';
 import { useTrainingPlan } from '../hooks/useTrainingPlan';
@@ -1339,7 +1336,6 @@ const TrainingCalendar = ({ activePlan, rides = [], formatDistance: formatDistan
                 const raceGoal = getRaceGoalForDate(date);
                 const isToday = date.toDateString() === new Date().toDateString();
                 const isPast = date < new Date() && !isToday;
-                const isFuture = date > new Date();
 
                 // Weather for this day
                 const dayWeather = weatherForecast?.[formatLocalDate(date)];

@@ -6,6 +6,7 @@
  * Non-blocking — metric failures never fail the webhook.
  */
 
+import { linkEntryToActivityServer } from './calendarWrite.js';
 import {
   fetchPlannedSessions, fetchEntryById, fetchEntryByActivityId,
 } from './calendarRead.js';
@@ -220,24 +221,24 @@ export async function computeAndStoreMetrics(supabase, userId, activityId) {
 
     if (linkedWorkout) {
       workoutId = linkedWorkout.id;
-      // Sync the reverse pointer so future reads don't need this lookup
-      await supabase
-        .from('activities')
-        .update({ matched_planned_workout_id: workoutId })
-        .eq('id', activityId);
-      console.log(`[metrics] Synced reverse link: activity ${activityId} → workout ${workoutId}`);
     }
   }
 
   // Auto-match: if still no workout linked, try to find one by date + TSS proximity
+  // The match completes the calendar entry (done, linked, actual load) so the
+  // calendar shows it even if the athlete never opens /train. It used to write
+  // only activities.matched_planned_workout_id, whose foreign key points at
+  // the retired planned_workouts table, so the write failed for every
+  // calendar-era entry and the match was lost.
   if (!workoutId && activity.rss > 0) {
     workoutId = await tryAutoMatchWorkout(supabase, userId, activity);
     if (workoutId) {
-      await supabase
-        .from('activities')
-        .update({ matched_planned_workout_id: workoutId })
-        .eq('id', activityId);
-      console.log(`[metrics] Auto-matched activity ${activityId} to workout ${workoutId}`);
+      try {
+        const { linked } = await linkEntryToActivityServer(supabase, userId, workoutId, { ...activity, id: activityId });
+        console.log(`[metrics] Auto-matched activity ${activityId} to entry ${workoutId}${linked ? '' : ' (already linked)'}`);
+      } catch (err) {
+        console.error('[metrics] auto-match link failed:', err?.message || err);
+      }
     }
   }
 
@@ -277,27 +278,24 @@ async function computeAndStoreEFI(supabase, userId, activityId, activity, workou
   // entry's plan_id with an extra round trip and then scoped to it — which
   // returned NOTHING for a session with no plan, so EFI's consistency factor
   // silently fell back to a default for every coach- or calendar-created ride.
+  // Up to TODAY: future sessions have no actual yet and would read as misses.
+  // Each entry's own actual load is the server-scored RSS of the activity
+  // linked to it (trainingLoadRecompute syncs it), so there is no per-session
+  // activity lookup. The old one selected `tss` and read `.rss`, so every
+  // rolling actual was 0 — and it went through
+  // activities.matched_planned_workout_id, which only points at the retired
+  // planned_workouts table.
   const recentWorkouts = await fetchPlannedSessions(userId, {
     from: twentyEightDaysAgo.toISOString().split('T')[0],
+    to: new Date().toISOString().split('T')[0],
   });
 
-  const rollingSessions = [];
-  if (recentWorkouts) {
-    for (const w of recentWorkouts) {
-      // Find matching activity
-      const { data: matchedActivity } = await supabase
-        .from('activities')
-        .select('tss')
-        .eq('matched_planned_workout_id', w.id)
-        .eq('user_id', userId)
-        .maybeSingle();
-
-      rollingSessions.push({
-        planned: w.target_tss || 0,
-        actual: matchedActivity?.rss || 0,
-      });
-    }
-  }
+  const rollingSessions = (recentWorkouts || [])
+    .filter((w) => w.workout_type !== 'rest' && (Number(w.target_rss ?? w.target_tss) || 0) > 0)
+    .map((w) => ({
+      planned: Number(w.target_rss ?? w.target_tss) || 0,
+      actual: Number(w.actual_rss ?? w.actual_tss) || 0,
+    }));
 
   const efiResult = computeEFIFromData(plannedTSS, actualTSS, plannedZones, actualZones, rollingSessions);
 

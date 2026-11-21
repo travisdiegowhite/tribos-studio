@@ -38,19 +38,17 @@ import BulkGpxUploadModal from '../components/BulkGpxUploadModal.jsx';
 import { TrainingMetricsSkeleton } from '../components/LoadingSkeletons.jsx';
 import { SupplementWorkoutModal, TrainingPlanExportItems } from '../components/training';
 import RideAnalysisModal from '../components/RideAnalysisModal.jsx';
-import { WorkoutModal } from '../components/planner/WorkoutModal';
 import { getWorkoutById } from '../data/workoutLibrary';
 import { getWorkoutRecommendation } from '../services/workoutRecommendation';
 import { interpretTSB, findOptimalSupplementDays } from '../utils/trainingPlans';
 import { estimateActivityTSS } from '../utils/computeFitnessSnapshots';
 import { buildDailyLoadSeries } from '../views/today/athleteMetrics';
 import { FtpMissingBadge } from '../components/ui';
-import { translateTSB } from '../lib/fitness/translate';
 import { formatDistance, formatElevation, formatSpeed } from '../utils/units';
 import { garminService } from '../utils/garminService.js';
 import PageHeader from '../components/PageHeader.jsx';
 import { useCrossTraining } from '../hooks/useCrossTraining';
-import { Barbell, Calendar, DotsThree, FileZip, Gear, Heart, Heartbeat, TrendDown, TrendUp, Watch } from '@phosphor-icons/react';
+import { Barbell, Calendar, DotsThree, FileZip, Gear, Heart, Watch } from '@phosphor-icons/react';
 import PlanWeekCard from '../components/train/PlanWeekCard.jsx';
 import SecondaryNavBar from '../components/train/SecondaryNavBar.jsx';
 
@@ -117,14 +115,11 @@ function TrainingDashboard() {
   const [gpxUploadOpen, setGpxUploadOpen] = useState(false);
   const [todayHealthMetrics, setTodayHealthMetrics] = useState(null);
   const [healthHistory, setHealthHistory] = useState([]);
-  const [workoutModalOpen, setWorkoutModalOpen] = useState(false);
-  const [selectedWorkout, setSelectedWorkout] = useState(null);
   const [activePlan, setActivePlan] = useState(null);
   const [plannedWorkouts, setPlannedWorkouts] = useState([]);
   const [supplementModalOpen, setSupplementModalOpen] = useState(false);
   const [raceGoals, setRaceGoals] = useState([]);
   const [completedRaces, setCompletedRaces] = useState([]);
-  const [trainNowExpanded, setTrainNowExpanded] = useState(false);
   const [rideAnalysisModalOpen, setRideAnalysisModalOpen] = useState(false);
   const [selectedRide, setSelectedRide] = useState(null);
   const [calendarRefreshKey, setCalendarRefreshKey] = useState(0);
@@ -669,19 +664,8 @@ function TrainingDashboard() {
     return `${minutes}m`;
   };
 
-  // Get form status styling — delegates to canonical translate.ts thresholds
-  const getFormStatus = () => {
-    const t = translateTSB(trainingMetrics.tsb);
-    const colorMap = { gold: 'teal', teal: 'green', orange: 'yellow', coral: 'red', muted: 'gray' };
-    const iconMap = { gold: TrendUp, teal: TrendUp, orange: TrendDown, coral: TrendDown, muted: Heartbeat };
-    const bgMap = { gold: 'rgba(168, 191, 168, 0.15)', teal: 'rgba(168, 191, 168, 0.15)', orange: 'rgba(212, 168, 67, 0.15)', coral: 'rgba(158, 90, 60, 0.15)', muted: 'rgba(168, 191, 168, 0.15)' };
-    return { label: t.label.toUpperCase(), color: colorMap[t.color], icon: iconMap[t.color], bg: bgMap[t.color] };
-  };
-
-  const formStatus = getFormStatus();
 
   // Unified workout recommendation — single source of truth
-  const [focusTimeAvailable, setFocusTimeAvailable] = useState(null);
 
   const recommendation = useMemo(() => getWorkoutRecommendation({
     trainingMetrics,
@@ -689,25 +673,14 @@ function TrainingDashboard() {
     raceGoals,
     plannedWorkouts,
     ftp,
-    timeAvailable: focusTimeAvailable ? parseInt(focusTimeAvailable) : null,
-  }), [trainingMetrics, visibleActivities, raceGoals, plannedWorkouts, ftp, focusTimeAvailable]);
-
-  const suggestedWorkout = recommendation.primary?.workout || null;
+    timeAvailable: null,
+  }), [trainingMetrics, visibleActivities, raceGoals, plannedWorkouts, ftp]);
 
   // Memoize trainingContext to avoid recreating on every render
   const trainingContext = useMemo(() =>
     buildTrainingContext(trainingMetrics, weeklyStats, actualWeeklyStats, ftp, visibleActivities, formatDist, formatTime, isImperial, activePlan, raceGoals, crossTrainingContext, recommendation, plannedWorkouts, completedRaces),
     [trainingMetrics, weeklyStats, actualWeeklyStats, ftp, visibleActivities, isImperial, activePlan, raceGoals, crossTrainingContext, recommendation, plannedWorkouts, completedRaces]
   );
-
-  const handleAddWorkout = useCallback(async (workout) => {
-    notifications.show({
-      title: 'Workout Added',
-      message: `${workout.name || workout.workout_id} scheduled`,
-      color: 'terracotta'
-    });
-    setCalendarRefreshKey(prev => prev + 1);
-  }, []);
 
   const handleOpenCheckIn = useCallback(() => setHealthCheckInOpen(true), []);
 
@@ -730,11 +703,6 @@ function TrainingDashboard() {
       }
     }
   }, [user?.id]);
-
-  const handleViewWorkout = useCallback((workout) => {
-    setSelectedWorkout(workout);
-    setWorkoutModalOpen(true);
-  }, []);
 
   // Handle viewing ride details
   const handleViewRide = useCallback((ride) => {
@@ -1255,14 +1223,6 @@ function TrainingDashboard() {
             window.location.reload();
           }
         }}
-      />
-
-      {/* Workout Detail Modal (shared with planner for consistent experience) */}
-      <WorkoutModal
-        workout={selectedWorkout}
-        plannedWorkout={null}
-        opened={workoutModalOpen}
-        onClose={() => setWorkoutModalOpen(false)}
       />
 
       {/* Supplement Workout Modal */}

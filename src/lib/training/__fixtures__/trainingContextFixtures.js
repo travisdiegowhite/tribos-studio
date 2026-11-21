@@ -39,6 +39,7 @@ export const FULL = [
   formatTime,
   true,
   {
+    id: 'plan-gravel',
     name: 'Gravel Base',
     status: 'active',
     goal: 'gravel',
@@ -60,9 +61,9 @@ export const FULL = [
     alternatives: [{ workout: { name: 'Endurance 2h' } }],
   },
   [
-    { name: 'Endurance', scheduled_date: '2026-10-15', workout_type: 'endurance', target_duration: 90, target_tss: 70, target_rss: 70, completed: false },
-    { name: 'Intervals', scheduled_date: '2026-10-12', workout_type: 'vo2max', target_duration: 75, target_tss: 85, target_rss: 85, completed: false, skipped_reason: 'tired' },
-    { name: 'Long ride', scheduled_date: '2026-10-11', workout_type: 'endurance', duration_minutes: 240, completed: true },
+    { plan_id: 'plan-gravel', name: 'Endurance', scheduled_date: '2026-10-15', workout_type: 'endurance', target_duration: 90, target_tss: 70, target_rss: 70, completed: false },
+    { plan_id: 'plan-gravel', name: 'Intervals', scheduled_date: '2026-10-12', workout_type: 'vo2max', target_duration: 75, target_tss: 85, target_rss: 85, completed: false, skipped_reason: 'tired' },
+    { plan_id: 'plan-gravel', name: 'Long ride', scheduled_date: '2026-10-11', workout_type: 'endurance', duration_minutes: 240, completed: true },
   ],
   [{ name: 'Fall Classic', race_date: '2026-09-20', priority: 'B', race_type: 'gravel', actual_time_minutes: 200, actual_placement: '12th', result_notes: 'Felt strong' }],
 ];
