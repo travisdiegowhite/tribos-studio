@@ -50,6 +50,7 @@ import HandTick from './ui/HandTick';
 import { useCrossTraining, ACTIVITY_CATEGORIES } from '../hooks/useCrossTraining';
 import CrossTrainingModal from './CrossTrainingModal';
 import { WorkoutModal } from './planner/WorkoutModal';
+import MobileCalendarAgenda from './calendar/MobileCalendarAgenda';
 import { useRunThresholds } from '../hooks/useRunThresholds';
 import { WorkoutLibrarySidebar } from './planner/WorkoutLibrarySidebar';
 import { Barbell, Bicycle, CalendarX, CaretDown, CaretLeft, CaretRight, Check, Circle, Cloud, CloudLightning, CloudRain, CloudSun, Heartbeat, Moon, Path, PersonSimpleRun, PersonSimpleWalk, Plus, SkipForward, Snowflake, Sun, Trash, Trophy, X } from '@phosphor-icons/react';
@@ -649,6 +650,30 @@ const TrainingCalendar = ({ activePlan, rides = [], formatDistance: formatDistan
     setEditModalOpen(true);
   };
 
+  // A tap on a day in the mobile agenda: place a held session, drop a picked
+  // library workout, or add one to an empty day. (Tapping a session card
+  // opens it; the card's move button lifts it.)
+  const handleMobileDayTap = (date) => {
+    if (selectedWorkoutId) {
+      handleAddFromLibrary(selectedWorkoutId, date);
+      setSelectedWorkoutId(null);
+      return;
+    }
+    if (heldEntryId) {
+      const held = getWorkoutsForDate(date).find((w) => w.id === heldEntryId);
+      if (held) {
+        setHeldEntryId(null);
+        openEditModal(held, date);
+      } else {
+        placeEntry(heldEntryId, date);
+      }
+      return;
+    }
+    if (getWorkoutsForDate(date).filter((w) => w.workout_type !== 'rest').length === 0) {
+      openAddModal(date);
+    }
+  };
+
   // Open the detail modal in "add" mode for an empty day (pick a workout to add).
   const openAddModal = (date) => {
     setIsAddMode(true);
@@ -1152,7 +1177,9 @@ const TrainingCalendar = ({ activePlan, rides = [], formatDistance: formatDistan
                 Add workout
               </Button>
             )}
-            <Text size="lg" fw={600} style={{ color: 'var(--color-text-primary)' }}>{rangeLabel}</Text>
+            {!isMobile && (
+              <Text size="lg" fw={600} style={{ color: 'var(--color-text-primary)' }}>{rangeLabel}</Text>
+            )}
           </Group>
           <Group gap="xs">
             <Tooltip label="Set training availability">
@@ -1161,9 +1188,9 @@ const TrainingCalendar = ({ activePlan, rides = [], formatDistance: formatDistan
                 size="compact-xs"
                 leftSection={<CalendarX size={14} />}
                 onClick={() => setAvailabilitySettingsOpen(true)}
-               
+                aria-label="Set training availability"
               >
-                Availability
+                {!isMobile && 'Availability'}
               </Button>
             </Tooltip>
             <Tooltip label="Remove upcoming planned sessions">
@@ -1173,9 +1200,9 @@ const TrainingCalendar = ({ activePlan, rides = [], formatDistance: formatDistan
                 size="compact-xs"
                 leftSection={<Trash size={14} />}
                 onClick={openClearModal}
-               
+                aria-label="Remove upcoming planned sessions"
               >
-                Clear
+                {!isMobile && 'Clear'}
               </Button>
             </Tooltip>
             <Button variant="subtle" size="compact-xs" onClick={goToToday}>
@@ -1301,6 +1328,36 @@ const TrainingCalendar = ({ activePlan, rides = [], formatDistance: formatDistan
         {/* Show calendar if there's a plan, any planned workouts, OR rides */}
         {(activePlan || rides.length > 0 || plannedWorkouts.length > 0) && (
           <>
+            {isMobile ? (
+              <MobileCalendarAgenda
+                days={days}
+                getWorkoutsForDate={getWorkoutsForDate}
+                getRidesForDate={getRidesForDate}
+                getRaceGoalForDate={getRaceGoalForDate}
+                weatherForecast={weatherForecast}
+                getWeatherIcon={getWeatherIcon}
+                formatDistance={formatDistance}
+                formatTemperature={formatTemperature}
+                isImperial={isImperial}
+                todayKey={todayKey}
+                thresholdPaceSec={runThresholds.thresholdPaceSec}
+                heldEntryId={heldEntryId}
+                placing={!!heldEntryId || !!selectedWorkoutId}
+                onOpenSession={(workout, date) => {
+                  // While placing, the tap belongs to the day.
+                  if (heldEntryId || selectedWorkoutId) {
+                    handleMobileDayTap(date);
+                    return;
+                  }
+                  openEditModal(workout, date);
+                }}
+                onDayTap={handleMobileDayTap}
+                onToggleDone={toggleWorkoutCompletion}
+                onLift={setHeldEntryId}
+                onOpenRace={openRaceGoalModal}
+              />
+            ) : (
+            <>
             {/* Day Names */}
             <div style={{
               display: 'grid',
@@ -1830,6 +1887,8 @@ const TrainingCalendar = ({ activePlan, rides = [], formatDistance: formatDistan
                 );
               })}
             </div>
+            </>
+            )}
 
             {/* Legend */}
             <Stack gap="xs" mt="md">
