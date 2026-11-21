@@ -49,6 +49,9 @@
  *    applied, the split columns are dropped and the combined row still writes.
  *
  * This module is the ONLY writer of training_load_daily —
+ * It also puts each activity's RSS on the calendar entries linked to it
+ * (syncActualLoads), so the calendar's "actual" is this number too.
+ *
  * process-deviation.js also routes its writes through
  * recomputeTrainingLoadForUser (includeToday: true) rather than
  * hand-stepping single-day rows, so redelivered webhooks and same-day
@@ -61,6 +64,7 @@ import {
 } from './fitnessSnapshots.js';
 import { resolveRunProfile } from './runLoad.js';
 import { isRunningActivityRow, sportTypeOfActivity } from './sportTypes.js';
+import { syncActualLoads } from './calendarWrite.js';
 
 const DEFAULT_WINDOW_DAYS = 180;
 const PER_ACTIVITY_RSS_CAP = 500;
@@ -280,7 +284,7 @@ export async function computeTrainingLoadRows(supabase, userId, opts = {}) {
     const { data: batch, error } = await supabase
       .from('activities')
       .select(
-        'start_date, type, sport_type, moving_time, distance, ' +
+        'id, start_date, type, sport_type, moving_time, distance, ' +
           'total_elevation_gain, average_watts, average_heartrate, max_heartrate, ' +
           'kilojoules, rss, tss, effective_power, normalized_power',
       )
@@ -315,12 +319,15 @@ export async function computeTrainingLoadRows(supabase, userId, opts = {}) {
   // sport for the split.
   const byDay = new Map();
   const windowRssBySport = { cycling: 0, running: 0, other: 0 };
+  // Each activity's score, for the calendar entries linked to it.
+  const rssByActivityId = new Map();
   for (const a of activities ?? []) {
     if (!a.start_date) continue;
     const day = localDateKey(a.start_date, timezone);
     if (day < startKey || day > endKey) continue;
     const est = estimateTSSWithSource(a, ftp, runProfile);
     const rss = Math.min(est.tss || 0, PER_ACTIVITY_RSS_CAP);
+    if (a.id) rssByActivityId.set(a.id, Math.round(rss));
     const sport = sportTypeOfActivity(a);
     const bucket = byDay.get(day) ?? {
       rss: 0,
@@ -408,7 +415,7 @@ export async function computeTrainingLoadRows(supabase, userId, opts = {}) {
     });
   }
 
-  return { rows, profile: { ftp, tfiTau, afiTau, timezone }, runProfile };
+  return { rows, profile: { ftp, tfiTau, afiTau, timezone }, runProfile, rssByActivityId };
 }
 
 /**
@@ -417,10 +424,10 @@ export async function computeTrainingLoadRows(supabase, userId, opts = {}) {
  * @param {import('@supabase/supabase-js').SupabaseClient} supabase
  * @param {string} userId
  * @param {{ days?: number, dryRun?: boolean, now?: Date, includeToday?: boolean }} [opts]
- * @returns {Promise<{rowsWritten: number, lastDay: object|null, dryRun: boolean, runProfile?: object|null, timezone?: string}>}
+ * @returns {Promise<{rowsWritten: number, lastDay: object|null, dryRun: boolean, runProfile?: object|null, timezone?: string, actualLoadsUpdated?: number}>}
  */
 export async function recomputeTrainingLoadForUser(supabase, userId, opts = {}) {
-  const { rows, profile, runProfile } = await computeTrainingLoadRows(supabase, userId, opts);
+  const { rows, profile, runProfile, rssByActivityId } = await computeTrainingLoadRows(supabase, userId, opts);
   const lastDay = rows.length > 0 ? rows[rows.length - 1] : null;
 
   if (opts.dryRun) {
@@ -446,7 +453,18 @@ export async function recomputeTrainingLoadForUser(supabase, userId, opts = {}) 
     if (error) throw new Error(`training_load_daily upsert failed: ${error.message}`);
   }
 
-  return { rowsWritten: rows.length, lastDay, dryRun: false, runProfile, timezone: profile.timezone };
+  // The calendar's "actual" is this same score (calendarWrite.syncActualLoads).
+  // Non-fatal: a calendar hiccup must not stop the fitness numbers updating.
+  let actualLoadsUpdated = 0;
+  try {
+    ({ updated: actualLoadsUpdated } = await syncActualLoads(supabase, userId, rssByActivityId));
+  } catch (err) {
+    console.error('[trainingLoadRecompute] calendar actual-load sync failed:', err?.message || err);
+  }
+
+  return {
+    rowsWritten: rows.length, lastDay, dryRun: false, runProfile, timezone: profile.timezone, actualLoadsUpdated,
+  };
 }
 
 /**

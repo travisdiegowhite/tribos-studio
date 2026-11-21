@@ -61,6 +61,56 @@ export async function nextFreeSlot(supabase, userId, dateKey, skipEntryId = null
   return slot;
 }
 
+const ACTUAL_LOAD_CHUNK = 200;
+
+/**
+ * Put the server's per-activity RSS on every calendar entry linked to one of
+ * those activities, wherever it differs.
+ *
+ * WHY. The calendar's "actual" used to be whatever the browser computed at
+ * link time (useActivityAutoLink): average power instead of normalized power
+ * for rides, a flat 50 RSS/h for runs. The fitness chart used the server
+ * scorer. The same ride read 41 on the calendar and 49 on the chart, and a
+ * hard run 26 against ~43. The recompute is the one scorer; this makes the
+ * calendar show its number.
+ *
+ * Takes the client as a parameter (like nextFreeSlot) so the recompute's
+ * injected client is the one used. Never touches `pinned` or `status`: this is
+ * bookkeeping, not anyone's decision about the session.
+ *
+ * @param {import('@supabase/supabase-js').SupabaseClient} supabase
+ * @param {string} userId
+ * @param {Map<string, number>} rssByActivityId
+ * @returns {Promise<{updated: number}>}
+ */
+export async function syncActualLoads(supabase, userId, rssByActivityId) {
+  if (!userId || !rssByActivityId || rssByActivityId.size === 0) return { updated: 0 };
+  const ids = [...rssByActivityId.keys()];
+  let updated = 0;
+  for (let i = 0; i < ids.length; i += ACTUAL_LOAD_CHUNK) {
+    const chunk = ids.slice(i, i + ACTUAL_LOAD_CHUNK);
+    const { data, error } = await supabase
+      .from('calendar_entries')
+      .select('id, activity_id, actual_load')
+      .eq('user_id', userId)
+      .in('activity_id', chunk);
+    if (error) throw new Error(`calendar actual-load read failed: ${error.message}`);
+    for (const row of data ?? []) {
+      const rss = rssByActivityId.get(row.activity_id);
+      if (rss == null) continue;
+      if (row.actual_load != null && Math.round(Number(row.actual_load)) === rss) continue;
+      const { error: upErr } = await supabase
+        .from('calendar_entries')
+        .update({ actual_load: rss })
+        .eq('user_id', userId)
+        .eq('id', row.id);
+      if (upErr) throw new Error(`calendar actual-load write failed: ${upErr.message}`);
+      updated += 1;
+    }
+  }
+  return { updated };
+}
+
 /** Edit an entry in place. Does NOT pin — pinning is the athlete's act. */
 export async function updateEntry(userId, entryId, patch) {
   if (!userId || !entryId) return { success: false, error: 'Missing user or entry' };

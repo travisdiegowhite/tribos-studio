@@ -1,47 +1,50 @@
 // Plan Generator Utility
 // Generates periodized training plans based on methodology, goal, and target events
 
-// Workout library with TSS and duration values
+// Workout library with planned load and duration values. The `tss` values are
+// the app library's `targetTSS` (src/data/workoutLibrary.ts), which is derived
+// from each workout's structure; planGenerator.test.js keeps the two equal.
+// Strength and core carry 0: they are not scored on the actual side either.
 const WORKOUT_LIBRARY = {
   // Recovery
-  recovery_spin: { name: 'Recovery Spin', duration: 30, tss: 20, category: 'recovery' },
-  easy_recovery_ride: { name: 'Easy Recovery Ride', duration: 45, tss: 30, category: 'recovery' },
+recovery_spin: { name: 'Recovery Spin', duration: 30, tss: 10, category: 'recovery' },
+easy_recovery_ride: { name: 'Easy Recovery Ride', duration: 45, tss: 19, category: 'recovery' },
 
   // Endurance
-  foundation_miles: { name: 'Foundation Miles', duration: 60, tss: 55, category: 'endurance' },
-  endurance_base_build: { name: 'Endurance Base Build', duration: 90, tss: 70, category: 'endurance' },
-  long_endurance_ride: { name: 'Long Endurance Ride', duration: 180, tss: 140, category: 'endurance' },
-  polarized_long_ride: { name: 'Polarized Long Ride', duration: 240, tss: 180, category: 'endurance' },
+foundation_miles: { name: 'Foundation Miles', duration: 60, tss: 38, category: 'endurance' },
+endurance_base_build: { name: 'Endurance Base Build', duration: 90, tss: 63, category: 'endurance' },
+long_endurance_ride: { name: 'Long Endurance Ride', duration: 180, tss: 129, category: 'endurance' },
+polarized_long_ride: { name: 'Polarized Long Ride', duration: 240, tss: 176, category: 'endurance' },
 
   // Tempo
-  tempo_ride: { name: 'Tempo Ride', duration: 60, tss: 65, category: 'tempo' },
-  two_by_twenty_tempo: { name: '2x20 Tempo', duration: 75, tss: 80, category: 'tempo' },
-  progressive_tempo: { name: 'Progressive Tempo', duration: 70, tss: 75, category: 'tempo' },
+tempo_ride: { name: 'Tempo Ride', duration: 60, tss: 53, category: 'tempo' },
+two_by_twenty_tempo: { name: '2x20 Tempo', duration: 75, tss: 66, category: 'tempo' },
+  progressive_tempo: { name: 'Progressive Tempo', duration: 70, tss: 79, category: 'tempo' }, // not in the app library: 70 min × 68/h (plannedLoad.js)
 
   // Sweet Spot
-  traditional_sst: { name: 'Traditional Sweet Spot', duration: 65, tss: 85, category: 'sweet_spot' },
-  three_by_ten_sst: { name: '3x10 Sweet Spot', duration: 60, tss: 80, category: 'sweet_spot' },
-  four_by_twelve_sst: { name: '4x12 Sweet Spot', duration: 80, tss: 95, category: 'sweet_spot' },
-  sweet_spot_progression: { name: 'Sweet Spot Progression', duration: 90, tss: 105, category: 'sweet_spot' },
+traditional_sst: { name: 'Traditional Sweet Spot', duration: 65, tss: 72, category: 'sweet_spot' },
+three_by_ten_sst: { name: '3x10 Sweet Spot', duration: 60, tss: 56, category: 'sweet_spot' },
+four_by_twelve_sst: { name: '4x12 Sweet Spot', duration: 80, tss: 82, category: 'sweet_spot' },
+sweet_spot_progression: { name: 'Sweet Spot Progression', duration: 90, tss: 86, category: 'sweet_spot' },
 
   // Threshold
-  two_by_twenty_ftp: { name: '2x20 FTP', duration: 70, tss: 90, category: 'threshold' },
-  over_under_intervals: { name: 'Over-Under Intervals', duration: 75, tss: 100, category: 'threshold' },
-  three_by_twelve_threshold: { name: '3x12 Threshold', duration: 75, tss: 95, category: 'threshold' },
+two_by_twenty_ftp: { name: '2x20 FTP', duration: 70, tss: 83, category: 'threshold' },
+over_under_intervals: { name: 'Over-Under Intervals', duration: 75, tss: 89, category: 'threshold' },
+three_by_twelve_threshold: { name: '3x12 Threshold', duration: 75, tss: 79, category: 'threshold' },
 
   // VO2max
-  thirty_thirty_intervals: { name: '30/30 Intervals', duration: 60, tss: 85, category: 'vo2max' },
-  five_by_four_vo2: { name: '5x4 VO2max', duration: 65, tss: 95, category: 'vo2max' },
-  four_by_eight_vo2: { name: '4x8 VO2max', duration: 75, tss: 105, category: 'vo2max' },
-  bossi_intervals: { name: 'Bossi Intervals', duration: 65, tss: 100, category: 'vo2max' },
-  polarized_intensity_day: { name: 'Polarized Intensity Day', duration: 90, tss: 110, category: 'vo2max' },
+thirty_thirty_intervals: { name: '30/30 Intervals', duration: 60, tss: 60, category: 'vo2max' },
+five_by_four_vo2: { name: '5x4 VO2max', duration: 65, tss: 68, category: 'vo2max' },
+four_by_eight_vo2: { name: '4x8 VO2max', duration: 75, tss: 88, category: 'vo2max' },
+bossi_intervals: { name: 'Bossi Intervals', duration: 65, tss: 64, category: 'vo2max' },
+polarized_intensity_day: { name: 'Polarized Intensity Day', duration: 90, tss: 102, category: 'vo2max' },
 
   // Climbing
-  hill_repeats: { name: 'Hill Repeats', duration: 70, tss: 80, category: 'climbing' },
+hill_repeats: { name: 'Hill Repeats', duration: 70, tss: 55, category: 'climbing' },
 
   // Race Prep
-  sprint_intervals: { name: 'Sprint Intervals', duration: 75, tss: 70, category: 'sprint' },
-  race_simulation: { name: 'Race Simulation', duration: 90, tss: 105, category: 'race_prep' },
+sprint_intervals: { name: 'Sprint Intervals', duration: 75, tss: 110, category: 'sprint' },
+race_simulation: { name: 'Race Simulation', duration: 90, tss: 99, category: 'race_prep' },
 };
 
 // Workout patterns by methodology
@@ -286,41 +289,41 @@ const METHODOLOGY_PATTERNS = {
 // Running workout library for plan generation
 const RUNNING_WORKOUT_LIBRARY = {
   // Recovery
-  run_recovery_jog: { name: 'Recovery Jog', duration: 25, tss: 20, category: 'recovery' },
-  run_easy_recovery: { name: 'Easy Recovery Run', duration: 30, tss: 30, category: 'recovery' },
+run_recovery_jog: { name: 'Recovery Jog', duration: 25, tss: 18, category: 'recovery' },
+run_easy_recovery: { name: 'Easy Recovery Run', duration: 30, tss: 28, category: 'recovery' },
 
   // Easy / Aerobic
-  run_easy_aerobic: { name: 'Easy Aerobic Run', duration: 40, tss: 45, category: 'endurance' },
-  run_easy_long: { name: 'Easy Long Run', duration: 60, tss: 60, category: 'endurance' },
-  run_long_run: { name: 'Long Run', duration: 90, tss: 100, category: 'endurance' },
-  run_long_run_extended: { name: 'Extended Long Run', duration: 120, tss: 140, category: 'endurance' },
+run_easy_aerobic: { name: 'Easy Aerobic Run', duration: 40, tss: 40, category: 'endurance' },
+run_easy_long: { name: 'Easy Long Run', duration: 60, tss: 55, category: 'endurance' },
+run_long_run: { name: 'Long Run', duration: 90, tss: 90, category: 'endurance' },
+run_long_run_extended: { name: 'Extended Long Run', duration: 120, tss: 130, category: 'endurance' },
 
   // Tempo
   run_tempo_continuous: { name: 'Tempo Run', duration: 45, tss: 65, category: 'tempo' },
-  run_tempo_cruise: { name: 'Cruise Intervals', duration: 50, tss: 70, category: 'tempo' },
-  run_progression_run: { name: 'Progression Run', duration: 50, tss: 70, category: 'tempo' },
+run_tempo_cruise: { name: 'Cruise Intervals', duration: 50, tss: 72, category: 'tempo' },
+run_progression_run: { name: 'Progression Run', duration: 50, tss: 68, category: 'tempo' },
 
   // Threshold
-  run_threshold_intervals: { name: 'Threshold Intervals', duration: 50, tss: 80, category: 'threshold' },
+run_threshold_intervals: { name: 'Threshold Intervals', duration: 50, tss: 78, category: 'threshold' },
   run_threshold_continuous: { name: 'Continuous Threshold', duration: 45, tss: 75, category: 'threshold' },
-  run_tempo_threshold_combo: { name: 'Tempo-Threshold Combo', duration: 55, tss: 80, category: 'threshold' },
+run_tempo_threshold_combo: { name: 'Tempo-Threshold Combo', duration: 55, tss: 82, category: 'threshold' },
 
   // VO2max
-  run_vo2max_800s: { name: '800m Repeats', duration: 50, tss: 80, category: 'vo2max' },
+run_vo2max_800s: { name: '800m Repeats', duration: 50, tss: 78, category: 'vo2max' },
   run_vo2max_1000s: { name: '1000m Repeats', duration: 50, tss: 80, category: 'vo2max' },
   run_vo2max_hills: { name: 'Hill Repeats', duration: 45, tss: 75, category: 'vo2max' },
 
   // Speed
-  run_speed_200s: { name: '200m Strides', duration: 40, tss: 60, category: 'speed' },
+run_speed_200s: { name: '200m Strides', duration: 40, tss: 55, category: 'speed' },
   run_speed_400s: { name: '400m Repeats', duration: 45, tss: 65, category: 'speed' },
 
   // Race-specific
-  run_race_pace_half: { name: 'Half Marathon Pace', duration: 60, tss: 90, category: 'race_pace' },
+run_race_pace_half: { name: 'Half Marathon Pace', duration: 60, tss: 85, category: 'race_pace' },
   run_race_pace_marathon: { name: 'Marathon Pace', duration: 90, tss: 110, category: 'race_pace' },
 
   // Strength (shared with cycling)
-  cyclist_strength_foundation: { name: 'Strength Foundation', duration: 45, tss: 30, category: 'strength' },
-  cyclist_core_stability: { name: 'Core Stability', duration: 30, tss: 15, category: 'core' },
+cyclist_strength_foundation: { name: 'Strength Foundation', duration: 45, tss: 0, category: 'strength' },
+cyclist_core_stability: { name: 'Core Stability', duration: 30, tss: 0, category: 'core' },
 };
 
 // Running methodology patterns
@@ -856,7 +859,7 @@ const WAYPOINT_RECOVERY = {
   workout_id: 'easy_recovery_ride',
   name: 'Easy Recovery Ride',
   duration_minutes: 45,
-  target_tss: 30,
+  target_tss: 19,
 };
 
 /**
@@ -911,5 +914,8 @@ export function applyInterimRaceWaypoints(workouts, interimRaceDates) {
 
   return workouts;
 }
+
+/** The generator's own copies of the libraries, for the drift test. */
+export const PLAN_WORKOUT_LIBRARIES = { cycling: WORKOUT_LIBRARY, running: RUNNING_WORKOUT_LIBRARY };
 
 export default { generateTrainingPlan, getWorkoutMeta, applyInterimRaceWaypoints };

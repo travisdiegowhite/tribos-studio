@@ -60,7 +60,7 @@ import {
 import { calculateFuelPlanFromWorkout } from '../../utils/fueling';
 import { exportWorkout, downloadWorkout } from '../../utils/workoutExport';
 import { workoutStructureToCycling } from '../../utils/trainingPlanExport';
-import { fitStructureToDuration } from '../../lib/training/plannedWorkoutShape';
+import { fitStructureToDuration, structureLoad } from '../../lib/training/plannedWorkoutShape';
 import posthog from 'posthog-js';
 import { WORKOUT_LIBRARY } from '../../data/workoutLibrary';
 import { RUNNING_WORKOUT_LIBRARY } from '../../data/runningWorkoutLibrary';
@@ -682,6 +682,19 @@ export function WorkoutModal({
     editNotes !== (plannedWorkout.notes || '')
   );
 
+  // Changing the length changes the session, so its planned load follows. A
+  // ridden structure is re-scored as fitted (the extra time goes to the easy
+  // riding, not the intervals); anything else scales with time. The load field
+  // stays editable afterwards for an athlete who wants a different number.
+  const loadForDuration = (minutes: number): number => {
+    if (minutes <= 0) return 0;
+    const isRun = typeof workout.id === 'string' && workout.id.startsWith('run_');
+    if (hasStructure && workout.structure && !isRun) {
+      return structureLoad(fitStructureToDuration(workout.structure, minutes));
+    }
+    return editDuration > 0 ? Math.round((editTSS * minutes) / editDuration) : editTSS;
+  };
+
   const handleSave = () => {
     if (onSave && hasChanges) {
       onSave({
@@ -969,7 +982,11 @@ export function WorkoutModal({
               <NumberInput
                 label="Duration (min)"
                 value={editDuration}
-                onChange={(val) => setEditDuration(typeof val === 'number' ? val : 0)}
+                onChange={(val) => {
+                  const minutes = typeof val === 'number' ? val : 0;
+                  setEditTSS(loadForDuration(minutes));
+                  setEditDuration(minutes);
+                }}
                 min={0}
                 max={600}
               />

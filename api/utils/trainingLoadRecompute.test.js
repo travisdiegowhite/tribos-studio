@@ -20,16 +20,31 @@ const TZ = 'America/Denver';
  * `priorRow` is what the training_load_daily seed lookup returns (null =
  * true cold start). The activities `then` respects `.range()` pagination.
  */
-function mockSupabase({ profile = {}, activities = [], priorRow = null } = {}) {
+function mockSupabase({ profile = {}, activities = [], priorRow = null, entries = [] } = {}) {
   const upserts = [];
+  const updates = [];
   const client = {
     upserts,
+    updates,
     from(table) {
       const builder = {
         _table: table,
         _range: null,
+        _update: null,
+        _filters: {},
         select: () => builder,
-        eq: () => builder,
+        eq: (col, val) => {
+          builder._filters[col] = val;
+          return builder;
+        },
+        in: (col, vals) => {
+          builder._filters[col] = vals;
+          return builder;
+        },
+        update: (payload) => {
+          builder._update = payload;
+          return builder;
+        },
         or: () => builder,
         is: () => builder,
         lt: () => builder,
@@ -52,6 +67,15 @@ function mockSupabase({ profile = {}, activities = [], priorRow = null } = {}) {
           return Promise.resolve({ error: null });
         },
         then: (resolve) => {
+          if (builder._update) {
+            updates.push({ table, payload: builder._update, filters: { ...builder._filters } });
+            return Promise.resolve({ data: null, error: null }).then(resolve);
+          }
+          if (table === 'calendar_entries') {
+            const ids = builder._filters.activity_id ?? [];
+            const data = entries.filter((e) => ids.includes(e.activity_id));
+            return Promise.resolve({ data, error: null }).then(resolve);
+          }
           let data = table === 'activities' ? activities : [];
           if (table === 'activities' && builder._range) {
             data = data.slice(builder._range[0], builder._range[1] + 1);
@@ -235,6 +259,40 @@ describe('computeTrainingLoadRows', () => {
     const supabase = mockSupabase({ activities: many });
     const { rows } = await computeTrainingLoadRows(supabase, 'u1', { days: 4, now: NOW });
     expect(rows[2].rss).toBe(1004);
+  });
+});
+
+describe('calendar actual-load sync', () => {
+  it('puts each activity\'s server RSS on the calendar entries linked to it', async () => {
+    // The 2026-11-20 ride: NP 206 W for 50 min at FTP 270 scores 49 here,
+    // where the calendar had stored 41 from average power.
+    const supabase = mockSupabase({
+      profile: { ftp: 270 },
+      activities: [
+        { id: 'act-ride', start_date: '2026-07-08T16:00:00Z', type: 'Ride', sport_type: 'cycling',
+          moving_time: 3011, distance: 24658, total_elevation_gain: 198,
+          average_watts: 189, normalized_power: 206, effective_power: 206, kilojoules: 566 },
+        ride('2026-07-07T16:00:00Z', 60, { id: 'act-same' }),
+      ],
+      entries: [
+        { id: 'entry-sst', activity_id: 'act-ride', actual_load: 41 },
+        { id: 'entry-same', activity_id: 'act-same', actual_load: 60 },
+      ],
+    });
+    const result = await recomputeTrainingLoadForUser(supabase, 'u1', { days: 4, now: NOW });
+    expect(result.actualLoadsUpdated).toBe(1);
+    expect(supabase.updates).toEqual([
+      { table: 'calendar_entries', payload: { actual_load: 49 }, filters: { user_id: 'u1', id: 'entry-sst' } },
+    ]);
+  });
+
+  it('writes nothing to the calendar on a dry run', async () => {
+    const supabase = mockSupabase({
+      activities: [ride('2026-07-08T16:00:00Z', 84, { id: 'a1' })],
+      entries: [{ id: 'e1', activity_id: 'a1', actual_load: 10 }],
+    });
+    await recomputeTrainingLoadForUser(supabase, 'u1', { days: 4, now: NOW, dryRun: true });
+    expect(supabase.updates).toEqual([]);
   });
 });
 

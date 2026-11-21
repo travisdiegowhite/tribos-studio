@@ -299,8 +299,38 @@ describe('expandBlock', () => {
       { ...SEASON, from: '2026-08-31', to: '2026-09-20', load_progression: 0.1 },
       new Set()
     );
+    // Undesigned, so progression lengthens the session (75 → 82.5 → 90,
+    // to the nearest 5) and the planned load follows the length at the
+    // threshold rate of 85/h — never the coach's 90 × 1.1ⁿ.
     const thresholds = entries.filter((e) => e.title === 'Threshold Intervals');
-    expect(thresholds.map((e) => e.target_load)).toEqual([90, 99, 108]);
+    expect(thresholds.map((e) => e.target_duration_min)).toEqual([75, 85, 90]);
+    expect(thresholds.map((e) => e.target_load)).toEqual([106, 120, 128]);
+  });
+
+  it('stores the planned load from the structure, not the coach\'s number', () => {
+    const { entries } = expandBlock(
+      { ...SEASON, from: '2026-08-31', to: '2026-09-06' },
+      new Set()
+    );
+    const byTitle = Object.fromEntries(entries.map((e) => [e.title, e.target_load]));
+    // 75 min threshold at 85/h, 70 min VO2 at 105/h, 180 min endurance at 48/h.
+    expect(byTitle).toEqual({ 'Threshold Intervals': 106, 'VO2 Max': 123, 'Long Endurance': 144 });
+  });
+
+  it('stores the designer\'s prediction and grows the dose it is sized to', () => {
+    const doses = [];
+    const design = (entry) => {
+      doses.push(entry.target_load);
+      return { prescription: { source: 'designer', predicted_load: 61, intervals: [{ repeats: 2 }] }, patch: {} };
+    };
+    const { entries } = expandBlock(
+      { op: 'generate_block', from: '2026-08-31', to: '2026-09-13', load_progression: 0.1,
+        weekly_pattern: [{ day: 'tue', title: 'SST', workout_type: 'sweet_spot', target_load: 80, target_duration_min: 60 }] },
+      new Set(), design,
+    );
+    expect(doses).toEqual([80, 88]);
+    expect(entries.map((e) => e.target_load)).toEqual([61, 61]);
+    expect(entries.map((e) => e.target_duration_min)).toEqual([60, 60]);
   });
 
   it('leaves load null when the pattern gives none, rather than inventing one', () => {
@@ -464,6 +494,56 @@ describe('intervals become details.prescription', () => {
     ]);
     const update = calls.find((c) => c.op === 'update');
     expect(update.payload.details).toBeUndefined();
+  });
+});
+
+describe('planned load is derived, not taken from the coach', () => {
+  it('stores a create\'s load from its length and type', async () => {
+    await applyCalendarOps(USER, [
+      { op: 'create', date: '2026-10-06', title: 'SST', workout_type: 'sweet_spot', target_duration_min: 60, target_load: 90, reason: 'x' },
+    ]);
+    const insert = calls.find((c) => c.op === 'insert');
+    expect(insert.payload.target_load).toBe(76);
+  });
+
+  it('ignores a bare target_load in an update of a sized session', async () => {
+    await applyCalendarOps(USER, [
+      { op: 'update', handle: 'sess_1af3bc12', entry: entry({ workout_type: 'endurance', target_duration_min: 90, target_load: 72 }), target_load: 150, reason: 'More.' },
+    ]);
+    const update = calls.find((c) => c.op === 'update');
+    expect(update.payload.target_load).toBe(72);
+  });
+
+  it('re-derives the load when the length changes, re-scoring a designed structure', async () => {
+    const designed = {
+      source: 'designer', predicted_load: 55, warmup_min: 10, cooldown_min: 6,
+      intervals: [{ repeats: 3, duration_min: 12, target_pct_ftp_min: 82, target_pct_ftp_max: 86, recovery_min: 4 }],
+    };
+    await applyCalendarOps(USER, [
+      { op: 'update', handle: 'sess_1af3bc12',
+        entry: entry({ workout_type: 'sweet_spot', target_duration_min: 60, target_load: 55, details: { prescription: designed } }),
+        target_duration_min: 90, reason: 'Longer.' },
+    ]);
+    const update = calls.find((c) => c.op === 'update');
+    // 36 min @84% + 8 min @50% + 46 min filler @65% → 78, not the stale 55.
+    expect(update.payload.target_load).toBe(78);
+  });
+
+  it('leaves the load alone when an update touches nothing that sets it', async () => {
+    await applyCalendarOps(USER, [
+      { op: 'update', handle: 'sess_1af3bc12', entry: entry({ target_load: 90 }), title: 'Renamed', reason: 'r' },
+    ]);
+    const update = calls.find((c) => c.op === 'update');
+    expect(update.payload).not.toHaveProperty('target_load');
+  });
+
+  it('files strength and mobility work as other even when the coach says cycling', async () => {
+    await applyCalendarOps(USER, [
+      { op: 'create', date: '2026-11-20', title: 'Hip Mobility & Flexibility', workout_type: 'strength', sport: 'cycling', target_duration_min: 20, reason: 'x' },
+    ]);
+    const insert = calls.find((c) => c.op === 'insert');
+    expect(insert.payload.sport).toBe('other');
+    expect(insert.payload.target_load).toBeNull();
   });
 });
 

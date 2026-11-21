@@ -1415,9 +1415,11 @@ session. Races are type "race" and need only a name and a date.
 
 Hard days are DESIGNED by the server. For any tempo, sweet spot, threshold, VO2,
 anaerobic or race session you create — by \`create\` or a \`weekly_pattern\` day — give
-the type, the length, the target_load and a title; the designer builds the intervals
-from the athlete's own numbers (POWER PROFILE above) and the tool result reports what
-it built, in the \`design\` field. Explain THAT design to the athlete; do not invent a
+the type, the length, the target_load (the dose you want) and a title; the designer
+builds the intervals from the athlete's own numbers (POWER PROFILE above) and the tool
+result reports what it built, in the \`design\` field. The planned RSS stored on every
+session is computed from what it actually is — its intervals, or its length × type —
+not from the number you give, so quote the result's numbers, never your own. Explain THAT design to the athlete; do not invent a
 different set in prose. If you have a specific set in mind, put it in the \`intervals\`
 field or write it as "5x3min, 3min easy" in notes and the designer keeps your count and
 length while it calibrates the targets. Steady endurance and recovery rides need

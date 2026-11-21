@@ -159,7 +159,14 @@ export function makeCalendarDesigner({ athlete, todayStr, entries = [] }) {
 
     const patch = {};
     if (result.durationMin !== (draft.target_duration_min ?? result.durationMin)) patch.target_duration_min = result.durationMin;
-    if (result.gate && result.targetLoad != null && result.targetLoad !== draft.target_load) patch.target_load = result.targetLoad;
+    // The stored planned load is what the designed session predicts, not the
+    // budget it was sized to: the designer can only fit so many repeats in a
+    // day, and on 2026-11-20 a 90 RSS budget became a 55 RSS session while the
+    // row kept saying 90. (plannedLoad.js derives the same number later; set
+    // it here too so this patch is honest on its own.)
+    const predicted = result.prescription?.predicted_load ?? result.predictedLoad;
+    if (predicted != null && predicted !== draft.target_load) patch.target_load = predicted;
+    else if (result.gate && result.targetLoad != null && result.targetLoad !== draft.target_load) patch.target_load = result.targetLoad;
     return { prescription: result.prescription, patch, summary: summarizeDesign(result) };
   };
 }
