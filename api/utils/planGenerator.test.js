@@ -106,3 +106,27 @@ describe('applyInterimRaceWaypoints', () => {
     expect(day.workout_type).toBe('rest'); // left alone
   });
 });
+
+describe('the generator\'s planned loads match the app libraries', () => {
+  it('uses the same planned load as the app for every workout both know', async () => {
+    const { PLAN_WORKOUT_LIBRARIES } = await import('./planGenerator.js');
+    const { WORKOUT_LIBRARY } = await import('../../src/data/workoutLibrary');
+    const { RUNNING_WORKOUT_LIBRARY } = await import('../../src/data/runningWorkoutLibrary');
+    const app = { ...WORKOUT_LIBRARY, ...RUNNING_WORKOUT_LIBRARY };
+    const drift = [];
+    for (const lib of Object.values(PLAN_WORKOUT_LIBRARIES)) {
+      for (const [id, w] of Object.entries(lib)) {
+        const appWorkout = app[id];
+        if (!appWorkout || !(appWorkout.targetTSS > 0)) continue;
+        if (w.tss !== appWorkout.targetTSS) drift.push(`${id}: generator ${w.tss}, app ${appWorkout.targetTSS}`);
+      }
+    }
+    expect(drift).toEqual([]);
+  });
+
+  it('gives strength and core no planned load', async () => {
+    const { PLAN_WORKOUT_LIBRARIES } = await import('./planGenerator.js');
+    expect(PLAN_WORKOUT_LIBRARIES.running.cyclist_strength_foundation.tss).toBe(0);
+    expect(PLAN_WORKOUT_LIBRARIES.running.cyclist_core_stability.tss).toBe(0);
+  });
+});

@@ -85,3 +85,29 @@ describe('WorkoutModal for a planned entry with no library workout', () => {
     expect(screen.queryByTestId('workout-export')).toBeNull();
   });
 });
+
+describe('WorkoutModal duration edits', () => {
+  it('re-derives the planned load when the length changes', async () => {
+    const { fireEvent } = await import('@testing-library/react');
+    const { WORKOUT_LIBRARY } = await import('../../data/workoutLibrary');
+    const { structureLoad, fitStructureToDuration } = await import('../../lib/training/plannedWorkoutShape');
+    const workout = WORKOUT_LIBRARY.foundation_miles;
+    const planned: PlannerWorkout = {
+      ...plannedFrom(ARC_ROW),
+      workoutId: workout.id,
+      workoutType: 'endurance',
+      targetTSS: workout.targetTSS,
+      targetDuration: workout.duration,
+    };
+    render(
+      <MantineProvider>
+        <WorkoutModal workout={workout} plannedWorkout={planned} opened onClose={() => {}} />
+      </MantineProvider>,
+    );
+    const duration = screen.getByLabelText('Duration (min)') as HTMLInputElement;
+    fireEvent.change(duration, { target: { value: '120' } });
+    const load = screen.getByLabelText('Target ride stress') as HTMLInputElement;
+    expect(Number(load.value)).toBe(structureLoad(fitStructureToDuration(workout.structure, 120)));
+    expect(Number(load.value)).toBeGreaterThan(workout.targetTSS);
+  });
+});

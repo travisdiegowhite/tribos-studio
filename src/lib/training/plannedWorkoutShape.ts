@@ -183,6 +183,45 @@ export function structureDurationMin(structure: WorkoutStructure): number {
   return total;
 }
 
+/** %FTP a segment is ridden at: its own figure, else its zone's, else easy. */
+function segmentPct(seg: { powerPctFTP?: number; zone: TrainingZone | null } | null | undefined): number {
+  if (!seg) return 0;
+  if (typeof seg.powerPctFTP === 'number' && seg.powerPctFTP > 0) return seg.powerPctFTP;
+  if (seg.zone != null && ZONE_POWER[seg.zone]) return ZONE_POWER[seg.zone];
+  return ZONE_POWER[1];
+}
+
+/** RSS of `minutes` at `pct` of FTP: (pct/100)² × h × 100 — the actual-load formula. */
+function segmentRss(pct: number, minutes: number): number {
+  return (pct / 100) ** 2 * (minutes / 60) * 100;
+}
+
+function intervalRss(interval: WorkoutInterval): number {
+  const workItems = Array.isArray(interval.work) ? interval.work : [interval.work];
+  let work = 0;
+  for (const item of workItems) {
+    work += isInterval(item) ? intervalRss(item) : segmentRss(segmentPct(item), item.duration);
+  }
+  const rest = interval.rest ? segmentRss(segmentPct(interval.rest as WorkoutSegment), interval.rest.duration) : 0;
+  const sets = interval.sets || 1;
+  return work * sets + rest * Math.max(0, sets - 1);
+}
+
+/**
+ * Planned RSS of a structure, segment by segment, with the same arithmetic the
+ * actual-load scorer applies to a ride (IF² × hours × 100 per segment). The
+ * workout library's `targetTSS` constants are checked against this, so a
+ * session's planned number describes the session it actually prescribes.
+ */
+export function structureLoad(structure: WorkoutStructure): number {
+  let total = segmentRss(segmentPct(structure.warmup), structure.warmup?.duration ?? 0)
+    + segmentRss(segmentPct(structure.cooldown), structure.cooldown?.duration ?? 0);
+  for (const item of structure.main) {
+    total += isInterval(item) ? intervalRss(item) : segmentRss(segmentPct(item), item.duration);
+  }
+  return Math.round(total);
+}
+
 function round1(n: number): number {
   return Math.round(n * 10) / 10;
 }

@@ -178,7 +178,7 @@ ON A TWO-SESSION DAY, set "timing" on both sessions: which comes first and how l
             },
             target_load: {
               type: 'number',
-              description: 'Planned RSS for the session. Omit for races and rest days.',
+              description: 'The dose you want, in RSS. The designer sizes a hard session\'s intervals to it; the planned RSS the athlete sees is computed from the finished session (its intervals, or its length × type), so it can differ. Optional; omit for rest days.',
             },
             target_duration_min: {
               type: 'integer',
@@ -218,7 +218,7 @@ ON A TWO-SESSION DAY, set "timing" on both sessions: which comes first and how l
                   title: { type: 'string', description: 'e.g. "Threshold Intervals", "Long Endurance Ride".' },
                   workout_type: { type: 'string', description: 'e.g. "endurance", "sweet_spot", "threshold", "vo2max", "recovery", "openers".' },
                   workout_id: { type: 'string', description: 'Optional id from the workout library.' },
-                  target_load: { type: 'number', description: 'Planned RSS for this session.' },
+                  target_load: { type: 'number', description: 'The dose you want, in RSS; hard sessions are designed to it. The stored planned RSS is computed from the finished session.' },
                   target_duration_min: { type: 'integer', description: 'Planned duration in minutes.' },
                   sport: SPORT_SCHEMA,
                   timing: TIMING_SCHEMA,
@@ -230,7 +230,7 @@ ON A TWO-SESSION DAY, set "timing" on both sessions: which comes first and how l
             },
             load_progression: {
               type: 'number',
-              description: 'For generate_block: fraction to change target_load by per week across the block, e.g. 0.05 for a 5%/week build, -0.1 for a taper, 0 or omitted for steady. Applied cumulatively from the first week.',
+              description: 'For generate_block: fraction to grow each session per week across the block, e.g. 0.05 for a 5%/week build, -0.1 for a taper, 0 or omitted for steady. Applied cumulatively from the first week: a designed hard session gets a bigger dose, a steady session gets longer (to the nearest 5 minutes).',
             },
             priority: {
               type: 'string',

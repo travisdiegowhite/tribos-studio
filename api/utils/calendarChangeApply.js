@@ -23,6 +23,7 @@ import { normalizeIntervals, buildPrescription, withPrescription } from './presc
 import { entrySport, isStrengthSession } from './entrySport.js';
 import { buildDayIndex, placeSession, OCCUPANCY_COLUMNS } from './calendarOccupancy.js';
 import { selectWithSportFallback, writeWithSportFallback } from './calendarSportColumn.js';
+import { plannedLoadFor } from './plannedLoad.js';
 
 /** Fields an op may write onto an entry. Anything else the model sends is dropped. */
 const WRITABLE = [
@@ -50,8 +51,11 @@ function prescriptionFrom(op, sport = null, source = 'coach') {
 function sportFor(draft, defaultSport = null) {
   const type = draft.type || 'workout';
   if (type === 'rest' || type === 'note') return null;
-  if (draft.sport) return draft.sport;
+  // Gym and mobility work is 'other' whatever sport the coach named: a "Hip
+  // Mobility" session stored as cycling was auto-linked to the day's ride
+  // (2026-11-20) and took the ride's load off the real session.
   if (type === 'workout' && isStrengthSession(draft)) return 'other';
+  if (draft.sport) return draft.sport;
   if (type === 'workout' && defaultSport) return defaultSport;
   return entrySport({ ...draft, type });
 }
@@ -100,6 +104,27 @@ function draftFrom(op, existingDetails = null, sport = null) {
   if (op.timing != null) { details = withTiming(details, op.timing); touched = true; }
   if (touched) draft.details = details;
   return draft;
+}
+
+/**
+ * Recompute an update's planned load from the row it will produce. A bare
+ * `target_load` from the coach is not stored; changing the length, the type
+ * or the structure re-derives it. A designer prediction stops describing the
+ * row once its length changes, so the structure is re-scored then.
+ */
+function withPlannedLoad(patch, entry) {
+  const relevant = ['target_load', 'target_duration_min', 'workout_type', 'workout_id', 'details', 'type'];
+  if (!relevant.some((k) => patch[k] !== undefined)) return patch;
+  const merged = { ...entry, ...patch };
+  const durationChanged =
+    patch.target_duration_min !== undefined && patch.target_duration_min !== entry.target_duration_min;
+  const load = plannedLoadFor(merged, { trustPrediction: !durationChanged });
+  if (load == null && (merged.type || 'workout') === 'race') {
+    // A race keeps whatever load it was given; nothing to derive it from.
+    return patch;
+  }
+  patch.target_load = load;
+  return patch;
 }
 
 /**
@@ -207,10 +232,14 @@ export function expandBlock(op, occupied = new Map(), design = null, defaultSpor
         skipped.push({ date: dateKey, reason: placed.skip });
         continue;
       }
+      // `target_load` from the coach is the DOSE it wants — the designer sizes
+      // intervals to it — never the stored planned load, which is computed
+      // from the session's structure once it has one (plannedLoad.js).
+      // Progression grows that dose for a designed session and the duration
+      // for a steady one, since more time is how a steady session gets bigger.
+      const growth = 1 + progression * weekIndex;
       const base = Number(session.target_load);
-      const load = Number.isFinite(base)
-        ? Math.round(base * (1 + progression * weekIndex))
-        : null;
+      const dose = Number.isFinite(base) && base > 0 ? Math.round(base * growth) : null;
       const entry = {
         date: dateKey,
         slot: placed.slot,
@@ -219,7 +248,7 @@ export function expandBlock(op, occupied = new Map(), design = null, defaultSpor
         type: 'workout',
         workout_id: session.workout_id ?? null,
         workout_type: session.workout_type ?? null,
-        target_load: load,
+        target_load: dose,
         target_duration_min: session.target_duration_min ?? null,
         target_distance_km: session.target_distance_km ?? null,
         notes: session.notes ?? null,
@@ -228,7 +257,12 @@ export function expandBlock(op, occupied = new Map(), design = null, defaultSpor
           session.timing ?? op.timing,
         ),
       };
-      entries.push(applyDesign(entry, design, { weekIndex }));
+      const designed = applyDesign(entry, design, { weekIndex });
+      if (!designed.details?.prescription && growth !== 1 && Number(designed.target_duration_min) > 0) {
+        designed.target_duration_min = Math.max(5, Math.round((designed.target_duration_min * growth) / 5) * 5);
+      }
+      designed.target_load = plannedLoadFor(designed);
+      entries.push(designed);
     }
   }
 
@@ -419,6 +453,8 @@ export async function applyCalendarOps(userId, resolved, opts = {}) {
             op.timing,
           ),
         }, design);
+        // Stored planned load comes from the structure, not the coach's number.
+        draft.target_load = plannedLoadFor(draft);
         const { __design, ...fields } = draft;
         const { error } = await writeWithSportFallback(
           {
@@ -472,6 +508,12 @@ export async function applyCalendarOps(userId, resolved, opts = {}) {
         };
       } else {
         patch = draftFrom(op, entry.details ?? null, entrySport(entry));
+        if (patch.workout_type !== undefined || patch.workout_id !== undefined) {
+          // A strength session is 'other' whatever the coach called it.
+          const next = { ...entry, ...patch };
+          if ((next.type || 'workout') === 'workout' && isStrengthSession(next)) patch.sport = 'other';
+        }
+        withPlannedLoad(patch, entry);
       }
 
       // PINNING IS A HUMAN ACT. This used to set pinned:true on every write,
@@ -551,7 +593,10 @@ export async function persistProposal(userId, resolved, verdict, summary, conver
         ? { status: op.status }
         : op.op === 'delete'
           ? null
-          : draftFrom(op, op.entry?.details ?? null, op.entry ? entrySport(op.entry) : null),
+          : withPlannedLoad(
+            draftFrom(op, op.entry?.details ?? null, op.entry ? entrySport(op.entry) : null),
+            op.entry ?? {},
+          ),
     reason: op.reason ?? null,
   }));
 
