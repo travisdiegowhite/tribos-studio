@@ -28,8 +28,8 @@ const QUICK_ACTIONS = [
     id: 'ama',
     icon: '🔍',
     label: 'AMA about your data',
-    description: 'Ask anything about your rides, commutes, routes, or stats',
-    query: 'What are some interesting stats and highlights from my riding this year?',
+    description: 'Ask anything about your rides, runs, routes, or stats',
+    query: 'What are some interesting stats and highlights from my training this year?',
   },
 ];
 

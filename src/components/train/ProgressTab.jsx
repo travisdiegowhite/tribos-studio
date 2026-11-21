@@ -43,6 +43,9 @@ function readStoredSport() {
  */
 export default function ProgressTab({
   dailyTSSData,
+  fitnessForecast = null,
+  raceMarkers = null,
+  sportLoadHistory = null,
   trainingMetrics,
   activities,
   speedProfile,
@@ -110,6 +113,9 @@ export default function ProgressTab({
       <ProgressSection title="Fitness">
         <TrendsSection
           dailyTSSData={dailyTSSData}
+          fitnessForecast={fitnessForecast}
+          raceMarkers={raceMarkers}
+          sportLoadHistory={sportLoadHistory}
           trainingMetrics={trainingMetrics}
           activities={shown}
           speedProfile={speedProfile}

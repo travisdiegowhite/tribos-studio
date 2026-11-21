@@ -79,6 +79,19 @@
   --color-highlight: #B6F500;
   --color-highlight-subtle: rgba(182, 245, 0, 0.14);
   --color-highlight-border: rgba(182, 245, 0, 0.45);
+
+  /* ===== TRAINING ZONES =====
+     One ramp for every zone graphic (session profiles, calendar glyphs,
+     legends). Hue-spaced, no orange/red; the hardest efforts go dark.
+     Source of truth: src/lib/training/session/zones.ts. */
+  --zone-1: #00C2FF;   /* Recovery — cyan */
+  --zone-2: #2B2BFF;   /* Endurance — ultramarine */
+  --zone-3: #94C700;   /* Tempo — lime */
+  --zone-3-5: #E8C800; /* Sweet spot — yellow */
+  --zone-4: #FF3DB8;   /* Threshold — magenta */
+  --zone-5: #0A0A14;   /* VO2 — ink */
+  --zone-6: #C4007A;   /* Anaerobic — deep magenta */
+  --zone-7: #5E5E6E;   /* Sprint — graphite */
   --color-stamp: #C4007A;
   --color-stamp-subtle: rgba(255, 61, 184, 0.08);
   --color-stamp-border: rgba(255, 61, 184, 0.35);
@@ -283,6 +296,16 @@
   --color-highlight: #B6F500;
   --color-highlight-subtle: rgba(182, 245, 0, 0.14);
   --color-highlight-border: rgba(182, 245, 0, 0.45);
+
+  /* Training zones on the dark page: the two dark entries flip light. */
+  --zone-1: #00C2FF;
+  --zone-2: #6A6AFF;
+  --zone-3: #94C700;
+  --zone-3-5: #E8C800;
+  --zone-4: #FF3DB8;
+  --zone-5: #FFFFFF;
+  --zone-6: #FF6FCB;
+  --zone-7: #A0A0AE;
   --color-stamp: #FF6FCB;
   --color-stamp-subtle: rgba(255, 61, 184, 0.08);
   --color-stamp-border: rgba(255, 61, 184, 0.35);

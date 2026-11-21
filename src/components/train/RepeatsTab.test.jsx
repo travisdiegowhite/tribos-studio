@@ -175,7 +175,7 @@ describe('RepeatsTab', () => {
 
   it('explains itself without an anchor ride', () => {
     renderTab({ anchorRide: null });
-    expect(screen.getByText(/Pick a ride with GPS on the map card above/)).toBeTruthy();
+    expect(screen.getByText(/Pick a ride or run with GPS on the map card above/)).toBeTruthy();
     expect(screen.queryByTestId('map')).toBeNull();
   });
 

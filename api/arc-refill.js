@@ -15,6 +15,8 @@
  * Returns: { changes: [...], count, skipped? }
  */
 
+import { selectWithSportFallback } from './utils/calendarSportColumn.js';
+import { plannedLoadFor } from './utils/plannedLoad.js';
 import { getSupabaseAdmin } from './utils/supabaseAdmin.js';
 import { setupCors } from './utils/cors.js';
 import { computeArcRefill, computeDailyStatsFromActivities } from './utils/arcRefill.js';
@@ -315,24 +317,44 @@ export default async function handler(req, res) {
     // it is skipped outright — the same contract the coach obeys.
     const mirrored = upserts.filter((u) => u.id);
     if (mirrored.length > 0) {
+      // Each entry's own details, so the prescription is merged in rather than
+      // replacing the JSON wholesale (that wiped a two-a-day's timing cue).
+      const { data: existingRows } = await selectWithSportFallback('id, details, sport', (columns) =>
+        supabase
+          .from('calendar_entries')
+          .select(columns)
+          .eq('user_id', userId)
+          .in('id', mirrored.map((u) => u.id)),
+      );
+      const existing = new Map((existingRows ?? []).map((r) => [r.id, r]));
       const mirrorResults = await Promise.all(
-        mirrored.map((u) =>
-          supabase
+        mirrored.map((u) => {
+          // The structure the generator designed for this day. Until now it
+          // was computed and thrown away, so the athlete saw a name and two
+          // numbers. Null clears a stale set when the day eases to endurance.
+          const details = withPrescription(existing.get(u.id)?.details ?? null, arcPrescription(prescriptions.get(u.scheduled_date)));
+          // Planned load from the session's structure, the same rule every
+          // other calendar writer follows (plannedLoad.js).
+          const load = plannedLoadFor({
+            type: 'workout',
+            workout_type: u.workout_type,
+            target_duration_min: u.target_duration,
+            target_load: u.target_rss,
+            details,
+            sport: existing.get(u.id)?.sport ?? 'cycling',
+          });
+          return supabase
             .from('calendar_entries')
             .update({
-              target_load: u.target_rss,
+              target_load: load ?? u.target_rss,
               target_duration_min: u.target_duration,
               workout_type: u.workout_type,
-              // The structure the generator designed for this day. Until now
-              // it was computed and thrown away, so the athlete saw a name
-              // and two numbers. Null clears a stale set when the day eases
-              // to endurance.
-              details: withPrescription(null, arcPrescription(prescriptions.get(u.scheduled_date))),
+              details,
             })
             .eq('id', u.id)
             .eq('user_id', userId)
-            .eq('pinned', false),
-        ),
+            .eq('pinned', false);
+        }),
       );
       const mirrorErr = mirrorResults.find((r) => r?.error);
       if (mirrorErr) {

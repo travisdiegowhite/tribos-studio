@@ -34,7 +34,7 @@ function getCoachingMessage(trainingContext, workoutRecommendation) {
 
   // Planned rest day from training plan
   if (workoutRecommendation?.plannedRest) {
-    return "Your plan has a rest day today. Recovery is when your body adapts and gets stronger. Ask me if you're unsure whether to rest or ride.";
+    return "Your plan has a rest day today. Recovery is when your body adapts and gets stronger. Ask me if you're unsure whether to rest or train.";
   }
 
   // If we have a recommendation from the unified service, reference it
@@ -48,7 +48,7 @@ function getCoachingMessage(trainingContext, workoutRecommendation) {
   // fitness state. Standing verdicts belong to the gated coach layer, which
   // can weigh evidence before speaking (thesis C6) — not to a client-side
   // threshold on a scraped context string.
-  return "Ask me about today's ride, how your training is landing, or what to do with the week ahead.";
+  return "Ask me about today's session, how your training is landing, or what to do with the week ahead.";
 }
 
 function CoachCard({ trainingContext, workoutRecommendation, onAddWorkout }) {

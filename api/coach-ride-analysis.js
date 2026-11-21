@@ -19,7 +19,7 @@
 import { createClaudeClient } from './utils/claudeClient.js';
 import { MODELS, EFFORT, maxTokensFor } from './utils/claudeModels.js';
 import { getSupabaseAdmin } from './utils/supabaseAdmin.js';
-import { fetchEntryById } from './utils/calendarRead.js';
+import { fetchEntryById, fetchEntryByActivityId } from './utils/calendarRead.js';
 import { setupCors } from './utils/cors.js';
 import { rateLimitByUser } from './utils/rateLimit.js';
 import { enforceAiQuota } from './utils/aiQuota.js';
@@ -206,10 +206,14 @@ async function loadAthleteContext(userId) {
 }
 
 async function loadIntent(activity) {
-  if (!activity.matched_planned_workout_id) return null;
   // Scoped to the athlete as well as the id — this runs on the service-role
   // client, where an unscoped id would happily return someone else's row.
-  const planned = await fetchEntryById(activity.user_id, activity.matched_planned_workout_id);
+  // The calendar's own link (entry.activity_id) is the primary one; the
+  // reverse pointer only exists for planned_workouts-era rows.
+  const planned =
+    (activity.matched_planned_workout_id
+      ? await fetchEntryById(activity.user_id, activity.matched_planned_workout_id)
+      : null) ?? (await fetchEntryByActivityId(activity.user_id, activity.id));
   if (!planned) return null;
   return {
     name: planned.name,

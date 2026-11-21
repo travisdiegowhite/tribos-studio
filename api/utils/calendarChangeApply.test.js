@@ -547,6 +547,44 @@ describe('planned load is derived, not taken from the coach', () => {
   });
 });
 
+describe('retyping a session', () => {
+  const OLD = { version: 1, source: 'designer', predicted_load: 70, intervals: [{ repeats: 2, duration_min: 20, target_pct_ftp_min: 95, target_pct_ftp_max: 100, recovery_min: 5 }] };
+
+  it('drops the old structure when the coach changes the type without intervals', async () => {
+    await applyCalendarOps(USER, [
+      { op: 'update', handle: 'sess_1af3bc12',
+        entry: entry({ workout_type: 'threshold', target_duration_min: 60, details: { prescription: OLD, timing: 'AM' } }),
+        workout_type: 'endurance', reason: 'Easier day.' },
+    ]);
+    const update = calls.find((c) => c.op === 'update');
+    expect(update.payload.details).toEqual({ timing: 'AM' });
+    expect(update.payload.target_load).toBe(48);
+  });
+
+  it('designs the new type afresh when it is one the designer builds', async () => {
+    const NEW = { version: 1, source: 'designer', predicted_load: 66, intervals: [{ repeats: 4, duration_min: 4, target_pct_ftp_min: 110, target_pct_ftp_max: 120, recovery_min: 4 }] };
+    const design = (draft) => (draft.workout_type === 'vo2max' ? { prescription: NEW, patch: {} } : null);
+    await applyCalendarOps(USER, [
+      { op: 'update', handle: 'sess_1af3bc12',
+        entry: entry({ workout_type: 'threshold', target_duration_min: 60, sport: 'cycling', details: { prescription: OLD } }),
+        workout_type: 'vo2max', reason: 'Switch to VO2.' },
+    ], { design });
+    const update = calls.find((c) => c.op === 'update');
+    expect(update.payload.details.prescription).toEqual(NEW);
+    expect(update.payload.target_load).toBe(66);
+  });
+
+  it('keeps the structure when the type is unchanged', async () => {
+    await applyCalendarOps(USER, [
+      { op: 'update', handle: 'sess_1af3bc12',
+        entry: entry({ workout_type: 'threshold', target_duration_min: 60, details: { prescription: OLD } }),
+        title: 'Renamed', reason: 'r' },
+    ]);
+    const update = calls.find((c) => c.op === 'update');
+    expect(update.payload.details).toBeUndefined();
+  });
+});
+
 describe('the injected session designer', () => {
   const SET = { repeats: 5, duration_min: 4, target_pct_ftp_min: 110, target_pct_ftp_max: 120, recovery_min: 4 };
   const stub = (draft, meta) => (draft.workout_type === 'vo2max'

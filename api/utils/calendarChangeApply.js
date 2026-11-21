@@ -107,6 +107,32 @@ function draftFrom(op, existingDetails = null, sport = null) {
 }
 
 /**
+ * A retyped session must not keep the old session's structure.
+ *
+ * When the coach changes what a session IS (its type or its library workout)
+ * without sending new `intervals`, the stored prescription still describes
+ * the old session: a threshold day turned into endurance kept drawing its
+ * threshold sets under the new name. Drop it; and when the new type is one the
+ * designer builds (a hard ride), design it afresh.
+ */
+function reshapeOnRetype(patch, entry, op, design) {
+  if (op.intervals !== undefined) return patch;
+  const retyped =
+    (patch.workout_type !== undefined && patch.workout_type !== entry.workout_type) ||
+    (patch.workout_id !== undefined && patch.workout_id !== entry.workout_id);
+  const baseDetails = patch.details !== undefined ? patch.details : entry.details ?? null;
+  if (!retyped || !baseDetails?.prescription) return patch;
+  patch.details = withPrescription(baseDetails, null);
+  const merged = { ...entry, ...patch };
+  const designed = applyDesign(merged, design);
+  if (designed.details?.prescription) {
+    patch.details = designed.details;
+    if (designed.target_duration_min !== merged.target_duration_min) patch.target_duration_min = designed.target_duration_min;
+  }
+  return patch;
+}
+
+/**
  * Recompute an update's planned load from the row it will produce. A bare
  * `target_load` from the coach is not stored; changing the length, the type
  * or the structure re-derives it. A designer prediction stops describing the
@@ -513,6 +539,7 @@ export async function applyCalendarOps(userId, resolved, opts = {}) {
           const next = { ...entry, ...patch };
           if ((next.type || 'workout') === 'workout' && isStrengthSession(next)) patch.sport = 'other';
         }
+        reshapeOnRetype(patch, entry, op, design);
         withPlannedLoad(patch, entry);
       }
 

@@ -111,6 +111,38 @@ export async function syncActualLoads(supabase, userId, rssByActivityId) {
   return { updated };
 }
 
+/**
+ * Mark an entry done by the activity that completed it — the server half of
+ * the calendar's auto-link (useActivityAutoLink is the browser half, and only
+ * runs while the calendar is open). Writes the forward link only:
+ * `activities.matched_planned_workout_id` still has a foreign key to the
+ * retired planned_workouts table, so it cannot point at a calendar entry.
+ * Only an unlinked entry is touched, so an athlete's own link is never moved.
+ *
+ * @param {import('@supabase/supabase-js').SupabaseClient} supabase
+ * @returns {Promise<{linked: boolean}>}
+ */
+export async function linkEntryToActivityServer(supabase, userId, entryId, activity) {
+  if (!userId || !entryId || !activity?.id) return { linked: false };
+  const load = Number(activity.rss ?? activity.tss);
+  const minutes = Number(activity.moving_time ?? activity.elapsed_time) / 60;
+  const { data, error } = await supabase
+    .from('calendar_entries')
+    .update({
+      activity_id: activity.id,
+      status: 'done',
+      completed_at: new Date().toISOString(),
+      ...(Number.isFinite(load) && load > 0 ? { actual_load: Math.round(load) } : {}),
+      ...(Number.isFinite(minutes) && minutes > 0 ? { actual_duration_min: Math.round(minutes) } : {}),
+    })
+    .eq('user_id', userId)
+    .eq('id', entryId)
+    .is('activity_id', null)
+    .select('id');
+  if (error) throw new Error(`calendar link failed: ${error.message}`);
+  return { linked: (data ?? []).length > 0 };
+}
+
 /** Edit an entry in place. Does NOT pin — pinning is the athlete's act. */
 export async function updateEntry(userId, entryId, patch) {
   if (!userId || !entryId) return { success: false, error: 'Missing user or entry' };

@@ -532,15 +532,18 @@ const RaceGoalModal = ({
             leftSection={<Clock size={16} />}
             description={form.goal_time_minutes ? formatGoalTime(form.goal_time_minutes) : null}
           />
-          <NumberInput
-            label="Goal Power (watts)"
-            placeholder="e.g., 250"
-            value={form.goal_power_watts}
-            onChange={(val) => setForm(prev => ({ ...prev, goal_power_watts: val }))}
-            min={0}
-            max={1000}
-            leftSection={<Fire size={16} />}
-          />
+          {/* A running race has no power target. */}
+          {BASE_RACE_TYPES.find((t) => t.value === form.race_type)?.sport !== 'run' && (
+            <NumberInput
+              label="Goal Power (watts)"
+              placeholder="e.g., 250"
+              value={form.goal_power_watts}
+              onChange={(val) => setForm(prev => ({ ...prev, goal_power_watts: val }))}
+              min={0}
+              max={1000}
+              leftSection={<Fire size={16} />}
+            />
+          )}
         </Group>
 
         {/* Goal Placement */}

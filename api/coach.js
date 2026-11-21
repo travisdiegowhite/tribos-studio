@@ -19,8 +19,6 @@ import { estimateGoalDurationMin } from './utils/raceDemand.js';
 import { buildCalendarContext, formatCalendarBlock } from './utils/calendarCoachContext.js';
 import { handleFitnessHistoryQuery } from './utils/fitnessHistoryTool.js';
 import { handleTrainingDataQuery } from './utils/trainingDataTool.js';
-import { generateTrainingPlan, getWorkoutMeta } from './utils/planGenerator.js';
-import { buildArc, generateArcWorkouts, applyAvailabilityToArcWorkouts, buildArcExplanation, assembleHybridArcMessage } from './utils/arcBuilder.js';
 import { buildRaceDemand } from './utils/raceDemand.js';
 import { setupCors } from './utils/cors.js';
 import { generateFuelPlan } from './utils/fuelPlanGenerator.js';

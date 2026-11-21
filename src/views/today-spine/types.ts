@@ -12,6 +12,7 @@
  * the on-screen display of FS/TFI/AFI.
  */
 
+import type { SessionRow } from '../../lib/training/session';
 import type { RecentRide } from '../today/shared/recentRides';
 import type { RideStreams } from '../../utils/rideGeo';
 
@@ -132,6 +133,8 @@ export interface TodaysWorkout {
   targetDistanceKm?: number | null;
   /** On a two-a-day, the session that is not the lead. */
   otherSession?: OtherSession | null;
+  /** The calendar row behind this session, for drawing its structure. */
+  row?: SessionRow | null;
 }
 
 /**

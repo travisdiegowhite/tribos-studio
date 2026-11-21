@@ -1100,7 +1100,7 @@ const TrainingPlanBrowser = ({ activePlan, onPlanActivated, compact = false }) =
             <Paper p="sm" withBorder ta="center">
               <TrendUp size={20} style={{ color: 'var(--color-text-muted)', marginBottom: 4 }} />
               <Text size="lg" fw={700}>{selectedPlan.weeklyTSS?.min}-{selectedPlan.weeklyTSS?.max}</Text>
-              <Text size="xs" c="dimmed">weekly ride stress</Text>
+              <Text size="xs" c="dimmed">weekly stress</Text>
             </Paper>
           </SimpleGrid>
 
@@ -1422,11 +1422,10 @@ const TrainingPlanBrowser = ({ activePlan, onPlanActivated, compact = false }) =
                   <Text size="xs" c="dimmed">{daysRemaining} days remaining</Text>
                 </Group>
                 <Progress value={progress} color="teal" size="sm" radius="xl" />
-                {activePlan.compliance_percentage > 0 && (
-                  <Text size="xs" c="dimmed" mt={4}>
-                    Compliance: {Math.round(activePlan.compliance_percentage)}% ({activePlan.workouts_completed}/{activePlan.workouts_total} workouts)
-                  </Text>
-                )}
+                {/* No compliance line here: training_plans.compliance_percentage
+                    is maintained by a trigger on the retired planned_workouts
+                    table and stopped moving. The plan strip on /train computes
+                    it from the calendar. */}
               </Box>
             );
           })()}

@@ -231,6 +231,22 @@ describe('Beat 3 — what to do', () => {
     expect(beat3.session).toEqual({ type: 'threshold', durationMin: 75, intensity: 0.82 });
   });
 
+  it('draws the session\'s real steps when the row carries them', () => {
+    const plan = planToday('threshold', 75, 'two_by_twenty_ftp');
+    const row = { scheduled_date: fmt(NOW), name: 'Session', workout_type: 'threshold', workout_id: 'two_by_twenty_ftp', sport: 'cycling', target_duration: 75 };
+    const { beat3 } = beats({ ...plan, todaysWorkout: { ...plan.todaysWorkout, row } });
+    const work = beat3.session?.steps?.filter((s) => s.phase === 'work') ?? [];
+    expect(work).toHaveLength(2);
+    expect(work[0].zone).toBe(4);
+  });
+
+  it('redraws the eased session when a hard day is traded down', () => {
+    const plan = planToday('threshold', 75, 'two_by_twenty_ftp');
+    const row = { scheduled_date: fmt(NOW), name: 'Session', workout_type: 'threshold', workout_id: 'two_by_twenty_ftp', sport: 'cycling', target_duration: 75 };
+    const { beat3 } = beats({ ...plan, todaysWorkout: { ...plan.todaysWorkout, row } }, 'flat');
+    expect(beat3.session?.steps?.some((s) => (s.zone ?? 0) >= 4)).toBe(false);
+  });
+
   it('trades a hard day down when the legs are flat, and says so', () => {
     const { beat3 } = beats(planToday('threshold'), 'flat');
     expect(beat3.downgraded).toBe(true);

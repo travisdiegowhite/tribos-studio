@@ -151,7 +151,7 @@ export default function CheckInPage({ plannedWorkouts = [], activities = [], ftp
             <Text size="lg" fw={600}>No check-in yet</Text>
             <Text size="sm" c="dimmed" maw={400}>
               Your coaching check-in will appear here after your next synced activity,
-              or you can request one now based on your latest ride.
+              or you can request one now based on your latest activity.
             </Text>
             {generateError && (
               <Text size="sm" c="red">{generateError}</Text>

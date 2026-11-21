@@ -104,7 +104,14 @@ const RACE_TYPE_INFO: Record<string, { icon: string; label: string }> = {
   gravel: { icon: '🪨', label: 'Gravel' },
   cyclocross: { icon: '🌲', label: 'Cyclocross' },
   mtb: { icon: '🏔️', label: 'MTB' },
+  run_5k: { icon: '🏃', label: '5K Run' },
+  run_10k: { icon: '🏃', label: '10K Run' },
+  half_marathon: { icon: '🏃', label: 'Half Marathon' },
+  marathon: { icon: '🏃', label: 'Marathon' },
+  trail_run: { icon: '🏃', label: 'Trail Run' },
+  ultra_run: { icon: '🏃', label: 'Ultra Run' },
   triathlon: { icon: '🏊', label: 'Triathlon' },
+  duathlon: { icon: '🏃', label: 'Duathlon' },
   other: { icon: '🎯', label: 'Event' },
 };
 

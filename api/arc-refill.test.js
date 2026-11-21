@@ -11,7 +11,7 @@ function makeChain(table) {
   const cfg = handlers[table] || {};
   const obj = {};
   const local = { table, payload: null, filters: {} };
-  for (const m of ['select', 'order', 'limit', 'is', 'or', 'gte', 'lte', 'not', 'insert', 'upsert']) {
+  for (const m of ['select', 'order', 'limit', 'is', 'or', 'gte', 'lte', 'not', 'in', 'insert', 'upsert']) {
     obj[m] = () => obj;
   }
   obj.eq = (col, val) => { local.filters[col] = val; return obj; };

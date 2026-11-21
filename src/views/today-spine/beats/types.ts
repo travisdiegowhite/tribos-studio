@@ -1,3 +1,4 @@
+import type { SessionStep } from '../../../lib/training/session';
 /**
  * Today on mobile — the four-beat page (docs/today-mobile-beats-spec.md).
  *
@@ -55,8 +56,11 @@ export interface SessionShape {
   /** workout_type, post-downgrade. */
   type: string;
   durationMin: number;
-  /** 0..1, drives the silhouette's bar height. */
+  /** 0..1, drives the silhouette's bar height when there are no steps. */
   intensity: number;
+  /** The session's steps (training core) — the same shape the calendar draws. */
+  steps?: SessionStep[];
+  sport?: string | null;
 }
 
 export interface Beat3VM {

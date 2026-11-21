@@ -326,6 +326,10 @@ export interface WorkoutSegment {
   duration: number; // in minutes
   zone: TrainingZone | null;
   powerPctFTP?: number;
+  /** A run segment's target as % of threshold pace (100 = threshold, higher = slower). */
+  pacePctThreshold?: number;
+  /** The prescribed band behind the single target (%FTP for rides, % threshold pace for runs). */
+  targetRange?: { min: number; max: number };
   cadence?: string;
   description: string;
 }
@@ -341,6 +345,7 @@ export interface WorkoutWarmupCooldown {
   duration: number;
   zone: TrainingZone | null;
   powerPctFTP?: number;
+  pacePctThreshold?: number;
   description?: string;
 }
 
@@ -1615,6 +1620,13 @@ export interface IntervalPrescription {
   /** Watts the designer aimed at, beside the %FTP the device reads. */
   target_watts_min?: number;
   target_watts_max?: number;
+  /**
+   * A RUN's set carries a threshold-pace band instead of %FTP
+   * (api/utils/prescription.js): 100 = threshold pace, higher = slower. The
+   * %FTP fields are then absent at runtime.
+   */
+  target_pct_threshold_pace_min?: number;
+  target_pct_threshold_pace_max?: number;
 }
 
 /**
@@ -1628,7 +1640,11 @@ export interface StoredPrescription {
   version: 1;
   /** Who produced the structure. The UI labels anything but `athlete` / `coach` honestly. */
   source: 'coach' | 'designer' | 'arc' | 'library' | 'athlete';
+  /** What the bands are relative to: FTP for a ride, threshold pace for a run. */
+  basis?: 'power' | 'pace';
   intervals: IntervalPrescription[];
+  /** The designer's predicted RSS for the session. */
+  predicted_load?: number;
   warmup_min?: number;
   cooldown_min?: number;
   /** Rule ids and plain sentences from the designer, in decision order. */

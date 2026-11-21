@@ -104,7 +104,11 @@ export default async function handler(req, res) {
     // athlete without a plan can now have a deviation analysed — which is the
     // right behaviour, since a deviation is from what was SCHEDULED, and the
     // coach schedules without a plan now.
-    const upcoming = await fetchPlannedSessions(userId, { from: today, limit: 14 });
+    // Fourteen DAYS, not fourteen rows: a two-a-day calendar filled the old
+    // `limit: 14` in a week.
+    const horizon = new Date(`${today}T00:00:00Z`);
+    horizon.setUTCDate(horizon.getUTCDate() + 13);
+    const upcoming = await fetchPlannedSessions(userId, { from: today, to: horizon.toISOString().slice(0, 10) });
 
     if (upcoming.length === 0) {
       return res.status(200).json({ status: 'nothing_scheduled' });
@@ -113,11 +117,6 @@ export default async function handler(req, res) {
     // The deviation compares the activity against TODAY's planned workout
     // specifically — upcoming[0] may be a future day's session, and treating
     // that as "the plan for today" leaked future targets into the analysis.
-    const todaysPlanned = upcoming.find((w) => w.scheduled_date === today);
-    if (!todaysPlanned) {
-      return res.status(200).json({ status: 'no_planned_workout_today' });
-    }
-
     // 4. Fetch actual activity data
     const { data: activity } = await supabase
       .from('activities')
@@ -127,6 +126,17 @@ export default async function handler(req, res) {
 
     if (!activity) {
       return res.status(200).json({ status: 'activity_not_found' });
+    }
+
+    // On a two-a-day, compare against the session of THIS activity's sport:
+    // a run is not a deviation from the day's ride.
+    const activitySport = sportTypeOfActivity(activity);
+    const todaysSessions = upcoming.filter((w) => w.scheduled_date === today && w.workout_type !== 'rest');
+    const todaysPlanned =
+      todaysSessions.find((w) => w.sport === activitySport || w.sport === 'multi') ??
+      (todaysSessions.length > 0 && !todaysSessions.some((w) => w.sport) ? todaysSessions[0] : null);
+    if (!todaysPlanned) {
+      return res.status(200).json({ status: 'no_planned_workout_today' });
     }
 
     // 5. Build activity data for the deviation classifier. No workout_type:

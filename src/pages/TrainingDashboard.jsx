@@ -1,4 +1,6 @@
 // Training Dashboard - Updated Dec 2024
+import { forecastFitness } from '../lib/training/session/forecast';
+import { sportNoun } from '../lib/training/session/sportCopy';
 import React, { useState, useEffect, useMemo, useCallback, useRef, lazy, Suspense } from 'react';
 import {
   Container,
@@ -37,19 +39,17 @@ import BulkGpxUploadModal from '../components/BulkGpxUploadModal.jsx';
 import { TrainingMetricsSkeleton } from '../components/LoadingSkeletons.jsx';
 import { SupplementWorkoutModal, TrainingPlanExportItems } from '../components/training';
 import RideAnalysisModal from '../components/RideAnalysisModal.jsx';
-import { WorkoutModal } from '../components/planner/WorkoutModal';
 import { getWorkoutById } from '../data/workoutLibrary';
 import { getWorkoutRecommendation } from '../services/workoutRecommendation';
 import { interpretTSB, findOptimalSupplementDays } from '../utils/trainingPlans';
 import { estimateActivityTSS } from '../utils/computeFitnessSnapshots';
 import { buildDailyLoadSeries } from '../views/today/athleteMetrics';
 import { FtpMissingBadge } from '../components/ui';
-import { translateTSB } from '../lib/fitness/translate';
 import { formatDistance, formatElevation, formatSpeed } from '../utils/units';
 import { garminService } from '../utils/garminService.js';
 import PageHeader from '../components/PageHeader.jsx';
 import { useCrossTraining } from '../hooks/useCrossTraining';
-import { Barbell, Calendar, DotsThree, FileZip, Gear, Heart, Heartbeat, TrendDown, TrendUp, Watch } from '@phosphor-icons/react';
+import { Barbell, Calendar, DotsThree, FileZip, Gear, Heart, Watch } from '@phosphor-icons/react';
 import PlanWeekCard from '../components/train/PlanWeekCard.jsx';
 import SecondaryNavBar from '../components/train/SecondaryNavBar.jsx';
 
@@ -101,6 +101,7 @@ function TrainingDashboard() {
   // Adaptive EWA tau (user_profiles.tfi_tau/afi_tau) so client-filled tail
   // days decay at the athlete's actual rate — same guard as the server engine.
   const [taus, setTaus] = useState({ tfi: 42, afi: 7 });
+  const [sportLoadHistory, setSportLoadHistory] = useState([]);
   const [powerZones, setPowerZones] = useState(null);
   const [userWeight, setUserWeight] = useState(null);
   const [trainingMetrics, setTrainingMetrics] = useState({
@@ -116,14 +117,11 @@ function TrainingDashboard() {
   const [gpxUploadOpen, setGpxUploadOpen] = useState(false);
   const [todayHealthMetrics, setTodayHealthMetrics] = useState(null);
   const [healthHistory, setHealthHistory] = useState([]);
-  const [workoutModalOpen, setWorkoutModalOpen] = useState(false);
-  const [selectedWorkout, setSelectedWorkout] = useState(null);
   const [activePlan, setActivePlan] = useState(null);
   const [plannedWorkouts, setPlannedWorkouts] = useState([]);
   const [supplementModalOpen, setSupplementModalOpen] = useState(false);
   const [raceGoals, setRaceGoals] = useState([]);
   const [completedRaces, setCompletedRaces] = useState([]);
-  const [trainNowExpanded, setTrainNowExpanded] = useState(false);
   const [rideAnalysisModalOpen, setRideAnalysisModalOpen] = useState(false);
   const [selectedRide, setSelectedRide] = useState(null);
   const [calendarRefreshKey, setCalendarRefreshKey] = useState(0);
@@ -228,6 +226,16 @@ function TrainingDashboard() {
           .gte('date', ninetyKey)
           .order('date', { ascending: true });
         setServerLoadHistory(serverLoadRows || []);
+
+        // Per-sport fitness (migration 133), in its own query so a missing
+        // column can never cost the combined series. Fail-soft.
+        const { data: splitRows, error: splitErr } = await supabase
+          .from('training_load_daily')
+          .select('date, tfi_cycling, tfi_running')
+          .eq('user_id', user.id)
+          .gte('date', ninetyKey)
+          .order('date', { ascending: true });
+        setSportLoadHistory(splitErr ? [] : splitRows || []);
 
         // Get all activities using pagination (Supabase caps at 1000 per request)
         let allActivities = [];
@@ -628,22 +636,56 @@ function TrainingDashboard() {
       return !!(week && key && key >= week.startKey && key <= week.endKeyInclusive);
     });
 
+    const emptySport = () => ({ time: 0, distance: 0, load: 0, count: 0 });
     return weeklyActivities.reduce(
       (acc, a) => {
         const sport = getSportTypeForActivity(a);
+        const load = Math.min(estimateActivityTSS(a, ftp) || 0, 500);
+        const bucket = acc.bySport[sport] ?? emptySport();
         return {
           totalDistance: acc.totalDistance + (a.distance || 0),
           totalTime: acc.totalTime + (a.moving_time || 0),
-          totalTSS: acc.totalTSS + Math.min(estimateActivityTSS(a, ftp) || 0, 500),
+          totalTSS: acc.totalTSS + load,
           rideCount: acc.rideCount + (sport === 'cycling' ? 1 : 0),
           runCount: acc.runCount + (sport === 'running' ? 1 : 0),
           otherCount: acc.otherCount + (sport === 'other' ? 1 : 0),
           activityCount: acc.activityCount + 1,
+          // Per sport, so the week row can say "Ride 3h · Run 1h" the way
+          // a multisport athlete reads their week.
+          bySport: {
+            ...acc.bySport,
+            [sport]: {
+              time: bucket.time + (a.moving_time || 0),
+              distance: bucket.distance + (a.distance || 0),
+              load: bucket.load + load,
+              count: bucket.count + 1,
+            },
+          },
         };
       },
-      { totalDistance: 0, totalTime: 0, totalTSS: 0, rideCount: 0, runCount: 0, otherCount: 0, activityCount: 0 }
+      { totalDistance: 0, totalTime: 0, totalTSS: 0, rideCount: 0, runCount: 0, otherCount: 0, activityCount: 0, bySport: {} }
     );
   }, [visibleActivities, ftp]);
+
+  // Where fitness is headed on the planned calendar (the PMC's future segment).
+  const fitnessForecast = useMemo(() => {
+    const last = dailyTSSData[dailyTSSData.length - 1];
+    if (!last) return null;
+    return forecastFitness({
+      from: { date: last.date, ctl: last.ctl, atl: last.atl },
+      planned: plannedWorkouts,
+      taus,
+      days: 42,
+    });
+  }, [dailyTSSData, plannedWorkouts, taus]);
+
+  // Upcoming races on the chart's time axis.
+  const raceMarkers = useMemo(
+    () => (raceGoals || [])
+      .filter((r) => r.race_date && r.race_date >= getTodayString())
+      .map((r) => ({ date: r.race_date, label: r.priority ? `${r.priority} race` : 'Race' })),
+    [raceGoals]
+  );
 
   // Format helpers
   const formatTime = (seconds) => {
@@ -654,19 +696,8 @@ function TrainingDashboard() {
     return `${minutes}m`;
   };
 
-  // Get form status styling — delegates to canonical translate.ts thresholds
-  const getFormStatus = () => {
-    const t = translateTSB(trainingMetrics.tsb);
-    const colorMap = { gold: 'teal', teal: 'green', orange: 'yellow', coral: 'red', muted: 'gray' };
-    const iconMap = { gold: TrendUp, teal: TrendUp, orange: TrendDown, coral: TrendDown, muted: Heartbeat };
-    const bgMap = { gold: 'rgba(168, 191, 168, 0.15)', teal: 'rgba(168, 191, 168, 0.15)', orange: 'rgba(212, 168, 67, 0.15)', coral: 'rgba(158, 90, 60, 0.15)', muted: 'rgba(168, 191, 168, 0.15)' };
-    return { label: t.label.toUpperCase(), color: colorMap[t.color], icon: iconMap[t.color], bg: bgMap[t.color] };
-  };
-
-  const formStatus = getFormStatus();
 
   // Unified workout recommendation — single source of truth
-  const [focusTimeAvailable, setFocusTimeAvailable] = useState(null);
 
   const recommendation = useMemo(() => getWorkoutRecommendation({
     trainingMetrics,
@@ -674,25 +705,14 @@ function TrainingDashboard() {
     raceGoals,
     plannedWorkouts,
     ftp,
-    timeAvailable: focusTimeAvailable ? parseInt(focusTimeAvailable) : null,
-  }), [trainingMetrics, visibleActivities, raceGoals, plannedWorkouts, ftp, focusTimeAvailable]);
-
-  const suggestedWorkout = recommendation.primary?.workout || null;
+    timeAvailable: null,
+  }), [trainingMetrics, visibleActivities, raceGoals, plannedWorkouts, ftp]);
 
   // Memoize trainingContext to avoid recreating on every render
   const trainingContext = useMemo(() =>
     buildTrainingContext(trainingMetrics, weeklyStats, actualWeeklyStats, ftp, visibleActivities, formatDist, formatTime, isImperial, activePlan, raceGoals, crossTrainingContext, recommendation, plannedWorkouts, completedRaces),
     [trainingMetrics, weeklyStats, actualWeeklyStats, ftp, visibleActivities, isImperial, activePlan, raceGoals, crossTrainingContext, recommendation, plannedWorkouts, completedRaces]
   );
-
-  const handleAddWorkout = useCallback(async (workout) => {
-    notifications.show({
-      title: 'Workout Added',
-      message: `${workout.name || workout.workout_id} scheduled`,
-      color: 'terracotta'
-    });
-    setCalendarRefreshKey(prev => prev + 1);
-  }, []);
 
   const handleOpenCheckIn = useCallback(() => setHealthCheckInOpen(true), []);
 
@@ -715,11 +735,6 @@ function TrainingDashboard() {
       }
     }
   }, [user?.id]);
-
-  const handleViewWorkout = useCallback((workout) => {
-    setSelectedWorkout(workout);
-    setWorkoutModalOpen(true);
-  }, []);
 
   // Handle viewing ride details
   const handleViewRide = useCallback((ride) => {
@@ -842,7 +857,7 @@ function TrainingDashboard() {
       ));
 
       notifications.show({
-        title: result.isHidden ? 'Ride hidden' : 'Ride restored',
+        title: `${sportNoun(getSportTypeForActivity(ride), { capital: true })} ${result.isHidden ? 'hidden' : 'restored'}`,
         message: result.isHidden
           ? `"${ride.name}" has been hidden from your history`
           : `"${ride.name}" is now visible in your history`,
@@ -852,7 +867,7 @@ function TrainingDashboard() {
       console.error('Error hiding ride:', error);
       notifications.show({
         title: 'Error',
-        message: error.message || 'Failed to update ride visibility',
+        message: error.message || 'Failed to update activity visibility',
         color: 'red'
       });
     }
@@ -1027,6 +1042,7 @@ function TrainingDashboard() {
             plannedWorkouts={plannedWorkouts}
             actualWeeklyStats={actualWeeklyStats}
             formatTime={formatTime}
+            formatDistance={formatDist}
             loading={loading}
           />
           )}
@@ -1104,6 +1120,9 @@ function TrainingDashboard() {
             {activeTab === 'progress' && (
               <ProgressTab
                 dailyTSSData={dailyTSSData}
+                fitnessForecast={fitnessForecast}
+                raceMarkers={raceMarkers}
+                sportLoadHistory={sportLoadHistory}
                 trainingMetrics={trainingMetrics}
                 activities={visibleActivities}
                 speedProfile={speedProfile}
@@ -1239,14 +1258,6 @@ function TrainingDashboard() {
             window.location.reload();
           }
         }}
-      />
-
-      {/* Workout Detail Modal (shared with planner for consistent experience) */}
-      <WorkoutModal
-        workout={selectedWorkout}
-        plannedWorkout={null}
-        opened={workoutModalOpen}
-        onClose={() => setWorkoutModalOpen(false)}
       />
 
       {/* Supplement Workout Modal */}

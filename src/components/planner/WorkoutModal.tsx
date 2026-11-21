@@ -1,72 +1,94 @@
 /**
- * WorkoutModal Component
- * Combined workout details + edit modal
- * Shows workout structure, intervals, coach notes at top
- * Editable fields (TSS, duration, notes), fuel plan, and export at bottom
+ * WorkoutModal — the session detail.
+ *
+ * Draws one session from the shared training core
+ * (`src/lib/training/session`): its sport, its steps (the same ones the
+ * calendar glyph and Today draw), and — once it is done — how it compared with
+ * the plan. It used to rebuild the session itself and was told every calendar
+ * entry's sport was null, so runs got a bike icon, %FTP zones, "ride stress"
+ * and a Zwift download; VO2 bars were invisible and sweet spot and threshold
+ * shared a colour. None of that logic lives here any more.
+ *
+ * Modes:
+ *   - a calendar entry (`entry` + `plannedWorkout`): view, edit plan, change
+ *     workout, delete; planned vs actual when done.
+ *   - add to an empty day (`isAdd`): pick a library workout, adjust, add.
+ *   - a library workout preview (`workout` only).
  */
 
-import { useMemo, useState, useEffect } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import {
-  Modal,
-  Box,
-  Text,
-  Group,
-  Stack,
-  Badge,
-  Paper,
-  Divider,
-  Timeline,
-  ThemeIcon,
-  Tooltip,
-  NumberInput,
-  Textarea,
-  Button,
-  ScrollArea,
-  Collapse,
   ActionIcon,
+  Badge,
+  Box,
+  Button,
+  Collapse,
+  Divider,
+  Group,
+  Modal,
+  NumberInput,
+  Paper,
+  ScrollArea,
   Select,
+  Stack,
+  Table,
+  Text,
+  Textarea,
+  Tooltip,
 } from '@mantine/core';
+import {
+  Pulse as IconActivity,
+  Barbell as IconBarbell,
+  Bicycle as IconBike,
+  CaretDown as IconChevronDown,
+  CaretUp as IconChevronUp,
+  Clock as IconClock,
+  FloppyDisk as IconDeviceFloppy,
+  DownloadSimple as IconDownload,
+  Drop as IconDroplet,
+  Fire as IconFlame,
+  Repeat as IconRepeat,
+  PersonSimpleRun as IconRun,
+  Trash as IconTrash,
+} from '@phosphor-icons/react';
+import posthog from 'posthog-js';
 import type {
-  WorkoutDefinition,
-  WorkoutSegment,
-  WorkoutInterval,
-  WorkoutStructure,
-  WorkoutCategory,
+  CoreExercise,
   OffBikeWorkoutStructure,
   StrengthExercise,
-  CoreExercise,
   StretchExercise,
+  WorkoutCategory,
+  WorkoutDefinition,
 } from '../../types/training';
 import type { PlannerWorkout } from '../../types/planner';
-import {
-  Clock,
-  Fire,
-  Heart,
-  Heartbeat,
-  Lightning,
-  Play,
-  Repeat,
-  TrendUp,
-  FloppyDisk,
-  Trash,
-  X,
-  DownloadSimple,
-  Barbell,
-  CaretDown,
-  CaretUp,
-  Timer,
-  Drop,
-} from '@phosphor-icons/react';
 import { calculateFuelPlanFromWorkout } from '../../utils/fueling';
 import { exportWorkout, downloadWorkout } from '../../utils/workoutExport';
 import { workoutStructureToCycling } from '../../utils/trainingPlanExport';
-import { fitStructureToDuration, structureLoad } from '../../lib/training/plannedWorkoutShape';
-import posthog from 'posthog-js';
+import { getTodayString } from '../../utils/dateUtils';
 import { WORKOUT_LIBRARY } from '../../data/workoutLibrary';
 import { RUNNING_WORKOUT_LIBRARY } from '../../data/runningWorkoutLibrary';
 import { getAnyWorkoutById } from '../../data/workoutLookup';
-import { formatCadence, runningPaceTargets } from './runningTargets';
 import { WORKOUT_CATEGORY_PALETTE as CATEGORY_COLORS } from '../../utils/trainingPlans';
+import {
+  resolveSession,
+  summarizeSteps,
+  intervalSummary,
+  formatMinutes,
+  formatTarget,
+  stepsLoad,
+  sportNoun,
+  sportIconName,
+  usesPower,
+  thresholdName,
+  zonesFor,
+  zoneColor,
+  LOAD_LABEL,
+  type SessionRow,
+  type TargetAnchors,
+} from '../../lib/training/session';
+import { SessionProfile, ZoneLegend, ComplianceBadge } from '../training/session';
+import { formatCadence } from './runningTargets';
+import { encodeFitRunWorkout } from '../../utils/fitRunWorkoutEncoder';
 
 // ============================================================
 // TYPES
@@ -75,6 +97,10 @@ import { WORKOUT_CATEGORY_PALETTE as CATEGORY_COLORS } from '../../utils/trainin
 interface WorkoutModalProps {
   workout: WorkoutDefinition | null;
   plannedWorkout: PlannerWorkout | null;
+  /** The calendar row behind `plannedWorkout` — the session is resolved from it. */
+  entry?: SessionRow | null;
+  /** The athlete's FTP and threshold pace, for watts and paces. */
+  anchors?: TargetAnchors;
   opened: boolean;
   onClose: () => void;
   onSave?: (updates: Partial<PlannerWorkout>) => void;
@@ -89,88 +115,18 @@ interface WorkoutModalProps {
   ) => void;
   /** Render in "add to an empty day" mode: pick a workout, then add it. */
   isAdd?: boolean;
-  /**
-   * Shown under the profile when the structure is a stand-in rather than the
-   * prescription itself (see `resolvePlannedWorkoutShape`).
-   */
+  /** Kept for callers that still pass it; the session carries its own note. */
   structureNote?: string | null;
 }
 
-// ============================================================
-// CONSTANTS
-// ============================================================
-
-const ZONE_COLORS: Record<number | string, string> = {
-  1: 'green',
-  2: 'blue',
-  3: 'yellow',
-  3.5: 'orange',
-  4: 'red',
-  5: 'red.8',
-  6: 'grape',
-  7: 'pink',
-};
-
-const ZONE_NAMES: Record<number | string, string> = {
-  1: 'Recovery',
-  2: 'Endurance',
-  3: 'Tempo',
-  3.5: 'Sweet Spot',
-  4: 'Threshold',
-  5: 'VO2 Max',
-  6: 'Anaerobic',
-  7: 'Sprint',
-};
-
-// Category colours come from the one shared map in utils/trainingPlans.
-
-const CATEGORY_ICONS: Record<string, string> = {
-  recovery: '🌿',
-  endurance: '🚴',
-  tempo: '⚡',
-  sweet_spot: '🍯',
-  threshold: '🔥',
-  vo2max: '💨',
-  anaerobic: '💥',
-  climbing: '⛰️',
-  racing: '🏁',
-  strength: '💪',
-  core: '🎯',
-  flexibility: '🧘',
-  rest: '😴',
-};
-
 const OFF_BIKE_CATEGORIES = ['strength', 'core', 'flexibility'];
 
-// ============================================================
-// HELPERS
-// ============================================================
-
-function getZoneColor(zone: number | null): string {
-  if (zone === null) return 'gray';
-  return ZONE_COLORS[zone] || 'gray';
-}
-
-function getZoneName(zone: number | null): string {
-  if (zone === null) return 'Active';
-  return ZONE_NAMES[zone] || `Zone ${zone}`;
-}
-
-function getCategoryColor(category: string): string {
-  return CATEGORY_COLORS[category] || 'gray';
-}
-
-function formatDuration(minutes: number): string {
-  if (minutes < 1) {
-    return `${Math.round(minutes * 60)}s`;
-  }
-  if (minutes >= 60) {
-    const hours = Math.floor(minutes / 60);
-    const mins = Math.round(minutes % 60);
-    return mins > 0 ? `${hours}h ${mins}m` : `${hours}h`;
-  }
-  return `${Math.round(minutes)}m`;
-}
+const SPORT_ICONS = {
+  bike: IconBike,
+  run: IconRun,
+  barbell: IconBarbell,
+  activity: IconActivity,
+} as const;
 
 function formatDateBadge(dateStr: string): string {
   const date = new Date(dateStr + 'T12:00:00');
@@ -179,326 +135,71 @@ function formatDateBadge(dateStr: string): string {
   return `${days[date.getDay()]}, ${months[date.getMonth()]} ${date.getDate()}`;
 }
 
-// ============================================================
-// FLATTEN WORKOUT STRUCTURE
-// ============================================================
-
-interface FlattenedSegment {
-  type: 'warmup' | 'main' | 'rest' | 'cooldown';
-  duration: number;
-  zone: number | null;
-  powerPctFTP?: number;
-  cadence?: string;
-  description: string;
-  setNumber?: number;
-  totalSets?: number;
-  isRepeat?: boolean;
-}
-
-function flattenStructure(structure: WorkoutStructure): FlattenedSegment[] {
-  const segments: FlattenedSegment[] = [];
-
-  if (structure.warmup) {
-    segments.push({
-      type: 'warmup',
-      duration: structure.warmup.duration,
-      zone: structure.warmup.zone,
-      powerPctFTP: structure.warmup.powerPctFTP,
-      description: 'Warmup',
-    });
-  }
-
-  function processSegmentOrInterval(
-    item: WorkoutSegment | WorkoutInterval,
-    parentSetInfo?: { setNumber: number; totalSets: number }
-  ) {
-    if ('type' in item && item.type === 'repeat') {
-      const interval = item as WorkoutInterval;
-      for (let set = 1; set <= interval.sets; set++) {
-        const workItems = Array.isArray(interval.work) ? interval.work : [interval.work];
-        for (const workItem of workItems) {
-          if ('type' in workItem && workItem.type === 'repeat') {
-            processSegmentOrInterval(workItem, { setNumber: set, totalSets: interval.sets });
-          } else {
-            const workSeg = workItem as WorkoutSegment;
-            segments.push({
-              type: 'main',
-              duration: workSeg.duration,
-              zone: workSeg.zone,
-              powerPctFTP: workSeg.powerPctFTP,
-              cadence: workSeg.cadence,
-              description: workSeg.description || 'Work',
-              setNumber: set,
-              totalSets: interval.sets,
-              isRepeat: true,
-            });
-          }
-        }
-
-        if (set < interval.sets && interval.rest && interval.rest.duration > 0) {
-          const restSeg = interval.rest as WorkoutSegment;
-          segments.push({
-            type: 'rest',
-            duration: restSeg.duration,
-            zone: restSeg.zone,
-            description: restSeg.description || 'Recovery',
-            setNumber: set,
-            totalSets: interval.sets,
-            isRepeat: true,
-          });
-        }
-      }
-    } else {
-      const seg = item as WorkoutSegment;
-      segments.push({
-        type: 'main',
-        duration: seg.duration,
-        zone: seg.zone,
-        powerPctFTP: seg.powerPctFTP,
-        cadence: seg.cadence,
-        description: seg.description,
-        ...(parentSetInfo && {
-          setNumber: parentSetInfo.setNumber,
-          totalSets: parentSetInfo.totalSets,
-          isRepeat: true,
-        }),
-      });
-    }
-  }
-
-  for (const item of structure.main) {
-    processSegmentOrInterval(item);
-  }
-
-  if (structure.cooldown) {
-    segments.push({
-      type: 'cooldown',
-      duration: structure.cooldown.duration,
-      zone: structure.cooldown.zone,
-      powerPctFTP: structure.cooldown.powerPctFTP,
-      description: 'Cooldown',
-    });
-  }
-
-  return segments;
-}
-
-function calculateTotalTime(segments: FlattenedSegment[]): number {
-  return segments.reduce((sum, seg) => sum + seg.duration, 0);
-}
-
-function summarizeIntervals(structure: WorkoutStructure): string {
-  const parts: string[] = [];
-  for (const item of structure.main) {
-    if ('type' in item && item.type === 'repeat') {
-      const interval = item as WorkoutInterval;
-      const workItems = Array.isArray(interval.work) ? interval.work : [interval.work];
-      const firstWork = workItems[0] as WorkoutSegment;
-      if (firstWork && 'duration' in firstWork) {
-        const duration = firstWork.duration;
-        const durationStr = duration < 1 ? `${Math.round(duration * 60)}s` : `${Math.round(duration)}min`;
-        parts.push(`${interval.sets}x${durationStr}`);
-      }
-    }
-  }
-  return parts.length > 0 ? parts.join(', ') : 'Steady effort';
-}
-
-function getSegmentIcon(segment: FlattenedSegment) {
-  if (segment.type === 'warmup' || segment.type === 'cooldown') return <Heart size={14} />;
-  if (segment.type === 'rest') return <Heartbeat size={14} />;
-  if (segment.zone && segment.zone >= 5) return <Lightning size={14} />;
-  if (segment.isRepeat) return <Repeat size={14} />;
-  return <TrendUp size={14} />;
+function formatKm(km: number | null | undefined): string {
+  return km && km > 0 ? `${Math.round(km * 10) / 10} km` : '—';
 }
 
 // ============================================================
 // SUB-COMPONENTS
 // ============================================================
 
-/** Visual power chart */
-function IntervalChart({ segments }: { segments: FlattenedSegment[] }) {
-  const totalTime = calculateTotalTime(segments);
-  if (totalTime === 0) return null;
-
-  const getBarHeight = (zone: number | null) => {
-    if (zone === null) return 30;
-    return 20 + ((zone / 7) * 80);
-  };
-
-  return (
-    <Box
-      style={{
-        display: 'flex',
-        alignItems: 'flex-end',
-        height: 120,
-        backgroundColor: 'var(--tribos-bg-tertiary)',
-        borderRadius: 8,
-        padding: 8,
-        paddingBottom: 24,
-        position: 'relative',
-        overflow: 'hidden',
-      }}
-    >
-      {[2, 4, 6].map((zone) => (
-        <Box
-          key={zone}
-          style={{
-            position: 'absolute',
-            left: 0,
-            right: 0,
-            bottom: 24 + (getBarHeight(zone) / 100 * 88),
-            height: 1,
-            borderTop: '1px dashed var(--tribos-border-subtle)',
-          }}
-        />
-      ))}
-
-      {segments.map((segment, index) => {
-        const widthPercent = (segment.duration / totalTime) * 100;
-        const height = getBarHeight(segment.zone);
-        const color = getZoneColor(segment.zone);
-
-        return (
-          <Tooltip
-            key={index}
-            label={
-              <Stack gap={2}>
-                <Text size="xs" fw={500}>{segment.description}</Text>
-                <Text size="xs">{formatDuration(segment.duration)} @ {getZoneName(segment.zone)}</Text>
-                {segment.powerPctFTP && <Text size="xs">{segment.powerPctFTP}% FTP</Text>}
-              </Stack>
-            }
-          >
-            <Box
-              style={{
-                width: `${widthPercent}%`,
-                minWidth: 4,
-                height: `${height}%`,
-                backgroundColor: `var(--mantine-color-${color}-6)`,
-                marginRight: 1,
-                borderRadius: '2px 2px 0 0',
-                transition: 'height 0.2s ease',
-                cursor: 'pointer',
-                opacity: segment.type === 'rest' ? 0.6 : 1,
-              }}
-            />
-          </Tooltip>
-        );
-      })}
-
-      <Box
-        style={{
-          position: 'absolute',
-          left: 8,
-          right: 8,
-          bottom: 4,
-          display: 'flex',
-          justifyContent: 'space-between',
-        }}
-      >
-        <Text size="xs" c="dimmed">0</Text>
-        <Text size="xs" c="dimmed">{formatDuration(totalTime / 2)}</Text>
-        <Text size="xs" c="dimmed">{formatDuration(totalTime)}</Text>
-      </Box>
-    </Box>
-  );
-}
-
-/** Exercise list for strength/core/flexibility workouts */
+/** Exercise list for strength/core/flexibility workouts. */
 function ExerciseList({ exercises }: { exercises: OffBikeWorkoutStructure }) {
   return (
     <Stack gap="sm">
-      {/* Warmup */}
       {exercises.warmup && (
         <Paper p="sm" withBorder>
           <Group gap="xs" mb={4}>
-            <ThemeIcon size={20} color="green" variant="light" radius="xl">
-              <Heart size={12} />
-            </ThemeIcon>
             <Text size="sm" fw={600}>Warmup</Text>
             <Text size="xs" c="dimmed">{exercises.warmup.duration}min</Text>
           </Group>
-          <Text size="xs" c="dimmed" ml={28}>{exercises.warmup.description}</Text>
+          <Text size="xs" c="dimmed">{exercises.warmup.description}</Text>
         </Paper>
       )}
-
-      {/* Main exercises */}
       {exercises.main.map((exercise, index) => {
         const ex = exercise as StrengthExercise & CoreExercise & StretchExercise;
         return (
           <Paper key={index} p="sm" withBorder>
             <Group justify="space-between" wrap="wrap" gap={4}>
               <Group gap="xs">
-                <ThemeIcon size={20} color="orange" variant="light" radius="xl">
-                  <Barbell size={12} />
-                </ThemeIcon>
+                <IconBarbell size={14} />
                 <Text size="sm" fw={600}>{ex.name}</Text>
               </Group>
               <Group gap="xs">
-                {ex.sets && ex.reps && (
-                  <Badge size="xs" color="orange" variant="light">
-                    {ex.sets} x {ex.reps}
-                  </Badge>
-                )}
-                {ex.duration && !ex.reps && (
-                  <Badge size="xs" color="blue" variant="light">
-                    {ex.duration}s hold
-                  </Badge>
-                )}
-                {ex.weight && (
-                  <Badge size="xs" color="gray" variant="light">
-                    {ex.weight}
-                  </Badge>
-                )}
+                {ex.sets && ex.reps && <Badge size="xs" variant="light">{ex.sets} x {ex.reps}</Badge>}
+                {ex.duration && !ex.reps && <Badge size="xs" variant="light">{ex.duration}s hold</Badge>}
+                {ex.weight && <Badge size="xs" color="gray" variant="light">{ex.weight}</Badge>}
               </Group>
             </Group>
-            {ex.instructions && (
-              <Text size="xs" c="dimmed" mt={6} ml={28}>
-                {ex.instructions}
-              </Text>
-            )}
-            {ex.restSeconds > 0 && (
-              <Text size="xs" c="dimmed" mt={2} ml={28}>
-                Rest: {ex.restSeconds}s between sets
-              </Text>
-            )}
+            {ex.instructions && <Text size="xs" c="dimmed" mt={6}>{ex.instructions}</Text>}
+            {ex.restSeconds > 0 && <Text size="xs" c="dimmed" mt={2}>Rest: {ex.restSeconds}s between sets</Text>}
             {ex.muscleGroups && ex.muscleGroups.length > 0 && (
-              <Group gap={4} mt={4} ml={28}>
+              <Group gap={4} mt={4}>
                 {ex.muscleGroups.map((mg: string) => (
-                  <Badge key={mg} size="xs" variant="dot" color="gray">
-                    {mg.replace('_', ' ')}
-                  </Badge>
+                  <Badge key={mg} size="xs" variant="dot" color="gray">{mg.replace('_', ' ')}</Badge>
                 ))}
               </Group>
             )}
             {ex.alternatives && ex.alternatives.length > 0 && (
-              <Text size="xs" c="dimmed" mt={2} ml={28} fs="italic">
-                Alt: {ex.alternatives.join(', ')}
-              </Text>
+              <Text size="xs" c="dimmed" mt={2} fs="italic">Alt: {ex.alternatives.join(', ')}</Text>
             )}
           </Paper>
         );
       })}
-
-      {/* Cooldown */}
       {exercises.cooldown && (
         <Paper p="sm" withBorder>
           <Group gap="xs" mb={4}>
-            <ThemeIcon size={20} color="blue" variant="light" radius="xl">
-              <Heart size={12} />
-            </ThemeIcon>
             <Text size="sm" fw={600}>Cooldown</Text>
             <Text size="xs" c="dimmed">{exercises.cooldown.duration}min</Text>
           </Group>
-          <Text size="xs" c="dimmed" ml={28}>{exercises.cooldown.description}</Text>
+          <Text size="xs" c="dimmed">{exercises.cooldown.description}</Text>
         </Paper>
       )}
     </Stack>
   );
 }
 
-/** Fuel plan summary */
+/** Fuel plan for a ride long enough to need one. */
 function FuelPlanSummary({ duration, category }: { duration: number; category: WorkoutCategory }) {
   const fuelPlan = useMemo(() => {
     try {
@@ -507,33 +208,19 @@ function FuelPlanSummary({ duration, category }: { duration: number; category: W
       return null;
     }
   }, [duration, category]);
-
   if (!fuelPlan || duration < 45) return null;
-
   return (
     <Paper p="sm" withBorder>
       <Group gap="xs" mb="xs">
-        <Drop size={16} weight="fill" color="var(--mantine-color-yellow-5)" />
-        <Text size="sm" fw={600}>Fuel Plan</Text>
-        <Text size="xs" c="dimmed">{formatDuration(duration)}</Text>
+        <IconDroplet size={16} color="var(--color-easy)" />
+        <Text size="sm" fw={600}>Fuel plan</Text>
+        <Text size="xs" c="dimmed">{formatMinutes(duration)}</Text>
       </Group>
       <Group gap="lg">
-        <Box>
-          <Text size="xs" c="dimmed">Carbs</Text>
-          <Text size="sm" fw={500}>{fuelPlan.carbs.gramsPerHourMin}-{fuelPlan.carbs.gramsPerHourMax}g/hr</Text>
-        </Box>
-        <Box>
-          <Text size="xs" c="dimmed">Hydration</Text>
-          <Text size="sm" fw={500}>{fuelPlan.hydration.mlPerHour}ml/hr</Text>
-        </Box>
-        <Box>
-          <Text size="xs" c="dimmed">Gels</Text>
-          <Text size="sm" fw={500}>{fuelPlan.gelsEquivalent.min}-{fuelPlan.gelsEquivalent.max}</Text>
-        </Box>
-        <Box>
-          <Text size="xs" c="dimmed">Bottles</Text>
-          <Text size="sm" fw={500}>{fuelPlan.bottlesNeeded}</Text>
-        </Box>
+        <Box><Text size="xs" c="dimmed">Carbs</Text><Text size="sm" fw={500}>{fuelPlan.carbs.gramsPerHourMin}-{fuelPlan.carbs.gramsPerHourMax}g/hr</Text></Box>
+        <Box><Text size="xs" c="dimmed">Hydration</Text><Text size="sm" fw={500}>{fuelPlan.hydration.mlPerHour}ml/hr</Text></Box>
+        <Box><Text size="xs" c="dimmed">Gels</Text><Text size="sm" fw={500}>{fuelPlan.gelsEquivalent.min}-{fuelPlan.gelsEquivalent.max}</Text></Box>
+        <Box><Text size="xs" c="dimmed">Bottles</Text><Text size="sm" fw={500}>{fuelPlan.bottlesNeeded}</Text></Box>
       </Group>
     </Paper>
   );
@@ -546,6 +233,8 @@ function FuelPlanSummary({ duration, category }: { duration: number; category: W
 export function WorkoutModal({
   workout: workoutProp,
   plannedWorkout,
+  entry = null,
+  anchors = {},
   opened,
   onClose,
   onSave,
@@ -554,30 +243,23 @@ export function WorkoutModal({
   onChangeWorkout,
   onAddWorkout,
   isAdd = false,
-  structureNote = null,
 }: WorkoutModalProps) {
-  // Local edit state
   const [editTSS, setEditTSS] = useState<number>(0);
   const [editDuration, setEditDuration] = useState<number>(0);
   const [editNotes, setEditNotes] = useState<string>('');
-  const [showIntervalDetails, setShowIntervalDetails] = useState(true);
-  // Workout picker state: `chosenWorkoutId` drives add-mode preview; `pickerOpen`
-  // toggles the "Change workout" selector in view/edit mode.
+  const [showSteps, setShowSteps] = useState(true);
+  const [editingDone, setEditingDone] = useState(false);
   const [chosenWorkoutId, setChosenWorkoutId] = useState<string | null>(null);
   const [pickerOpen, setPickerOpen] = useState(false);
 
-  // Effective definition to render: the provided one, or the picked one (add mode).
-  // Either library: a running session's workout id must resolve too.
+  // Add mode: the picked library workout; otherwise what the caller passed.
   const workout = workoutProp ?? (chosenWorkoutId ? getAnyWorkoutById(chosenWorkoutId) : null);
-  const paceTargets = useMemo(() => runningPaceTargets(workout?.runningStructure), [workout]);
 
-  // Grouped options for the picker (by category).
   const workoutOptions = useMemo(() => {
     const byCategory: Record<string, { value: string; label: string }[]> = {};
     for (const w of Object.values(WORKOUT_LIBRARY)) {
-      (byCategory[w.category] ||= []).push({ value: w.id, label: w.name });
+      (byCategory[`ride · ${w.category}`] ||= []).push({ value: w.id, label: w.name });
     }
-    // Runs are grouped separately so a hybrid athlete can pick either sport.
     for (const w of Object.values(RUNNING_WORKOUT_LIBRARY)) {
       (byCategory[`run · ${w.category}`] ||= []).push({ value: w.id, label: w.name });
     }
@@ -589,15 +271,14 @@ export function WorkoutModal({
       }));
   }, []);
 
-  // Reset the picker whenever the modal opens.
   useEffect(() => {
     if (opened) {
       setChosenWorkoutId(null);
       setPickerOpen(false);
+      setEditingDone(false);
     }
   }, [opened]);
 
-  // Sync local state when modal opens or workout changes
   useEffect(() => {
     if (plannedWorkout) {
       setEditTSS(plannedWorkout.targetTSS);
@@ -608,30 +289,37 @@ export function WorkoutModal({
       setEditDuration(workout.duration);
       setEditNotes('');
     }
-  }, [plannedWorkout, workout, opened]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [plannedWorkout, workout?.id, opened]);
 
-  // The structure to draw and export. A planned entry (or one being added) is
-  // fitted to the duration in the editor, so the profile tracks the number the
-  // athlete is looking at rather than the library's default length.
   const editable = !!plannedWorkout || isAdd;
-  const displayStructure = useMemo(() => {
-    if (!workout?.structure) return null;
-    return editable ? fitStructureToDuration(workout.structure, editDuration) : workout.structure;
-  }, [workout, editable, editDuration]);
+  const today = getTodayString();
 
-  // Flatten workout structure for display
-  const segments = useMemo(() => {
-    if (!displayStructure) return [];
-    return flattenStructure(displayStructure);
-  }, [displayStructure]);
+  // The row the session is resolved from: the calendar entry, or (add mode /
+  // preview) the library workout itself. The edited length re-fits the shape
+  // live, so the profile tracks the number in the field.
+  const baseRow: SessionRow | null = useMemo(() => {
+    if (entry) return entry;
+    if (!workout) return null;
+    return {
+      name: workout.name,
+      workout_id: workout.id,
+      workout_type: workout.category,
+      sport: workout.sportType === 'running' ? 'running' : OFF_BIKE_CATEGORIES.includes(workout.category) ? 'other' : 'cycling',
+      target_duration: workout.duration,
+      target_rss: workout.targetTSS,
+    };
+  }, [entry, workout]);
 
-  const intervalSummary = useMemo(() => {
-    if (!displayStructure) return '';
-    return summarizeIntervals(displayStructure);
-  }, [displayStructure]);
+  const session = useMemo(() => {
+    if (!baseRow) return null;
+    const row = editable && editDuration > 0
+      ? { ...baseRow, target_duration: editDuration, target_duration_min: editDuration }
+      : baseRow;
+    return resolveSession(row, { today, thresholdPaceSec: anchors.thresholdPaceSec });
+  }, [baseRow, editable, editDuration, today, anchors.thresholdPaceSec]);
 
-  // Add mode with nothing picked yet → show just the workout picker.
-  if (!workout) {
+  if (!workout && !session) {
     if (!isAdd) return null;
     return (
       <Modal
@@ -640,9 +328,7 @@ export function WorkoutModal({
         title={
           <Group gap="xs">
             <Text fw={600} size="lg">Add workout</Text>
-            {scheduledDate && (
-              <Badge variant="light" color="gray" size="sm">{formatDateBadge(scheduledDate)}</Badge>
-            )}
+            {scheduledDate && <Badge variant="light" color="gray" size="sm">{formatDateBadge(scheduledDate)}</Badge>}
           </Group>
         }
         size="lg"
@@ -662,46 +348,58 @@ export function WorkoutModal({
       </Modal>
     );
   }
+  if (!session) return null;
 
-  const isOffBike = OFF_BIKE_CATEGORIES.includes(workout.category);
-  const hasStructure = !isOffBike && segments.length > 0;
-  const hasExercises = isOffBike && workout.exercises;
-  // Every ridden structure exports. The hand-built `cyclingStructure` a few
-  // library workouts carry is preferred only while the profile is unfitted;
-  // once the duration has been edited the fitted structure is the truth.
-  const exportStructure = hasStructure && displayStructure
-    ? (displayStructure === workout.structure && workout.cyclingStructure
-        ? workout.cyclingStructure
-        : workoutStructureToCycling(displayStructure))
+  const sport = session.sport;
+  const SportIcon = SPORT_ICONS[sportIconName(sport)];
+  const category = (session.workout?.category ?? workout?.category ?? 'endurance') as WorkoutCategory;
+  const isOffBike = OFF_BIKE_CATEGORIES.includes(category) || sport === 'other';
+  const exercises = session.workout?.exercises ?? workout?.exercises;
+  const steps = session.steps;
+  const hasSteps = steps.length > 0;
+  const blocks = summarizeSteps(steps);
+  const summary = intervalSummary(steps);
+  const zones = zonesFor(sport);
+  const isDone = !!session.actual || session.status === 'done';
+  const showComparison = !!plannedWorkout && (isDone || session.compliance.band === 'missed');
+  const fieldsLocked = isDone && !editingDone;
+  const intensity = session.planned.load && session.planned.durationMin
+    ? Math.sqrt(session.planned.load / ((session.planned.durationMin / 60) * 100))
     : null;
-  const categoryColor = getCategoryColor(workout.category);
-  const categoryIcon = CATEGORY_ICONS[workout.category] || '🚴';
-  const hasChanges = plannedWorkout && (
+
+  // Ride files for rides. A run exports as a FIT RUN workout with pace (speed)
+  // targets from threshold pace — it used to go through the bike encoder and
+  // land on the watch as a cycling workout at ~50% FTP.
+  const runExportable = hasSteps && sport === 'running';
+  const exportStructure = hasSteps && usesPower(sport) && session.workout?.structure
+    ? (session.source === 'library' && session.workout.cyclingStructure
+        ? session.workout.cyclingStructure
+        : workoutStructureToCycling(session.workout.structure))
+    : null;
+
+  const hasChanges = !!plannedWorkout && (
     editTSS !== plannedWorkout.targetTSS ||
     editDuration !== plannedWorkout.targetDuration ||
     editNotes !== (plannedWorkout.notes || '')
   );
 
-  // Changing the length changes the session, so its planned load follows. A
-  // ridden structure is re-scored as fitted (the extra time goes to the easy
-  // riding, not the intervals); anything else scales with time. The load field
-  // stays editable afterwards for an athlete who wants a different number.
+  // Changing the length changes the session, so its planned load follows:
+  // re-fitted steps scored with the actual-load formula (rides and runs alike).
   const loadForDuration = (minutes: number): number => {
     if (minutes <= 0) return 0;
-    const isRun = typeof workout.id === 'string' && workout.id.startsWith('run_');
-    if (hasStructure && workout.structure && !isRun) {
-      return structureLoad(fitStructureToDuration(workout.structure, minutes));
+    if (baseRow && hasSteps) {
+      const refit = resolveSession({ ...baseRow, target_duration: minutes, target_duration_min: minutes }, {
+        today,
+        thresholdPaceSec: anchors.thresholdPaceSec,
+      });
+      if (refit.steps.length > 0) return stepsLoad(refit.steps);
     }
     return editDuration > 0 ? Math.round((editTSS * minutes) / editDuration) : editTSS;
   };
 
   const handleSave = () => {
     if (onSave && hasChanges) {
-      onSave({
-        targetTSS: editTSS,
-        targetDuration: editDuration,
-        notes: editNotes,
-      });
+      onSave({ targetTSS: editTSS, targetDuration: editDuration, notes: editNotes });
     }
     onClose();
   };
@@ -711,20 +409,17 @@ export function WorkoutModal({
     try {
       const result = exportWorkout(exportStructure, {
         format,
-        workoutName: scheduledDate ? `${workout.name} ${scheduledDate}` : workout.name,
-        description: [workout.description, intervalSummary !== 'Steady effort' ? intervalSummary : '']
-          .filter(Boolean)
-          .join(' — '),
+        workoutName: scheduledDate ? `${session.title} ${scheduledDate}` : session.title,
+        description: [session.description, summary !== 'Steady' ? summary : ''].filter(Boolean).join(' — '),
       });
       downloadWorkout(result);
       try {
-        // Phase E soak signal: how often a designed or stand-in session
-        // actually reaches a device.
         posthog.capture('workout_exported', {
           format,
-          shape: structureNote ? 'stand_in' : 'prescribed_or_library',
+          shape: session.sourceNote ? 'stand_in' : 'prescribed_or_library',
           planned: !!plannedWorkout,
-          category: workout.category,
+          category,
+          sport,
         });
       } catch {
         // telemetry never breaks an export
@@ -734,81 +429,74 @@ export function WorkoutModal({
     }
   };
 
+  const handleRunExport = () => {
+    try {
+      const name = scheduledDate ? `${session.title} ${scheduledDate}` : session.title;
+      const content = encodeFitRunWorkout(steps, { workoutName: name, thresholdPaceSec: anchors.thresholdPaceSec });
+      downloadWorkout({ content, filename: `${name.replace(/[^a-zA-Z0-9-_]/g, '_')}.fit`, mimeType: 'application/octet-stream' });
+      try {
+        posthog.capture('workout_exported', { format: 'fit', sport: 'running', planned: !!plannedWorkout, paced: !!anchors.thresholdPaceSec });
+      } catch {
+        // telemetry never breaks an export
+      }
+    } catch (err) {
+      console.error('Run export failed:', err);
+    }
+  };
+
   return (
     <Modal
       opened={opened}
       onClose={onClose}
       title={
-        <Group gap="xs">
-          <Text size="lg">{categoryIcon}</Text>
-          <Text fw={600} size="lg">{workout.name}</Text>
-          {scheduledDate && (
-            <Badge variant="light" color="gray" size="sm">
-              {formatDateBadge(scheduledDate)}
-            </Badge>
-          )}
+        <Group gap="xs" wrap="nowrap">
+          <SportIcon size={20} aria-label={sportNoun(sport)} />
+          <Text fw={600} size="lg">{session.title}</Text>
+          {scheduledDate && <Badge variant="light" color="gray" size="sm">{formatDateBadge(scheduledDate)}</Badge>}
         </Group>
       }
       size="lg"
-      styles={{
-        body: { padding: 0 },
-      }}
+      styles={{ body: { padding: 0 } }}
     >
       <ScrollArea.Autosize mah="70vh" offsetScrollbars>
         <Stack gap="md" p="md">
-          {/* Overview bar */}
+          {/* Overview */}
           <Paper p="sm" withBorder>
             <Group justify="space-between" wrap="wrap" gap="xs">
               <Group gap="xs">
-                <Badge color={categoryColor} variant="light">
-                  {workout.category.replace('_', ' ')}
-                </Badge>
-                {workout.difficulty && (
-                  <Badge color="gray" variant="light">
-                    {workout.difficulty}
-                  </Badge>
-                )}
-                {workout.focusArea && (
-                  <Badge color="gray" variant="outline" size="xs">
-                    {workout.focusArea.replace('_', ' ')}
-                  </Badge>
-                )}
+                <Badge color={CATEGORY_COLORS[category] || 'gray'} variant="light">{category.replace('_', ' ')}</Badge>
+                <Badge color="gray" variant="outline" size="xs">{sportNoun(sport)}</Badge>
               </Group>
               <Group gap="md">
-                <Group gap={4}>
-                  <Clock size={16} color="var(--mantine-color-dimmed)" />
-                  <Text size="sm" c="dimmed">{workout.duration}min</Text>
-                </Group>
-                {workout.targetTSS > 0 && (
+                {session.planned.durationMin != null && (
                   <Group gap={4}>
-                    <Fire size={16} color="var(--mantine-color-orange-5)" />
-                    <Text size="sm" fw={500}>{workout.targetTSS} stress</Text>
+                    <IconClock size={16} color="var(--color-text-muted)" />
+                    <Text size="sm" c="dimmed">{formatMinutes(session.planned.durationMin)}</Text>
                   </Group>
                 )}
-                {workout.intensityFactor > 0 && (
-                  <Tooltip label="Ride Intensity (RI) — effort as a share of your FTP">
-                    <Text size="sm" c="dimmed">RI {workout.intensityFactor.toFixed(2)}</Text>
+                {session.planned.load != null && (
+                  <Group gap={4}>
+                    <IconFlame size={16} color="var(--color-signal-text)" />
+                    <Text size="sm" fw={500}>{Math.round(session.planned.load)} {LOAD_LABEL.toLowerCase()}</Text>
+                  </Group>
+                )}
+                {intensity != null && !isOffBike && (
+                  <Tooltip label={`Intensity — effort as a share of your ${thresholdName(sport)}`}>
+                    <Text size="sm" c="dimmed">{usesPower(sport) ? 'RI' : 'Intensity'} {intensity.toFixed(2)}</Text>
                   </Tooltip>
                 )}
               </Group>
             </Group>
 
-            {/* Description */}
-            <Text size="sm" mt="xs" c="dimmed">
-              {workout.description}
-            </Text>
+            {session.description && <Text size="sm" mt="xs" c="dimmed">{session.description}</Text>}
 
-            {/* Interval summary */}
-            {intervalSummary && intervalSummary !== 'Steady effort' && (
+            {hasSteps && summary !== 'Steady' && (
               <Group gap="xs" mt="xs">
-                <Repeat size={14} color="var(--mantine-color-terracotta-5)" />
-                <Text size="sm" c="terracotta" fw={500}>
-                  {intervalSummary}
-                </Text>
+                <IconRepeat size={14} />
+                <Text size="sm" fw={500}>{summary}</Text>
               </Group>
             )}
 
-            {/* Change / re-pick the workout */}
             {(onChangeWorkout || isAdd) && (
               <Box mt="sm">
                 {pickerOpen ? (
@@ -817,11 +505,8 @@ export function WorkoutModal({
                     value={isAdd ? chosenWorkoutId : null}
                     onChange={(value) => {
                       if (!value) return;
-                      if (isAdd) {
-                        setChosenWorkoutId(value);
-                      } else {
-                        onChangeWorkout?.(value);
-                      }
+                      if (isAdd) setChosenWorkoutId(value);
+                      else onChangeWorkout?.(value);
                       setPickerOpen(false);
                     }}
                     placeholder="Search workouts…"
@@ -830,12 +515,7 @@ export function WorkoutModal({
                     maxDropdownHeight={320}
                   />
                 ) : (
-                  <Button
-                    variant="subtle"
-                    size="compact-xs"
-                    leftSection={<Repeat size={14} />}
-                    onClick={() => setPickerOpen(true)}
-                  >
+                  <Button variant="subtle" size="compact-xs" leftSection={<IconRepeat size={14} />} onClick={() => setPickerOpen(true)}>
                     {isAdd ? 'Pick a different workout' : 'Change workout'}
                   </Button>
                 )}
@@ -843,166 +523,153 @@ export function WorkoutModal({
             )}
           </Paper>
 
-          {/* Workout Structure - Cycling */}
-          {hasStructure && (
+          {/* Planned vs actual */}
+          {showComparison && (
+            <Paper p="sm" withBorder data-testid="planned-vs-actual">
+              <Group justify="space-between" mb="xs">
+                <Text size="sm" fw={600}>Planned vs actual</Text>
+                <ComplianceBadge compliance={session.compliance} size="xs" />
+              </Group>
+              <Table withRowBorders={false} verticalSpacing={2} fz="sm">
+                <Table.Thead>
+                  <Table.Tr>
+                    <Table.Th />
+                    <Table.Th ta="right">Planned</Table.Th>
+                    <Table.Th ta="right">Actual</Table.Th>
+                  </Table.Tr>
+                </Table.Thead>
+                <Table.Tbody>
+                  <Table.Tr>
+                    <Table.Td c="dimmed">Time</Table.Td>
+                    <Table.Td ta="right" ff="monospace">{session.planned.durationMin ? formatMinutes(session.planned.durationMin) : '—'}</Table.Td>
+                    <Table.Td ta="right" ff="monospace">{session.actual?.durationMin ? formatMinutes(session.actual.durationMin) : '—'}</Table.Td>
+                  </Table.Tr>
+                  {(session.planned.distanceKm || session.actual?.distanceKm) && (
+                    <Table.Tr>
+                      <Table.Td c="dimmed">Distance</Table.Td>
+                      <Table.Td ta="right" ff="monospace">{formatKm(session.planned.distanceKm)}</Table.Td>
+                      <Table.Td ta="right" ff="monospace">{formatKm(session.actual?.distanceKm)}</Table.Td>
+                    </Table.Tr>
+                  )}
+                  <Table.Tr>
+                    <Table.Td c="dimmed">{LOAD_LABEL}</Table.Td>
+                    <Table.Td ta="right" ff="monospace">{session.planned.load != null ? Math.round(session.planned.load) : '—'}</Table.Td>
+                    <Table.Td ta="right" ff="monospace">{session.actual?.load != null ? Math.round(session.actual.load) : '—'}</Table.Td>
+                  </Table.Tr>
+                </Table.Tbody>
+              </Table>
+            </Paper>
+          )}
+
+          {/* Profile + steps */}
+          {hasSteps && !isOffBike && (
             <>
-              {/* Visual interval chart */}
               <Box>
-                <Text size="sm" fw={600} mb="xs">Workout Profile</Text>
-                <IntervalChart segments={segments} />
-                {structureNote && (
-                  <Text size="xs" c="dimmed" mt={6} data-testid="structure-note">
-                    {structureNote}
-                  </Text>
+                <Text size="sm" fw={600} mb="xs">Workout profile</Text>
+                <SessionProfile steps={steps} sport={sport} anchors={anchors} />
+                {session.sourceNote && (
+                  <Text size="xs" c="dimmed" mt={6} data-testid="structure-note">{session.sourceNote}</Text>
                 )}
-                <Group gap="xs" mt="xs" justify="center">
-                  {[1, 2, 3, 4, 5].map((zone) => (
-                    <Group key={zone} gap={4}>
-                      <Box
-                        style={{
-                          width: 10,
-                          height: 10,
-                          borderRadius: 2,
-                          backgroundColor: `var(--mantine-color-${getZoneColor(zone)}-6)`,
-                        }}
-                      />
-                      <Text size="xs" c="dimmed">Z{zone}</Text>
-                    </Group>
-                  ))}
-                </Group>
+                <Box mt="xs"><ZoneLegend steps={steps} sport={sport} /></Box>
               </Box>
 
-              {/* Interval details (collapsible) */}
               <Box>
-                <Group
-                  gap="xs"
-                  mb="xs"
-                  style={{ cursor: 'pointer' }}
-                  onClick={() => setShowIntervalDetails(!showIntervalDetails)}
-                >
-                  <Text size="sm" fw={600}>Interval Details</Text>
-                  <ActionIcon size="xs" variant="subtle" color="gray">
-                    {showIntervalDetails ? <CaretUp size={14} /> : <CaretDown size={14} />}
+                <Group gap="xs" mb="xs" style={{ cursor: 'pointer' }} onClick={() => setShowSteps(!showSteps)}>
+                  <Text size="sm" fw={600}>Interval details</Text>
+                  <ActionIcon size="xs" variant="subtle" color="gray" aria-label={showSteps ? 'Hide interval details' : 'Show interval details'}>
+                    {showSteps ? <IconChevronUp size={14} /> : <IconChevronDown size={14} />}
                   </ActionIcon>
                 </Group>
-
-                <Collapse in={showIntervalDetails}>
-                  <Timeline active={segments.length} bulletSize={24} lineWidth={2}>
-                    {segments.map((segment, index) => (
-                      <Timeline.Item
-                        key={index}
-                        bullet={
-                          <ThemeIcon
-                            size={24}
-                            variant="filled"
-                            color={getZoneColor(segment.zone)}
-                            radius="xl"
-                          >
-                            {getSegmentIcon(segment)}
-                          </ThemeIcon>
-                        }
-                        title={
-                          <Group gap="xs">
+                <Collapse in={showSteps}>
+                  <Stack gap={4} data-testid="step-list">
+                    {blocks.map((b, i) => {
+                      const step = b.kind === 'repeat' ? b.work : b.step;
+                      const zone = step.zone != null ? zones[step.zone] : null;
+                      return (
+                        <Group key={i} gap="sm" wrap="nowrap" align="flex-start">
+                          <Box style={{ width: 4, alignSelf: 'stretch', background: zoneColor(step.zone) }} />
+                          <Box style={{ flex: 1 }}>
                             <Text size="sm" fw={500}>
-                              {segment.description}
-                              {segment.isRepeat && segment.setNumber && (
-                                <Text span c="dimmed" size="xs">
-                                  {' '}(Set {segment.setNumber}/{segment.totalSets})
-                                </Text>
-                              )}
+                              {b.kind === 'repeat' ? `${b.count} × ${formatMinutes(step.durationMin)}` : `${step.label} · ${formatMinutes(step.durationMin)}`}
+                              {zone && <Text span size="xs" c="dimmed">{'  '}{zone.short} {zone.label}</Text>}
                             </Text>
-                            <Badge size="xs" color={getZoneColor(segment.zone)} variant="filled">
-                              {getZoneName(segment.zone)}
-                            </Badge>
-                          </Group>
-                        }
-                      >
-                        <Group gap="md" mt={4}>
-                          <Text size="xs" c="dimmed">{formatDuration(segment.duration)}</Text>
-                          {segment.powerPctFTP && (
-                            <Text size="xs" c="dimmed">{segment.powerPctFTP}% FTP</Text>
-                          )}
-                          {segment.cadence && (
-                            <Text size="xs" c="dimmed">{formatCadence(segment.cadence, workout?.sportType)}</Text>
-                          )}
+                            <Text size="xs" c="dimmed">
+                              {[
+                                formatTarget(step.target, anchors),
+                                step.cadence ? formatCadence(step.cadence, sport) : null,
+                                b.kind === 'repeat' && b.rest ? `${formatMinutes(b.rest.durationMin)} easy between` : null,
+                                // The set's own note, when it says more than its length and band.
+                                b.kind === 'repeat' && step.label && !/^(work|rep|effort)$/i.test(step.label) && !/^\d/.test(step.label)
+                                  ? step.label.replace(/^.*?·\s*/, '')
+                                  : null,
+                              ].filter(Boolean).join(' · ')}
+                            </Text>
+                          </Box>
                         </Group>
-                      </Timeline.Item>
-                    ))}
-                  </Timeline>
+                      );
+                    })}
+                  </Stack>
                 </Collapse>
               </Box>
             </>
           )}
 
-          {/* Pace targets — running workouts are paced, not powered */}
-          {paceTargets.length > 0 && (
-            <Box>
-              <Text size="sm" fw={600} mb={4}>Pace targets</Text>
-              <Stack gap={2}>
-                {paceTargets.map((t, i) => (
-                  <Group key={i} gap="xs" justify="space-between" wrap="nowrap">
-                    <Text size="xs">{t.label}</Text>
-                    <Text size="xs" c="dimmed" ff="monospace">{t.pace}</Text>
-                  </Group>
-                ))}
-              </Stack>
-            </Box>
-          )}
-
-          {/* Exercise list - Strength/Core/Flexibility */}
-          {hasExercises && workout.exercises && (
+          {isOffBike && exercises && (
             <Box>
               <Text size="sm" fw={600} mb="xs">Exercises</Text>
-              <ExerciseList exercises={workout.exercises} />
+              <ExerciseList exercises={exercises} />
             </Box>
           )}
 
-          {/* Coach Notes */}
-          {workout.coachNotes && (
+          {session.coachNotes && (
             <Paper p="sm" withBorder>
-              <Text size="sm" fw={600} mb={4}>Coach Notes</Text>
-              <Text size="sm" c="dimmed" fs="italic">
-                {workout.coachNotes}
-              </Text>
+              <Text size="sm" fw={600} mb={4}>Coach notes</Text>
+              <Text size="sm" c="dimmed" fs="italic">{session.coachNotes}</Text>
             </Paper>
           )}
 
-          <Divider label="Settings" labelPosition="center" />
-
-          {/* Editable fields */}
-          {(plannedWorkout || isAdd) && (
-            <Group grow>
-              <NumberInput
-                label="Target ride stress"
-                value={editTSS}
-                onChange={(val) => setEditTSS(typeof val === 'number' ? val : 0)}
-                min={0}
-                max={500}
-              />
-              <NumberInput
-                label="Duration (min)"
-                value={editDuration}
-                onChange={(val) => {
-                  const minutes = typeof val === 'number' ? val : 0;
-                  setEditTSS(loadForDuration(minutes));
-                  setEditDuration(minutes);
-                }}
-                min={0}
-                max={600}
-              />
-            </Group>
+          {session.timing && (
+            <Text size="sm" c="dimmed">When: {session.timing}</Text>
           )}
 
-          {/* Fuel plan */}
-          {!isOffBike && (
-            <FuelPlanSummary
-              duration={plannedWorkout || isAdd ? editDuration : workout.duration}
-              category={workout.category}
-            />
+          {editable && (
+            <>
+              <Divider label="Plan" labelPosition="center" />
+              {fieldsLocked ? (
+                <Group justify="space-between">
+                  <Text size="sm" c="dimmed">This {sportNoun(sport)} is done; its plan is shown above.</Text>
+                  <Button variant="subtle" size="compact-xs" onClick={() => setEditingDone(true)}>Edit plan</Button>
+                </Group>
+              ) : (
+                <Group grow>
+                  <NumberInput
+                    label={`Planned ${LOAD_LABEL.toLowerCase()}`}
+                    value={editTSS}
+                    onChange={(val) => setEditTSS(typeof val === 'number' ? val : 0)}
+                    min={0}
+                    max={500}
+                  />
+                  <NumberInput
+                    label="Duration (min)"
+                    value={editDuration}
+                    onChange={(val) => {
+                      const minutes = typeof val === 'number' ? val : 0;
+                      setEditTSS(loadForDuration(minutes));
+                      setEditDuration(minutes);
+                    }}
+                    min={0}
+                    max={600}
+                  />
+                </Group>
+              )}
+            </>
           )}
 
-          {/* Notes */}
-          {(plannedWorkout || isAdd) && (
+          {usesPower(sport) && !isOffBike && (
+            <FuelPlanSummary duration={editable ? editDuration : session.planned.durationMin ?? 0} category={category} />
+          )}
+
+          {editable && !fieldsLocked && (
             <Textarea
               label="Notes"
               value={editNotes}
@@ -1013,37 +680,35 @@ export function WorkoutModal({
               autosize
             />
           )}
+          {editable && fieldsLocked && editNotes && <Text size="sm" c="dimmed">{editNotes}</Text>}
 
-          {/* Export buttons */}
+          {runExportable && (
+            <Box data-testid="workout-export">
+              <Text size="xs" c="dimmed" ta="center" mb="xs">Download for your watch</Text>
+              <Group justify="center" gap="xs">
+                <Button size="xs" variant="light" leftSection={<IconDownload size={14} />} onClick={handleRunExport}>
+                  FIT run workout (Garmin/COROS)
+                </Button>
+              </Group>
+              {!anchors.thresholdPaceSec && (
+                <Text size="xs" c="dimmed" ta="center" mt={4}>
+                  Set your threshold pace in Settings to put pace targets on each step.
+                </Text>
+              )}
+            </Box>
+          )}
+
           {exportStructure && (
             <Box data-testid="workout-export">
-              <Text size="xs" c="dimmed" ta="center" mb="xs">Download for Device</Text>
+              <Text size="xs" c="dimmed" ta="center" mb="xs">Download for device</Text>
               <Group justify="center" gap="xs">
-                <Button
-                  size="xs"
-                  variant="light"
-                  color="terracotta"
-                  leftSection={<DownloadSimple size={14} />}
-                  onClick={() => handleExport('fit')}
-                >
+                <Button size="xs" variant="light" leftSection={<IconDownload size={14} />} onClick={() => handleExport('fit')}>
                   FIT (Garmin/Wahoo)
                 </Button>
-                <Button
-                  size="xs"
-                  variant="light"
-                  color="gray"
-                  leftSection={<DownloadSimple size={14} />}
-                  onClick={() => handleExport('zwo')}
-                >
+                <Button size="xs" variant="light" color="gray" leftSection={<IconDownload size={14} />} onClick={() => handleExport('zwo')}>
                   ZWO (Zwift)
                 </Button>
-                <Button
-                  size="xs"
-                  variant="light"
-                  color="gray"
-                  leftSection={<DownloadSimple size={14} />}
-                  onClick={() => handleExport('tcx')}
-                >
+                <Button size="xs" variant="light" color="gray" leftSection={<IconDownload size={14} />} onClick={() => handleExport('tcx')}>
                   TCX
                 </Button>
               </Group>
@@ -1052,14 +717,13 @@ export function WorkoutModal({
         </Stack>
       </ScrollArea.Autosize>
 
-      {/* Footer — edit/delete for an existing planned workout */}
       {plannedWorkout && !isAdd && (
-        <Group justify="space-between" p="md" pt="sm" style={{ borderTop: '1px solid var(--tribos-border-default)' }}>
+        <Group justify="space-between" p="md" pt="sm" style={{ borderTop: '1px solid var(--color-border)' }}>
           <Button
             variant="subtle"
             color="red"
             size="sm"
-            leftSection={<Trash size={16} />}
+            leftSection={<IconTrash size={16} />}
             onClick={() => {
               onDelete?.();
               onClose();
@@ -1068,39 +732,23 @@ export function WorkoutModal({
             Delete
           </Button>
           <Group gap="xs">
-            <Button variant="subtle" color="gray" size="sm" onClick={onClose}>
-              Cancel
-            </Button>
-            <Button
-              color="terracotta"
-              size="sm"
-              leftSection={<FloppyDisk size={16} />}
-              onClick={handleSave}
-              disabled={!hasChanges}
-            >
+            <Button variant="subtle" color="gray" size="sm" onClick={onClose}>Cancel</Button>
+            <Button size="sm" leftSection={<IconDeviceFloppy size={16} />} onClick={handleSave} disabled={!hasChanges}>
               Save
             </Button>
           </Group>
         </Group>
       )}
 
-      {/* Footer — add the chosen workout to an empty day */}
       {isAdd && (
-        <Group justify="flex-end" p="md" pt="sm" style={{ borderTop: '1px solid var(--tribos-border-default)' }}>
-          <Button variant="subtle" color="gray" size="sm" onClick={onClose}>
-            Cancel
-          </Button>
+        <Group justify="flex-end" p="md" pt="sm" style={{ borderTop: '1px solid var(--color-border)' }}>
+          <Button variant="subtle" color="gray" size="sm" onClick={onClose}>Cancel</Button>
           <Button
-            color="terracotta"
             size="sm"
-            leftSection={<FloppyDisk size={16} />}
+            leftSection={<IconDeviceFloppy size={16} />}
             onClick={() => {
               if (!workout) return;
-              onAddWorkout?.(workout.id, {
-                targetTSS: editTSS,
-                targetDuration: editDuration,
-                notes: editNotes,
-              });
+              onAddWorkout?.(workout.id, { targetTSS: editTSS, targetDuration: editDuration, notes: editNotes });
               onClose();
             }}
           >

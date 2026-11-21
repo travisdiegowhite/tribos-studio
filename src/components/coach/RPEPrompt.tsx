@@ -74,7 +74,7 @@ export default function RPEPrompt({ activityName, tssSource, onSubmit }: RPEProm
           How hard was it?
         </Text>
         <Text size="xs" c="dimmed">
-          {activityName ? `"${activityName}" ` : ''}Your load was estimated from {tssSource === 'hr' ? 'heart rate' : 'ride type'}.
+          {activityName ? `"${activityName}" ` : ''}Your load was estimated from {tssSource === 'hr' ? 'heart rate' : 'session type'}.
           Rating your effort improves accuracy.
         </Text>
 

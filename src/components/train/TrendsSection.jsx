@@ -39,6 +39,9 @@ export function runTrendStats(activities, { isImperial = false, formatElev } = {
 // ============================================================================
 const TrendsSection = React.memo(function TrendsSection({
   dailyTSSData,
+  fitnessForecast = null,
+  raceMarkers = null,
+  sportLoadHistory = null,
   trainingMetrics,
   activities,
   speedProfile,
@@ -100,7 +103,8 @@ const TrendsSection = React.memo(function TrendsSection({
     stats.push(...runTrendStats(activities, { isImperial, formatElev }));
   } else {
     stats.push({
-      label: `Avg speed (${isImperial ? 'mph' : 'km/h'})`,
+      // The speed profile is built from rides only; say so when the view mixes sports.
+      label: `${sport === 'cycling' ? 'Avg speed' : 'Ride avg speed'} (${isImperial ? 'mph' : 'km/h'})`,
       value: speedProfile ? (speedProfile.average_speed * (isImperial ? 0.621371 : 1)).toFixed(1) : '--',
     });
   }
@@ -114,7 +118,14 @@ const TrendsSection = React.memo(function TrendsSection({
   return (
     <Stack gap="md">
       {dailyTSSData.length > 0 ? (
-        <TrainingLoadChart data={dailyTSSData} />
+        <TrainingLoadChart
+          data={dailyTSSData}
+          // The projection and per-sport lines describe COMBINED load, so they
+          // show on the All view only.
+          forecast={sport === 'all' ? fitnessForecast : null}
+          markers={raceMarkers}
+          sportSeries={sport === 'all' ? sportLoadHistory : null}
+        />
       ) : (
         <EmptyState type="noTrainingData" size="sm" />
       )}

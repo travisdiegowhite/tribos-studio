@@ -349,7 +349,7 @@ export function SpinePanel({
 
         <Text style={{ fontFamily: FONT.body, fontSize: 10.5, color: CHART.axisMuted, marginTop: 12, textAlign: 'center' }}>
           {`The dashed line is where you're headed — ${
-            hasPlan ? 'on your current plan' : 'if you keep riding like the last week'
+            hasPlan ? 'on your current plan' : 'if you keep training like the last week'
           }. ${showNode ? 'Drag the node to explore any day.' : 'Tap a day to inspect it.'}`}
         </Text>
       </Box>

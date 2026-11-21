@@ -41,6 +41,7 @@
 import { WORKOUT_TYPES } from '../../utils/trainingPlans';
 import { getAnyWorkoutById } from '../../data/workoutLookup';
 import { inferWorkoutForType, workoutCategoryForPlanType } from '../../data/workoutResolution';
+import { powerZoneFor, paceZoneFor, PACE_ZONE_PCT } from './session/zones';
 import type {
   IntervalPrescription,
   StoredPrescription,
@@ -75,6 +76,8 @@ export interface PlannedEntryShape {
   notes?: string | null;
   /** The row's detail JSON; `details.prescription` is the stored structure. */
   details?: Record<string, unknown> | null;
+  /** calendar_entries.sport (cycling | running | multi | other). */
+  sport?: string | null;
 }
 
 export type ShapeSource = 'prescribed' | 'library' | 'notes' | 'inferred' | 'synthesized';
@@ -147,6 +150,9 @@ const INTERVAL_CATEGORIES: ReadonlySet<WorkoutCategory> = new Set([
 
 /** Shortest warmup/cooldown a fit will leave behind, minutes. */
 const MIN_BOOKEND_MIN = 5;
+/** Longest a warmup / cooldown grows to when a session is lengthened; the rest is endurance. */
+const MAX_GROWN_WARMUP_MIN = 20;
+const MAX_GROWN_COOLDOWN_MIN = 15;
 /** Below this delta the structure is left untouched — the numbers already agree. */
 const FIT_TOLERANCE_MIN = 1;
 const FALLBACK_DURATION_MIN = 60;
@@ -243,9 +249,11 @@ function scaleInterval(interval: WorkoutInterval, ratio: number): WorkoutInterva
  * Stretch or trim a structure to a planned length without changing what the
  * session IS.
  *
- * The delta goes into the easy riding first — warmup, cooldown and any steady
- * Z1/Z2 block in the main set, in proportion to their length — because that
- * is how a coach lengthens a session ("add endurance around the intervals").
+ * Longer: the delta goes into steady Z1/Z2 blocks in the main set, or else
+ * the bookends grow (warmup to 20, cooldown to 15 minutes) and the rest is a
+ * steady endurance block after the main set — how a coach lengthens a session
+ * ("add endurance around the intervals").
+ * Shorter: the easy riding is trimmed first, in proportion to its length.
  * Only when the target is shorter than those bookends can absorb (each keeps
  * at least 5 minutes) is everything, intervals included, scaled together.
  */
@@ -274,7 +282,54 @@ export function fitStructureToDuration(
     flexCool - floor(flexCool) +
     flexMain.reduce((a, b) => a + (b - floor(b)), 0);
 
-  if (flexTotal > 0 && (delta > 0 || -delta <= shrinkable)) {
+  // LONGER: the extra time is endurance riding, not a longer warmup. Easy
+  // blocks already in the main set take it; otherwise the bookends grow to a
+  // sensible length and the rest becomes a steady Z2 block after the main set
+  // (a 60-minute sweet-spot workout on a 3-hour day used to draw a 70-minute
+  // warmup).
+  if (delta > 0) {
+    const easyMain = flexMain.reduce((a, b) => a + b, 0);
+    if (easyMain > 0) {
+      const ratio = (easyMain + delta) / easyMain;
+      return {
+        ...structure,
+        main: structure.main.map((item, i) =>
+          flexMain[i] > 0 ? { ...(item as WorkoutSegment), duration: round1(flexMain[i] * ratio) } : item,
+        ),
+      };
+    }
+    let left = delta;
+    // Split the bookends' share 60/40 between warmup and cooldown (each up to
+    // its cap), so neither soaks up all of it.
+    const warmRoom = structure.warmup ? Math.max(0, MAX_GROWN_WARMUP_MIN - flexWarm) : 0;
+    const coolRoom = structure.cooldown ? Math.max(0, MAX_GROWN_COOLDOWN_MIN - flexCool) : 0;
+    const bookendShare = Math.min(left, warmRoom + coolRoom);
+    let warmAdd = Math.min(warmRoom, bookendShare * 0.6);
+    let coolAdd = Math.min(coolRoom, bookendShare - warmAdd);
+    warmAdd = Math.min(warmRoom, bookendShare - coolAdd);
+    left -= warmAdd + coolAdd;
+    const warmup = structure.warmup ? { ...structure.warmup, duration: round1(flexWarm + warmAdd) } : null;
+    const cooldown = structure.cooldown ? { ...structure.cooldown, duration: round1(flexCool + coolAdd) } : null;
+    const main = [...structure.main];
+    if (left > 0 && left < FIT_TOLERANCE_MIN) {
+      // A sliver isn't worth its own block; the cooldown takes it.
+      if (cooldown) cooldown.duration = round1(cooldown.duration + left);
+      else if (warmup) warmup.duration = round1(warmup.duration + left);
+      left = 0;
+    }
+    if (left >= FIT_TOLERANCE_MIN) {
+      const steady: WorkoutSegment = {
+        duration: round1(left),
+        zone: 2,
+        powerPctFTP: ZONE_POWER[2],
+        description: 'Endurance',
+      };
+      main.push(steady);
+    }
+    return { warmup, main, cooldown };
+  }
+
+  if (flexTotal > 0 && -delta <= shrinkable) {
     const ratio = (flexTotal + delta) / flexTotal;
     const adjust = (min: number) => round1(Math.max(floor(min), min * ratio));
     return {
@@ -376,14 +431,13 @@ export function buildIntervalStructure(params: {
 
 /** Zone a %FTP band's midpoint falls in, on the library's zone edges. */
 export function zoneForPctFtp(pct: number): TrainingZone {
-  if (pct <= 55) return 1;
-  if (pct <= 75) return 2;
-  if (pct <= 87) return 3;
-  if (pct <= 94) return 3.5;
-  if (pct <= 105) return 4;
-  if (pct <= 120) return 5;
-  if (pct <= 150) return 6;
-  return 7;
+  return powerZoneFor(pct);
+}
+
+/** Whether a stored set is a run's (threshold-pace band) rather than a ride's (%FTP). */
+function isPaceSet(set: IntervalPrescription): boolean {
+  return !Number.isFinite(Number(set.target_pct_ftp_min)) &&
+    Number.isFinite(Number(set.target_pct_threshold_pace_min));
 }
 
 /** The prescription on a row's details, or null. Tolerates any JSON shape. */
@@ -398,7 +452,11 @@ export function readStoredPrescription(details: unknown): StoredPrescription | n
       !!i && typeof i === 'object' &&
       Number((i as IntervalPrescription).repeats) >= 1 &&
       Number((i as IntervalPrescription).duration_min) > 0 &&
-      Number.isFinite(Number((i as IntervalPrescription).target_pct_ftp_min)),
+      // A ride's set carries a %FTP band, a run's a threshold-pace band. Runs
+      // used to be filtered out here, so every coach-written run lost its
+      // structure and was drawn as a cycling stand-in.
+      (Number.isFinite(Number((i as IntervalPrescription).target_pct_ftp_min)) ||
+        Number.isFinite(Number((i as IntervalPrescription).target_pct_threshold_pace_min))),
   );
   if (clean.length === 0) return null;
   return { ...(p as StoredPrescription), intervals: clean };
@@ -414,29 +472,44 @@ export function prescriptionToStructure(
   prescription: StoredPrescription,
   durationMin: number | null | undefined,
 ): WorkoutStructure {
+  const pace = prescription.basis === 'pace' || prescription.intervals.some(isPaceSet);
   const main: WorkoutInterval[] = prescription.intervals.map((set) => {
-    const lo = Number(set.target_pct_ftp_min);
-    const hi = Number(set.target_pct_ftp_max ?? set.target_pct_ftp_min);
+    const runSet = isPaceSet(set);
+    const lo = Number(runSet ? set.target_pct_threshold_pace_min : set.target_pct_ftp_min);
+    const hi = Number(
+      runSet
+        ? set.target_pct_threshold_pace_max ?? set.target_pct_threshold_pace_min
+        : set.target_pct_ftp_max ?? set.target_pct_ftp_min,
+    );
     const pct = Math.round((lo + hi) / 2);
-    const zone = zoneForPctFtp(pct);
+    const zone = runSet ? paceZoneFor(pct) : zoneForPctFtp(pct);
     const workMin = Number(set.duration_min);
     const workLabel = workMin < 1 ? `${Math.round(workMin * 60)}s` : `${round1(workMin)}min`;
     const band = lo === hi ? `${lo}%` : `${lo}–${hi}%`;
+    const bandText = runSet ? `${band} of threshold pace` : band;
     const inner: WorkoutInterval = {
       type: 'repeat',
       sets: Math.max(1, Math.round(Number(set.repeats))),
       work: {
         duration: workMin,
         zone,
-        powerPctFTP: pct,
-        description: set.notes ? `${workLabel} at ${band} · ${set.notes}` : `${workLabel} at ${band}`,
+        ...(runSet ? { pacePctThreshold: pct } : { powerPctFTP: pct }),
+        targetRange: { min: Math.min(lo, hi), max: Math.max(lo, hi) },
+        description: set.notes ? `${workLabel} at ${bandText} · ${set.notes}` : `${workLabel} at ${bandText}`,
       },
-      rest: {
-        duration: Math.max(0, Number(set.recovery_min) || 0),
-        zone: 1,
-        powerPctFTP: ZONE_POWER[1],
-        description: 'Recovery',
-      },
+      rest: runSet
+        ? {
+          duration: Math.max(0, Number(set.recovery_min) || 0),
+          zone: 1,
+          pacePctThreshold: PACE_ZONE_PCT[1],
+          description: 'Easy jog',
+        }
+        : {
+          duration: Math.max(0, Number(set.recovery_min) || 0),
+          zone: 1,
+          powerPctFTP: ZONE_POWER[1],
+          description: 'Recovery',
+        },
     };
     const outerSets = Math.round(Number(set.sets) || 1);
     if (outerSets <= 1) return inner;
@@ -460,9 +533,17 @@ export function prescriptionToStructure(
   const warmupMin = prescription.warmup_min ?? guess.warmup;
   const cooldownMin = prescription.cooldown_min ?? guess.cooldown;
   const structure: WorkoutStructure = {
-    warmup: warmupMin > 0 ? { duration: warmupMin, zone: 2, powerPctFTP: ZONE_POWER[2] } : null,
+    warmup: warmupMin > 0
+      ? pace
+        ? { duration: warmupMin, zone: 2, pacePctThreshold: PACE_ZONE_PCT[2] }
+        : { duration: warmupMin, zone: 2, powerPctFTP: ZONE_POWER[2] }
+      : null,
     main,
-    cooldown: cooldownMin > 0 ? { duration: cooldownMin, zone: 1, powerPctFTP: ZONE_POWER[1] } : null,
+    cooldown: cooldownMin > 0
+      ? pace
+        ? { duration: cooldownMin, zone: 1, pacePctThreshold: PACE_ZONE_PCT[1] }
+        : { duration: cooldownMin, zone: 1, powerPctFTP: ZONE_POWER[1] }
+      : null,
   };
   // A prescription that names its own bookends is exact; only fit when it did
   // not, so the easy riding absorbs the difference the way the modal expects.
@@ -517,11 +598,23 @@ export function parseIntervalsFromNotes(notes: string | null | undefined): Parse
   const rest = REST_PATTERN.exec(notes.slice(set.index + set[0].length));
   const restMin = rest ? toMinutes(parseFloat(rest[1]), rest[2]) : null;
 
+  // The intensity word NEAREST the set names its effort: "2x20min threshold,
+  // finish with 4x30s sprints" is threshold work, not sprints. (Taking the
+  // first word found anywhere in priority order drew every set containing
+  // "sprint" anywhere as Z7.)
   let zone: TrainingZone | null = null;
+  let bestDistance = Infinity;
+  const setStart = set.index;
+  const setEnd = set.index + set[0].length;
   for (const [pattern, z] of INTENSITY_WORDS) {
-    if (pattern.test(notes)) {
-      zone = z;
-      break;
+    const global = new RegExp(pattern.source, 'gi');
+    for (let m = global.exec(notes); m; m = global.exec(notes)) {
+      const at = m.index;
+      const distance = at >= setEnd ? at - setEnd : at < setStart ? setStart - (at + m[0].length) : 0;
+      if (distance < bestDistance) {
+        bestDistance = distance;
+        zone = z;
+      }
     }
   }
   return { sets, workMin, restMin, zone };
@@ -556,10 +649,22 @@ function entryType(row: PlannedEntryShape): string | null {
   return row.workout_type || row.session_type || null;
 }
 
+/** The row's sport: stored, else implied by a run_* library id, else the named workout's. */
+export function entrySportOf(row: PlannedEntryShape): string | null {
+  if (row.sport) return row.sport;
+  if (typeof row.workout_id === 'string' && row.workout_id.startsWith('run_')) return 'running';
+  return getAnyWorkoutById(row.workout_id)?.sportType ?? null;
+}
+
 /** Category implied by a prescription's hardest set, for rows whose type says nothing. */
 function categoryForPrescription(p: StoredPrescription): WorkoutCategory {
-  const top = Math.max(...p.intervals.map((i) => Number(i.target_pct_ftp_max ?? i.target_pct_ftp_min) || 0));
-  const zone = zoneForPctFtp(top);
+  const zone = Math.max(
+    ...p.intervals.map((i) =>
+      isPaceSet(i)
+        ? paceZoneFor(Math.min(Number(i.target_pct_threshold_pace_min), Number(i.target_pct_threshold_pace_max ?? i.target_pct_threshold_pace_min)))
+        : zoneForPctFtp(Number(i.target_pct_ftp_max ?? i.target_pct_ftp_min) || 0),
+    ),
+  );
   if (zone >= 6) return 'anaerobic';
   if (zone >= 5) return 'vo2max';
   if (zone >= 4) return 'threshold';
@@ -581,7 +686,9 @@ function baseDefinition(
   fallbackName: string,
 ): WorkoutDefinition {
   const load = entryLoad(row);
+  const sport = entrySportOf(row);
   return {
+    ...(sport === 'running' ? { sportType: 'running' as WorkoutDefinition['sportType'] } : {}),
     id: row.workout_id || `planned:${row.id || category}`,
     name: entryName(row, fallbackName),
     category,
@@ -616,16 +723,27 @@ export function resolvePlannedWorkoutShape(
     const type = entryType(row);
     const category = workoutCategoryForPlanType(type) ?? categoryForPrescription(stored);
     const durationMin = plannedMin ?? Math.round(structureDurationMin(prescriptionToStructure(stored, null)));
+    // The prescription IS the session. A library workout_id on the same row is
+    // provenance only: its description, coach notes and run structure describe
+    // a different set, so they are carried over only when the prescription
+    // came from that library workout.
     const named = getAnyWorkoutById(row.workout_id);
-    const base = named ?? baseDefinition(row, category, durationMin, WORKOUT_TYPES[type?.toLowerCase() ?? '']?.name ?? 'Workout');
+    const fromLibrary = stored.source === 'library' && !!named;
+    const base = fromLibrary && named
+      ? named
+      : baseDefinition(row, category, durationMin, named?.name ?? WORKOUT_TYPES[type?.toLowerCase() ?? '']?.name ?? 'Workout');
+    const runPrescription = stored.basis === 'pace' || stored.intervals.some(isPaceSet);
+    const sportType = runPrescription ? 'running' : (entrySportOf(row) === 'running' ? 'running' : base.sportType);
     const workout: WorkoutDefinition = {
       ...base,
+      ...(sportType ? { sportType: sportType as WorkoutDefinition['sportType'] } : {}),
       name: entryName(row, base.name),
       category,
       duration: durationMin,
       targetTSS: load ?? base.targetTSS,
       intensityFactor: load ? impliedIntensity(load, durationMin) : base.intensityFactor,
       structure: prescriptionToStructure(stored, durationMin),
+      runningStructure: undefined,
       cyclingStructure: undefined,
     };
     return { workout, source: 'prescribed', note: null };
@@ -650,8 +768,10 @@ export function resolvePlannedWorkoutShape(
   const category = workoutCategoryForPlanType(type);
   const fallbackName = typeDef?.name ?? 'Workout';
 
+  const sport = entrySportOf(row);
+
   // Rest days and off-bike sessions have no ride shape to paint.
-  if (!category || OFF_BIKE.has(category)) {
+  if (!category || OFF_BIKE.has(category) || sport === 'other') {
     const offCategory = ((type && OFF_BIKE.has(type) ? type : null) ?? 'rest') as WorkoutCategory;
     const workout = baseDefinition(row, offCategory, plannedMin ?? 0, fallbackName);
     return { workout, source: null, note: null };
@@ -682,7 +802,7 @@ export function resolvePlannedWorkoutShape(
   }
 
   // 3. The closest library session of this type and length.
-  const stand = inferWorkoutForType(type, durationMin);
+  const stand = inferWorkoutForType(type, durationMin, sport);
   if (stand?.structure) {
     const workout: WorkoutDefinition = {
       ...stand,

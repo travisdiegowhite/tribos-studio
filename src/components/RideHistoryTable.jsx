@@ -1,3 +1,4 @@
+import { sportNoun } from '../lib/training/session/sportCopy';
 import React, { useState } from 'react';
 import {
   Card,
@@ -19,7 +20,7 @@ import { useNavigate } from 'react-router-dom';
 import { useMediaQuery } from '@mantine/hooks';
 import { ViewOnStravaLink, StravaLogo, PoweredByStrava, STRAVA_ORANGE } from './StravaBranding';
 import { PoweredByGarmin } from './GarminBranding';
-import { Bicycle, CaretLeft, CaretRight, ChartBar, Eye, EyeSlash, Funnel, MagnifyingGlass, Path, PersonSimpleRun, UploadSimple, Watch } from '@phosphor-icons/react';
+import { Barbell, Bicycle, CaretLeft, CaretRight, ChartBar, Eye, EyeSlash, Funnel, MagnifyingGlass, Path, PersonSimpleRun, UploadSimple, Watch } from '@phosphor-icons/react';
 import { estimateActivityTSS } from '../utils/computeFitnessSnapshots';
 import { getActivitySport, runCadenceSpm } from '../utils/sportType';
 import { formatPace as formatRunPace, paceSecPerKm } from '../utils/paceFormat';
@@ -303,9 +304,9 @@ const RideHistoryTable = ({
                       size="xs"
                       color={getSportType(ride) === 'running' ? 'teal' : 'blue'}
                       variant="light"
-                      leftSection={getSportType(ride) === 'running' ? <PersonSimpleRun size={10} /> : <Bicycle size={10} />}
+                      leftSection={getSportType(ride) === 'running' ? <PersonSimpleRun size={10} /> : getSportType(ride) === 'cycling' ? <Bicycle size={10} /> : <Barbell size={10} />}
                     >
-                      {getSportType(ride) === 'running' ? 'Run' : 'Ride'}
+                      {getSportType(ride) === 'running' ? 'Run' : getSportType(ride) === 'cycling' ? 'Ride' : 'Other'}
                     </Badge>
                   )}
                   {(() => {
@@ -382,7 +383,7 @@ const RideHistoryTable = ({
                     <BikePickerMenu ride={ride} bikes={bikes} onAssignBike={onAssignBike} onSetSurface={onSetSurface} size="xs" />
                   )}
                   {onHideRide && (
-                    <Tooltip label={ride.is_hidden ? 'Restore ride' : 'Hide ride'}>
+                    <Tooltip label={`${ride.is_hidden ? 'Restore' : 'Hide'} ${sportNoun(getSportType(ride))}`}>
                       <ActionIcon
                         size="sm"
                         variant="subtle"
@@ -414,7 +415,7 @@ const RideHistoryTable = ({
                 <Table.Th>Distance</Table.Th>
                 <Table.Th>Elevation</Table.Th>
                 <Table.Th>Duration</Table.Th>
-                <Table.Th>Ride stress</Table.Th>
+                <Table.Th>Stress</Table.Th>
                 <Table.Th>Pace/Power</Table.Th>
                 <Table.Th>Actions</Table.Th>
               </Table.Tr>
@@ -436,9 +437,9 @@ const RideHistoryTable = ({
                           size="xs"
                           color={getSportType(ride) === 'running' ? 'teal' : 'blue'}
                           variant="light"
-                          leftSection={getSportType(ride) === 'running' ? <PersonSimpleRun size={10} /> : <Bicycle size={10} />}
+                          leftSection={getSportType(ride) === 'running' ? <PersonSimpleRun size={10} /> : getSportType(ride) === 'cycling' ? <Bicycle size={10} /> : <Barbell size={10} />}
                         >
-                          {getSportType(ride) === 'running' ? 'Run' : 'Ride'}
+                          {getSportType(ride) === 'running' ? 'Run' : getSportType(ride) === 'cycling' ? 'Ride' : 'Other'}
                         </Badge>
                       </Tooltip>
                     </Table.Td>
@@ -503,7 +504,7 @@ const RideHistoryTable = ({
                       ) : (
                         <BikePickerMenu ride={ride} bikes={bikes} onAssignBike={onAssignBike} onSetSurface={onSetSurface} />
                       )}
-                      <Tooltip label="View ride">
+                      <Tooltip label={`View ${sportNoun(getSportType(ride))}`}>
                         <ActionIcon
                           size="sm"
                           variant="subtle"
@@ -528,7 +529,7 @@ const RideHistoryTable = ({
                         <ViewOnStravaLink activityId={getStravaActivityId(ride)} />
                       )}
                       {onHideRide && (
-                        <Tooltip label={ride.is_hidden ? 'Restore ride' : 'Hide ride'}>
+                        <Tooltip label={`${ride.is_hidden ? 'Restore' : 'Hide'} ${sportNoun(getSportType(ride))}`}>
                           <ActionIcon
                             size="sm"
                             variant="subtle"

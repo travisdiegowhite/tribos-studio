@@ -5,6 +5,7 @@
  * buildTrainingContext.test.js pins its output.
  */
 
+import { planCompliance } from './session/compliance';
 import { estimateActivityTSS } from '../../utils/computeFitnessSnapshots';
 import { formatLocalDate, parsePlanStartDate } from '../../utils/dateUtils';
 import { getActivitySport } from '../../utils/sportType';
@@ -237,7 +238,14 @@ export function buildTrainingContext(trainingMetrics, weeklyStats, actualWeeklyS
     context.push(`Methodology: ${activePlan.methodology || 'mixed'}`);
     context.push(`Goal: ${activePlan.goal || 'general fitness'}`);
     context.push(`Current Week: ${currentWeek} of ${totalWeeks} (${phase} Phase)`);
-    context.push(`Overall Plan Compliance: ${Math.round(activePlan.compliance_percentage || 0)}% (${activePlan.workouts_completed || 0} of ${activePlan.workouts_total || 0} total plan workouts)`);
+    // From the calendar: the stored compliance_percentage is maintained by a
+    // trigger on the retired planned_workouts table and no longer moves.
+    const pc = planCompliance(plannedWorkouts || [], activePlan.id, new Date().toISOString().slice(0, 10));
+    context.push(
+      pc.pct == null
+        ? `Overall Plan Compliance: no plan sessions due yet (${pc.total} total plan workouts)`
+        : `Overall Plan Compliance: ${pc.pct}% (${pc.done} of ${pc.due} plan workouts due so far; ${pc.total} in the plan)`,
+    );
 
     if (activePlan.status === 'paused') {
       context.push(`Status: PAUSED - Plan is currently on hold`);

@@ -10,7 +10,7 @@ import WeekSummaryGrid from './WeekSummaryGrid.jsx';
  * count and RSS/compliance figures three times before the calendar itself.
  * One frame, one set of numbers; the calendar below shows none of it.
  */
-function PlanWeekCard({ activePlan, plannedWorkouts, actualWeeklyStats, formatTime, loading }) {
+function PlanWeekCard({ activePlan, plannedWorkouts, actualWeeklyStats, formatTime, formatDistance, loading }) {
   return (
     <Box
       data-testid="plan-week-card"
@@ -31,6 +31,7 @@ function PlanWeekCard({ activePlan, plannedWorkouts, actualWeeklyStats, formatTi
         actualWeeklyStats={actualWeeklyStats}
         plannedWorkouts={plannedWorkouts}
         formatTime={formatTime}
+        formatDistance={formatDistance}
         loading={loading}
         frameless
       />

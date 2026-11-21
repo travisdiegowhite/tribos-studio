@@ -78,7 +78,7 @@ export function TrainingPlanExportItems({ plan, workouts, progress }) {
 
   return (
     <>
-      <Menu.Label>Export plan for bike computers</Menu.Label>
+      <Menu.Label>Export plan for devices</Menu.Label>
 
       <Menu.Item
         leftSection={<Watch size={16} />}

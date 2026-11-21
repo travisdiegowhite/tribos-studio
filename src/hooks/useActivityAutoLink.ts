@@ -215,17 +215,10 @@ export function useActivityAutoLink({
             continue;
           }
 
-          // Also set the reverse pointer — server-side reads (check-in
-          // context, EFI) look up activities.matched_planned_workout_id.
-          // Non-fatal: the forward link above already stands, and the
-          // server reconciler can backfill the pointer later.
-          const { error: reverseErr } = await supabase
-            .from('activities')
-            .update({ matched_planned_workout_id: workoutId })
-            .eq('id', activityId);
-          if (reverseErr) {
-            console.error('[useActivityAutoLink] reverse pointer failed:', reverseErr.message);
-          }
+          // No reverse pointer: activities.matched_planned_workout_id still
+          // has a foreign key to the retired planned_workouts table, so the
+          // write failed for every calendar-era entry. Server readers (check-in
+          // context, EFI, ride analysis) find the entry by its activity_id.
 
           linkedAny = true;
 
