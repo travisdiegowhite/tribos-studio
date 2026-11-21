@@ -156,15 +156,15 @@ describe('WorkoutModal draws the session from the shared core', () => {
     expect(screen.queryByText(/ride stress/i)).toBeNull();
   });
 
-  it('gives VO2 bars a real zone colour', () => {
+  it('inks VO2 reps in as hard effort', () => {
     render(
       <MantineProvider>
         <WorkoutModal workout={null} entry={{ ...ARC_ROW, sport: 'cycling', entry_type: 'workout', workout_id: 'four_by_eight_vo2' }} plannedWorkout={plannedFrom(ARC_ROW)} opened onClose={() => {}} />
       </MantineProvider>,
     );
-    const bars = screen.getByTestId('session-profile').querySelectorAll('[data-zone="5"]');
-    expect(bars.length).toBeGreaterThan(0);
-    expect((bars[0] as HTMLElement).style.background).toBe('var(--zone-5)');
+    const reps = screen.getByTestId('session-profile').querySelectorAll('rect[data-tone="hard"]');
+    expect(reps).toHaveLength(4);
+    expect((reps[0] as SVGElement).style.fill).toBe('var(--color-signal)');
   });
 
   it('compares a done session with its plan', () => {
