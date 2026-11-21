@@ -128,3 +128,26 @@ export function intensityFromPowerPct(pctFtp: number): number {
 export function intensityFromPacePct(pctThresholdPace: number): number {
   return pctThresholdPace > 0 ? 100 / pctThresholdPace : 0;
 }
+
+/**
+ * The four effort tones the workout graphic inks in — the same groups and
+ * role colours as the calendar session cards (src/utils/calendarSessionTone.ts),
+ * so a session reads the same on the card and in its profile. The graphic is
+ * an ink trace on paper; only effort gets colour (tribos design, not a
+ * seven-colour zone rainbow).
+ */
+export type EffortTone = 'easy' | 'endurance' | 'tempo' | 'hard';
+
+export function effortTone(zone: ZoneKey | number | null | undefined): EffortTone {
+  if (zone == null || zone <= 1) return 'easy';
+  if (zone <= 2) return 'endurance';
+  if (zone < 4) return 'tempo';
+  return 'hard';
+}
+
+export const TONE_FILL: Record<EffortTone, { fill: string; label: string }> = {
+  easy: { fill: 'var(--chart-bar)', label: 'Easy' },
+  endurance: { fill: 'var(--color-accent)', label: 'Endurance' },
+  tempo: { fill: 'var(--color-highlight)', label: 'Tempo' },
+  hard: { fill: 'var(--color-signal)', label: 'Hard' },
+};

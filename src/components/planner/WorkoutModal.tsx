@@ -81,12 +81,13 @@ import {
   usesPower,
   thresholdName,
   zonesFor,
-  zoneColor,
+  effortTone,
+  TONE_FILL,
   LOAD_LABEL,
   type SessionRow,
   type TargetAnchors,
 } from '../../lib/training/session';
-import { SessionProfile, ZoneLegend, ComplianceBadge } from '../training/session';
+import { SessionProfile, EffortLegend, ComplianceBadge } from '../training/session';
 import { formatCadence } from './runningTargets';
 import { encodeFitRunWorkout } from '../../utils/fitRunWorkoutEncoder';
 
@@ -570,7 +571,7 @@ export function WorkoutModal({
                 {session.sourceNote && (
                   <Text size="xs" c="dimmed" mt={6} data-testid="structure-note">{session.sourceNote}</Text>
                 )}
-                <Box mt="xs"><ZoneLegend steps={steps} sport={sport} /></Box>
+                <Box mt="xs"><EffortLegend steps={steps} sport={sport} /></Box>
               </Box>
 
               <Box>
@@ -587,7 +588,17 @@ export function WorkoutModal({
                       const zone = step.zone != null ? zones[step.zone] : null;
                       return (
                         <Group key={i} gap="sm" wrap="nowrap" align="flex-start">
-                          <Box style={{ width: 4, alignSelf: 'stretch', background: zoneColor(step.zone) }} />
+                          {/* Same effort tones as the profile; easy work is a plain ink rule. */}
+                          <Box
+                            data-tone={effortTone(step.zone)}
+                            style={{
+                              width: 4,
+                              alignSelf: 'stretch',
+                              background: effortTone(step.zone) === 'tempo' || effortTone(step.zone) === 'hard'
+                                ? TONE_FILL[effortTone(step.zone)].fill
+                                : 'var(--color-ink-border)',
+                            }}
+                          />
                           <Box style={{ flex: 1 }}>
                             <Text size="sm" fw={500}>
                               {b.kind === 'repeat' ? `${b.count} × ${formatMinutes(step.durationMin)}` : `${step.label} · ${formatMinutes(step.durationMin)}`}
