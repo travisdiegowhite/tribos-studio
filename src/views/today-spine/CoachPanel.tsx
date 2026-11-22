@@ -387,7 +387,7 @@ export function CoachPanel({ data, onScheduleChanged }: CoachPanelProps) {
                   component="button"
                   onClick={() => send(chip.query)}
                   disabled={typing}
-                  style={{ border: `1px solid ${C.border}`, background: C.base, padding: '5px 9px', fontFamily: FONT.body, fontSize: 11, color: C.text2, cursor: typing ? 'default' : 'pointer' }}
+                  style={{ border: `1px solid ${C.border}`, background: C.base, padding: '8px 12px', minHeight: 40, fontFamily: FONT.body, fontSize: 13, color: C.text2, cursor: typing ? 'default' : 'pointer' }}
                 >
                   {chip.label}
                 </Box>

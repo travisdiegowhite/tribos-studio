@@ -70,11 +70,12 @@ export function SpinePanel({
   const futureWeeks = Math.max(1, Math.round(futureDays / 7));
   const hasPlan = days.some((d) => d.isFuture && d.planned);
 
-  // When the node floats (desktop) the chart renders at a FIXED pixel height
-  // with the viewBox width matched 1:1 to the measured container width — the
-  // x anchors scale to the real width while height stays SPINE_VIEW.h, so the
-  // fixed-size node always fits and nothing (text, dots, strokes) distorts.
-  // On mobile (no node) the SVG keeps its natural width-proportional scaling.
+  // The chart renders at a FIXED pixel height with the viewBox width matched
+  // 1:1 to the measured container width — the x anchors scale to the real
+  // width while height stays SPINE_VIEW.h, so nothing (text, dots, strokes)
+  // distorts and labels draw at their real size. On a phone this matters
+  // most: the old width-proportional scaling shrank the 1144-unit drawing to
+  // a 343px strip, which put its labels at ~2.4px.
   const [measuredW, setMeasuredW] = useState<number | null>(null);
   useLayoutEffect(() => {
     const el = spineRef.current;
@@ -83,8 +84,11 @@ export function SpinePanel({
     ro.observe(el);
     return () => ro.disconnect();
   }, []);
-  const vbW = showNode && measuredW ? measuredW : SPINE_VIEW.w;
+  const vbW = measuredW || SPINE_VIEW.w;
   const k = xScale(vbW);
+  // Axis captions: 9px matches the desktop instrument; a phone-width chart
+  // has the vertical room (SPINE_VIEW.h is fixed) to print them readably.
+  const axisFs = vbW < 600 ? 11 : 9;
 
   const chart = useMemo(() => {
     const geom: DayGeom[] = days.map((d) => ({
@@ -198,7 +202,7 @@ export function SpinePanel({
           <svg
             viewBox={`0 0 ${vbW} ${SPINE_VIEW.h}`}
             width="100%"
-            style={{ display: 'block', height: showNode ? SPINE_VIEW.h : undefined }}
+            style={{ display: 'block', height: measuredW ? SPINE_VIEW.h : undefined }}
             preserveAspectRatio="none"
           >
             <defs>
@@ -323,14 +327,15 @@ export function SpinePanel({
             <circle cx={sel.selX} cy={sel.selY} r="5.5" fill={C.teal} stroke="var(--color-card)" strokeWidth="2" />
 
             {/* axis labels */}
-            <text x={40 * k} y="277" style={{ fontFamily: FONT.mono, fontWeight: 500, fontSize: 9, fill: CHART.axisMuted }}>
+            <text x={40 * k} y="277" style={{ fontFamily: FONT.mono, fontWeight: 500, fontSize: axisFs, fill: CHART.axisMuted }}>
               6 weeks ago
             </text>
-            <text x={380 * k} y="277" style={{ fontFamily: FONT.mono, fontWeight: 500, fontSize: 9, fill: CHART.axisMuted }}>
+            <text x={380 * k} y="277" style={{ fontFamily: FONT.mono, fontWeight: 500, fontSize: axisFs, fill: CHART.axisMuted }}>
               Past
             </text>
-            <text x={880 * k} y="277" style={{ fontFamily: FONT.mono, fontWeight: 500, fontSize: 9, fill: CHART.axisFuture }}>
-              Next {futureWeeks} weeks, planned
+            {/* Right-aligned to the projection's end so it never runs off a narrow chart. */}
+            <text x={1090 * k} y="277" textAnchor="end" style={{ fontFamily: FONT.mono, fontWeight: 500, fontSize: axisFs, fill: CHART.axisFuture }}>
+              {vbW < 600 ? `Next ${futureWeeks} wks` : `Next ${futureWeeks} weeks, planned`}
             </text>
           </svg>
 

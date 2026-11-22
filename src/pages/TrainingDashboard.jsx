@@ -962,7 +962,7 @@ function TrainingDashboard() {
                 <Button
                   variant={todayHealthMetrics ? 'subtle' : 'outline'}
                   color={todayHealthMetrics ? 'moss' : 'ink'}
-                  size="xs"
+                  size={isMobile ? 'sm' : 'xs'}
                   leftSection={<Heart size={14} />}
                   onClick={() => setHealthCheckInOpen(true)}
                 >
@@ -1144,7 +1144,7 @@ function TrainingDashboard() {
               <Stack gap="md">
                 <SegmentedControl
                   radius={0}
-                  size="xs"
+                  size={isMobile ? 'sm' : 'xs'}
                   value={rideView === 'repeats' ? 'repeats' : 'history'}
                   onChange={(v) => setRideView(v === 'repeats' ? 'repeats' : null)}
                   data={[

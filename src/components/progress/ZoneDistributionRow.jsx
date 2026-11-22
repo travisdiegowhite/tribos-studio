@@ -1,6 +1,7 @@
 import { Box, Group, Text, Stack, Tooltip } from '@mantine/core';
 import { TRAINING_ZONES } from '../../utils/trainingPlans';
 import { getRouteZoneColor } from '../ui/zoneColors';
+import { useIsMobile } from '../../hooks/useIsMobile';
 
 
 const ZONE_NAMES = {
@@ -17,6 +18,9 @@ function ZoneDistributionRow({
   totalTime,
   emptyText = 'No zone data available. Ride with a power meter to see your distribution.',
 }) {
+  // On a phone the name column (80px of letter-spaced caps) left the bar
+  // ~100px; Z# and the tooltip already name the zone.
+  const isMobile = useIsMobile();
   if (!zones || zones.length === 0) {
     return (
       <Box
@@ -51,6 +55,7 @@ function ZoneDistributionRow({
             withArrow
             multiline
             w={280}
+            maw="90vw"
           >
           <Group gap="sm" wrap="nowrap" align="center">
             {/* Zone label */}
@@ -91,7 +96,7 @@ function ZoneDistributionRow({
             </Box>
 
             {/* Zone name */}
-            <Text
+            {!isMobile && <Text
               style={{
                 fontFamily: 'var(--font-body)',
                 fontSize: 10,
@@ -103,7 +108,7 @@ function ZoneDistributionRow({
               }}
             >
               {name}
-            </Text>
+            </Text>}
 
             {/* Percentage and time */}
             <Text

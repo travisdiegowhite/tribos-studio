@@ -61,6 +61,9 @@ export function FitnessNode({
   fitnessBySport = null,
 }: FitnessNodeProps) {
   const fsLabel = `${vm.fs >= 0 ? '+' : ''}${Math.round(vm.fs)}`;
+  // The floating desktop node is a 236px instrument; the compact card is the
+  // phone's, where 8–9px Courier is unreadable. Floor its small print at 11px.
+  const fs = (px: number) => (compact ? Math.max(11, px) : px);
 
   const containerStyle: React.CSSProperties = compact
     ? {
@@ -98,7 +101,7 @@ export function FitnessNode({
           <span
             style={{
               fontFamily: FONT.mono,
-              fontSize: 8.5,
+              fontSize: fs(8.5),
               fontWeight: 500,
               color: 'color-mix(in srgb, var(--color-bg) 88%, transparent)',
               whiteSpace: 'nowrap',
@@ -115,7 +118,7 @@ export function FitnessNode({
                 background: 'color-mix(in srgb, var(--color-bg) 16%, transparent)',
                 color: 'var(--color-bg)',
                 fontFamily: FONT.mono,
-                fontSize: 8,
+                fontSize: fs(8),
                 fontWeight: 500,
                 padding: '2px 7px',
                 cursor: 'pointer',
@@ -130,7 +133,7 @@ export function FitnessNode({
             style={{
               flex: 'none',
               fontFamily: FONT.mono,
-              fontSize: 8,
+              fontSize: fs(8),
               fontWeight: 500,
               color: vm.activity.tagColor,
               border: '1px solid color-mix(in srgb, var(--color-bg) 50%, transparent)',
@@ -158,7 +161,7 @@ export function FitnessNode({
               marginLeft: 'auto',
               flex: 'none',
               fontFamily: FONT.mono,
-              fontSize: 9,
+              fontSize: fs(9),
               color: 'color-mix(in srgb, var(--color-bg) 82%, transparent)',
             }}
           >
@@ -192,7 +195,7 @@ export function FitnessNode({
             <div
               style={{
                 fontFamily: FONT.mono,
-                fontSize: 9,
+                fontSize: fs(9),
                 fontWeight: 500,
                 color: C.text2,
                 textShadow: HALO_SOFT,
@@ -220,7 +223,7 @@ export function FitnessNode({
             <div
               style={{
                 fontFamily: FONT.mono,
-                fontSize: 8.5,
+                fontSize: fs(8.5),
                 color: C.text3,
                 marginTop: 10,
                 textAlign: 'center',
@@ -234,7 +237,7 @@ export function FitnessNode({
             <div
               style={{
                 fontFamily: FONT.mono,
-                fontSize: 9,
+                fontSize: fs(9),
                 fontWeight: 500,
                 color: C.text3,
                 marginBottom: 10,
@@ -292,7 +295,7 @@ export function FitnessNode({
             <div
               style={{
                 fontFamily: FONT.mono,
-                fontSize: 8.5,
+                fontSize: fs(8.5),
                 color: C.text3,
                 marginTop: 10,
                 textAlign: 'center',

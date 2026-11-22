@@ -292,16 +292,17 @@ const RideHistoryTable = ({
               }}
               onClick={() => onViewRide?.(ride)}
             >
-              <Group justify="space-between" mb="xs">
-                <Group gap="xs" style={{ flex: 1 }}>
-                  <Text fw={600} size="sm" lineClamp={1}>
-                    {getName(ride)}
-                  </Text>
-                </Group>
-                <Group gap="xs">
+              {/* The name gets the full width; the badges sit on their own
+                  line below it (side by side they squeezed the name to a
+                  few characters on a phone). */}
+              <Text fw={600} size="sm" lineClamp={2} mb={6}>
+                {getName(ride)}
+              </Text>
+              <Group mb="xs">
+                <Group gap="xs" wrap="wrap">
                   {hasMixedSports && (
                     <Badge
-                      size="xs"
+                      size="sm"
                       color={getSportType(ride) === 'running' ? 'teal' : 'blue'}
                       variant="light"
                       leftSection={getSportType(ride) === 'running' ? <PersonSimpleRun size={10} /> : getSportType(ride) === 'cycling' ? <Bicycle size={10} /> : <Barbell size={10} />}
@@ -315,7 +316,7 @@ const RideHistoryTable = ({
                     const IconComponent = info.icon;
                     return (
                       <Badge
-                        size="xs"
+                        size="sm"
                         color={info.color}
                         variant="light"
                         leftSection={
@@ -330,7 +331,7 @@ const RideHistoryTable = ({
                       </Badge>
                     );
                   })()}
-                  <Badge size="xs" color="gray" variant="light">
+                  <Badge size="sm" color="gray" variant="light">
                     {formatDate(getDate(ride))}
                   </Badge>
                 </Group>
@@ -361,12 +362,12 @@ const RideHistoryTable = ({
                       {formatPace(getPace(ride))}
                     </Badge>
                   ) : getPower(ride) > 0 ? (
-                    <Badge color="yellow" variant="light" size="sm">
+                    <Badge color="gray" variant="light" size="sm">
                       {Math.round(getPower(ride))}W
                     </Badge>
                   ) : null}
                   {getCadence(ride) > 0 && getSportType(ride) === 'running' && (
-                    <Badge color="grape" variant="light" size="sm">
+                    <Badge color="gray" variant="light" size="sm">
                       {Math.round(runCadenceSpm(getCadence(ride)) ?? 0)} spm
                     </Badge>
                   )}
@@ -385,7 +386,7 @@ const RideHistoryTable = ({
                   {onHideRide && (
                     <Tooltip label={`${ride.is_hidden ? 'Restore' : 'Hide'} ${sportNoun(getSportType(ride))}`}>
                       <ActionIcon
-                        size="sm"
+                        size="lg"
                         variant="subtle"
                         color={ride.is_hidden ? 'green' : 'gray'}
                         onClick={(e) => {
@@ -555,12 +556,15 @@ const RideHistoryTable = ({
           <Text size="xs" c="dimmed">
             Showing {(currentPage - 1) * pageSize + 1}-{Math.min(currentPage * pageSize, totalFilteredCount)} of {totalFilteredCount} activities
           </Text>
+          {/* On a phone: no first/last buttons and no sibling pages, so the
+              control fits beside the count instead of overflowing it. */}
           <Pagination
-            size="sm"
+            size={isMobile ? 'md' : 'sm'}
             total={totalPages}
             value={currentPage}
             onChange={setCurrentPage}
-            withEdges
+            withEdges={!isMobile}
+            siblings={isMobile ? 0 : 1}
           />
         </Group>
       )}
