@@ -58,14 +58,14 @@ export default function ActivePlanCard({
   const complianceColor = (progress?.overallCompliance || 0) >= 80
     ? 'green'
     : (progress?.overallCompliance || 0) >= 50
-    ? 'yellow'
+    ? 'easy'
     : 'red';
 
   if (!plan) {
     return (
-      <Paper p="lg" radius="md" withBorder>
+      <Paper p="lg" withBorder>
         <Stack align="center" spacing="md" py="xl">
-          <ThemeIcon size={60} radius="xl" color="gray" variant="light">
+          <ThemeIcon size={60} color="gray" variant="light">
             <Target size={30} />
           </ThemeIcon>
           <Title order={4}>No Active Training Plan</Title>
@@ -83,11 +83,11 @@ export default function ActivePlanCard({
 
   if (compact) {
     return (
-      <Paper p="md" radius="md" withBorder style={isPrimary ? { borderLeft: `3px solid var(--mantine-color-${sportColor}-6)` } : undefined}>
+      <Paper p="md" withBorder style={isPrimary ? { borderLeft: `3px solid var(--mantine-color-${sportColor}-6)` } : undefined}>
         <Group position="apart">
           <div style={{ flex: 1 }}>
             <Group spacing="xs">
-              <ThemeIcon size={20} color={sportColor} variant="light" radius="xl">
+              <ThemeIcon size={20} color={sportColor} variant="light">
                 <SportIcon size={12} />
               </ThemeIcon>
               <Text fw={600}>{plan.name}</Text>
@@ -96,7 +96,7 @@ export default function ActivePlanCard({
                   Primary
                 </Badge>
               )}
-              <Badge size="sm" color={isPaused ? 'yellow' : 'green'}>
+              <Badge size="sm" color={isPaused ? 'gray' : 'green'}>
                 {isPaused ? 'Paused' : 'Active'}
               </Badge>
             </Group>
@@ -126,12 +126,12 @@ export default function ActivePlanCard({
   }
 
   return (
-    <Paper p="lg" radius="md" withBorder>
+    <Paper p="lg" withBorder>
       {/* Header */}
       <Group position="apart" mb="md">
         <div>
           <Group spacing="sm">
-            <ThemeIcon size={24} color={sportColor} variant="light" radius="xl">
+            <ThemeIcon size={24} color={sportColor} variant="light">
               <SportIcon size={14} />
             </ThemeIcon>
             <Title order={4}>{plan.name}</Title>
@@ -151,7 +151,7 @@ export default function ActivePlanCard({
                 Make Primary
               </Badge>
             )}
-            <Badge size="lg" color={isPaused ? 'yellow' : 'green'} variant="light">
+            <Badge size="lg" color={isPaused ? 'gray' : 'green'} variant="light">
               {isPaused ? 'Paused' : 'Active'}
             </Badge>
           </Group>
@@ -248,7 +248,6 @@ export default function ActivePlanCard({
             icon={<TrendUp size={18} />}
             color={phaseInfo.color || 'blue'}
             variant="light"
-            radius="md"
           >
             <Text fw={500}>{phaseInfo.name}</Text>
             <Text size="sm" c="dimmed">{phaseInfo.focus}</Text>
@@ -266,7 +265,6 @@ export default function ActivePlanCard({
           <Progress
             value={(currentWeek / plan.duration_weeks) * 100}
             size="lg"
-            radius="xl"
             color="blue"
           />
         </div>
@@ -282,7 +280,6 @@ export default function ActivePlanCard({
           <Progress
             value={progress?.overallCompliance || 0}
             size="lg"
-            radius="xl"
             color={complianceColor}
           />
           <Text size="xs" c="dimmed" mt={4}>
@@ -304,7 +301,7 @@ export default function ActivePlanCard({
           {onAddSupplement && (
             <Button
               variant="light"
-              color="pink"
+              color="signal"
               leftIcon={<Barbell size={18} />}
               onClick={onAddSupplement}
             >

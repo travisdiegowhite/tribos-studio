@@ -71,7 +71,7 @@ function getAdaptationColor(type: AdaptationType): string {
     case 'completed_as_planned':
       return 'green';
     case 'time_truncated':
-      return 'yellow';
+      return 'easy';
     case 'time_extended':
       return 'blue';
     case 'intensity_swap':
@@ -110,7 +110,7 @@ function getInsightColor(type: string, priority: string): string {
   }
   switch (type) {
     case 'warning':
-      return 'yellow';
+      return 'easy';
     case 'praise':
       return 'green';
     case 'adaptation_needed':
@@ -157,7 +157,7 @@ export function AdaptationInsightsPanel({
     if (!weekSummary) return 'gray';
     const pct = weekSummary.tssAchievementPct;
     if (pct >= 90) return 'green';
-    if (pct >= 70) return 'yellow';
+    if (pct >= 70) return 'easy';
     if (pct >= 50) return 'orange';
     return 'red';
   }, [weekSummary]);
@@ -343,7 +343,7 @@ export function AdaptationInsightsPanel({
           <Box>
             <Group justify="space-between" mb="xs">
               <Group gap="xs">
-                <Lightbulb size={16} color="var(--mantine-color-yellow-5)" />
+                <Lightbulb size={16} color="var(--color-signal)" />
                 <Text size="sm" fw={500}>
                   AI Insights ({activeInsights.length})
                 </Text>

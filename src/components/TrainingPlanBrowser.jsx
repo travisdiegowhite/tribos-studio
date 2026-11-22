@@ -131,7 +131,7 @@ const TrainingPlanBrowser = ({ activePlan, onPlanActivated, compact = false }) =
         message: newStatus === 'paused'
           ? 'Your training plan has been paused. Resume when ready.'
           : 'Your training plan is now active again!',
-        color: newStatus === 'paused' ? 'yellow' : 'terracotta',
+        color: newStatus === 'paused' ? 'gray' : 'terracotta',
       });
 
       if (onPlanActivated) {
@@ -510,7 +510,7 @@ const TrainingPlanBrowser = ({ activePlan, onPlanActivated, compact = false }) =
     const colors = {
       polarized: 'blue',
       sweet_spot: 'orange',
-      pyramidal: 'grape',
+      pyramidal: 'accent',
       threshold: 'red',
       endurance: 'teal',
     };
@@ -528,7 +528,7 @@ const TrainingPlanBrowser = ({ activePlan, onPlanActivated, compact = false }) =
       notifications.show({
         title: 'Sign In Required',
         message: 'Please sign in to start a training plan',
-        color: 'yellow',
+        color: 'gray',
       });
       return;
     }
@@ -921,7 +921,7 @@ const TrainingPlanBrowser = ({ activePlan, onPlanActivated, compact = false }) =
             notifications.show({
               title: 'Plan Activated',
               message: `${activatedCount} sessions scheduled. ${skipped} day${skipped === 1 ? '' : 's'} already had something on your calendar and ${skipped === 1 ? 'was' : 'were'} left alone.`,
-              color: 'yellow',
+              color: 'gray',
               autoClose: 8000,
             });
           }
@@ -1140,7 +1140,7 @@ const TrainingPlanBrowser = ({ activePlan, onPlanActivated, compact = false }) =
                   <Timeline.Item
                     key={idx}
                     bullet={
-                      <ThemeIcon size={24} color={phaseInfo?.color || 'gray'} radius="xl">
+                      <ThemeIcon size={24} color={phaseInfo?.color || 'gray'}>
                         <Target size={14} />
                       </ThemeIcon>
                     }
@@ -1298,7 +1298,6 @@ const TrainingPlanBrowser = ({ activePlan, onPlanActivated, compact = false }) =
             setFilter('all'); // Reset secondary filter when category changes
           }}
           variant="pills"
-          radius="xl"
         >
           <Tabs.List>
             <Tabs.Tab value="all" leftSection="📋">
@@ -1322,7 +1321,7 @@ const TrainingPlanBrowser = ({ activePlan, onPlanActivated, compact = false }) =
 
       {/* Category Description */}
       {categoryFilter !== 'all' && PLAN_CATEGORIES[categoryFilter] && (
-        <Paper p="sm" mb="md" withBorder radius="md" style={{ backgroundColor: `${PLAN_CATEGORIES[categoryFilter].color}10` }}>
+        <Paper p="sm" mb="md" withBorder style={{ backgroundColor: `${PLAN_CATEGORIES[categoryFilter].color}10` }}>
           <Text size="sm" c="dimmed">
             {PLAN_CATEGORIES[categoryFilter].description}
           </Text>
@@ -1362,7 +1361,7 @@ const TrainingPlanBrowser = ({ activePlan, onPlanActivated, compact = false }) =
 
             <Group gap="xs">
               <Badge
-                color={activePlan.status === 'paused' ? 'yellow' : 'terracotta'}
+                color={activePlan.status === 'paused' ? 'gray' : 'terracotta'}
                 variant="filled"
               >
                 {activePlan.status === 'paused' ? 'Paused' : 'Active'}
@@ -1421,7 +1420,7 @@ const TrainingPlanBrowser = ({ activePlan, onPlanActivated, compact = false }) =
                   <Text size="xs" c="dimmed">Week {week} of {activePlan.duration_weeks}</Text>
                   <Text size="xs" c="dimmed">{daysRemaining} days remaining</Text>
                 </Group>
-                <Progress value={progress} color="teal" size="sm" radius="xl" />
+                <Progress value={progress} color="teal" size="sm" />
                 {/* No compliance line here: training_plans.compliance_percentage
                     is maintained by a trigger on the retired planned_workouts
                     table and stopped moving. The plan strip on /train computes
@@ -1501,7 +1500,7 @@ const TrainingPlanBrowser = ({ activePlan, onPlanActivated, compact = false }) =
 
           {/* Date Summary */}
           {selectedStartDate && planToActivate && (
-            <Paper p="md" withBorder radius="md" style={{ backgroundColor: `${'var(--color-teal)'}10` }}>
+            <Paper p="md" withBorder style={{ backgroundColor: `${'var(--color-teal)'}10` }}>
               <SimpleGrid cols={{ base: 1, xs: 2 }}>
                 <Box>
                   <Text size="xs" c="dimmed" tt="uppercase">Starts</Text>

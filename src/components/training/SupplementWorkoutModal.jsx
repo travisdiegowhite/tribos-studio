@@ -35,7 +35,7 @@ const SUPPLEMENT_CATEGORIES = {
     name: 'Strength',
     description: 'Build power and muscle endurance',
     icon: Barbell,
-    color: 'pink',
+    color: 'signal',
     workouts: [
       'strength_anatomical_adaptation',
       'strength_muscle_endurance',
@@ -48,7 +48,7 @@ const SUPPLEMENT_CATEGORIES = {
     name: 'Core',
     description: 'Stability and transfer of power',
     icon: PersonSimpleWalk,
-    color: 'violet',
+    color: 'accent',
     workouts: [
       'core_foundation',
       'core_stability',
@@ -83,7 +83,7 @@ function formatDate(dateStr) {
 // Get score color
 function getScoreColor(score) {
   if (score >= 70) return 'green';
-  if (score >= 50) return 'yellow';
+  if (score >= 50) return 'easy';
   return 'orange';
 }
 
@@ -272,7 +272,7 @@ export default function SupplementWorkoutModal({
           <>
             <Divider />
 
-            <Paper p="md" withBorder radius="md">
+            <Paper p="md" withBorder>
               <Group position="apart" mb="sm">
                 <div>
                   <Text fw={600}>{selectedWorkoutDetails.name}</Text>
@@ -304,7 +304,7 @@ export default function SupplementWorkoutModal({
               <Text size="sm" fw={500} mb="xs">Suggested Days (Best to Good)</Text>
 
               {suggestedDays.length === 0 ? (
-                <Alert color="yellow">
+                <Alert color="gray">
                   No suitable days found in the next 4 weeks. The workout may conflict with your current training schedule.
                 </Alert>
               ) : (
