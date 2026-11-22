@@ -1,7 +1,7 @@
 import { describe, it, expect, vi } from 'vitest';
 import { fireEvent, render, screen, within } from '@testing-library/react';
 import { MantineProvider } from '@mantine/core';
-import EffortsTable, { sortEfforts } from './EffortsTable';
+import EffortsTable, { sortEfforts, columnsFor } from './EffortsTable';
 
 function effort(id, startDate, stats, extra = {}) {
   return {
@@ -115,5 +115,41 @@ describe('EffortsTable', () => {
     renderTable({ readoutFor: (e) => (e.id === 'a' ? '215 W' : null) });
     expect(screen.getByTestId('repeat-readout-a').textContent).toBe('215 W at cursor');
     expect(screen.queryByTestId('repeat-readout-b')).toBeNull();
+  });
+});
+
+describe('EffortsTable for runs', () => {
+  const run = (id, startDate, stats) => effort(id, startDate, stats, { ride: { id, type: 'Run', sport_type: 'Run' }, name: `Run ${id}` });
+  // 12 km/h = 5:00/km = 8:03/mi; 10 km/h = 6:00/km.
+  const RUNS = [
+    run('r1', '2026-09-10T07:00:00Z', { durationSeconds: 600, avgHr: 160, avgSpeedKmh: 12 }),
+    run('r2', '2026-09-03T07:00:00Z', { durationSeconds: 720, avgHr: 150, avgSpeedKmh: 10 }),
+  ];
+
+  it('shows pace, not km/h, and no power column when nothing has power', () => {
+    renderTable({ efforts: RUNS, selectedSet: new Set(['r1', 'r2']), bests: { fastestId: 'r1', strongestId: null }, anchor: { kind: 'ride', id: 'r1' } });
+    expect(screen.getByTestId('repeat-speed-r1').textContent).toBe('5:00/km');
+    expect(screen.getByTestId('repeat-speed-r2').textContent).toBe('6:00/km');
+    expect(screen.queryByRole('button', { name: 'Sort by avg w' })).toBeNull();
+    expect(screen.getByRole('button', { name: 'Sort by pace' })).toBeTruthy();
+    expect(screen.queryByText(/km\/h/)).toBeNull();
+  });
+
+  it('gives an imperial runner pace per mile', () => {
+    renderTable({ efforts: RUNS, selectedSet: new Set(['r1']), bests: { fastestId: 'r1', strongestId: null }, anchor: { kind: 'ride', id: 'r1' }, isImperial: true });
+    expect(screen.getByTestId('repeat-speed-r1').textContent).toBe('8:03/mi');
+  });
+
+  it('sorts pace fastest first', () => {
+    expect(sortEfforts(RUNS, 'pace', 'asc').map((e) => e.id)).toEqual(['r1', 'r2']);
+  });
+
+  it('keeps speed and power for rides, and pace on the run rows of a mixed list', () => {
+    expect(columnsFor(E).map((c) => c.key)).toEqual(['date', 'time', 'power', 'hr', 'speed']);
+    const mixed = [...E.slice(0, 1), RUNS[0]];
+    expect(columnsFor(mixed).map((c) => c.key)).toEqual(['date', 'time', 'power', 'hr', 'speed']);
+    renderTable({ efforts: mixed, selectedSet: new Set(['a', 'r1']), bests: { fastestId: 'a', strongestId: null } });
+    expect(screen.getByTestId('repeat-speed-a').textContent).toBe('30.0 km/h');
+    expect(screen.getByTestId('repeat-speed-r1').textContent).toBe('5:00/km');
   });
 });

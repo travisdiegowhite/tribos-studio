@@ -1161,6 +1161,7 @@ function TrainingDashboard() {
                     initialSegmentId={urlSegmentId}
                     formatDistance={formatDist}
                     formatSpeed={formatSpd}
+                    isImperial={isImperial}
                     onOpenRide={handleViewRide}
                   />
                 ) : (
