@@ -18,6 +18,7 @@ import {
 } from '@mantine/core';
 import { DateInput } from '@mantine/dates';
 import { useDisclosure } from '@mantine/hooks';
+import { useIsMobile } from '../hooks/useIsMobile';
 import { RaceFuelCard } from './fueling';
 import { notifications } from '@mantine/notifications';
 import { supabase } from '../lib/supabase';
@@ -68,6 +69,7 @@ const RaceGoalModal = ({
   isImperial = false,
 }) => {
   const { user } = useAuth();
+  const isMobile = useIsMobile();
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [fuelPlanOpen, { toggle: toggleFuelPlan }] = useDisclosure(false);
@@ -370,6 +372,7 @@ const RaceGoalModal = ({
     <Modal
       opened={opened}
       onClose={onClose}
+      fullScreen={isMobile}
       title={
         <Group gap="sm">
           <ThemeIcon size="lg" color="orange" variant="light">

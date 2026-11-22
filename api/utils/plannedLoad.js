@@ -18,7 +18,15 @@
  *   2. Any other interval prescription (the coach's own sets, a run's pace
  *      bands) is scored from its structure the same way, with the time left
  *      over in the session ridden at warmup intensity.
- *   3. No structure: duration × the session type's typical RSS per hour
+ *   3. A library workout (`workout_id`) is scored from the library's own
+ *      structure-derived load (`PLAN_WORKOUT_LIBRARIES`, kept equal to the app
+ *      library's `targetTSS` by planGenerator.test.js), fitted to the row's
+ *      length the way the calendar draws it: extra time is Z2 riding, a
+ *      shorter day scales down. Until 2026-11-22 these fell through to the
+ *      type table below, which prices the WHOLE session at the type's
+ *      intensity — a 75-minute 4×8 VO2 day came out at 131 against the 88 its
+ *      structure gives, and 75 minutes of sprints at 144 against 110.
+ *   4. No structure: duration × the session type's typical RSS per hour
  *      (TYPE_RSS_PER_HOUR, mirroring `TYPE_TSS_PER_HOUR` mid values in
  *      src/lib/training/constants.ts — a test keeps the two equal; runs use
  *      RUN_RSS_PER_HOUR).
@@ -35,6 +43,7 @@
 
 import { isStrengthSession, entrySport } from './entrySport.js';
 import { segmentLoad, ruleParam } from './sessionDesigner.js';
+import { PLAN_WORKOUT_LIBRARIES } from './planGenerator.js';
 
 /**
  * Typical RSS for one hour of each session type — the `mid` column of
@@ -91,6 +100,44 @@ const TYPE_ALIASES = Object.freeze({
 
 const RECOVERY_PCT = ruleParam('SES-WR-1', 'recovery_pct_ftp');
 const FILLER_PCT = ruleParam('SES-WR-1', 'warmup_pct_ftp');
+
+/**
+ * %FTP of the riding a library workout gains or loses when it is fitted to a
+ * different length. The calendar (fitStructureToDuration) stretches or trims
+ * the EASY riding, so that is what moves: Z2 (65%) at most, and no harder
+ * than the session's own average — a lengthened recovery spin stays a
+ * recovery spin, it does not gain endurance riding.
+ */
+const LIBRARY_FILL_MAX_PCT = 65;
+
+function libraryWorkout(workoutId) {
+  if (typeof workoutId !== 'string' || !workoutId) return null;
+  for (const lib of Object.values(PLAN_WORKOUT_LIBRARIES)) {
+    if (Object.prototype.hasOwnProperty.call(lib, workoutId)) return lib[workoutId];
+  }
+  return null;
+}
+
+/**
+ * Planned RSS of a library workout at `durationMin`: its structure-derived
+ * load at the library length, with the minutes added or trimmed scored as
+ * easy riding. A day too short to trim only easy riding scales the whole
+ * session (the floor). Null when the id is not a library workout or carries
+ * no load (strength, core). Within ~10% of the calendar's own fitted
+ * structure for every cycling workout (plannedLoad.test.js).
+ */
+export function libraryLoad(workoutId, durationMin = null) {
+  const w = libraryWorkout(workoutId);
+  if (!w || !(w.tss > 0) || !(w.duration > 0)) return null;
+  const minutes = positive(durationMin) ?? w.duration;
+  const averagePct = Math.sqrt(w.tss / ((w.duration / 60) * 100)) * 100;
+  const fillPct = Math.min(LIBRARY_FILL_MAX_PCT, averagePct);
+  const delta = minutes - w.duration;
+  if (delta >= 0) return Math.round(w.tss + segmentLoad(fillPct, delta));
+  const trimmed = w.tss - segmentLoad(fillPct, -delta);
+  const scaled = (w.tss * minutes) / w.duration;
+  return Math.round(Math.max(trimmed, scaled));
+}
 
 /** The table key for a workout_type: aliases resolved, unknown → endurance. */
 export function loadTypeFor(workoutType) {
@@ -184,14 +231,35 @@ export function plannedLoadFor(entry, { trustPrediction = true } = {}) {
     if (structural != null) return structural;
   }
 
-  // A race, or any session with neither a length nor a structure, has nothing
-  // to derive a load from: keep whatever number it was given rather than
-  // invent one (a readiness gate's eased load, a race's projection).
-  if (type === 'race' || durationMin == null) {
+  // A race keeps whatever number it was given (its projection).
+  if (type === 'race') {
+    const given = positive(entry.target_load);
+    return given != null ? Math.round(given) : null;
+  }
+
+  // A library workout is scored from its own structure.
+  const fromLibrary = libraryLoad(entry.workout_id, durationMin);
+  if (fromLibrary != null) return fromLibrary;
+
+  // Neither a length nor a structure: nothing to derive a load from, so keep
+  // the number it was given rather than invent one (a readiness gate's eased
+  // load).
+  if (durationMin == null) {
     const given = positive(entry.target_load);
     return given != null ? Math.round(given) : null;
   }
 
   const table = entrySport(entry) === 'running' ? RUN_RSS_PER_HOUR : TYPE_RSS_PER_HOUR;
-  return Math.round((durationMin / 60) * table[loadTypeFor(entry.workout_type)]);
+  const rate = table[loadTypeFor(entry.workout_type)];
+  // A type's rate describes a session of typical length (its work plus the
+  // riding around it). Past TYPED_SESSION_MAX_MIN the extra time is endurance
+  // riding, not more of the work: a 5-hour "intervals" day is not 5 hours at
+  // threshold (that read 425 RSS).
+  const typedMin = Math.min(durationMin, TYPED_SESSION_MAX_MIN);
+  const extraMin = durationMin - typedMin;
+  const extraRate = Math.min(rate, table.endurance);
+  return Math.round((typedMin / 60) * rate + (extraMin / 60) * extraRate);
 }
+
+/** Longest a typed session with no structure is priced at its type's rate. */
+export const TYPED_SESSION_MAX_MIN = 90;

@@ -15,8 +15,8 @@
 import { useEffect, useRef } from 'react';
 import { supabase } from '../lib/supabase';
 import { linkEntryToActivity } from '../lib/calendar/calendarMutations';
-import { calculateTSS, estimateTSS } from '../utils/trainingPlans';
-import { isPowerSport, getActivitySport } from '../utils/sportType';
+import { estimateActivityTSS } from '../utils/computeFitnessSnapshots';
+import { getActivitySport } from '../utils/sportType';
 import { entrySport, isStrengthSession } from '../../api/utils/entrySport.js';
 import { triggerAdaptationDetection } from '../utils/adaptationTrigger';
 import { formatLocalDate } from '../utils/dateUtils';
@@ -29,6 +29,7 @@ interface AutoLinkActivity {
   start_date_local?: string;
   average_watts?: number | null;
   normalized_power?: number | null;
+  kilojoules?: number | null;
   effective_power?: number | null;
   rss?: number | null;
   tss?: number | null;
@@ -99,29 +100,19 @@ function getActivityLocalDate(activity: AutoLinkActivity): string {
  * (calendarWrite.syncActualLoads), so this only has to be close for the few
  * minutes in between — but it must not be systematically low.
  *
- * Order mirrors the server scorer: a device score (sanitized like
- * stressScoreSanitizer), then power. Power uses normalized power: average
- * power understates any session with surges or intervals (a 3×12 sweet-spot
- * ride read 41 on average power and 49 on NP). Power is gated on
- * `isPowerSport` so a footpod's watts on a run can't poison the figure;
- * otherwise estimate from duration/distance/elevation.
+ * Power uses effective/normalized power: average power understates any
+ * session with surges or intervals (a 3×12 sweet-spot ride read 41 on
+ * average power and 49 on NP).
  */
 export function getActivityTSS(activity: AutoLinkActivity, ftp?: number | null): number | null {
-  const device = Number(activity.rss ?? activity.tss);
-  if (Number.isFinite(device) && device > 0 && device < 1000) return Math.round(device);
-  const power = activity.effective_power ?? activity.normalized_power ?? activity.average_watts;
-  if (isPowerSport(activity) && power && activity.moving_time && ftp) {
-    return calculateTSS(activity.moving_time, power, ftp);
-  }
-  if (activity.moving_time) {
-    return estimateTSS(
-      activity.moving_time / 60,
-      (activity.distance || 0) / 1000,
-      activity.total_elevation_gain || 0,
-      'endurance'
-    );
-  }
-  return null;
+  // The app's one client stress estimator (estimateActivityTSS): device score
+  // (sanitized), then a run's own model, then EP/NP with FTP, kilojoules, and
+  // last a duration/elevation heuristic — the server's tier order. This used
+  // to carry its own copy that fell back to AVERAGE watts and skipped the run
+  // and kJ tiers.
+  if (!activity.moving_time && !(Number(activity.rss ?? activity.tss) > 0)) return null;
+  const rss = estimateActivityTSS(activity as Parameters<typeof estimateActivityTSS>[0], ftp);
+  return rss > 0 ? Math.round(rss) : null;
 }
 
 function plannedLoadOf(entry: PlannedWorkoutRow): number {

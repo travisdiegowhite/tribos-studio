@@ -380,23 +380,23 @@ function CoachCard({ trainingContext, workoutRecommendation, onAddWorkout }) {
 
   const hasMessages = chatMessages.length > 0;
 
+  // Flat, square and unshadowed like every other sheet (design system): this
+  // card kept the old theme's rounded corners, brown glow and gradient.
   return (
     <Card
       padding="lg"
-      radius="xl"
       h="100%"
       className="tribos-depth-card no-hover"
       style={{
-        background: `linear-gradient(135deg, rgba(158, 90, 60, 0.15), transparent), ${depth.card.background}`,
+        background: depth.card.background,
         border: depth.card.border,
-        boxShadow: depth.card.boxShadow,
       }}
     >
       <Stack gap="md" h="100%" justify="space-between">
         {/* Header */}
         <Group justify="space-between">
           <Group gap="xs">
-            <ThemeIcon size="lg" color="teal" variant="light" radius="md">
+            <ThemeIcon size="lg" color="teal" variant="light">
               <Sparkle size={18} />
             </ThemeIcon>
             <Text fw={600}>
@@ -471,7 +471,6 @@ function CoachCard({ trainingContext, workoutRecommendation, onAddWorkout }) {
                         size="xs"
                         variant="light"
                         color={msg.role === 'user' ? 'teal' : 'terracotta'}
-                        radius="xl"
                         mt={3}
                         style={{ flexShrink: 0 }}
                       >
@@ -513,7 +512,7 @@ function CoachCard({ trainingContext, workoutRecommendation, onAddWorkout }) {
                 {/* Loading indicator */}
                 {isLoading && (
                   <Group gap={6} align="center">
-                    <ThemeIcon size="xs" variant="light" color="teal" radius="xl">
+                    <ThemeIcon size="xs" variant="light" color="teal">
                       <Robot size={10} />
                     </ThemeIcon>
                     <Group gap={4}>
@@ -585,7 +584,6 @@ function CoachCard({ trainingContext, workoutRecommendation, onAddWorkout }) {
               input: {
                 backgroundColor: 'var(--tribos-input)',
                 borderColor: 'var(--tribos-border-subtle)',
-                boxShadow: 'var(--tribos-shadow-inset)',
                 lineHeight: 1.5,
                 '&:focus': {
                   borderColor: 'var(--tribos-terracotta-border)',

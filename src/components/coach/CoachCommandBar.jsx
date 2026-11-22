@@ -455,9 +455,9 @@ function CoachCommandBar({ trainingContext, onAddWorkout }) {
               maxHeight: isMobile ? '85vh' : '70vh',
               backgroundColor: 'var(--color-bg-secondary)',
               border: '1px solid var(--tribos-border)',
-              borderRadius: 20,
-              boxShadow:
-                '0 24px 80px rgba(0, 0, 0, 0.7), 0 0 0 1px rgba(255,255,255,0.04) inset, 0 0 60px rgba(158, 90, 60, 0.08)',
+              // Square and flat (design system): the overlay stands off the
+              // page by its rule, not a glow.
+              borderRadius: 0,
               zIndex: 1001,
               display: 'flex',
               flexDirection: 'column',
@@ -480,7 +480,7 @@ function CoachCommandBar({ trainingContext, onAddWorkout }) {
                   style={{
                     width: 40,
                     height: 40,
-                    borderRadius: 12,
+                    borderRadius: 0,
                     backgroundColor: 'var(--color-teal)',
                     display: 'flex',
                     alignItems: 'center',

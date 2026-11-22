@@ -19,6 +19,7 @@ import {
   type WebRace,
 } from '../../lib/season/raceSearch';
 import { RACE_TYPE_MAP } from '../../utils/raceTypes';
+import { useIsMobile } from '../../hooks/useIsMobile';
 
 /** Fewer directory matches than this and Search also asks the web. */
 const WEB_FALLBACK_BELOW = 3;
@@ -96,6 +97,7 @@ export default function RaceSearchModal({
   onPick: (found: FoundRace) => void;
   onManual: () => void;
 }) {
+  const isMobile = useIsMobile();
   const [query, setQuery] = useState('');
   const [near, setNear] = useState('');
   const [directory, setDirectory] = useState<DirectoryRace[]>([]);
@@ -162,7 +164,7 @@ export default function RaceSearchModal({
   ];
 
   return (
-    <Modal opened onClose={onClose} title="Find a race" radius={0} size="lg">
+    <Modal opened onClose={onClose} title="Find a race" radius={0} size="lg" fullScreen={isMobile}>
       <form
         onSubmit={(e) => {
           e.preventDefault();

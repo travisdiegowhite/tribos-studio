@@ -25,7 +25,8 @@ import { useSegmentNamer } from '../../hooks/useSegmentNamer';
 import { anchorFromRide, anchorFromSegment, effortPointAt, repeatBests } from '../../utils/rideRepeats';
 import { isRunningActivity } from '../../utils/sportType';
 import { C, FONT } from '../../views/today-spine/tokens';
-import EffortsTable, { formatDuration, formatShortDate } from './EffortsTable';
+import EffortsTable, { formatDuration, formatShortDate, isRunEffort } from './EffortsTable';
+import { formatPace, speedToPaceSecPerKm } from '../../utils/paceFormat';
 import RepeatsGrid from './RepeatsGrid';
 import RepeatsMap from './RepeatsMap';
 import RepeatsStrip from './RepeatsStrip';
@@ -59,7 +60,8 @@ function ViewTab({ active, onClick, children, disabled = false }) {
         background: 'none',
         border: 'none',
         borderBottom: `2px solid ${active ? C.gold : 'transparent'}`,
-        padding: '2px 0 3px',
+        // ~36px tall: a thumb can hit it.
+        padding: '11px 0 10px',
         cursor: disabled ? 'default' : 'pointer',
         fontFamily: FONT.mono,
         fontSize: 10,
@@ -152,6 +154,7 @@ class RepeatsErrorBoundary extends Component {
  * @param {string|null} [props.initialSegmentId]  Open anchored on this segment (the ?segment= deep link).
  * @param {(km: number) => string} props.formatDistance
  * @param {(kmh: number) => string} props.formatSpeed
+ * @param {boolean} [props.isImperial]   Runs' paces per mile rather than per km.
  * @param {(ride: object) => void} props.onOpenRide   Opens the full analysis.
  */
 function RepeatsTab(props) {
@@ -162,7 +165,7 @@ function RepeatsTab(props) {
   );
 }
 
-function RepeatsTabInner({ anchorRide, activities, userId, initialSegmentId = null, formatDistance, formatSpeed, onOpenRide }) {
+function RepeatsTabInner({ anchorRide, activities, userId, initialSegmentId = null, formatDistance, formatSpeed, isImperial = false, onOpenRide }) {
   const isMobile = useMediaQuery('(max-width: 768px)');
   const [anchorKind, setAnchorKind] = useState(initialSegmentId ? 'segment' : 'ride');
   const [segmentId, setSegmentId] = useState(initialSegmentId);
@@ -261,6 +264,10 @@ function RepeatsTabInner({ anchorRide, activities, userId, initialSegmentId = nu
     const at = effortPointAt(effort, hoverX);
     const v = at?.row?.[metricDef.key];
     if (v == null) return null;
+    // Speed reads in the athlete's units: a pace for a run, km/h or mph for a ride.
+    if (metricDef.value === 'speed') {
+      return isRunEffort(effort) ? formatPace(speedToPaceSecPerKm(v / 3.6), isImperial) : formatSpeed(v);
+    }
     return `${Math.round(v)} ${metricDef.unit}`;
   };
 
@@ -464,6 +471,7 @@ function RepeatsTabInner({ anchorRide, activities, userId, initialSegmentId = nu
             onToggle={toggle}
             onOpen={onOpenRide}
             formatSpeed={formatSpeed}
+            isImperial={isImperial}
             readoutFor={readoutFor}
           />
         </Zone>

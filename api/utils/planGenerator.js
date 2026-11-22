@@ -15,10 +15,12 @@ foundation_miles: { name: 'Foundation Miles', duration: 60, tss: 38, category: '
 endurance_base_build: { name: 'Endurance Base Build', duration: 90, tss: 63, category: 'endurance' },
 long_endurance_ride: { name: 'Long Endurance Ride', duration: 180, tss: 129, category: 'endurance' },
 polarized_long_ride: { name: 'Polarized Long Ride', duration: 240, tss: 176, category: 'endurance' },
+endurance_with_bursts: { name: 'Endurance with Neuromuscular Bursts', duration: 85, tss: 67, category: 'endurance' },
 
   // Tempo
 tempo_ride: { name: 'Tempo Ride', duration: 60, tss: 53, category: 'tempo' },
 two_by_twenty_tempo: { name: '2x20 Tempo', duration: 75, tss: 66, category: 'tempo' },
+tempo_bursts: { name: 'Tempo Bursts', duration: 75, tss: 70, category: 'tempo' },
   progressive_tempo: { name: 'Progressive Tempo', duration: 70, tss: 79, category: 'tempo' }, // not in the app library: 70 min × 68/h (plannedLoad.js)
 
   // Sweet Spot
@@ -31,6 +33,7 @@ sweet_spot_progression: { name: 'Sweet Spot Progression', duration: 90, tss: 86,
 two_by_twenty_ftp: { name: '2x20 FTP', duration: 70, tss: 83, category: 'threshold' },
 over_under_intervals: { name: 'Over-Under Intervals', duration: 75, tss: 89, category: 'threshold' },
 three_by_twelve_threshold: { name: '3x12 Threshold', duration: 75, tss: 79, category: 'threshold' },
+threshold_pyramid: { name: 'Threshold Pyramid', duration: 70, tss: 75, category: 'threshold' },
 
   // VO2max
 thirty_thirty_intervals: { name: '30/30 Intervals', duration: 60, tss: 60, category: 'vo2max' },
@@ -38,9 +41,11 @@ five_by_four_vo2: { name: '5x4 VO2max', duration: 65, tss: 68, category: 'vo2max
 four_by_eight_vo2: { name: '4x8 VO2max', duration: 75, tss: 88, category: 'vo2max' },
 bossi_intervals: { name: 'Bossi Intervals', duration: 65, tss: 64, category: 'vo2max' },
 polarized_intensity_day: { name: 'Polarized Intensity Day', duration: 90, tss: 102, category: 'vo2max' },
+forty_twenty_intervals: { name: '40/20 Intervals', duration: 55, tss: 54, category: 'vo2max' },
 
   // Climbing
 hill_repeats: { name: 'Hill Repeats', duration: 70, tss: 55, category: 'climbing' },
+climbing_repeats_long: { name: 'Long Climbing Repeats', duration: 85, tss: 73, category: 'climbing' },
 
   // Race Prep
 sprint_intervals: { name: 'Sprint Intervals', duration: 75, tss: 110, category: 'sprint' },
@@ -311,7 +316,7 @@ run_tempo_threshold_combo: { name: 'Tempo-Threshold Combo', duration: 55, tss: 8
   // VO2max
 run_vo2max_800s: { name: '800m Repeats', duration: 50, tss: 78, category: 'vo2max' },
   run_vo2max_1000s: { name: '1000m Repeats', duration: 50, tss: 80, category: 'vo2max' },
-  run_vo2max_hills: { name: 'Hill Repeats', duration: 45, tss: 75, category: 'vo2max' },
+  run_vo2max_hills: { name: 'VO2max Hill Repeats', duration: 50, tss: 75, category: 'vo2max' },
 
   // Speed
 run_speed_200s: { name: '200m Strides', duration: 40, tss: 55, category: 'speed' },

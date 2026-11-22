@@ -31,7 +31,7 @@ import { fetchPlannedSessions } from '../../lib/calendar/readPlannedSessions';
 import { isSkippedSession } from '../../../api/utils/sessionSkipped.js';
 import { getISOWeek, getISOWeekYear } from '../../utils/isoWeek';
 import { formPhrase, workoutTypeCopy } from '../../utils/todayVocabulary';
-import { fmtDate } from '../today/athleteMetrics';
+import { buildDailyLoadSeries, fmtDate } from '../today/athleteMetrics';
 import type { AthleteActivityRow, ServerLoadRow } from '../today/athleteMetrics';
 import { mapRowToRecentRide, type RecentRide } from '../today/shared/recentRides';
 import { rideHasGps, rideHasStreamTrack, rideStreamsOf, sanitizedMaxHr } from '../../utils/rideGeo';
@@ -461,49 +461,21 @@ export function assembleSpine(input: AssembleInput): SpineData {
   }
   const primarySport = input.primarySport ?? 'cycling';
 
-  // EWA walk (server-preferred), capturing TFI/AFI at every day. Client-filled
-  // days step with the athlete's adaptive tau so the tail decays at the same
-  // rate as the server engine.
+  // TFI/AFI per day from the shared server-preferred walk (athleteMetrics'
+  // buildDailyLoadSeries) — the same one /train, Progress and Glance use, so
+  // the spine cannot drift from them. It used to carry its own copy of the
+  // walk, line for line. Client-filled days step with the athlete's adaptive
+  // tau so the tail decays at the same rate as the server engine.
   const serverByDate = new Map<string, ServerLoadRow>();
   for (const r of serverLoad) serverByDate.set(r.date, r);
   const tfiByDate: Record<string, number> = {};
   const afiByDate: Record<string, number> = {};
-  const sortedDays = Object.keys(dailyRSS).sort();
   const todayKey = fmtDate(today);
-  let tfi = 0;
-  let afi = 0;
   let daysWithLoad = 0;
-  for (const day of sortedDays) {
-    const server = serverByDate.get(day);
-    // Trust a server row only when tfi/afi are actually present — Number(null)
-    // is 0 (finite), so a null-valued row would silently zero fitness instead
-    // of falling through to the client EWA.
-    const serverUsable =
-      server != null &&
-      server.tfi != null &&
-      server.afi != null &&
-      Number.isFinite(Number(server.tfi)) &&
-      Number.isFinite(Number(server.afi));
-    // Today-floor guard: today's server row is partial by design (written on
-    // activity ingest). If it undercounts the client-visible RSS — e.g. a
-    // second ride whose refresh trigger failed — it's stale; step past it
-    // instead of adopting it. Finalized past rows are never second-guessed.
-    const staleTodayRow =
-      serverUsable &&
-      day === todayKey &&
-      server!.rss != null &&
-      dailyRSS[day] > Number(server!.rss) + 1;
-    if (serverUsable && !staleTodayRow) {
-      tfi = Number(server!.tfi);
-      afi = Number(server!.afi);
-    } else {
-      const rss = dailyRSS[day];
-      tfi = tfi + (rss - tfi) / tfiTau;
-      afi = afi + (rss - afi) / afiTau;
-    }
-    if (dailyRSS[day] > 0 || server) daysWithLoad += 1;
-    tfiByDate[day] = tfi;
-    afiByDate[day] = afi;
+  for (const p of buildDailyLoadSeries(activities, ftp, serverLoad, 90, { tfi: tfiTau, afi: afiTau }, now)) {
+    tfiByDate[p.date] = p.tfi;
+    afiByDate[p.date] = p.afi;
+    if (p.rss > 0 || serverByDate.has(p.date)) daysWithLoad += 1;
   }
 
   const volHoursAt = (dateKey: string): number => {

@@ -37,11 +37,15 @@ import { computeWeeklySnapshots, overlayServerLoadOnWeeklySnapshots } from '../u
 import { getISOWeek, getISOWeekYear } from '../utils/isoWeek';
 import { selectTimeTicks } from '../utils/timeAxisTicks';
 import { parseLocalDate } from '../utils/dateUtils';
+import { useIsMobile } from '../hooks/useIsMobile';
 
 /**
  * Year-over-Year CTL Comparison Chart
  */
 function YearOverYearChart({ snapshots, selectedYears }) {
+  // Axis titles are dropped on a phone: the rotated "Fitness (TFI)" ate a
+  // fifth of a 343px chart, and the header already names both axes.
+  const isMobile = useIsMobile();
   const chartData = useMemo(() => {
     if (!snapshots || snapshots.length === 0) return [];
 
@@ -98,12 +102,13 @@ function YearOverYearChart({ snapshots, selectedYears }) {
             dataKey="week"
             stroke={'var(--color-text-muted)'}
             tick={{ fontSize: 12 }}
-            label={{ value: 'Week of Year', position: 'insideBottom', offset: -5 }}
+            label={isMobile ? undefined : { value: 'Week of Year', position: 'insideBottom', offset: -5 }}
           />
           <YAxis
             stroke={'var(--color-text-muted)'}
             tick={{ fontSize: 12 }}
-            label={{ value: 'Fitness (TFI)', angle: -90, position: 'insideLeft' }}
+            width={isMobile ? 32 : 60}
+            label={isMobile ? undefined : { value: 'Fitness (TFI)', angle: -90, position: 'insideLeft' }}
           />
           <Tooltip
             contentStyle={tooltipStyle}
@@ -392,6 +397,9 @@ function PeakFitnessCard({ snapshots }) {
  */
 function VolumeComparisonChart({ snapshots }) {
   const CHART = useChartColors();
+  // Two axes plus their titles left a phone a sliver of plot: keep the hours
+  // axis, untitled; peak fitness reads from the tooltip and legend.
+  const isMobile = useIsMobile();
   const yearlyStats = useMemo(() => {
     if (!snapshots || snapshots.length === 0) return [];
 
@@ -440,11 +448,13 @@ function VolumeComparisonChart({ snapshots }) {
             yAxisId="hours"
             stroke={'var(--color-text-muted)'}
             tick={{ fontSize: 12 }}
-            label={{ value: 'Hours', angle: -90, position: 'insideLeft' }}
+            width={isMobile ? 36 : 60}
+            label={isMobile ? undefined : { value: 'Hours', angle: -90, position: 'insideLeft' }}
           />
           <YAxis
             yAxisId="ctl"
             orientation="right"
+            hide={isMobile}
             stroke={'var(--color-text-muted)'}
             tick={{ fontSize: 12 }}
             label={{ value: 'Peak fitness', angle: 90, position: 'insideRight' }}

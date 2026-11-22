@@ -12,6 +12,7 @@ import {
 } from 'recharts';
 import { SubHeading, kicker, mono, tooltipStyle, useChartColors } from './train/progressUi.jsx';
 import { Heart, Heartbeat, Moon, Speedometer } from '@phosphor-icons/react';
+import { useIsMobile } from '../hooks/useIsMobile';
 
 // Metric configuration
 const METRICS = {
@@ -57,6 +58,9 @@ const METRICS = {
  * Displays sleep, HRV, resting HR, and readiness score trends over time
  */
 const HealthTrendsChart = ({ data, onOpenCheckIn }) => {
+  // On a phone the right-hand axis (0–100 scores) is hidden: two axes left a
+  // 343px chart ~250px of plot. The tooltip still gives every value.
+  const isMobile = useIsMobile();
   const [timeRange, setTimeRange] = useState('30');
   const CHART = useChartColors();
   const col = (metric) => CHART[metric.color];
@@ -216,6 +220,7 @@ const HealthTrendsChart = ({ data, onOpenCheckIn }) => {
                 alignItems: 'center',
                 gap: 6,
                 padding: '3px 8px',
+                minHeight: isMobile ? 36 : undefined,
                 border: `1px solid ${isActive ? 'var(--color-ink)' : 'var(--color-border)'}`,
                 color: isActive ? 'var(--color-text-primary)' : 'var(--color-text-muted)',
                 fontSize: 12,
@@ -270,7 +275,7 @@ const HealthTrendsChart = ({ data, onOpenCheckIn }) => {
 
       {/* Main chart */}
       <ResponsiveContainer width="100%" height={280}>
-        <LineChart data={chartData} margin={{ top: 5, right: 20, left: 0, bottom: 5 }}>
+        <LineChart data={chartData} margin={{ top: 5, right: isMobile ? 4 : 20, left: 0, bottom: 5 }}>
           <CartesianGrid strokeDasharray="3 3" stroke={CHART.grid} vertical={false} />
           <XAxis
             dataKey="formattedDate"
@@ -285,6 +290,7 @@ const HealthTrendsChart = ({ data, onOpenCheckIn }) => {
           <YAxis
             yAxisId="right"
             orientation="right"
+            hide={isMobile}
             tick={{ fontSize: 11, fill: CHART.axis, fontFamily: 'var(--font-mono)' }}
             domain={[0, 100]}
           />

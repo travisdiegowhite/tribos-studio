@@ -4,7 +4,7 @@
 // and use the returned user's id — never a userId from the request body or
 // query string. This module exists because auth checks were previously
 // copy-pasted per endpoint, and endpoints that skipped the copy (fuel-plan,
-// review-week) shipped as unauthenticated Claude proxies.
+// review-week, since deleted) shipped as unauthenticated Claude proxies.
 
 import { getSupabaseAdmin } from './supabaseAdmin.js';
 

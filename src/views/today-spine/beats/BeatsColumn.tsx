@@ -64,7 +64,9 @@ export function BeatsColumn({ data, units, numbers, feel = null, onSeeMap }: Bea
           style={{
             background: 'none',
             border: 'none',
-            padding: 0,
+            // A 40px-tall target; the link still reads as text.
+            padding: '10px 0',
+            minHeight: 40,
             cursor: 'pointer',
             fontFamily: FONT.body,
             fontSize: 14,

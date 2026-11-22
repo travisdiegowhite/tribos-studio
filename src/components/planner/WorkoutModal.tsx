@@ -90,6 +90,7 @@ import {
 import { SessionProfile, EffortLegend, ComplianceBadge } from '../training/session';
 import { formatCadence } from './runningTargets';
 import { encodeFitRunWorkout } from '../../utils/fitRunWorkoutEncoder';
+import { useIsMobile } from '../../hooks/useIsMobile';
 
 // ============================================================
 // TYPES
@@ -252,6 +253,9 @@ export function WorkoutModal({
   const [editingDone, setEditingDone] = useState(false);
   const [chosenWorkoutId, setChosenWorkoutId] = useState<string | null>(null);
   const [pickerOpen, setPickerOpen] = useState(false);
+  // A phone gets the whole screen: a centred lg modal left a 70vh scroll box
+  // inside a box, and the date badge truncated to "FRI, N…".
+  const isMobile = useIsMobile();
 
   // Add mode: the picked library workout; otherwise what the caller passed.
   const workout = workoutProp ?? (chosenWorkoutId ? getAnyWorkoutById(chosenWorkoutId) : null);
@@ -326,6 +330,7 @@ export function WorkoutModal({
       <Modal
         opened={opened}
         onClose={onClose}
+        fullScreen={isMobile}
         title={
           <Group gap="xs">
             <Text fw={600} size="lg">Add workout</Text>
@@ -449,17 +454,22 @@ export function WorkoutModal({
     <Modal
       opened={opened}
       onClose={onClose}
+      fullScreen={isMobile}
       title={
-        <Group gap="xs" wrap="nowrap">
-          <SportIcon size={20} aria-label={sportNoun(sport)} />
-          <Text fw={600} size="lg">{session.title}</Text>
-          {scheduledDate && <Badge variant="light" color="gray" size="sm">{formatDateBadge(scheduledDate)}</Badge>}
+        <Group gap="xs" wrap="nowrap" style={{ minWidth: 0 }}>
+          <SportIcon size={20} aria-label={sportNoun(sport)} style={{ flexShrink: 0 }} />
+          <Text fw={600} size="lg" truncate="end" style={{ minWidth: 0 }}>{session.title}</Text>
+          {scheduledDate && (
+            <Badge variant="light" color="gray" size="sm" style={{ flexShrink: 0, overflow: 'visible' }}>
+              {formatDateBadge(scheduledDate)}
+            </Badge>
+          )}
         </Group>
       }
       size="lg"
-      styles={{ body: { padding: 0 } }}
+      styles={{ body: { padding: 0 }, title: { minWidth: 0, flex: 1 } }}
     >
-      <ScrollArea.Autosize mah="70vh" offsetScrollbars>
+      <ScrollArea.Autosize mah={isMobile ? undefined : '70vh'} offsetScrollbars>
         <Stack gap="md" p="md">
           {/* Overview */}
           <Paper p="sm" withBorder>
@@ -575,9 +585,9 @@ export function WorkoutModal({
               </Box>
 
               <Box>
-                <Group gap="xs" mb="xs" style={{ cursor: 'pointer' }} onClick={() => setShowSteps(!showSteps)}>
+                <Group gap="xs" mb="xs" style={{ cursor: 'pointer', minHeight: 40 }} onClick={() => setShowSteps(!showSteps)}>
                   <Text size="sm" fw={600}>Interval details</Text>
-                  <ActionIcon size="xs" variant="subtle" color="gray" aria-label={showSteps ? 'Hide interval details' : 'Show interval details'}>
+                  <ActionIcon size={isMobile ? 'lg' : 'xs'} variant="subtle" color="gray" aria-label={showSteps ? 'Hide interval details' : 'Show interval details'}>
                     {showSteps ? <IconChevronUp size={14} /> : <IconChevronDown size={14} />}
                   </ActionIcon>
                 </Group>
@@ -697,7 +707,7 @@ export function WorkoutModal({
             <Box data-testid="workout-export">
               <Text size="xs" c="dimmed" ta="center" mb="xs">Download for your watch</Text>
               <Group justify="center" gap="xs">
-                <Button size="xs" variant="light" leftSection={<IconDownload size={14} />} onClick={handleRunExport}>
+                <Button size={isMobile ? 'sm' : 'xs'} variant="light" leftSection={<IconDownload size={14} />} onClick={handleRunExport}>
                   FIT run workout (Garmin/COROS)
                 </Button>
               </Group>
@@ -713,13 +723,13 @@ export function WorkoutModal({
             <Box data-testid="workout-export">
               <Text size="xs" c="dimmed" ta="center" mb="xs">Download for device</Text>
               <Group justify="center" gap="xs">
-                <Button size="xs" variant="light" leftSection={<IconDownload size={14} />} onClick={() => handleExport('fit')}>
+                <Button size={isMobile ? 'sm' : 'xs'} variant="light" leftSection={<IconDownload size={14} />} onClick={() => handleExport('fit')}>
                   FIT (Garmin/Wahoo)
                 </Button>
-                <Button size="xs" variant="light" color="gray" leftSection={<IconDownload size={14} />} onClick={() => handleExport('zwo')}>
+                <Button size={isMobile ? 'sm' : 'xs'} variant="light" color="gray" leftSection={<IconDownload size={14} />} onClick={() => handleExport('zwo')}>
                   ZWO (Zwift)
                 </Button>
-                <Button size="xs" variant="light" color="gray" leftSection={<IconDownload size={14} />} onClick={() => handleExport('tcx')}>
+                <Button size={isMobile ? 'sm' : 'xs'} variant="light" color="gray" leftSection={<IconDownload size={14} />} onClick={() => handleExport('tcx')}>
                   TCX
                 </Button>
               </Group>
