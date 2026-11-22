@@ -1,5 +1,7 @@
 import { describe, it, expect } from 'vitest';
-import { plannedLoadFor, prescriptionStructureLoad, TYPE_RSS_PER_HOUR, loadTypeFor } from './plannedLoad.js';
+import { plannedLoadFor, prescriptionStructureLoad, libraryLoad, TYPE_RSS_PER_HOUR, loadTypeFor } from './plannedLoad.js';
+import { WORKOUT_LIBRARY } from '../../src/data/workoutLibrary';
+import { structureLoad, fitStructureToDuration } from '../../src/lib/training/plannedWorkoutShape';
 import { TYPE_TSS_PER_HOUR } from '../../src/lib/training/constants';
 
 describe('TYPE_RSS_PER_HOUR mirrors src/lib/training/constants.ts', () => {
@@ -28,11 +30,18 @@ describe('plannedLoadFor', () => {
   });
 
   it('uses run rates for a run', () => {
-    // The 2026-11-20 easy run: 40 min planned → 37, not the coach's 50.
-    expect(plannedLoadFor({ type: 'workout', workout_type: 'endurance', workout_id: 'run_easy_aerobic', target_duration_min: 40 })).toBe(37);
+    // The 2026-11-20 easy run: 40 min planned → its library load of 40, not the coach's 50.
+    expect(plannedLoadFor({ type: 'workout', workout_type: 'endurance', workout_id: 'run_easy_aerobic', target_duration_min: 40 })).toBe(40);
     expect(plannedLoadFor({ type: 'workout', workout_type: 'endurance', sport: 'running', target_duration_min: 90 })).toBe(83);
     // ...and cycling rates for the same type on a ride
     expect(plannedLoadFor({ type: 'workout', workout_type: 'endurance', sport: 'cycling', target_duration_min: 90 })).toBe(72);
+  });
+
+  it('prices time past a typical session length as endurance riding', () => {
+    // 90 min at threshold = 127.5, then 210 min at the endurance rate = 168.
+    expect(plannedLoadFor({ type: 'workout', workout_type: 'intervals', target_duration_min: 300 })).toBe(296);
+    // Endurance is unaffected by the cap.
+    expect(plannedLoadFor({ type: 'workout', workout_type: 'endurance', target_duration_min: 240 })).toBe(192);
   });
 
   it('ignores whatever target_load the row was given', () => {
@@ -84,6 +93,55 @@ describe('plannedLoadFor', () => {
     expect(loadTypeFor('intervals')).toBe('threshold');
     expect(loadTypeFor('something_new')).toBe('endurance');
     expect(loadTypeFor(null)).toBe('endurance');
+  });
+});
+
+describe('library workouts are scored from their structure', () => {
+  const cycling = Object.values(WORKOUT_LIBRARY).filter((w) => w.structure && w.targetTSS > 0);
+
+  it('knows every structured cycling workout in the app library', () => {
+    const missing = cycling.filter((w) => libraryLoad(w.id) == null).map((w) => w.id);
+    expect(missing).toEqual([]);
+  });
+
+  it('gives the app library load at the library length', () => {
+    const drift = cycling
+      .filter((w) => libraryLoad(w.id, w.duration) !== w.targetTSS)
+      .map((w) => `${w.id}: ${libraryLoad(w.id, w.duration)} vs ${w.targetTSS}`);
+    expect(drift).toEqual([]);
+  });
+
+  it('stays near the calendar\'s fitted structure on shorter and longer days', () => {
+    const far = [];
+    for (const w of cycling) {
+      for (const f of [0.75, 1.5, 2]) {
+        const minutes = Math.round(w.duration * f);
+        const drawn = structureLoad(fitStructureToDuration(w.structure, minutes));
+        const server = libraryLoad(w.id, minutes);
+        if (Math.abs(server - drawn) / drawn > 0.25) far.push(`${w.id} @${minutes}: ${server} vs ${drawn}`);
+      }
+    }
+    expect(far).toEqual([]);
+  });
+
+  it('prices a 75-minute 4×8 VO2 day from its intervals, not as 75 minutes of VO2', () => {
+    const entry = { type: 'workout', workout_type: 'vo2max', workout_id: 'four_by_eight_vo2', target_duration_min: 75, target_load: 105 };
+    expect(plannedLoadFor(entry)).toBe(88);
+    // The type table alone would say 131.
+    expect(plannedLoadFor({ ...entry, workout_id: null })).toBe(131);
+  });
+
+  it('keeps a lengthened recovery spin a recovery spin', () => {
+    // 30 min = 10; an hour of it is ~20, not 10 + 30 min of Z2.
+    expect(libraryLoad('recovery_spin', 60)).toBeLessThan(25);
+  });
+
+  it('uses the library length when the row has none', () => {
+    expect(plannedLoadFor({ type: 'workout', workout_type: 'vo2max', workout_id: 'four_by_eight_vo2' })).toBe(88);
+  });
+
+  it('still gives strength from the library no load', () => {
+    expect(plannedLoadFor({ type: 'workout', workout_type: 'strength', workout_id: 'full_body_strength', target_duration_min: 60 })).toBeNull();
   });
 });
 
