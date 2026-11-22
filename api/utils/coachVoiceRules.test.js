@@ -24,7 +24,6 @@ const WIRED_ENDPOINTS = [
   'coach-ride-analysis.js',
   'proactive-insights-process.js',
   'accountability-coach.js',
-  'review-week.js',
 ];
 
 describe('coachVoiceRules blocks', () => {

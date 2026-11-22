@@ -350,51 +350,6 @@ export class GoogleCalendarService {
   }
 
   /**
-   * Create a workout event in Google Calendar
-   * @param {Object} workout - Workout details
-   * @param {string} workout.name - Workout name
-   * @param {string} workout.description - Workout description
-   * @param {number} workout.duration - Duration in minutes
-   * @param {string} workout.scheduledDate - Date in YYYY-MM-DD format
-   * @param {string} workout.scheduledTime - Optional time in HH:MM format
-   * @param {string} workout.workoutType - Type of workout (endurance, intervals, etc.)
-   * @returns {Object} Created event details including event ID
-   */
-  async createWorkoutEvent(workout) {
-    const userId = await this.getCurrentUserId();
-    if (!userId) {
-      throw new Error('User must be authenticated');
-    }
-
-    try {
-      const response = await fetch(`${getApiBaseUrl()}/api/google-calendar-auth`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        credentials: 'include',
-        body: JSON.stringify({
-          action: 'create_event',
-          userId,
-          workout
-        })
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || 'Failed to create calendar event');
-      }
-
-      const data = await response.json();
-      return data;
-
-    } catch (error) {
-      console.error('Error creating calendar event:', error);
-      throw error;
-    }
-  }
-
-  /**
    * Format available windows for display
    */
   formatWindowsForDisplay(windows) {

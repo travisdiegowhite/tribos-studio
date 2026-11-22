@@ -35,7 +35,6 @@ export const MODELS = Object.freeze({
   ACCOUNTABILITY_COACH: 'claude-sonnet-5-5', // api/accountability-coach.js
   ACCOUNTABILITY_MEMORY: 'claude-sonnet-5-5', // api/accountability-coach.js
   THREAD_TITLE: 'claude-sonnet-5-5', // api/generate-thread-title.js
-  WEEK_REVIEW: 'claude-sonnet-5-5', // api/review-week.js
   PROACTIVE_INSIGHT: 'claude-opus-5', // api/proactive-insights-process.js
   FITNESS_SUMMARY: 'claude-haiku-4-5-20251001', // api/fitness-summary.js
 
@@ -73,7 +72,6 @@ export const EFFORT = Object.freeze({
   COACH_PERSONA_CLASSIFY: 'medium',
   ONBOARDING_MESSAGE: 'medium',
   ACCOUNTABILITY_COACH: 'medium',
-  WEEK_REVIEW: 'medium',
   TRAINING_PLAN_PARSE: 'medium',
   ADMIN_ANALYSIS: 'medium',
   FUEL_SUMMARY: 'medium',

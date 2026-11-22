@@ -8,7 +8,7 @@
  *
  * Consumers: api/coach.js, api/fitness-summary.js, api/coach-check-in-generate.js,
  * api/coach-ride-analysis.js, api/proactive-insights-process.js,
- * api/accountability-coach.js, api/review-week.js.
+ * api/accountability-coach.js. (api/review-week.js was deleted 2026-11-22: nothing called it.)
  * The regression test (coachVoiceRules.test.js) asserts each stays wired.
  */
 

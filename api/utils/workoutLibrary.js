@@ -1,6 +1,33 @@
 // Workout library in format optimized for AI tool calling
 
-export const WORKOUT_LIBRARY_FOR_AI = `
+import { PLAN_WORKOUT_LIBRARIES } from './planGenerator.js';
+
+// The coach reads this list when it picks a session, so its numbers have to
+// be the ones the calendar will show. They were hand-typed and drifted: the
+// cycling loads ran 30-50% above the app library (foundation_miles 55 vs 38,
+// bossi_intervals 100 vs 64) and sprint_intervals was the other way round
+// (70 vs 110). Each line's duration and RSS are now filled in from
+// PLAN_WORKOUT_LIBRARIES — the server's copy of the app library, which
+// planGenerator.test.js keeps equal to it — and workoutLibrary.test.js fails
+// if a listed id has no library entry.
+const LIBRARY_LINE = /^- (\w+): \d+min, \d+ RSS/gm;
+
+function libraryEntry(id) {
+  for (const lib of Object.values(PLAN_WORKOUT_LIBRARIES)) {
+    if (Object.prototype.hasOwnProperty.call(lib, id)) return lib[id];
+  }
+  return null;
+}
+
+/** The prompt text with every workout line's minutes and RSS taken from the library. */
+export function withLibraryLoads(text) {
+  return text.replace(LIBRARY_LINE, (line, id) => {
+    const w = libraryEntry(id);
+    return w ? `- ${id}: ${w.duration}min, ${w.tss} RSS` : line;
+  });
+}
+
+const WORKOUT_LIBRARY_TEMPLATE = `
 AVAILABLE WORKOUTS IN LIBRARY:
 
 === CYCLING: RECOVERY (Zone 1) ===
@@ -85,6 +112,8 @@ AVAILABLE WORKOUTS IN LIBRARY:
 Use workout IDs (like "three_by_ten_sst" or "run_tempo_continuous") when recommending workouts.
 Use CYCLING workouts for cycling athletes and RUNNING workouts for running athletes.
 `;
+
+export const WORKOUT_LIBRARY_FOR_AI = withLibraryLoads(WORKOUT_LIBRARY_TEMPLATE);
 
 // Tool definitions for Claude
 export const WORKOUT_TOOLS = [

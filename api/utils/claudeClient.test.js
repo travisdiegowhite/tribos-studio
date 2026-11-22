@@ -131,14 +131,14 @@ describe('monitoredFetch', () => {
         usage: { input_tokens: 900, output_tokens: 5000 },
       }),
     );
-    await monitoredFetch('review-week', base)(
+    await monitoredFetch('fuel-plan', base)(
       MESSAGES_URL,
       body({ model: 'claude-sonnet-5-5', output_config: { effort: 'medium' } }),
     );
     expect(captureServerError).toHaveBeenCalledTimes(1);
     expect(captureServerError.mock.calls[0][1]).toMatchObject({
       tag: 'claude.max_tokens',
-      extra: { endpoint: 'review-week', effort: 'medium', output_tokens: 5000 },
+      extra: { endpoint: 'fuel-plan', effort: 'medium', output_tokens: 5000 },
     });
     vi.mocked(console.log).mockRestore();
   });

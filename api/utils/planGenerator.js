@@ -316,7 +316,7 @@ run_tempo_threshold_combo: { name: 'Tempo-Threshold Combo', duration: 55, tss: 8
   // VO2max
 run_vo2max_800s: { name: '800m Repeats', duration: 50, tss: 78, category: 'vo2max' },
   run_vo2max_1000s: { name: '1000m Repeats', duration: 50, tss: 80, category: 'vo2max' },
-  run_vo2max_hills: { name: 'Hill Repeats', duration: 45, tss: 75, category: 'vo2max' },
+  run_vo2max_hills: { name: 'VO2max Hill Repeats', duration: 50, tss: 75, category: 'vo2max' },
 
   // Speed
 run_speed_200s: { name: '200m Strides', duration: 40, tss: 55, category: 'speed' },
