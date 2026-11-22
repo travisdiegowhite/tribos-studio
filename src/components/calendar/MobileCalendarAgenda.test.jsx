@@ -25,7 +25,9 @@ const rides = {
   '2026-11-18': [{ id: 'r9', name: 'Lunch Ride', type: 'Ride', sport_type: 'cycling', distance: 23000, rss: 36 }],
 };
 
-function renderAgenda(over = {}) {
+// Opens the folded earlier days unless `expand: false`, so the tests below
+// see the whole window as before.
+function renderAgenda({ expand = true, ...over } = {}) {
   const props = {
     days,
     getWorkoutsForDate: (d) => entries[key(d)] ?? [],
@@ -52,6 +54,7 @@ function renderAgenda(over = {}) {
       <MobileCalendarAgenda {...props} />
     </MantineProvider>,
   );
+  if (expand && screen.queryByTestId('agenda-earlier')) fireEvent.click(screen.getByTestId('agenda-earlier'));
   return props;
 }
 
@@ -102,5 +105,40 @@ describe('MobileCalendarAgenda', () => {
     renderAgenda();
     expect(screen.getByText('Lunch Ride')).toBeTruthy();
     expect(screen.getByText('23.0 km · 36 RSS')).toBeTruthy();
+  });
+});
+
+describe('MobileCalendarAgenda opens on today', () => {
+  it('folds the days before today behind one row, so today is first', () => {
+    renderAgenda({ expand: false });
+    const rows = screen.getAllByTestId('agenda-day');
+    // Today is Sat 21 Nov; Mon 16 – Fri 20 are folded.
+    expect(rows).toHaveLength(23);
+    expect(rows[0].getAttribute('aria-label')).toBe('SAT 21');
+    expect(screen.getByTestId('agenda-earlier').textContent).toMatch(/Earlier days \(5\)/);
+    // The first week's header starts at today.
+    expect(screen.getByText(/NOV 21 – 22/)).toBeTruthy();
+    expect(screen.queryByText('Sweet Spot Intervals')).toBeNull();
+  });
+
+  it('opens and closes the earlier days', () => {
+    renderAgenda({ expand: false });
+    fireEvent.click(screen.getByTestId('agenda-earlier'));
+    expect(screen.getAllByTestId('agenda-day')).toHaveLength(28);
+    expect(screen.getByText('Sweet Spot Intervals')).toBeTruthy();
+    fireEvent.click(screen.getByText('Hide earlier days'));
+    expect(screen.getAllByTestId('agenda-day')).toHaveLength(23);
+  });
+
+  it('heads a one-day week with just its date', () => {
+    renderAgenda({ expand: false, todayKey: '2026-11-22' });
+    expect(screen.getAllByTestId('agenda-day')[0].getAttribute('aria-label')).toBe('SUN 22');
+    expect(screen.getByText('NOV 22')).toBeTruthy();
+  });
+
+  it('shows every day of a window that does not hold today', () => {
+    renderAgenda({ expand: false, todayKey: '2026-10-01' });
+    expect(screen.getAllByTestId('agenda-day')).toHaveLength(28);
+    expect(screen.queryByTestId('agenda-earlier')).toBeNull();
   });
 });

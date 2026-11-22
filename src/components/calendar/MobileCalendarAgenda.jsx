@@ -17,10 +17,17 @@
  *     calendar's existing held-entry flow and banner);
  *   - tap an empty day → add a workout; with a library workout picked, tap a
  *     day to place it there.
+ *
+ * It opens on today. The window starts on last week's Monday (the desktop
+ * grid keeps last week for context), which left today 8–14 rows down a phone;
+ * the days before today now fold behind one "Earlier days" row at the top.
+ * Folding rather than scrolling to today: sessions load after the first paint,
+ * so rows above today would grow and push it off-screen again.
  */
 
-import { Box, Group, Stack, Text, ActionIcon } from '@mantine/core';
-import { ArrowsDownUp, Barbell, Bicycle, Check, Circle, PersonSimpleRun, Plus, SkipForward, Pulse } from '@phosphor-icons/react';
+import { useEffect, useState } from 'react';
+import { Box, Group, Stack, Text, ActionIcon, UnstyledButton } from '@mantine/core';
+import { ArrowsDownUp, Barbell, Bicycle, CaretDown, CaretRight, Check, Circle, PersonSimpleRun, Plus, SkipForward, Pulse } from '@phosphor-icons/react';
 import { resolveSession, COMPLIANCE_STYLE, formatMinutes } from '../../lib/training/session';
 import { SessionProfile } from '../training/session';
 import { sessionTone, sessionToneStyle, sessionRuleBorder } from '../../utils/calendarSessionTone';
@@ -215,18 +222,53 @@ export default function MobileCalendarAgenda({
   onLift,
   onOpenRace,
 }) {
+  // Open on today: fold the days before it when today is in the window.
+  const firstKey = days.length > 0 ? formatLocalDate(days[0]) : null;
+  const lastKey = days.length > 0 ? formatLocalDate(days[days.length - 1]) : null;
+  const todayInRange = firstKey != null && todayKey >= firstKey && todayKey <= lastKey;
+  const [showEarlier, setShowEarlier] = useState(false);
+  // A new window (week navigation, "Today") folds again.
+  useEffect(() => setShowEarlier(false), [firstKey]);
+  const earlierCount = todayInRange ? days.filter((d) => formatLocalDate(d) < todayKey).length : 0;
+  const folded = earlierCount > 0 && !showEarlier;
+
+  // Weeks stay Monday-aligned; a folded week shows only its days from today.
   const weeks = [];
-  for (let i = 0; i < days.length; i += 7) weeks.push(days.slice(i, i + 7));
+  for (let i = 0; i < days.length; i += 7) {
+    const week = days.slice(i, i + 7).filter((d) => !folded || formatLocalDate(d) >= todayKey);
+    if (week.length > 0) weeks.push(week);
+  }
 
   return (
     <Stack gap="lg" data-testid="mobile-calendar-agenda">
+      {earlierCount > 0 && (
+        <UnstyledButton
+          data-testid="agenda-earlier"
+          aria-expanded={showEarlier}
+          onClick={() => setShowEarlier((v) => !v)}
+          style={{
+            ...display,
+            fontSize: 13,
+            minHeight: 40,
+            display: 'flex',
+            alignItems: 'center',
+            gap: 6,
+            borderBottom: '1px solid var(--color-border)',
+            color: 'var(--color-text-secondary)',
+          }}
+        >
+          {showEarlier ? <CaretDown size={14} /> : <CaretRight size={14} />}
+          {showEarlier ? 'Hide earlier days' : `Earlier days (${earlierCount})`}
+        </UnstyledButton>
+      )}
       {weeks.map((week) => {
         const first = week[0];
         const last = week[week.length - 1];
         return (
           <Box key={formatLocalDate(first)}>
             <Text style={{ ...display, fontSize: 15, color: 'var(--color-text-primary)', borderBottom: '2px solid var(--color-ink)', paddingBottom: 4 }}>
-              {MONTH[first.getMonth()]} {first.getDate()} – {first.getMonth() !== last.getMonth() ? `${MONTH[last.getMonth()]} ` : ''}{last.getDate()}
+              {MONTH[first.getMonth()]} {first.getDate()}
+              {week.length > 1 && <> – {first.getMonth() !== last.getMonth() ? `${MONTH[last.getMonth()]} ` : ''}{last.getDate()}</>}
             </Text>
             <Stack gap={0}>
               {week.map((date) => {
