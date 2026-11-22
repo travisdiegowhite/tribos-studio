@@ -106,10 +106,12 @@ export function buildDailyLoadSeries(
   serverHistory: ServerLoadRow[],
   windowDays = 90,
   taus: TauPair = DEFAULT_TAUS,
+  /** The day the walk ends on (local); defaults to now. The Today spine passes its injected clock. */
+  now: Date = new Date(),
 ): DailyLoadPoint[] {
   if (activities.length === 0 && serverHistory.length === 0) return [];
 
-  const today = new Date();
+  const today = new Date(now);
   today.setHours(0, 0, 0, 0);
   const windowStart = new Date(today);
   windowStart.setDate(today.getDate() - windowDays);
