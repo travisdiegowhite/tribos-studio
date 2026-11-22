@@ -1123,6 +1123,9 @@ function TrainingDashboard() {
                 fitnessForecast={fitnessForecast}
                 raceMarkers={raceMarkers}
                 sportLoadHistory={sportLoadHistory}
+                serverLoadHistory={serverLoadHistory}
+                taus={taus}
+                loading={loading}
                 trainingMetrics={trainingMetrics}
                 activities={visibleActivities}
                 speedProfile={speedProfile}

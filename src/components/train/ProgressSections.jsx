@@ -85,29 +85,54 @@ function formatHoursMinutes(seconds) {
 /**
  * Data for the former /progress page's blocks, now spread through the Progress
  * tab on /train: zone distribution, key trends, year to date and segments.
- * Still loads its own activities; sharing the dashboard's is a later step.
+ *
+ * `shared` is the /train dashboard's own data (every visible activity, FTP,
+ * units, taus, the 90-day server load and its per-sport split). When it is
+ * given, nothing is fetched here: the tab used to page through every activity
+ * a second time — the same `select('*')` the dashboard had just run. Without
+ * it (a standalone mount) the hook loads its own, as before.
+ *
+ * @param {'all'|'cycling'|'running'} [sport]
+ * @param {{ activities: object[], ftp: number|null, isImperial: boolean,
+ *   taus: {tfi:number, afi:number}, serverLoadHistory: object[],
+ *   sportLoadHistory: object[]|null, loading?: boolean }|null} [shared]
  */
-export function useProgressSectionsData(sport = 'all') {
+export function useProgressSectionsData(sport = 'all', shared = null) {
   const { user } = useAuth();
-  const [loading, setLoading] = useState(true);
+  const [ownLoading, setLoading] = useState(!shared);
   const [loadError, setLoadError] = useState(null);
   const [reloadKey, setReloadKey] = useState(0);
   // Every sport. Fitness and form stay combined; the sport filter narrows
   // only the per-activity blocks (zones, volume, year to date).
-  const [allActivities, setActivities] = useState([]);
+  const [ownActivities, setActivities] = useState([]);
+  const allActivities = shared ? shared.activities || [] : ownActivities;
+  const loading = shared ? Boolean(shared.loading) : ownLoading;
   const activities = useMemo(
     () => allActivities.filter((a) => matchesSportFilter(a, sport)),
     [allActivities, sport],
   );
   const runThresholds = useRunThresholds();
-  const [serverLoadHistory, setServerLoadHistory] = useState([]);
+  const [ownServerLoadHistory, setServerLoadHistory] = useState([]);
   // Latest per-sport TFI row (migration 133), or null.
-  const [loadSplit, setLoadSplit] = useState(null);
-  const [ftp, setFtp] = useState(null);
+  const [ownLoadSplit, setLoadSplit] = useState(null);
+  const [ownFtp, setFtp] = useState(null);
   // Adaptive EWA tau (user_profiles.tfi_tau/afi_tau) so client-filled tail
   // days decay at the athlete's actual rate — same guard as the server engine.
-  const [taus, setTaus] = useState({ tfi: 42, afi: 7 });
-  const [unitsPreference, setUnitsPreference] = useState('imperial');
+  const [ownTaus, setTaus] = useState({ tfi: 42, afi: 7 });
+  const [ownUnitsPreference, setUnitsPreference] = useState('imperial');
+  const serverLoadHistory = shared ? shared.serverLoadHistory || [] : ownServerLoadHistory;
+  const ftp = shared ? shared.ftp ?? null : ownFtp;
+  const taus = shared ? shared.taus || { tfi: 42, afi: 7 } : ownTaus;
+  const unitsPreference = shared ? (shared.isImperial ? 'imperial' : 'metric') : ownUnitsPreference;
+  // The dashboard keeps the 90-day split series; the insight wants its latest row.
+  const loadSplit = useMemo(() => {
+    if (!shared) return ownLoadSplit;
+    const rows = shared.sportLoadHistory || [];
+    for (let i = rows.length - 1; i >= 0; i--) {
+      if (rows[i] && (rows[i].tfi_cycling != null || rows[i].tfi_running != null)) return rows[i];
+    }
+    return null;
+  }, [shared, ownLoadSplit]);
   const [zoneTimeFilter, setZoneTimeFilter] = useState('30');
 
   const isImperial = unitsPreference === 'imperial';
@@ -116,10 +141,11 @@ export function useProgressSectionsData(sport = 'all') {
 
   const { segments, loading: segmentsLoading, fetchSegments } = useSegmentLibrary(user?.id);
 
-  // Load activities and user profile
+  // Load activities and user profile (standalone only: see `shared`).
+  const usesShared = Boolean(shared);
   useEffect(() => {
     const loadData = async () => {
-      if (!user) return;
+      if (!user || usesShared) return;
       setLoadError(null);
       try {
         // Load user profile for FTP and units
@@ -201,7 +227,7 @@ export function useProgressSectionsData(sport = 'all') {
       }
     };
     loadData();
-  }, [user, reloadKey]);
+  }, [user, reloadKey, usesShared]);
 
   const retryLoad = () => {
     setLoading(true);

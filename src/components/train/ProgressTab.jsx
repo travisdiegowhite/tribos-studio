@@ -46,6 +46,10 @@ export default function ProgressTab({
   fitnessForecast = null,
   raceMarkers = null,
   sportLoadHistory = null,
+  /** The dashboard's 90-day server load and taus: the sections share its data instead of refetching. */
+  serverLoadHistory = null,
+  taus = null,
+  loading = false,
   trainingMetrics,
   activities,
   speedProfile,
@@ -90,7 +94,16 @@ export default function ProgressTab({
   const showPower = sport !== 'running';
   const showPace = sport === 'running' || (sport === 'all' && sportsPresent.running);
 
-  const sections = useProgressSectionsData(sport);
+  // Hand the sections the dashboard's data; they used to page through every
+  // activity again. Standalone (no serverLoadHistory) they still load their own.
+  const shared = useMemo(
+    () =>
+      serverLoadHistory
+        ? { activities: activities || [], ftp, isImperial, taus: taus || { tfi: 42, afi: 7 }, serverLoadHistory, sportLoadHistory, loading }
+        : null,
+    [activities, ftp, isImperial, taus, serverLoadHistory, sportLoadHistory, loading],
+  );
+  const sections = useProgressSectionsData(sport, shared);
   const hasStrava = activities?.some((a) => a.provider === 'strava');
   const hasGarmin = activities?.some((a) => a.provider === 'garmin');
 
