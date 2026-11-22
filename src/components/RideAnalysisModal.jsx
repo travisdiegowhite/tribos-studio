@@ -40,6 +40,7 @@ import RidePacingChart from './RidePacingChart';
 import { trackFeature, EventType } from '../utils/activityTracking';
 import { isPowerSport, isRunningActivity, getActivityNoun, getLoadLabel, runCadenceSpm } from '../utils/sportType';
 import { buildRideSummary } from '../utils/rideSummary';
+import { estimateActivityTSS } from '../utils/computeFitnessSnapshots';
 import { rideRouteCoords } from '../utils/rideGeo';
 import { ArrowRight, ArrowsClockwise, Clock, Fire, Gauge, Heart, Heartbeat, Lightning, MapTrifold, Mountains, Path, ShareNetwork, Watch } from '@phosphor-icons/react';
 
@@ -77,27 +78,6 @@ function calculateBounds(coords) {
   ];
 }
 
-/**
- * Estimate TSS from ride data when power is not available
- */
-function estimateTSS(durationMinutes, distanceKm, elevationM, intensity = 'endurance') {
-  // Base TSS estimation: 1 hour of endurance riding = 50 TSS
-  const baseTSSPerHour = {
-    recovery: 30,
-    endurance: 50,
-    tempo: 70,
-    threshold: 90,
-    vo2max: 120,
-  };
-
-  const baseRate = baseTSSPerHour[intensity] || 50;
-  const hours = durationMinutes / 60;
-
-  // Elevation factor: +10 TSS per 300m climbing
-  const elevationFactor = elevationM ? (elevationM / 300) * 10 : 0;
-
-  return Math.round(hours * baseRate + elevationFactor);
-}
 
 /**
  * RideAnalysisModal Component
@@ -266,16 +246,10 @@ const RideAnalysisModal = ({
       ifZone = getIFZone(intensityFactor);
     }
 
-    // For runs (and cycling without power) prefer the stored canonical rss
-    // value if the server already computed it from HR/pace; otherwise fall
-    // back to a coarse duration+elevation estimate. Phase 2 will replace
-    // this fallback with an HR-TRIMP / rTSS calc.
-    const storedLoad = ride.rss ?? ride.tss ?? null;
-    const estimatedTSS = !powerTSS
-      ? (storedLoad && storedLoad > 0
-          ? Math.round(storedLoad)
-          : estimateTSS(duration / 60, distance, elevation))
-      : null;
+    // For runs (and cycling without power) the app's one estimator: the
+    // stored canonical rss when the server computed it, else the run model,
+    // kJ or the duration/elevation heuristic (estimateActivityTSS).
+    const estimatedTSS = !powerTSS ? Math.round(estimateActivityTSS(ride, ftp)) || null : null;
 
     // Speed
     const avgSpeed = duration > 0 ? (distance / (duration / 3600)) : 0;

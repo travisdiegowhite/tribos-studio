@@ -21,8 +21,9 @@ import { notifications } from '@mantine/notifications';
 import { useMediaQuery } from '@mantine/hooks';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
-import { WORKOUT_TYPES, calculateTSS, estimateTSS } from '../utils/trainingPlans';
-import { isPowerSport, getActivitySport } from '../utils/sportType';
+import { WORKOUT_TYPES } from '../utils/trainingPlans';
+import { getActivitySport } from '../utils/sportType';
+import { estimateActivityTSS } from '../utils/computeFitnessSnapshots';
 // Either library: a run picked from the planner must resolve like a ride.
 import { getAnyWorkoutById as getWorkoutById } from '../data/workoutLookup';
 import { isStrengthSession } from '../../api/utils/entrySport.js';
@@ -1401,24 +1402,10 @@ const TrainingCalendar = ({ activePlan, rides = [], formatDistance: formatDistan
                 // Calculate day's TSS (including cycling and cross-training)
                 let dayTSS = 0;
                 dayRides.forEach(ride => {
-                  // See note in weekly stats: read canonical rss first, gate
-                  // power-derived TSS on sport so footpod watts on runs
-                  // can't poison the daily total.
-                  const storedLoad = ride.rss ?? ride.tss;
-                  let rideTSS;
-                  if (storedLoad != null && storedLoad > 0) {
-                    rideTSS = storedLoad;
-                  } else if (isPowerSport(ride) && ride.average_watts && ftp) {
-                    rideTSS = calculateTSS(ride.moving_time, ride.average_watts, ftp);
-                  } else {
-                    rideTSS = estimateTSS(
-                      (ride.moving_time || 0) / 60,
-                      (ride.distance || 0) / 1000,
-                      ride.total_elevation_gain || 0,
-                      'endurance'
-                    );
-                  }
-                  dayTSS += Math.min(rideTSS || 0, 500);
+                  // The app's one estimator: sanitized stored RSS, then the
+                  // run model, EP/NP + FTP, kJ, heuristic (it used to use
+                  // average watts here, which reads interval days low).
+                  dayTSS += Math.min(estimateActivityTSS(ride, ftp) || 0, 500);
                 });
 
                 // Add cross-training TSS

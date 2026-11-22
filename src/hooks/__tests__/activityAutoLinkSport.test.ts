@@ -46,8 +46,20 @@ describe('getActivityTSS', () => {
     expect(getActivityTSS(zwift, 270)).toBe(49);
   });
 
-  it('falls back to average power when the ride has no NP', () => {
-    expect(getActivityTSS({ ...zwift, normalized_power: null, effective_power: null }, 270)).toBe(41);
+  it('falls back to kilojoules (average power) when the ride has no NP, as the server does', () => {
+    // 189 W × 3011 s = 569 kJ → IF 0.70 → 41.
+    expect(getActivityTSS({ ...zwift, normalized_power: null, effective_power: null, kilojoules: 569.1 }, 270)).toBe(41);
+  });
+
+  it('scores a run with the run model, not its footpod watts', () => {
+    const run = { id: 'run', type: 'Run', sport_type: 'running', moving_time: 2400, distance: 7000, average_watts: 300 };
+    const rss = getActivityTSS(run, 270)!;
+    expect(rss).toBeGreaterThan(0);
+    expect(rss).not.toBe(getActivityTSS({ ...run, type: 'Ride', sport_type: 'cycling' }, 270));
+  });
+
+  it('has nothing to say about an activity with no time and no score', () => {
+    expect(getActivityTSS({ id: 'x', type: 'Ride', sport_type: 'cycling' }, 270)).toBeNull();
   });
 
   it('prefers a device score, as the server does', () => {
