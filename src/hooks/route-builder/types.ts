@@ -118,6 +118,8 @@ export interface GenerationFormInput {
   surface_mix?: SurfaceMix;
   /** "Road comfort": low = quiet roads, medium = balanced, high = direct. */
   traffic_tolerance?: 'low' | 'medium' | 'high';
+  /** Comfort 1–5 (comfortLevels.ts); finer than traffic_tolerance, used by the Tribos BRouter profile. */
+  comfort_level?: 1 | 2 | 3 | 4 | 5;
   like_ride_id?: string;
 }
 

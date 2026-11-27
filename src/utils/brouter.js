@@ -102,16 +102,18 @@ export function resetBRouterCircuit() {
  * Tribos params for a stock profile name, so existing callers get the
  * Tribos cost model without changing. mtb stays a named profile.
  */
-export function tribosForProfileName(profile, tolerance = null, gravelTargetPct = null) {
+export function tribosForProfileName(profile, tolerance = null, gravelTargetPct = null, comfortLevel = null) {
+  // The rider's Comfort 1–5 wins over the 3-step tolerance when known
+  // (tribosParamsFor prefers comfortLevel); safety/fastbike stay fixed.
   switch (profile) {
     case BROUTER_PROFILES.TREKKING:
-      return tribosParamsFor({ surface: 'road', trafficTolerance: tolerance });
+      return tribosParamsFor({ surface: 'road', trafficTolerance: tolerance, comfortLevel });
     case BROUTER_PROFILES.SAFETY:
       return tribosParamsFor({ surface: 'road', trafficTolerance: 'low' });
     case BROUTER_PROFILES.FASTBIKE:
       return tribosParamsFor({ surface: 'road', trafficTolerance: 'high' });
     case BROUTER_PROFILES.GRAVEL:
-      return tribosParamsFor({ surface: 'gravel', trafficTolerance: tolerance, gravelTargetPct });
+      return tribosParamsFor({ surface: 'gravel', trafficTolerance: tolerance, gravelTargetPct, comfortLevel });
     default:
       return null;
   }
@@ -127,10 +129,10 @@ export function tribosForProfileName(profile, tolerance = null, gravelTargetPct 
  * needs the profile's maxspeed/lanes tags to validate) opts in itself.
  */
 async function resolveProfile(base, options) {
-  const { profile, tribos, tolerance = null, gravelTargetPct = null, forceTribos = false } = options;
+  const { profile, tribos, tolerance = null, gravelTargetPct = null, comfortLevel = null, forceTribos = false } = options;
   const forced = forceTribos && tribos && typeof tribos === 'object';
   if (tribos === false || (!tribosProfilesEnabled() && !forced)) return { profile, tribosParams: null };
-  const params = tribos && typeof tribos === 'object' ? tribos : tribosForProfileName(profile, tolerance, gravelTargetPct);
+  const params = tribos && typeof tribos === 'object' ? tribos : tribosForProfileName(profile, tolerance, gravelTargetPct, comfortLevel);
   if (!params) return { profile, tribosParams: null };
   try {
     const id = await ensureProfileId(base, params);

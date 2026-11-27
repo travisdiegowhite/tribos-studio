@@ -321,6 +321,12 @@ async function computeSmartCyclingRoute(waypoints, options = {}) {
   return null;
 }
 
+/** The rider's Comfort 1–5 from either preference shape, or null. */
+function comfortLevelOf(preferences) {
+  const level = preferences?.comfortLevel ?? preferences?.routingPreferences?.comfortLevel ?? null;
+  return Number.isInteger(level) && level >= 1 && level <= 5 ? level : null;
+}
+
 /** The rider's traffic tolerance from either preference shape (flat or nested). */
 function trafficToleranceOf(preferences) {
   return preferences?.routingPreferences?.trafficTolerance || preferences?.trafficTolerance || null;
@@ -534,6 +540,9 @@ async function tryBRouterRouting(waypoints, options) {
       // With Tribos profiles on, the named profile is rendered at the
       // rider's tolerance (brouter.js tribosForProfileName).
       tolerance: trafficToleranceOf(preferences),
+      // Comfort 1–5 is finer than the tolerance; the Tribos profile uses it
+      // when present (brouter.js tribosForProfileName).
+      comfortLevel: comfortLevelOf(preferences),
     });
 
     if (result && result.coordinates && result.coordinates.length > 0) {

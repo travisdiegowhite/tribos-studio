@@ -231,3 +231,13 @@ describe('getBRouterDirections — routing proxy (VITE_ROUTING_PROXY)', () => {
     window.removeEventListener('tribos:routing-rate-limited', heard);
   });
 });
+
+describe('tribosForProfileName — Comfort 1–5', () => {
+  it('prefers the comfort level over the 3-step tolerance for trekking and gravel', () => {
+    const byTolerance = tribosForProfileName('trekking', 'low');
+    const byLevel = tribosForProfileName('trekking', 'low', null, 1);
+    expect(byLevel).not.toEqual(byTolerance);
+    expect(JSON.stringify(byLevel)).toMatch(/1/);
+    expect(tribosForProfileName('safety', 'high', null, 5)).toEqual(tribosForProfileName('safety', 'high'));
+  });
+});

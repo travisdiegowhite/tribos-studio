@@ -17,13 +17,13 @@ import {
   useGenerateForm,
   SHAPE_OPTIONS,
   SPORT_OPTIONS,
-  ROAD_COMFORT_OPTIONS,
+  COMFORT_LEVEL_SHORT_OPTIONS,
+  comfortLevelFromOption,
   TARGET_MODE_OPTIONS,
   type Goal,
   type Sport,
   type Surface,
   type Shape,
-  type RoadComfort,
   type TargetMode,
   type GenerateFormSeed,
 } from './useGenerateForm';
@@ -98,8 +98,8 @@ export const FormPanel = forwardRef<FormPanelHandle, FormPanelProps>(function Fo
     setDuration,
     surface,
     setSurface,
-    roadComfort,
-    setRoadComfort,
+    comfortLevel,
+    setComfortLevel,
     shape,
     setShape,
     startLocation,
@@ -306,14 +306,16 @@ export const FormPanel = forwardRef<FormPanelHandle, FormPanelProps>(function Fo
           </Box>
           {!isRun && (
             <Box style={{ marginTop: 10 }}>
-              <Text style={labelStyle}>Road comfort</Text>
+              <Text style={labelStyle}>Comfort</Text>
               <SegmentedControl
                 data-testid="rb2-road-comfort"
-                data={ROAD_COMFORT_OPTIONS}
-                value={roadComfort}
+                data={COMFORT_LEVEL_SHORT_OPTIONS}
+                value={String(comfortLevel)}
                 onChange={(v) => {
-                  setRoadComfort(v as RoadComfort);
-                  trackRb2('form_field_changed', { field: 'road_comfort' });
+                  const level = comfortLevelFromOption(v);
+                  if (!level) return;
+                  setComfortLevel(level);
+                  trackRb2('form_field_changed', { field: 'comfort_level' });
                 }}
                 disabled={generation.isGenerating}
                 fullWidth

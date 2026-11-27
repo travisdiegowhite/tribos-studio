@@ -97,6 +97,10 @@ import { TrafficStressLayer } from '../features/route-builder-v2/layers/TrafficS
 import { useRouteStress } from '../hooks/route-builder/useRouteStress';
 import { useRouteSurface } from '../hooks/route-builder/useRouteSurface';
 import { useHasRideHistory } from '../hooks/route-builder/useHasRideHistory';
+import { useRouteComfort } from '../hooks/route-builder/useRouteComfort';
+import { useRoadComfort } from '../hooks/route-builder/useRoadComfort';
+import { ComfortStrip } from '../components/comfort/ComfortStrip';
+import { sliceLineByDistance } from '../utils/lineSlice';
 import { consumeSignupFromRoute } from '../features/route-builder-v2/telemetry/signupFromRoute';
 import { GradientLayer } from '../features/route-builder-v2/layers/GradientLayer';
 import { POILayer } from '../features/route-builder-v2/layers/POILayer';
@@ -1504,6 +1508,20 @@ export default function RouteBuilder2() {
   // overlay, its summary bar, the stats card and the ETA read one result.
   const surface = useRouteSurface(geometryForLayers);
   const surfaceSegments = surface.result?.segments ?? null;
+  // Comfort check: the route against the rider's Comfort 1–5, from the same
+  // cached corridor ways. Not for runs (a cycling comfort scale).
+  const { comfortLevel } = useRoadComfort();
+  const comfort = useRouteComfort(isRun ? null : geometryForLayers, comfortLevel);
+  const handleComfortStretch = useCallback(
+    (start_m: number, end_m: number) => {
+      const coords = geometryForLayers?.coordinates;
+      if (!coords) return;
+      const part = sliceLineByDistance(coords, start_m, end_m);
+      if (part.length >= 2) map.fitBounds(part);
+      trackRb2('comfort_stretch_shown', { start_m: Math.round(start_m), length_m: Math.round(end_m - start_m) });
+    },
+    [geometryForLayers, map],
+  );
 
   // Scale the attached workout's structure onto the current route (km-keyed
   // cues), reused by the elevation bands and the map intervals line.
@@ -1756,6 +1774,26 @@ export default function RouteBuilder2() {
       />
     ) : null;
 
+  const comfortNode =
+    hasRoute && !isRun ? (
+      <Box
+        data-testid="rb2-comfort-card"
+        style={{
+          background: 'var(--color-bg, #FFFFFF)',
+          border: '1px solid var(--color-rule, #D6D6E0)',
+          padding: '8px 10px',
+        }}
+      >
+        <ComfortStrip
+          validation={comfort.validation}
+          loading={comfort.loading}
+          units={isImperial ? 'mi' : 'km'}
+          onSelectStretch={handleComfortStretch}
+          compact={isMobile}
+        />
+      </Box>
+    ) : null;
+
   const loadingMessage = editing.isApplying ? 'Applying edit…' : 'Updating route…';
 
   // Full generation gets the animated building overlay; quick operations
@@ -1995,6 +2033,7 @@ export default function RouteBuilder2() {
               statsNode ? (
                 <>
                   {statsNode}
+                  {comfortNode && <Box style={{ marginTop: 8 }}>{comfortNode}</Box>}
                   {visibility.stress && (
                     <Box style={{ marginTop: 8 }}>
                       <TrafficStressLegend
@@ -2246,6 +2285,7 @@ export default function RouteBuilder2() {
       icon: <ChartLineUp size={18} />,
       content: hasRoute ? (
         <>
+          {comfortNode && <Box style={cardStyle}>{comfortNode}</Box>}
           <Box style={cardStyle}>
             <WeatherPanel weather={weather} isImperial={isImperial} />
           </Box>

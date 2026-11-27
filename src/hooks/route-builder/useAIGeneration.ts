@@ -206,7 +206,11 @@ export function useAIGeneration(): UseAIGenerationReturn {
         preferences: input.traffic_tolerance
           ? {
               trafficTolerance: input.traffic_tolerance,
-              routingPreferences: { trafficTolerance: input.traffic_tolerance },
+              comfortLevel: input.comfort_level ?? null,
+              routingPreferences: {
+                trafficTolerance: input.traffic_tolerance,
+                comfortLevel: input.comfort_level ?? null,
+              },
             }
           : undefined,
       };

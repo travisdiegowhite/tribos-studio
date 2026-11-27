@@ -109,4 +109,14 @@ describe('useRoadComfort — comfort level (migration 139)', () => {
     act(() => result.current.setRoadComfort('medium'));
     expect(result.current.comfortLevel).toBe(3);
   });
+
+  it('saves a level chosen before signup instead of overwriting it (comfort after signup)', async () => {
+    useRouteBuilderStore.setState({ trafficTolerance: 'low', comfortLevel: 1 });
+    getSession.mockResolvedValue({ data: { session: { access_token: 'tok' } } });
+    getPreferences.mockResolvedValue({ traffic_tolerance: 'medium', comfort_level: 2, comfort_level_source: 'default' });
+    updatePreferences.mockResolvedValue(true);
+    const { result } = renderHook(() => useRoadComfort());
+    await waitFor(() => expect(updatePreferences).toHaveBeenCalledWith({ comfort_level: 1 }, 'tok'));
+    expect(result.current.comfortLevel).toBe(1);
+  });
 });
