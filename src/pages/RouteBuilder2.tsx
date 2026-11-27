@@ -821,6 +821,51 @@ export default function RouteBuilder2() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchParams, user?.id]);
 
+  // A loop handed over from the routing landing (/ride/start "Edit, save or
+  // send", src/features/routing-landing/handOffToBuilder.ts) is already in
+  // the persisted store. Fit the map to it, start a fresh edit history and
+  // backfill climbing (the comfort ladder doesn't carry elevation). Works
+  // for guests: Save and Send go through the guest plumbing from here.
+  const fromLandingHandledRef = useRef(false);
+  useEffect(() => {
+    if (searchParams.get('from') !== 'landing' || fromLandingHandledRef.current) return;
+    fromLandingHandledRef.current = true;
+    const coords = (useRouteBuilderStore.getState().routeGeometry as { coordinates?: Coordinate[] } | null)
+      ?.coordinates;
+    if (coords?.length) {
+      map.fitBounds(coords);
+      clearCheckpoints();
+      setPendingEditReview(null);
+      trackRb2('route_from_landing', { points: coords.length });
+      void (async () => {
+        try {
+          const [{ getElevationData, calculateElevationStats }] = await Promise.all([
+            import('../utils/elevation'),
+          ]);
+          const profile = await getElevationData(coords as [number, number][]);
+          const { gain } = calculateElevationStats(profile);
+          const state = useRouteBuilderStore.getState();
+          // Only if the same route is still on the map and nothing set climbing yet.
+          const still = (state.routeGeometry as { coordinates?: Coordinate[] } | null)?.coordinates === coords;
+          if (still && gain > 0 && !(state.routeStats?.elevation_gain_m > 0)) {
+            state.setRouteStats((prev: { elevation_gain_m: number }) => ({ ...prev, elevation_gain_m: Math.round(gain) }));
+          }
+        } catch {
+          // climbing stays unknown (0); the elevation panel still loads its own profile
+        }
+      })();
+    }
+    setSearchParams(
+      (prev) => {
+        const p = new URLSearchParams(prev);
+        p.delete('from');
+        return p;
+      },
+      { replace: true },
+    );
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams]);
+
   const handleClearRoute = () => {
     clearRouteInStore();
     generation.clearSuggestions();

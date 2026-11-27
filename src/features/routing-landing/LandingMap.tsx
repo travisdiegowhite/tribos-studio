@@ -10,6 +10,7 @@ import type { Coordinate } from '../../types/geo';
 import type { ComfortCandidate } from '../../utils/comfortLadder';
 import { COMFORT_TONE_COLORS, MAP_PALETTE, getBaseMapStyle } from '../../utils/mapPalette';
 import { toneFeatures, lineBounds } from './comfortLine';
+import { sliceLineByDistance } from '../../utils/lineSlice';
 import { LANDING_COPY } from './landingCopy';
 
 const MAPBOX_TOKEN = import.meta.env.VITE_MAPBOX_TOKEN as string | undefined;
@@ -30,9 +31,11 @@ const TONE_COLOR_EXPR = [
 interface Props {
   start: Coordinate | null;
   route: ComfortCandidate | null;
+  /** A stretch to zoom to (meters from the start), e.g. a heads-up's. */
+  focus?: { start_m: number; end_m: number } | null;
 }
 
-export function LandingMap({ start, route }: Props) {
+export function LandingMap({ start, route, focus = null }: Props) {
   const mapRef = useRef<MapRef | null>(null);
   const data = useMemo(() => (route ? toneFeatures(route.coordinates, route.validation) : null), [route]);
 
@@ -43,6 +46,14 @@ export function LandingMap({ start, route }: Props) {
     if (b) map.fitBounds(b, { padding: 48, duration: 600 });
     else if (start) map.flyTo({ center: [start[0], start[1]], zoom: 11, duration: 600 });
   }, [route, start]);
+
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !route || !focus) return;
+    const part = sliceLineByDistance(route.coordinates, focus.start_m, focus.end_m);
+    const b = part.length >= 2 ? lineBounds(part) : null;
+    if (b) map.fitBounds(b, { padding: 80, duration: 600, maxZoom: 16 });
+  }, [focus, route]);
 
   if (!MAPBOX_TOKEN) {
     return <div className="rl-map rl-map-empty" role="img" aria-label="Map preview unavailable" />;

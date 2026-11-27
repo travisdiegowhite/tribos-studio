@@ -419,3 +419,25 @@
 .rl-footer a {
   color: var(--color-text-secondary);
 }
+
+/* Comfort strip under the result stat (src/components/comfort/ComfortStrip.tsx). */
+.rl-strip {
+  margin: 10px 0 12px;
+}
+
+/* "Show on map" on a heads-up: a text button, ink with an underline. */
+.rl-link-button {
+  background: none;
+  border: 0;
+  padding: 0;
+  margin-top: 4px;
+  font: inherit;
+  font-size: 13px;
+  color: var(--color-ink, #0a0a14);
+  text-decoration: underline;
+  cursor: pointer;
+}
+.rl-link-button:focus-visible {
+  outline: 2px solid var(--color-accent, #2b2bff);
+  outline-offset: 2px;
+}

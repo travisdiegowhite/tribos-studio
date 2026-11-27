@@ -96,6 +96,7 @@ export function RouteActionsPanel({
   const { user } = useAuth() as { user: { id: string } | null };
   const [saveOpen, setSaveOpen] = useState(false);
   const [guestModalOpen, setGuestModalOpen] = useState(false);
+  const [guestTrigger, setGuestTrigger] = useState<'save' | 'send'>('save');
   const [loadOpen, setLoadOpen] = useState(false);
   const [name, setName] = useState(defaultName ?? '');
   const [description, setDescription] = useState(defaultDescription ?? '');
@@ -161,6 +162,7 @@ export function RouteActionsPanel({
     if (!user) {
       // Guests can't save — the signup prompt IS the conversion moment.
       // The in-progress route stays mounted (and persisted) behind it.
+      setGuestTrigger('save');
       setGuestModalOpen(true);
       return;
     }
@@ -403,6 +405,25 @@ export function RouteActionsPanel({
               </Button>
             </Menu.Target>
             <Menu.Dropdown style={{ borderRadius: 0 }}>
+              {!user && (
+                <>
+                  <Menu.Item
+                    data-testid="rb2-guest-send-to-device"
+                    leftSection={<CloudArrowUp size={14} />}
+                    onClick={() => {
+                      // Sending needs an account and a connected device; the
+                      // prompt keeps the route (persisted store + returnTo).
+                      trackRb2('send_to_device_clicked', { is_guest: true });
+                      setGuestTrigger('send');
+                      setGuestModalOpen(true);
+                    }}
+                  >
+                    Send to Garmin / Wahoo
+                  </Menu.Item>
+                  <Divider my={4} />
+                  <Menu.Label>Download Files</Menu.Label>
+                </>
+              )}
               {garminConnected && (
                 <Menu.Item
                   data-testid="rb2-send-to-garmin"
@@ -502,7 +523,7 @@ export function RouteActionsPanel({
       <GuestSaveModal
         opened={guestModalOpen}
         onClose={() => setGuestModalOpen(false)}
-        trigger="save"
+        trigger={guestTrigger}
       />
 
       <Modal
