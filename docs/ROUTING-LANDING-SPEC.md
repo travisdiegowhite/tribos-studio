@@ -98,12 +98,14 @@ Step 1 is built in `src/features/routing-landing/`, and a first cut of the resul
 - **Copy:** fixed strings are in `landingCopy.ts` and comfort text comes from `comfortLevels.ts`. Tests check there are no absolutes, no LTS jargon, and no hard-coded product name (`src/utils/product.ts`).
 - **Memory:** the form and the first-visit flag live in localStorage (`landingPrefs.ts`). The card is hidden if storage is blocked. Events: `landing_viewed`, `route_requested`, `route_result`, `alternative_chosen`, `route_exported`.
 
-**Before the flag goes on:**
-1. A per-IP guest rate limit. Routing calls go browser → BRouter, so this needs the self-hosted server (or a proxy) to enforce it.
-2. `VITE_BROUTER_URL` pointing at the self-hosted server, so guests aren't routed on brouter.de.
-3. Send to Garmin / Wahoo and save, through the RB2 guest plumbing.
-4. The comfort strip, *Show on map* and the alternatives mini-maps (steps 2–4, after the design pass).
-5. Writing comfort to `user_road_preferences.comfort_level` after signup.
+**Before the flag goes on** (status 2026-11-27):
+1. ~~A per-IP guest rate limit.~~ **Built:** the routing proxy (`api/brouter.js`, `api/stadia-route.js`, `api/utils/routingQuota.js`), behind `VITE_ROUTING_PROXY`. Needs `BROUTER_URL` + `STADIA_API_KEY` on Vercel, then the flag.
+2. **Ops, not done:** the self-hosted BRouter (`deploy/brouter/`) has never been deployed (`tribos-brouter.fly.dev` doesn't answer). Deploy it and set `BROUTER_URL`.
+3. ~~Send to Garmin / Wahoo and save.~~ **Built:** "Edit, save or send" hands the loop to RB2 (`handOffToBuilder.ts`, `/ride/new?from=landing`), where guests get Save and Send to Garmin / Wahoo through the signup prompt. Connecting a device in place is still to do (OAuth callbacks land on Settings).
+4. ~~The comfort strip and *Show on map*.~~ **Built** (`src/components/comfort/ComfortStrip.tsx`, shared with RB2). The alternatives mini-maps are still to do.
+5. ~~Writing comfort after signup.~~ **Built:** `useRoadComfort` saves a level chosen before signup when the server has none. Migration 139 is applied.
+
+The §4 navigation change shipped without the `training_lab` flag: Ride is first and every tab stays (the calendar and fitness stay free); signed-in riders without a current plan land on `/ride/new` (`src/utils/signedInHome.ts`).
 
 ## 6. Build order
 

@@ -74,10 +74,25 @@ Preview):
 | `VITE_BROUTER_URL` | `https://tribos-brouter.fly.dev` | the browser tries our server first, brouter.de second |
 | `BROUTER_URL` | same | the hourly health monitor probes it (skips when unset) |
 | `VITE_BROUTER_TRIBOS_PROFILES` | `false` for now | flip to `true` for the Phase 3c cutover after a week of green checks |
+| `STADIA_API_KEY` | the Stadia key (server-side) | `/api/stadia-route` adds it; the browser stops needing one |
+| `VITE_ROUTING_PROXY` | `true` once `BROUTER_URL` and `STADIA_API_KEY` are set | the browser routes only through `/api/brouter`, `/api/brouter/profile` and `/api/stadia-route` |
+
+### The routing proxy (2026-11)
+
+`api/brouter.js` and `api/brouter/profile.js` pass requests through to
+`BROUTER_URL` (else brouter.de) unchanged; `api/stadia-route.js` adds the
+server-side Stadia key to an allow-listed body. All three apply
+`api/utils/routingQuota.js`: a verified rider gets `RATE_LIMITS.ROUTING_USER`
+(1500/h), a guest `RATE_LIMITS.ROUTING_GUEST` (150/h per IP, about a dozen
+routing-landing plans). A refusal is a 429 with `error: 'routing_rate_limited'`;
+the client fires `tribos:routing-rate-limited` and does not fall back to a
+direct server (that would bypass the limit). With the proxy on,
+`VITE_BROUTER_URL` is no longer read by the browser. After the proxy is live,
+delete `VITE_STADIA_API_KEY` from Vercel and redeploy.
 
 Redeploy the app (Vite bakes `VITE_*` at build time) and purge the
-Cloudflare cache as usual. Then apply migration 126 by hand and confirm with
-`npm run audit:schema`; without it the monitor pages on every failed hour
+Cloudflare cache as usual. Migration 126 was applied to production on
+2026-11-27 (confirm with `npm run audit:schema`); without it the monitor pages on every failed hour
 instead of after two.
 
 ## Operate
@@ -121,7 +136,8 @@ route request fails; the cron is the second opinion that reaches Sentry.
 
 - No Cloudflare in front of the Fly app; Fly's edge terminates TLS and the
   hostname is not on the `tribos.studio` zone.
-- No API proxy: the browser calls the server directly (CORS `*` is what the
-  upstream server sends).
+- The server itself has no auth or rate limit. Rate limiting lives in the app's
+  routing proxy (below); with `VITE_ROUTING_PROXY=true` the browser no longer
+  calls this server directly.
 - BRouter is not the primary road router yet. That is Phase 3c
   (`VITE_BROUTER_PRIMARY_ROAD`), a separate PR after the soak.

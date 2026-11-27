@@ -896,14 +896,16 @@ export default function RouteBuilder2() {
   };
 
   // Recompute geometry for existing waypoints when the snap mode or routing
-  // profile changes (skip the initial mount). Runs post-render so the manual
-  // hook reads the fresh store values.
-  const settingsRebuildRef = useRef(true);
+  // profile changes. Runs post-render so the manual hook reads the fresh store
+  // values. Compares against the last values seen rather than skipping "the
+  // first run": StrictMode runs mount effects twice, and the second run used
+  // to re-route every loaded route (a landing loop, a saved route) through the
+  // waypoints, replacing the line the rider chose.
+  const settingsSeenRef = useRef<{ snap: unknown; profile: unknown } | null>(null);
   useEffect(() => {
-    if (settingsRebuildRef.current) {
-      settingsRebuildRef.current = false;
-      return;
-    }
+    const seen = settingsSeenRef.current;
+    settingsSeenRef.current = { snap: snapToRoads, profile: routeProfile };
+    if (!seen || (seen.snap === snapToRoads && seen.profile === routeProfile)) return;
     if (Array.isArray(waypoints) && waypoints.length >= 2) {
       void map.rebuildRoute();
     }
