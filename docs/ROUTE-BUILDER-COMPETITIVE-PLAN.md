@@ -1,6 +1,6 @@
 # Route Builder — back to our roots
 
-**Status:** plan, 2026-11-27. Phase 0 is done; nothing after it is built yet.
+**Status:** plan, 2026-11-27. Phase 0 is done; Phase 1's code is done and its ops steps are pending.
 **Decision owner:** Travis.
 
 ## Contents
@@ -320,33 +320,31 @@ Each bullet is a scoped PR. Phases 2 and 4 can run in parallel.
 **Not in scope:** moving the Garmin push to `garmin2-route-push`. The Garmin
 freeze applies.
 
-### Phase 1 — Routing-first front door (about 2–3 weeks)
+### Phase 1 — Routing-first front door — **code done 2026-11-27, ops pending**
 
-**Prerequisites**, from `ROUTING-LANDING-SPEC.md` ("before the flag goes on"):
+| Item | Status |
+|---|---|
+| Migrations 126 (`system_health_checks`) and 139 (`comfort_level`) | **Applied to production.** All 10 preference rows backfilled |
+| Guest rate limit + Stadia key off the browser | **Built, behind `VITE_ROUTING_PROXY`.** `api/brouter.js`, `api/brouter/profile.js`, `api/stadia-route.js`, `api/utils/routingQuota.js` (1500/h per rider, 150/h per guest IP) |
+| Self-hosted BRouter | **Ops, not done.** `tribos-brouter.fly.dev` doesn't answer and production's bundle has `VITE_BROUTER_URL` empty: routing runs on brouter.de |
+| Save / send from `/ride/start` | **Built.** "Edit, save or send" hands the loop to RB2 (`/ride/new?from=landing`); guests get Send to Garmin / Wahoo through the signup prompt. Connecting the device in place → Phase 2 |
+| Comfort 1–5 in RB2 | **Built.** Build form + Road preferences card; level reaches the Tribos BRouter profile; a level chosen before signup is saved after it |
+| Comfort strip | **Built**, shared by RB2 (under the stats card / mobile Insights) and the landing, with Show on map. Alternatives mini-maps → Phase 2 |
+| Nav and home | **Built.** Ride · Today · Train · Coach · Garage; signed-in riders without a current plan land on `/ride/new` |
+| Landing hero | **Built.** Routing-first copy, CTA to `/ride/start` |
+| `VITE_ROUTING_LANDING=true` | **Waiting on ops** (below) |
+| `VITE_BROUTER_TRIBOS_PROFILES=true` | **Waiting on the harness diff** against `brouter-tribos-c15-2026-11-02.json` |
 
-1. Confirm the self-hosted BRouter is live, point `VITE_BROUTER_URL` at it,
-   and apply migration 126 so the health monitor records results.
-2. Add a guest rate limit for routing without AI: a thin proxy in `api/` for
-   BRouter and Stadia calls, reusing `api/utils/rateLimit.js`. This also gets
-   the Stadia key out of the browser.
+**Ops checklist, in order:**
 
-**Then:**
-
-3. Wire send-to-device and save on `/ride/start` through RB2's existing guest
-   save path.
-4. Turn on `VITE_ROUTING_LANDING`: `/ride/start` becomes `/` for signed-out
-   visitors. Retire the training-centred marketing page into the first-visit
-   card.
-5. Nav:
-   - order becomes **Ride** · Today · Train · Coach · Garage;
-   - a signed-in user with no active plan lands on `/ride/new`;
-   - users with a plan keep `/today`.
-6. Comfort 1–5 in RB2 replaces Quiet/Balanced/Direct. Keep the dual write of
-   `comfort_level` and `traffic_tolerance` (migration 139).
-7. Run `comfortValidator` in RB2 and show the comfort strip and its warnings
-   on every route.
-8. Turn on `VITE_BROUTER_TRIBOS_PROFILES` once the harness diff against the
-   committed baseline is clean.
+1. `cd deploy/brouter && fly deploy` (runbook: `docs/brouter-self-host-runbook.md`).
+2. Vercel env: `BROUTER_URL=https://tribos-brouter.fly.dev`, `STADIA_API_KEY=<key>`.
+3. Vercel env: `VITE_ROUTING_PROXY=true`; redeploy; purge Cloudflare.
+4. Watch `brouter-health-monitor` (hourly) for a day.
+5. `npm run harness:comfort -- --engine brouter-tribos --baseline scripts/comfort-harness/results/brouter-tribos-c15-2026-11-02.json`
+   with `BROUTER_URL` set; if clean, `VITE_BROUTER_TRIBOS_PROFILES=true`.
+6. `VITE_ROUTING_LANDING=true`; redeploy; purge Cloudflare.
+7. Delete `VITE_STADIA_API_KEY` from Vercel; redeploy.
 
 ### Phase 2 — Reach table stakes (about 4–6 weeks)
 

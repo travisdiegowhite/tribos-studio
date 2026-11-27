@@ -131,6 +131,15 @@
     },
     "api/claude-routes.js": {
       "maxDuration": 120
+    },
+    "api/brouter.js": {
+      "maxDuration": 15
+    },
+    "api/brouter/profile.js": {
+      "maxDuration": 15
+    },
+    "api/stadia-route.js": {
+      "maxDuration": 15
     }
   },
   "rewrites": [

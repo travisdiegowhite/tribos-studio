@@ -1,6 +1,7 @@
 import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { lazy, Suspense, useEffect } from 'react';
 import { peekReturnTo, clearReturnTo } from './utils/returnTo';
+import { useSignedInHome } from './utils/signedInHome';
 import { MantineProvider, ColorSchemeScript, Center, Loader } from '@mantine/core';
 import { DatesProvider } from '@mantine/dates';
 import { Notifications } from '@mantine/notifications';
@@ -137,10 +138,12 @@ function RedirectGearToGarage() {
 const ROUTING_LANDING_ON = String(import.meta.env.VITE_ROUTING_LANDING).toLowerCase() === 'true';
 
 // Root route — signed-out visitors get the landing page, which explains the
-// whole product and leads with the guest route builder; signed-in users go
-// to /today. /welcome renders the same page for anyone, signed in or out.
-function RootRoute() {
-  const { isAuthenticated, loading } = useAuth();
+// whole product and leads with the guest route builder. Signed-in riders go
+// to their home: /today with a current training plan, else the route builder
+// (src/utils/signedInHome.ts). /welcome renders the landing for anyone.
+export function RootRoute() {
+  const { isAuthenticated, loading, user } = useAuth();
+  const home = useSignedInHome(isAuthenticated ? user?.id : null);
 
   // Same post-auth returnTo handling as PublicRoute (peek in render, clear
   // in an effect — StrictMode double-renders would lose a consumed value).
@@ -149,7 +152,8 @@ function RootRoute() {
     if (!loading && isAuthenticated && returnTo) clearReturnTo();
   }, [loading, isAuthenticated, returnTo]);
 
-  if (loading) {
+  // Still resolving auth, or a signed-in rider's home (one small query).
+  if (loading || (isAuthenticated && !returnTo && !home)) {
     return (
       <div className="loading-screen">
         <div className="loading-spinner" />
@@ -158,15 +162,16 @@ function RootRoute() {
   }
 
   if (isAuthenticated) {
-    return <Navigate to={returnTo || '/today'} replace />;
+    return <Navigate to={returnTo || home} replace />;
   }
 
   return ROUTING_LANDING_ON ? <RoutingLanding /> : <Landing />;
 }
 
-// Public Route wrapper (redirects to today if already logged in)
+// Public Route wrapper (redirects a signed-in rider to their home)
 function PublicRoute({ children }) {
-  const { isAuthenticated, loading } = useAuth();
+  const { isAuthenticated, loading, user } = useAuth();
+  const home = useSignedInHome(isAuthenticated ? user?.id : null);
 
   // Guests who signed up from the route builder stash a return path. The
   // post-auth navigate usually consumes it, but this redirect can win the
@@ -177,7 +182,7 @@ function PublicRoute({ children }) {
     if (!loading && isAuthenticated && returnTo) clearReturnTo();
   }, [loading, isAuthenticated, returnTo]);
 
-  if (loading) {
+  if (loading || (isAuthenticated && !returnTo && !home)) {
     return (
       <div className="loading-screen">
         <div className="loading-spinner" />
@@ -186,7 +191,7 @@ function PublicRoute({ children }) {
   }
 
   if (isAuthenticated) {
-    return <Navigate to={returnTo || '/today'} replace />;
+    return <Navigate to={returnTo || home} replace />;
   }
 
   return children;

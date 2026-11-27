@@ -27,6 +27,14 @@ import { notifications } from '@mantine/notifications';
 import { tokens } from '../../theme';
 import { useAuth } from '../../contexts/AuthContext.jsx';
 import { supabase } from '../../lib/supabase';
+import { useRouteBuilderStore } from '../../stores/routeBuilderStore';
+import {
+  COMFORT_LEVELS,
+  comfortCard,
+  comfortLabel,
+  comfortLevelFromTolerance,
+  isComfortLevel,
+} from '../../utils/comfortLevels';
 import { ArrowsClockwise, CaretDown, CaretRight, Check, Compass, Info, MapTrifold, Path, WarningCircle } from '@phosphor-icons/react';
 
 // Get the API base URL based on environment
@@ -56,9 +64,9 @@ export default function RoadPreferencesCard() {
   const [exploreMode, setExploreMode] = useState(false);
   const [minRidesForFamiliar, setMinRidesForFamiliar] = useState(2);
   const [recencyWeight, setRecencyWeight] = useState(30);
-  // "Road comfort" (migration 125): low = quiet roads, medium = balanced,
-  // high = direct. Shared with the Route Builder's Build form.
-  const [trafficTolerance, setTrafficTolerance] = useState('medium');
+  // Comfort 1–5 (migration 139, src/utils/comfortLevels.ts). Shared with the
+  // Route Builder's Build form; the API dual-writes traffic_tolerance.
+  const [comfortLevel, setComfortLevel] = useState(3);
 
   // Extraction progress
   const [extractionProgress, setExtractionProgress] = useState(null);
@@ -151,7 +159,12 @@ export default function RoadPreferencesCard() {
           setExploreMode(prefsData.preferences.explore_mode ?? false);
           setMinRidesForFamiliar(prefsData.preferences.min_rides_for_familiar ?? 2);
           setRecencyWeight(prefsData.preferences.recency_weight ?? 30);
-          setTrafficTolerance(prefsData.preferences.traffic_tolerance ?? 'medium');
+          const prefs = prefsData.preferences;
+          setComfortLevel(
+            isComfortLevel(prefs.comfort_level)
+              ? prefs.comfort_level
+              : comfortLevelFromTolerance(prefs.traffic_tolerance ?? 'medium'),
+          );
         }
       }
     } catch (error) {
@@ -305,13 +318,17 @@ export default function RoadPreferencesCard() {
           explore_mode: exploreMode,
           min_rides_for_familiar: minRidesForFamiliar,
           recency_weight: recencyWeight,
-          traffic_tolerance: trafficTolerance
+          comfort_level: comfortLevel
         })
       });
 
       if (!response.ok) {
         throw new Error('Failed to save preferences');
       }
+
+      // The Route Builder reads comfort from its store; update it now so a
+      // change made here routes the next drag without a reload.
+      useRouteBuilderStore.getState().setComfortLevel?.(comfortLevel);
 
       notifications.show({
         title: 'Preferences Saved',
@@ -548,23 +565,26 @@ export default function RoadPreferencesCard() {
         {/* Road comfort: which roads the router may use */}
         <Box>
           <Text size="sm" fw={500} style={{ color: 'var(--color-text-primary)' }}>
-            Road comfort
+            Comfort
           </Text>
           <Text size="xs" mb="xs" style={{ color: 'var(--color-text-secondary)' }}>
-            Quiet keeps you on calm streets and paths; Direct allows busier roads when they are shorter.
+            Which roads the router may use, from 1 (calmest) to 5 (most direct).
           </Text>
           <SegmentedControl
             data-testid="road-comfort-control"
             fullWidth
             radius={0}
-            value={trafficTolerance}
-            onChange={setTrafficTolerance}
-            data={[
-              { value: 'low', label: 'Quiet' },
-              { value: 'medium', label: 'Balanced' },
-              { value: 'high', label: 'Direct' },
-            ]}
+            size="xs"
+            value={String(comfortLevel)}
+            onChange={(v) => {
+              const level = Number(v);
+              if (isComfortLevel(level)) setComfortLevel(level);
+            }}
+            data={COMFORT_LEVELS.map((level) => ({ value: String(level), label: comfortLabel(level) }))}
           />
+          <Text size="xs" mt={6} data-testid="road-comfort-headline" style={{ color: 'var(--color-text-secondary)' }}>
+            {comfortCard(comfortLevel).headline} {comfortCard(comfortLevel).tradeoff}
+          </Text>
         </Box>
 
         {/* Familiarity Strength Slider */}

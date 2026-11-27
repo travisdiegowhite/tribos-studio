@@ -1,17 +1,19 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { MantineProvider } from '@mantine/core';
-import { MemoryRouter } from 'react-router-dom';
+import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom';
 
 vi.mock('../LandingMap', () => ({ LandingMap: () => <div data-testid="map" /> }));
 vi.mock('../../../components/SEO', () => ({ default: () => null }));
 vi.mock('posthog-js', () => ({ default: { capture: vi.fn() } }));
+vi.mock('../../../contexts/AuthContext.jsx', () => ({ useAuth: () => ({ user: null }) }));
 
 const planLandingRoute = vi.fn();
 vi.mock('../landingEngine', () => ({ planLandingRoute: (...a: unknown[]) => planLandingRoute(...a) }));
 
 import RoutingLanding from '../RoutingLanding';
 import { comfortCard } from '../../../utils/comfortLevels';
+import { useRouteBuilderStore } from '../../../stores/routeBuilderStore';
 
 function renderPage() {
   return render(
@@ -97,5 +99,61 @@ describe('RoutingLanding', () => {
     renderPage();
     fireEvent.click(screen.getByRole('button', { name: 'Make my route' }));
     expect(await screen.findByText(/couldn’t reach the routing service/)).toBeInTheDocument();
+  });
+
+  it('hands the shown loop to the route builder for save or send', async () => {
+    localStorage.setItem(
+      'routing-landing:form:v1',
+      JSON.stringify({ startLabel: 'Boulder', start: [-105.27, 40.01], distanceMi: 15, surface: 'mixed', comfortLevel: 1 }),
+    );
+    const coordinates = [[-105.27, 40.01], [-105.3, 40.05], [-105.27, 40.01]];
+    const candidate = {
+      kind: 'route',
+      level: 1,
+      start: [-105.27, 40.01],
+      targetDistance_km: 24,
+      bearingDeg: 0,
+      clockwise: true,
+      waypoints: [[-105.27, 40.01], [-105.3, 40.05]],
+      coordinates,
+      distance_m: 24140,
+      note: '',
+      validation: {
+        level: 1, total_m: 24140, within_m: 24140, flagged_m: 0, blocked_m: 0, unknown_m: 0,
+        withinPct: 100, unknownPct: 0,
+        segments: [{ length_m: 24140, status: 'free', tone: 'within', cls: 1, confidence: 'high', reasons: [] }],
+        flaggedStretches: [], blockedStretches: [], unknownStretches: [], longestFlagged_m: 0,
+        passes: true, failures: [], headsUps: [],
+      },
+    };
+    planLandingRoute.mockResolvedValue({
+      outcome: 'ok', level: 1, route: candidate, alternatives: [], refusal: null, calls: 2, budget: 12, tried: [],
+    });
+
+    function Where() {
+      const loc = useLocation();
+      return <div data-testid="where">{loc.pathname + loc.search}</div>;
+    }
+    render(
+      <MantineProvider>
+        <MemoryRouter initialEntries={['/ride/start']}>
+          <Routes>
+            <Route path="/ride/start" element={<RoutingLanding />} />
+            <Route path="/ride/new" element={<Where />} />
+          </Routes>
+        </MemoryRouter>
+      </MantineProvider>,
+    );
+    fireEvent.click(screen.getByRole('button', { name: 'Make my route' }));
+    expect(await screen.findByTestId('comfort-strip')).toBeInTheDocument();
+    fireEvent.click(await screen.findByTestId('rl-open-in-builder'));
+
+    expect(await screen.findByTestId('where')).toHaveTextContent('/ride/new?from=landing');
+    const state = useRouteBuilderStore.getState();
+    expect((state.routeGeometry as { coordinates: number[][] }).coordinates).toEqual(coordinates);
+    expect(state.routeProfile).toBe('gravel'); // mixed edits as gravel
+    expect(state.comfortLevel).toBe(1);
+    expect(state.routeType).toBe('loop');
+    expect(state.waypoints).toHaveLength(2);
   });
 });

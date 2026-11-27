@@ -19,6 +19,7 @@ import gravelTemplate from '../../routing-profiles/tribos-gravel.brf?raw';
 import { fnv1a32 } from './stableHash';
 import type { TrafficTolerance } from './trafficStress';
 import { comfortLevelFromTolerance, toComfortLevel, type ComfortLevel } from './comfortLevels';
+import { routingAuthHeaders } from './routingProxy';
 
 export type TribosTemplate = 'road' | 'gravel';
 
@@ -137,7 +138,9 @@ export async function ensureProfileId(
   const fetchImpl = options.fetchImpl ?? fetch;
   const resp = await fetchImpl(`${serverBase}/brouter/profile`, {
     method: 'POST',
-    headers: { 'Content-Type': 'text/plain' },
+    // Auth only matters behind the routing proxy (per-user limit); it is
+    // empty when the browser talks to BRouter directly.
+    headers: { 'Content-Type': 'text/plain', ...(await routingAuthHeaders()) },
     body: text,
     signal: AbortSignal.timeout(options.timeoutMs ?? 8000),
   });

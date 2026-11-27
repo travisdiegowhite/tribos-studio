@@ -531,6 +531,17 @@ is the deploy and operations guide.
 - **Do not make BRouter the primary road router yet.** That is the Phase 3c
   cutover (`VITE_BROUTER_PRIMARY_ROAD`), a separate PR after a week of green
   `brouter-health-monitor` checks.
+- **Routing proxy (`VITE_ROUTING_PROXY`, default off).** With it on, the
+  browser sends BRouter and Stadia requests only through `api/brouter.js`,
+  `api/brouter/profile.js` and `api/stadia-route.js` (`src/utils/routingProxy.ts`).
+  They pass the upstream response through unchanged (`properties.messages`
+  and the plain-text "no route" 500s matter) and apply
+  `api/utils/routingQuota.js`: `RATE_LIMITS.ROUTING_USER` per verified rider,
+  `ROUTING_GUEST` per guest IP. Upstreams come from server env `BROUTER_URL`
+  (else brouter.de) and `STADIA_API_KEY`. Never add a direct fallback while
+  the proxy is on — it would bypass the limit. A 429 is not a server failure.
+  As of 2026-11-27 the Fly server was never deployed and production still
+  routes browser → brouter.de; the ops order is in the runbook.
 - **Never call `createClient`/Realtime for this** — the health monitor uses
   the `supabaseAdmin` singleton and one row in `system_health_checks`
   (migration 126, apply by hand; the monitor is fail-soft without it).
@@ -565,8 +576,16 @@ result view). Phase 0 is measurement only and is wired into nothing:
   (default off). It is non-AI: `planComfortRoute` on BRouter with
   `forceTribos`. Don't turn the flag on before the guest rate limit and a
   self-hosted BRouter are in place (status list in the spec).
-- **`user_road_preferences.comfort_level` (1–5, migration 139, apply by
-  hand) is dual-written with `traffic_tolerance`** by `api/road-segments.js`
+- **Route Builder 2 uses Comfort 1–5 (Phase 1, 2026-11).** The Build form
+  and the Road preferences card set the level (`useRoadComfort`
+  `setComfortLevel`, `COMFORT_LEVEL_OPTIONS`); `brouter.js`
+  `tribosForProfileName` prefers it over the tolerance; every other router
+  still reads `trafficTolerance`. Every ride route gets a comfort check
+  (`useRouteComfort` → `validateComfortRoute` on the cached corridor ways) shown
+  as the shared `src/components/comfort/ComfortStrip.tsx`. A null validation
+  is "not enough road data", never a pass.
+- **`user_road_preferences.comfort_level` (1–5, migration 139, applied to
+  production 2026-11-27) is dual-written with `traffic_tolerance`** by `api/road-segments.js`
   (1–2 low, 3 medium, 4–5 high; tolerance → 2/3/4). Do not change or drop
   `traffic_tolerance`. Every router still reads it. Readers use
   `comfort_level ?? fromTolerance(traffic_tolerance)`. The API's mapping in

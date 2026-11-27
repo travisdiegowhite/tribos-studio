@@ -18,7 +18,7 @@ import { markSignupFromRoute } from '../telemetry/signupFromRoute';
 export interface GuestSaveModalProps {
   opened: boolean;
   onClose: () => void;
-  trigger: 'save' | 'gen_cap';
+  trigger: 'save' | 'gen_cap' | 'send';
 }
 
 const COPY: Record<GuestSaveModalProps['trigger'], { title: string; body: string }> = {
@@ -29,6 +29,10 @@ const COPY: Record<GuestSaveModalProps['trigger'], { title: string; body: string
   gen_cap: {
     title: "You've used today's free generations",
     body: 'Create a free account to keep generating routes. Anything you built stays right here.',
+  },
+  send: {
+    title: 'Send this route to your Garmin or Wahoo',
+    body: "Create a free account to send this route to your Garmin or Wahoo. It's safe right here — after signing up, connect your device in Settings and send it from this page.",
   },
 };
 

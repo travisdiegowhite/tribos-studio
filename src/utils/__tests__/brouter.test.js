@@ -196,3 +196,48 @@ describe('getBRouterDirections — Tribos profiles', () => {
     expect(calledBases()).toEqual([PUBLIC_BROUTER_URL, PUBLIC_BROUTER_URL]);
   });
 });
+
+describe('getBRouterDirections — routing proxy (VITE_ROUTING_PROXY)', () => {
+  it('lists only our own /api proxy, with no direct fallback to bypass the limit', () => {
+    vi.stubEnv('VITE_ROUTING_PROXY', 'true');
+    vi.stubEnv('VITE_BROUTER_URL', SELF);
+    const servers = brouterServers();
+    expect(servers).toHaveLength(1);
+    expect(servers[0]).toMatch(/\/api$/);
+  });
+
+  it('routes through /api/brouter and reports the proxy', async () => {
+    vi.stubEnv('VITE_ROUTING_PROXY', 'true');
+    fetchMock.mockResolvedValue(routeResponse());
+    const route = await getBRouterDirections(COORDS, { profile: 'trekking' });
+    expect(route).not.toBeNull();
+    expect(fetchMock.mock.calls[0][0]).toMatch(/\/api\/brouter\?lonlats=/);
+    expect(trackRouteBuilder).toHaveBeenCalledWith('brouter_server_used', expect.objectContaining({ server: 'proxy' }));
+  });
+
+  it('a 429 from the proxy is not a server failure: no retry, and the page is told', async () => {
+    vi.stubEnv('VITE_ROUTING_PROXY', 'true');
+    const heard = vi.fn();
+    window.addEventListener('tribos:routing-rate-limited', heard);
+    fetchMock.mockResolvedValue({
+      ok: false,
+      status: 429,
+      json: async () => ({ error: 'routing_rate_limited', guest: true }),
+      text: async () => '',
+    });
+    expect(await getBRouterDirections(COORDS, { profile: 'trekking' })).toBeNull();
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(heard).toHaveBeenCalledTimes(1);
+    window.removeEventListener('tribos:routing-rate-limited', heard);
+  });
+});
+
+describe('tribosForProfileName — Comfort 1–5', () => {
+  it('prefers the comfort level over the 3-step tolerance for trekking and gravel', () => {
+    const byTolerance = tribosForProfileName('trekking', 'low');
+    const byLevel = tribosForProfileName('trekking', 'low', null, 1);
+    expect(byLevel).not.toEqual(byTolerance);
+    expect(JSON.stringify(byLevel)).toMatch(/1/);
+    expect(tribosForProfileName('safety', 'high', null, 5)).toEqual(tribosForProfileName('safety', 'high'));
+  });
+});

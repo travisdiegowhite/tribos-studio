@@ -29,6 +29,7 @@ export const useRouteManipulation = ({
   // The rider's "Road comfort" choice, so a drag/add-waypoint re-snap uses the
   // same traffic costing as generation instead of profile defaults.
   const trafficTolerance = useRouteBuilderStore((s) => s.trafficTolerance);
+  const comfortLevel = useRouteBuilderStore((s) => s.comfortLevel);
 
   // History for undo/redo
   // Refs hold the actual data (no re-render on change), state drives UI reactivity
@@ -297,7 +298,11 @@ export const useRouteManipulation = ({
         const smartRoute = await getSmartCyclingRoute(waypointCoordinates, {
           profile: routingProfile,
           preferences: trafficTolerance
-            ? { trafficTolerance, routingPreferences: { trafficTolerance } }
+            ? {
+                trafficTolerance,
+                comfortLevel: comfortLevel ?? null,
+                routingPreferences: { trafficTolerance, comfortLevel: comfortLevel ?? null },
+              }
             : null,
           mapboxToken: mapboxToken,
           // Gather alternate lines and keep the calmest the rider's Road
@@ -430,7 +435,7 @@ export const useRouteManipulation = ({
       }
       return null;
     }
-  }, [waypoints, routingProfile, trafficTolerance, useSmartRouting, setRouteGeometry, setRouteStats, setElevationProfile, setRouteCues]);
+  }, [waypoints, routingProfile, trafficTolerance, comfortLevel, useSmartRouting, setRouteGeometry, setRouteStats, setElevationProfile, setRouteCues]);
 
   // === Build Freehand Route (straight lines between waypoints) ===
   // The freehand counterpart to snapToRoads: no routing engine, just direct

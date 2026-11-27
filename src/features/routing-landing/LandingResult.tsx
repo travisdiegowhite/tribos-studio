@@ -1,14 +1,16 @@
 /**
  * What the landing shows after "Make my route". A first cut of the result
- * view (spec §2) and the ladder states (§3): the headline stat, flagged
- * stretches as heads-ups, Download GPX, and the alternatives and refused
- * answers. The full restyle (comfort strip, Send to Garmin, save) is build
- * step 2 onward.
+ * view (spec §2) and the ladder states (§3): the headline stat, the comfort
+ * strip, flagged stretches as heads-ups with Show on map, "Edit, save or
+ * send" (hands the loop to Route Builder 2, where Save and Send to Garmin /
+ * Wahoo live), Download GPX, and the alternatives and refused answers.
+ * Alternatives mini-maps are still to come.
  *
  * Neither alternatives nor refused use error styling: they're answers.
  */
 
 import { Button } from '@mantine/core';
+import { ComfortStrip } from '../../components/comfort/ComfortStrip';
 import type { ComfortCandidate, ComfortPlan } from '../../utils/comfortLadder';
 import { formatMiles } from '../../utils/comfortLadder';
 import { comfortChip, type ComfortLevel } from '../../utils/comfortLevels';
@@ -25,9 +27,20 @@ interface Props {
   onShow: (c: ComfortCandidate) => void;
   onTryLevel: (level: ComfortLevel) => void;
   onTryAnother: () => void;
+  /** Zoom the map to a stretch (meters from the start). */
+  onFocus?: (start_m: number, end_m: number) => void;
+  /** Hand the shown loop to the route builder. */
+  onOpenInBuilder?: (c: ComfortCandidate) => void;
 }
 
-function RouteSummary({ c, onTryAnother }: { c: ComfortCandidate; onTryAnother: () => void }) {
+interface SummaryProps {
+  c: ComfortCandidate;
+  onTryAnother: () => void;
+  onFocus?: (start_m: number, end_m: number) => void;
+  onOpenInBuilder?: (c: ComfortCandidate) => void;
+}
+
+function RouteSummary({ c, onTryAnother, onFocus, onOpenInBuilder }: SummaryProps) {
   const v = c.validation;
   const flagged = v.headsUps.filter((h) => h.kind === 'flagged');
   const unknown = v.headsUps.filter((h) => h.kind === 'unknown');
@@ -52,6 +65,9 @@ function RouteSummary({ c, onTryAnother }: { c: ComfortCandidate; onTryAnother: 
         <strong className="rl-num">{Math.round(v.withinPct)}%</strong> {C.withinSuffix}
       </p>
       <p className="rl-sub">{flaggedLine(flagged.length)}</p>
+      <div className="rl-strip">
+        <ComfortStrip validation={v} units="mi" onSelectStretch={onFocus} compact />
+      </div>
       {[...flagged, ...unknown].length > 0 && (
         <ul className="rl-headsups">
           {[...flagged, ...unknown].map((h) => (
@@ -61,25 +77,42 @@ function RouteSummary({ c, onTryAnother }: { c: ComfortCandidate; onTryAnother: 
                 <span className="rl-num">{stretchLength(h.length_m)}</span> · {h.title}
               </p>
               {h.reasons.length > 0 && <p className="rl-headsup-reasons">{h.reasons.join(', ')}</p>}
+              {onFocus && (
+                <button
+                  type="button"
+                  className="rl-link-button"
+                  onClick={() => onFocus(h.start_m, h.start_m + h.length_m)}
+                >
+                  {C.showOnMap}
+                </button>
+              )}
             </li>
           ))}
         </ul>
       )}
       <div className="rl-actions">
-        <Button onClick={download}>{C.downloadGpx}</Button>
+        {onOpenInBuilder && (
+          <Button onClick={() => onOpenInBuilder(c)} data-testid="rl-open-in-builder">
+            {C.openInBuilder}
+          </Button>
+        )}
+        <Button variant={onOpenInBuilder ? 'default' : 'filled'} onClick={download}>
+          {C.downloadGpx}
+        </Button>
         <Button variant="default" onClick={onTryAnother}>
           {C.tryAnother}
         </Button>
       </div>
+      {onOpenInBuilder && <p className="rl-free">{C.openInBuilderHint}</p>}
     </section>
   );
 }
 
-export function LandingResult({ plan, shown, onShow, onTryLevel, onTryAnother }: Props) {
+export function LandingResult({ plan, shown, onShow, onTryLevel, onTryAnother, onFocus, onOpenInBuilder }: Props) {
   if (shown) {
     return (
       <>
-        <RouteSummary c={shown} onTryAnother={onTryAnother} />
+        <RouteSummary c={shown} onTryAnother={onTryAnother} onFocus={onFocus} onOpenInBuilder={onOpenInBuilder} />
         {plan.outcome === 'alternatives' && plan.alternatives.length > 1 && (
           <AlternativeList plan={plan} shown={shown} onShow={onShow} />
         )}

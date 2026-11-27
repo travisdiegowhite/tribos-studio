@@ -260,6 +260,22 @@ describe('RouteActionsPanel', () => {
       expect(persistence.save).not.toHaveBeenCalled();
     });
 
+    it('offers guests Send to Garmin / Wahoo, which opens the signup prompt for sending', async () => {
+      mockUseAuth.mockImplementation(() => ({ user: null }));
+      const { persistence } = renderPanel();
+      fireEvent.click(screen.getByTestId('rb2-export-route-button'));
+      fireEvent.click(await screen.findByTestId('rb2-guest-send-to-device'));
+      expect(await screen.findByText('Send this route to your Garmin or Wahoo')).toBeInTheDocument();
+      expect(persistence.pushToGarmin).not.toHaveBeenCalled();
+    });
+
+    it('does not show the guest send item to signed-in riders', async () => {
+      renderPanel();
+      fireEvent.click(screen.getByTestId('rb2-export-route-button'));
+      await screen.findByTestId('rb2-export-gpx');
+      expect(screen.queryByTestId('rb2-guest-send-to-device')).not.toBeInTheDocument();
+    });
+
     it('opens the normal save modal for signed-in users', async () => {
       renderPanel();
       fireEvent.click(screen.getByTestId('rb2-save-route-button'));

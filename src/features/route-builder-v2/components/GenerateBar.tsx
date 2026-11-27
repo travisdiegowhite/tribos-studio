@@ -31,13 +31,13 @@ import {
   useGenerateForm,
   SHAPE_OPTIONS,
   SPORT_OPTIONS,
-  ROAD_COMFORT_OPTIONS,
+  COMFORT_LEVEL_OPTIONS,
+  comfortLevelFromOption,
   TARGET_MODE_OPTIONS,
   type Goal,
   type Sport,
   type Surface,
   type Shape,
-  type RoadComfort,
   type TargetMode,
   type GenerateFormSeed,
 } from './useGenerateForm';
@@ -241,11 +241,15 @@ export function GenerateBar({
             </Box>
             {!f.isRun && (
               <Box style={{ flex: 1 }}>
-                <Text style={labelStyle}>Road comfort</Text>
+                <Text style={labelStyle}>Comfort</Text>
                 <Select
-                  data={ROAD_COMFORT_OPTIONS}
-                  value={f.roadComfort}
-                  onChange={(v) => v && f.setRoadComfort(v as RoadComfort)}
+                  data-testid="rb2-comfort-level"
+                  data={COMFORT_LEVEL_OPTIONS}
+                  value={String(f.comfortLevel)}
+                  onChange={(v) => {
+                    const level = comfortLevelFromOption(v);
+                    if (level) f.setComfortLevel(level);
+                  }}
                   disabled={generation.isGenerating}
                   styles={inputStyles}
                   allowDeselect={false}

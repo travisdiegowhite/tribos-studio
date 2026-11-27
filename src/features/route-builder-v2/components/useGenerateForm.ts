@@ -19,10 +19,16 @@ import { geocodeWaypoint } from '../../../utils/geocoding.js';
 import { useSpeedProfile, useRunPace } from '../../../hooks/route-builder';
 import { flatSpeedKmh } from '../../../utils/routeTargets.js';
 import { useRouteBuilderStore } from '../../../stores/routeBuilderStore';
-import { useRoadComfort, ROAD_COMFORT_OPTIONS } from '../../../hooks/route-builder/useRoadComfort';
+import {
+  useRoadComfort,
+  ROAD_COMFORT_OPTIONS,
+  COMFORT_LEVEL_OPTIONS,
+  COMFORT_LEVEL_SHORT_OPTIONS,
+  comfortLevelFromOption,
+} from '../../../hooks/route-builder/useRoadComfort';
 import type { TrafficTolerance } from '../../../utils/trafficStress';
 
-export { ROAD_COMFORT_OPTIONS };
+export { ROAD_COMFORT_OPTIONS, COMFORT_LEVEL_OPTIONS, COMFORT_LEVEL_SHORT_OPTIONS, comfortLevelFromOption };
 export type RoadComfort = TrafficTolerance;
 
 export type Goal =
@@ -212,7 +218,7 @@ export function useGenerateForm({
 
   // "Road comfort" is a persisted rider preference (store + server), not
   // per-form state: it applies to chat generation and manual edits too.
-  const { roadComfort, setRoadComfort } = useRoadComfort();
+  const { roadComfort, setRoadComfort, comfortLevel, setComfortLevel } = useRoadComfort();
 
   // The rider's own pace, so the derived field below is their estimate and
   // not a generic one. Cached at module scope, shared with the ETA.
@@ -315,6 +321,7 @@ export function useGenerateForm({
       surface: effectiveSurface,
       shape,
       road_comfort: isRun ? null : roadComfort,
+      comfort_level: isRun ? null : comfortLevel,
       has_distance: distanceKm !== '',
       has_elevation: elevationGainM !== '',
     });
@@ -354,6 +361,7 @@ export function useGenerateForm({
       elevation_gain_m: elevationGainM === '' ? undefined : elevationGainM,
       // Road comfort is a cycling preference (traffic stress on a bike).
       traffic_tolerance: isRun ? undefined : roadComfort,
+      comfort_level: isRun ? undefined : comfortLevel,
     });
   }, [
     generation,
@@ -367,6 +375,7 @@ export function useGenerateForm({
     surfaceProfile,
     shape,
     roadComfort,
+    comfortLevel,
     distanceKm,
     elevationGainM,
     resolveStartCoord,
@@ -413,6 +422,8 @@ export function useGenerateForm({
     setShape,
     roadComfort,
     setRoadComfort,
+    comfortLevel,
+    setComfortLevel,
     startLocation,
     setStartLocation,
     distanceKm,

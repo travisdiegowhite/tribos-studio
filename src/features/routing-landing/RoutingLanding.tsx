@@ -8,7 +8,9 @@
  */
 
 import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
+import { useAuth } from '../../contexts/AuthContext.jsx';
+import { handOffToBuilder, BUILDER_HANDOFF_PATH } from './handOffToBuilder';
 import { Autocomplete, Button } from '@mantine/core';
 import { useMediaQuery } from '@mantine/hooks';
 import SEO from '../../components/SEO';
@@ -52,6 +54,10 @@ export default function RoutingLanding() {
   const [status, setStatus] = useState<Status>({ kind: 'idle' });
   const [shown, setShown] = useState<ComfortCandidate | null>(null);
   const [bearingDeg, setBearingDeg] = useState(0);
+  const [focus, setFocus] = useState<{ start_m: number; end_m: number } | null>(null);
+  const navigate = useNavigate();
+  const { user } = useAuth() as { user: { id: string } | null };
+  const isGuest = !user;
   // Desktop: the first-visit card overlays the map column. Phone: above the form.
   const wide = useMediaQuery('(min-width: 62em)', true, { getInitialValueInEffect: false });
   const searchAbort = useRef<AbortController | null>(null);
@@ -120,7 +126,7 @@ export default function RoutingLanding() {
         surface: f.surface,
         comfort: f.comfortLevel,
         has_location: true,
-        is_guest: true,
+        is_guest: isGuest,
       });
       const t0 = performance.now();
       try {
@@ -135,13 +141,32 @@ export default function RoutingLanding() {
         trackLanding('route_result', routeResultProps(plan, Math.round(performance.now() - t0)));
         setStatus({ kind: 'done', plan });
         setShown(plan.route);
+        setFocus(null);
       } catch {
         if (id !== runId.current) return;
         trackLanding('route_result', { outcome: 'error', latency_ms: Math.round(performance.now() - t0) });
         setStatus({ kind: 'error', message: C.result.engineError });
       }
     },
-    [],
+    [isGuest],
+  );
+
+  const showCandidate = useCallback((c: ComfortCandidate) => {
+    setShown(c);
+    setFocus(null);
+  }, []);
+
+  const focusStretch = useCallback((start_m: number, end_m: number) => {
+    setFocus({ start_m, end_m });
+  }, []);
+
+  const openInBuilder = useCallback(
+    (c: ComfortCandidate) => {
+      handOffToBuilder(c, form.surface);
+      trackLanding('route_exported', { destination: 'builder', kind: c.kind, level: c.level, is_guest: isGuest });
+      navigate(BUILDER_HANDOFF_PATH);
+    },
+    [form.surface, isGuest, navigate],
   );
 
   const onSubmit = (e: FormEvent) => {
@@ -252,7 +277,15 @@ export default function RoutingLanding() {
 
           <div aria-live="polite">
             {status.kind === 'done' && (
-              <LandingResult plan={status.plan} shown={shown} onShow={setShown} onTryLevel={tryLevel} onTryAnother={tryAnother} />
+              <LandingResult
+                plan={status.plan}
+                shown={shown}
+                onShow={showCandidate}
+                onTryLevel={tryLevel}
+                onTryAnother={tryAnother}
+                onFocus={focusStretch}
+                onOpenInBuilder={openInBuilder}
+              />
             )}
             {status.kind === 'error' && <p className="rl-stat-plain">{status.message}</p>}
           </div>
@@ -260,7 +293,7 @@ export default function RoutingLanding() {
 
         <div className="rl-right">
           {showCard && wide && <FirstVisitCard onDismiss={dismissCard} />}
-          <LandingMap start={shown?.start ?? form.start} route={shown} />
+          <LandingMap start={shown?.start ?? form.start} route={shown} focus={focus} />
         </div>
       </main>
 

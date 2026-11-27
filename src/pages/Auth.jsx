@@ -143,8 +143,9 @@ function Auth() {
         await markBetaSignupActivated(email);
         clearReturnTo();
         // Guests arriving from the route builder go back to their
-        // in-progress route instead of /today.
-        navigate(returnTo || '/today');
+        // in-progress route; everyone else goes to '/', where RootRoute picks
+        // their home (src/utils/signedInHome.ts).
+        navigate(returnTo || '/');
       }
     } catch (err) {
       console.error('Auth error:', err);

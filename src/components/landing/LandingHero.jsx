@@ -67,21 +67,22 @@ export default function LandingHero() {
     <section className="lp-wrap">
       <div className="lp-hero">
         <div style={{ display: 'flex', flexDirection: 'column', gap: 28, paddingTop: 16 }}>
-          <h1 className="lp-hero-title">Your cycling, all in one place.</h1>
+          <h1 className="lp-hero-title">Routes on roads you&rsquo;d actually ride.</h1>
           <p className="lp-lede">
-            Routes, a training calendar, every ride synced and a coach that reads all of it.
-            tribos picks today&rsquo;s session, then draws a road to ride it on: climbs where the
-            intervals go, quiet lanes on recovery days.
+            Pick a start, a distance and how much traffic you&rsquo;re comfortable with. tribos draws
+            the loop, shows every stretch that goes above your comfort, and sends it to your Garmin
+            or Wahoo. The route builder is free.
           </p>
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 24, alignItems: 'center' }}>
-            <Button component={Link} to="/ride/new" size="lg" className="lp-cta">
-              Build a route
+            <Button component={Link} to="/ride/start" size="lg" className="lp-cta">
+              Make a route
             </Button>
             <span className="tribos-stamp">No account needed</span>
           </div>
           <p className="lp-hero-alt">
-            Or <Link to="/auth?mode=signup">create a free account</Link> to sync your rides and
-            get a plan.
+            Want to draw it yourself? <Link to="/ride/new">Open the route builder</Link>, or{' '}
+            <Link to="/auth?mode=signup">create a free account</Link> to save routes and sync your
+            rides.
           </p>
         </div>
 

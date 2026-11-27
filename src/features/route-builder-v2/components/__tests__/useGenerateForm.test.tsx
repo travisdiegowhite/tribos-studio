@@ -156,3 +156,23 @@ describe('useGenerateForm road comfort', () => {
     expect(generate).toHaveBeenCalledWith(expect.objectContaining({ traffic_tolerance: 'low' }));
   });
 });
+
+describe('useGenerateForm comfort level (1–5)', () => {
+  it('submits the comfort level and its mapped tolerance', async () => {
+    const generate = vi.fn();
+    const gen = { ...generation, generate } as unknown as UseAIGenerationReturn;
+    const { result } = renderHook(() =>
+      useGenerateForm({ generation: gen, defaultStart: [-105, 40] }),
+    );
+    act(() => result.current.setComfortLevel(1));
+    expect(result.current.comfortLevel).toBe(1);
+    // Comfort 1 maps to the 'low' tolerance every other router still reads.
+    expect(result.current.roadComfort).toBe('low');
+    await act(async () => {
+      await result.current.onSubmit();
+    });
+    expect(generate).toHaveBeenCalledWith(
+      expect.objectContaining({ comfort_level: 1, traffic_tolerance: 'low' }),
+    );
+  });
+});

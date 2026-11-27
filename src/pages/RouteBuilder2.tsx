@@ -97,6 +97,10 @@ import { TrafficStressLayer } from '../features/route-builder-v2/layers/TrafficS
 import { useRouteStress } from '../hooks/route-builder/useRouteStress';
 import { useRouteSurface } from '../hooks/route-builder/useRouteSurface';
 import { useHasRideHistory } from '../hooks/route-builder/useHasRideHistory';
+import { useRouteComfort } from '../hooks/route-builder/useRouteComfort';
+import { useRoadComfort } from '../hooks/route-builder/useRoadComfort';
+import { ComfortStrip } from '../components/comfort/ComfortStrip';
+import { sliceLineByDistance } from '../utils/lineSlice';
 import { consumeSignupFromRoute } from '../features/route-builder-v2/telemetry/signupFromRoute';
 import { GradientLayer } from '../features/route-builder-v2/layers/GradientLayer';
 import { POILayer } from '../features/route-builder-v2/layers/POILayer';
@@ -817,6 +821,51 @@ export default function RouteBuilder2() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchParams, user?.id]);
 
+  // A loop handed over from the routing landing (/ride/start "Edit, save or
+  // send", src/features/routing-landing/handOffToBuilder.ts) is already in
+  // the persisted store. Fit the map to it, start a fresh edit history and
+  // backfill climbing (the comfort ladder doesn't carry elevation). Works
+  // for guests: Save and Send go through the guest plumbing from here.
+  const fromLandingHandledRef = useRef(false);
+  useEffect(() => {
+    if (searchParams.get('from') !== 'landing' || fromLandingHandledRef.current) return;
+    fromLandingHandledRef.current = true;
+    const coords = (useRouteBuilderStore.getState().routeGeometry as { coordinates?: Coordinate[] } | null)
+      ?.coordinates;
+    if (coords?.length) {
+      map.fitBounds(coords);
+      clearCheckpoints();
+      setPendingEditReview(null);
+      trackRb2('route_from_landing', { points: coords.length });
+      void (async () => {
+        try {
+          const [{ getElevationData, calculateElevationStats }] = await Promise.all([
+            import('../utils/elevation'),
+          ]);
+          const profile = await getElevationData(coords as [number, number][]);
+          const { gain } = calculateElevationStats(profile);
+          const state = useRouteBuilderStore.getState();
+          // Only if the same route is still on the map and nothing set climbing yet.
+          const still = (state.routeGeometry as { coordinates?: Coordinate[] } | null)?.coordinates === coords;
+          if (still && gain > 0 && !(state.routeStats?.elevation_gain_m > 0)) {
+            state.setRouteStats((prev: { elevation_gain_m: number }) => ({ ...prev, elevation_gain_m: Math.round(gain) }));
+          }
+        } catch {
+          // climbing stays unknown (0); the elevation panel still loads its own profile
+        }
+      })();
+    }
+    setSearchParams(
+      (prev) => {
+        const p = new URLSearchParams(prev);
+        p.delete('from');
+        return p;
+      },
+      { replace: true },
+    );
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams]);
+
   const handleClearRoute = () => {
     clearRouteInStore();
     generation.clearSuggestions();
@@ -847,14 +896,16 @@ export default function RouteBuilder2() {
   };
 
   // Recompute geometry for existing waypoints when the snap mode or routing
-  // profile changes (skip the initial mount). Runs post-render so the manual
-  // hook reads the fresh store values.
-  const settingsRebuildRef = useRef(true);
+  // profile changes. Runs post-render so the manual hook reads the fresh store
+  // values. Compares against the last values seen rather than skipping "the
+  // first run": StrictMode runs mount effects twice, and the second run used
+  // to re-route every loaded route (a landing loop, a saved route) through the
+  // waypoints, replacing the line the rider chose.
+  const settingsSeenRef = useRef<{ snap: unknown; profile: unknown } | null>(null);
   useEffect(() => {
-    if (settingsRebuildRef.current) {
-      settingsRebuildRef.current = false;
-      return;
-    }
+    const seen = settingsSeenRef.current;
+    settingsSeenRef.current = { snap: snapToRoads, profile: routeProfile };
+    if (!seen || (seen.snap === snapToRoads && seen.profile === routeProfile)) return;
     if (Array.isArray(waypoints) && waypoints.length >= 2) {
       void map.rebuildRoute();
     }
@@ -1504,6 +1555,20 @@ export default function RouteBuilder2() {
   // overlay, its summary bar, the stats card and the ETA read one result.
   const surface = useRouteSurface(geometryForLayers);
   const surfaceSegments = surface.result?.segments ?? null;
+  // Comfort check: the route against the rider's Comfort 1–5, from the same
+  // cached corridor ways. Not for runs (a cycling comfort scale).
+  const { comfortLevel } = useRoadComfort();
+  const comfort = useRouteComfort(isRun ? null : geometryForLayers, comfortLevel);
+  const handleComfortStretch = useCallback(
+    (start_m: number, end_m: number) => {
+      const coords = geometryForLayers?.coordinates;
+      if (!coords) return;
+      const part = sliceLineByDistance(coords, start_m, end_m);
+      if (part.length >= 2) map.fitBounds(part);
+      trackRb2('comfort_stretch_shown', { start_m: Math.round(start_m), length_m: Math.round(end_m - start_m) });
+    },
+    [geometryForLayers, map],
+  );
 
   // Scale the attached workout's structure onto the current route (km-keyed
   // cues), reused by the elevation bands and the map intervals line.
@@ -1756,6 +1821,26 @@ export default function RouteBuilder2() {
       />
     ) : null;
 
+  const comfortNode =
+    hasRoute && !isRun ? (
+      <Box
+        data-testid="rb2-comfort-card"
+        style={{
+          background: 'var(--color-bg, #FFFFFF)',
+          border: '1px solid var(--color-rule, #D6D6E0)',
+          padding: '8px 10px',
+        }}
+      >
+        <ComfortStrip
+          validation={comfort.validation}
+          loading={comfort.loading}
+          units={isImperial ? 'mi' : 'km'}
+          onSelectStretch={handleComfortStretch}
+          compact={isMobile}
+        />
+      </Box>
+    ) : null;
+
   const loadingMessage = editing.isApplying ? 'Applying edit…' : 'Updating route…';
 
   // Full generation gets the animated building overlay; quick operations
@@ -1995,6 +2080,7 @@ export default function RouteBuilder2() {
               statsNode ? (
                 <>
                   {statsNode}
+                  {comfortNode && <Box style={{ marginTop: 8 }}>{comfortNode}</Box>}
                   {visibility.stress && (
                     <Box style={{ marginTop: 8 }}>
                       <TrafficStressLegend
@@ -2246,6 +2332,7 @@ export default function RouteBuilder2() {
       icon: <ChartLineUp size={18} />,
       content: hasRoute ? (
         <>
+          {comfortNode && <Box style={cardStyle}>{comfortNode}</Box>}
           <Box style={cardStyle}>
             <WeatherPanel weather={weather} isImperial={isImperial} />
           </Box>
