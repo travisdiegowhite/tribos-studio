@@ -238,5 +238,19 @@ export const RATE_LIMITS = {
     limit: 100,
     windowMinutes: 1,
     name: 'coros-webhook'
+  },
+  // Routing proxy (api/brouter.js, api/brouter/profile.js, api/stadia-route.js).
+  // One routing landing request can spend up to 12 BRouter calls
+  // (comfortLadder budget), so 150/h per guest IP is about a dozen plans.
+  // Signed-in editing snaps on every drag, hence the much higher user limit.
+  ROUTING_USER: {
+    limit: 1500,
+    windowMinutes: 60,
+    name: 'routing'
+  },
+  ROUTING_GUEST: {
+    limit: 150,
+    windowMinutes: 60,
+    name: 'routing-guest'
   }
 };

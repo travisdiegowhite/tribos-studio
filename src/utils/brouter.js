@@ -22,6 +22,12 @@ import { brouterUsesFerry } from './ferryGuard';
 import { taggedWaysFromBRouterProperties, rememberTaggedWays } from './wayTags';
 import { ensureProfileId, forgetProfileId, tribosParamsFor } from './brouterProfiles';
 import { trackRouteBuilder } from './routeBuilderTelemetry';
+import {
+  routingProxyEnabled,
+  routingProxyBase,
+  routingAuthHeaders,
+  announceRoutingRateLimited,
+} from './routingProxy';
 
 // BRouter profiles for different cycling types
 export const BROUTER_PROFILES = {
@@ -43,8 +49,13 @@ function normalizeBase(url) {
   return String(url || '').trim().replace(/\/+$/, '').replace(/\/brouter$/, '');
 }
 
-/** Ordered, de-duplicated server list: the self-hosted one first when set. */
+/**
+ * Ordered, de-duplicated server list: the self-hosted one first when set.
+ * With VITE_ROUTING_PROXY on, only our own /api proxy — no direct fallback,
+ * which would let a client step around the routing rate limit.
+ */
 export function brouterServers() {
+  if (routingProxyEnabled()) return [normalizeBase(routingProxyBase())];
   const self = normalizeBase(import.meta.env.VITE_BROUTER_URL);
   const servers = [];
   if (self && /^https?:\/\//.test(self)) servers.push(self);
@@ -177,7 +188,7 @@ export async function getBRouterDirections(coordinates, options = {}) {
     if (result.route) {
       noteSuccess(base);
       trackRouteBuilder('brouter_server_used', {
-        server: base === PUBLIC_BROUTER_URL ? 'public' : 'self',
+        server: routingProxyEnabled() ? 'proxy' : base === PUBLIC_BROUTER_URL ? 'public' : 'self',
         tribos: !!resolved.tribosParams,
         duration_ms: Date.now() - startMs,
       });
@@ -186,6 +197,11 @@ export async function getBRouterDirections(coordinates, options = {}) {
     if (result.noRoute) {
       // The server answered and there is no route: another server will say
       // the same. Not a server failure.
+      return null;
+    }
+    if (result.rateLimited) {
+      // The routing proxy refused (429): not a server failure, and retrying
+      // elsewhere would be exactly what the limit is there to stop.
       return null;
     }
     noteFailure(base);
@@ -211,7 +227,20 @@ async function requestRoute(base, lonlats, profile, alternativeidx, waypointCoun
   try {
     // No SLA on the public instance — without a timeout a hung request
     // stalls the whole routing fallback chain.
-    const response = await fetch(url, { signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS) });
+    const headers = await routingAuthHeaders();
+    const response = await fetch(url, { headers, signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS) });
+
+    if (response.status === 429) {
+      let detail = {};
+      try {
+        detail = await response.json();
+      } catch {
+        // body not JSON — the status says enough
+      }
+      announceRoutingRateLimited({ guest: detail?.guest, resetAt: detail?.resetAt });
+      trackRouteBuilder('routing_rate_limited', { provider: 'brouter', guest: !!detail?.guest });
+      return { rateLimited: true };
+    }
 
     if (!response.ok) {
       const errorText = await response.text();

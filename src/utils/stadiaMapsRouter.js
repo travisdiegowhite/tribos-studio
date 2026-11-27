@@ -12,6 +12,12 @@ import { valhallaTypeToDirection } from './routeCues';
 import { assertCoordinate } from '../types/geo';
 import { valhallaTripUsesFerry, FERRY_REJECTED_REASON } from './ferryGuard';
 import { isRunProfile } from './runProfiles';
+import {
+  routingProxyEnabled,
+  routingAuthHeaders,
+  stadiaProxyUrl,
+  announceRoutingRateLimited,
+} from './routingProxy';
 
 const STADIA_MAPS_API_URL = 'https://api.stadiamaps.com/route/v1';
 
@@ -347,9 +353,10 @@ export async function getStadiaMapsRoute(waypoints, options = {}) {
     alternates = 0
   } = options;
 
+  const viaProxy = routingProxyEnabled();
   const apiKey = import.meta.env.VITE_STADIA_API_KEY;
 
-  if (!apiKey) {
+  if (!viaProxy && !apiKey) {
     throw new Error('Stadia Maps API key not configured. Add VITE_STADIA_API_KEY to .env');
   }
 
@@ -395,13 +402,15 @@ export async function getStadiaMapsRoute(waypoints, options = {}) {
   console.log('📊 Stadia Maps costing options:', JSON.stringify(costing_options[costing], null, 2));
 
   try {
-    // Pass API key as query parameter for CORS compatibility
-    const url = `${STADIA_MAPS_API_URL}?api_key=${apiKey}`;
+    // Behind the routing proxy the server adds the key (and rate limits);
+    // otherwise the key goes in the query string for CORS compatibility.
+    const url = viaProxy ? stadiaProxyUrl() : `${STADIA_MAPS_API_URL}?api_key=${apiKey}`;
 
     const response = await fetch(url, {
       method: 'POST',
       headers: {
-        'Content-Type': 'application/json'
+        'Content-Type': 'application/json',
+        ...(await routingAuthHeaders()),
       },
       body: JSON.stringify(requestBody),
       signal: AbortSignal.timeout(12000) // 12s — prevent indefinite hangs
@@ -414,6 +423,16 @@ export async function getStadiaMapsRoute(waypoints, options = {}) {
       if (response.status === 401) {
         throw new Error('Invalid Stadia Maps API key. Check VITE_STADIA_API_KEY in .env');
       } else if (response.status === 429) {
+        if (viaProxy) {
+          let detail = {};
+          try {
+            detail = JSON.parse(errorText);
+          } catch {
+            // not JSON — the status says enough
+          }
+          announceRoutingRateLimited({ guest: detail?.guest, resetAt: detail?.resetAt });
+          throw new Error('routing_rate_limited');
+        }
         throw new Error('Rate limit exceeded. Upgrade Stadia Maps tier or implement caching');
       } else if (response.status === 400) {
         throw new Error(`Invalid request: ${errorText}`);
@@ -943,8 +962,9 @@ function decodePolyline(encoded) {
  *   third elements tolerated)
  */
 export async function getStadiaCuesForGeometry(coordinates, { costing = 'bicycle' } = {}) {
+  const viaProxy = routingProxyEnabled();
   const apiKey = import.meta.env.VITE_STADIA_API_KEY;
-  if (!apiKey || !Array.isArray(coordinates) || coordinates.length < 10) return null;
+  if ((!viaProxy && !apiKey) || !Array.isArray(coordinates) || coordinates.length < 10) return null;
 
   try {
     // Valhalla's route action caps locations (20 by default), so sample
@@ -964,9 +984,9 @@ export async function getStadiaCuesForGeometry(coordinates, { costing = 'bicycle
       });
     }
 
-    const response = await fetch(`${STADIA_MAPS_API_URL}?api_key=${apiKey}`, {
+    const response = await fetch(viaProxy ? stadiaProxyUrl() : `${STADIA_MAPS_API_URL}?api_key=${apiKey}`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', ...(await routingAuthHeaders()) },
       body: JSON.stringify({
         locations,
         // A run's cues must be rebuilt on footpaths, not bike lanes.
@@ -1037,7 +1057,8 @@ export async function getStadiaCuesForGeometry(coordinates, { costing = 'bicycle
 export function isStadiaMapsAvailable() {
   const apiKey = import.meta.env.VITE_STADIA_API_KEY;
   const enabled = import.meta.env.VITE_USE_STADIA_MAPS !== 'false'; // Default to true
-  return !!(apiKey && enabled);
+  // Behind the routing proxy the key lives on the server, not in the bundle.
+  return !!((apiKey || routingProxyEnabled()) && enabled);
 }
 
 /**
