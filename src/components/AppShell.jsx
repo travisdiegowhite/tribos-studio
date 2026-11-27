@@ -32,7 +32,10 @@ import { useActivation } from '../hooks/useActivation.ts';
 import { formatDistance } from '../utils/units';
 import { ListChecks } from '@phosphor-icons/react';
 
-// Primary navigation: TODAY · RIDE · TRAIN · COACH · GARAGE.
+// Primary navigation: RIDE · TODAY · TRAIN · COACH · GARAGE. Ride is first
+// since the route builder is the free core of tribos (Phase 1,
+// docs/ROUTE-BUILDER-COMPETITIVE-PLAN.md); the wordmark goes to '/', which
+// sends a signed-in rider to their home (src/utils/signedInHome.ts).
 // COACH is the full-height conversation (src/features/coach-chat/); the Cmd+K
 // bar and the Today panel are quick entry points that link into it.
 // GARAGE is the gear tracker (bikes, parts, wear); /gear redirects to it.
@@ -42,9 +45,9 @@ import { ListChecks } from '@phosphor-icons/react';
 //
 // The conditional CALENDAR tab is gone with the parallel surface it opened:
 // /train IS the calendar_entries calendar now, for everyone.
-const NAV_ITEMS = [
-  { path: '/today', label: 'Today' },
+export const NAV_ITEMS = [
   { path: '/ride', label: 'Ride' },
+  { path: '/today', label: 'Today' },
   { path: '/train', label: 'Train' },
   { path: '/coach', label: 'Coach' },
   { path: '/garage', label: 'Garage' },
@@ -161,7 +164,7 @@ function AppShell({ children, fullWidth = false, hideNav = false }) {
               }}
             >
               {/* Left: wordmark */}
-              <Link to="/today" style={{ textDecoration: 'none' }}>
+              <Link to="/" style={{ textDecoration: 'none' }}>
                 <Text
                   style={{
                     fontFamily: 'var(--font-display)',

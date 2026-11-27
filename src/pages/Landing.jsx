@@ -19,7 +19,7 @@ function Landing() {
   return (
     <div className="lp-shell">
       <SEO
-        title="tribos.studio - Cycling Route Builder, Coach & Training Platform"
+        title="tribos.studio - Free Cycling Route Builder for Quieter Roads"
         description="tribos puts your cycling in one place: an AI route builder, a training calendar, a coach that reads your real rides, ride sync from Strava, Garmin and Wahoo, fitness tracking and a garage for your bikes. Build a route free with no account."
         keywords="cycling route builder, cycling route planner, cycling coach, cycling training platform, bike route builder, cycling training plans, strava route builder, garmin route sync, cycling analytics, cycling power analysis"
         url="https://tribos.studio/"

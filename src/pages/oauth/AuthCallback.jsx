@@ -11,7 +11,8 @@ import { tokens } from '../../theme';
 // page, not the dashboard.
 function postAuthDestination() {
   if (hasPendingPasswordRecovery()) return '/auth/reset-password';
-  return consumeReturnTo() || '/today';
+  // '/' lets RootRoute pick the rider's home (src/utils/signedInHome.ts).
+  return consumeReturnTo() || '/';
 }
 
 function AuthCallback() {
