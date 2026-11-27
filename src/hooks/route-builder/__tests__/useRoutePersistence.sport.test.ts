@@ -3,16 +3,22 @@ import { renderHook, act } from '@testing-library/react';
 import { useRoutePersistence } from '../useRoutePersistence';
 import { useRouteBuilderStore } from '../../../stores/routeBuilderStore';
 
-vi.mock('../../../utils/routesService', () => ({
+vi.mock('../../../utils/routesService', () => {
+  const getRoute = vi.fn();
+  return {
   saveRoute: vi.fn(),
-  getRoute: vi.fn(),
+  getRoute,
+  // The hook loads through getRouteForViewer; route it to the getRoute mock.
+  getRouteForViewer: (id: string) => getRoute(id),
+  getPublicRoute: vi.fn(),
   listRoutes: vi.fn().mockResolvedValue([]),
   deleteRoute: vi.fn(),
   setRouteVisibility: vi.fn(),
   saveDraft: vi.fn(),
   getDraft: vi.fn(),
   deleteDraft: vi.fn(),
-}));
+};
+});
 vi.mock('../../../utils/routeExport', () => ({ exportAndDownloadRoute: vi.fn() }));
 
 import * as routesService from '../../../utils/routesService';

@@ -113,6 +113,22 @@ export async function getRoute(routeId) {
 }
 
 /**
+ * Load a route for whoever is looking: the owner-aware `get_route` when
+ * signed in, or the public read (`get_public_route`) for a signed-out visitor
+ * opening a shared link in the builder. A public result carries
+ * `is_owner: false` so the builder treats it as an unsaved copy. Returns null
+ * when a guest asks for a route that isn't shared.
+ * @param {string} routeId - Route UUID
+ * @returns {Promise<Object|null>}
+ */
+export async function getRouteForViewer(routeId) {
+  const userId = await getCurrentUserId();
+  if (userId) return getRoute(routeId);
+  const route = await getPublicRoute(routeId);
+  return route ? { ...route, is_owner: false } : null;
+}
+
+/**
  * Set a route's visibility ('private' | 'public'). Owner only.
  * @param {string} routeId - Route UUID
  * @param {'private'|'public'} visibility

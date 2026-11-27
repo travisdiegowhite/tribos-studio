@@ -18,16 +18,22 @@ vi.mock('../../../utils/aiRouteGenerator.js', () => ({
 vi.mock('../elevationEnrichment', () => ({
   enrichRouteElevation: vi.fn(async (snap) => snap),
 }));
-vi.mock('../../../utils/routesService', () => ({
+vi.mock('../../../utils/routesService', () => {
+  const getRoute = vi.fn();
+  return {
   saveRoute: vi.fn(),
-  getRoute: vi.fn(),
+  getRoute,
+  // The hook loads through getRouteForViewer; route it to the getRoute mock.
+  getRouteForViewer: (id: string) => getRoute(id),
+  getPublicRoute: vi.fn(),
   listRoutes: vi.fn().mockResolvedValue([]),
   deleteRoute: vi.fn().mockResolvedValue({ success: true }),
   setRouteVisibility: vi.fn().mockResolvedValue({ visibility: 'public' }),
   saveDraft: vi.fn().mockResolvedValue({ id: 'draft-1' }),
   getDraft: vi.fn().mockResolvedValue(null),
   deleteDraft: vi.fn().mockResolvedValue(true),
-}));
+};
+});
 vi.mock('../../../utils/routeExport', () => ({ exportAndDownloadRoute: vi.fn() }));
 vi.mock('../../../utils/gpxParser.js', () => ({ parseGpxFile: vi.fn() }));
 vi.mock('../../../utils/garminService', () => ({ garminService: {} }));
@@ -103,7 +109,9 @@ describe('route-builder integration smoke: generate → save → load', () => {
     const saveArg = vi.mocked(routesService.saveRoute).mock.calls[0][0] as Record<string, unknown>;
     expect(saveArg.name).toBe('Sunrise Loop');
     expect(saveArg.description).toBe('Gravel out east');
-    expect(saveArg.generated_by).toBe('rb2');
+    // An AI-generated route is saved as 'ai' so the library's Smart Generated
+    // filter finds it (RB2 used to save everything as 'rb2').
+    expect(saveArg.generated_by).toBe('ai');
     expect(result.current.persist.savedRouteId).toBe('route-smoke');
 
     // 3. Load a (different) saved route → store roundtrips name/description/geometry.

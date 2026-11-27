@@ -9,6 +9,7 @@ import { Coffee, Door, Drop, Eye, Wrench } from '@phosphor-icons/react';
 
 const ICON_MAP = {
   water: Drop,
+  coffee: Coffee,
   food: Coffee,
   bike_shop: Wrench,
   viewpoint: Eye,

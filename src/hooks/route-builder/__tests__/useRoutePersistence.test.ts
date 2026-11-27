@@ -3,16 +3,22 @@ import { renderHook, act } from '@testing-library/react';
 import { useRoutePersistence } from '../useRoutePersistence';
 import { useRouteBuilderStore } from '../../../stores/routeBuilderStore';
 
-vi.mock('../../../utils/routesService', () => ({
+vi.mock('../../../utils/routesService', () => {
+  const getRoute = vi.fn();
+  return {
   saveRoute: vi.fn(),
-  getRoute: vi.fn(),
+  getRoute,
+  // The hook loads through getRouteForViewer; route it to the getRoute mock.
+  getRouteForViewer: (id: string) => getRoute(id),
+  getPublicRoute: vi.fn(),
   listRoutes: vi.fn().mockResolvedValue([]),
   deleteRoute: vi.fn().mockResolvedValue({ success: true }),
   setRouteVisibility: vi.fn().mockResolvedValue({ visibility: 'public' }),
   saveDraft: vi.fn().mockResolvedValue({ id: 'draft-1' }),
   getDraft: vi.fn().mockResolvedValue(null),
   deleteDraft: vi.fn().mockResolvedValue(true),
-}));
+};
+});
 
 vi.mock('../../../utils/routeExport', () => ({
   exportAndDownloadRoute: vi.fn(),
@@ -213,5 +219,72 @@ describe('useRoutePersistence', () => {
       'route-abc',
       'public',
     );
+  });
+
+  describe('route origin → generated_by', () => {
+    it("saves a plain RB2 route as 'rb2'", async () => {
+      seedRoute();
+      vi.mocked(routesService.saveRoute).mockResolvedValue({ id: 'r1' } as any);
+      const { result } = renderHook(() => useRoutePersistence());
+      await act(async () => {
+        await result.current.save();
+      });
+      const call = vi.mocked(routesService.saveRoute).mock.calls[0][0] as Record<string, unknown>;
+      expect(call.generated_by).toBe('rb2');
+    });
+
+    it("saves an AI-originated route as 'ai'", async () => {
+      seedRoute();
+      useRouteBuilderStore.getState().setRouteOrigin('ai');
+      vi.mocked(routesService.saveRoute).mockResolvedValue({ id: 'r2' } as any);
+      const { result } = renderHook(() => useRoutePersistence());
+      await act(async () => {
+        await result.current.save();
+      });
+      const call = vi.mocked(routesService.saveRoute).mock.calls[0][0] as Record<string, unknown>;
+      expect(call.generated_by).toBe('ai');
+    });
+
+    it('loading a route restores its origin, and clearing resets it', async () => {
+      vi.mocked(routesService.getRoute).mockResolvedValue({
+        id: 'r3',
+        name: 'Smart loop',
+        geometry: { type: 'LineString', coordinates: [[-105, 40], [-105.1, 40.1]] },
+        generated_by: 'ai',
+        waypoints: [],
+      } as any);
+      const { result } = renderHook(() => useRoutePersistence());
+      await act(async () => {
+        await result.current.loadRoute('r3');
+      });
+      expect(useRouteBuilderStore.getState().routeOrigin).toBe('ai');
+      useRouteBuilderStore.getState().clearRoute();
+      expect(useRouteBuilderStore.getState().routeOrigin).toBeNull();
+    });
+
+    it('a history-style setRoute (no origin) keeps the origin', () => {
+      const s = useRouteBuilderStore.getState();
+      s.setRouteOrigin('ai');
+      s.setRoute({ geometry: { type: 'LineString', coordinates: [[-105, 40]] }, source: 'history' });
+      expect(useRouteBuilderStore.getState().routeOrigin).toBe('ai');
+    });
+  });
+
+  it('loads a shared route a guest opened as an unsaved copy', async () => {
+    // getRouteForViewer returns the public read with is_owner:false for guests.
+    vi.mocked(routesService.getRoute).mockResolvedValue({
+      id: 'shared-1',
+      name: 'Shared loop',
+      geometry: { type: 'LineString', coordinates: [[-105, 40], [-105.1, 40.1]] },
+      is_owner: false,
+    } as any);
+    const { result } = renderHook(() => useRoutePersistence());
+    let ok = false;
+    await act(async () => {
+      ok = await result.current.loadRoute('shared-1');
+    });
+    expect(ok).toBe(true);
+    expect(result.current.savedRouteId).toBeNull();
+    expect(useRouteBuilderStore.getState().routeName).toBe('Shared loop');
   });
 });

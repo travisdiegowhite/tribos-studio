@@ -19,6 +19,7 @@ import { garminService } from '../../utils/garminService';
 import { trackRb2 } from '../../features/route-builder-v2/telemetry/trackRb2';
 import type { Coordinate } from '../../types/geo';
 import { profileFromSavedRoute, sportOfSavedRoute } from '../../utils/runProfiles';
+import { generatedByForOrigin } from './routeOrigin';
 
 interface GpxTrackPoint {
   latitude: number;
@@ -56,10 +57,12 @@ interface SavedRouteRow {
   surface_type?: string | null;
   /** routes.sport (migration 135); the API infers it when the column is missing. */
   sport?: string | null;
+  generated_by?: string | null;
 }
 
 const saveRoute = routesService.saveRoute as (data: unknown) => Promise<SavedRouteRow>;
-const getRoute = routesService.getRoute as (id: string) => Promise<SavedRouteRow | null>;
+// Signed-out visitors opening a shared /ride/:id fall back to the public read.
+const getRoute = routesService.getRouteForViewer as (id: string) => Promise<SavedRouteRow | null>;
 const listRoutesSvc = routesService.listRoutes as () => Promise<SavedRouteRow[]>;
 const deleteRouteSvc = routesService.deleteRoute as (id: string) => Promise<unknown>;
 const setRouteVisibilitySvc = routesService.setRouteVisibility as (
@@ -202,6 +205,7 @@ export function useRoutePersistence(): UseRoutePersistenceReturn {
   const routeType = useRouteBuilderStore((s) => s.routeType);
   const routeProfile = useRouteBuilderStore((s) => s.routeProfile);
   const sport = useRouteBuilderStore((s) => s.sport);
+  const routeOrigin = useRouteBuilderStore((s) => s.routeOrigin);
   const setRouteFromStore = useRouteBuilderStore((s) => s.setRoute);
   const setRouteName = useRouteBuilderStore((s) => s.setRouteName);
   const setRouteDescription = useRouteBuilderStore((s) => s.setRouteDescription);
@@ -238,7 +242,7 @@ export function useRoutePersistence(): UseRoutePersistenceReturn {
           training_goal: trainingGoal,
           surface_type: routeProfile,
           sport,
-          generated_by: 'rb2',
+          generated_by: generatedByForOrigin(routeOrigin),
           waypoints: waypoints?.length ? waypoints : null,
         };
         const saved = await saveRoute(routeData);
@@ -270,6 +274,7 @@ export function useRoutePersistence(): UseRoutePersistenceReturn {
       trainingGoal,
       routeProfile,
       sport,
+      routeOrigin,
       waypoints,
       savedRouteId,
       setRouteName,
@@ -300,6 +305,7 @@ export function useRoutePersistence(): UseRoutePersistenceReturn {
           },
           waypoints: route.waypoints ?? [],
           source: 'loaded',
+          origin: route.generated_by === 'ai' ? 'ai' : null,
         });
         // Reopen on the route's own profile and sport, so a saved run is
         // edited as a run (the store kept whatever was last used before).
@@ -464,6 +470,7 @@ export function useRoutePersistence(): UseRoutePersistenceReturn {
             name: '',
           })),
           source: 'imported',
+          origin: null,
         });
         // Imported routes aren't persisted yet — clear any prior saved id so
         // the next Save creates a new row rather than overwriting.

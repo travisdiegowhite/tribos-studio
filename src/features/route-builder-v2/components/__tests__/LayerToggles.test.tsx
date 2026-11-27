@@ -1,7 +1,7 @@
 import { render, screen, fireEvent } from '@testing-library/react';
 import { MantineProvider } from '@mantine/core';
 import { describe, it, expect, vi } from 'vitest';
-import { LayerToggles, type LayerVisibilityState } from '../LayerToggles';
+import { LayerToggles, familiarHint, type LayerVisibilityState } from '../LayerToggles';
 
 const initialVisibility: LayerVisibilityState = {
   surface: false,
@@ -20,7 +20,7 @@ function renderToggles(overrides: Partial<React.ComponentProps<typeof LayerToggl
     onToggle: vi.fn(),
     onPoiLayerToggle: vi.fn(),
     activePoiLayers: [],
-    hasStravaConnection: false,
+    hasRideHistory: false,
     ...overrides,
   };
   return {
@@ -81,13 +81,32 @@ describe('LayerToggles', () => {
     expect(props.onToggle).toHaveBeenCalledWith('stress', true);
   });
 
-  it('disables the familiar-segments toggle when no Strava connection', () => {
-    renderToggles({ hasStravaConnection: false });
+  it('disables the familiar-segments toggle when the rider has no ride history', () => {
+    renderToggles({ hasRideHistory: false });
     const root = screen.getByTestId('rb2-layer-toggles');
     const labels = Array.from(root.querySelectorAll('input[type="checkbox"]'));
     expect(labels.length).toBeGreaterThan(0);
     const familiar = labels.find((el) => (el as HTMLInputElement).disabled);
     expect(familiar).toBeTruthy();
+  });
+
+  it('enables the familiar-segments toggle once the rider has ride history', () => {
+    const { props } = renderToggles({ hasRideHistory: true });
+    const switches = Array.from(
+      screen.getByTestId('rb2-layer-toggles').querySelectorAll('input[type="checkbox"]'),
+    ) as HTMLInputElement[];
+    expect(switches.every((el) => !el.disabled)).toBe(true);
+    const familiarLabel = screen.getByText('Familiar Segments');
+    const row = familiarLabel.closest('div')?.parentElement as HTMLElement;
+    const input = row.querySelector('input[type="checkbox"]') as HTMLInputElement;
+    fireEvent.click(input);
+    expect(props.onToggle).toHaveBeenCalledWith('familiar', true);
+  });
+
+  it('explains why familiar segments are unavailable', () => {
+    expect(familiarHint(true, false)).toBe('Roads you have ridden before');
+    expect(familiarHint(false, true)).toMatch(/Sign in/);
+    expect(familiarHint(false, false)).toMatch(/Sync your rides/);
   });
 
   it('shows the Intervals toggle only when a workout is attached', () => {

@@ -10,6 +10,7 @@ import { ArrowSquareOut, Coffee, Door, Drop, Eye, Wrench, X } from '@phosphor-ic
 
 const ICON_MAP = {
   water: Drop,
+  coffee: Coffee,
   food: Coffee,
   bike_shop: Wrench,
   viewpoint: Eye,

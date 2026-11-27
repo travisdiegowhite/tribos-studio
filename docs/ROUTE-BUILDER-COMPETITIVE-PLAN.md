@@ -1,6 +1,6 @@
 # Route Builder — back to our roots
 
-**Status:** plan, 2026-11-27. Nothing in it is built yet.
+**Status:** plan, 2026-11-27. Phase 0 is done; nothing after it is built yet.
 **Decision owner:** Travis.
 
 ## Contents
@@ -65,7 +65,7 @@ guests at `/ride/new`; saving opens the signup modal (`GuestSaveModal.tsx`).
 | Mobile | Full-screen map with a 6-tab bottom sheet | `components/MobileControlSheet.tsx` |
 | Comfort Phase 0 | Comfort levels 1–5 with their rules, classifier, validator and the `planComfortRoute` ladder; Tribos BRouter profiles. The harness shows **0 rule violations**, and 71% of riders get a route at their own level | `utils/comfort*.ts`, `routing-profiles/`, `docs/comfort-harness.md` |
 
-### Broken or half-wired, found in this audit
+### Broken or half-wired, found in this audit (the first six are fixed, see Phase 0)
 
 | Problem | Where |
 |---|---|
@@ -306,22 +306,19 @@ What we build on top of that:
 
 Each bullet is a scoped PR. Phases 2 and 4 can run in parallel.
 
-### Phase 0 — Fix what's broken (about 1 week)
+### Phase 0 — Fix what's broken — **done 2026-11-27**
 
-- Map the Coffee toggle to a real POI category (an `amenity=cafe` subset
-  split out of `food`).
-- Familiar Segments: pass the real Strava/activity-history state instead of
-  `false`, or remove the toggle.
-- Library filter: treat `generated_by` values `ai` and `rb2`-with-AI-origin
-  correctly. This needs a reliable origin field on save.
-- Guest at `/ride/:id`: fall back to `get_public_route` and open it as an
-  unsaved copy.
-- Send `account_created_from_route` after a signup that started from a guest
-  save.
-- `/r/:id`: add GPX download and "Send to device" (for signed-in users with a
-  connected account).
-- **Not in scope:** moving the Garmin push to `garmin2-route-push`. The Garmin
-  freeze applies.
+| Fix | What changed |
+|---|---|
+| Coffee POI | A `coffee` category (`amenity=cafe`, `shop=coffee`, `cuisine=coffee_shop`) in `routePOIService.js`. Classification now respects the requested categories: a café is coffee when coffee is asked for, food when only food is |
+| Familiar Segments | `useHasRideHistory` (from `/api/road-segments` `get_stats`) enables the toggle for any rider with synced rides on any provider. The tooltip says what's missing for a guest or a rider with no rides |
+| Library AI/manual | `routeOrigin` in the store is set when an AI generation is committed (`selectSuggestion`). Save and autosave send `generated_by: 'ai'`; load and draft restore carry it back. Rows saved earlier as `rb2` are unchanged |
+| Guest `/ride/:id` | `routesService.getRouteForViewer` uses `get_public_route` when signed out and opens the route as an unsaved copy |
+| `account_created_from_route` | The guest modal marks the intent; the builder sends the event when a **new** account (under a day old) comes back. No auth files touched |
+| Share page | GPX and FIT download for everyone; the CTA goes to `/ride/:id` (send to device lives there); map palette (magenta line, blue start, ink end) |
+
+**Not in scope:** moving the Garmin push to `garmin2-route-push`. The Garmin
+freeze applies.
 
 ### Phase 1 — Routing-first front door (about 2–3 weeks)
 

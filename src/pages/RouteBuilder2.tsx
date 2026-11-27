@@ -96,6 +96,8 @@ import { SurfaceLayer } from '../features/route-builder-v2/layers/SurfaceLayer';
 import { TrafficStressLayer } from '../features/route-builder-v2/layers/TrafficStressLayer';
 import { useRouteStress } from '../hooks/route-builder/useRouteStress';
 import { useRouteSurface } from '../hooks/route-builder/useRouteSurface';
+import { useHasRideHistory } from '../hooks/route-builder/useHasRideHistory';
+import { consumeSignupFromRoute } from '../features/route-builder-v2/telemetry/signupFromRoute';
 import { GradientLayer } from '../features/route-builder-v2/layers/GradientLayer';
 import { POILayer } from '../features/route-builder-v2/layers/POILayer';
 import { BikeInfraLayer } from '../features/route-builder-v2/layers/BikeInfraLayer';
@@ -184,7 +186,13 @@ export default function RouteBuilder2() {
   const isMobile = useMediaQuery('(max-width: 768px)');
   const navigate = useNavigate();
   const { routeId: routeIdFromUrl } = useParams<{ routeId?: string }>();
-  const { user } = useAuth() as { user: { id: string } | null };
+  const { user } = useAuth() as { user: { id: string; created_at?: string } | null };
+  // Familiar Segments needs ridden-road history (any synced provider).
+  const { hasHistory: hasRideHistory } = useHasRideHistory(user?.id);
+  // Funnel: a guest who signed up from the save/gen-cap modal comes back here.
+  useEffect(() => {
+    if (user) consumeSignupFromRoute(user);
+  }, [user]);
 
   // Lift the Supabase session token once per session so coach-generated routes
   // can use the rider's familiar-roads history + route familiarity scoring
@@ -774,6 +782,7 @@ export default function RouteBuilder2() {
           },
           waypoints: [],
           source: 'imported',
+          origin: null,
         });
         map.fitBounds(coords);
         // A different route replaces the chat's restore history.
@@ -1812,7 +1821,8 @@ export default function RouteBuilder2() {
               activePoiLayers={analysis.activeLayers}
               isMobile
               defaultExpanded
-              hasStravaConnection={false}
+              hasRideHistory={hasRideHistory}
+              isGuest={!user}
               hasWorkout={hasWorkout}
               sport={sport}
             />
@@ -2201,7 +2211,8 @@ export default function RouteBuilder2() {
             onPoiLayerToggle={handlePoiLayerToggle}
             activePoiLayers={analysis.activeLayers}
             isMobile
-            hasStravaConnection={false}
+            hasRideHistory={hasRideHistory}
+            isGuest={!user}
             hasWorkout={hasWorkout}
             sport={sport}
           />

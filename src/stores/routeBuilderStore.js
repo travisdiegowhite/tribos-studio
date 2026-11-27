@@ -23,6 +23,7 @@ const CLEARED_ROUTE = {
   routeCues: null,
   aiSuggestions: [],
   routingSource: null,
+  routeOrigin: null,
   explicitDistanceKm: null,
   routeTarget: null,
   selectedWorkoutId: null,
@@ -51,6 +52,12 @@ const initialState = {
   // src/utils/routeCues.ts). Only the Stadia/Valhalla path produces them;
   // null when the active geometry came from another provider or freehand.
   routeCues: null,
+
+  // Where the current route came from, saved as routes.generated_by:
+  // 'ai' when an AI generation (form or chat) produced it, else null (saved
+  // as 'rb2'). Kept apart from routingSource so undo/history restores, which
+  // go through setRoute, don't wipe it. Cleared with the route.
+  routeOrigin: null,
 
   // Map viewport
   viewport: {
@@ -262,6 +269,9 @@ export const useRouteBuilderStore = create(
       // === Snap to Roads ===
       setSnapToRoads: (snap) => set({ snapToRoads: snap }),
 
+      // === Route Origin ===
+      setRouteOrigin: (origin) => set({ routeOrigin: origin === 'ai' ? 'ai' : null }),
+
       // === Routing Source ===
       setRoutingSource: (source) => set({
         routingSource: source,
@@ -279,6 +289,11 @@ export const useRouteBuilderStore = create(
         waypoints: routeData.waypoints || [],
         routeCues: Array.isArray(routeData.cues) && routeData.cues.length > 0 ? routeData.cues : null,
         routingSource: routeData.source || null,
+        // Only a caller that knows where the route came from (load, import,
+        // draft restore) passes `origin`; history restores leave it alone.
+        ...(routeData.origin !== undefined
+          ? { routeOrigin: routeData.origin === 'ai' ? 'ai' : null }
+          : {}),
         builderMode: 'editing',
         lastSaved: Date.now()
       }),
@@ -369,6 +384,7 @@ export const useRouteBuilderStore = create(
         selectedWorkoutId: state.selectedWorkoutId,
         snapToRoads: state.snapToRoads,
         routingSource: state.routingSource,
+        routeOrigin: state.routeOrigin,
         builderMode: state.builderMode,
         lastSaved: state.lastSaved,
       }),
