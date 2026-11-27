@@ -4,15 +4,18 @@
  * Mounted at /r/:routeId with no auth guard (like the OAuth callbacks).
  * Fetches via the unauthenticated get_public_route action, which only
  * returns routes explicitly marked public by their owner. Read-only map +
- * stats, with a CTA into the Route Builder (sign-in gated there).
+ * stats, GPX/FIT download (free, no account), and a CTA into the Route
+ * Builder — which opens a shared route for guests too, as an unsaved copy,
+ * and is where signed-in riders send it to Garmin/Wahoo.
  */
 import { useEffect, useMemo, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
-import { Box, Button, Loader, Text } from '@mantine/core';
+import { Box, Button, Group, Loader, Text } from '@mantine/core';
 import Map, { Layer, Marker, Source } from 'react-map-gl';
 import { getPublicRoute } from '../utils/routesService';
 import { MAPBOX_TOKEN } from '../components/RouteBuilder';
 import { useAuth } from '../contexts/AuthContext.jsx';
+import { MAP_PALETTE, getBaseMapStyle } from '../utils/mapPalette';
 
 interface PublicRoute {
   id: string;
@@ -29,8 +32,33 @@ const CARD: React.CSSProperties = {
   backgroundColor: 'var(--tribos-bg-card, #FFFFFF)',
   border: '1px solid var(--tribos-border, #D8D5CC)',
   borderRadius: 0,
-  boxShadow: 'var(--tribos-shadow-card, 0 2px 8px rgba(0,0,0,0.08))',
 };
+
+type DownloadFormat = 'gpx' | 'fit';
+
+/**
+ * Download the shared route. The export modules load on click so the public
+ * page stays light; elevation is filled in the same way the builder does it.
+ */
+async function downloadSharedRoute(route: PublicRoute, format: DownloadFormat): Promise<void> {
+  const coords = route.geometry?.coordinates as [number, number][] | undefined;
+  if (!coords || coords.length < 2) return;
+  const [{ exportAndDownloadRoute }, { withElevations }] = await Promise.all([
+    import('../utils/routeExport'),
+    import('../hooks/route-builder/useRoutePersistence'),
+  ]);
+  const coordinates = await withElevations(coords);
+  exportAndDownloadRoute(
+    {
+      name: route.name || 'Shared Route',
+      description: route.description ?? undefined,
+      coordinates,
+      distanceKm: route.distance_km ?? undefined,
+      elevationGainM: route.elevation_gain_m ?? undefined,
+    },
+    format,
+  );
+}
 
 function formatDuration(minutes: number | null | undefined): string {
   if (!minutes || minutes <= 0) return '—';
@@ -44,6 +72,21 @@ export default function SharedRoute() {
   const { user } = useAuth() as { user: { id: string } | null };
   const [route, setRoute] = useState<PublicRoute | null>(null);
   const [status, setStatus] = useState<'loading' | 'ready' | 'not_found' | 'error'>('loading');
+  const [downloading, setDownloading] = useState<DownloadFormat | null>(null);
+  const [downloadError, setDownloadError] = useState(false);
+
+  const handleDownload = async (format: DownloadFormat) => {
+    if (!route) return;
+    setDownloading(format);
+    setDownloadError(false);
+    try {
+      await downloadSharedRoute(route, format);
+    } catch {
+      setDownloadError(true);
+    } finally {
+      setDownloading(null);
+    }
+  };
 
   useEffect(() => {
     document.title = 'Shared Route — Tribos';
@@ -143,15 +186,44 @@ export default function SharedRoute() {
             {route.surface_type ? ` · ${route.surface_type}` : ''}
           </Text>
         </Box>
-        <Button
-          component={Link}
-          to={user ? `/routes/${route.id}` : '/auth'}
-          radius={0}
-          data-testid="shared-route-cta"
-        >
-          {user ? 'Open in Route Builder' : 'Sign in to save a copy'}
-        </Button>
+        <Group gap={8} wrap="wrap">
+          <Button
+            variant="outline"
+            color="dark"
+            radius={0}
+            loading={downloading === 'gpx'}
+            disabled={downloading !== null}
+            onClick={() => void handleDownload('gpx')}
+            data-testid="shared-route-download-gpx"
+          >
+            Download GPX
+          </Button>
+          <Button
+            variant="outline"
+            color="dark"
+            radius={0}
+            loading={downloading === 'fit'}
+            disabled={downloading !== null}
+            onClick={() => void handleDownload('fit')}
+            data-testid="shared-route-download-fit"
+          >
+            FIT
+          </Button>
+          <Button
+            component={Link}
+            to={`/ride/${route.id}`}
+            radius={0}
+            data-testid="shared-route-cta"
+          >
+            {user ? 'Open in Route Builder · send to device' : 'Open in Route Builder'}
+          </Button>
+        </Group>
       </Box>
+      {downloadError && (
+        <Text role="alert" style={{ padding: '8px 16px', fontSize: 13 }}>
+          The download didn’t work. Try again, or open the route in the builder.
+        </Text>
+      )}
       {route.description && (
         <Text style={{ padding: '8px 16px', fontSize: 13, color: 'var(--tribos-text-secondary, #6B6B60)' }}>
           {route.description}
@@ -161,7 +233,7 @@ export default function SharedRoute() {
         <Map
           mapboxAccessToken={MAPBOX_TOKEN}
           initialViewState={{ bounds, fitBoundsOptions: { padding: 48 } }}
-          mapStyle="mapbox://styles/mapbox/outdoors-v12"
+          mapStyle={getBaseMapStyle()}
           style={{ width: '100%', height: '100%' }}
           attributionControl
         >
@@ -173,13 +245,13 @@ export default function SharedRoute() {
             <Layer
               id="shared-route-casing"
               type="line"
-              paint={{ 'line-color': '#FFFFFF', 'line-width': 6, 'line-opacity': 0.9 }}
+              paint={{ 'line-color': MAP_PALETTE.casing, 'line-width': 6, 'line-opacity': 0.9 }}
               layout={{ 'line-cap': 'round', 'line-join': 'round' }}
             />
             <Layer
               id="shared-route-line"
               type="line"
-              paint={{ 'line-color': '#2A8C82', 'line-width': 3.5 }}
+              paint={{ 'line-color': MAP_PALETTE.route, 'line-width': 3.5 }}
               layout={{ 'line-cap': 'round', 'line-join': 'round' }}
             />
           </Source>
@@ -189,8 +261,8 @@ export default function SharedRoute() {
                 width: 14,
                 height: 14,
                 borderRadius: '50%',
-                backgroundColor: '#2A8C82',
-                border: '2px solid #FFFFFF',
+                backgroundColor: MAP_PALETTE.accent,
+                border: `2px solid ${MAP_PALETTE.casing}`,
               }}
             />
           </Marker>
@@ -200,8 +272,8 @@ export default function SharedRoute() {
                 width: 14,
                 height: 14,
                 borderRadius: '50%',
-                backgroundColor: '#D4600A',
-                border: '2px solid #FFFFFF',
+                backgroundColor: MAP_PALETTE.ink,
+                border: `2px solid ${MAP_PALETTE.casing}`,
               }}
             />
           </Marker>

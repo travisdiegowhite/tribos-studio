@@ -22,6 +22,7 @@ import { useRouteBuilderStore } from '../../stores/routeBuilderStore';
 import * as routesService from '../../utils/routesService';
 import { trackRb2 } from '../../features/route-builder-v2/telemetry/trackRb2';
 import { profileFromSavedRoute } from '../../utils/runProfiles';
+import { generatedByForOrigin } from './routeOrigin';
 
 const AUTOSAVE_DEBOUNCE_MS = 15_000;
 
@@ -36,6 +37,7 @@ interface DraftRow {
   waypoints?: unknown[] | null;
   surface_type?: string | null;
   sport?: string | null;
+  generated_by?: string | null;
   updated_at?: string;
 }
 
@@ -85,7 +87,7 @@ export function useDraftAutosave(hasUnsavedChanges: boolean): UseDraftAutosaveRe
         training_goal: s.trainingGoal,
         surface_type: s.routeProfile,
         sport: s.sport,
-        generated_by: 'rb2',
+        generated_by: generatedByForOrigin(s.routeOrigin),
         waypoints: s.waypoints?.length ? s.waypoints : null,
       })
         .then(() => trackRb2('draft_autosaved', {}))
@@ -119,6 +121,7 @@ export function useDraftAutosave(hasUnsavedChanges: boolean): UseDraftAutosaveRe
         },
         waypoints: draft.waypoints ?? [],
         source: 'draft',
+        origin: draft.generated_by === 'ai' ? 'ai' : null,
       });
       // A run draft reopens as a run, not under whatever sport was last used.
       const profile = profileFromSavedRoute(draft);

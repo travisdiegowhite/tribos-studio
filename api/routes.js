@@ -484,7 +484,7 @@ async function getDraft(req, res, userId) {
       `id, name, description,
         distance_km, elevation_gain_m, estimated_duration_minutes,
         geometry, waypoints, route_type, training_goal, surface_type, sport,
-        updated_at`,
+        generated_by, updated_at`,
       (columns) =>
         supabase
           .from('routes')

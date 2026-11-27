@@ -144,6 +144,7 @@ export function useAIGeneration(): UseAIGenerationReturn {
   const setRouteCues = useRouteBuilderStore((s) => s.setRouteCues);
   const setBuilderMode = useRouteBuilderStore((s) => s.setBuilderMode);
   const setRouteType = useRouteBuilderStore((s) => s.setRouteType);
+  const setRouteOrigin = useRouteBuilderStore((s) => s.setRouteOrigin);
 
   const suggestions = (Array.isArray(aiSuggestions) ? aiSuggestions : []) as RouteSnapshot[];
 
@@ -326,10 +327,12 @@ export function useAIGeneration(): UseAIGenerationReturn {
       );
       setRouteCues(chosen.cues ?? null);
       if (chosen.shape) setRouteType(chosen.shape);
+      // Saved as routes.generated_by = 'ai' so the library can tell.
+      setRouteOrigin('ai');
       setBuilderMode('editing');
       return chosen;
     },
-    [suggestions, setRouteGeometry, setRouteStats, setWaypoints, setRouteCues, setRouteType, setBuilderMode],
+    [suggestions, setRouteGeometry, setRouteStats, setWaypoints, setRouteCues, setRouteType, setRouteOrigin, setBuilderMode],
   );
 
   const clearSuggestions = useCallback(() => {

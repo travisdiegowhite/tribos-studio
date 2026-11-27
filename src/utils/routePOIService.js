@@ -2,7 +2,7 @@
  * Route POI Service
  *
  * Queries OpenStreetMap Overpass API for points of interest along a route corridor.
- * Supports water, food, bike shops, viewpoints, and restrooms.
+ * Supports water, coffee, food, bike shops, viewpoints, and restrooms.
  * Uses the same multi-server fallback and caching patterns as bikeInfrastructureService.
  */
 
@@ -24,6 +24,14 @@ let lastRequestTime = 0;
 const MIN_REQUEST_INTERVAL = 1500; // 1.5s between requests
 
 // ── POI Categories ──────────────────────────────────────────────────
+//
+// Order matters: classifyPOI() returns the FIRST requested category whose
+// `matches` accepts an element. Coffee sits before food so a café is
+// "coffee" when the rider asked for coffee, and still "food" when they asked
+// for food alone.
+
+const isCoffee = (tags) =>
+  tags.amenity === 'cafe' || tags.shop === 'coffee' || tags.cuisine === 'coffee_shop';
 
 export const POI_CATEGORIES = {
   water: {
@@ -36,6 +44,20 @@ export const POI_CATEGORIES = {
       'node[man_made=water_tap]',
       'node[amenity=water_point]',
     ],
+    matches: (tags) =>
+      tags.amenity === 'drinking_water' || tags.man_made === 'water_tap' || tags.amenity === 'water_point',
+  },
+  coffee: {
+    id: 'coffee',
+    label: 'Coffee',
+    icon: 'coffee',       // IconCoffee
+    color: '#C4007A',     // signal text
+    overpassTags: [
+      'node[amenity=cafe]',
+      'node[shop=coffee]',
+      'node[cuisine=coffee_shop]',
+    ],
+    matches: isCoffee,
   },
   food: {
     id: 'food',
@@ -49,6 +71,9 @@ export const POI_CATEGORIES = {
       'node[shop=bakery]',
       'node[shop=convenience]',
     ],
+    matches: (tags) =>
+      ['cafe', 'restaurant', 'fast_food'].includes(tags.amenity) ||
+      ['bakery', 'convenience'].includes(tags.shop),
   },
   bike_shop: {
     id: 'bike_shop',
@@ -60,6 +85,8 @@ export const POI_CATEGORIES = {
       'node[amenity=bicycle_repair_station]',
       'node[amenity=bicycle_rental]',
     ],
+    matches: (tags) =>
+      tags.shop === 'bicycle' || tags.amenity === 'bicycle_repair_station' || tags.amenity === 'bicycle_rental',
   },
   viewpoint: {
     id: 'viewpoint',
@@ -70,6 +97,7 @@ export const POI_CATEGORIES = {
       'node[tourism=viewpoint]',
       'node[natural=peak]',
     ],
+    matches: (tags) => tags.tourism === 'viewpoint' || tags.natural === 'peak',
   },
   restroom: {
     id: 'restroom',
@@ -79,6 +107,7 @@ export const POI_CATEGORIES = {
     overpassTags: [
       'node[amenity=toilets]',
     ],
+    matches: (tags) => tags.amenity === 'toilets',
   },
 };
 
@@ -176,7 +205,7 @@ function cumulativeDistances(coordinates) {
 /**
  * Build an Overpass query for multiple POI categories within a bounding box.
  */
-function buildPOIQuery(bbox, categories) {
+export function buildPOIQuery(bbox, categories) {
   const bboxStr = `${bbox.south},${bbox.west},${bbox.north},${bbox.east}`;
   const tagQueries = categories.flatMap(cat =>
     POI_CATEGORIES[cat]?.overpassTags || []
@@ -225,31 +254,14 @@ async function fetchFromOverpass(query) {
 }
 
 /**
- * Classify an OSM element into a POI category.
+ * Classify an OSM element into one of the requested POI categories: the first
+ * requested category (in POI_CATEGORIES order) whose predicate matches.
+ * Returns null when none of the requested categories accept it.
  */
-function classifyPOI(tags) {
+export function classifyPOI(tags, categories = Object.keys(POI_CATEGORIES)) {
   if (!tags) return null;
-
-  // Water
-  if (tags.amenity === 'drinking_water' || tags.man_made === 'water_tap' || tags.amenity === 'water_point') {
-    return 'water';
-  }
-  // Food
-  if (['cafe', 'restaurant', 'fast_food'].includes(tags.amenity) ||
-      ['bakery', 'convenience'].includes(tags.shop)) {
-    return 'food';
-  }
-  // Bike shop
-  if (tags.shop === 'bicycle' || tags.amenity === 'bicycle_repair_station' || tags.amenity === 'bicycle_rental') {
-    return 'bike_shop';
-  }
-  // Viewpoint
-  if (tags.tourism === 'viewpoint' || tags.natural === 'peak') {
-    return 'viewpoint';
-  }
-  // Restroom
-  if (tags.amenity === 'toilets') {
-    return 'restroom';
+  for (const [id, cat] of Object.entries(POI_CATEGORIES)) {
+    if (categories.includes(id) && cat.matches(tags)) return id;
   }
   return null;
 }
@@ -272,7 +284,7 @@ export async function queryPOIsAlongRoute(
   if (!coordinates || coordinates.length < 2) return [];
 
   // Check cache
-  const hash = routeHash(coordinates) + '_' + categories.sort().join(',');
+  const hash = routeHash(coordinates) + '_' + [...categories].sort().join(',');
   const cached = poiCache.get(hash);
   if (cached && Date.now() - cached.timestamp < CACHE_TTL) {
     return cached.pois;
@@ -289,8 +301,8 @@ export async function queryPOIsAlongRoute(
   const pois = (data.elements || [])
     .filter(el => el.lat != null && el.lon != null && el.tags)
     .map(el => {
-      const category = classifyPOI(el.tags);
-      if (!category || !categories.includes(category)) return null;
+      const category = classifyPOI(el.tags, categories);
+      if (!category) return null;
 
       const { routeDistanceKm, offRouteDistanceM } = distanceAlongRoute(
         { lat: el.lat, lon: el.lon },

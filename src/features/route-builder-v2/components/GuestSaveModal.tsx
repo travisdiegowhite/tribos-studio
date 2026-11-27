@@ -13,6 +13,7 @@ import { Modal, Text, Button, Stack, Group } from '@mantine/core';
 import { RB2, RB2_FONT } from './brand';
 import { trackRb2 } from '../telemetry/trackRb2';
 import { stashReturnTo } from '../../../utils/returnTo';
+import { markSignupFromRoute } from '../telemetry/signupFromRoute';
 
 export interface GuestSaveModalProps {
   opened: boolean;
@@ -45,6 +46,9 @@ export function GuestSaveModal({ opened, onClose, trigger }: GuestSaveModalProps
   // product, and landing it on "Welcome back" cost real conversions.
   const goToAuth = (mode: 'signup' | 'signin') => {
     stashReturnTo(location.pathname || '/ride/new');
+    // Lets the builder send account_created_from_route once a NEW account
+    // comes back (a sign-in to an existing account is filtered out there).
+    markSignupFromRoute(trigger);
     navigate(mode === 'signup' ? '/auth?mode=signup' : '/auth');
   };
 

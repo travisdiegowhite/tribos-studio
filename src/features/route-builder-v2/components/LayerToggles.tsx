@@ -39,7 +39,14 @@ export interface LayerTogglesProps {
    * sees the switches.
    */
   defaultExpanded?: boolean;
-  hasStravaConnection?: boolean;
+  /**
+   * The rider has synced rides (any provider), so the familiar-roads overlay
+   * has something to show. It used to be `hasStravaConnection`, hard-coded
+   * false, which left the toggle permanently disabled.
+   */
+  hasRideHistory?: boolean;
+  /** Signed-out visitor: the familiar-roads overlay needs an account. */
+  isGuest?: boolean;
   /** When true, an "Intervals" toggle is shown (a workout is attached). */
   hasWorkout?: boolean;
   /** 'running' hides the bike-only toggles (traffic stress, bike infra, bike shops). */
@@ -55,6 +62,13 @@ const POI_LAYERS: Array<{ id: POILayer; label: string }> = [
   { id: 'viewpoint', label: 'Viewpoint' },
 ];
 
+/** Tooltip for the Familiar Segments toggle, by whether it can be used. */
+export function familiarHint(hasRideHistory: boolean, isGuest: boolean): string {
+  if (hasRideHistory) return 'Roads you have ridden before';
+  if (isGuest) return 'Sign in to see roads you’ve ridden';
+  return 'Sync your rides to see roads you’ve ridden';
+}
+
 export function LayerToggles({
   visibility,
   onToggle,
@@ -62,7 +76,8 @@ export function LayerToggles({
   activePoiLayers,
   isMobile = false,
   defaultExpanded,
-  hasStravaConnection = false,
+  hasRideHistory = false,
+  isGuest = false,
   hasWorkout = false,
   sport = 'cycling',
 }: LayerTogglesProps) {
@@ -173,7 +188,7 @@ export function LayerToggles({
             />
           )}
           <Tooltip
-            label={hasStravaConnection ? 'Roads you have ridden before' : 'Connect Strava to enable'}
+            label={familiarHint(hasRideHistory, isGuest)}
             disabled={false}
             withinPortal
           >
@@ -182,7 +197,7 @@ export function LayerToggles({
                 label="Familiar Segments"
                 checked={visibility.familiar}
                 onChange={(v) => toggle('familiar', v)}
-                disabled={!hasStravaConnection}
+                disabled={!hasRideHistory}
               />
             </Box>
           </Tooltip>
