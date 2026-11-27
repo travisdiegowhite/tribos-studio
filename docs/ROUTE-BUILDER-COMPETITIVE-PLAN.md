@@ -444,7 +444,7 @@ route_pushed_to_device → account_created_from_route → upgrade_viewed → sub
   canonical `[lng, lat]`.
 - **Design:** no orange or red; flat zine style.
 - **Migrations:** applied by hand, then `audit:schema`.
-- **Comfort copy:** no absolutes in rider-facing copy (`comfortLevels.test.ts`
+- **Comfort copy:** no absolutes in rider-facing copy (`src/utils/__tests__/comfortLevels.test.ts`
   enforces this).
 
 ## 8. Open questions
