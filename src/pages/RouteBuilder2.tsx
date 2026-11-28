@@ -102,6 +102,12 @@ import { useRoadComfort } from '../hooks/route-builder/useRoadComfort';
 import { ComfortStrip } from '../components/comfort/ComfortStrip';
 import { AvoidToggles } from '../features/route-builder-v2/components/AvoidToggles';
 import { QuickLoopPanel } from '../features/route-builder-v2/components/QuickLoopPanel';
+import {
+  makeOutAndBack,
+  isLoop,
+  type OutAndBackWaypoint,
+  type OutAndBackStats,
+} from '../features/route-builder-v2/edit/outAndBack';
 import { sliceLineByDistance } from '../utils/lineSlice';
 import { consumeSignupFromRoute } from '../features/route-builder-v2/telemetry/signupFromRoute';
 import { GradientLayer } from '../features/route-builder-v2/layers/GradientLayer';
@@ -1637,6 +1643,32 @@ export default function RouteBuilder2() {
     trackRb2('close_loop', {});
   };
 
+  // Out and back: the drawn line, then the same roads in reverse — one store
+  // update, so it's one undo step (useRouteHistory). No router call.
+  const routeCoordsForOab = (routeGeometry as { coordinates?: number[][] } | null)?.coordinates ?? null;
+  const canOutAndBack = !!routeCoordsForOab && routeCoordsForOab.length >= 2 && !isLoop(routeCoordsForOab);
+  const handleOutAndBack = () => {
+    const state = useRouteBuilderStore.getState();
+    const coords = (state.routeGeometry as { coordinates?: number[][] } | null)?.coordinates;
+    if (!coords) return;
+    const result = makeOutAndBack(
+      coords,
+      (state.waypoints ?? []) as OutAndBackWaypoint[],
+      (state.routeStats ?? { distance_km: 0, elevation_gain_m: 0, duration_s: 0 }) as OutAndBackStats,
+    );
+    if (!result) return;
+    state.setRoute({
+      geometry: { type: 'LineString', coordinates: result.coordinates },
+      name: state.routeName,
+      description: state.routeDescription,
+      stats: result.stats,
+      waypoints: result.waypoints,
+      source: 'out_and_back',
+    });
+    state.setRouteType('out_back');
+    trackRb2('out_and_back', { distance_km: Math.round(result.stats.distance_km * 10) / 10 });
+  };
+
   // The map + its layers — shared by both layouts. Fills its container.
   const mapElement = (
     <Map
@@ -2174,6 +2206,8 @@ export default function RouteBuilder2() {
                     canReverse={waypointsForMap.length >= 2}
                     onCloseLoop={handleCloseLoop}
                     canCloseLoop={canCloseLoop}
+                    onOutAndBack={handleOutAndBack}
+                    canOutAndBack={canOutAndBack}
                     onToggleSnap={handleToggleSnap}
                     snapEnabled={snapToRoads}
                     routeProfile={routeProfile}
@@ -2545,6 +2579,8 @@ export default function RouteBuilder2() {
                 canReverse={waypointsForMap.length >= 2}
                 onCloseLoop={handleCloseLoop}
                 canCloseLoop={canCloseLoop}
+                onOutAndBack={handleOutAndBack}
+                canOutAndBack={canOutAndBack}
                 onToggleSnap={handleToggleSnap}
                 snapEnabled={snapToRoads}
                 routeProfile={routeProfile}
