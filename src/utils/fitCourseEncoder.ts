@@ -20,6 +20,7 @@
 import { Encoder } from '@garmin/fitsdk';
 import type { RouteData } from './routeExport';
 import { cueShortLabel, cueToFitPointType, isTurnCue } from './routeCues';
+import { climbCoursePointName, climbFitPointType, detectClimbsFromCoordinates } from './climbs';
 
 // @garmin/fitsdk ships partial declarations whose Encodable<Mesg> generic
 // rejects the documented message-field objects; type the surface we use.
@@ -193,35 +194,53 @@ export function encodeFitCourse(route: RouteData): Uint8Array {
   }
 
   // 7. course_point messages — prefer provider turn cues (real turn prompts
-  // on the device); fall back to bare waypoints otherwise.
+  // on the device); fall back to bare waypoints otherwise. Climb starts are
+  // added as category points. Written in route order (devices expect
+  // course points sorted by time).
+  const points: Array<{ idx: number; lat: number; lng: number; name: string; type: string }> = [];
   const turnCues = (route.cues ?? []).filter((c) => isTurnCue(c) || c.direction === 'arrive');
   if (turnCues.length > 0) {
     for (const cue of turnCues) {
       const [lng, lat] = cue.coordinate;
-      const idx = nearestCoordIndex(lat, lng);
       const street = cue.streetNames?.[0];
       const name = street ? `${cueShortLabel(cue)} ${street}` : cueShortLabel(cue);
-      encoder.writeMesg({
-        mesgNum: MESG_NUM_COURSE_POINT,
-        timestamp: timestampAtIndex(idx),
-        positionLat: degreesToSemicircles(lat),
-        positionLong: degreesToSemicircles(lng),
-        name: name.substring(0, 16),
-        type: cueToFitPointType(cue),
-      });
+      points.push({ idx: nearestCoordIndex(lat, lng), lat, lng, name: name.substring(0, 16), type: cueToFitPointType(cue) });
     }
   } else if (route.waypoints && route.waypoints.length > 0) {
     for (const wp of route.waypoints) {
-      const nearestIdx = nearestCoordIndex(wp.lat, wp.lng);
-      encoder.writeMesg({
-        mesgNum: MESG_NUM_COURSE_POINT,
-        timestamp: timestampAtIndex(nearestIdx),
-        positionLat: degreesToSemicircles(wp.lat),
-        positionLong: degreesToSemicircles(wp.lng),
+      points.push({
+        idx: nearestCoordIndex(wp.lat, wp.lng),
+        lat: wp.lat,
+        lng: wp.lng,
         name: (wp.name || 'Waypoint').substring(0, 16),
         type: mapCoursePointType(wp.type),
       });
     }
+  }
+  const climbs = Array.isArray(route.climbs)
+    ? route.climbs
+    : detectClimbsFromCoordinates(route.coordinates as ReadonlyArray<readonly number[]>);
+  for (const climb of climbs) {
+    if (!climb.start_coordinate) continue;
+    const [lng, lat] = climb.start_coordinate;
+    points.push({
+      idx: nearestCoordIndex(lat, lng),
+      lat,
+      lng,
+      name: climbCoursePointName(climb, 16),
+      type: climbFitPointType(climb.category),
+    });
+  }
+  points.sort((a, b) => a.idx - b.idx);
+  for (const p of points) {
+    encoder.writeMesg({
+      mesgNum: MESG_NUM_COURSE_POINT,
+      timestamp: timestampAtIndex(p.idx),
+      positionLat: degreesToSemicircles(p.lat),
+      positionLong: degreesToSemicircles(p.lng),
+      name: p.name,
+      type: p.type,
+    });
   }
 
   return encoder.close();

@@ -83,3 +83,28 @@ describe('generateTCX', () => {
     expect(tcx).not.toContain('Head north on Main St.');
   });
 });
+
+describe('climb course points', () => {
+  /** ~100 m steps north, flat km then a 4 km 6% climb then a flat km. */
+  function climbingRoute(): RouteData {
+    const coords: [number, number, number][] = [];
+    let ele = 1600;
+    for (let i = 0; i <= 60; i++) {
+      const km = i / 10;
+      if (km > 1 && km <= 5) ele += 6;
+      coords.push([-105, 40 + i * 0.0008993, ele]);
+    }
+    return { name: 'Climb test', coordinates: coords };
+  }
+
+  it('marks each climb as a category CoursePoint in TCX', () => {
+    const tcx = generateTCX(climbingRoute());
+    expect(tcx).toContain('<PointType>3rd Category</PointType>');
+    expect(tcx).toMatch(/Cat 3 climb: 4\.\d km at 6\.\d%/);
+  });
+
+  it('adds none without elevation, or when climbs: [] is passed', () => {
+    expect(generateTCX(baseRoute(COORDS_2D))).not.toContain('Category');
+    expect(generateTCX({ ...climbingRoute(), climbs: [] })).not.toContain('Category');
+  });
+});

@@ -87,7 +87,7 @@ import {
   type FormPanelControl,
   type RouteCheckpoint,
 } from '../features/route-builder-v2/chat';
-import { Stack as StackIcon, MapPin, FolderOpen, MagnifyingGlass, CloudSun, ForkKnife, Gauge, Barbell, PencilSimpleLine, ChartLineUp, FloppyDisk, ChatCircleDots, Compass, SlidersHorizontal, Signpost } from '@phosphor-icons/react';
+import { Stack as StackIcon, MapPin, FolderOpen, MagnifyingGlass, CloudSun, ForkKnife, Gauge, Barbell, PencilSimpleLine, ChartLineUp, FloppyDisk, ChatCircleDots, Compass, SlidersHorizontal, Signpost, ArrowsClockwise } from '@phosphor-icons/react';
 import { CuesPanel } from '../features/route-builder-v2/components/CuesPanel';
 import { GuestSaveModal } from '../features/route-builder-v2/components/GuestSaveModal';
 import type { RouteCue as RouteCueType } from '../utils/routeCues';
@@ -100,6 +100,14 @@ import { useHasRideHistory } from '../hooks/route-builder/useHasRideHistory';
 import { useRouteComfort } from '../hooks/route-builder/useRouteComfort';
 import { useRoadComfort } from '../hooks/route-builder/useRoadComfort';
 import { ComfortStrip } from '../components/comfort/ComfortStrip';
+import { AvoidToggles } from '../features/route-builder-v2/components/AvoidToggles';
+import { QuickLoopPanel } from '../features/route-builder-v2/components/QuickLoopPanel';
+import {
+  makeOutAndBack,
+  isLoop,
+  type OutAndBackWaypoint,
+  type OutAndBackStats,
+} from '../features/route-builder-v2/edit/outAndBack';
 import { sliceLineByDistance } from '../utils/lineSlice';
 import { consumeSignupFromRoute } from '../features/route-builder-v2/telemetry/signupFromRoute';
 import { GradientLayer } from '../features/route-builder-v2/layers/GradientLayer';
@@ -170,7 +178,7 @@ const DEFAULT_VISIBILITY: LayerVisibilityState = {
 
 
 /** Rail panels that only make sense on a bike; hidden for a run. */
-const RIDE_ONLY_RAIL_IDS = new Set(['fuel', 'tire', 'roadprefs']);
+const RIDE_ONLY_RAIL_IDS = new Set(['fuel', 'tire', 'roadprefs', 'loop']);
 
 const STATIC_RUN_OPENING: ChatMessage = {
   id: 'opening',
@@ -901,16 +909,18 @@ export default function RouteBuilder2() {
   // first run": StrictMode runs mount effects twice, and the second run used
   // to re-route every loaded route (a landing loop, a saved route) through the
   // waypoints, replacing the line the rider chose.
-  const settingsSeenRef = useRef<{ snap: unknown; profile: unknown } | null>(null);
+  const routeAvoid = useRouteBuilderStore((s) => s.routeAvoid as { unpaved: boolean; mainRoads: boolean } | undefined);
+  const avoidKey = `${routeAvoid?.unpaved ? 1 : 0}${routeAvoid?.mainRoads ? 1 : 0}`;
+  const settingsSeenRef = useRef<{ snap: unknown; profile: unknown; avoid: string } | null>(null);
   useEffect(() => {
     const seen = settingsSeenRef.current;
-    settingsSeenRef.current = { snap: snapToRoads, profile: routeProfile };
-    if (!seen || (seen.snap === snapToRoads && seen.profile === routeProfile)) return;
+    settingsSeenRef.current = { snap: snapToRoads, profile: routeProfile, avoid: avoidKey };
+    if (!seen || (seen.snap === snapToRoads && seen.profile === routeProfile && seen.avoid === avoidKey)) return;
     if (Array.isArray(waypoints) && waypoints.length >= 2) {
       void map.rebuildRoute();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [snapToRoads, routeProfile]);
+  }, [snapToRoads, routeProfile, avoidKey]);
 
   const hasRouteForChat =
     !!routeGeometry?.coordinates && routeGeometry.coordinates.length > 0;
@@ -1557,17 +1567,31 @@ export default function RouteBuilder2() {
   const surfaceSegments = surface.result?.segments ?? null;
   // Comfort check: the route against the rider's Comfort 1–5, from the same
   // cached corridor ways. Not for runs (a cycling comfort scale).
-  const { comfortLevel } = useRoadComfort();
+  const { comfortLevel, setComfortLevel: setRiderComfortLevel } = useRoadComfort();
   const comfort = useRouteComfort(isRun ? null : geometryForLayers, comfortLevel);
-  const handleComfortStretch = useCallback(
+  // Fit the map to a slice of the route (meters from the start).
+  const fitRouteSlice = useCallback(
     (start_m: number, end_m: number) => {
       const coords = geometryForLayers?.coordinates;
       if (!coords) return;
       const part = sliceLineByDistance(coords, start_m, end_m);
       if (part.length >= 2) map.fitBounds(part);
-      trackRb2('comfort_stretch_shown', { start_m: Math.round(start_m), length_m: Math.round(end_m - start_m) });
     },
     [geometryForLayers, map],
+  );
+  const handleComfortStretch = useCallback(
+    (start_m: number, end_m: number) => {
+      fitRouteSlice(start_m, end_m);
+      trackRb2('comfort_stretch_shown', { start_m: Math.round(start_m), length_m: Math.round(end_m - start_m) });
+    },
+    [fitRouteSlice],
+  );
+  const handleSelectClimb = useCallback(
+    (start_km: number, end_km: number) => {
+      fitRouteSlice(start_km * 1000, end_km * 1000);
+      trackRb2('climb_selected', { start_km, length_km: Math.round((end_km - start_km) * 10) / 10 });
+    },
+    [fitRouteSlice],
   );
 
   // Scale the attached workout's structure onto the current route (km-keyed
@@ -1617,6 +1641,32 @@ export default function RouteBuilder2() {
     if (!firstWpPos || waypointsForMap.length < 2) return;
     void map.handleAddWaypointAtClick(firstWpPos);
     trackRb2('close_loop', {});
+  };
+
+  // Out and back: the drawn line, then the same roads in reverse — one store
+  // update, so it's one undo step (useRouteHistory). No router call.
+  const routeCoordsForOab = (routeGeometry as { coordinates?: number[][] } | null)?.coordinates ?? null;
+  const canOutAndBack = !!routeCoordsForOab && routeCoordsForOab.length >= 2 && !isLoop(routeCoordsForOab);
+  const handleOutAndBack = () => {
+    const state = useRouteBuilderStore.getState();
+    const coords = (state.routeGeometry as { coordinates?: number[][] } | null)?.coordinates;
+    if (!coords) return;
+    const result = makeOutAndBack(
+      coords,
+      (state.waypoints ?? []) as OutAndBackWaypoint[],
+      (state.routeStats ?? { distance_km: 0, elevation_gain_m: 0, duration_s: 0 }) as OutAndBackStats,
+    );
+    if (!result) return;
+    state.setRoute({
+      geometry: { type: 'LineString', coordinates: result.coordinates },
+      name: state.routeName,
+      description: state.routeDescription,
+      stats: result.stats,
+      waypoints: result.waypoints,
+      source: 'out_and_back',
+    });
+    state.setRouteType('out_back');
+    trackRb2('out_and_back', { distance_km: Math.round(result.stats.distance_km * 10) / 10 });
   };
 
   // The map + its layers — shared by both layouts. Fills its container.
@@ -1767,7 +1817,37 @@ export default function RouteBuilder2() {
   }, [routeTarget, isMobile, handleChatSubmit]);
 
   // Reusable v1 widgets surfaced in RB2 (after personalizedEta is computed).
-  const roadPrefsNode = <RoadPreferencesCard />;
+  // A loop chosen in Quick loop is already in the store (handOffToBuilder):
+  // fit the map and start a fresh edit history, as for a landing hand-off.
+  const handleQuickLoopApplied = useCallback(
+    (coords: Coordinate[]) => {
+      if (coords.length) map.fitBounds(coords);
+      clearCheckpoints();
+      setPendingEditReview(null);
+    },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [map],
+  );
+  const quickLoopStart: Coordinate | null = (userLocation.coord as Coordinate | null) ?? (viewportCenter as Coordinate | null) ?? null;
+  const quickLoopNode = (
+    <QuickLoopPanel
+      start={quickLoopStart}
+      startLabel={userLocation.coord ? 'your location' : 'the map centre'}
+      comfortLevel={comfortLevel}
+      isImperial={isImperial}
+      onApplied={handleQuickLoopApplied}
+      onComfortLevelChange={setRiderComfortLevel}
+    />
+  );
+
+  const roadPrefsNode = (
+    <>
+      <Box style={{ marginBottom: 12 }}>
+        <AvoidToggles />
+      </Box>
+      <RoadPreferencesCard />
+    </>
+  );
   const raceDayGuideNode = raceType ? (
     <RaceDayGuide
       routeStats={routeStats}
@@ -2027,6 +2107,12 @@ export default function RouteBuilder2() {
         panel: <TirePressurePanel routeProfile={routeProfile} isImperial={isImperial} />,
       },
       {
+        id: 'loop',
+        label: 'Quick loop',
+        icon: <ArrowsClockwise size={20} weight="duotone" />,
+        panel: quickLoopNode,
+      },
+      {
         id: 'roadprefs',
         label: 'Road prefs',
         icon: <SlidersHorizontal size={20} weight="duotone" />,
@@ -2120,6 +2206,8 @@ export default function RouteBuilder2() {
                     canReverse={waypointsForMap.length >= 2}
                     onCloseLoop={handleCloseLoop}
                     canCloseLoop={canCloseLoop}
+                    onOutAndBack={handleOutAndBack}
+                    canOutAndBack={canOutAndBack}
                     onToggleSnap={handleToggleSnap}
                     snapEnabled={snapToRoads}
                     routeProfile={routeProfile}
@@ -2185,6 +2273,7 @@ export default function RouteBuilder2() {
                       onHoverKm={setElevationHoverKm}
                       isImperial={isImperial}
                       cues={visibleCues}
+                      onSelectClimb={handleSelectClimb}
                     />
                   )}
                 </>
@@ -2280,6 +2369,7 @@ export default function RouteBuilder2() {
               isMobile
             />
           </Box>
+          {!isRun && <Box style={cardStyle}>{quickLoopNode}</Box>}
           {!isRun && <Box style={cardStyle}>{roadPrefsNode}</Box>}
         </>
       ),
@@ -2385,6 +2475,7 @@ export default function RouteBuilder2() {
               onHoverKm={setElevationHoverKm}
               isImperial={isImperial}
               cues={visibleCues}
+              onSelectClimb={handleSelectClimb}
             />
           )}
           {hasRoute && !!routeCues?.length && (
@@ -2488,6 +2579,8 @@ export default function RouteBuilder2() {
                 canReverse={waypointsForMap.length >= 2}
                 onCloseLoop={handleCloseLoop}
                 canCloseLoop={canCloseLoop}
+                onOutAndBack={handleOutAndBack}
+                canOutAndBack={canOutAndBack}
                 onToggleSnap={handleToggleSnap}
                 snapEnabled={snapToRoads}
                 routeProfile={routeProfile}

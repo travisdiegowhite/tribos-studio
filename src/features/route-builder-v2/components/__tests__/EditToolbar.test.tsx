@@ -276,4 +276,24 @@ describe('EditToolbar traffic chip', () => {
     );
     expect(screen.getByTestId('rb2-stress-toggle')).toHaveAttribute('aria-pressed', 'true');
   });
+
+  it('renders Out and back next to Back to start, and calls it when enabled', () => {
+    const onOutAndBack = vi.fn();
+    render(
+      <MantineProvider>
+        <EditToolbar canUndo canRedo onUndo={vi.fn()} onRedo={vi.fn()} onCloseLoop={vi.fn()} canCloseLoop onOutAndBack={onOutAndBack} canOutAndBack />
+      </MantineProvider>,
+    );
+    fireEvent.click(screen.getByTestId('rb2-out-and-back-button'));
+    expect(onOutAndBack).toHaveBeenCalledTimes(1);
+  });
+
+  it('disables Out and back on a loop', () => {
+    render(
+      <MantineProvider>
+        <EditToolbar canUndo canRedo onUndo={vi.fn()} onRedo={vi.fn()} onCloseLoop={vi.fn()} onOutAndBack={vi.fn()} canOutAndBack={false} />
+      </MantineProvider>,
+    );
+    expect(screen.getByTestId('rb2-out-and-back-button')).toBeDisabled();
+  });
 });

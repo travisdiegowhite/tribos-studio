@@ -1,6 +1,6 @@
 # Route Builder — back to our roots
 
-**Status:** plan, 2026-11-27. Phase 0 is done; Phase 1's code is done and its ops steps are pending.
+**Status:** plan, 2026-11-28. Phase 0 is done; Phase 1's code is done and its ops steps are pending; Phase 2 items 1–5 are done.
 **Decision owner:** Travis.
 
 ## Contents
@@ -346,11 +346,21 @@ freeze applies.
 6. `VITE_ROUTING_LANDING=true`; redeploy; purge Cloudflare.
 7. Delete `VITE_STADIA_API_KEY` from Vercel; redeploy.
 
-### Phase 2 — Reach table stakes (about 4–6 weeks)
+### Phase 2 — Reach table stakes — **items 1–5 done 2026-11-28**
 
 Items 1–12 of §3, in that order. The first five are the minimum that lets us
-say "everything Ride with GPS's free tier does, plus comfort." Persist
-`gravel_actual_pct` and `surface_mix` on save at the same time.
+say "everything Ride with GPS's free tier does, plus comfort."
+
+| # | Item | Status |
+|---|---|---|
+| 1 | Climbs | **Done.** `src/utils/climbs.ts` (Cat 4 … HC by length × grade); magenta bars and a list on the elevation chart (pick one to fit the map); category course points in TCX and FIT exports |
+| 2 | Avoid toggles | **Done.** Unpaved roads and main roads, in Road prefs; Stadia costing + BRouter `avoid_unsafe`; re-route on change |
+| 3 | Loop generator without AI | **Done.** "Quick loop" (rail + mobile Build): distance, surface, direction, at the rider's comfort, on the landing's ladder |
+| 4 | Out and back | **Done.** Toolbar button; the same roads reversed, one undo step |
+| 5 | Collections | **Done.** Route tags (`routes.tags`): chips to filter the library, a "Collections…" editor per route; builder re-saves no longer wipe tags |
+| 6–12 | Embeds, device push, TCX/FIT import, forecast weather, POI categories, imagery, section select | Next |
+
+Still to do alongside: persist `gravel_actual_pct` and `surface_mix` on save.
 
 ### Phase 3 — Beat them (about 6–10 weeks)
 

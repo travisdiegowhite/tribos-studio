@@ -17,12 +17,16 @@ import {
   Skeleton,
   TextInput,
   SegmentedControl,
+  Chip,
+  Modal,
+  TagsInput,
 } from '@mantine/core';
 import { notifications } from '@mantine/notifications';
 import { tokens } from '../theme';
 import AppShell from '../components/AppShell.jsx';
 import { useAuth } from '../contexts/AuthContext.jsx';
-import { listRoutes, deleteRoute, getRoute, saveRoute } from '../utils/routesService';
+import { listRoutes, deleteRoute, getRoute, saveRoute, setRouteTags } from '../utils/routesService';
+import { collectionCounts, routeInCollection } from '../utils/routeCollections';
 import { formatDistance, formatElevation } from '../utils/units';
 import { supabase } from '../lib/supabase';
 import { fetchSessionOn } from '../lib/calendar/readPlannedSessions';
@@ -30,7 +34,17 @@ import { exportAndDownloadRoute } from '../utils/routeExport';
 import { garminService } from '../utils/garminService';
 import { trackFeature, EventType } from '../utils/activityTracking';
 import PageHeader from '../components/PageHeader.jsx';
-import { Brain, CloudArrowUp, Copy, DotsThreeVertical, DownloadSimple, MagnifyingGlass, MapTrifold, Path, PencilSimple, Plus, Trash, Watch, X } from '@phosphor-icons/react';
+import { Brain, CloudArrowUp, Copy, DotsThreeVertical, DownloadSimple, FolderSimple, MagnifyingGlass, MapTrifold, Path, PencilSimple, Plus, Trash, Watch, X } from '@phosphor-icons/react';
+
+// The collection filter is remembered for the tab's session.
+const COLLECTION_KEY = 'tribos_routes_collection';
+function readCollection() {
+  try {
+    return sessionStorage.getItem(COLLECTION_KEY) || 'all';
+  } catch {
+    return 'all';
+  }
+}
 
 // Static map thumbnails for route cards (thumb_polyline, migration 104).
 const MAPBOX_STATIC_TOKEN = import.meta.env.VITE_MAPBOX_TOKEN;
@@ -54,6 +68,18 @@ function MyRoutes() {
   const [searchQuery, setSearchQuery] = useState('');
   const [filterType, setFilterType] = useState('all'); // 'all', 'ai', 'manual'
   const [sortBy, setSortBy] = useState('updated'); // 'updated' | 'distance' | 'elevation' | 'name'
+  // Collections are route tags (routes.tags); 'all' shows every route.
+  const [collection, setCollectionState] = useState(readCollection);
+  const setCollection = (next) => {
+    setCollectionState(next);
+    try {
+      sessionStorage.setItem(COLLECTION_KEY, next);
+    } catch {
+      // storage unavailable — the filter just isn't remembered
+    }
+  };
+  const [tagEditor, setTagEditor] = useState(null); // { routeId, routeName, tags } | null
+  const [savingTags, setSavingTags] = useState(false);
   const [duplicatingId, setDuplicatingId] = useState(null);
   const [garminConnected, setGarminConnected] = useState(false);
   const [sendingToGarmin, setSendingToGarmin] = useState(null); // Track which route is being sent
@@ -64,6 +90,32 @@ function MyRoutes() {
   const [todayWorkout, setTodayWorkout] = useState(null);
   const [matchedRoutes, setMatchedRoutes] = useState([]);
   const [matchesLoading, setMatchesLoading] = useState(false);
+
+  const collections = useMemo(() => collectionCounts(routes), [routes]);
+  // A remembered collection that no route carries any more falls back to all.
+  const activeCollection =
+    collection !== 'all' && !collections.some((c) => c.tag.toLowerCase() === collection.toLowerCase())
+      ? 'all'
+      : collection;
+
+  const handleSaveTags = async () => {
+    if (!tagEditor) return;
+    setSavingTags(true);
+    try {
+      const saved = await setRouteTags(tagEditor.routeId, tagEditor.tags);
+      setRoutes((prev) => prev.map((r) => (r.id === tagEditor.routeId ? { ...r, tags: saved?.tags ?? tagEditor.tags } : r)));
+      notifications.show({ title: 'Collections updated', message: tagEditor.routeName || 'Route', color: 'teal' });
+      setTagEditor(null);
+    } catch (err) {
+      notifications.show({
+        title: 'Couldn’t update collections',
+        message: err?.message || 'Try again in a moment.',
+        color: 'red',
+      });
+    } finally {
+      setSavingTags(false);
+    }
+  };
 
   // Unit formatting helpers
   const isImperial = unitsPreference === 'imperial';
@@ -83,7 +135,7 @@ function MyRoutes() {
       (filterType === 'ai' && route.generated_by === 'ai') ||
       (filterType === 'manual' && route.generated_by !== 'ai');
 
-    return matchesSearch && matchesType;
+    return matchesSearch && matchesType && routeInCollection(route, activeCollection);
   }).sort((a, b) => {
     switch (sortBy) {
       case 'distance':
@@ -787,6 +839,22 @@ function MyRoutes() {
                 </Group>
               )}
 
+              {/* Collections (route tags) */}
+              {collections.length > 0 && (
+                <Chip.Group multiple={false} value={activeCollection} onChange={setCollection}>
+                  <Group gap={6} data-testid="routes-collections">
+                    <Chip value="all" size="xs" radius={0}>
+                      All
+                    </Chip>
+                    {collections.map((c) => (
+                      <Chip key={c.tag.toLowerCase()} value={c.tag} size="xs" radius={0}>
+                        {c.tag} ({c.count})
+                      </Chip>
+                    ))}
+                  </Group>
+                </Chip.Group>
+              )}
+
               {/* Routes Grid */}
               {routes.length === 0 ? (
             <Card p="2rem">
@@ -963,6 +1031,15 @@ function MyRoutes() {
                           >
                             {duplicatingId === route.id ? 'Duplicating...' : 'Duplicate'}
                           </Menu.Item>
+                          <Menu.Item
+                            leftSection={<FolderSimple size={14} />}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setTagEditor({ routeId: route.id, routeName: route.name, tags: route.tags ?? [] });
+                            }}
+                          >
+                            Collections…
+                          </Menu.Item>
                           <Menu.Divider />
                           {garminConnected && (
                             <Menu.Item
@@ -1057,6 +1134,18 @@ function MyRoutes() {
                           Smart Generated
                         </Badge>
                       )}
+                      {(route.tags ?? []).map((tag) => (
+                        <Badge
+                          key={tag}
+                          size="sm"
+                          variant="outline"
+                          color="dark"
+                          leftSection={<FolderSimple size={10} />}
+                          style={{ textTransform: 'none' }}
+                        >
+                          {tag}
+                        </Badge>
+                      ))}
                     </Group>
                   </Stack>
                 </Card>
@@ -1067,6 +1156,36 @@ function MyRoutes() {
           )}
         </Stack>
       </Container>
+
+      <Modal
+        opened={!!tagEditor}
+        onClose={() => !savingTags && setTagEditor(null)}
+        title={tagEditor?.routeName ? `Collections · ${tagEditor.routeName}` : 'Collections'}
+        radius={0}
+      >
+        <Stack gap="sm">
+          <TagsInput
+            data-testid="route-collections-input"
+            label="Collections"
+            description="Group routes your way — commutes, gravel, a trip. Press Enter after each."
+            placeholder="Add a collection"
+            data={collections.map((c) => c.tag)}
+            value={tagEditor?.tags ?? []}
+            onChange={(tags) => setTagEditor((prev) => (prev ? { ...prev, tags } : prev))}
+            maxTags={10}
+            clearable
+            radius={0}
+          />
+          <Group justify="flex-end">
+            <Button variant="default" radius={0} onClick={() => setTagEditor(null)} disabled={savingTags}>
+              Cancel
+            </Button>
+            <Button radius={0} onClick={handleSaveTags} loading={savingTags} data-testid="route-collections-save">
+              Save
+            </Button>
+          </Group>
+        </Stack>
+      </Modal>
     </AppShell>
   );
 }

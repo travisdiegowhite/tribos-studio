@@ -163,6 +163,41 @@ export async function setRouteVisibility(routeId, visibility) {
 }
 
 /**
+ * Set a route's tags — its collections in the route library. Owner only.
+ * The server normalises them (api/utils/routeTags.js) and returns what it saved.
+ * @param {string} routeId - Route UUID
+ * @param {string[]} tags
+ * @returns {Promise<Object>} - { id, tags }
+ */
+export async function setRouteTags(routeId, tags) {
+  const userId = await getCurrentUserId();
+  if (!userId) {
+    throw new Error('User must be authenticated');
+  }
+
+  const headers = await getAuthHeaders();
+  const response = await fetch(`${getApiBaseUrl()}/api/routes`, {
+    method: 'POST',
+    headers,
+    credentials: 'include',
+    body: JSON.stringify({
+      action: 'set_route_tags',
+      userId,
+      routeId,
+      tags
+    })
+  });
+
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({}));
+    throw new Error(errorData.error || 'Failed to update collections');
+  }
+
+  const data = await response.json();
+  return data.route;
+}
+
+/**
  * Fetch a shared route without authentication (public share links).
  * Returns null on 404 (not shared / doesn't exist).
  * @param {string} routeId - Route UUID

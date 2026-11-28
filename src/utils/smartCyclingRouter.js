@@ -7,6 +7,7 @@
  */
 
 import { getStadiaMapsRoute, isStadiaMapsAvailable } from './stadiaMapsRouter';
+import { avoidOptionsOf } from './routeAvoid';
 import { getBRouterDirections, selectBRouterProfile, BROUTER_PROFILES } from './brouter';
 import {
   getGraphHopperCyclingDirections,
@@ -543,6 +544,7 @@ async function tryBRouterRouting(waypoints, options) {
       // Comfort 1–5 is finer than the tolerance; the Tribos profile uses it
       // when present (brouter.js tribosForProfileName).
       comfortLevel: comfortLevelOf(preferences),
+      avoidMainRoads: avoidOptionsOf(preferences).mainRoads,
     });
 
     if (result && result.coordinates && result.coordinates.length > 0) {

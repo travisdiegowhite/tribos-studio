@@ -14,6 +14,7 @@ import {
   ArrowUUpRight,
   ArrowsLeftRight,
   ArrowUDownLeft,
+  ArrowsInLineHorizontal,
   RoadHorizon,
   Pencil,
   Path,
@@ -49,6 +50,9 @@ export interface EditToolbarProps {
   /** When provided, renders a "back to start" (close-the-loop) button. */
   onCloseLoop?: () => void;
   canCloseLoop?: boolean;
+  /** When provided, renders an "out and back" (ride back the same way) button. */
+  onOutAndBack?: () => void;
+  canOutAndBack?: boolean;
   /** When provided, renders a snap-to-roads ↔ freehand toggle. */
   onToggleSnap?: () => void;
   /** Whether road-snapping is currently on (drives the toggle icon). */
@@ -83,6 +87,8 @@ export function EditToolbar({
   canReverse = false,
   onCloseLoop,
   canCloseLoop = false,
+  onOutAndBack,
+  canOutAndBack = false,
   onToggleSnap,
   snapEnabled = true,
   routeProfile = 'road',
@@ -157,6 +163,17 @@ export function EditToolbar({
           >
             <ArrowUDownLeft size={18} />
           </ToolbarButton>
+          {onOutAndBack && (
+            <ToolbarButton
+              label="Out and back"
+              shortcut="ride back the same way"
+              testid="rb2-out-and-back-button"
+              disabled={!canOutAndBack}
+              onClick={onOutAndBack}
+            >
+              <ArrowsInLineHorizontal size={18} />
+            </ToolbarButton>
+          )}
         </>
       )}
       {onToggleSnap && (
