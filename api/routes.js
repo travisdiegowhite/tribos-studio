@@ -9,6 +9,17 @@ import { encodeThumbPolyline } from './utils/polylineEncode.js';
 import { optionalColumn } from './utils/optionalColumn.js';
 import { normalizeRouteTags } from './utils/routeTags.js';
 
+/** Visibility values a rider can set (migration 140 added 'unlisted'). */
+const SHAREABLE_VISIBILITY = new Set(['private', 'unlisted', 'public']);
+
+/**
+ * Readable through a share link: public, unlisted (link-only, migration 140),
+ * or the legacy is_private = false.
+ */
+export function isSharedRoute(route) {
+  return route?.visibility === 'public' || route?.visibility === 'unlisted' || route?.is_private === false;
+}
+
 // Initialize Supabase (server-side with service role)
 const supabase = getSupabaseAdmin();
 
@@ -309,7 +320,7 @@ async function getRoute(req, res, userId, routeId) {
     }
 
     const isOwner = route.user_id === userId;
-    const isShared = route.visibility === 'public' || route.is_private === false;
+    const isShared = isSharedRoute(route);
     if (!isOwner && !isShared) {
       return res.status(404).json({ error: 'Route not found' });
     }
@@ -355,7 +366,7 @@ async function getPublicRoute(req, res, routeId) {
       throw error;
     }
 
-    const isShared = route.visibility === 'public' || route.is_private === false;
+    const isShared = isSharedRoute(route);
     if (!isShared) {
       return res.status(404).json({ error: 'Route not found' });
     }
@@ -376,8 +387,8 @@ async function setRouteVisibility(req, res, userId, routeId, visibility) {
   if (!routeId) {
     return res.status(400).json({ error: 'routeId required' });
   }
-  if (visibility !== 'private' && visibility !== 'public') {
-    return res.status(400).json({ error: "visibility must be 'private' or 'public'" });
+  if (!SHAREABLE_VISIBILITY.has(visibility)) {
+    return res.status(400).json({ error: "visibility must be 'private', 'unlisted' or 'public'" });
   }
 
   try {
@@ -385,6 +396,8 @@ async function setRouteVisibility(req, res, userId, routeId, visibility) {
       .from('routes')
       .update({
         visibility,
+        // Unlisted is readable by link but not public: legacy readers that
+        // look only at is_private keep treating it as not public.
         is_private: visibility !== 'public',
         updated_at: new Date().toISOString()
       })

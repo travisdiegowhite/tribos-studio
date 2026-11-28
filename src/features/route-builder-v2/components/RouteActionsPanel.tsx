@@ -17,12 +17,15 @@ import {
   Loader,
   Menu,
   Modal,
+  SegmentedControl,
   Stack,
   Text,
   Textarea,
   TextInput,
   UnstyledButton,
 } from '@mantine/core';
+import { embedCodeFor, copyText } from '../../../utils/routeEmbed';
+import type { ShareVisibility } from '../../../hooks/route-builder/useRoutePersistence';
 import { notifications } from '@mantine/notifications';
 import {
   CaretDown,
@@ -109,6 +112,9 @@ export function RouteActionsPanel({
   const [wahooConnected, setWahooConnected] = useState(false);
   const [shareConfirmOpen, setShareConfirmOpen] = useState(false);
   const [sharing, setSharing] = useState(false);
+  // Unlisted (anyone with the link) is the default; public is opt-in.
+  const [shareVisibility, setShareVisibility] = useState<ShareVisibility>('unlisted');
+  const [sharedUrl, setSharedUrl] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   // Check device connections once on mount so the "Send to …" items only
@@ -323,12 +329,16 @@ export function RouteActionsPanel({
   const handleShareConfirm = useCallback(async () => {
     setSharing(true);
     try {
-      const result = await persistence.shareRoute();
+      const result = await persistence.shareRoute(shareVisibility);
       if (result.ok) {
-        setShareConfirmOpen(false);
+        // Stay open on the result: the link, plus the embed code.
+        setSharedUrl(result.url);
         notifications.show({
           title: 'Link copied',
-          message: 'Anyone with the link can view this route.',
+          message:
+            shareVisibility === 'public'
+              ? 'This route is public: anyone can view it.'
+              : 'Anyone with the link can view this route.',
           color: 'green',
           icon: <Check size={16} />,
         });
@@ -345,7 +355,23 @@ export function RouteActionsPanel({
     } finally {
       setSharing(false);
     }
-  }, [persistence]);
+  }, [persistence, shareVisibility]);
+
+  const handleCopyEmbed = useCallback(async () => {
+    if (!sharedUrl) return;
+    const ok = await copyText(embedCodeFor(sharedUrl, defaultName || 'Route'));
+    trackRb2('route_embed_copied', { ok });
+    notifications.show(
+      ok
+        ? { title: 'Embed code copied', message: 'Paste it into your page or blog.', color: 'green' }
+        : { title: 'Couldn’t copy', message: 'Copy the embed code from the box instead.', color: 'red' },
+    );
+  }, [sharedUrl, defaultName]);
+
+  const closeShare = useCallback(() => {
+    setShareConfirmOpen(false);
+    setSharedUrl(null);
+  }, []);
 
   return (
     <>
@@ -647,20 +673,61 @@ export function RouteActionsPanel({
 
       <Modal
         opened={shareConfirmOpen}
-        onClose={() => setShareConfirmOpen(false)}
+        onClose={closeShare}
         title="Share Route"
         radius={0}
         data-testid="rb2-share-confirm-modal"
       >
+        {sharedUrl ? (
+          <Stack data-testid="rb2-share-result">
+            <Text style={{ fontFamily: RB2_FONT.body, fontSize: 14, color: RB2.textSecondary }}>
+              Link copied. Anyone you send it to can view the route, no account needed.
+            </Text>
+            <TextInput value={sharedUrl} readOnly radius={0} aria-label="Share link" onFocus={(e) => e.currentTarget.select()} />
+            <Textarea
+              value={embedCodeFor(sharedUrl, defaultName || 'Route')}
+              readOnly
+              autosize
+              minRows={2}
+              radius={0}
+              label="Embed on a website"
+              aria-label="Embed code"
+              styles={{ input: { fontFamily: RB2_FONT.mono, fontSize: 11 } }}
+              onFocus={(e) => e.currentTarget.select()}
+            />
+            <Group justify="flex-end" gap={6}>
+              <Button variant="outline" onClick={handleCopyEmbed} data-testid="rb2-copy-embed" styles={buttonStyles}>
+                Copy embed code
+              </Button>
+              <Button variant="outline" onClick={closeShare} styles={buttonStyles}>
+                Done
+              </Button>
+            </Group>
+          </Stack>
+        ) : (
         <Stack>
+          <SegmentedControl
+            data-testid="rb2-share-visibility"
+            value={shareVisibility}
+            onChange={(v) => setShareVisibility(v as ShareVisibility)}
+            data={[
+              { value: 'unlisted', label: 'Anyone with the link' },
+              { value: 'public', label: 'Public' },
+            ]}
+            fullWidth
+            size="xs"
+            radius={0}
+          />
           <Text style={{ fontFamily: RB2_FONT.body, fontSize: 14, color: RB2.textSecondary }}>
-            Sharing makes this route viewable by anyone with the link — no account needed.
+            {shareVisibility === 'public'
+              ? 'Public routes can be viewed by anyone, and may be shown to other riders later.'
+              : 'Only people you send the link to can view this route. No account needed.'}{' '}
             You can keep editing it; only you can change or delete it.
           </Text>
           <Group justify="flex-end" gap={6}>
             <Button
               variant="outline"
-              onClick={() => setShareConfirmOpen(false)}
+              onClick={closeShare}
               styles={buttonStyles}
             >
               Cancel
@@ -685,6 +752,7 @@ export function RouteActionsPanel({
             </Button>
           </Group>
         </Stack>
+        )}
       </Modal>
     </>
   );

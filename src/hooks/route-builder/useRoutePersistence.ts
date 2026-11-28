@@ -68,8 +68,11 @@ const listRoutesSvc = routesService.listRoutes as () => Promise<SavedRouteRow[]>
 const deleteRouteSvc = routesService.deleteRoute as (id: string) => Promise<unknown>;
 const setRouteVisibilitySvc = routesService.setRouteVisibility as (
   id: string,
-  visibility: 'private' | 'public',
+  visibility: ShareVisibility | 'private',
 ) => Promise<unknown>;
+
+/** Who can open a shared link: anyone with it (unlisted) or anyone (public). */
+export type ShareVisibility = 'unlisted' | 'public';
 
 export type ExportFormat = 'gpx' | 'tcx' | 'fit';
 
@@ -184,11 +187,11 @@ export interface UseRoutePersistenceReturn {
    */
   pushToWahoo: () => Promise<DevicePushResult>;
   /**
-   * Copy a public share link (`/routes/:id`) to the clipboard. Requires the
-   * route to be saved; returns `not_saved` otherwise so the caller can
-   * prompt a save.
+   * Share the route (unlisted by default — anyone with the link — or
+   * public) and copy its `/r/:id` link. Requires the route to be saved;
+   * returns `not_saved` otherwise so the caller can prompt a save.
    */
-  shareRoute: () => Promise<ShareResult>;
+  shareRoute: (visibility?: ShareVisibility) => Promise<ShareResult>;
 }
 
 export function useRoutePersistence(): UseRoutePersistenceReturn {
@@ -688,14 +691,15 @@ export function useRoutePersistence(): UseRoutePersistenceReturn {
     }
   }, [routeGeometry, routeCues, routeName, routeDescription, routeStats, savedRouteId]);
 
-  const shareRoute = useCallback(async (): Promise<ShareResult> => {
+  const shareRoute = useCallback(async (visibility: ShareVisibility = 'unlisted'): Promise<ShareResult> => {
     if (!savedRouteId) {
       return { ok: false, reason: 'not_saved' };
     }
     // Route reads are owner-scoped by default; the link is only useful to a
-    // recipient once the route is marked shareable.
+    // recipient once the route is marked shareable (unlisted or public,
+    // migration 140).
     try {
-      await setRouteVisibilitySvc(savedRouteId, 'public');
+      await setRouteVisibilitySvc(savedRouteId, visibility);
     } catch (e) {
       const message = e instanceof Error ? e.message : String(e);
       trackRb2('route_share_failed', { error_message: message.slice(0, 200) });
@@ -719,7 +723,7 @@ export function useRoutePersistence(): UseRoutePersistenceReturn {
         // caller can surface it for manual copy.
       }
     }
-    trackRb2('route_shared', { route_id: savedRouteId });
+    trackRb2('route_shared', { route_id: savedRouteId, visibility });
     return { ok: true, url };
   }, [savedRouteId]);
 

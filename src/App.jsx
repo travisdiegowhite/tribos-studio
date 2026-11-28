@@ -243,6 +243,8 @@ function AppRoutes() {
       {/* Public share links — no auth guard; the API only serves routes
           explicitly marked public by their owner. */}
       <Route path="/r/:routeId" element={<SharedRoute />} />
+      {/* Chrome-less share page for iframes (embed code, api/oembed.js). */}
+      <Route path="/r/:routeId/embed" element={<SharedRoute embed />} />
       <Route path="/oauth/strava/callback" element={<StravaCallback />} />
       <Route path="/oauth/garmin/callback" element={<GarminCallback />} />
       <Route path="/oauth/google/callback" element={<GoogleCalendarCallback />} />

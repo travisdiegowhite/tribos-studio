@@ -214,6 +214,38 @@ describe('RouteActionsPanel', () => {
     );
   });
 
+  it('shares unlisted by default, then offers the embed code', async () => {
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    Object.assign(navigator, { clipboard: { writeText } });
+    const { persistence } = renderPanel({
+      persistence: makePersistence({
+        savedRouteId: 'r-1',
+        shareRoute: vi.fn().mockResolvedValue({ ok: true, url: 'https://www.tribos.studio/r/r-1' }),
+      }),
+    });
+    fireEvent.click(screen.getByTestId('rb2-share-route-button'));
+    fireEvent.click(await screen.findByTestId('rb2-share-confirm'));
+    await waitFor(() => expect(persistence.shareRoute).toHaveBeenCalledWith('unlisted'));
+    expect(await screen.findByTestId('rb2-share-result')).toBeInTheDocument();
+    fireEvent.click(screen.getByTestId('rb2-copy-embed'));
+    await waitFor(() =>
+      expect(writeText).toHaveBeenCalledWith(expect.stringContaining('src="https://www.tribos.studio/r/r-1/embed"')),
+    );
+  });
+
+  it('can share publicly instead', async () => {
+    const { persistence } = renderPanel({
+      persistence: makePersistence({
+        savedRouteId: 'r-1',
+        shareRoute: vi.fn().mockResolvedValue({ ok: true, url: 'https://www.tribos.studio/r/r-1' }),
+      }),
+    });
+    fireEvent.click(screen.getByTestId('rb2-share-route-button'));
+    fireEvent.click(await screen.findByRole('radio', { name: 'Public' }));
+    fireEvent.click(screen.getByTestId('rb2-share-confirm'));
+    await waitFor(() => expect(persistence.shareRoute).toHaveBeenCalledWith('public'));
+  });
+
   it('shows an error and keeps the confirm open when sharing fails', async () => {
     notifyShow.mockClear();
     const { persistence } = renderPanel({

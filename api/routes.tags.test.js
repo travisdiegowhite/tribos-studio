@@ -41,7 +41,7 @@ vi.mock('./utils/cors.js', () => ({ setupCors: () => false }));
 vi.mock('./utils/activation.js', () => ({ completeActivationStep: vi.fn(async () => {}) }));
 vi.mock('./utils/rateLimit.js', () => ({ rateLimitMiddleware: vi.fn(async () => false) }));
 
-const { default: handler } = await import('./routes.js');
+const { default: handler, isSharedRoute } = await import('./routes.js');
 
 function call(body) {
   const res = {
@@ -97,5 +97,27 @@ describe('api/routes — tags (route library collections)', () => {
     await call({ action: 'list_routes', userId: 'u1' });
     const list = calls.find((c) => c.op === 'select');
     expect(list.select).toMatch(/\btags\b/);
+  });
+
+  it('set_route_visibility accepts unlisted and keeps is_private true', async () => {
+    const res = await call({ action: 'set_route_visibility', userId: 'u1', routeId: 'r1', visibility: 'unlisted' });
+    expect(res.statusCode).toBe(200);
+    const update = calls.find((c) => c.op === 'update');
+    expect(update.payload).toMatchObject({ visibility: 'unlisted', is_private: true });
+    expect(update.eqs).toEqual(expect.arrayContaining([['user_id', 'u1']]));
+  });
+
+  it('rejects an unknown visibility', async () => {
+    const res = await call({ action: 'set_route_visibility', userId: 'u1', routeId: 'r1', visibility: 'friends-of-friends' });
+    expect(res.statusCode).toBe(400);
+  });
+});
+
+describe('isSharedRoute', () => {
+  it('public and unlisted routes are readable by link; private ones are not', () => {
+    expect(isSharedRoute({ visibility: 'public', is_private: false })).toBe(true);
+    expect(isSharedRoute({ visibility: 'unlisted', is_private: true })).toBe(true);
+    expect(isSharedRoute({ visibility: 'private', is_private: true })).toBe(false);
+    expect(isSharedRoute({ visibility: null, is_private: false })).toBe(true);
   });
 });
