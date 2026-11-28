@@ -102,6 +102,13 @@ export function resetBRouterCircuit() {
  * Tribos params for a stock profile name, so existing callers get the
  * Tribos cost model without changing. mtb stays a named profile.
  */
+/**
+ * @param {string} profile
+ * @param {'low'|'medium'|'high'|null} [tolerance]
+ * @param {number|null} [gravelTargetPct]
+ * @param {number|null} [comfortLevel]
+ * @param {boolean} [avoidMainRoads]
+ */
 export function tribosForProfileName(profile, tolerance = null, gravelTargetPct = null, comfortLevel = null, avoidMainRoads = false) {
   // The rider's Comfort 1–5 wins over the 3-step tolerance when known
   // (tribosParamsFor prefers comfortLevel); safety/fastbike stay fixed.

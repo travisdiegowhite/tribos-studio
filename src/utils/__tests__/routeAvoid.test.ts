@@ -1,6 +1,10 @@
 import { describe, it, expect } from 'vitest';
 import { avoidOptionsOf } from '../routeAvoid';
-import { buildBicycleCosting } from '../stadiaMapsRouter';
+import { buildBicycleCosting as buildCosting } from '../stadiaMapsRouter';
+
+/** The costing builder with only preferences set (the JS signature wants every option). */
+const buildBicycleCosting = (profile: string, opts: { preferences: unknown }) =>
+  buildCosting(profile, { preferences: opts.preferences, trainingGoal: undefined, userSpeed: undefined, useHills: undefined });
 import { tribosParamsFor, renderTribosProfile } from '../brouterProfiles';
 import { tribosForProfileName } from '../brouter';
 

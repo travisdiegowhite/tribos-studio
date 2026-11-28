@@ -87,7 +87,7 @@ import {
   type FormPanelControl,
   type RouteCheckpoint,
 } from '../features/route-builder-v2/chat';
-import { Stack as StackIcon, MapPin, FolderOpen, MagnifyingGlass, CloudSun, ForkKnife, Gauge, Barbell, PencilSimpleLine, ChartLineUp, FloppyDisk, ChatCircleDots, Compass, SlidersHorizontal, Signpost } from '@phosphor-icons/react';
+import { Stack as StackIcon, MapPin, FolderOpen, MagnifyingGlass, CloudSun, ForkKnife, Gauge, Barbell, PencilSimpleLine, ChartLineUp, FloppyDisk, ChatCircleDots, Compass, SlidersHorizontal, Signpost, ArrowsClockwise } from '@phosphor-icons/react';
 import { CuesPanel } from '../features/route-builder-v2/components/CuesPanel';
 import { GuestSaveModal } from '../features/route-builder-v2/components/GuestSaveModal';
 import type { RouteCue as RouteCueType } from '../utils/routeCues';
@@ -101,6 +101,7 @@ import { useRouteComfort } from '../hooks/route-builder/useRouteComfort';
 import { useRoadComfort } from '../hooks/route-builder/useRoadComfort';
 import { ComfortStrip } from '../components/comfort/ComfortStrip';
 import { AvoidToggles } from '../features/route-builder-v2/components/AvoidToggles';
+import { QuickLoopPanel } from '../features/route-builder-v2/components/QuickLoopPanel';
 import { sliceLineByDistance } from '../utils/lineSlice';
 import { consumeSignupFromRoute } from '../features/route-builder-v2/telemetry/signupFromRoute';
 import { GradientLayer } from '../features/route-builder-v2/layers/GradientLayer';
@@ -171,7 +172,7 @@ const DEFAULT_VISIBILITY: LayerVisibilityState = {
 
 
 /** Rail panels that only make sense on a bike; hidden for a run. */
-const RIDE_ONLY_RAIL_IDS = new Set(['fuel', 'tire', 'roadprefs']);
+const RIDE_ONLY_RAIL_IDS = new Set(['fuel', 'tire', 'roadprefs', 'loop']);
 
 const STATIC_RUN_OPENING: ChatMessage = {
   id: 'opening',
@@ -1560,7 +1561,7 @@ export default function RouteBuilder2() {
   const surfaceSegments = surface.result?.segments ?? null;
   // Comfort check: the route against the rider's Comfort 1–5, from the same
   // cached corridor ways. Not for runs (a cycling comfort scale).
-  const { comfortLevel } = useRoadComfort();
+  const { comfortLevel, setComfortLevel: setRiderComfortLevel } = useRoadComfort();
   const comfort = useRouteComfort(isRun ? null : geometryForLayers, comfortLevel);
   // Fit the map to a slice of the route (meters from the start).
   const fitRouteSlice = useCallback(
@@ -1784,6 +1785,29 @@ export default function RouteBuilder2() {
   }, [routeTarget, isMobile, handleChatSubmit]);
 
   // Reusable v1 widgets surfaced in RB2 (after personalizedEta is computed).
+  // A loop chosen in Quick loop is already in the store (handOffToBuilder):
+  // fit the map and start a fresh edit history, as for a landing hand-off.
+  const handleQuickLoopApplied = useCallback(
+    (coords: Coordinate[]) => {
+      if (coords.length) map.fitBounds(coords);
+      clearCheckpoints();
+      setPendingEditReview(null);
+    },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [map],
+  );
+  const quickLoopStart: Coordinate | null = (userLocation.coord as Coordinate | null) ?? (viewportCenter as Coordinate | null) ?? null;
+  const quickLoopNode = (
+    <QuickLoopPanel
+      start={quickLoopStart}
+      startLabel={userLocation.coord ? 'your location' : 'the map centre'}
+      comfortLevel={comfortLevel}
+      isImperial={isImperial}
+      onApplied={handleQuickLoopApplied}
+      onComfortLevelChange={setRiderComfortLevel}
+    />
+  );
+
   const roadPrefsNode = (
     <>
       <Box style={{ marginBottom: 12 }}>
@@ -2051,6 +2075,12 @@ export default function RouteBuilder2() {
         panel: <TirePressurePanel routeProfile={routeProfile} isImperial={isImperial} />,
       },
       {
+        id: 'loop',
+        label: 'Quick loop',
+        icon: <ArrowsClockwise size={20} weight="duotone" />,
+        panel: quickLoopNode,
+      },
+      {
         id: 'roadprefs',
         label: 'Road prefs',
         icon: <SlidersHorizontal size={20} weight="duotone" />,
@@ -2305,6 +2335,7 @@ export default function RouteBuilder2() {
               isMobile
             />
           </Box>
+          {!isRun && <Box style={cardStyle}>{quickLoopNode}</Box>}
           {!isRun && <Box style={cardStyle}>{roadPrefsNode}</Box>}
         </>
       ),
