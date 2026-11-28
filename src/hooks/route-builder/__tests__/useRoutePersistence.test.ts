@@ -287,4 +287,24 @@ describe('useRoutePersistence', () => {
     expect(result.current.savedRouteId).toBeNull();
     expect(useRouteBuilderStore.getState().routeName).toBe('Shared loop');
   });
+
+  it('imports a TCX course through the same path as GPX', async () => {
+    const tcx = `<?xml version="1.0"?><TrainingCenterDatabase><Courses><Course><Name>River Path</Name><Track>
+      <Trackpoint><Position><LatitudeDegrees>40.01</LatitudeDegrees><LongitudeDegrees>-105.27</LongitudeDegrees></Position><AltitudeMeters>1600</AltitudeMeters><DistanceMeters>0</DistanceMeters></Trackpoint>
+      <Trackpoint><Position><LatitudeDegrees>40.02</LatitudeDegrees><LongitudeDegrees>-105.26</LongitudeDegrees></Position><AltitudeMeters>1610</AltitudeMeters><DistanceMeters>1400</DistanceMeters></Trackpoint>
+    </Track></Course></Courses></TrainingCenterDatabase>`;
+    const file = new File([tcx], 'river.tcx', { type: 'application/xml' });
+    const { result } = renderHook(() => useRoutePersistence());
+    let coords: unknown = null;
+    await act(async () => {
+      coords = await result.current.importRouteFile(file);
+    });
+    expect(coords).toEqual([
+      [-105.27, 40.01],
+      [-105.26, 40.02],
+    ]);
+    const state = useRouteBuilderStore.getState();
+    expect(state.routeName).toBe('River Path');
+    expect(state.routeStats.distance_km).toBeCloseTo(1.4, 3);
+  });
 });

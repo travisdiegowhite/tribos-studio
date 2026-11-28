@@ -21,6 +21,11 @@ vi.mock('../../../../contexts/AuthContext', () => ({
 function makePersistence(
   overrides: Partial<UseRoutePersistenceReturn> = {},
 ): UseRoutePersistenceReturn {
+  // importGpx is kept as an alias of importRouteFile; share one mock.
+  const importMock = vi.fn().mockResolvedValue([
+    [-105.27, 40.01],
+    [-105.28, 40.02],
+  ]);
   return {
     isSaving: false,
     isLoading: false,
@@ -34,10 +39,8 @@ function makePersistence(
     ]),
     deleteRoute: vi.fn().mockResolvedValue(true),
     exportRoute: vi.fn(),
-    importGpx: vi.fn().mockResolvedValue([
-      [-105.27, 40.01],
-      [-105.28, 40.02],
-    ]),
+    importGpx: importMock,
+    importRouteFile: importMock,
     isPushingToDevice: false,
     checkGarminConnection: vi.fn().mockResolvedValue(false),
     pushToGarmin: vi.fn().mockResolvedValue({ ok: true, message: 'Sent.' }),
@@ -282,5 +285,13 @@ describe('RouteActionsPanel', () => {
       expect(await screen.findByTestId('rb2-save-name-input')).toBeInTheDocument();
       expect(screen.queryByTestId('rb2-guest-modal-signup')).not.toBeInTheDocument();
     });
+  });
+
+  it('accepts GPX, TCX and FIT files for import', () => {
+    renderPanel();
+    const accept = screen.getByTestId('rb2-import-gpx-input').getAttribute('accept') ?? '';
+    expect(accept).toContain('.gpx');
+    expect(accept).toContain('.tcx');
+    expect(accept).toContain('.fit');
   });
 });

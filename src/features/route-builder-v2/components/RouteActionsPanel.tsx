@@ -136,14 +136,16 @@ export function RouteActionsPanel({
       // Reset so re-selecting the same file fires change again.
       e.target.value = '';
       if (!file) return;
-      trackRb2('import_gpx_selected', { file_size: file.size });
-      const coords = await persistence.importGpx(file);
+      const ext = (file.name.split('.').pop() || 'gpx').toUpperCase();
+      trackRb2('import_gpx_selected', { file_size: file.size, source: ext.toLowerCase() });
+      const importFile = persistence.importRouteFile ?? persistence.importGpx;
+      const coords = await importFile(file);
       if (coords) {
         if (onImported) onImported(coords);
       } else {
         notifications.show({
           title: 'Import failed',
-          message: persistence.lastError || "That GPX file couldn't be read.",
+          message: persistence.lastError || `That ${ext} file couldn't be read.`,
           color: 'red',
           autoClose: 6000,
         });
@@ -484,12 +486,12 @@ export function RouteActionsPanel({
           styles={buttonStyles}
           mt={6}
         >
-          {persistence.isLoading ? <Loader size="xs" /> : 'Import GPX'}
+          {persistence.isLoading ? <Loader size="xs" /> : 'Import GPX / TCX / FIT'}
         </Button>
         <input
           ref={fileInputRef}
           type="file"
-          accept=".gpx,application/gpx+xml,application/xml,text/xml"
+          accept=".gpx,.tcx,.fit,application/gpx+xml,application/vnd.garmin.tcx+xml,application/xml,text/xml,application/octet-stream"
           onChange={handleFileSelected}
           data-testid="rb2-import-gpx-input"
           style={{ display: 'none' }}
