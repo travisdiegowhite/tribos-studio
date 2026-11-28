@@ -14,6 +14,7 @@ const visibility: LayerVisibilityState = {
   bikeInfra: false,
   familiar: false,
   intervals: false,
+  imagery: false,
 };
 
 describe('run sport rendering (multisport phase 2)', () => {
