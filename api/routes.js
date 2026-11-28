@@ -7,6 +7,7 @@ import { completeActivationStep } from './utils/activation.js';
 import { rateLimitMiddleware } from './utils/rateLimit.js';
 import { encodeThumbPolyline } from './utils/polylineEncode.js';
 import { optionalColumn } from './utils/optionalColumn.js';
+import { normalizeRouteTags } from './utils/routeTags.js';
 
 // Initialize Supabase (server-side with service role)
 const supabase = getSupabaseAdmin();
@@ -86,7 +87,7 @@ export default async function handler(req, res) {
   }
 
   try {
-    const { action, userId, routeId, routeData, visibility } = req.body;
+    const { action, userId, routeId, routeData, visibility, tags } = req.body;
 
     // Unauthenticated read of an explicitly shared route (public share
     // links). IP rate-limited since there's no user to scope by.
@@ -121,6 +122,9 @@ export default async function handler(req, res) {
 
       case 'set_route_visibility':
         return await setRouteVisibility(req, res, userId, routeId, visibility);
+
+      case 'set_route_tags':
+        return await setRouteTags(req, res, userId, routeId, tags);
 
       case 'save_draft':
         return await saveDraft(req, res, userId, routeData);
@@ -186,10 +190,15 @@ async function saveRoute(req, res, userId, routeData) {
       ai_suggestions: routeData.ai_suggestions || null,
       is_private: routeData.is_private !== false,
       visibility: routeData.visibility || 'private',
-      tags: routeData.tags || null,
       thumb_polyline: encodeThumbPolyline(coordinates),
       updated_at: new Date().toISOString()
     };
+    // Tags are written only when the caller sends them. The route builder
+    // never does, and writing `routeData.tags || null` here wiped a route's
+    // collections on every re-save.
+    if (Array.isArray(routeData.tags)) {
+      routeRecord.tags = normalizeRouteTags(routeData.tags);
+    }
 
     let result;
 
@@ -245,7 +254,7 @@ async function listRoutes(req, res, userId) {
     const { data: routes, error } = await routesSport.select(
       `id, name, description, distance_km, elevation_gain_m, estimated_duration_minutes,
         route_type, training_goal, surface_type, sport, generated_by, is_private,
-        thumb_polyline, created_at, updated_at, start_latitude, start_longitude`,
+        thumb_polyline, created_at, updated_at, start_latitude, start_longitude, tags`,
       (columns) =>
         supabase
           .from('routes')
@@ -398,6 +407,41 @@ async function setRouteVisibility(req, res, userId, routeId, visibility) {
 
   } catch (error) {
     console.error('Set route visibility error:', error);
+    return res.status(500).json({ error: error.message });
+  }
+}
+
+/**
+ * Set a route's tags (its collections in the library). Owner only: the
+ * user_id filter is the security boundary, as for visibility.
+ */
+async function setRouteTags(req, res, userId, routeId, tags) {
+  if (!routeId) {
+    return res.status(400).json({ error: 'routeId required' });
+  }
+  if (!Array.isArray(tags)) {
+    return res.status(400).json({ error: 'tags must be an array' });
+  }
+
+  try {
+    const { data: route, error } = await supabase
+      .from('routes')
+      .update({ tags: normalizeRouteTags(tags), updated_at: new Date().toISOString() })
+      .eq('id', routeId)
+      .eq('user_id', userId)
+      .select('id, tags')
+      .single();
+
+    if (error) {
+      if (error.code === 'PGRST116') {
+        return res.status(404).json({ error: 'Route not found' });
+      }
+      throw error;
+    }
+
+    return res.status(200).json({ success: true, route });
+  } catch (error) {
+    console.error('Set route tags error:', error);
     return res.status(500).json({ error: error.message });
   }
 }
