@@ -1,8 +1,9 @@
 # Fly.io app for the Tribos BRouter server. See docs/brouter-self-host-runbook.md.
 #
-#   fly launch --config deploy/brouter/fly.toml --no-deploy
+# From the repo root:
+#   fly apps create tribos-brouter
 #   fly volumes create brouter_segments --size 5 --region den -a tribos-brouter
-#   fly deploy --config deploy/brouter/fly.toml
+#   fly deploy . --config deploy/brouter/fly.toml --dockerfile deploy/brouter/Dockerfile -a tribos-brouter --detach
 app = "tribos-brouter"
 primary_region = "den"
 

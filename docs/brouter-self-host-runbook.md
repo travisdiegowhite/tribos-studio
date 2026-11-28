@@ -24,20 +24,32 @@ Design summary (see `docs/route-quality-brainstorm.md`, Track B item 7):
 Run from the **repo root** (the Docker build context must include
 `routing-profiles/`; the root `.dockerignore` keeps everything else out).
 
+Prerequisites: flyctl (`brew install flyctl`, or
+`curl -L https://fly.io/install.sh | sh`) and a Fly account with a payment
+method (≈ $12–18 / month, see Operate).
+
 ```bash
 fly auth login
-fly launch --config deploy/brouter/fly.toml --no-deploy --copy-config --name tribos-brouter --region den
+fly apps create tribos-brouter
 fly volumes create brouter_segments --size 5 --region den -a tribos-brouter
-fly deploy --config deploy/brouter/fly.toml --dockerfile deploy/brouter/Dockerfile -a tribos-brouter
+fly deploy . --config deploy/brouter/fly.toml --dockerfile deploy/brouter/Dockerfile -a tribos-brouter --detach
 ```
 
-If `fly launch` rewrites `fly.toml`, restore ours (`git checkout
-deploy/brouter/fly.toml`) before `fly deploy`; the file is the source of truth.
+- `fly apps create` (not `fly launch`) never rewrites `fly.toml`, which is
+  the source of truth.
+- App names are global on Fly. If `tribos-brouter` is taken, pick another,
+  set `app =` in `deploy/brouter/fly.toml`, and use that host
+  (`https://<name>.fly.dev`) everywhere below.
+- The `.` makes the repo root the build context, so the Dockerfile can copy
+  `routing-profiles/` (the root `.dockerignore` keeps everything else out).
+- `--detach` returns at once. The first boot syncs the tiles before the server
+  starts, which takes 10–30 minutes depending on brouter.de's upload speed,
+  and a monitored deploy can give up waiting and report a failure that isn't
+  one.
 
-The first boot syncs the tiles before the server starts, which takes
-10–30 minutes depending on brouter.de's upload speed. The health check's
-600 s grace period covers most of that; if the machine gets restarted
-mid-sync it resumes (tiles already on the volume are skipped). Watch it:
+The health check's 600 s grace period covers most of the sync; if the
+machine gets restarted mid-sync it resumes (tiles already on the volume are
+skipped). Watch it:
 
 ```bash
 fly logs -a tribos-brouter
