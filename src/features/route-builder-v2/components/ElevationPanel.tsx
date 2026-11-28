@@ -398,7 +398,7 @@ export function ElevationPanel({
         onHoverKm?.(km);
       });
     },
-    [profile, scales, onHoverKm],
+    [profile, scales, onHoverKm, kmAtClientX],
   );
 
   const section = useMemo(
