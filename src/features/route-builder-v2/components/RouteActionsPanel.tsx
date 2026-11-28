@@ -25,6 +25,7 @@ import {
   UnstyledButton,
 } from '@mantine/core';
 import { embedCodeFor, copyText } from '../../../utils/routeEmbed';
+import { DEVICE_GUIDES, type GuidedDevice } from './deviceGuides';
 import type { ShareVisibility } from '../../../hooks/route-builder/useRoutePersistence';
 import { notifications } from '@mantine/notifications';
 import {
@@ -243,6 +244,17 @@ export function RouteActionsPanel({
   const handleExport = useCallback(
     (format: ExportFormat) => {
       persistence.exportRoute(format);
+    },
+    [persistence],
+  );
+
+  // COROS and Hammerhead: download the right file, then show how to import it.
+  const [guideDevice, setGuideDevice] = useState<GuidedDevice | null>(null);
+  const handleGuidedSend = useCallback(
+    (device: GuidedDevice) => {
+      persistence.exportRoute(DEVICE_GUIDES[device].format);
+      setGuideDevice(device);
+      trackRb2('device_send_guided', { device });
     },
     [persistence],
   );
@@ -499,6 +511,18 @@ export function RouteActionsPanel({
               <Menu.Item data-testid="rb2-export-fit" onClick={() => handleExport('fit')}>
                 FIT
               </Menu.Item>
+              <Divider my={4} />
+              <Menu.Label>Other devices</Menu.Label>
+              {(['coros', 'hammerhead'] as const).map((device) => (
+                <Menu.Item
+                  key={device}
+                  data-testid={`rb2-send-guided-${device}`}
+                  leftSection={<CloudArrowUp size={14} />}
+                  onClick={() => handleGuidedSend(device)}
+                >
+                  {DEVICE_GUIDES[device].menuLabel}
+                </Menu.Item>
+              ))}
             </Menu.Dropdown>
           </Menu>
         </Group>
@@ -667,6 +691,31 @@ export function RouteActionsPanel({
                 </ActionIcon>
               </Box>
             ))}
+          </Stack>
+        )}
+      </Modal>
+
+      <Modal
+        opened={guideDevice !== null}
+        onClose={() => setGuideDevice(null)}
+        title={guideDevice ? DEVICE_GUIDES[guideDevice].title : ''}
+        radius={0}
+        data-testid="rb2-device-guide"
+      >
+        {guideDevice && (
+          <Stack gap="xs">
+            <Box component="ol" style={{ margin: 0, paddingLeft: 18 }}>
+              {DEVICE_GUIDES[guideDevice].steps.map((step) => (
+                <Text component="li" key={step} style={{ fontFamily: RB2_FONT.body, fontSize: 14, color: RB2.textSecondary, marginBottom: 6 }}>
+                  {step}
+                </Text>
+              ))}
+            </Box>
+            <Group justify="flex-end">
+              <Button variant="outline" onClick={() => setGuideDevice(null)} styles={buttonStyles}>
+                Got it
+              </Button>
+            </Group>
           </Stack>
         )}
       </Modal>

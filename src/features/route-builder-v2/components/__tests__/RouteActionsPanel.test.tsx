@@ -326,4 +326,20 @@ describe('RouteActionsPanel', () => {
     expect(accept).toContain('.tcx');
     expect(accept).toContain('.fit');
   });
+
+  it('Send to COROS downloads a GPX and shows how to import it', async () => {
+    const { persistence } = renderPanel();
+    fireEvent.click(screen.getByTestId('rb2-export-route-button'));
+    fireEvent.click(await screen.findByTestId('rb2-send-guided-coros'));
+    expect(persistence.exportRoute).toHaveBeenCalledWith('gpx');
+    expect(await screen.findByText('Send this route to your COROS watch')).toBeInTheDocument();
+  });
+
+  it('Send to Hammerhead Karoo downloads a FIT and shows how to import it', async () => {
+    const { persistence } = renderPanel();
+    fireEvent.click(screen.getByTestId('rb2-export-route-button'));
+    fireEvent.click(await screen.findByTestId('rb2-send-guided-hammerhead'));
+    expect(persistence.exportRoute).toHaveBeenCalledWith('fit');
+    expect(await screen.findByText(/dashboard\.hammerhead\.io/)).toBeInTheDocument();
+  });
 });
