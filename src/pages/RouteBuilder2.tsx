@@ -1586,6 +1586,13 @@ export default function RouteBuilder2() {
     },
     [fitRouteSlice],
   );
+  const handleSelectRange = useCallback(
+    (start_km: number, end_km: number) => {
+      fitRouteSlice(start_km * 1000, end_km * 1000);
+      trackRb2('elevation_section_shown', { length_km: Math.round((end_km - start_km) * 10) / 10 });
+    },
+    [fitRouteSlice],
+  );
   const handleSelectClimb = useCallback(
     (start_km: number, end_km: number) => {
       fitRouteSlice(start_km * 1000, end_km * 1000);
@@ -2274,6 +2281,7 @@ export default function RouteBuilder2() {
                       isImperial={isImperial}
                       cues={visibleCues}
                       onSelectClimb={handleSelectClimb}
+                      onSelectRange={handleSelectRange}
                     />
                   )}
                 </>
@@ -2476,6 +2484,7 @@ export default function RouteBuilder2() {
               isImperial={isImperial}
               cues={visibleCues}
               onSelectClimb={handleSelectClimb}
+                      onSelectRange={handleSelectRange}
             />
           )}
           {hasRoute && !!routeCues?.length && (
