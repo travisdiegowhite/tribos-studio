@@ -2,6 +2,7 @@ import { render, screen, fireEvent } from '@testing-library/react';
 import { MantineProvider } from '@mantine/core';
 import { describe, it, expect, vi } from 'vitest';
 import { WeatherPanel } from '../WeatherPanel';
+import { useRouteBuilderStore } from '../../../../stores/routeBuilderStore';
 import type { UseRouteWeatherReturn } from '../../../../hooks/route-builder';
 
 function makeWeather(overrides: Partial<UseRouteWeatherReturn> = {}): UseRouteWeatherReturn {
@@ -80,3 +81,48 @@ describe('WeatherPanel', () => {
     expect(refresh).toHaveBeenCalled();
   });
 });
+
+describe('WeatherPanel — planned start', () => {
+  it('switching to a planned start stores it and shows a time input', () => {
+    useRouteBuilderStore.setState({ rideStartAt: null });
+    render(
+      <MantineProvider>
+        <WeatherPanel weather={makeWeather()} />
+      </MantineProvider>,
+    );
+    fireEvent.click(screen.getByRole('radio', { name: 'Planned start' }));
+    const stored = useRouteBuilderStore.getState().rideStartAt as string | null;
+    expect(stored).not.toBeNull();
+    expect(Date.parse(stored as string)).toBeGreaterThan(Date.now());
+    expect(screen.getByLabelText('Start time')).toBeInTheDocument();
+    useRouteBuilderStore.setState({ rideStartAt: null });
+  });
+
+  it('shows the start / midway / finish strip and the too-far note', () => {
+    const at = new Date().toISOString();
+    const point = { temperature: 9, feelsLike: 8, windSpeed: 12, windDirection: 'W', windDegrees: 270, windGust: null, description: '', conditions: '', humidity: 50, location: '' };
+    const { unmount } = render(
+      <MantineProvider>
+        <WeatherPanel
+          weather={makeWeather({
+            timeline: [
+              { label: 'Start', at, weather: point },
+              { label: 'Midway', at, weather: point },
+              { label: 'Finish', at, weather: null },
+            ],
+          })}
+        />
+      </MantineProvider>,
+    );
+    expect(screen.getByTestId('rb2-weather-timeline')).toHaveTextContent(/Start/);
+    expect(screen.getByTestId('rb2-weather-timeline')).toHaveTextContent(/9°C/);
+    unmount();
+    render(
+      <MantineProvider>
+        <WeatherPanel weather={makeWeather({ weather: null, wind: null, forecastNote: 'too_far' })} />
+      </MantineProvider>,
+    );
+    expect(screen.getByTestId('rb2-weather-too-far')).toHaveTextContent(/five days/);
+  });
+});
+

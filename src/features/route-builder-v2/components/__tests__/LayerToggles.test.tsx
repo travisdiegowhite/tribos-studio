@@ -12,6 +12,7 @@ const initialVisibility: LayerVisibilityState = {
   bikeInfra: false,
   familiar: false,
   intervals: false,
+  imagery: false,
 };
 
 function renderToggles(overrides: Partial<React.ComponentProps<typeof LayerToggles>> = {}) {
@@ -126,5 +127,24 @@ describe('LayerToggles', () => {
       .querySelectorAll('input[type="checkbox"]');
     fireEvent.click(switches[3] as HTMLInputElement);
     expect(props.onToggle).toHaveBeenCalledWith('intervals', false);
+  });
+});
+
+describe('LayerToggles — street imagery', () => {
+  it('hides the toggle without a Mapillary token', () => {
+    vi.stubEnv('VITE_MAPILLARY_TOKEN', '');
+    renderToggles();
+    expect(screen.queryByText('Street Imagery')).not.toBeInTheDocument();
+    vi.unstubAllEnvs();
+  });
+
+  it('shows the toggle with a token and reports the change', () => {
+    vi.stubEnv('VITE_MAPILLARY_TOKEN', 'MLY|test');
+    const { props } = renderToggles();
+    expect(screen.getByText('Street Imagery')).toBeInTheDocument();
+    const row = screen.getByText('Street Imagery').closest('div')!.parentElement!;
+    fireEvent.click(row.querySelector('input[type="checkbox"]')!);
+    expect(props.onToggle).toHaveBeenCalledWith('imagery', true);
+    vi.unstubAllEnvs();
   });
 });

@@ -152,3 +152,52 @@ describe('ElevationPanel climbs', () => {
     expect(screen.queryByTestId('rb2-elevation-climbs')).toBeNull();
   });
 });
+
+describe('ElevationPanel section select', () => {
+  const RECT = {
+    left: 0,
+    width: 100,
+    top: 0,
+    height: 80,
+    right: 100,
+    bottom: 80,
+    x: 0,
+    y: 0,
+    toJSON: () => {},
+  } as DOMRect;
+
+  it('drag selects a stretch, shows its metrics, and "Show on map" reports it', () => {
+    const onSelectRange = vi.fn();
+    render(
+      <MantineProvider>
+        <ElevationPanel profile={CLIMB} onSelectRange={onSelectRange} />
+      </MantineProvider>,
+    );
+    const svg = screen.getByRole('img');
+    vi.spyOn(svg, 'getBoundingClientRect').mockReturnValue(RECT);
+    fireEvent.pointerDown(svg, { clientX: 20, pointerId: 1 });
+    fireEvent.pointerMove(svg, { clientX: 60, pointerId: 1 });
+    fireEvent.pointerUp(svg, { clientX: 60, pointerId: 1 });
+
+    expect(screen.getByTestId('rb2-elevation-selection')).toBeInTheDocument();
+    // 2 km → 6 km of a steady 1% climb: 4 km, +40 m.
+    const section = screen.getByTestId('rb2-elevation-section');
+    expect(section).toHaveTextContent('2.0km–6.0km');
+    expect(section).toHaveTextContent('↑ 40m');
+    expect(section).toHaveTextContent('avg 1.0%');
+    fireEvent.click(screen.getByRole('button', { name: 'Show on map' }));
+    expect(onSelectRange).toHaveBeenCalledWith(2, 6);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Clear selection' }));
+    expect(screen.queryByTestId('rb2-elevation-section')).toBeNull();
+  });
+
+  it('a press without dragging selects nothing', () => {
+    renderPanel(CLIMB);
+    const svg = screen.getByRole('img');
+    vi.spyOn(svg, 'getBoundingClientRect').mockReturnValue(RECT);
+    fireEvent.pointerDown(svg, { clientX: 30, pointerId: 1 });
+    fireEvent.pointerUp(svg, { clientX: 30, pointerId: 1 });
+    expect(screen.queryByTestId('rb2-elevation-selection')).toBeNull();
+  });
+});

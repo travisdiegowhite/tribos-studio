@@ -63,6 +63,10 @@ const initialState = {
   // so they survive clearing the route. Every router reads them.
   routeAvoid: { unpaved: false, mainRoads: false },
 
+  // Planned ride start (ISO datetime) for forecast weather along the route;
+  // null means "now" (current conditions). A setting, kept on clear.
+  rideStartAt: null,
+
   // Map viewport
   viewport: {
     latitude: 37.7749,
@@ -281,6 +285,9 @@ export const useRouteBuilderStore = create(
         },
       })),
 
+      // === Planned start (forecast weather) ===
+      setRideStartAt: (iso) => set({ rideStartAt: iso && Number.isFinite(Date.parse(iso)) ? iso : null }),
+
       // === Route Origin ===
       setRouteOrigin: (origin) => set({ routeOrigin: origin === 'ai' ? 'ai' : null }),
 
@@ -398,6 +405,7 @@ export const useRouteBuilderStore = create(
         routingSource: state.routingSource,
         routeOrigin: state.routeOrigin,
         routeAvoid: state.routeAvoid,
+        rideStartAt: state.rideStartAt,
         builderMode: state.builderMode,
         lastSaved: state.lastSaved,
       }),

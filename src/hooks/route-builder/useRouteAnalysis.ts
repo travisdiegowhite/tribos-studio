@@ -17,7 +17,11 @@ export type POILayer =
   | 'food'
   | 'bike_shop'
   | 'restroom'
-  | 'viewpoint';
+  | 'viewpoint'
+  | 'groceries'
+  | 'lodging'
+  | 'camping'
+  | 'repair_station';
 
 export interface ElevationPoint {
   distance_km: number;
@@ -55,6 +59,10 @@ const EMPTY_POIS: Record<POILayer, POIResult | null> = {
   bike_shop: null,
   restroom: null,
   viewpoint: null,
+  groceries: null,
+  lodging: null,
+  camping: null,
+  repair_station: null,
 };
 
 export function useRouteAnalysis(): UseRouteAnalysisReturn {

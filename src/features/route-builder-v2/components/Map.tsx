@@ -20,7 +20,7 @@
  * Reads MAPBOX_TOKEN + BASEMAP_STYLES from the shared RouteBuilder exports.
  */
 
-import { type ReactNode, useCallback, useRef, useState } from 'react';
+import { type ReactNode, useCallback, useMemo, useRef, useState } from 'react';
 import MapboxMap, {
   Marker,
   Source,
@@ -73,6 +73,13 @@ export interface MapWrapperProps {
   onClipClick?: (coord: Coordinate) => void;
   /** Highlight geometry (the spur pending removal), drawn above the route. */
   clipHighlight?: GeoJSON.Feature | null;
+  // ── Street imagery (Mapillary) ──
+  /**
+   * Extra clickable layer ids (the Mapillary image dots). A click that hits
+   * one goes to onImageryClick instead of adding a waypoint.
+   */
+  imageryLayerId?: string | null;
+  onImageryClick?: (imageId: string, coord: Coordinate) => void;
   children?: ReactNode;
 }
 
@@ -98,6 +105,8 @@ export function Map({
   clipMode = false,
   onClipClick,
   clipHighlight = null,
+  imageryLayerId = null,
+  onImageryClick,
   children,
 }: MapWrapperProps) {
   const mapRef = useRef<MapRef | null>(null);
@@ -128,6 +137,10 @@ export function Map({
   const cameraRef = useRef(camera);
 
   const hasLine = !!routeGeometry && routeGeometry.coordinates.length >= 2;
+  const interactiveIds = useMemo(() => {
+    const ids = [...(hasLine ? [ROUTE_HIT_LAYER_ID] : []), ...(imageryLayerId ? [imageryLayerId] : [])];
+    return ids.length ? ids : undefined;
+  }, [hasLine, imageryLayerId]);
 
   const clearLongPress = useCallback(() => {
     if (longPressRef.current.timer) {
@@ -153,9 +166,21 @@ export function Map({
         onClipClick?.(coord);
         return;
       }
+      // A click on a street-imagery dot opens the photo, not a new waypoint.
+      if (imageryLayerId && onImageryClick) {
+        const hit = evt.features?.find((f) => f.layer?.id === imageryLayerId);
+        const imageId = hit?.properties?.id;
+        if (imageId != null) {
+          const geom = hit?.geometry as GeoJSON.Point | undefined;
+          const at: Coordinate =
+            geom?.type === 'Point' ? [geom.coordinates[0], geom.coordinates[1]] : coord;
+          onImageryClick(String(imageId), at);
+          return;
+        }
+      }
       void map.handleMapClick(coord);
     },
-    [map, clipMode, onClipClick],
+    [map, clipMode, onClipClick, imageryLayerId, onImageryClick],
   );
 
   const handleMouseDown = useCallback(
@@ -290,7 +315,7 @@ export function Map({
       onMouseDown={handleMouseDown}
       onMouseMove={handleMouseMove}
       onMouseUp={handleMouseUp}
-      interactiveLayerIds={hasLine ? [ROUTE_HIT_LAYER_ID] : undefined}
+      interactiveLayerIds={interactiveIds}
       onLoad={() => map.registerMap(mapRef.current as unknown as MapController)}
       mapStyle={mapStyle as string}
       mapboxAccessToken={MAPBOX_TOKEN}

@@ -129,9 +129,10 @@ export async function getRouteForViewer(routeId) {
 }
 
 /**
- * Set a route's visibility ('private' | 'public'). Owner only.
+ * Set a route's visibility ('private' | 'unlisted' | 'public'). Owner only.
+ * Unlisted (migration 140) is readable by link but never listed.
  * @param {string} routeId - Route UUID
- * @param {'private'|'public'} visibility
+ * @param {'private'|'unlisted'|'public'} visibility
  * @returns {Promise<Object>} - { id, visibility, is_private }
  */
 export async function setRouteVisibility(routeId, visibility) {

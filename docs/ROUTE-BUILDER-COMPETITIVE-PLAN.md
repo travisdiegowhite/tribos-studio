@@ -1,6 +1,6 @@
 # Route Builder — back to our roots
 
-**Status:** plan, 2026-11-28. Phase 0 is done; Phase 1's code is done and its ops steps are pending; Phase 2 items 1–5 are done.
+**Status:** plan, 2026-11-28. Phase 0 is done; Phase 1's code is done and its ops steps are pending; Phase 2's code is done (COROS push waits on its API spec; street imagery waits on a Mapillary token).
 **Decision owner:** Travis.
 
 ## Contents
@@ -346,7 +346,7 @@ freeze applies.
 6. `VITE_ROUTING_LANDING=true`; redeploy; purge Cloudflare.
 7. Delete `VITE_STADIA_API_KEY` from Vercel; redeploy.
 
-### Phase 2 — Reach table stakes — **items 1–5 done 2026-11-28**
+### Phase 2 — Reach table stakes — **code done 2026-11-28**
 
 Items 1–12 of §3, in that order. The first five are the minimum that lets us
 say "everything Ride with GPS's free tier does, plus comfort."
@@ -358,7 +358,13 @@ say "everything Ride with GPS's free tier does, plus comfort."
 | 3 | Loop generator without AI | **Done.** "Quick loop" (rail + mobile Build): distance, surface, direction, at the rider's comfort, on the landing's ladder |
 | 4 | Out and back | **Done.** Toolbar button; the same roads reversed, one undo step |
 | 5 | Collections | **Done.** Route tags (`routes.tags`): chips to filter the library, a "Collections…" editor per route; builder re-saves no longer wipe tags |
-| 6–12 | Embeds, device push, TCX/FIT import, forecast weather, POI categories, imagery, section select | Next |
+| 6 | Embeds | **Done.** An "unlisted" share (anyone with the link; migration 140, applied), a chrome-less `/r/:id/embed` page with "Copy embed code" in the share dialog, and an oEmbed endpoint (`api/oembed.js`). The `<link rel="alternate">` discovery tag needs server-rendered HTML, so it is not in. |
+| 7 | Device push | **Guided download.** "Other devices" in the export menu: COROS gets a GPX, Hammerhead Karoo a FIT, each with short import steps. A direct COROS push waits on the route spec from api@coros.com. Hammerhead has no partner route API. |
+| 8 | TCX/FIT import | **Done.** The import button takes `.gpx`, `.tcx` and `.fit` (`src/utils/routeFileParsers.ts`). |
+| 9 | Forecast weather | **Done.** Weather panel: Now or a planned start; the forecast at start, midway and finish by arrival time (`api/weather-forecast.js` `mode=at`); past five days it says the forecast isn't out yet. |
+| 10 | POI categories | **Done.** Adds groceries, lodging, camping and repair stations (areas count too, via `nwr` + `out center`; lodging and camping search 2 km off the route). The popup shows hours and website. |
+| 11 | Imagery | **Built, hidden.** A "Street Imagery" layer (Mapillary coverage; click a dot for the photo). It appears once `VITE_MAPILLARY_TOKEN` is set in Vercel. |
+| 12 | Section select | **Done.** Drag on the elevation chart for that stretch's distance, climbing, average and max grade, and "Show on map". |
 
 Still to do alongside: persist `gravel_actual_pct` and `surface_mix` on save.
 
@@ -457,5 +463,6 @@ route_pushed_to_device → account_created_from_route → upgrade_viewed → sub
 - Is the self-hosted BRouter on Fly live, and has migration 126 been applied?
 - Ride with GPS tier split and Komoot free device sync. Check both before
   using them in marketing copy.
-- Do COROS and Hammerhead offer route-push APIs to partners?
+- COROS: route-push spec requested from api@coros.com. Hammerhead has no
+  partner route API (karoo-ext can only drop a pin).
 - Exact price, and whether there is an annual plan.

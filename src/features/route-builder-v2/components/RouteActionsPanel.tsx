@@ -17,12 +17,16 @@ import {
   Loader,
   Menu,
   Modal,
+  SegmentedControl,
   Stack,
   Text,
   Textarea,
   TextInput,
   UnstyledButton,
 } from '@mantine/core';
+import { embedCodeFor, copyText } from '../../../utils/routeEmbed';
+import { DEVICE_GUIDES, type GuidedDevice } from './deviceGuides';
+import type { ShareVisibility } from '../../../hooks/route-builder/useRoutePersistence';
 import { notifications } from '@mantine/notifications';
 import {
   CaretDown,
@@ -109,6 +113,9 @@ export function RouteActionsPanel({
   const [wahooConnected, setWahooConnected] = useState(false);
   const [shareConfirmOpen, setShareConfirmOpen] = useState(false);
   const [sharing, setSharing] = useState(false);
+  // Unlisted (anyone with the link) is the default; public is opt-in.
+  const [shareVisibility, setShareVisibility] = useState<ShareVisibility>('unlisted');
+  const [sharedUrl, setSharedUrl] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   // Check device connections once on mount so the "Send to …" items only
@@ -136,14 +143,16 @@ export function RouteActionsPanel({
       // Reset so re-selecting the same file fires change again.
       e.target.value = '';
       if (!file) return;
-      trackRb2('import_gpx_selected', { file_size: file.size });
-      const coords = await persistence.importGpx(file);
+      const ext = (file.name.split('.').pop() || 'gpx').toUpperCase();
+      trackRb2('import_gpx_selected', { file_size: file.size, source: ext.toLowerCase() });
+      const importFile = persistence.importRouteFile ?? persistence.importGpx;
+      const coords = await importFile(file);
       if (coords) {
         if (onImported) onImported(coords);
       } else {
         notifications.show({
           title: 'Import failed',
-          message: persistence.lastError || "That GPX file couldn't be read.",
+          message: persistence.lastError || `That ${ext} file couldn't be read.`,
           color: 'red',
           autoClose: 6000,
         });
@@ -239,6 +248,17 @@ export function RouteActionsPanel({
     [persistence],
   );
 
+  // COROS and Hammerhead: download the right file, then show how to import it.
+  const [guideDevice, setGuideDevice] = useState<GuidedDevice | null>(null);
+  const handleGuidedSend = useCallback(
+    (device: GuidedDevice) => {
+      persistence.exportRoute(DEVICE_GUIDES[device].format);
+      setGuideDevice(device);
+      trackRb2('device_send_guided', { device });
+    },
+    [persistence],
+  );
+
   const handleSendToGarmin = useCallback(async () => {
     trackRb2('send_to_garmin_clicked', {});
     const result = await persistence.pushToGarmin();
@@ -321,12 +341,16 @@ export function RouteActionsPanel({
   const handleShareConfirm = useCallback(async () => {
     setSharing(true);
     try {
-      const result = await persistence.shareRoute();
+      const result = await persistence.shareRoute(shareVisibility);
       if (result.ok) {
-        setShareConfirmOpen(false);
+        // Stay open on the result: the link, plus the embed code.
+        setSharedUrl(result.url);
         notifications.show({
           title: 'Link copied',
-          message: 'Anyone with the link can view this route.',
+          message:
+            shareVisibility === 'public'
+              ? 'This route is public: anyone can view it.'
+              : 'Anyone with the link can view this route.',
           color: 'green',
           icon: <Check size={16} />,
         });
@@ -343,7 +367,23 @@ export function RouteActionsPanel({
     } finally {
       setSharing(false);
     }
-  }, [persistence]);
+  }, [persistence, shareVisibility]);
+
+  const handleCopyEmbed = useCallback(async () => {
+    if (!sharedUrl) return;
+    const ok = await copyText(embedCodeFor(sharedUrl, defaultName || 'Route'));
+    trackRb2('route_embed_copied', { ok });
+    notifications.show(
+      ok
+        ? { title: 'Embed code copied', message: 'Paste it into your page or blog.', color: 'green' }
+        : { title: 'Couldn’t copy', message: 'Copy the embed code from the box instead.', color: 'red' },
+    );
+  }, [sharedUrl, defaultName]);
+
+  const closeShare = useCallback(() => {
+    setShareConfirmOpen(false);
+    setSharedUrl(null);
+  }, []);
 
   return (
     <>
@@ -471,6 +511,18 @@ export function RouteActionsPanel({
               <Menu.Item data-testid="rb2-export-fit" onClick={() => handleExport('fit')}>
                 FIT
               </Menu.Item>
+              <Divider my={4} />
+              <Menu.Label>Other devices</Menu.Label>
+              {(['coros', 'hammerhead'] as const).map((device) => (
+                <Menu.Item
+                  key={device}
+                  data-testid={`rb2-send-guided-${device}`}
+                  leftSection={<CloudArrowUp size={14} />}
+                  onClick={() => handleGuidedSend(device)}
+                >
+                  {DEVICE_GUIDES[device].menuLabel}
+                </Menu.Item>
+              ))}
             </Menu.Dropdown>
           </Menu>
         </Group>
@@ -484,12 +536,12 @@ export function RouteActionsPanel({
           styles={buttonStyles}
           mt={6}
         >
-          {persistence.isLoading ? <Loader size="xs" /> : 'Import GPX'}
+          {persistence.isLoading ? <Loader size="xs" /> : 'Import GPX / TCX / FIT'}
         </Button>
         <input
           ref={fileInputRef}
           type="file"
-          accept=".gpx,application/gpx+xml,application/xml,text/xml"
+          accept=".gpx,.tcx,.fit,application/gpx+xml,application/vnd.garmin.tcx+xml,application/xml,text/xml,application/octet-stream"
           onChange={handleFileSelected}
           data-testid="rb2-import-gpx-input"
           style={{ display: 'none' }}
@@ -644,21 +696,87 @@ export function RouteActionsPanel({
       </Modal>
 
       <Modal
+        opened={guideDevice !== null}
+        onClose={() => setGuideDevice(null)}
+        title={guideDevice ? DEVICE_GUIDES[guideDevice].title : ''}
+        radius={0}
+        data-testid="rb2-device-guide"
+      >
+        {guideDevice && (
+          <Stack gap="xs">
+            <Box component="ol" style={{ margin: 0, paddingLeft: 18 }}>
+              {DEVICE_GUIDES[guideDevice].steps.map((step) => (
+                <Text component="li" key={step} style={{ fontFamily: RB2_FONT.body, fontSize: 14, color: RB2.textSecondary, marginBottom: 6 }}>
+                  {step}
+                </Text>
+              ))}
+            </Box>
+            <Group justify="flex-end">
+              <Button variant="outline" onClick={() => setGuideDevice(null)} styles={buttonStyles}>
+                Got it
+              </Button>
+            </Group>
+          </Stack>
+        )}
+      </Modal>
+
+      <Modal
         opened={shareConfirmOpen}
-        onClose={() => setShareConfirmOpen(false)}
+        onClose={closeShare}
         title="Share Route"
         radius={0}
         data-testid="rb2-share-confirm-modal"
       >
+        {sharedUrl ? (
+          <Stack data-testid="rb2-share-result">
+            <Text style={{ fontFamily: RB2_FONT.body, fontSize: 14, color: RB2.textSecondary }}>
+              Link copied. Anyone you send it to can view the route, no account needed.
+            </Text>
+            <TextInput value={sharedUrl} readOnly radius={0} aria-label="Share link" onFocus={(e) => e.currentTarget.select()} />
+            <Textarea
+              value={embedCodeFor(sharedUrl, defaultName || 'Route')}
+              readOnly
+              autosize
+              minRows={2}
+              radius={0}
+              label="Embed on a website"
+              aria-label="Embed code"
+              styles={{ input: { fontFamily: RB2_FONT.mono, fontSize: 11 } }}
+              onFocus={(e) => e.currentTarget.select()}
+            />
+            <Group justify="flex-end" gap={6}>
+              <Button variant="outline" onClick={handleCopyEmbed} data-testid="rb2-copy-embed" styles={buttonStyles}>
+                Copy embed code
+              </Button>
+              <Button variant="outline" onClick={closeShare} styles={buttonStyles}>
+                Done
+              </Button>
+            </Group>
+          </Stack>
+        ) : (
         <Stack>
+          <SegmentedControl
+            data-testid="rb2-share-visibility"
+            value={shareVisibility}
+            onChange={(v) => setShareVisibility(v as ShareVisibility)}
+            data={[
+              { value: 'unlisted', label: 'Anyone with the link' },
+              { value: 'public', label: 'Public' },
+            ]}
+            fullWidth
+            size="xs"
+            radius={0}
+          />
           <Text style={{ fontFamily: RB2_FONT.body, fontSize: 14, color: RB2.textSecondary }}>
-            Sharing makes this route viewable by anyone with the link — no account needed.
+            {shareVisibility === 'public'
+              ? 'Public routes can be viewed by anyone, and may be shown to other riders later.'
+              : 'Only people you send the link to can view this route. No account needed.'}{' '}
             You can keep editing it; only you can change or delete it.
           </Text>
           <Group justify="flex-end" gap={6}>
             <Button
               variant="outline"
-              onClick={() => setShareConfirmOpen(false)}
+              onClick={closeShare}
               styles={buttonStyles}
             >
               Cancel
@@ -683,6 +801,7 @@ export function RouteActionsPanel({
             </Button>
           </Group>
         </Stack>
+        )}
       </Modal>
     </>
   );

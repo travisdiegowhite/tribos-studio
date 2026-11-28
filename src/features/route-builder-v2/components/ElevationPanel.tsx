@@ -51,6 +51,67 @@ export interface ElevationPanelProps {
   cues?: WorkoutCue[] | null;
   /** Picking a climb in the list (km along the route), e.g. to fit the map to it. */
   onSelectClimb?: (start_km: number, end_km: number) => void;
+  /** "Show on map" for a stretch dragged out on the chart (km along the route). */
+  onSelectRange?: (start_km: number, end_km: number) => void;
+}
+
+export interface SectionMetrics {
+  start_km: number;
+  end_km: number;
+  distance_km: number;
+  gain_m: number;
+  loss_m: number;
+  avg_grade_pct: number;
+  max_grade_pct: number;
+}
+
+/** Metrics for the part of the profile between two distances (km). */
+export function sectionMetrics(
+  profile: ElevationPoint[],
+  gradesPct: number[] | null,
+  start_km: number,
+  end_km: number,
+): SectionMetrics | null {
+  const lo_km = Math.min(start_km, end_km);
+  const hi_km = Math.max(start_km, end_km);
+  if (!(hi_km > lo_km) || profile.length < 2) return null;
+  const elevAt = (km: number) => {
+    let i = 1;
+    while (i < profile.length - 1 && profile[i].distance_km < km) i++;
+    const a = profile[i - 1];
+    const b = profile[i];
+    const span = b.distance_km - a.distance_km;
+    const t = span > 0 ? Math.min(1, Math.max(0, (km - a.distance_km) / span)) : 0;
+    return a.elevation_m + t * (b.elevation_m - a.elevation_m);
+  };
+  const pts: number[] = [elevAt(lo_km)];
+  let maxGrade = 0;
+  for (let i = 0; i < profile.length; i++) {
+    const p = profile[i];
+    if (p.distance_km > lo_km && p.distance_km < hi_km) {
+      pts.push(p.elevation_m);
+      const g = gradesPct?.[i];
+      if (typeof g === 'number' && Number.isFinite(g)) maxGrade = Math.max(maxGrade, g);
+    }
+  }
+  pts.push(elevAt(hi_km));
+  let gain_m = 0;
+  let loss_m = 0;
+  for (let i = 1; i < pts.length; i++) {
+    const d = pts[i] - pts[i - 1];
+    if (d > 0) gain_m += d;
+    else loss_m -= d;
+  }
+  const distance_km = hi_km - lo_km;
+  return {
+    start_km: lo_km,
+    end_km: hi_km,
+    distance_km,
+    gain_m,
+    loss_m,
+    avg_grade_pct: ((pts[pts.length - 1] - pts[0]) / (distance_km * 1000)) * 100,
+    max_grade_pct: maxGrade,
+  };
 }
 
 /** Climbs listed under the chart before "and N more". */
@@ -159,6 +220,7 @@ export function ElevationPanel({
   isImperial = false,
   cues = null,
   onSelectClimb,
+  onSelectRange,
 }: ElevationPanelProps) {
   const svgRef = useRef<SVGSVGElement | null>(null);
   const [hoverIdx, setHoverIdx] = useState<number | null>(null);
@@ -262,9 +324,61 @@ export function ElevationPanel({
     [],
   );
 
+  // Drag on the chart to select a stretch (section metrics + "Show on map").
+  // A press without movement selects nothing, so a tap stays a tap.
+  const [selection, setSelection] = useState<{ start_km: number; end_km: number } | null>(null);
+  const dragRef = useRef<{ startKm: number; moved: boolean } | null>(null);
+  const kmAtClientX = useCallback(
+    (clientX: number): number | null => {
+      const svg = svgRef.current;
+      if (!svg || !scales) return null;
+      const rect = svg.getBoundingClientRect();
+      if (rect.width === 0) return null;
+      return Math.min(1, Math.max(0, (clientX - rect.left) / rect.width)) * scales.totalKm;
+    },
+    [scales],
+  );
+  // A new route clears a selection made on the old one.
+  useEffect(() => setSelection(null), [profile]);
+
+  const handlePointerDown = useCallback(
+    (evt: React.PointerEvent<SVGSVGElement>) => {
+      const km = kmAtClientX(evt.clientX);
+      if (km == null) return;
+      dragRef.current = { startKm: km, moved: false };
+      try {
+        svgRef.current?.setPointerCapture?.(evt.pointerId);
+      } catch {
+        // pointer capture is a nicety (keeps the drag when leaving the chart)
+      }
+    },
+    [kmAtClientX],
+  );
+
+  const handlePointerUp = useCallback(
+    (evt: React.PointerEvent<SVGSVGElement>) => {
+      const drag = dragRef.current;
+      dragRef.current = null;
+      if (!drag || !drag.moved) return;
+      const km = kmAtClientX(evt.clientX);
+      if (km == null) return;
+      setSelection({ start_km: Math.min(drag.startKm, km), end_km: Math.max(drag.startKm, km) });
+    },
+    [kmAtClientX],
+  );
+
   const handlePointerMove = useCallback(
     (evt: React.PointerEvent<SVGSVGElement>) => {
       if (!profile || !scales || !svgRef.current) return;
+      const drag = dragRef.current;
+      if (drag) {
+        const km = kmAtClientX(evt.clientX);
+        // More than 1% of the route counts as a drag, not a wobbly tap.
+        if (km != null && (drag.moved || Math.abs(km - drag.startKm) > scales.totalKm * 0.01)) {
+          drag.moved = true;
+          setSelection({ start_km: Math.min(drag.startKm, km), end_km: Math.max(drag.startKm, km) });
+        }
+      }
       pendingClientXRef.current = evt.clientX;
       if (rafRef.current != null) return;
       rafRef.current = requestAnimationFrame(() => {
@@ -284,7 +398,12 @@ export function ElevationPanel({
         onHoverKm?.(km);
       });
     },
-    [profile, scales, onHoverKm],
+    [profile, scales, onHoverKm, kmAtClientX],
+  );
+
+  const section = useMemo(
+    () => (selection && profile ? sectionMetrics(profile, segmentation?.gradesPct ?? null, selection.start_km, selection.end_km) : null),
+    [selection, profile, segmentation],
   );
 
   const handlePointerLeave = useCallback(() => {
@@ -358,6 +477,8 @@ export function ElevationPanel({
           height={chartHeightPx}
           onPointerMove={handlePointerMove}
           onPointerLeave={handlePointerLeave}
+          onPointerDown={handlePointerDown}
+          onPointerUp={handlePointerUp}
           style={{ display: 'block', touchAction: 'none', cursor: 'crosshair' }}
           role="img"
           aria-label={`Elevation profile, ${Math.round(isImperial ? convertDistance.mToFt(scales.gainM) : scales.gainM)} ${isImperial ? 'feet' : 'meters'} of climbing over ${isImperial ? convertDistance.kmToMiles(scales.totalKm).toFixed(1) : formatKm(scales.totalKm)} ${isImperial ? 'miles' : 'kilometers'}`}
@@ -423,6 +544,18 @@ export function ElevationPanel({
                 );
               })}
             </g>
+          )}
+          {section && (
+            <rect
+              data-testid="rb2-elevation-selection"
+              x={scales.toX(section.start_km)}
+              y={0}
+              width={Math.max(1, scales.toX(section.end_km) - scales.toX(section.start_km))}
+              height={VIEW_H}
+              fill={RB2.textPrimary}
+              fillOpacity={0.12}
+              stroke="none"
+            />
           )}
           <path
             d={linePath}
@@ -534,6 +667,39 @@ export function ElevationPanel({
           <Text component="span" style={AXIS_LABEL_STYLE}>
             {GRADE_RAMP_MAX_PCT}+
           </Text>
+        </Box>
+      )}
+
+      {section && (
+        <Box
+          data-testid="rb2-elevation-section"
+          style={{ marginTop: 6, display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}
+        >
+          <Text component="span" style={{ ...AXIS_LABEL_STYLE, fontSize: 11, color: RB2.textPrimary }}>
+            {distLabel(section.start_km, isImperial)}–{distLabel(section.end_km, isImperial)} ·{' '}
+            {distLabel(section.distance_km, isImperial)} · ↑ {elevLabel(section.gain_m, isImperial)} · ↓{' '}
+            {elevLabel(section.loss_m, isImperial)} · avg {section.avg_grade_pct.toFixed(1)}%
+            {section.max_grade_pct >= 1 ? ` · max ${Math.round(section.max_grade_pct)}%` : ''}
+          </Text>
+          {onSelectRange && (
+            <Box
+              component="button"
+              type="button"
+              onClick={() => onSelectRange(section.start_km, section.end_km)}
+              style={{ ...AXIS_LABEL_STYLE, fontSize: 11, background: 'none', border: 0, padding: 0, textDecoration: 'underline', cursor: 'pointer', color: RB2.textPrimary }}
+            >
+              Show on map
+            </Box>
+          )}
+          <Box
+            component="button"
+            type="button"
+            aria-label="Clear selection"
+            onClick={() => setSelection(null)}
+            style={{ ...AXIS_LABEL_STYLE, fontSize: 12, background: 'none', border: 0, padding: 0, cursor: 'pointer' }}
+          >
+            ✕
+          </Box>
         </Box>
       )}
 

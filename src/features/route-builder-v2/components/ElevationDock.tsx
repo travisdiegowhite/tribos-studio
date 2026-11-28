@@ -23,6 +23,7 @@ export interface ElevationDockProps {
   isImperial?: boolean;
   cues?: WorkoutCue[] | null;
   onSelectClimb?: (start_km: number, end_km: number) => void;
+  onSelectRange?: (start_km: number, end_km: number) => void;
 }
 
 export function ElevationDock({
@@ -33,6 +34,7 @@ export function ElevationDock({
   isImperial = false,
   cues = null,
   onSelectClimb,
+  onSelectRange,
 }: ElevationDockProps) {
   if (!profile || profile.length < 2) return null;
 
@@ -103,6 +105,7 @@ export function ElevationDock({
           isImperial={isImperial}
           cues={cues}
           onSelectClimb={onSelectClimb}
+          onSelectRange={onSelectRange}
         />
       </Box>
     </Box>

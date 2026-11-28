@@ -15,6 +15,7 @@ import { wahooService } from '../../utils/wahooService';
 import { getElevationData } from '../../utils/elevation';
 import { waypointCoordsForGeometry } from './routeSnapshot';
 import { parseGpxFile } from '../../utils/gpxParser.js';
+import { parseTcxRoute, parseFitRoute, routeFileKind } from '../../utils/routeFileParsers';
 import { garminService } from '../../utils/garminService';
 import { trackRb2 } from '../../features/route-builder-v2/telemetry/trackRb2';
 import type { Coordinate } from '../../types/geo';
@@ -67,8 +68,11 @@ const listRoutesSvc = routesService.listRoutes as () => Promise<SavedRouteRow[]>
 const deleteRouteSvc = routesService.deleteRoute as (id: string) => Promise<unknown>;
 const setRouteVisibilitySvc = routesService.setRouteVisibility as (
   id: string,
-  visibility: 'private' | 'public',
+  visibility: ShareVisibility | 'private',
 ) => Promise<unknown>;
+
+/** Who can open a shared link: anyone with it (unlisted) or anyone (public). */
+export type ShareVisibility = 'unlisted' | 'public';
 
 export type ExportFormat = 'gpx' | 'tcx' | 'fit';
 
@@ -163,6 +167,8 @@ export interface UseRoutePersistenceReturn {
    * failure (with `lastError` set).
    */
   importGpx: (file: File) => Promise<Coordinate[] | null>;
+  /** Import a GPX, TCX or FIT file as the current route. */
+  importRouteFile: (file: File) => Promise<Coordinate[] | null>;
   /** True while a device push is in flight. */
   isPushingToDevice: boolean;
   /** Whether the user's Garmin account is connected (null = not yet checked). */
@@ -181,11 +187,11 @@ export interface UseRoutePersistenceReturn {
    */
   pushToWahoo: () => Promise<DevicePushResult>;
   /**
-   * Copy a public share link (`/routes/:id`) to the clipboard. Requires the
-   * route to be saved; returns `not_saved` otherwise so the caller can
-   * prompt a save.
+   * Share the route (unlisted by default — anyone with the link — or
+   * public) and copy its `/r/:id` link. Requires the route to be saved;
+   * returns `not_saved` otherwise so the caller can prompt a save.
    */
-  shareRoute: () => Promise<ShareResult>;
+  shareRoute: (visibility?: ShareVisibility) => Promise<ShareResult>;
 }
 
 export function useRoutePersistence(): UseRoutePersistenceReturn {
@@ -403,26 +409,53 @@ export function useRoutePersistence(): UseRoutePersistenceReturn {
     [],
   );
 
-  const importGpx = useCallback(
+  // GPX, TCX or FIT (routeFileParsers.ts), chosen by extension. Everything
+  // after parsing is shared: canonical coordinates, stats, control points.
+  const importRouteFile = useCallback(
     async (file: File): Promise<Coordinate[] | null> => {
       setIsLoading(true);
       setLastError(null);
+      const kind = routeFileKind(file.name) ?? 'gpx';
+      const label = kind.toUpperCase();
       try {
-        // Blob.text() is missing on older Safari (and jsdom) — fall back to
-        // FileReader.
-        const text =
+        // Blob.text()/arrayBuffer() are missing on older Safari (and jsdom) —
+        // fall back to FileReader.
+        const readText = (): Promise<string> =>
           typeof file.text === 'function'
-            ? await file.text()
-            : await new Promise<string>((resolve, reject) => {
+            ? file.text()
+            : new Promise<string>((resolve, reject) => {
                 const reader = new FileReader();
                 reader.onload = () => resolve(String(reader.result));
                 reader.onerror = () => reject(reader.error ?? new Error('File read failed'));
                 reader.readAsText(file);
               });
-        const parsed = await parseGpx(text, file.name);
+        const readBytes = async (): Promise<Uint8Array> => {
+          if (typeof file.arrayBuffer === 'function') return new Uint8Array(await file.arrayBuffer());
+          return new Promise<Uint8Array>((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onload = () => resolve(new Uint8Array(reader.result as ArrayBuffer));
+            reader.onerror = () => reject(reader.error ?? new Error('File read failed'));
+            reader.readAsArrayBuffer(file);
+          });
+        };
+        let parsed: GpxParseResult;
+        if (kind === 'gpx') {
+          parsed = await parseGpx(await readText(), file.name);
+        } else {
+          const route = kind === 'tcx' ? parseTcxRoute(await readText()) : parseFitRoute(await readBytes());
+          parsed = {
+            metadata: { name: route.name ?? undefined },
+            summary: {
+              totalDistance_km: route.distance_km ?? undefined,
+              totalAscent: route.ascent_m ?? undefined,
+              totalMovingTime: route.duration_s ?? undefined,
+            },
+            trackPoints: route.trackPoints,
+          };
+        }
         const points = parsed.trackPoints ?? [];
         if (points.length < 2) {
-          setLastError('GPX file has too few track points to build a route.');
+          setLastError(`${label} file has too few track points to build a route.`);
           trackRb2('route_import_failed', { reason: 'too_few_points' });
           return null;
         }
@@ -452,7 +485,7 @@ export function useRoutePersistence(): UseRoutePersistenceReturn {
         };
         const name =
           parsed.metadata?.name?.trim() ||
-          file.name.replace(/\.gpx$/i, '').trim() ||
+          file.name.replace(/\.(gpx|tcx|fit)$/i, '').trim() ||
           'Imported Route';
         // Seed control points along the whole track (same resampling as
         // generated routes) so an edit re-routes one leg, not the entire
@@ -475,12 +508,12 @@ export function useRoutePersistence(): UseRoutePersistenceReturn {
         // Imported routes aren't persisted yet — clear any prior saved id so
         // the next Save creates a new row rather than overwriting.
         setSavedRouteId(null);
-        trackRb2('route_imported', { point_count: points.length, source: 'gpx' });
+        trackRb2('route_imported', { point_count: points.length, source: kind });
         return coordinates;
       } catch (e) {
         const message = e instanceof Error ? e.message : String(e);
         setLastError(message);
-        trackRb2('route_import_failed', { error_message: message.slice(0, 200) });
+        trackRb2('route_import_failed', { source: kind, error_message: message.slice(0, 200) });
         return null;
       } finally {
         setIsLoading(false);
@@ -488,6 +521,8 @@ export function useRoutePersistence(): UseRoutePersistenceReturn {
     },
     [setRouteFromStore],
   );
+  /** Kept for existing callers: the same import, any supported file. */
+  const importGpx = importRouteFile;
 
   const checkGarminConnection = useCallback(async (): Promise<boolean> => {
     try {
@@ -656,14 +691,15 @@ export function useRoutePersistence(): UseRoutePersistenceReturn {
     }
   }, [routeGeometry, routeCues, routeName, routeDescription, routeStats, savedRouteId]);
 
-  const shareRoute = useCallback(async (): Promise<ShareResult> => {
+  const shareRoute = useCallback(async (visibility: ShareVisibility = 'unlisted'): Promise<ShareResult> => {
     if (!savedRouteId) {
       return { ok: false, reason: 'not_saved' };
     }
     // Route reads are owner-scoped by default; the link is only useful to a
-    // recipient once the route is marked shareable.
+    // recipient once the route is marked shareable (unlisted or public,
+    // migration 140).
     try {
-      await setRouteVisibilitySvc(savedRouteId, 'public');
+      await setRouteVisibilitySvc(savedRouteId, visibility);
     } catch (e) {
       const message = e instanceof Error ? e.message : String(e);
       trackRb2('route_share_failed', { error_message: message.slice(0, 200) });
@@ -687,7 +723,7 @@ export function useRoutePersistence(): UseRoutePersistenceReturn {
         // caller can surface it for manual copy.
       }
     }
-    trackRb2('route_shared', { route_id: savedRouteId });
+    trackRb2('route_shared', { route_id: savedRouteId, visibility });
     return { ok: true, url };
   }, [savedRouteId]);
 
@@ -702,6 +738,7 @@ export function useRoutePersistence(): UseRoutePersistenceReturn {
     deleteRoute,
     exportRoute,
     importGpx,
+    importRouteFile,
     isPushingToDevice,
     checkGarminConnection,
     pushToGarmin,

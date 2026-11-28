@@ -16,6 +16,7 @@ import { getPublicRoute } from '../utils/routesService';
 import { MAPBOX_TOKEN } from '../components/RouteBuilder';
 import { useAuth } from '../contexts/AuthContext.jsx';
 import { MAP_PALETTE, getBaseMapStyle } from '../utils/mapPalette';
+import SEO from '../components/SEO';
 
 interface PublicRoute {
   id: string;
@@ -67,7 +68,16 @@ function formatDuration(minutes: number | null | undefined): string {
   return h > 0 ? `${h}h ${m}m` : `${m}m`;
 }
 
-export default function SharedRoute() {
+export interface SharedRouteProps {
+  /**
+   * The chrome-less variant at /r/:routeId/embed, for iframes (embed code and
+   * api/oembed.js): the map, one footer line and a link back. No downloads,
+   * not indexed.
+   */
+  embed?: boolean;
+}
+
+export default function SharedRoute({ embed = false }: SharedRouteProps = {}) {
   const { routeId } = useParams<{ routeId: string }>();
   const { user } = useAuth() as { user: { id: string } | null };
   const [route, setRoute] = useState<PublicRoute | null>(null);
@@ -163,7 +173,10 @@ export default function SharedRoute() {
   const end = coords[coords.length - 1];
 
   return (
-    <Box style={{ height: '100dvh', display: 'flex', flexDirection: 'column' }}>
+    <Box style={{ height: '100dvh', display: 'flex', flexDirection: 'column' }} data-testid={embed ? 'shared-route-embed' : 'shared-route'}>
+      {embed && <SEO title={`${route.name || 'Route'} on tribos.studio`} noindex />}
+      {!embed && (
+      <>
       <Box
         style={{
           display: 'flex',
@@ -229,6 +242,8 @@ export default function SharedRoute() {
           {route.description}
         </Text>
       )}
+      </>
+      )}
       <Box style={{ flex: 1, minHeight: 0 }}>
         <Map
           mapboxAccessToken={MAPBOX_TOKEN}
@@ -279,6 +294,37 @@ export default function SharedRoute() {
           </Marker>
         </Map>
       </Box>
+      {embed && (
+        <Box
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            gap: 8,
+            padding: '6px 10px',
+            borderTop: '1px solid var(--color-rule, #D6D6E0)',
+            background: 'var(--color-bg, #FFFFFF)',
+          }}
+        >
+          <Text style={{ fontSize: 12, fontWeight: 700, minWidth: 0 }} truncate>
+            {route.name || 'Route'}
+            <Text component="span" style={{ fontWeight: 400, color: 'var(--tribos-text-secondary, #6B6B60)' }}>
+              {route.distance_km != null ? ` · ${route.distance_km.toFixed(1)} km` : ''}
+              {route.elevation_gain_m != null ? ` · ↑ ${Math.round(route.elevation_gain_m)} m` : ''}
+            </Text>
+          </Text>
+          <Text
+            component="a"
+            href={`/r/${route.id}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            data-testid="shared-route-embed-link"
+            style={{ fontSize: 12, color: 'var(--color-ink, #0A0A14)', textDecoration: 'underline', whiteSpace: 'nowrap' }}
+          >
+            View on tribos ↗
+          </Text>
+        </Box>
+      )}
     </Box>
   );
 }

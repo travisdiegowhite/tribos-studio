@@ -112,6 +112,12 @@ import { sliceLineByDistance } from '../utils/lineSlice';
 import { consumeSignupFromRoute } from '../features/route-builder-v2/telemetry/signupFromRoute';
 import { GradientLayer } from '../features/route-builder-v2/layers/GradientLayer';
 import { POILayer } from '../features/route-builder-v2/layers/POILayer';
+import {
+  MapillaryLayer,
+  MAPILLARY_IMAGE_LAYER_ID,
+  type MapillarySelection,
+} from '../features/route-builder-v2/layers/MapillaryLayer';
+import { mapillaryEnabled } from '../utils/mapillary';
 import { BikeInfraLayer } from '../features/route-builder-v2/layers/BikeInfraLayer';
 import { FamiliarSegmentsLayer } from '../features/route-builder-v2/layers/FamiliarSegmentsLayer';
 import { WindArrowsLayer } from '../features/route-builder-v2/layers/WindArrowsLayer';
@@ -174,6 +180,7 @@ const DEFAULT_VISIBILITY: LayerVisibilityState = {
   bikeInfra: false,
   familiar: false,
   intervals: false,
+  imagery: false,
 };
 
 
@@ -468,6 +475,12 @@ export default function RouteBuilder2() {
   useEffect(() => {
     if (isRun) setVisibility((prev) => (prev.stress || prev.bikeInfra ? { ...prev, stress: false, bikeInfra: false } : prev));
   }, [isRun]);
+  // Street imagery (Mapillary) — only reachable when a token is configured.
+  const imageryOn = visibility.imagery && mapillaryEnabled();
+  const [imagerySelection, setImagerySelection] = useState<MapillarySelection | null>(null);
+  useEffect(() => {
+    if (!imageryOn) setImagerySelection(null);
+  }, [imageryOn]);
   const [errorDismissed, setErrorDismissed] = useState<string | null>(null);
   // Failures from fire-and-forget overlay work (clip reroute, layer fetches)
   // that would otherwise be console-only; feeds the same ErrorState toast.
@@ -1586,6 +1599,13 @@ export default function RouteBuilder2() {
     },
     [fitRouteSlice],
   );
+  const handleSelectRange = useCallback(
+    (start_km: number, end_km: number) => {
+      fitRouteSlice(start_km * 1000, end_km * 1000);
+      trackRb2('elevation_section_shown', { length_km: Math.round((end_km - start_km) * 10) / 10 });
+    },
+    [fitRouteSlice],
+  );
   const handleSelectClimb = useCallback(
     (start_km: number, end_km: number) => {
       fitRouteSlice(start_km * 1000, end_km * 1000);
@@ -1690,8 +1710,18 @@ export default function RouteBuilder2() {
       clipMode={clipMode}
       onClipClick={handleClipClick}
       clipHighlight={pendingClip?.highlightGeoJSON ?? null}
+      imageryLayerId={imageryOn ? MAPILLARY_IMAGE_LAYER_ID : null}
+      onImageryClick={(imageId, coord) => {
+        setImagerySelection({ imageId, coord });
+        trackRb2('street_imagery_opened', {});
+      }}
     >
       <ElevationHoverMarker geometry={geometryForLayers} />
+      <MapillaryLayer
+        visible={imageryOn}
+        selected={imagerySelection}
+        onClose={() => setImagerySelection(null)}
+      />
       {pendingEditReview && (
         <EditGhostLayer geometry={pendingEditReview.previous.geometry} />
       )}
@@ -2274,6 +2304,7 @@ export default function RouteBuilder2() {
                       isImperial={isImperial}
                       cues={visibleCues}
                       onSelectClimb={handleSelectClimb}
+                      onSelectRange={handleSelectRange}
                     />
                   )}
                 </>
@@ -2476,6 +2507,7 @@ export default function RouteBuilder2() {
               isImperial={isImperial}
               cues={visibleCues}
               onSelectClimb={handleSelectClimb}
+                      onSelectRange={handleSelectRange}
             />
           )}
           {hasRoute && !!routeCues?.length && (

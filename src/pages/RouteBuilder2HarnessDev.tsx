@@ -25,7 +25,18 @@ import {
 const BOULDER: [number, number] = [-105.27, 40.02];
 const NEDERLAND: [number, number] = [-105.51, 39.96];
 
-const ALL_LAYERS: POILayer[] = ['coffee', 'water', 'food', 'bike_shop', 'restroom', 'viewpoint'];
+const ALL_LAYERS: POILayer[] = [
+  'coffee',
+  'water',
+  'food',
+  'groceries',
+  'lodging',
+  'camping',
+  'repair_station',
+  'bike_shop',
+  'restroom',
+  'viewpoint',
+];
 
 const sectionStyle: React.CSSProperties = {
   border: '1px solid #ccc',

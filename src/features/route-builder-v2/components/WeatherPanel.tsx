@@ -11,7 +11,8 @@
  */
 
 import { useEffect, useState } from 'react';
-import { Box, Group, Loader, Select, Text, UnstyledButton } from '@mantine/core';
+import { Box, Group, Loader, SegmentedControl, Select, Text, TextInput, UnstyledButton } from '@mantine/core';
+import { useRouteBuilderStore } from '../../../stores/routeBuilderStore';
 import { ArrowUp, ArrowClockwise, Wind, Drop } from '@phosphor-icons/react';
 import { RB2, RB2_FONT } from './brand';
 import {
@@ -24,6 +25,27 @@ import type { UseRouteWeatherReturn } from '../../../hooks/route-builder';
 export interface WeatherPanelProps {
   weather: UseRouteWeatherReturn;
   isImperial?: boolean;
+}
+
+/** Tomorrow at 08:00 local, as an ISO string: a sensible first planned start. */
+function defaultPlannedStart(): string {
+  const d = new Date();
+  d.setDate(d.getDate() + 1);
+  d.setHours(8, 0, 0, 0);
+  return d.toISOString();
+}
+
+/** ISO → the value a datetime-local input wants (local "YYYY-MM-DDTHH:mm"). */
+function toLocalInput(iso: string): string {
+  const d = new Date(iso);
+  if (!Number.isFinite(d.getTime())) return '';
+  const pad = (n: number) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
+function formatClock(iso: string): string {
+  const d = new Date(iso);
+  return Number.isFinite(d.getTime()) ? d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }) : '';
 }
 
 const PRESET_OPTIONS = Object.values(
@@ -77,7 +99,14 @@ const WIND_BAR_COLORS: Record<string, string> = {
 };
 
 export function WeatherPanel({ weather, isImperial = false }: WeatherPanelProps) {
-  const { status, error, weather: data, wind, hasRoute, refresh } = weather;
+  const { status, error, weather: data, wind, hasRoute, refresh, timeline, forecastNote } = weather;
+  // Planned start (store rideStartAt): null = now. Changing it re-fetches.
+  const rideStartAt = useRouteBuilderStore((s) => (s.rideStartAt as string | null) ?? null);
+  const setRideStartAt = useRouteBuilderStore((s) => s.setRideStartAt as (iso: string | null) => void);
+  useEffect(() => {
+    if (hasRoute && status !== 'idle') void refresh();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [rideStartAt]);
   const [presetId, setPresetId] = useState<string>(readSavedPreset);
 
   const severity =
@@ -128,6 +157,41 @@ export function WeatherPanel({ weather, isImperial = false }: WeatherPanelProps)
           <ArrowClockwise size={14} />
         </UnstyledButton>
       </Group>
+
+      <SegmentedControl
+        data-testid="rb2-weather-start-mode"
+        value={rideStartAt ? 'planned' : 'now'}
+        onChange={(v) => setRideStartAt(v === 'planned' ? defaultPlannedStart() : null)}
+        data={[
+          { value: 'now', label: 'Now' },
+          { value: 'planned', label: 'Planned start' },
+        ]}
+        fullWidth
+        size="xs"
+        radius={0}
+        mb={6}
+      />
+      {rideStartAt && (
+        <TextInput
+          data-testid="rb2-weather-start-time"
+          type="datetime-local"
+          aria-label="Start time"
+          value={toLocalInput(rideStartAt)}
+          onChange={(e) => {
+            const ms = Date.parse(e.currentTarget.value);
+            if (Number.isFinite(ms)) setRideStartAt(new Date(ms).toISOString());
+          }}
+          size="xs"
+          radius={0}
+          mb={8}
+        />
+      )}
+
+      {forecastNote === 'too_far' && status === 'ready' && (
+        <Text data-testid="rb2-weather-too-far" style={{ fontFamily: RB2_FONT.body, fontSize: 12, color: RB2.textSecondary }}>
+          Forecasts reach about five days ahead. Check back closer to the day.
+        </Text>
+      )}
 
       {status === 'loading' && (
         <Group gap={8} py={4}>
@@ -220,6 +284,26 @@ export function WeatherPanel({ weather, isImperial = false }: WeatherPanelProps)
               </Text>
             </Group>
           </Group>
+
+          {timeline && timeline.length > 0 && (
+            <Box mt={10} data-testid="rb2-weather-timeline" style={{ display: 'flex', gap: 6 }}>
+              {timeline.map((p) => (
+                <Box key={p.label} style={{ flex: 1, border: `1px solid ${RB2.border}`, padding: '4px 6px' }}>
+                  <Text style={{ fontFamily: RB2_FONT.mono, fontSize: 9, letterSpacing: '0.08em', textTransform: 'uppercase', color: RB2.textTertiary }}>
+                    {p.label} · {formatClock(p.at)}
+                  </Text>
+                  {p.weather ? (
+                    <Text style={{ fontFamily: RB2_FONT.mono, fontSize: 11, color: RB2.textPrimary }}>
+                      {isImperial ? `${cToF(p.weather.temperature)}°F` : `${p.weather.temperature}°C`} ·{' '}
+                      {isImperial ? `${kmhToMph(p.weather.windSpeed)} mph` : `${p.weather.windSpeed} km/h`} {p.weather.windDirection}
+                    </Text>
+                  ) : (
+                    <Text style={{ fontFamily: RB2_FONT.mono, fontSize: 11, color: RB2.textTertiary }}>—</Text>
+                  )}
+                </Box>
+              ))}
+            </Box>
+          )}
 
           {wind && (
             <Box mt={10} data-testid="rb2-weather-wind-breakdown">

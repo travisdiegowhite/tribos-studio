@@ -10,6 +10,7 @@ vi.mock('react-map-gl', () => ({
   Marker: ({ children }: { children?: React.ReactNode }) => <>{children}</>,
 }));
 vi.mock('mapbox-gl/dist/mapbox-gl.css', () => ({}));
+vi.mock('../../components/SEO', () => ({ default: () => null }));
 vi.mock('../../components/RouteBuilder', () => ({ MAPBOX_TOKEN: 'test-token' }));
 
 const authState: { user: { id: string } | null } = { user: null };
@@ -93,5 +94,23 @@ describe('SharedRoute', () => {
     renderPage();
     const cta = await screen.findByTestId('shared-route-cta');
     expect(cta.textContent).toMatch(/send to device/);
+  });
+
+  it('embed mode: the map and a link back, without downloads or the builder button', async () => {
+    render(
+      <MantineProvider>
+        <MemoryRouter initialEntries={['/r/route-42/embed']}>
+          <Routes>
+            <Route path="/r/:routeId/embed" element={<SharedRoute embed />} />
+          </Routes>
+        </MemoryRouter>
+      </MantineProvider>,
+    );
+    expect(await screen.findByTestId('shared-route-embed')).toBeInTheDocument();
+    const back = screen.getByTestId('shared-route-embed-link');
+    expect(back.getAttribute('href')).toBe('/r/route-42');
+    expect(back.getAttribute('target')).toBe('_blank');
+    expect(screen.queryByTestId('shared-route-download-gpx')).toBeNull();
+    expect(screen.queryByTestId('shared-route-cta')).toBeNull();
   });
 });

@@ -2,7 +2,8 @@
  * LayerToggles — Route Builder 2.0 map layer toggle panel.
  *
  * Toggles: surface, traffic stress, gradient, wind, POI, bike infra, familiar
- * segments (and intervals when a workout is attached).
+ * segments (and intervals when a workout is attached), and street imagery
+ * when a Mapillary token is configured.
  * POI dispatches through useRouteAnalysis.togglePOILayer. The other
  * four are local UI state owned by the page (passed in as props).
  */
@@ -13,6 +14,7 @@ import { CaretDown, CaretRight } from '@phosphor-icons/react';
 import { RB2, RB2_FONT } from './brand';
 import { trackRb2 } from '../telemetry/trackRb2';
 import type { POILayer } from '../../../hooks/route-builder';
+import { mapillaryEnabled } from '../../../utils/mapillary';
 
 export interface LayerVisibilityState {
   surface: boolean;
@@ -23,6 +25,8 @@ export interface LayerVisibilityState {
   bikeInfra: boolean;
   familiar: boolean;
   intervals: boolean;
+  /** Mapillary street-level photos; the toggle only shows with a token. */
+  imagery: boolean;
 }
 
 export interface LayerTogglesProps {
@@ -57,6 +61,10 @@ const POI_LAYERS: Array<{ id: POILayer; label: string }> = [
   { id: 'coffee', label: 'Coffee' },
   { id: 'water', label: 'Water' },
   { id: 'food', label: 'Food' },
+  { id: 'groceries', label: 'Groceries' },
+  { id: 'lodging', label: 'Lodging' },
+  { id: 'camping', label: 'Camping' },
+  { id: 'repair_station', label: 'Repair station' },
   { id: 'bike_shop', label: 'Bike Shop' },
   { id: 'restroom', label: 'Restroom' },
   { id: 'viewpoint', label: 'Viewpoint' },
@@ -82,7 +90,9 @@ export function LayerToggles({
   sport = 'cycling',
 }: LayerTogglesProps) {
   const isRun = sport === 'running';
-  const poiLayers = isRun ? POI_LAYERS.filter((p) => p.id !== 'bike_shop') : POI_LAYERS;
+  const poiLayers = isRun
+    ? POI_LAYERS.filter((p) => p.id !== 'bike_shop' && p.id !== 'repair_station')
+    : POI_LAYERS;
   const [expanded, setExpanded] = useState(defaultExpanded ?? !isMobile);
 
   const toggle = useCallback(
@@ -201,6 +211,18 @@ export function LayerToggles({
               />
             </Box>
           </Tooltip>
+
+          {mapillaryEnabled() && (
+            <Tooltip label="Street-level photos from Mapillary. Zoom in and click a dot to see one." withinPortal>
+              <Box>
+                <ToggleRow
+                  label="Street Imagery"
+                  checked={visibility.imagery}
+                  onChange={(v) => toggle('imagery', v)}
+                />
+              </Box>
+            </Tooltip>
+          )}
 
           <Box style={{ marginTop: 10 }}>
             <ToggleRow

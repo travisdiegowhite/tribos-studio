@@ -399,6 +399,29 @@ The `route_builder_v2_enabled` column is kept in the DB (and in
 `src/types/database.ts`, since it still exists) under the "wait and watch" policy
 — **do not add new readers/writers and do not drop it without explicit approval.**
 
+**Sharing and embeds (2026-11).** `routes.visibility` is
+`private | friends | public | unlisted` (migration 140). `unlisted` keeps
+`is_private = true`, so legacy readers that only check that flag treat it as
+private. `isSharedRoute` / `SHAREABLE_VISIBILITY` in `api/routes.js` decide
+what `get_public_route` serves (public or unlisted); use them rather than
+comparing strings. `/r/:id` is the share page and `/r/:id/embed` its
+chrome-less iframe variant (noindex). `api/oembed.js` answers oEmbed for those
+URLs (tribos hosts only). Embedding works because production sends no
+`X-Frame-Options` or `frame-ancestors`. If a security header is added, exempt
+`/r/*/embed` or embeds break.
+
+**POIs (`src/utils/routePOIService.js`).** Categories flagged `areas: true`
+(lodging, camping, groceries) query Overpass `nwr` with `out center`, so a
+hotel mapped as a building counts. Their ids are `way/123`-style, so they stay
+unique. Lodging and camping search 2 km off the route; others search
+`DEFAULT_CORRIDOR_KM` (0.5). Adding a category means updating the mirrored
+lists too: the `POILayer` union and `EMPTY_POIS` (`useRouteAnalysis.ts`),
+`POI_LAYERS` (`LayerToggles.tsx`) and the icon maps.
+
+**Street imagery** (`src/utils/mapillary.ts`,
+`layers/MapillaryLayer.tsx`) is hidden unless `VITE_MAPILLARY_TOKEN` (a
+public Mapillary client token) is set.
+
 ### The calendar is `calendar_entries` — one table, one surface (2026-08-29)
 
 `planned_workouts` is retired as the training calendar. **`grep -rn
