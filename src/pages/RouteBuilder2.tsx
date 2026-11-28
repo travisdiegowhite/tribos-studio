@@ -1559,15 +1559,29 @@ export default function RouteBuilder2() {
   // cached corridor ways. Not for runs (a cycling comfort scale).
   const { comfortLevel } = useRoadComfort();
   const comfort = useRouteComfort(isRun ? null : geometryForLayers, comfortLevel);
-  const handleComfortStretch = useCallback(
+  // Fit the map to a slice of the route (meters from the start).
+  const fitRouteSlice = useCallback(
     (start_m: number, end_m: number) => {
       const coords = geometryForLayers?.coordinates;
       if (!coords) return;
       const part = sliceLineByDistance(coords, start_m, end_m);
       if (part.length >= 2) map.fitBounds(part);
-      trackRb2('comfort_stretch_shown', { start_m: Math.round(start_m), length_m: Math.round(end_m - start_m) });
     },
     [geometryForLayers, map],
+  );
+  const handleComfortStretch = useCallback(
+    (start_m: number, end_m: number) => {
+      fitRouteSlice(start_m, end_m);
+      trackRb2('comfort_stretch_shown', { start_m: Math.round(start_m), length_m: Math.round(end_m - start_m) });
+    },
+    [fitRouteSlice],
+  );
+  const handleSelectClimb = useCallback(
+    (start_km: number, end_km: number) => {
+      fitRouteSlice(start_km * 1000, end_km * 1000);
+      trackRb2('climb_selected', { start_km, length_km: Math.round((end_km - start_km) * 10) / 10 });
+    },
+    [fitRouteSlice],
   );
 
   // Scale the attached workout's structure onto the current route (km-keyed
@@ -2185,6 +2199,7 @@ export default function RouteBuilder2() {
                       onHoverKm={setElevationHoverKm}
                       isImperial={isImperial}
                       cues={visibleCues}
+                      onSelectClimb={handleSelectClimb}
                     />
                   )}
                 </>
@@ -2385,6 +2400,7 @@ export default function RouteBuilder2() {
               onHoverKm={setElevationHoverKm}
               isImperial={isImperial}
               cues={visibleCues}
+              onSelectClimb={handleSelectClimb}
             />
           )}
           {hasRoute && !!routeCues?.length && (

@@ -32,6 +32,8 @@ import {
   niceTicks,
 } from './elevationGrade';
 import type { ElevationPoint } from '../../../hooks/route-builder';
+import { detectClimbs, climbLabel, type RouteClimb } from '../../../utils/climbs';
+import { MAP_PALETTE } from '../../../utils/mapPalette';
 
 export interface ElevationPanelProps {
   profile: ElevationPoint[] | null;
@@ -47,7 +49,12 @@ export interface ElevationPanelProps {
   isImperial?: boolean;
   /** Workout interval cues (km along route) to paint as colored bands. */
   cues?: WorkoutCue[] | null;
+  /** Picking a climb in the list (km along the route), e.g. to fit the map to it. */
+  onSelectClimb?: (start_km: number, end_km: number) => void;
 }
+
+/** Climbs listed under the chart before "and N more". */
+const MAX_LISTED_CLIMBS = 5;
 
 // Resolution-independent viewBox; the SVG scales to the card width via
 // width:100% + preserveAspectRatio="none". Strokes use
@@ -151,6 +158,7 @@ export function ElevationPanel({
   fillWidth = false,
   isImperial = false,
   cues = null,
+  onSelectClimb,
 }: ElevationPanelProps) {
   const svgRef = useRef<SVGSVGElement | null>(null);
   const [hoverIdx, setHoverIdx] = useState<number | null>(null);
@@ -158,6 +166,14 @@ export function ElevationPanel({
   const scales = useMemo(
     () => (profile && profile.length >= 2 ? buildScales(profile) : null),
     [profile],
+  );
+
+  // Climbs (climbs.ts): magenta bars over the chart and a short list below,
+  // biggest first; the same detection marks them on exported courses.
+  const climbs = useMemo<RouteClimb[]>(() => detectClimbs(profile), [profile]);
+  const listedClimbs = useMemo(
+    () => [...climbs].sort((a, b) => b.score - a.score).slice(0, MAX_LISTED_CLIMBS),
+    [climbs],
   );
 
   const segmentation = useMemo(
@@ -388,6 +404,26 @@ export function ElevationPanel({
               })}
             </g>
           )}
+          {climbs.length > 0 && (
+            <g data-testid="rb2-elevation-climb-bars">
+              {climbs.map((c, i) => {
+                const x1 = scales.toX(Math.max(0, Math.min(c.start_km, scales.totalKm)));
+                const x2 = scales.toX(Math.max(0, Math.min(c.end_km, scales.totalKm)));
+                if (x2 - x1 <= 0) return null;
+                return (
+                  <rect
+                    key={i}
+                    x={x1}
+                    y={0}
+                    width={x2 - x1}
+                    height={c.category ? 6 : 3}
+                    fill={MAP_PALETTE.route}
+                    stroke="none"
+                  />
+                );
+              })}
+            </g>
+          )}
           <path
             d={linePath}
             fill="none"
@@ -498,6 +534,48 @@ export function ElevationPanel({
           <Text component="span" style={AXIS_LABEL_STYLE}>
             {GRADE_RAMP_MAX_PCT}+
           </Text>
+        </Box>
+      )}
+
+      {listedClimbs.length > 0 && (
+        <Box data-testid="rb2-elevation-climbs" style={{ marginTop: 6, display: 'flex', flexDirection: 'column', gap: 2 }}>
+          {listedClimbs.map((c) => {
+            const label = `${climbLabel(c.category)} · ${distLabel(c.length_km, isImperial)} at ${c.avg_grade_pct.toFixed(1)}% · ↑ ${elevLabel(c.gain_m, isImperial)} · from ${distLabel(c.start_km, isImperial)}`;
+            return (
+              <Box
+                key={`${c.start_km}-${c.end_km}`}
+                component={onSelectClimb ? 'button' : 'div'}
+                type={onSelectClimb ? 'button' : undefined}
+                onClick={onSelectClimb ? () => onSelectClimb(c.start_km, c.end_km) : undefined}
+                onMouseEnter={() => onHoverKm?.(c.start_km)}
+                onMouseLeave={() => onHoverKm?.(null)}
+                style={{
+                  ...AXIS_LABEL_STYLE,
+                  fontSize: 11,
+                  color: RB2.textSecondary,
+                  textAlign: 'left',
+                  background: 'none',
+                  border: 0,
+                  padding: '1px 0',
+                  cursor: onSelectClimb ? 'pointer' : 'default',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 6,
+                }}
+              >
+                <span
+                  aria-hidden
+                  style={{ width: 8, height: 8, background: MAP_PALETTE.route, display: 'inline-block', flexShrink: 0 }}
+                />
+                {label}
+              </Box>
+            );
+          })}
+          {climbs.length > listedClimbs.length && (
+            <Text component="span" style={{ ...AXIS_LABEL_STYLE, fontSize: 10 }}>
+              and {climbs.length - listedClimbs.length} smaller
+            </Text>
+          )}
         </Box>
       )}
     </Box>

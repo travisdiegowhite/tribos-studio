@@ -117,3 +117,38 @@ describe('ElevationPanel', () => {
     expect(screen.queryByTestId('rb2-elevation-interval-bands')).toBeNull();
   });
 });
+
+describe('ElevationPanel climbs', () => {
+  // Flat 1 km, a 4 km climb at 6%, flat 1 km — sampled every 100 m.
+  const CAT3: ElevationPoint[] = Array.from({ length: 61 }, (_, i) => {
+    const km = i / 10;
+    const climbed = Math.min(Math.max(km - 1, 0), 4);
+    return { distance_km: km, elevation_m: 1600 + climbed * 60 };
+  });
+
+  it('lists each climb with its category and lets the rider pick one', () => {
+    const onSelectClimb = vi.fn();
+    render(
+      <MantineProvider>
+        <ElevationPanel profile={CAT3} onSelectClimb={onSelectClimb} />
+      </MantineProvider>,
+    );
+    expect(screen.getByTestId('rb2-elevation-climb-bars').querySelectorAll('rect')).toHaveLength(1);
+    const item = screen.getByRole('button', { name: /Cat 3/ });
+    fireEvent.click(item);
+    expect(onSelectClimb).toHaveBeenCalledTimes(1);
+    const [start_km, end_km] = onSelectClimb.mock.calls[0];
+    expect(start_km).toBeCloseTo(1, 0);
+    expect(end_km).toBeCloseTo(5, 0);
+  });
+
+  it('shows no climb list on a flat route', () => {
+    const flat: ElevationPoint[] = Array.from({ length: 30 }, (_, i) => ({ distance_km: i / 10, elevation_m: 1600 }));
+    render(
+      <MantineProvider>
+        <ElevationPanel profile={flat} />
+      </MantineProvider>,
+    );
+    expect(screen.queryByTestId('rb2-elevation-climbs')).toBeNull();
+  });
+});

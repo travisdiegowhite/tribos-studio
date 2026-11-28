@@ -13,10 +13,23 @@
 
 import { encodeFitCourse } from './fitCourseEncoder';
 import { cueShortLabel, cueToTcxPointType, isTurnCue, type RouteCue } from './routeCues';
+import {
+  climbCoursePointName,
+  climbNote,
+  climbTcxPointType,
+  detectClimbsFromCoordinates,
+  type RouteClimb,
+} from './climbs';
 
 // ============================================================
 // TYPES
 // ============================================================
+
+/** The route's climbs: given ones, else detected from elevation-filled coordinates. */
+export function climbsForExport(route: Pick<RouteData, 'climbs' | 'coordinates'>): RouteClimb[] {
+  if (Array.isArray(route.climbs)) return route.climbs;
+  return detectClimbsFromCoordinates(route.coordinates as ReadonlyArray<readonly number[]>);
+}
 
 export interface RouteCoordinate {
   lng: number;
@@ -39,6 +52,11 @@ export interface RouteData {
   waypoints?: RouteWaypoint[];
   /** Turn-by-turn cues from the routing provider; exported as TCX CoursePoint / FIT course_point. */
   cues?: RouteCue[] | null;
+  /**
+   * Climbs to mark as category course points on the head unit. Omit to detect
+   * them from elevation-filled coordinates; pass [] to export none.
+   */
+  climbs?: RouteClimb[] | null;
   distanceKm?: number;
   elevationGainM?: number;
   elevationLossM?: number;
@@ -330,6 +348,23 @@ export function generateTCX(route: RouteData, options: RouteExportOptions = { fo
       }
       lines.push('      </CoursePoint>');
     }
+  }
+
+  // Climb starts as category course points (4th … Hors Category), so the
+  // head unit announces each climb with its length and grade.
+  for (const climb of climbsForExport(route)) {
+    if (!climb.start_coordinate) continue;
+    const [lng, lat] = climb.start_coordinate;
+    lines.push('      <CoursePoint>');
+    lines.push(`        <Name>${escapeXml(climbCoursePointName(climb, 10))}</Name>`);
+    lines.push(`        <Time>${now}</Time>`);
+    lines.push('        <Position>');
+    lines.push(`          <LatitudeDegrees>${formatCoordinate(lat)}</LatitudeDegrees>`);
+    lines.push(`          <LongitudeDegrees>${formatCoordinate(lng)}</LongitudeDegrees>`);
+    lines.push('        </Position>');
+    lines.push(`        <PointType>${climbTcxPointType(climb.category)}</PointType>`);
+    lines.push(`        <Notes>${escapeXml(climbNote(climb))}</Notes>`);
+    lines.push('      </CoursePoint>');
   }
 
   lines.push('    </Course>');
