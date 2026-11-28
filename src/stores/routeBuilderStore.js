@@ -59,6 +59,10 @@ const initialState = {
   // go through setRoute, don't wipe it. Cleared with the route.
   routeOrigin: null,
 
+  // "Avoid" toggles (src/utils/routeAvoid.ts): rider settings, like comfort,
+  // so they survive clearing the route. Every router reads them.
+  routeAvoid: { unpaved: false, mainRoads: false },
+
   // Map viewport
   viewport: {
     latitude: 37.7749,
@@ -269,6 +273,14 @@ export const useRouteBuilderStore = create(
       // === Snap to Roads ===
       setSnapToRoads: (snap) => set({ snapToRoads: snap }),
 
+      // === Avoid toggles ===
+      setRouteAvoid: (partial) => set((state) => ({
+        routeAvoid: {
+          unpaved: !!(partial?.unpaved ?? state.routeAvoid?.unpaved),
+          mainRoads: !!(partial?.mainRoads ?? state.routeAvoid?.mainRoads),
+        },
+      })),
+
       // === Route Origin ===
       setRouteOrigin: (origin) => set({ routeOrigin: origin === 'ai' ? 'ai' : null }),
 
@@ -385,6 +397,7 @@ export const useRouteBuilderStore = create(
         snapToRoads: state.snapToRoads,
         routingSource: state.routingSource,
         routeOrigin: state.routeOrigin,
+        routeAvoid: state.routeAvoid,
         builderMode: state.builderMode,
         lastSaved: state.lastSaved,
       }),

@@ -362,6 +362,7 @@ export function useGenerateForm({
       // Road comfort is a cycling preference (traffic stress on a bike).
       traffic_tolerance: isRun ? undefined : roadComfort,
       comfort_level: isRun ? undefined : comfortLevel,
+      avoid: isRun ? undefined : (useRouteBuilderStore.getState().routeAvoid ?? undefined),
     });
   }, [
     generation,

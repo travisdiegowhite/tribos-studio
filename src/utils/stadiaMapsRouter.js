@@ -18,6 +18,7 @@ import {
   stadiaProxyUrl,
   announceRoutingRateLimited,
 } from './routingProxy';
+import { avoidOptionsOf } from './routeAvoid';
 
 const STADIA_MAPS_API_URL = 'https://api.stadiamaps.com/route/v1';
 
@@ -201,7 +202,7 @@ const VALHALLA_OVERRIDE_KEYS = [
  * training goal, the rider's traffic tolerance, legacy preferences, explicit
  * overrides and the elevation-target override, in that order.
  */
-function buildBicycleCosting(profile, { preferences, trainingGoal, userSpeed, useHills }) {
+export function buildBicycleCosting(profile, { preferences, trainingGoal, userSpeed, useHills }) {
   // Get base costing options for profile
   const costing_options = {
     bicycle: { ...ROUTE_PROFILE_COSTING[profile] || ROUTE_PROFILE_COSTING.road }
@@ -287,6 +288,18 @@ function buildBicycleCosting(profile, { preferences, trainingGoal, userSpeed, us
     if (preferences.avoidHills) {
       costing_options.bicycle.use_hills = 0.1;
     }
+  }
+
+  // The rider's avoid toggles (Route Builder 2 "Avoid"): unpaved surfaces and
+  // main roads. Explicit asks, so they win over profile/goal/tolerance; the
+  // snake_case overrides below still win over them.
+  const avoid = avoidOptionsOf(preferences);
+  if (avoid.unpaved) {
+    costing_options.bicycle.avoid_bad_surfaces = 1;
+  }
+  if (avoid.mainRoads) {
+    costing_options.bicycle.use_roads = Math.min(costing_options.bicycle.use_roads ?? 0.3, 0.05);
+    costing_options.bicycle.use_living_streets = Math.max(costing_options.bicycle.use_living_streets || 0, 0.8);
   }
 
   // Explicit Valhalla costing overrides passed as snake_case keys on

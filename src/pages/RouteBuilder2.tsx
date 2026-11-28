@@ -100,6 +100,7 @@ import { useHasRideHistory } from '../hooks/route-builder/useHasRideHistory';
 import { useRouteComfort } from '../hooks/route-builder/useRouteComfort';
 import { useRoadComfort } from '../hooks/route-builder/useRoadComfort';
 import { ComfortStrip } from '../components/comfort/ComfortStrip';
+import { AvoidToggles } from '../features/route-builder-v2/components/AvoidToggles';
 import { sliceLineByDistance } from '../utils/lineSlice';
 import { consumeSignupFromRoute } from '../features/route-builder-v2/telemetry/signupFromRoute';
 import { GradientLayer } from '../features/route-builder-v2/layers/GradientLayer';
@@ -901,16 +902,18 @@ export default function RouteBuilder2() {
   // first run": StrictMode runs mount effects twice, and the second run used
   // to re-route every loaded route (a landing loop, a saved route) through the
   // waypoints, replacing the line the rider chose.
-  const settingsSeenRef = useRef<{ snap: unknown; profile: unknown } | null>(null);
+  const routeAvoid = useRouteBuilderStore((s) => s.routeAvoid as { unpaved: boolean; mainRoads: boolean } | undefined);
+  const avoidKey = `${routeAvoid?.unpaved ? 1 : 0}${routeAvoid?.mainRoads ? 1 : 0}`;
+  const settingsSeenRef = useRef<{ snap: unknown; profile: unknown; avoid: string } | null>(null);
   useEffect(() => {
     const seen = settingsSeenRef.current;
-    settingsSeenRef.current = { snap: snapToRoads, profile: routeProfile };
-    if (!seen || (seen.snap === snapToRoads && seen.profile === routeProfile)) return;
+    settingsSeenRef.current = { snap: snapToRoads, profile: routeProfile, avoid: avoidKey };
+    if (!seen || (seen.snap === snapToRoads && seen.profile === routeProfile && seen.avoid === avoidKey)) return;
     if (Array.isArray(waypoints) && waypoints.length >= 2) {
       void map.rebuildRoute();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [snapToRoads, routeProfile]);
+  }, [snapToRoads, routeProfile, avoidKey]);
 
   const hasRouteForChat =
     !!routeGeometry?.coordinates && routeGeometry.coordinates.length > 0;
@@ -1781,7 +1784,14 @@ export default function RouteBuilder2() {
   }, [routeTarget, isMobile, handleChatSubmit]);
 
   // Reusable v1 widgets surfaced in RB2 (after personalizedEta is computed).
-  const roadPrefsNode = <RoadPreferencesCard />;
+  const roadPrefsNode = (
+    <>
+      <Box style={{ marginBottom: 12 }}>
+        <AvoidToggles />
+      </Box>
+      <RoadPreferencesCard />
+    </>
+  );
   const raceDayGuideNode = raceType ? (
     <RaceDayGuide
       routeStats={routeStats}

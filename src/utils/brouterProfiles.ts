@@ -33,6 +33,8 @@ export interface TribosParams {
   comfort_level: ComfortLevel;
   /** Share of the ride wanted unpaved, 0–1; gravel template only. */
   gravel_target?: number;
+  /** The rider's "Avoid main roads" toggle: the profile's avoid_unsafe switch. */
+  avoid_unsafe?: boolean;
 }
 
 export const TEMPLATES: Record<TribosTemplate, string> = {
@@ -62,6 +64,7 @@ export function tribosParamsFor(input: {
   comfortLevel?: number | null;
   trafficTolerance?: TrafficTolerance | null;
   gravelTargetPct?: number | null;
+  avoidMainRoads?: boolean | null;
 }): TribosParams {
   const gravel = input.surface === 'gravel' || input.surface === 'mixed' || input.surface === 'mountain' || input.surface === 'mtb';
   const level =
@@ -78,13 +81,17 @@ export function tribosParamsFor(input: {
     const pct = typeof input.gravelTargetPct === 'number' && Number.isFinite(input.gravelTargetPct) ? input.gravelTargetPct : 50;
     params.gravel_target = Math.round(Math.max(0, Math.min(100, pct))) / 100;
   }
+  // Only set when on, so the rendered text (and the upload cache key) for
+  // riders who never touch the toggle stays exactly as before.
+  if (input.avoidMainRoads) params.avoid_unsafe = true;
   return params;
 }
 
 /** The profile text for these params. */
 export function renderTribosProfile(params: TribosParams): string {
-  const values: Record<string, number> = { comfort_level: params.comfort_level };
+  const values: Record<string, number | boolean> = { comfort_level: params.comfort_level };
   if (params.template === 'gravel') values.gravel_target = params.gravel_target ?? 0.5;
+  if (params.avoid_unsafe) values.avoid_unsafe = true;
   return renderProfile(TEMPLATES[params.template], values);
 }
 

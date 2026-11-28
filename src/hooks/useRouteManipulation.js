@@ -30,6 +30,7 @@ export const useRouteManipulation = ({
   // same traffic costing as generation instead of profile defaults.
   const trafficTolerance = useRouteBuilderStore((s) => s.trafficTolerance);
   const comfortLevel = useRouteBuilderStore((s) => s.comfortLevel);
+  const routeAvoid = useRouteBuilderStore((s) => s.routeAvoid);
 
   // History for undo/redo
   // Refs hold the actual data (no re-render on change), state drives UI reactivity
@@ -301,7 +302,8 @@ export const useRouteManipulation = ({
             ? {
                 trafficTolerance,
                 comfortLevel: comfortLevel ?? null,
-                routingPreferences: { trafficTolerance, comfortLevel: comfortLevel ?? null },
+                avoid: routeAvoid ?? null,
+                routingPreferences: { trafficTolerance, comfortLevel: comfortLevel ?? null, avoid: routeAvoid ?? null },
               }
             : null,
           mapboxToken: mapboxToken,
@@ -435,7 +437,7 @@ export const useRouteManipulation = ({
       }
       return null;
     }
-  }, [waypoints, routingProfile, trafficTolerance, comfortLevel, useSmartRouting, setRouteGeometry, setRouteStats, setElevationProfile, setRouteCues]);
+  }, [waypoints, routingProfile, trafficTolerance, comfortLevel, routeAvoid, useSmartRouting, setRouteGeometry, setRouteStats, setElevationProfile, setRouteCues]);
 
   // === Build Freehand Route (straight lines between waypoints) ===
   // The freehand counterpart to snapToRoads: no routing engine, just direct
