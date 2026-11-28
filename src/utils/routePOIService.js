@@ -2,7 +2,10 @@
  * Route POI Service
  *
  * Queries OpenStreetMap Overpass API for points of interest along a route corridor.
- * Supports water, coffee, food, bike shops, viewpoints, and restrooms.
+ * Supports water, coffee, food, groceries, lodging, camping, bike repair
+ * stations, bike shops, viewpoints and restrooms. Categories that are often
+ * mapped as buildings or areas (`areas: true`) query nodes, ways and relations
+ * and use each one's centre.
  * Uses the same multi-server fallback and caching patterns as bikeInfrastructureService.
  */
 
@@ -22,6 +25,8 @@ const CACHE_TTL = 30 * 60 * 1000; // 30 minutes
 // Rate limiting
 let lastRequestTime = 0;
 const MIN_REQUEST_INTERVAL = 1500; // 1.5s between requests
+
+const DEFAULT_CORRIDOR_KM = 0.5;
 
 // ── POI Categories ──────────────────────────────────────────────────
 //
@@ -58,6 +63,59 @@ export const POI_CATEGORIES = {
       'node[cuisine=coffee_shop]',
     ],
     matches: isCoffee,
+  },
+  groceries: {
+    id: 'groceries',
+    label: 'Groceries',
+    icon: 'cart',         // ShoppingCart
+    color: '#006DA8',     // easy (text shade)
+    areas: true,
+    overpassTags: [
+      'nwr[shop=supermarket]',
+      'nwr[shop=convenience]',
+      'nwr[shop=general]',
+    ],
+    matches: (tags) => ['supermarket', 'convenience', 'general'].includes(tags.shop),
+  },
+  lodging: {
+    id: 'lodging',
+    label: 'Lodging',
+    icon: 'bed',          // Bed
+    color: '#2B2BFF',     // accent
+    areas: true,
+    corridorKm: 2,
+    overpassTags: [
+      'nwr[tourism=hotel]',
+      'nwr[tourism=motel]',
+      'nwr[tourism=guest_house]',
+      'nwr[tourism=hostel]',
+      'nwr[tourism=alpine_hut]',
+    ],
+    matches: (tags) => ['hotel', 'motel', 'guest_house', 'hostel', 'alpine_hut'].includes(tags.tourism),
+  },
+  camping: {
+    id: 'camping',
+    label: 'Camping',
+    icon: 'tent',         // Tent
+    color: '#0A0A14',     // ink
+    areas: true,
+    corridorKm: 2,
+    overpassTags: [
+      'nwr[tourism=camp_site]',
+      'nwr[amenity=shelter]',
+    ],
+    matches: (tags) => tags.tourism === 'camp_site' || tags.amenity === 'shelter',
+  },
+  repair_station: {
+    id: 'repair_station',
+    label: 'Repair station',
+    icon: 'toolbox',      // Toolbox
+    color: '#0A0A14',     // ink
+    overpassTags: [
+      'node[amenity=bicycle_repair_station]',
+    ],
+    // Ahead of bike_shop, so a repair station is shown as one when both are on.
+    matches: (tags) => tags.amenity === 'bicycle_repair_station',
   },
   food: {
     id: 'food',
@@ -210,13 +268,15 @@ export function buildPOIQuery(bbox, categories) {
   const tagQueries = categories.flatMap(cat =>
     POI_CATEGORIES[cat]?.overpassTags || []
   );
+  // Ways and relations (hotels and campsites mapped as areas) need a centre.
+  const needsCenter = categories.some((cat) => POI_CATEGORIES[cat]?.areas);
 
   return `
 [out:json][timeout:20][bbox:${bboxStr}];
 (
   ${tagQueries.map(t => `${t};`).join('\n  ')}
 );
-out body;
+${needsCenter ? 'out center;' : 'out body;'}
 `;
 }
 
@@ -279,46 +339,54 @@ export function classifyPOI(tags, categories = Object.keys(POI_CATEGORIES)) {
 export async function queryPOIsAlongRoute(
   coordinates,
   categories = Object.keys(POI_CATEGORIES),
-  corridorKm = 0.5,
+  corridorKm = null,
 ) {
   if (!coordinates || coordinates.length < 2) return [];
+  // Each category's own corridor (lodging and camping look further afield);
+  // an explicit corridorKm applies to all of them.
+  const corridorFor = (cat) => corridorKm ?? POI_CATEGORIES[cat]?.corridorKm ?? DEFAULT_CORRIDOR_KM;
+  const searchKm = Math.max(...categories.map(corridorFor), corridorKm ?? DEFAULT_CORRIDOR_KM);
 
   // Check cache
-  const hash = routeHash(coordinates) + '_' + [...categories].sort().join(',');
+  const hash = routeHash(coordinates) + '_' + [...categories].sort().join(',') + '_' + searchKm;
   const cached = poiCache.get(hash);
   if (cached && Date.now() - cached.timestamp < CACHE_TTL) {
     return cached.pois;
   }
 
-  const bbox = routeBoundingBox(coordinates, corridorKm);
+  const bbox = routeBoundingBox(coordinates, searchKm);
   const query = buildPOIQuery(bbox, categories);
 
-  console.log(`📍 Querying POIs along route (${categories.length} categories, ${corridorKm}km corridor)…`);
+  console.log(`📍 Querying POIs along route (${categories.length} categories, ${searchKm}km corridor)…`);
 
   const data = await fetchFromOverpass(query);
   const cumDists = cumulativeDistances(coordinates);
 
   const pois = (data.elements || [])
-    .filter(el => el.lat != null && el.lon != null && el.tags)
     .map(el => {
+      // Nodes carry lat/lon; ways and relations carry a centre (out center).
+      const lat = el.lat ?? el.center?.lat;
+      const lon = el.lon ?? el.center?.lon;
+      if (lat == null || lon == null || !el.tags) return null;
       const category = classifyPOI(el.tags, categories);
       if (!category) return null;
 
       const { routeDistanceKm, offRouteDistanceM } = distanceAlongRoute(
-        { lat: el.lat, lon: el.lon },
+        { lat, lon },
         coordinates,
         cumDists,
       );
 
-      // Skip POIs that are too far off the route
-      if (offRouteDistanceM > corridorKm * 1000) return null;
+      // Skip POIs that are too far off the route for their category
+      if (offRouteDistanceM > corridorFor(category) * 1000) return null;
 
       return {
-        id: el.id,
+        // Node, way and relation ids can collide; keep them apart.
+        id: el.type && el.type !== 'node' ? `${el.type}/${el.id}` : el.id,
         category,
         name: el.tags.name || POI_CATEGORIES[category].label,
-        lat: el.lat,
-        lon: el.lon,
+        lat,
+        lon,
         routeDistanceKm: Math.round(routeDistanceKm * 10) / 10,
         offRouteDistanceM,
         openingHours: el.tags.opening_hours || null,

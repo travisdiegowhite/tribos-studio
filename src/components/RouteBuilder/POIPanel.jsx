@@ -6,7 +6,7 @@
 import { Box, Text, Badge, Group, Stack, ActionIcon, Chip, Tooltip, Loader, Divider } from '@mantine/core';
 import { tokens } from '../../theme';
 import { POI_CATEGORIES } from '../../utils/routePOIService';
-import { ArrowSquareOut, Coffee, Door, Drop, Eye, Wrench, X } from '@phosphor-icons/react';
+import { ArrowSquareOut, Coffee, Door, Drop, Eye, Wrench, Bed, Tent, ShoppingCart, Toolbox, X } from '@phosphor-icons/react';
 
 const ICON_MAP = {
   water: Drop,
@@ -15,6 +15,10 @@ const ICON_MAP = {
   bike_shop: Wrench,
   viewpoint: Eye,
   restroom: Door,
+  groceries: ShoppingCart,
+  lodging: Bed,
+  camping: Tent,
+  repair_station: Toolbox,
 };
 
 /**

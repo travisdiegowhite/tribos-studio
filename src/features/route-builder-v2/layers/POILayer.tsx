@@ -23,6 +23,7 @@ import type {
   POILayer as POILayerId,
   POIResult,
 } from '../../../hooks/route-builder';
+import { POI_CATEGORIES } from '../../../utils/routePOIService';
 
 export interface POILayerProps {
   poiResults: Record<POILayerId, POIResult | null>;
@@ -37,6 +38,20 @@ interface PoiFeature {
   lon?: number;
   lat?: number;
   name?: string;
+  openingHours?: string | null;
+  website?: string | null;
+}
+
+/** Only http(s) links are shown (the website tag is free text from OSM). */
+function safeWebsite(url: string | null | undefined): string | null {
+  if (!url) return null;
+  const withScheme = /^https?:\/\//i.test(url) ? url : `https://${url}`;
+  try {
+    const u = new URL(withScheme);
+    return u.protocol === 'http:' || u.protocol === 'https:' ? u.toString() : null;
+  } catch {
+    return null;
+  }
 }
 
 export function POILayer({ poiResults, activeLayers, onAddWaypoint }: POILayerProps) {
@@ -93,7 +108,23 @@ export function POILayer({ poiResults, activeLayers, onAddWaypoint }: POILayerPr
                   marginBottom: 8,
                 }}
               >
-                {selected.category}
+                {POI_CATEGORIES[selected.category as keyof typeof POI_CATEGORIES]?.label ?? selected.category}
+              </Text>
+            )}
+            {selected.openingHours && (
+              <Text style={{ fontFamily: RB2_FONT.body, fontSize: 11, color: RB2.textSecondary, marginBottom: 4 }}>
+                {selected.openingHours}
+              </Text>
+            )}
+            {safeWebsite(selected.website) && (
+              <Text
+                component="a"
+                href={safeWebsite(selected.website) as string}
+                target="_blank"
+                rel="noopener noreferrer"
+                style={{ display: 'block', fontFamily: RB2_FONT.body, fontSize: 11, color: RB2.textPrimary, textDecoration: 'underline', marginBottom: 8 }}
+              >
+                Website
               </Text>
             )}
             {onAddWaypoint && (

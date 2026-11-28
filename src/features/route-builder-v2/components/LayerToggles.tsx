@@ -57,6 +57,10 @@ const POI_LAYERS: Array<{ id: POILayer; label: string }> = [
   { id: 'coffee', label: 'Coffee' },
   { id: 'water', label: 'Water' },
   { id: 'food', label: 'Food' },
+  { id: 'groceries', label: 'Groceries' },
+  { id: 'lodging', label: 'Lodging' },
+  { id: 'camping', label: 'Camping' },
+  { id: 'repair_station', label: 'Repair station' },
   { id: 'bike_shop', label: 'Bike Shop' },
   { id: 'restroom', label: 'Restroom' },
   { id: 'viewpoint', label: 'Viewpoint' },
@@ -82,7 +86,9 @@ export function LayerToggles({
   sport = 'cycling',
 }: LayerTogglesProps) {
   const isRun = sport === 'running';
-  const poiLayers = isRun ? POI_LAYERS.filter((p) => p.id !== 'bike_shop') : POI_LAYERS;
+  const poiLayers = isRun
+    ? POI_LAYERS.filter((p) => p.id !== 'bike_shop' && p.id !== 'repair_station')
+    : POI_LAYERS;
   const [expanded, setExpanded] = useState(defaultExpanded ?? !isMobile);
 
   const toggle = useCallback(
